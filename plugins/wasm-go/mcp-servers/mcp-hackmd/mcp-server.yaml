@@ -1,0 +1,395 @@
+server:
+  name: hackmd
+tools:
+  - name: delete_notes_noteId
+    description: Delete a note
+    args:
+      - name: noteId
+        description: "Unique identifier of the note to be deleted"
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: /notes/{noteId}
+      method: DELETE
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: delete_teams_teamPath_notes_noteId
+    description: Delete a note from a team
+    args:
+      - name: noteId
+        description: "Unique identifier of the note to be deleted from the team"
+        type: string
+        required: true
+        position: path
+      - name: teamPath
+        description: "Path identifier of the team containing the note"
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: /teams/{teamPath}/notes/{noteId}
+      method: DELETE
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: get_history
+    description: Get user's browse history
+    args: []
+    requestTemplate:
+      url: /history
+      method: GET
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: get_me
+    description: Get user data - GET user data
+    args: []
+    requestTemplate:
+      url: /me
+      method: GET
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: get_notes
+    description: Get user's note list
+    args: []
+    requestTemplate:
+      url: /notes
+      method: GET
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: get_notes_noteId
+    description: Get a note by noteId
+    args:
+      - name: noteId
+        description: "Unique identifier of the note to retrieve"
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: /notes/{noteId}
+      method: GET
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: get_teams
+    description: GET a list of team user participating in
+    args: []
+    requestTemplate:
+      url: /teams
+      method: GET
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: get_teams_teamPath_notes
+    description: Get a list of notes in a team
+    args:
+      - name: teamPath
+        description: "Path identifier of the team to retrieve notes from"
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: /teams/{teamPath}/notes
+      method: GET
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: patch_notes_noteId
+    description: Update a note's content
+    args:
+      - name: content
+        description: "New content to update the note with"
+        type: string
+        required: true
+        position: body
+      - name: noteId
+        description: "Unique identifier of the note to update"
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: /notes/{noteId}
+      method: PATCH
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: patch_teams_teamPath_notes_noteId
+    description: Update a note's content in a team
+    args:
+      - name: content
+        description: "New content to update the team note with"
+        type: string
+        required: true
+        position: body
+      - name: noteId
+        description: "Unique identifier of the note to update"
+        type: string
+        required: true
+        position: path
+      - name: teamPath
+        description: "Path identifier of the team containing the note"
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: /teams/{teamPath}/notes/{noteId}
+      method: PATCH
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: post_notes
+    description: Create a new note
+    args:
+      - name: commentPermission
+        description: "Permission level for comments on the note"
+        type: string
+        required: true
+        position: body
+      - name: content
+        description: "Markdown content of the new note"
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: /notes
+      method: POST
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: post_teams_teamPath_notes
+    description: Create a note under a team
+    args:
+      - name: commentPermission
+        description: "Permission level for comments on the note"
+        type: string
+        required: true
+        position: body
+      - name: content
+        description: "Markdown content of the new team note"
+        type: string
+        required: true
+        position: body
+      - name: permission
+        description: "Access permission level for the note"
+        type: string
+        required: true
+        position: body
+      - name: teamPath
+        description: "Path identifier of the team to create the note under"
+        type: string
+        required: true
+        position: path
+      - name: title
+        description: "Title of the new team note"
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: /teams/{teamPath}/notes
+      method: POST
+      headers:
+        - key: Authorization
+          value: "Bearer {{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
