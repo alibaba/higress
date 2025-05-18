@@ -16,7 +16,6 @@ package tests
 
 import (
 	"testing"
-	"time"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
@@ -32,19 +31,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 	Manifests:   []string{"tests/ext_auth.yaml", "tests/ext_auth_plugin.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		// Increase timeout and add delay
-		originalTimeout := suite.TimeoutConfig
-		increasedTimeout := suite.TimeoutConfig
-		increasedTimeout.RequestTimeout = 30 * time.Second
-		suite.TimeoutConfig = increasedTimeout
-		
-		t.Log("Waiting for services to be ready...")
-		time.Sleep(30 * time.Second)
-		
-		// Print gateway address for debugging
-		t.Logf("Gateway address: %s", suite.GatewayAddress)
-		
-		// Use "localhost" for all test cases - simple approach based on logs
 		testcases := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
@@ -127,26 +113,10 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 				},
 			},
 		}
-		
-		// Run tests one by one
 		t.Run("WasmPlugins ext-auth", func(t *testing.T) {
-			// Start with the allowed path test to verify basic connectivity
-			t.Log("Testing basic connectivity (case 2)...")
-			http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcases[1])
-			
-			// If we get here, run the remaining tests
-			for i, testcase := range testcases {
-				// Skip case 2 since we already ran it
-				if i == 1 {
-					continue
-				}
-				t.Logf("Running test case %d: %s", i+1, testcase.Meta.TestCaseName)
+			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
-				time.Sleep(1 * time.Second)
 			}
 		})
-		
-		// Restore original timeout
-		suite.TimeoutConfig = originalTimeout
 	},
 }
