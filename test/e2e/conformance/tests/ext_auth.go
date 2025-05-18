@@ -16,6 +16,7 @@ package tests
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
@@ -31,26 +32,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 	Manifests:   []string{"tests/ext_auth.yaml", "tests/ext_auth_plugin.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		testcases := []http.Assertion{
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 1: Blacklist mode - blocked path",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "localhost",
-						Path:             "/blocked-path",
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 403,
-					},
-				},
-			},
+		// First test the allowed paths to verify basic connectivity
+		allowedPathTests := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "case 2: Blacklist mode - allowed path",
@@ -90,6 +73,22 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
+		}
+		
+		// Add a small delay to let services fully initialize
+		time.Sleep(10 * time.Second)
+		
+		// Run allowed path tests first
+		t.Run("WasmPlugins ext-auth allowed paths", func(t *testing.T) {
+			for _, testcase := range allowedPathTests {
+				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+				// Add a small delay between tests
+				time.Sleep(2 * time.Second)
+			}
+		})
+		
+		// Now test the blocked paths
+		blockedPathTests := []http.Assertion{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "case 4: Method-specific rules - POST blocked",
@@ -112,10 +111,33 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 1: Blacklist mode - blocked path",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:             "localhost",
+						Path:             "/blocked-path",
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 403,
+					},
+				},
+			},
 		}
-		t.Run("WasmPlugins ext-auth", func(t *testing.T) {
-			for _, testcase := range testcases {
+		
+		// Run blocked path tests after allowed path tests succeed
+		t.Run("WasmPlugins ext-auth blocked paths", func(t *testing.T) {
+			for _, testcase := range blockedPathTests {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
+				// Add a small delay between tests
+				time.Sleep(2 * time.Second)
 			}
 		})
 	},

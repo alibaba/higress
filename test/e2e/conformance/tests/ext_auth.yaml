@@ -17,10 +17,6 @@ kind: Ingress
 metadata:
   annotations:
     higress.io/ignore-path-case: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    higress.io/backend-protocol: "HTTP"
-    higress.io/default-host-for-path-network: "true"
   name: wasmplugin-ext-auth
   namespace: higress-conformance-infra
 spec:
@@ -59,6 +55,24 @@ spec:
         image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-server:latest
         ports:
         - containerPort: 8000
+        # Add health check and readiness probe
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        env:
+        - name: LOG_LEVEL
+          value: "debug"
+        # Add resource limits
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
 ---
 apiVersion: v1
 kind: Service

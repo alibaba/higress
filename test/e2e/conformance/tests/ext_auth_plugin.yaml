@@ -28,11 +28,13 @@ spec:
     - method: POST
       paths:
       - /api
-    # Set a reasonable timeout
+    # Add these settings to improve reliability
     timeout: 5s
+    failure_mode_allow: false # Ensures auth failures deny access
+    status_on_error: 403 # Set specific status code on error
+    headers_to_upstream: ["X-Auth-Status"] # Pass auth status header
   matchRules:
   - ingress:
     - higress-conformance-infra/wasmplugin-ext-auth
-  # Explicitly set the authentication phase
   phase: AUTHN
   priority: 100
