@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,10 +15,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations:
-    higress.io/ignore-path-case: "true"
   name: wasmplugin-ext-auth
   namespace: higress-conformance-infra
+  annotations:
+    higress.io/ignore-path-case: "true"
 spec:
   ingressClassName: higress
   rules:
@@ -38,8 +38,6 @@ kind: Deployment
 metadata:
   name: ext-auth-server
   namespace: higress-conformance-infra
-  labels:
-    app: ext-auth-server
 spec:
   replicas: 1
   selector:
@@ -51,28 +49,26 @@ spec:
         app: ext-auth-server
     spec:
       containers:
-      - name: ext-auth-server
-        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-server:latest
-        ports:
-        - containerPort: 8000
-        # Add health check and readiness probe
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        env:
-        - name: LOG_LEVEL
-          value: "debug"
-        # Add resource limits
-        resources:
-          limits:
-            cpu: 200m
-            memory: 256Mi
-          requests:
-            cpu: 100m
-            memory: 128Mi
+        - name: ext-auth-server
+          image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-server:latest
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          env:
+            - name: LOG_LEVEL
+              value: "debug"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
 ---
 apiVersion: v1
 kind: Service
@@ -80,8 +76,8 @@ metadata:
   name: ext-auth-server
   namespace: higress-conformance-infra
 spec:
-  ports:
-  - port: 8000
-    targetPort: 8000
   selector:
     app: ext-auth-server
+  ports:
+    - port: 8000
+      targetPort: 8000

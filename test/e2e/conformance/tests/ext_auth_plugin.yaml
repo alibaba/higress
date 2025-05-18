@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,23 +18,23 @@ metadata:
   name: ext-auth
   namespace: higress-system
 spec:
+  phase: AUTHN
+  priority: 100
+  matchRules:
+    - ingress:
+        - higress-conformance-infra/wasmplugin-ext-auth
   defaultConfig:
     endpoint_mode: forward_auth
     endpoint: http://ext-auth-server.higress-conformance-infra.svc.cluster.local:8000
     mode: blacklist
     paths:
-    - /blocked-path
+      - /blocked-path
     method_blacklist:
-    - method: POST
-      paths:
-      - /api
-    # Add these settings to improve reliability
+      - method: POST
+        paths:
+          - /api
     timeout: 5s
-    failure_mode_allow: false # Ensures auth failures deny access
-    status_on_error: 403 # Set specific status code on error
-    headers_to_upstream: ["X-Auth-Status"] # Pass auth status header
-  matchRules:
-  - ingress:
-    - higress-conformance-infra/wasmplugin-ext-auth
-  phase: AUTHN
-  priority: 100
+    failure_mode_allow: false
+    status_on_error: 403
+    headers_to_upstream:
+      - X-Auth-Status

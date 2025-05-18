@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,130 +15,136 @@
 package tests
 
 import (
-	"testing"
-	"time"
+    "testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+    "github.com/alibaba/higress/test/e2e/conformance/utils/http"
+    "github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
 
 func init() {
-	Register(WasmPluginsExtAuth)
+    Register(WasmPluginsExtAuth)
 }
 
 var WasmPluginsExtAuth = suite.ConformanceTest{
-	ShortName:   "WasmPluginsExtAuth",
-	Description: "The Ingress in the higress-conformance-infra namespace test the ext-auth wasmplugin.",
-	Manifests:   []string{"tests/ext_auth.yaml", "tests/ext_auth_plugin.yaml"},
-	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
-	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		// First test the allowed paths to verify basic connectivity
-		allowedPathTests := []http.Assertion{
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 2: Blacklist mode - allowed path",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "localhost",
-						Path:             "/allowed-path",
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 3: Method-specific rules - GET allowed",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "localhost",
-						Path:             "/api",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-					},
-				},
-			},
-		}
-		
-		// Add a small delay to let services fully initialize
-		time.Sleep(10 * time.Second)
-		
-		// Run allowed path tests first
-		t.Run("WasmPlugins ext-auth allowed paths", func(t *testing.T) {
-			for _, testcase := range allowedPathTests {
-				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
-				// Add a small delay between tests
-				time.Sleep(2 * time.Second)
-			}
-		})
-		
-		// Now test the blocked paths
-		blockedPathTests := []http.Assertion{
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 4: Method-specific rules - POST blocked",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "localhost",
-						Path:             "/api",
-						Method:           "POST",
-						ContentType:      http.ContentTypeTextPlain,
-						Body:             []byte(`test body`),
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 403,
-					},
-				},
-			},
-			{
-				Meta: http.AssertionMeta{
-					TestCaseName:    "case 1: Blacklist mode - blocked path",
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "localhost",
-						Path:             "/blocked-path",
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 403,
-					},
-				},
-			},
-		}
-		
-		// Run blocked path tests after allowed path tests succeed
-		t.Run("WasmPlugins ext-auth blocked paths", func(t *testing.T) {
-			for _, testcase := range blockedPathTests {
-				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
-				// Add a small delay between tests
-				time.Sleep(2 * time.Second)
-			}
-		})
-	},
+    ShortName:   "WasmPluginsExtAuth",
+    Description: "Verify ext-auth WasmPlugin in blacklist mode with header propagation",
+    Manifests:   []string{"tests/ext_auth.yaml", "tests/ext_auth_plugin.yaml"},
+    Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
+    Test: func(t *testing.T, s *suite.ConformanceTestSuite) {
+        cases := []struct {
+            name      string
+            assertion http.Assertion
+        }{
+            {
+                name: "blacklist-allowed-root",
+                assertion: http.Assertion{
+                    Meta: http.AssertionMeta{
+                        TestCaseName:    "root path allowed",
+                        TargetBackend:   "infra-backend-v1",
+                        TargetNamespace: "higress-conformance-infra",
+                    },
+                    Request: http.AssertionRequest{
+                        ActualRequest: http.Request{
+                            Host: "localhost",
+                            Path: "/allowed-path",
+                        },
+                    },
+                    Response: http.AssertionResponse{
+                        ExpectedResponse: http.Response{
+                            StatusCode: 200,
+                            Headers: map[string]string{
+                                "X-Auth-Status": "OK",
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                name: "method-get-allowed",
+                assertion: http.Assertion{
+                    Meta: http.AssertionMeta{
+                        TestCaseName:    "GET /api allowed",
+                        TargetBackend:   "infra-backend-v1",
+                        TargetNamespace: "higress-conformance-infra",
+                    },
+                    Request: http.AssertionRequest{
+                        ActualRequest: http.Request{
+                            Host:   "localhost",
+                            Path:   "/api",
+                            Method: "GET",
+                        },
+                    },
+                    Response: http.AssertionResponse{
+                        ExpectedResponse: http.Response{
+                            StatusCode: 200,
+                            Headers: map[string]string{
+                                "X-Auth-Status": "OK",
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                name: "method-post-blocked",
+                assertion: http.Assertion{
+                    Meta: http.AssertionMeta{
+                        TestCaseName:    "POST /api blocked",
+                        TargetBackend:   "infra-backend-v1",
+                        TargetNamespace: "higress-conformance-infra",
+                    },
+                    Request: http.AssertionRequest{
+                        ActualRequest: http.Request{
+                            Host:        "localhost",
+                            Path:        "/api",
+                            Method:      "POST",
+                            Body:        []byte("test-body"),
+                            ContentType: http.ContentTypeTextPlain,
+                        },
+                    },
+                    Response: http.AssertionResponse{
+                        ExpectedResponse: http.Response{
+                            StatusCode: 403,
+                            Headers: map[string]string{
+                                "X-Auth-Status": "DENIED",
+                            },
+                        },
+                    },
+                },
+            },
+            {
+                name: "blacklist-blocked-path",
+                assertion: http.Assertion{
+                    Meta: http.AssertionMeta{
+                        TestCaseName:    "blocked-path denied",
+                        TargetBackend:   "infra-backend-v1",
+                        TargetNamespace: "higress-conformance-infra",
+                    },
+                    Request: http.AssertionRequest{
+                        ActualRequest: http.Request{
+                            Host: "localhost",
+                            Path: "/blocked-path",
+                        },
+                    },
+                    Response: http.AssertionResponse{
+                        ExpectedResponse: http.Response{
+                            StatusCode: 403,
+                            Headers: map[string]string{
+                                "X-Auth-Status": "DENIED",
+                            },
+                        },
+                    },
+                },
+            },
+        }
+
+        for _, c := range cases {
+            c := c // capture
+            t.Run(c.name, func(t *testing.T) {
+                t.Parallel()
+                http.MakeRequestAndExpectEventuallyConsistentResponse(
+                    t, s.RoundTripper, s.TimeoutConfig, s.GatewayAddress, c.assertion,
+                )
+            })
+        }
+    },
 }
