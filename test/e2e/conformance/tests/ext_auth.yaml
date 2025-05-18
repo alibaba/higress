@@ -53,6 +53,7 @@ spec:
           image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-server:latest
           ports:
             - containerPort: 8000
+            - containerPort: 9000  # For gRPC (envoy mode)
           readinessProbe:
             httpGet:
               path: /health
@@ -79,5 +80,9 @@ spec:
   selector:
     app: ext-auth-server
   ports:
-    - port: 8000
+    - name: http
+      port: 8000
       targetPort: 8000
+    - name: grpc
+      port: 9000
+      targetPort: 9000
