@@ -73,7 +73,7 @@ tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="customm
 
 ## 访问日志配置
 
-要在 Higress A访问日志中显示插件添加的 Filter State 数据，需要修改 Higress 的访问日志配置。编辑 ConfigMap：
+要在 Higress 访问日志中显示插件添加的 Filter State 数据，需要修改 Higress 的访问日志配置。编辑 ConfigMap：
 
 ```bash
 kubectl edit cm -n higress-system higress-config
