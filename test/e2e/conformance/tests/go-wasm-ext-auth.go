@@ -27,10 +27,11 @@ func init() {
 
 var WasmPluginsExtAuth = suite.ConformanceTest{
 	ShortName:   "WasmPluginsExtAuth",
-	Description: "E2E tests for the ext-auth WASM plugin in both envoy and forward_auth modes, covering whitelist/blacklist, header propagation, and failure_mode_allow.",
+	Description: "E2E tests for the ext-auth WASM plugin in both envoy and forward_auth modes…",
+	// ONLY our ext-auth manifest here!
 	Manifests:   []string{"tests/go-wasm-ext-auth.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
-	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+	Test: func(t *testing.T, s *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			// Envoy mode: successful auth
 			{
@@ -266,7 +267,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 		t.Run("ext-auth plugin", func(t *testing.T) {
 			for _, tc := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(
-					t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, tc,
+					t, s.RoundTripper, s.TimeoutConfig, s.GatewayAddress, tc,
 				)
 			}
 		})
