@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// --------------------- tests/go-wasm-ext-auth_test.go ---------------------
 package tests
 
 import (
@@ -27,240 +28,88 @@ func init() {
 
 var WasmPluginsExtAuth = suite.ConformanceTest{
 	ShortName:   "WasmPluginsExtAuth",
-	Description: "E2E tests for the ext-auth WASM plugin in both envoy and forward_auth modes…",
-	// ONLY our ext-auth manifest here!
+	Description: "E2E tests for the ext-auth WASM plugin (envoy & forward_auth modes, whitelist/blacklist, failure_mode_allow, header propagation).",
 	Manifests:   []string{"tests/go-wasm-ext-auth.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, s *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
 			// Envoy mode: successful auth
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-envoy.com",
-						Path:             "/allowed",
-						Method:           "GET",
-						Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-envoy.com", Path: "/allowed", Method: "GET", Headers: map[string]string{"Authorization": "Bearer valid-token"}, UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200}},
 			},
 			// Envoy mode: invalid token
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-envoy.com",
-						Path:             "/allowed",
-						Method:           "GET",
-						Headers:          map[string]string{"Authorization": "Bearer invalid-token"},
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-envoy.com", Path: "/allowed", Method: "GET", Headers: map[string]string{"Authorization": "Bearer invalid-token"}, UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 403}},
 			},
 			// Envoy mode: no auth header
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-envoy.com",
-						Path:             "/allowed",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-envoy.com", Path: "/allowed", Method: "GET", UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 401}},
 			},
-			// Envoy mode: whitelist path bypass
+			// Envoy mode: whitelist bypass
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-envoy.com",
-						Path:             "/whitelisted",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-envoy.com", Path: "/whitelisted", Method: "GET", UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200}},
 			},
 			// Forward_auth mode: successful auth
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-forward.com",
-						Path:             "/allowed",
-						Method:           "GET",
-						Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-forward.com", Path: "/allowed", Method: "GET", Headers: map[string]string{"Authorization": "Bearer valid-token"}, UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200}},
 			},
 			// Forward_auth mode: missing auth header
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-forward.com",
-						Path:             "/allowed",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-forward.com", Path: "/allowed", Method: "GET", UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 401}},
 			},
 			// Forward_auth mode: whitelist bypass
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-forward.com",
-						Path:             "/whitelisted",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-forward.com", Path: "/whitelisted", Method: "GET", UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200}},
 			},
-			// Blacklist in envoy mode: blocked path
+			// Blacklist envoy: blocked
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "bar-envoy.com",
-						Path:             "/blocked",
-						Method:           "GET",
-						Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "bar-envoy.com", Path: "/blocked", Method: "GET", Headers: map[string]string{"Authorization": "Bearer valid-token"}, UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 403}},
 			},
-			// Blacklist in envoy mode: allowed path
+			// Blacklist envoy: allowed
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "bar-envoy.com",
-						Path:             "/allowed",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "bar-envoy.com", Path: "/allowed", Method: "GET", UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200}},
 			},
-			// Blacklist method filter: POST blocked
+			// Blacklist POST blocked
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "bar-envoy.com",
-						Path:             "/method-restricted",
-						Method:           "POST",
-						Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "bar-envoy.com", Path: "/method-restricted", Method: "POST", Headers: map[string]string{"Authorization": "Bearer valid-token"}, UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 403}},
 			},
-			// Blacklist method filter: GET allowed
+			// Blacklist GET allowed
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "bar-envoy.com",
-						Path:             "/method-restricted",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "bar-envoy.com", Path: "/method-restricted", Method: "GET", UnfollowRedirect: true}},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200}},
 			},
-			// Failure_mode_allow: auth service down
+			// Failure mode allow
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "failover.com",
-						Path:             "/test",
-						Method:           "GET",
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Headers:    map[string]string{"x-envoy-auth-failure-mode-allowed": "true"},
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "failover.com", Path: "/test", Method: "GET", UnfollowRedirect: true}},
+				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200, Headers: map[string]string{"x-envoy-auth-failure-mode-allowed": "true"}}},
 			},
-			// Forward_auth header propagation check
+			// Header propagation
 			{
-				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-ai-backend",
-				},
-				Request: http.AssertionRequest{
-					ActualRequest: http.Request{
-						Host:             "foo-forward.com",
-						Path:             "/inspect",
-						Method:           "POST",
-						Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-						UnfollowRedirect: true,
-					},
-				},
-				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{
-						StatusCode: 200,
-						Headers: map[string]string{
-							"X-Forwarded-Proto":  "HTTP",
-							"X-Forwarded-Host":   "foo-forward.com",
-							"X-Forwarded-Uri":    "/inspect",
-							"X-Forwarded-Method": "POST",
-						},
-					},
-				},
+				Meta: http.AssertionMeta{TargetBackend: "infra-backend-v1", TargetNamespace: "higress-conformance-infra"},
+				Request: http.AssertionRequest{ActualRequest: http.Request{Host: "foo-forward.com", Path: "/inspect", Method: "POST", Headers: map[string]string{"Authorization": "Bearer valid-token"}, UnfollowRedirect: true}},
+				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200, Headers: map[string]string{"X-Forwarded-Proto": "HTTP", "X-Forwarded-Host": "foo-forward.com", "X-Forwarded-Uri": "/inspect", "X-Forwarded-Method": "POST"}}},
 			},
 		}
 

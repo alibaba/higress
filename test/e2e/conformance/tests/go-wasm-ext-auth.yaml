@@ -17,6 +17,8 @@
 # Copyright (c) 2022 Alibaba Group Holding Ltd.
 # … (license header omitted for brevity)
 
+  # 1) ConfigMap: valid-token for mock-auth
+# -------------------------------------------------------------------
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,7 +26,11 @@ metadata:
   namespace: higress-conformance-infra
 data:
   valid-token: "valid-token"
+
 ---
+# -------------------------------------------------------------------
+# 2) Deployment: mock-auth-service (reusing llm-mock image)
+# -------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,18 +47,22 @@ spec:
         app: mock-auth-service
     spec:
       containers:
-        - name: mock-auth-service
-          image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/llm-mock:latest
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 3000
-          env:
-            - name: VALID_TOKEN
-              valueFrom:
-                configMapKeyRef:
-                  name: ext-auth-service-config
-                  key: valid-token
+      - name: mock-auth-service
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/llm-mock:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 3000
+        env:
+        - name: VALID_TOKEN
+          valueFrom:
+            configMapKeyRef:
+              name: ext-auth-service-config
+              key: valid-token
+
 ---
+# -------------------------------------------------------------------
+# 3) Service: mock-auth-service
+# -------------------------------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:
@@ -62,10 +72,13 @@ spec:
   selector:
     app: mock-auth-service
   ports:
-    - port: 3000
-      targetPort: 3000
+  - port: 3000
+    targetPort: 3000
+
 ---
-# (Ingress definitions stay the same, just ensure namespace is conformance-infra)
+# -------------------------------------------------------------------
+# 4) Ingress: ext-auth-envoy (envoy mode, whitelist)
+# -------------------------------------------------------------------
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -74,20 +87,90 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: foo-envoy.com
-      http:
-        paths:
-          - pathType: Prefix
-            path: /
-            backend:
-              service:
-                name: infra-backend-v1
-                port: { number: 8080 }
----
-# … repeat the other three Ingresses (ext-auth-forward, ext-auth-blacklist, ext-auth-failover) …
+  - host: foo-envoy.com
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: infra-backend-v1
+            port:
+              number: 8080
 
 ---
-# WasmPlugin: envoy mode, whitelist
+# -------------------------------------------------------------------
+# 5) Ingress: ext-auth-forward (forward_auth mode, whitelist)
+# -------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ext-auth-forward
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+  - host: foo-forward.com
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: infra-backend-v1
+            port:
+              number: 8080
+
+---
+# -------------------------------------------------------------------
+# 6) Ingress: ext-auth-blacklist (envoy mode, blacklist)
+# -------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ext-auth-blacklist
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+  - host: bar-envoy.com
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: infra-backend-v1
+            port:
+              number: 8080
+
+---
+# -------------------------------------------------------------------
+# 7) Ingress: ext-auth-failover (envoy mode, failure_mode_allow)
+# -------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ext-auth-failover
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+  - host: failover.com
+    http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service:
+            name: infra-backend-v1
+            port:
+              number: 8080
+
+---
+# -------------------------------------------------------------------
+# 8) WasmPlugin: ext-auth-envoy (envoy mode, whitelist)
+# -------------------------------------------------------------------
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -96,8 +179,8 @@ metadata:
 spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
-    - ingress:
-        - higress-conformance-infra/ext-auth-envoy
+  - ingress:
+    - higress-conformance-infra/ext-auth-envoy
   defaultConfig:
     http_service:
       endpoint_mode: envoy
@@ -108,11 +191,13 @@ spec:
       timeout: 1000
     match_type: whitelist
     match_list:
-      - match_rule_path: /whitelisted
-        match_rule_type: prefix
+    - match_rule_path: /whitelisted
+      match_rule_type: prefix
 
 ---
-# WasmPlugin: forward_auth mode, whitelist
+# -------------------------------------------------------------------
+# 9) WasmPlugin: ext-auth-forward (forward_auth mode, whitelist)
+# -------------------------------------------------------------------
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -121,8 +206,8 @@ metadata:
 spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
-    - ingress:
-        - higress-conformance-infra/ext-auth-forward
+  - ingress:
+    - higress-conformance-infra/ext-auth-forward
   defaultConfig:
     http_service:
       endpoint_mode: forward_auth
@@ -134,11 +219,13 @@ spec:
       timeout: 1000
     match_type: whitelist
     match_list:
-      - match_rule_path: /whitelisted
-        match_rule_type: prefix
+    - match_rule_path: /whitelisted
+      match_rule_type: prefix
 
 ---
-# WasmPlugin: envoy mode, blacklist
+# -------------------------------------------------------------------
+# 10) WasmPlugin: ext-auth-blacklist (envoy mode, blacklist)
+# -------------------------------------------------------------------
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -147,8 +234,8 @@ metadata:
 spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
-    - ingress:
-        - higress-conformance-infra/ext-auth-blacklist
+  - ingress:
+    - higress-conformance-infra/ext-auth-blacklist
   defaultConfig:
     http_service:
       endpoint_mode: envoy
@@ -159,15 +246,17 @@ spec:
       timeout: 1000
     match_type: blacklist
     match_list:
-      - match_rule_path: /blocked
-        match_rule_type: prefix
-      - match_rule_path: /method-restricted
-        match_rule_type: prefix
-        match_rule_method:
-          - POST
+    - match_rule_path: /blocked
+      match_rule_type: prefix
+    - match_rule_path: /method-restricted
+      match_rule_type: prefix
+      match_rule_method:
+      - POST
 
 ---
-# WasmPlugin: envoy mode with failure_mode_allow
+# -------------------------------------------------------------------
+# 11) WasmPlugin: ext-auth-failover (envoy mode, failure_mode_allow)
+# -------------------------------------------------------------------
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -176,8 +265,8 @@ metadata:
 spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
-    - ingress:
-        - higress-conformance-infra/ext-auth-failover
+  - ingress:
+    - higress-conformance-infra/ext-auth-failover
   defaultConfig:
     http_service:
       endpoint_mode: envoy
