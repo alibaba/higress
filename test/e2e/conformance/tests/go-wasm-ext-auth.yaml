@@ -14,18 +14,60 @@
 
 
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: higress-conformance-ai-backend
+  labels:
+    higress-conformance: infra
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: llm-mock
+  namespace: higress-conformance-ai-backend
+  labels:
+    app: llm-mock
+spec:
+  containers:
+    - name: llm-mock
+      image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/llm-mock:latest
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 3000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-mock-service
+  namespace: higress-conformance-ai-backend
+spec:
+  selector:
+    app: llm-mock
+  clusterIP: None
+  ports:
+    - port: 3000
+      targetPort: 3000
+
+---
+
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ext-auth-service-config
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-ai-backend
 data:
   valid-token: "valid-token"
+
 ---
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mock-auth-service
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-ai-backend
 spec:
   replicas: 1
   selector:
@@ -37,104 +79,117 @@ spec:
         app: mock-auth-service
     spec:
       containers:
-      - name: mock-auth-service
-        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/mock-auth-service:latest
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 8090
-        env:
-        - name: VALID_TOKEN
-          valueFrom:
-            configMapKeyRef:
-              name: ext-auth-service-config
-              key: valid-token
+        - name: mock-auth-service
+          # NOTE: We're using the llm-mock image here for auth testing
+          image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/llm-mock:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: VALID_TOKEN
+              valueFrom:
+                configMapKeyRef:
+                  name: ext-auth-service-config
+                  key: valid-token
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: mock-auth-service
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-ai-backend
 spec:
-  ports:
-  - port: 8090
-    targetPort: 8090
   selector:
     app: mock-auth-service
+  ports:
+    - port: 3000
+      targetPort: 3000
+
 ---
-# Ingress backends
+
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ext-auth-envoy
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
     - host: foo-envoy.com
       http:
         paths:
-          - pathType: Prefix
-            path: /
+          - path: /
+            pathType: Prefix
             backend:
               service:
                 name: infra-backend-v1
-                port: { number: 8080 }
+                port:
+                  number: 8080
+
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ext-auth-forward
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
     - host: foo-forward.com
       http:
         paths:
-          - pathType: Prefix
-            path: /
+          - path: /
+            pathType: Prefix
             backend:
               service:
                 name: infra-backend-v1
-                port: { number: 8080 }
+                port:
+                  number: 8080
+
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ext-auth-blacklist
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
     - host: bar-envoy.com
       http:
         paths:
-          - pathType: Prefix
-            path: /
+          - path: /
+            pathType: Prefix
             backend:
               service:
                 name: infra-backend-v1
-                port: { number: 8080 }
+                port:
+                  number: 8080
+
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: ext-auth-failover
-  namespace: higress-conformance-infra
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
     - host: failover.com
       http:
         paths:
-          - pathType: Prefix
-            path: /
+          - path: /
+            pathType: Prefix
             backend:
               service:
                 name: infra-backend-v1
-                port: { number: 8080 }
+                port:
+                  number: 8080
+
 ---
-# WasmPlugin: envoy mode, whitelist
+# -------------------------------------------------------------------
+# WasmPlugins updated to call llm-mock-service
+# -------------------------------------------------------------------
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -144,21 +199,21 @@ spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
     - ingress:
-        - higress-conformance-infra/ext-auth-envoy
+        - higress-conformance-ai-backend/ext-auth-envoy
   defaultConfig:
     http_service:
       endpoint_mode: envoy
       endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path_prefix: /auth
+        service_name: llm-mock-service.higress-conformance-ai-backend.svc.cluster.local
+        service_port: 3000
+        path_prefix: /
       timeout: 1000
     match_type: whitelist
     match_list:
       - match_rule_path: /whitelisted
         match_rule_type: prefix
+
 ---
-# WasmPlugin: forward_auth mode, whitelist
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -168,22 +223,22 @@ spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
     - ingress:
-        - higress-conformance-infra/ext-auth-forward
+        - higress-conformance-ai-backend/ext-auth-forward
   defaultConfig:
     http_service:
       endpoint_mode: forward_auth
       endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path: /auth
+        service_name: llm-mock-service.higress-conformance-ai-backend.svc.cluster.local
+        service_port: 3000
+        path: /
         request_method: POST
       timeout: 1000
     match_type: whitelist
     match_list:
       - match_rule_path: /whitelisted
         match_rule_type: prefix
+
 ---
-# WasmPlugin: envoy mode, blacklist
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -193,14 +248,14 @@ spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
     - ingress:
-        - higress-conformance-infra/ext-auth-blacklist
+        - higress-conformance-ai-backend/ext-auth-blacklist
   defaultConfig:
     http_service:
       endpoint_mode: envoy
       endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path_prefix: /auth
+        service_name: llm-mock-service.higress-conformance-ai-backend.svc.cluster.local
+        service_port: 3000
+        path_prefix: /
       timeout: 1000
     match_type: blacklist
     match_list:
@@ -210,8 +265,8 @@ spec:
         match_rule_type: prefix
         match_rule_method:
           - POST
+
 ---
-# WasmPlugin: envoy mode with failure_mode_allow
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -221,14 +276,14 @@ spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
     - ingress:
-        - higress-conformance-infra/ext-auth-failover
+        - higress-conformance-ai-backend/ext-auth-failover
   defaultConfig:
     http_service:
       endpoint_mode: envoy
       endpoint:
-        service_name: non-existent-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path_prefix: /auth
+        service_name: non-existent-service.higress-conformance-ai-backend.svc.cluster.local
+        service_port: 3000
+        path_prefix: /
       timeout: 1000
     failure_mode_allow: true
     failure_mode_allow_header_add: true

@@ -36,7 +36,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -53,7 +53,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -70,7 +70,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -85,8 +85,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Envoy mode: whitelist path bypass
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backbone-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -101,8 +101,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Forward_auth mode: successful auth
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backbone-v1",
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -115,10 +115,11 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{ExpectedResponse: http.Response{StatusCode: 200}},
 			},
+			// Forward_auth mode: missing auth header
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -133,8 +134,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Forward_auth mode: whitelist bypass
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -149,8 +150,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Blacklist in envoy mode: blocked path
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -166,8 +167,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Blacklist in envoy mode: allowed path
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -182,8 +183,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Blacklist method filter: POST blocked
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -199,8 +200,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Blacklist method filter: GET allowed
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -215,8 +216,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			// Failure_mode_allow: auth service down
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
@@ -233,11 +234,11 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
-			// Forward_auth header propagation check (requires mock-inspect endpoint)
+			// Forward_auth header propagation check
 			{
 				Meta: http.AssertionMeta{
-					TargetBackend:   "infra-backend-v1", 
-					TargetNamespace: "higress-conformance-infra",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-ai-backend",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
