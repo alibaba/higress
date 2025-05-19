@@ -85,10 +85,36 @@ static_resources:
                             "@type": "type.googleapis.com/google.protobuf.StringValue"
                             value: |
                               {
-                                "logRequestHeaders": true,
-                                "logRequestBody": true,
-                                "logResponseHeaders": true,
-                                "logResponseBody": true
+                                "request": {
+                                  "headers": {
+                                    "enabled": true
+                                  },
+                                  "body": {
+                                    "enabled": true,
+                                    "maxSize": 25,
+                                    "contentTypes": [
+                                      "application/json",
+                                      "application/xml",
+                                      "application/x-www-form-urlencoded",
+                                      "text/plain"
+                                    ]
+                                  }
+                                },
+                                "response": {
+                                  "headers": {
+                                    "enabled": true
+                                  },
+                                  "body": {
+                                    "enabled": true,
+                                    "maxSize": 100,
+                                    "contentTypes": [
+                                      "application/json",
+                                      "application/xml",
+                                      "text/plain",
+                                      "text/html"
+                                    ]
+                                  }
+                                }
                               }
                   - name: envoy.filters.http.router
                     typed_config:

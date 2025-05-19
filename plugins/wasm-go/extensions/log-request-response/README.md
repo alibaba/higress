@@ -3,61 +3,77 @@
 这个插件用于在 Higress 的访问日志中添加以下信息：
 
 - HTTP 请求头（添加为 `%FILTER_STATE(wasm.log-request-headers:PLAIN)%`）
-- POST、PUT 等请求的请求体内容（添加为 `%FILTER_STATE(wasm.log-request-body:PLAIN)%`）
+- POST、PUT、PATCH 请求的请求体内容（添加为 `%FILTER_STATE(wasm.log-request-body:PLAIN)%`）
 - 响应头（添加为 `%FILTER_STATE(wasm.log-response-headers:PLAIN)%`）
 - 响应体内容（添加为 `%FILTER_STATE(wasm.log-response-body:PLAIN)%`）
 
 ## 配置参数
 
-在 Higress 控制台配置该插件时，可以使用以下 YAML 配置：
+在 Higress 控制台配置该插件时，使用以下结构化的 YAML 配置：
 
 ```yaml
-# 是否记录请求头（默认：false）
-logRequestHeaders: false
+# 请求相关配置
+request:
+  # 请求头配置
+  headers:
+    # 是否记录请求头（默认：false）
+    enabled: true
+  # 请求体配置
+  body:
+    # 是否记录请求体内容（默认：false）
+    enabled: true
+    # 最大记录长度限制，单位字节（默认：10KB）
+    maxSize: 10240
+    # 需要记录请求体的内容类型（默认包含常见的内容类型）
+    contentTypes:
+      - application/json
+      - application/xml
+      - application/x-www-form-urlencoded
+      - text/plain
 
-# 是否记录请求体内容（默认：false）
-logRequestBody: false
-
-# 是否记录响应头（默认：false）
-logResponseHeaders: false
-
-# 是否记录响应体内容（默认：false）
-logResponseBody: false
-
-# 需要记录请求体的内容类型（可选，默认包含常见的内容类型）
-requestBodyContentTypes:
-  - application/json
-  - application/xml
-  - application/x-www-form-urlencoded
-  - text/plain
-
-# 最大记录长度限制，单位字节（可选，默认：10KB）
-maxBodySize: 10240
+# 响应相关配置
+response:
+  # 响应头配置
+  headers:
+    # 是否记录响应头（默认：false）
+    enabled: true
+  # 响应体配置
+  body:
+    # 是否记录响应体内容（默认：false）
+    enabled: true
+    # 最大记录长度限制，单位字节（默认：10KB）
+    maxSize: 10240
+    # 需要记录响应体的内容类型（默认包含常见的内容类型）
+    contentTypes:
+      - application/json
+      - application/xml
+      - text/plain
+      - text/html
 ```
 
 ## 工作原理
 
 1. 请求处理时，插件会根据配置决定是否记录请求头和请求体
-2. 只有当请求方法为 POST、PUT 或 PATCH，且内容类型在配置的 `requestBodyContentTypes` 列表中时，才会记录请求体
+2. 只有当请求方法为 POST、PUT 或 PATCH，且内容类型在配置的 `request.body.contentTypes` 列表中时，才会记录请求体
 3. 响应处理时，插件会根据配置决定是否记录响应头和响应体
-4. 所有记录的内容都会被限制在 `maxBodySize` 指定的大小内
-5. 记录的内容会被存储在 Envoy 的 Filter State 中，可以通过访问日志配置获取
+4. 只有当响应的内容类型在配置的 `response.body.contentTypes` 列表中时，才会记录响应体
+5. 所有记录的内容都会被限制在配置的 `maxSize` 指定的大小内
+6. 插件对请求体和响应体都使用流式处理方式，不会阻止或修改原始内容传递
+7. 记录的内容会被存储在 Envoy 的 Filter State 中，可以通过访问日志配置获取
 
 ## 编译方法
-
-本插件使用了 Higress 扩展的 0.2.100 版本 ABI 功能，编译时请使用以下命令：
 
 ```bash
 # 先整理依赖
 go mod tidy
 
-# 使用支持0.2.100版本ABI的编译命令
-tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./main.go
+# 编译
+tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer" ./main.go
 ```
 
 ## 访问日志配置
 
-要在 Higress 访问日志中显示插件添加的 Filter State 数据，需要修改 Higress 的访问日志配置。编辑 ConfigMap：
+要在 Higress A访问日志中显示插件添加的 Filter State 数据，需要修改 Higress 的访问日志配置。编辑 ConfigMap：
 
 ```bash
 kubectl edit cm -n higress-system higress-config
@@ -121,7 +137,7 @@ mesh:
   "method": "POST",
   "path": "/api/users",
   "response_code": 200,
-  "request_headers": "{\"host\":\"example.com\",\":path\":\"/api/users\",\":method\":\"POST\",\"content-type\":\"application/json\"}",
+  "request_headers": "{\"host\":\"example.com\",\"path\":\"/api/users\",\"method\":\"POST\",\"content-type\":\"application/json\"}",
   "request_body": "{\"name\":\"测试用户\",\"email\":\"test@example.com\"}",
   "response_headers": "{\"content-type\":\"application/json\",\"status\":\"200\"}",
   "response_body": "{\"id\":123,\"status\":\"success\"}"
@@ -131,7 +147,8 @@ mesh:
 ## 注意事项
 
 1. 所有日志记录选项默认都是关闭的（false），需要明确启用才会记录相应内容
-2. 对于大型请求体或响应体，可以通过 `maxBodySize` 参数限制记录的长度，以避免日志过大
-3. 只有指定内容类型的 POST、PUT、PATCH 请求才会记录请求体内容
-4. 请确保合理配置该插件，避免记录敏感信息到日志中
-5. 本插件使用了 Higress 扩展的 0.2.100 版本 ABI 功能
+2. 对于大型请求体或响应体，可以通过 `request.body.maxSize` 和 `response.body.maxSize` 参数限制记录的长度，以避免日志过大
+3. 插件使用流式处理方式处理请求体和响应体，不会对原始内容产生任何影响
+4. 只有指定内容类型的 POST、PUT、PATCH 请求才会记录请求体内容
+5. 只有指定内容类型的响应才会记录响应体内容
+6. 请确保合理配置该插件，避免记录敏感信息到日志中

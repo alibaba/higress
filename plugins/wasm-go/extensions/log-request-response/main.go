@@ -13,6 +13,7 @@ import (
 
 // Constants for log keys in Filter State
 const (
+	pluginName            = "log-request-response"
 	LogKeyRequestHeaders  = "log-request-headers"
 	LogKeyRequestBody     = "log-request-body"
 	LogKeyResponseHeaders = "log-response-headers"
@@ -31,51 +32,81 @@ var http2HeaderMap = map[string]string{
 func main() {
 	wrapper.SetCtx(
 		// Plugin name
-		"log-request-response",
+		pluginName,
 		// Set custom function for parsing plugin configuration
 		wrapper.ParseConfigBy(parseConfig),
 		// Set custom function for processing request headers
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		// Set custom function for processing request body
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		// Set custom function for processing streaming request body
+		wrapper.ProcessStreamingRequestBodyBy(onStreamingRequestBody),
 		// Set custom function for processing response headers
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		// Set custom function for processing response body
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		// Set custom function for processing streaming response body
+		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
 	)
 }
 
 // PluginConfig Custom plugin configuration
 type PluginConfig struct {
-	// Whether to log request headers
-	logRequestHeaders bool
-	// Whether to log request body
-	logRequestBody bool
-	// Whether to log response headers
-	logResponseHeaders bool
-	// Whether to log response body
-	logResponseBody bool
-	// Content types for request body logging (Content-Type)
-	requestBodyContentTypes []string
-	// Maximum size limit for logging (bytes)
-	maxBodySize int
+	// Request configuration
+	Request struct {
+		// Headers configuration
+		Headers struct {
+			// Whether to enable request headers logging
+			Enabled bool
+		}
+		// Body configuration
+		Body struct {
+			// Whether to enable request body logging
+			Enabled bool
+			// Maximum size limit for logging (bytes)
+			MaxSize int
+			// Content types to be logged
+			ContentTypes []string
+		}
+	}
+	// Response configuration
+	Response struct {
+		// Headers configuration
+		Headers struct {
+			// Whether to enable response headers logging
+			Enabled bool
+		}
+		// Body configuration
+		Body struct {
+			// Whether to enable response body logging
+			Enabled bool
+			// Maximum size limit for logging (bytes)
+			MaxSize int
+			// Content types to be logged
+			ContentTypes []string
+		}
+	}
 }
 
 // The YAML configuration filled in the console will be automatically converted to JSON,
 // so we can directly parse the configuration from this JSON parameter
 func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
-	config.logRequestHeaders = json.Get("logRequestHeaders").Bool()
-	config.logRequestBody = json.Get("logRequestBody").Bool()
-	config.logResponseHeaders = json.Get("logResponseHeaders").Bool()
-	config.logResponseBody = json.Get("logResponseBody").Bool()
+	// Parse request headers configuration
+	config.Request.Headers.Enabled = json.Get("request.headers.enabled").Bool()
 
-	if contentTypes := json.Get("requestBodyContentTypes").Array(); len(contentTypes) > 0 {
+	// Parse request body configuration
+	config.Request.Body.Enabled = json.Get("request.body.enabled").Bool()
+	config.Request.Body.MaxSize = int(json.Get("request.body.maxSize").Int())
+
+	// Set default maximum size for request body
+	if config.Request.Body.MaxSize <= 0 {
+		config.Request.Body.MaxSize = 10 * 1024 // Default 10KB
+	}
+
+	// Parse request body content types
+	if contentTypes := json.Get("request.body.contentTypes").Array(); len(contentTypes) > 0 {
 		for _, ct := range contentTypes {
-			config.requestBodyContentTypes = append(config.requestBodyContentTypes, ct.String())
+			config.Request.Body.ContentTypes = append(config.Request.Body.ContentTypes, ct.String())
 		}
 	} else {
-		// Default common content types to record
-		config.requestBodyContentTypes = []string{
+		// Default content types
+		config.Request.Body.ContentTypes = []string{
 			"application/json",
 			"application/xml",
 			"application/x-www-form-urlencoded",
@@ -83,12 +114,31 @@ func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error
 		}
 	}
 
-	maxSize := json.Get("maxBodySize").Int()
-	if maxSize <= 0 {
-		// Default maximum size is 10KB
-		config.maxBodySize = 10 * 1024
+	// Parse response headers configuration
+	config.Response.Headers.Enabled = json.Get("response.headers.enabled").Bool()
+
+	// Parse response body configuration
+	config.Response.Body.Enabled = json.Get("response.body.enabled").Bool()
+	config.Response.Body.MaxSize = int(json.Get("response.body.maxSize").Int())
+
+	// Set default maximum size for response body
+	if config.Response.Body.MaxSize <= 0 {
+		config.Response.Body.MaxSize = 10 * 1024 // Default 10KB
+	}
+
+	// Parse response body content types
+	if contentTypes := json.Get("response.body.contentTypes").Array(); len(contentTypes) > 0 {
+		for _, ct := range contentTypes {
+			config.Response.Body.ContentTypes = append(config.Response.Body.ContentTypes, ct.String())
+		}
 	} else {
-		config.maxBodySize = int(maxSize)
+		// Default content types
+		config.Response.Body.ContentTypes = []string{
+			"application/json",
+			"application/xml",
+			"text/plain",
+			"text/html",
+		}
 	}
 
 	return nil
@@ -140,7 +190,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	contentType := ""
 
 	// Check if request headers need to be logged
-	if config.logRequestHeaders {
+	if config.Request.Headers.Enabled {
 		jsonStr := "{}"
 		for _, header := range headers {
 			var err error
@@ -153,7 +203,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 
 		marshalledJsonStr := marshalStr(jsonStr)
 		if err := proxywasm.SetProperty([]string{LogKeyRequestHeaders}, []byte(marshalledJsonStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, raw is %s, err is %v", LogKeyRequestHeaders, jsonStr, err)
+			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyRequestHeaders, err, jsonStr)
 		}
 	}
 
@@ -167,47 +217,67 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	}
 
 	// For non-POST/PUT/PATCH requests, or if request body logging is not enabled, no need to log the request body
-	if !config.logRequestBody || (method != "POST" && method != "PUT" && method != "PATCH") {
-		ctx.SetContext("skip_request_body", true)
-		return types.HeaderContinue
+	if !config.Request.Body.Enabled || (method != "POST" && method != "PUT" && method != "PATCH") {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
 	}
 
 	// Check if the content type is in the configured list for logging
 	shouldLogBody := false
-	for _, allowedType := range config.requestBodyContentTypes {
+	for _, allowedType := range config.Request.Body.ContentTypes {
 		if strings.Contains(contentType, allowedType) {
 			shouldLogBody = true
 			break
 		}
 	}
-	ctx.SetContext("skip_request_body", !shouldLogBody)
 
-	return types.HeaderContinue
-}
-
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	skipRequestBody, ok := ctx.GetContext("skip_request_body").(bool)
-	if ok && skipRequestBody {
+	if !shouldLogBody {
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
-	// Get request body with size limitation
-	bodySize := len(body)
-	if bodySize > config.maxBodySize {
-		bodySize = config.maxBodySize
+	// Initialize a buffer to accumulate request body chunks
+	ctx.SetContext("request_body_buffer", []byte{})
+
+	return types.ActionContinue
+}
+
+// onStreamingRequestBody processes each chunk of the request body in streaming mode
+// This allows us to log the request body without affecting the original request
+func onStreamingRequestBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isEndStream bool, log wrapper.Log) []byte {
+	// If request body logging is not enabled or max size is <= 0, just return the chunk as is
+	if !config.Request.Body.Enabled || config.Request.Body.MaxSize <= 0 {
+		return chunk
 	}
 
-	if bodySize > 0 {
-		bodyStr := string(body[:bodySize])
+	// Get the buffer from context
+	buffer, _ := ctx.GetContext("request_body_buffer").([]byte)
 
-		// For request body, we use marshalStr to ensure proper escaping
-		marshalledBodyStr := marshalStr(bodyStr)
-		if err := proxywasm.SetProperty([]string{LogKeyRequestBody}, []byte(marshalledBodyStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, raw is %s, err is %v", LogKeyRequestBody, bodyStr, err)
+	// If we haven't reached max size yet, append chunk to buffer
+	if len(buffer) < config.Request.Body.MaxSize {
+		// Calculate how much of this chunk we can add
+		remainingCapacity := config.Request.Body.MaxSize - len(buffer)
+		if remainingCapacity > 0 {
+			if len(chunk) <= remainingCapacity {
+				buffer = append(buffer, chunk...)
+			} else {
+				buffer = append(buffer, chunk[:remainingCapacity]...)
+			}
+			ctx.SetContext("request_body_buffer", buffer)
 		}
 	}
 
-	return types.ActionContinue
+	// When we reach the end of stream, create log entry
+	if isEndStream && len(buffer) > 0 {
+		bodyStr := string(buffer)
+		marshalledBodyStr := marshalStr(bodyStr)
+		if err := proxywasm.SetProperty([]string{LogKeyRequestBody}, []byte(marshalledBodyStr)); err != nil {
+			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyRequestBody, err, bodyStr)
+		}
+	}
+
+	// Always return the original chunk unmodified
+	return chunk
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
@@ -219,7 +289,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 	}
 
 	// Check if response headers need to be logged
-	if config.logResponseHeaders {
+	if config.Response.Headers.Enabled {
 		jsonStr := "{}"
 		for _, header := range headers {
 			var err error
@@ -232,42 +302,81 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 
 		marshalledJsonStr := marshalStr(jsonStr)
 		if err := proxywasm.SetProperty([]string{LogKeyResponseHeaders}, []byte(marshalledJsonStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, raw is %s, err is %v", LogKeyResponseHeaders, jsonStr, err)
+			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyResponseHeaders, err, jsonStr)
 		}
 	}
 
 	// Check if response body needs to be logged
-	if !config.logResponseBody {
-		ctx.SetContext("skip_response_body", true)
+	if !config.Response.Body.Enabled {
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
-	// Using HeaderContinue from ABI version 0.2.100 indicates that the current filter has completed processing
-	// and can be passed to the next filter
-	return types.HeaderContinue
-}
-
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	skipResponseBody, ok := ctx.GetContext("skip_response_body").(bool)
-	if ok && skipResponseBody {
-		return types.ActionContinue
-	}
-
-	// Get response body with size limitation
-	bodySize := len(body)
-	if bodySize > config.maxBodySize {
-		bodySize = config.maxBodySize
-	}
-
-	if bodySize > 0 {
-		bodyStr := string(body[:bodySize])
-
-		// For response body, we use marshalStr to ensure proper escaping
-		marshalledBodyStr := marshalStr(bodyStr)
-		if err := proxywasm.SetProperty([]string{LogKeyResponseBody}, []byte(marshalledBodyStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, raw is %s, err is %v", LogKeyResponseBody, bodyStr, err)
+	// Check Content-Type for response body logging
+	contentType := ""
+	for _, header := range headers {
+		if strings.ToLower(header[0]) == "content-type" {
+			contentType = header[1]
+			break
 		}
 	}
 
+	// Skip response body logging if content type is not in the configured list
+	if contentType != "" {
+		shouldLogBody := false
+		for _, allowedType := range config.Response.Body.ContentTypes {
+			if strings.Contains(contentType, allowedType) {
+				shouldLogBody = true
+				break
+			}
+		}
+
+		if !shouldLogBody {
+			ctx.DontReadResponseBody()
+			return types.ActionContinue
+		}
+	}
+
+	// Initialize a buffer to accumulate response body chunks
+	ctx.SetContext("response_body_buffer", []byte{})
+
 	return types.ActionContinue
+}
+
+// onStreamingResponseBody processes each chunk of the response body in streaming mode
+// This allows us to log the response body without affecting the original response
+func onStreamingResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isEndStream bool, log wrapper.Log) []byte {
+	// If response body logging is not enabled or max size is <= 0, just return the chunk as is
+	if !config.Response.Body.Enabled || config.Response.Body.MaxSize <= 0 {
+		return chunk
+	}
+
+	// Get the buffer from context
+	buffer, _ := ctx.GetContext("response_body_buffer").([]byte)
+
+	// If we haven't reached max size yet, append chunk to buffer
+	if len(buffer) < config.Response.Body.MaxSize {
+		// Calculate how much of this chunk we can add
+		remainingCapacity := config.Response.Body.MaxSize - len(buffer)
+		if remainingCapacity > 0 {
+			if len(chunk) <= remainingCapacity {
+				buffer = append(buffer, chunk...)
+			} else {
+				buffer = append(buffer, chunk[:remainingCapacity]...)
+			}
+			ctx.SetContext("response_body_buffer", buffer)
+		}
+	}
+
+	// When we reach the end of stream, create log entry
+	if isEndStream && len(buffer) > 0 {
+		bodyStr := string(buffer)
+		marshalledBodyStr := marshalStr(bodyStr)
+		if err := proxywasm.SetProperty([]string{LogKeyResponseBody}, []byte(marshalledBodyStr)); err != nil {
+			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyResponseBody, err, bodyStr)
+		}
+	}
+
+	// Always return the original chunk unmodified
+	return chunk
 }
