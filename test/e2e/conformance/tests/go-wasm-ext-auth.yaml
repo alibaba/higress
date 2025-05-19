@@ -104,7 +104,7 @@ spec:
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
         service_port: 3000
-        path_prefix: /auth
+        path_prefix: /
       timeout: 1000
     match_type: whitelist
     match_list:
@@ -129,7 +129,7 @@ spec:
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
         service_port: 3000
-        path: /auth
+        path: /
         request_method: POST
       timeout: 1000
     match_type: whitelist
@@ -155,7 +155,7 @@ spec:
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
         service_port: 3000
-        path_prefix: /auth
+        path_prefix: /
       timeout: 1000
     match_type: blacklist
     match_list:
@@ -184,7 +184,7 @@ spec:
       endpoint:
         service_name: non-existent-service.higress-conformance-infra.svc.cluster.local
         service_port: 3000
-        path_prefix: /auth
+        path_prefix: /
       timeout: 1000
     failure_mode_allow: true
     failure_mode_allow_header_add: true
