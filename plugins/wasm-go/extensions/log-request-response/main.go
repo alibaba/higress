@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -14,10 +15,16 @@ import (
 // Constants for log keys in Filter State
 const (
 	pluginName            = "log-request-response"
-	LogKeyRequestHeaders  = "log-request-headers"
-	LogKeyRequestBody     = "log-request-body"
-	LogKeyResponseHeaders = "log-response-headers"
-	LogKeyResponseBody    = "log-response-body"
+	logKeyRequestHeaders  = "log-request-headers"
+	logKeyRequestBody     = "log-request-body"
+	logKeyResponseHeaders = "log-response-headers"
+	logKeyResponseBody    = "log-response-body"
+)
+
+// Constants for context keys
+const (
+	contextKeyRequestBodyBuffer  = "request_body_buffer"
+	contextKeyResponseBodyBuffer = "response_body_buffer"
 )
 
 // HTTP/2 header name mapping
@@ -34,15 +41,15 @@ func main() {
 		// Plugin name
 		pluginName,
 		// Set custom function for parsing plugin configuration
-		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ParseConfig(parseConfig),
 		// Set custom function for processing request headers
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		// Set custom function for processing streaming request body
-		wrapper.ProcessStreamingRequestBodyBy(onStreamingRequestBody),
+		wrapper.ProcessStreamingRequestBody(onStreamingRequestBody),
 		// Set custom function for processing response headers
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		// Set custom function for processing streaming response body
-		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
+		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
 	)
 }
 
@@ -86,7 +93,7 @@ type PluginConfig struct {
 
 // The YAML configuration filled in the console will be automatically converted to JSON,
 // so we can directly parse the configuration from this JSON parameter
-func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *PluginConfig) error {
 	// Parse request headers configuration
 	config.Request.Headers.Enabled = json.Get("request.headers.enabled").Bool()
 
@@ -161,24 +168,87 @@ func normalizeHeaderName(name string) string {
 	return name
 }
 
-// marshalStr properly escapes a JSON string to ensure it can be safely included in another JSON
-func marshalStr(raw string) string {
-	// e.g. {"field1":"value1","field2":"value2"}
-	helper := map[string]string{
-		"placeholder": raw,
+// processStreamingBody common function to process streaming body
+func processStreamingBody(
+	ctx wrapper.HttpContext,
+	enabled bool,
+	maxSize int,
+	bufferKey string,
+	logKey string,
+	chunk []byte,
+	isEndStream bool,
+) []byte {
+	// If body logging is not enabled or max size is <= 0, just return the chunk as is
+	if !enabled || maxSize <= 0 {
+		return chunk
 	}
+
+	// Get the buffer from context
+	buffer, _ := ctx.GetContext(bufferKey).([]byte)
+
+	// If we haven't reached max size yet, append chunk to buffer
+	if len(buffer) < maxSize {
+		// Calculate how much of this chunk we can add
+		remainingCapacity := maxSize - len(buffer)
+		if remainingCapacity > 0 {
+			if len(chunk) <= remainingCapacity {
+				buffer = append(buffer, chunk...)
+				ctx.SetContext(bufferKey, buffer)
+			} else {
+				buffer = append(buffer, chunk[:remainingCapacity]...)
+				// reach max size, record and clear
+				bodyStr := string(buffer)
+				setPropertyWithMarshal(logKey, bodyStr)
+				// clear buffer
+				ctx.SetContext(bufferKey, []byte{})
+			}
+		}
+	}
+
+	// When we reach the end of stream, create log entry
+	if isEndStream && len(buffer) > 0 {
+		bodyStr := string(buffer)
+		setPropertyWithMarshal(logKey, bodyStr)
+		// clear buffer
+		ctx.SetContext(bufferKey, []byte{})
+	}
+
+	// Always return the original chunk unmodified
+	return chunk
+}
+
+// setPropertyWithMarshal marshals the given string value into a JSON-safe format
+// and sets it as a property in the Envoy filter state with the specified key.
+// This ensures proper escaping of special characters when the value is included in JSON.
+func setPropertyWithMarshal(key string, value string) {
+	// Create a helper map to properly escape the string using JSON marshaling
+	helper := map[string]string{
+		"placeholder": value,
+	}
+
+	// Marshal the helper map to JSON
 	marshalledHelper, _ := json.Marshal(helper)
+
+	// Extract the properly escaped value using gjson
 	marshalledRaw := gjson.GetBytes(marshalledHelper, "placeholder").Raw
+
+	var marshalledStr string
 	if len(marshalledRaw) >= 2 {
-		// e.g. {\"field1\":\"value1\",\"field2\":\"value2\"}
-		return marshalledRaw[1 : len(marshalledRaw)-1]
+		// Remove the surrounding quotes from the JSON string
+		marshalledStr = marshalledRaw[1 : len(marshalledRaw)-1]
 	} else {
-		proxywasm.LogErrorf("failed to marshal json string, raw string is: %s", raw)
-		return ""
+		log.Errorf("failed to marshal json string, raw string is: %s", value)
+		marshalledStr = ""
+	}
+
+	// Set the property with the marshaled string
+	if err := proxywasm.SetProperty([]string{key}, []byte(marshalledStr)); err != nil {
+		log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", key, err, value)
 	}
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+// onHttpRequestHeaders processes the request headers and logs them if enabled
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Action {
 	// Get all request headers
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
@@ -197,14 +267,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 			normalizedName := normalizeHeaderName(header[0])
 			jsonStr, err = sjson.Set(jsonStr, normalizedName, header[1])
 			if err != nil {
-				log.Errorf("Failed to convert request headers to JSON: %v", err)
+				log.Errorf("Failed to convert request header to JSON: name=%s, value=%s, error=%v", normalizedName, header[1], err)
 			}
 		}
 
-		marshalledJsonStr := marshalStr(jsonStr)
-		if err := proxywasm.SetProperty([]string{LogKeyRequestHeaders}, []byte(marshalledJsonStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyRequestHeaders, err, jsonStr)
-		}
+		setPropertyWithMarshal(logKeyRequestHeaders, jsonStr)
 	}
 
 	// Get request method and Content-Type for subsequent processing
@@ -237,50 +304,27 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	}
 
 	// Initialize a buffer to accumulate request body chunks
-	ctx.SetContext("request_body_buffer", []byte{})
+	ctx.SetContext(contextKeyRequestBodyBuffer, []byte{})
 
 	return types.ActionContinue
 }
 
 // onStreamingRequestBody processes each chunk of the request body in streaming mode
 // This allows us to log the request body without affecting the original request
-func onStreamingRequestBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isEndStream bool, log wrapper.Log) []byte {
-	// If request body logging is not enabled or max size is <= 0, just return the chunk as is
-	if !config.Request.Body.Enabled || config.Request.Body.MaxSize <= 0 {
-		return chunk
-	}
-
-	// Get the buffer from context
-	buffer, _ := ctx.GetContext("request_body_buffer").([]byte)
-
-	// If we haven't reached max size yet, append chunk to buffer
-	if len(buffer) < config.Request.Body.MaxSize {
-		// Calculate how much of this chunk we can add
-		remainingCapacity := config.Request.Body.MaxSize - len(buffer)
-		if remainingCapacity > 0 {
-			if len(chunk) <= remainingCapacity {
-				buffer = append(buffer, chunk...)
-			} else {
-				buffer = append(buffer, chunk[:remainingCapacity]...)
-			}
-			ctx.SetContext("request_body_buffer", buffer)
-		}
-	}
-
-	// When we reach the end of stream, create log entry
-	if isEndStream && len(buffer) > 0 {
-		bodyStr := string(buffer)
-		marshalledBodyStr := marshalStr(bodyStr)
-		if err := proxywasm.SetProperty([]string{LogKeyRequestBody}, []byte(marshalledBodyStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyRequestBody, err, bodyStr)
-		}
-	}
-
-	// Always return the original chunk unmodified
-	return chunk
+func onStreamingRequestBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isEndStream bool) []byte {
+	return processStreamingBody(
+		ctx,
+		config.Request.Body.Enabled,
+		config.Request.Body.MaxSize,
+		contextKeyRequestBodyBuffer,
+		logKeyRequestBody,
+		chunk,
+		isEndStream,
+	)
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+// onHttpResponseHeaders processes the response headers and logs them if enabled
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Action {
 	// Get all response headers
 	headers, err := proxywasm.GetHttpResponseHeaders()
 	if err != nil {
@@ -296,14 +340,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 			normalizedName := normalizeHeaderName(header[0])
 			jsonStr, err = sjson.Set(jsonStr, normalizedName, header[1])
 			if err != nil {
-				log.Errorf("Failed to convert response headers to JSON: %v", err)
+				log.Errorf("Failed to convert response header to JSON: name=%s, value=%s, error=%v", normalizedName, header[1], err)
 			}
 		}
 
-		marshalledJsonStr := marshalStr(jsonStr)
-		if err := proxywasm.SetProperty([]string{LogKeyResponseHeaders}, []byte(marshalledJsonStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyResponseHeaders, err, jsonStr)
-		}
+		setPropertyWithMarshal(logKeyResponseHeaders, jsonStr)
 	}
 
 	// Check if response body needs to be logged
@@ -338,45 +379,21 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 	}
 
 	// Initialize a buffer to accumulate response body chunks
-	ctx.SetContext("response_body_buffer", []byte{})
+	ctx.SetContext(contextKeyResponseBodyBuffer, []byte{})
 
 	return types.ActionContinue
 }
 
 // onStreamingResponseBody processes each chunk of the response body in streaming mode
 // This allows us to log the response body without affecting the original response
-func onStreamingResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isEndStream bool, log wrapper.Log) []byte {
-	// If response body logging is not enabled or max size is <= 0, just return the chunk as is
-	if !config.Response.Body.Enabled || config.Response.Body.MaxSize <= 0 {
-		return chunk
-	}
-
-	// Get the buffer from context
-	buffer, _ := ctx.GetContext("response_body_buffer").([]byte)
-
-	// If we haven't reached max size yet, append chunk to buffer
-	if len(buffer) < config.Response.Body.MaxSize {
-		// Calculate how much of this chunk we can add
-		remainingCapacity := config.Response.Body.MaxSize - len(buffer)
-		if remainingCapacity > 0 {
-			if len(chunk) <= remainingCapacity {
-				buffer = append(buffer, chunk...)
-			} else {
-				buffer = append(buffer, chunk[:remainingCapacity]...)
-			}
-			ctx.SetContext("response_body_buffer", buffer)
-		}
-	}
-
-	// When we reach the end of stream, create log entry
-	if isEndStream && len(buffer) > 0 {
-		bodyStr := string(buffer)
-		marshalledBodyStr := marshalStr(bodyStr)
-		if err := proxywasm.SetProperty([]string{LogKeyResponseBody}, []byte(marshalledBodyStr)); err != nil {
-			log.Errorf("failed to set %s in filter state, err: %v, raw:\n%s", LogKeyResponseBody, err, bodyStr)
-		}
-	}
-
-	// Always return the original chunk unmodified
-	return chunk
+func onStreamingResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isEndStream bool) []byte {
+	return processStreamingBody(
+		ctx,
+		config.Response.Body.Enabled,
+		config.Response.Body.MaxSize,
+		contextKeyResponseBodyBuffer,
+		logKeyResponseBody,
+		chunk,
+		isEndStream,
+	)
 }
