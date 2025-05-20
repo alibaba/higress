@@ -202,7 +202,7 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
           }
           item = consumer.find("keys");
           if (item == consumer.end()) {
-            LOG_WARN("not found keys configuration for consumer " + c.name + ", will use global configuration to extract keys");
+            LOG_DEBUG("not found keys configuration for consumer " + c.name + ", will use global configuration to extract keys");
             need_global_keys = true;
           } else {
             c.keys = std::vector<std::string>{OriginalAuthKey};
