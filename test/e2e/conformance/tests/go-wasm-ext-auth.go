@@ -1,3 +1,4 @@
+
 // Copyright (c) 2022 Alibaba Group Holding Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// --------------------- tests/go-wasm-ext-auth_test.go ---------------------
 package tests
 
 import (
@@ -300,7 +300,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
-			// NEW: Request body testing
+			// Request body testing
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Request Body Testing - JSON",
@@ -324,7 +324,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// NEW: Custom status error code test
+			// Custom status error code test
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Custom Status on Error",
@@ -343,7 +343,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 503},
 				},
 			},
-			// NEW: Header transformation test
+			// Header transformation test
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Header Transformation",
@@ -373,7 +373,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
-			// NEW: Large request body test (testing max_request_body_bytes)
+			// Large request body test (testing max_request_body_bytes)
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Large Request Body Test",
@@ -396,6 +396,53 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{StatusCode: 200},
+				},
+			},
+			// Timeout test (new)
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Timeout Test",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "timeout-test.com",
+						Path: "/test-timeout",
+						Method: "GET",
+						Headers: map[string]string{
+							"X-Sleep-Time": "2000", // 2 seconds, longer than the 1s timeout
+						},
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{StatusCode: 504}, // Gateway Timeout
+				},
+			},
+			// Body size limit exceeded test (new)
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Body Size Limit Exceeded",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "body-limit-test.com",
+						Path: "/test-body-limit",
+						Method: "POST",
+						Headers: map[string]string{
+							"Authorization": "Bearer valid-token",
+							"Content-Type": "application/json",
+						},
+						// Generate a body larger than the defined limit (100KB)
+						Body: []byte(generateLargeBody(150 * 1024)), // 150KB, exceeds 100KB limit
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{StatusCode: 413}, // Payload Too Large
 				},
 			},
 		}
