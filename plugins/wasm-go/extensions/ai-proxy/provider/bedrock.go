@@ -13,6 +13,7 @@ import (
 	"hash/crc32"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -901,7 +902,7 @@ func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {
 	hashedPayload := sha256Hex(body)
-	path = urlEncoding(path)
+	path = url.QueryEscape(path)
 
 	endpoint := fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion)
 	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-date:%s\n", endpoint, amzDate)
@@ -916,16 +917,6 @@ func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, bod
 	signingKey := getSignatureKey(b.config.awsSecretKey, dateStamp, b.config.awsRegion, awsService)
 	signature := hmacHex(signingKey, stringToSign)
 	return signature
-}
-
-func urlEncoding(rawStr string) string {
-	encodedStr := strings.ReplaceAll(rawStr, ":", "%3A")
-	encodedStr = strings.ReplaceAll(encodedStr, "+", "%2B")
-	encodedStr = strings.ReplaceAll(encodedStr, "=", "%3D")
-	encodedStr = strings.ReplaceAll(encodedStr, "&", "%26")
-	encodedStr = strings.ReplaceAll(encodedStr, "$", "%24")
-	encodedStr = strings.ReplaceAll(encodedStr, "@", "%40")
-	return encodedStr
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {
