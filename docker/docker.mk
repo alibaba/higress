@@ -1,4 +1,3 @@
-cat > ~/Desktop/OSPP/higress/docker/docker.mk << 'EOF'
 ## Copyright 2018 Istio Authors
 ##
 ## Licensed under the Apache License, Version 2.0 (the "License");
@@ -102,4 +101,3 @@ HIGRESS_DOCKER_RULE ?= $(foreach VARIANT,$(DOCKER_BUILD_VARIANTS), \
 		-t $(IMG_URL)$(call variant-tag,$(VARIANT)) \
 		-f Dockerfile.higress .; \
 	fi; )
-EOF
