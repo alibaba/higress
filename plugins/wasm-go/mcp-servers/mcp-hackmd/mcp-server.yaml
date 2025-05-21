@@ -15,21 +15,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: delete_teams_teamPath_notes_noteId
     description: Delete a note from a team
@@ -50,21 +35,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: get_history
     description: Get user's browse history
@@ -75,21 +45,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: get_me
     description: Get user data - GET user data
@@ -100,21 +55,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: get_notes
     description: Get user's note list
@@ -125,21 +65,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: get_notes_noteId
     description: Get a note by noteId
@@ -155,21 +80,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: get_teams
     description: GET a list of team user participating in
@@ -180,21 +90,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: get_teams_teamPath_notes
     description: Get a list of notes in a team
@@ -210,21 +105,6 @@ tools:
       headers:
         - key: Authorization
           value: "Bearer {{.config.accessToken}}"
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: patch_notes_noteId
     description: Update a note's content
@@ -247,21 +127,6 @@ tools:
           value: "Bearer {{.config.accessToken}}"
         - key: Content-Type
           value: application/json
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: patch_teams_teamPath_notes_noteId
     description: Update a note's content in a team
@@ -289,21 +154,6 @@ tools:
           value: "Bearer {{.config.accessToken}}"
         - key: Content-Type
           value: application/json
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: post_notes
     description: Create a new note
@@ -326,21 +176,6 @@ tools:
           value: "Bearer {{.config.accessToken}}"
         - key: Content-Type
           value: application/json
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
 
   - name: post_teams_teamPath_notes
     description: Create a note under a team
@@ -378,18 +213,3 @@ tools:
           value: "Bearer {{.config.accessToken}}"
         - key: Content-Type
           value: application/json
-    responseTemplate:
-      prependBody: |+
-        # API Response Information
-
-        Below is the response from an API call. To help you understand the data, I've provided:
-
-        1. A detailed description of all fields in the response structure
-        2. The complete API response
-
-        ## Response Structure
-
-        > Content-Type: application/json
-
-
-        ## Original Response
