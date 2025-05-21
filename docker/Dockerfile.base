@@ -1,33 +1,32 @@
 FROM ubuntu:22.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+# Use ARG instead of ENV to prevent persistence in final image
+ARG DEBIAN_FRONTEND=noninteractive
 
-# Do not add more stuff to this list that isn't small or critically useful.
-# If you occasionally need something on the container do
-# sudo apt-get update && apt-get whichever
-
-# hadolint ignore=DL3005,DL3008
+# Group all installations in one RUN command to reduce layers
+# Sort packages alphabetically for better maintainability
+# Clean up in the same layer to minimize image size
 RUN apt-get update && \
-  apt-get install --no-install-recommends -y \
-  ca-certificates \
-  curl \
-  iptables \
-  iproute2 \
-  iputils-ping \
-  knot-dnsutils \
-  netcat \
-  tcpdump \
-  conntrack \
-  bsdmainutils \
-  net-tools \
-  lsof \
-  sudo \
-  && apt-get upgrade -y \
-  && apt-get clean \
-  && rm -rf /var/log/*log /var/lib/apt/lists/* /var/log/apt/* /var/lib/dpkg/*-old /var/cache/debconf/*-old \
-  && update-alternatives --set iptables /usr/sbin/iptables-legacy \
-  && update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+    apt-get install --no-install-recommends -y \
+      bsdmainutils \
+      ca-certificates \
+      conntrack \
+      curl \
+      iproute2 \
+      iptables \
+      iputils-ping \
+      knot-dnsutils \
+      lsof \
+      net-tools \
+      netcat \
+      sudo \
+      tcpdump && \
+    apt-get upgrade -y && \
+    apt-get clean && \
+    rm -rf /var/log/*log /var/lib/apt/lists/* /var/log/apt/* /var/lib/dpkg/*-old /var/cache/debconf/*-old && \
+    update-alternatives --set iptables /usr/sbin/iptables-legacy && \
+    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
 
-# Sudoers used to allow tcpdump and other debug utilities.
+# Sudoers used to allow tcpdump and other debug utilities
 RUN useradd -m --uid 1337 istio-proxy && \
-  echo "istio-proxy ALL=NOPASSWD: ALL" >> /etc/sudoers
+    echo "istio-proxy ALL=NOPASSWD: ALL" >> /etc/sudoers

@@ -1,19 +1,29 @@
-# BASE_DISTRIBUTION is used to switch between the old base distribution and distroless base images
-ARG BASE_DISTRIBUTION=debug
-
-# Version is the base image version from the TLD Makefile
-ARG BASE_VERSION=latest
-
+# Define ARGs before FROM
 ARG HUB
-
-# The following section is used as base image if BASE_DISTRIBUTION=debug
-# This base image is provided by istio, see: https://github.com/istio/istio/blob/master/docker/Dockerfile.base
-FROM ${HUB}/base:${BASE_VERSION}
-
+ARG BASE_VERSION
 ARG TARGETARCH
 
+# Build stage
+FROM ${HUB}/base:${BASE_VERSION} AS builder
+# Copy build artifacts that are already built elsewhere
 COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
 
+# Runtime stage for debug (full image with debugging tools)
+FROM ${HUB}/base:${BASE_VERSION} AS debug
+COPY --from=builder /usr/local/bin/higress /usr/local/bin/higress
 USER 1337:1337
+ENTRYPOINT ["/usr/local/bin/higress"]
 
+# Runtime stage for minimal (Alpine-based small image)
+FROM alpine:latest AS minimal
+RUN apk --no-cache add ca-certificates && \
+    adduser -D -u 1337 istio-proxy
+COPY --from=builder /usr/local/bin/higress /usr/local/bin/higress
+USER 1337:1337
+ENTRYPOINT ["/usr/local/bin/higress"]
+
+# Runtime stage for distroless (minimal image without shell)
+FROM gcr.io/distroless/cc:latest AS distroless
+COPY --from=builder /usr/local/bin/higress /usr/local/bin/higress
+USER 1337:1337
 ENTRYPOINT ["/usr/local/bin/higress"]
