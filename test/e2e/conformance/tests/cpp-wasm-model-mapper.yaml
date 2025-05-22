@@ -86,3 +86,4 @@ spec:
         enableOnPathSuffix: ["/api/custom/endpoint"]
       ingress:
         - higress-conformance-ai-backend/wasmplugin-model-mapper-custom-path
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/model-mapper:1.0.0
