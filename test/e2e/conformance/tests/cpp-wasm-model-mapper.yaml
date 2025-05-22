@@ -6,7 +6,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "model-mapper.example.com"
+    - host: "foo.com"
       http:
         paths:
           - pathType: Prefix
@@ -25,7 +25,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "model-mapper-custom-key.example.com"
+    - host: "foo.com"
       http:
         paths:
           - pathType: Prefix
@@ -44,7 +44,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "model-mapper-custom-path.example.com"
+    - host: "foo.com"
       http:
         paths:
           - pathType: Prefix
