@@ -1,0 +1,106 @@
+server:
+  name: shebao-tools-api-server
+  config:
+    apikey: ""
+tools:
+  - name: calculate_social_security
+    description: |+
+      根据城市信息计算社保、公积金费用。
+      - 输入城市名称和薪资信息。
+      - 返回社保和公积金的详细计算结果。
+    args:
+      - name: city
+        description: 城市名称
+        type: string
+        required: true
+      - name: salary
+        description: 个人薪资
+        type: number
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://open-api.junrunrenli.com/agent/tools?jr-api-key={apikey}
+      method: GET
+      headers:
+        - key: jr-api-key
+          value: "{{.config.apikey}}"
+
+  - name: calculate_disability_insurance
+    description: |+
+      根据企业规模计算残保金。
+      - 输入企业员工数量和平均薪资。
+      - 返回残保金的计算结果。
+    args:
+      - name: employee_count
+        description: 企业员工数量
+        type: integer
+        required: true
+      - name: average_salary
+        description: 企业平均薪资
+        type: number
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://open-api.junrunrenli.com/agent/tools?jr-api-key={apikey}
+      method: GET
+      headers:
+        - key: jr-api-key
+          value: "{{.config.apikey}}"
+
+  - name: calculate_income_tax
+    description: |+
+      根据个人薪资计算个税缴纳费用。
+      - 输入个人薪资。
+      - 返回个税缴纳费用。
+    args:
+      - name: salary
+        description: 个人薪资
+        type: number
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://open-api.junrunrenli.com/agent/tools?jr-api-key={apikey}
+      method: GET
+      headers:
+        - key: jr-api-key
+          value: "{{.config.apikey}}"
+
+  - name: calculate_work_injury_compensation
+    description: |+
+      根据工伤情况计算赔付费用。
+      - 输入工伤等级和薪资信息。
+      - 返回工伤赔付费用。
+    args:
+      - name: injury_level
+        description: 工伤等级
+        type: string
+        required: true
+      - name: salary
+        description: 个人薪资
+        type: number
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://open-api.junrunrenli.com/agent/tools?jr-api-key={apikey}
+      method: GET
+      headers:
+        - key: jr-api-key
+          value: "{{.config.apikey}}"
+
+  - name: calculate_work_death_compensation
+    description: |+
+      根据工亡情况计算赔付费用。
+      - 输入相关信息。
+      - 返回工亡赔付费用。
+    args:
+      - name: relevant_info
+        description: 相关信息（可根据实际情况细化）
+        type: string
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://open-api.junrunrenli.com/agent/tools?jr-api-key={apikey}
+      method: GET
+      headers:
+        - key: jr-api-key
+          value: "{{.config.apikey}}"
