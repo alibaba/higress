@@ -131,3 +131,4 @@ spec:
         modelToHeader: "x-higress-llm-model"
       ingress:
         - higress-conformance-ai-backend/wasmplugin-model-router-combined
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/model-router:1.0.0
