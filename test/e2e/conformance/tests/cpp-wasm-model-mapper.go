@@ -118,7 +118,7 @@ var WasmPluginsModelMapper = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "model-mapper-custom-key.example.com",
+						Host:        "foo.com",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
