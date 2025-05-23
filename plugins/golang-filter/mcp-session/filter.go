@@ -143,48 +143,7 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 func (f *filter) processMcpRequestHeadersForSSEUpstream(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	// We don't need to process the request body for SSE upstream.
 	f.skipRequestBody = true
-	f.rewritePathForSSEUpstream(header)
 	return api.Continue
-}
-
-func (f *filter) rewritePathForSSEUpstream(header api.RequestHeaderMap) {
-	matchedRule := f.matchedRule
-	if !matchedRule.EnablePathRewrite || matchedRule.MatchRuleType != common.PrefixMatch {
-		// No rewrite required, so we don't need to process the response body, either.
-		f.skipResponseBody = true
-		return
-	}
-
-	path := f.req.URL.Path
-	if !strings.HasPrefix(path, matchedRule.MatchRulePath) {
-		api.LogWarnf("Unexpected: Path %s does not match the configured prefix %s", path, matchedRule.MatchRulePath)
-		return
-	}
-
-	rewrittenPath := path[len(matchedRule.MatchRulePath):]
-
-	if rewrittenPath == "" {
-		rewrittenPath = matchedRule.PathRewritePrefix
-	} else {
-		rewritePrefixHasTrailingSlash := strings.HasSuffix(matchedRule.PathRewritePrefix, "/")
-		pathSuffixHasLeadingSlash := strings.HasPrefix(rewrittenPath, "/")
-		if rewritePrefixHasTrailingSlash != pathSuffixHasLeadingSlash {
-			// One has, the other doesn't have.
-			rewrittenPath = matchedRule.PathRewritePrefix + rewrittenPath
-		} else if pathSuffixHasLeadingSlash {
-			// Both have.
-			rewrittenPath = matchedRule.PathRewritePrefix + rewrittenPath[1:]
-		} else {
-			// Neither have.
-			rewrittenPath = matchedRule.PathRewritePrefix + "/" + rewrittenPath
-		}
-	}
-
-	if f.req.URL.RawQuery != "" {
-		rewrittenPath = rewrittenPath + "?" + f.req.URL.RawQuery
-	}
-
-	header.SetPath(rewrittenPath)
 }
 
 // DecodeData might be called multiple times during handling the request body.
