@@ -71,6 +71,7 @@ var (
 		provider.McpStreambleProtocol: mcpserver.UpstreamTypeStreamable,
 	}
 	routeRewriteProtocols = map[string]bool{
+		provider.McpSSEProtocol:       true,
 		provider.McpStreambleProtocol: true,
 	}
 	mcpServerRewriteProtocols = map[string]bool{
