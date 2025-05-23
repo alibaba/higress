@@ -1,0 +1,36 @@
+name: "Sync CRDs to Helm Chart"
+
+on:
+  workflow_dispatch: ~
+  push:
+    branches: [ main ]
+    paths:
+      - 'api/kubernetes/customresourcedefinitions.gen.yaml'
+
+jobs:
+  sync-crds:
+    name: Sync CRDs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Copy the CRD YAML File to Helm Folder
+        run: |
+          cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds/customresourcedefinitions.gen.yaml
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update CRD file in the helm folder"
+          branch: sync-crds
+          title: "Update CRD file in the helm folder"
+          body: |
+            This PR updates CRD file in the helm folder.
+
+            - Automatically copied by GitHub Actions
+          labels: crds, automated
+          base: main
