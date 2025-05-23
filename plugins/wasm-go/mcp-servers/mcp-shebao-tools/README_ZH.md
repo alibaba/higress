@@ -47,7 +47,7 @@
 
 ```json
 "mcpServers": {
-    "wolframalpha": {
+    "jr-shebao-calc": {
       "url": "https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}",
     }
 }
