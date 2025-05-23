@@ -1,19 +1,36 @@
-# BASE_DISTRIBUTION is used to switch between the old base distribution and distroless base images
+# Define ARGs before FROM
 ARG BASE_DISTRIBUTION=debug
-
-# Version is the base image version from the TLD Makefile
 ARG BASE_VERSION=latest
-
-ARG HUB
-
-# The following section is used as base image if BASE_DISTRIBUTION=debug
-# This base image is provided by istio, see: https://github.com/istio/istio/blob/master/docker/Dockerfile.base
-FROM ${HUB}/base:${BASE_VERSION}
-
+ARG HUB="docker.io/library"
 ARG TARGETARCH
+ARG PARENT_GIT_TAG
+ARG PARENT_GIT_REVISION
 
+# Debug variant - Ubuntu-based with debugging tools
+FROM ${HUB:-docker.io/library}/base:${BASE_VERSION} AS debug
+ARG TARGETARCH
+ARG PARENT_GIT_TAG
+ARG PARENT_GIT_REVISION
 COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
-
 USER 1337:1337
+ENTRYPOINT ["/usr/local/bin/higress"]
 
+# Minimal variant - Alpine-based with basic tools (default)
+FROM alpine:latest AS minimal
+ARG TARGETARCH
+ARG PARENT_GIT_TAG
+ARG PARENT_GIT_REVISION
+RUN apk --no-cache add ca-certificates && \
+    adduser -D -u 1337 istio-proxy
+COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
+USER 1337:1337
+ENTRYPOINT ["/usr/local/bin/higress"]
+
+# Distroless variant - No shell
+FROM gcr.io/distroless/cc:latest AS distroless
+ARG TARGETARCH
+ARG PARENT_GIT_TAG
+ARG PARENT_GIT_REVISION
+COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
+USER 1337:1337
 ENTRYPOINT ["/usr/local/bin/higress"]

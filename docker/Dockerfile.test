@@ -1,0 +1,13 @@
+# Debug variant using local optimized base
+FROM higress-base:test-opt AS debug
+COPY amd64/higress /usr/local/bin/higress
+USER 1337:1337
+ENTRYPOINT ["/usr/local/bin/higress"]
+
+# Minimal variant using Alpine
+FROM alpine:latest AS minimal
+RUN apk --no-cache add ca-certificates && \
+    adduser -D -u 1337 istio-proxy
+COPY amd64/higress /usr/local/bin/higress
+USER 1337:1337
+ENTRYPOINT ["/usr/local/bin/higress"]
