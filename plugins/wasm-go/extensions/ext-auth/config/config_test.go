@@ -403,7 +403,7 @@ func TestParseConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var config ExtAuthConfig
 			result := gjson.Parse(tt.json)
-			err := ParseConfig(result, &config, &wrapper.DefaultLog{})
+			err := ParseConfig(result, &config)
 
 			if tt.expectedErr != "" {
 				assert.EqualError(t, err, tt.expectedErr)
