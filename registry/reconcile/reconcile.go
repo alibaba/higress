@@ -23,11 +23,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	"istio.io/pkg/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	higressmcpserver "github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/pkg/kube"
 	. "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/consul"
@@ -35,9 +36,9 @@ import (
 	"github.com/alibaba/higress/registry/eureka"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos"
+	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
 	"github.com/alibaba/higress/registry/zookeeper"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -318,6 +319,17 @@ func (r *Reconciler) getAuthOption(registry *apiv1.RegistryConfig) (AuthOption, 
 	}
 
 	return authOption, nil
+}
+
+func (r *Reconciler) GetMcpServers() []*higressmcpserver.McpServer {
+	mcpServersFromMcp := r.GetAllConfigs(higressmcpserver.GvkMcpServer)
+	servers := make([]*higressmcpserver.McpServer, 0, len(mcpServersFromMcp))
+	for _, c := range mcpServersFromMcp {
+		if server, ok := c.Spec.(*higressmcpserver.McpServer); ok {
+			servers = append(servers, server)
+		}
+	}
+	return servers
 }
 
 type RegistryWatcherStatus struct {
