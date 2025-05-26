@@ -35,7 +35,7 @@
 2. 发送邮件to: yuanpeng@junrunrenli.com   标题：MCP  内容：申请MCP社保计算工具服务，并提供你的账号。
 
 ### 知识库
-1. 导入city_data.xls到知识库中。
+1. 导入[city_data.xls](https://github.com/alibaba/higress/raw/refs/heads/main/plugins/wasm-go/mcp-servers/mcp-shebao-tools/city_data.xls)到知识库中。
 
 ### 配置 API Key
 
@@ -44,10 +44,3 @@
 ### 集成到 MCP Client
 
 在用户的 MCP Client 界面，将相关配置添加到 MCP Server 列表中。
-
-```json
-"mcpServers": {
-    "jr-shebao-calc": {
-      "url": "https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}",
-    }
-}
