@@ -18,7 +18,6 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/alibaba/higress/registry/reconcile"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
@@ -33,6 +32,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
+	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
@@ -59,7 +59,6 @@ type ItemController interface {
 	ValidHigressConfig(higressConfig *HigressConfig) error
 	ConstructEnvoyFilters() ([]*config.Config, error)
 	RegisterItemEventHandler(eventHandler ItemEventHandler)
-	RegisterMcpReconciler(reconciler *reconcile.Reconciler)
 }
 
 type ConfigmapMgr struct {
@@ -113,9 +112,11 @@ func (c *ConfigmapMgr) GetHigressConfig() *HigressConfig {
 	return nil
 }
 
-func (c *ConfigmapMgr) SetMcpReconciler(reconciler *reconcile.Reconciler) {
+func (c *ConfigmapMgr) RegisterMcpServerProvider(provider mcpserver.McpServerProvider) {
 	for _, itemController := range c.ItemControllers {
-		itemController.RegisterMcpReconciler(reconciler)
+		if mcpRouteProviderAware, ok := itemController.(mcpserver.McpRouteProviderAware); ok {
+			mcpRouteProviderAware.RegisterMcpServerProvider(provider)
+		}
 	}
 }
 
