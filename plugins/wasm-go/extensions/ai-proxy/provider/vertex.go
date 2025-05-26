@@ -42,6 +42,9 @@ func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error
 	if config.vertexRegion == "" || config.vertexProjectId == "" {
 		return errors.New("missing vertexRegion or vertexProjectId in vertex provider config")
 	}
+	if config.vertexAuthServiceName == "" {
+		return errors.New("missing vertexAuthServiceName in vertex provider config")
+	}
 	return nil
 }
 
@@ -56,8 +59,10 @@ func (v *vertexProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	config.setDefaultCapabilities(v.DefaultCapabilities())
 	return &vertexProvider{
 		config: config,
-		client: wrapper.NewClusterClient(wrapper.RouteCluster{
-			Host: vertexAuthDomain,
+		client: wrapper.NewClusterClient(wrapper.DnsCluster{
+			Domain:      vertexAuthDomain,
+			ServiceName: config.vertexAuthServiceName,
+			Port:        443,
 		}),
 		contextCache: createContextCache(&config),
 	}, nil

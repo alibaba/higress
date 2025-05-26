@@ -290,6 +290,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Vertex 认证秘钥
 	// @Description zh-CN 用于Google服务账号认证的完整JSON密钥文件内容，获取可参考https://cloud.google.com/iam/docs/keys-create-delete?hl=zh-cn#iam-service-account-keys-create-console
 	vertexAuthKey string `required:"false" yaml:"vertexAuthKey" json:"vertexAuthKey"`
+	// @Title zh-CN Vertex 认证服务名
+	// @Description zh-CN 用于Google服务账号认证的服务,DNS类型的服务名
+	vertexAuthServiceName string `required:"false" yaml:"vertexAuthServiceName" json:"vertexAuthServiceName"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -385,6 +388,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vertexRegion = json.Get("vertexRegion").String()
 	c.vertexProjectId = json.Get("vertexProjectId").String()
 	c.vertexAuthKey = json.Get("vertexAuthKey").String()
+	c.vertexAuthServiceName = json.Get("vertexAuthServiceName").String()
 	c.targetLang = json.Get("targetLang").String()
 
 	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
