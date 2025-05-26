@@ -852,7 +852,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, rawURL string, headers
 	requestID := uuid.New().String()
 	ctx.responseCallback = func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
 		callback(sendDirectly, statusCode, responseHeaders, responseBody)
-		log.Debugf("route call end, id:%s, code:%d, headers:%#v, body:%s", requestID, statusCode, responseHeaders, strings.ReplaceAll(string(responseBody), "\n", `\n`))
+		log.Infof("route call end, id:%s, code:%d, headers:%#v, body:%s", requestID, statusCode, responseHeaders, strings.ReplaceAll(string(responseBody), "\n", `\n`))
 	}
 	orignalMethod, _ := proxywasm.GetHttpRequestHeader(":method")
 	orignalPath, _ := proxywasm.GetHttpRequestHeader(":path")
@@ -880,7 +880,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, rawURL string, headers
 		proxywasm.ReplaceHttpRequestHeader(kv[0], kv[1])
 	}
 	proxywasm.ReplaceHttpRequestBody(body)
-	log.Debugf("route call start, id:%s, method:%s, url:%s, headers:%#v, body:%s", requestID, method, rawURL, headers, strings.ReplaceAll(string(body), "\n", `\n`))
+	log.Infof("route call start, id:%s, method:%s, url:%s, headers:%#v, body:%s", requestID, method, rawURL, headers, strings.ReplaceAll(string(body), "\n", `\n`))
 	return nil
 }
 

@@ -62,13 +62,13 @@ func (s *BaseMCPServer) GetConfig(v any) {
 	serverConfigBase64, _ := proxywasm.GetHttpRequestHeader("x-higress-mcpserver-config")
 	proxywasm.RemoveHttpRequestHeader("x-higress-mcpserver-config")
 	if serverConfigBase64 != "" {
-		log.Info("parse server config from request")
 		serverConfig, err := base64.StdEncoding.DecodeString(serverConfigBase64)
 		if err != nil {
 			log.Errorf("base64 decode mcp server config failed:%s, bytes:%s", err, serverConfigBase64)
 		} else {
 			config = serverConfig
 		}
+		log.Infof("parse server config from request, config:%s", serverConfig)
 	} else {
 		config = s.config
 	}
