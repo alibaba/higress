@@ -16,6 +16,7 @@ package v2
 
 import (
 	"errors"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
@@ -438,6 +439,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 func (w *watcher) generateServiceEntry(host string, services []model.Instance) *v1alpha3.ServiceEntry {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
+	isDnsService := false
 
 	for _, service := range services {
 		protocol := common.HTTP
@@ -452,6 +454,9 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 		if len(portList) == 0 {
 			portList = append(portList, port)
 		}
+		if !isValidIP(service.Ip) {
+			isDnsService = true
+		}
 		endpoint := &v1alpha3.WorkloadEntry{
 			Address: service.Ip,
 			Ports:   map[string]uint32{port.Protocol: port.Number},
@@ -460,11 +465,15 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 		endpoints = append(endpoints, endpoint)
 	}
 
+	resolution := v1alpha3.ServiceEntry_STATIC
+	if isDnsService {
+		resolution = v1alpha3.ServiceEntry_DNS
+	}
 	se := &v1alpha3.ServiceEntry{
 		Hosts:      []string{host},
 		Ports:      portList,
 		Location:   v1alpha3.ServiceEntry_MESH_INTERNAL,
-		Resolution: v1alpha3.ServiceEntry_STATIC,
+		Resolution: resolution,
 		Endpoints:  endpoints,
 	}
 
@@ -522,4 +531,9 @@ func shouldSubscribe(serviceName string) bool {
 	}
 
 	return true
+}
+
+func isValidIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	return ip != nil
 }

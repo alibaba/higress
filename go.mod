@@ -274,6 +274,6 @@ replace github.com/caddyserver/certmagic => github.com/2456868764/certmagic v1.0
 
 replace (
 	github.com/dubbogo/gost => github.com/johnlanni/gost v1.11.23-0.20220713132522-0967a24036c6
-	github.com/nacos-group/nacos-sdk-go/v2 => github.com/luoxiner/nacos-sdk-go/v2 v2.2.9-60
+	github.com/nacos-group/nacos-sdk-go/v2 => github.com/nacos-group/nacos-sdk-go/v2 v2.3.1
 	golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 )

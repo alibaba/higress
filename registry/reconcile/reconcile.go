@@ -147,8 +147,8 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
 	return nil
 }
 
-func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) (Watcher, error) {
-	var watcher Watcher
+func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) ([]Watcher, error) {
+	var watcher []Watcher
 	var err error
 
 	authOption, err := r.getAuthOption(registry)
@@ -170,7 +170,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacos.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacos.WithAuthOption(authOption),
 		)
-	case string(Nacos2):
+	case string(Nacos2), string(Nacos3):
 		watcher, err = nacosv2.NewWatcher(
 			r.Cache,
 			nacosv2.WithType(registry.Type),
@@ -186,42 +186,24 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacosv2.WithAuthOption(authOption),
 		)
-	case string(Nacos3):
-		if registry.EnableMCPServer.GetValue() {
-			watcher, err = mcpserver.NewWatcher(
-				r.Cache,
-				mcpserver.WithType(registry.Type),
-				mcpserver.WithName(registry.Name),
-				mcpserver.WithNacosAddressServer(registry.NacosAddressServer),
-				mcpserver.WithDomain(registry.Domain),
-				mcpserver.WithPort(registry.Port),
-				mcpserver.WithNacosAccessKey(registry.NacosAccessKey),
-				mcpserver.WithNacosSecretKey(registry.NacosSecretKey),
-				mcpserver.WithNacosRefreshInterval(registry.NacosRefreshInterval),
-				mcpserver.WithMcpExportDomains(registry.McpServerExportDomains),
-				mcpserver.WithMcpBaseUrl(registry.McpServerBaseUrl),
-				mcpserver.WithEnableMcpServer(registry.EnableMCPServer),
-				mcpserver.WithClusterId(r.clusterId),
-				mcpserver.WithNamespace(r.namespace),
-				mcpserver.WithAuthOption(authOption),
-			)
-		} else {
-			watcher, err = nacosv2.NewWatcher(
-				r.Cache,
-				nacosv2.WithType(registry.Type),
-				nacosv2.WithName(registry.Name),
-				nacosv2.WithNacosAddressServer(registry.NacosAddressServer),
-				nacosv2.WithDomain(registry.Domain),
-				nacosv2.WithPort(registry.Port),
-				nacosv2.WithNacosAccessKey(registry.NacosAccessKey),
-				nacosv2.WithNacosSecretKey(registry.NacosSecretKey),
-				nacosv2.WithNacosNamespaceId(registry.NacosNamespaceId),
-				nacosv2.WithNacosNamespace(registry.NacosNamespace),
-				nacosv2.WithNacosGroups(registry.NacosGroups),
-				nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
-				nacosv2.WithAuthOption(authOption),
-			)
-		}
+		watcher, err = mcpserver.NewWatcher(
+			r.Cache,
+			mcpserver.WithType(registry.Type),
+			mcpserver.WithName(registry.Name),
+			mcpserver.WithNacosAddressServer(registry.NacosAddressServer),
+			mcpserver.WithDomain(registry.Domain),
+			mcpserver.WithPort(registry.Port),
+			mcpserver.WithNacosAccessKey(registry.NacosAccessKey),
+			mcpserver.WithNacosSecretKey(registry.NacosSecretKey),
+			mcpserver.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+			mcpserver.WithMcpExportDomains(registry.McpServerExportDomains),
+			mcpserver.WithMcpBaseUrl(registry.McpServerBaseUrl),
+			mcpserver.WithEnableMcpServer(registry.EnableMCPServer),
+			mcpserver.WithClusterId(r.clusterId),
+			mcpserver.WithNamespace(r.namespace),
+			mcpserver.WithAuthOption(authOption),
+		)
+
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
 			r.Cache,
