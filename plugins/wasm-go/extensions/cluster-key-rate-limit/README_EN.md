@@ -1,9 +1,9 @@
----  
+---
 title: Cluster Rate Limiting Based on Key  
 keywords: [higress, rate-limit]  
 description: Configuration reference for the Key-based cluster rate limiting plugin
 
----  
+---
 
 ## Function Description
 
@@ -12,9 +12,8 @@ requiring **globally consistent rate limiting across multiple Higress Gateway in
 
 It supports two rate limiting modes:
 
-- **Route-level global rate limiting**: Sets a unified request threshold for the entire route.
-- **Key-level dynamic rate limiting**: Groups and limits requests based on dynamic keys in requests (such as URL
-  parameters, request headers, client IPs, consumer names, or Cookie fields).
+- **Rule-Level Global Rate Limiting**: Applies a unified rate limit threshold to custom rule groups based on identical `rule_name` and `global_threshold` configurations.
+- **Key-Level Dynamic Rate Limiting**: Groups and limits requests by dynamic keys extracted from requests, such as URL parameters, request headers, client IPs, consumer names, or cookie fields.
 
 ## Operational Attributes
 
@@ -23,15 +22,15 @@ It supports two rate limiting modes:
 
 ## Configuration Instructions
 
-| Configuration Item       | Type          | Required                                  | Default Value       | Description                                                                 |  
-|--------------------------|---------------|-------------------------------------------|---------------------|-----------------------------------------------------------------------------|  
+| Configuration Item       | Type          | Required                                  | Default Value       | Description                                                                |  
+|--------------------------|---------------|-------------------------------------------|---------------------|----------------------------------------------------------------------------|  
 | rule_name                | string        | Yes                                       | -                   | Name of the rate limiting rule. Used to construct the Redis key in the format: `rule_name:rate_limit_type:key_name:key_value`. |  
-| global_threshold         | Object        | No (choose either `global_threshold` or `rule_items`) | -                 | Applies rate limiting to the entire route.                                  |  
+| global_threshold         | Object        | No (choose either `global_threshold` or `rule_items`) | -                 | Apply rate limiting to the entire custom rule group.|  
 | rule_items               | array of object | No (choose either `global_threshold` or `rule_items`) | -               | Rate limiting rule items. Rules are matched in the order of the array; once the first matching rule is hit, subsequent rules are ignored. |  
 | show_limit_quota_header  | bool          | No                                        | false             | Whether to display `X-RateLimit-Limit` (total allowed requests) and `X-RateLimit-Remaining` (remaining allowed requests) in the response header. |  
-| rejected_code            | int           | No                                        | 429               | HTTP status code returned when a request is rate-limited.                   |  
-| rejected_msg             | string        | No                                        | Too many requests | Response body returned when a request is rate-limited.                       |  
-| redis                    | object        | Yes                                       | -                   | Configuration for Redis.                                                    |  
+| rejected_code            | int           | No                                        | 429               | HTTP status code returned when a request is rate-limited.                  |  
+| rejected_msg             | string        | No                                        | Too many requests | Response body returned when a request is rate-limited.                      |  
+| redis                    | object        | Yes                                       | -                   | Configuration for Redis.                                                   |  
 
 ### Configuration Fields for `global_threshold`
 
@@ -80,15 +79,15 @@ It supports two rate limiting modes:
 
 ## Configuration Examples
 
-### Global Rate Limiting for an Entire Route
+### Global Rate Limiting for Custom Rule Group
 
 ```yaml  
-rule_name: routeA-global-limit-rule  
-global_threshold:  
-  query_per_minute: 1000 # Maximum 1000 requests per minute for the entire route  
-redis:  
-  service_name: redis.static  
-show_limit_quota_header: true  
+rule_name: routeA-global-limit-rule
+global_threshold:
+  query_per_minute: 1000 # Maximum 1000 requests per minute for this rule group
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
 ```
 
 ### Rate Limiting by Request Parameter `apikey`

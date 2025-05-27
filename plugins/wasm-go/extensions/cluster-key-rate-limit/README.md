@@ -10,7 +10,7 @@ description: 基于 Key 集群限流插件配置参考
 
 支持两种限流模式：
 
-- **路由级全局限流**：对整个路由设置统一请求阈值
+- **规则级全局限流**：基于相同的 `rule_name` 和 `global_threshold` 配置，对自定义规则组设置全局限流阈值
 - **Key 级动态限流**：根据请求中的动态 Key（如 URL 参数、请求头、客户端 IP、Consumer 名称或 Cookie 字段）进行分组限流
 
 ## 运行属性
@@ -23,7 +23,7 @@ description: 基于 Key 集群限流插件配置参考
 | 配置项                  | 类型   | 必填 | 默认值 | 说明                                                                          |
 | ----------------------- | ------ | ---- | ------ |-----------------------------------------------------------------------------|
 | rule_name               | string | 是 | - | 限流规则名称，根据限流规则名称 + 限流类型 + 限流 key 名称 + 限流 key 对应的实际值来拼装 redis key             |
-| global_threshold | Object | 否，`global_threshold` 或 `rule_items` 选填一项 | - | 对整个路由进行限流 |
+| global_threshold | Object | 否，`global_threshold` 或 `rule_items` 选填一项 | - | 对整个自定义规则组进行限流 |
 | rule_items | array of object | 否，`global_threshold` 或 `rule_items` 选填一项 | -                 | 限流规则项，按照 rule_items 下的排列顺序，匹配第一个 rule_item 后命中限流规则，后续规则将被忽略                 |
 | show_limit_quota_header | bool | 否 | false | 响应头中是否显示 `X-RateLimit-Limit`（限制的总请求数）和 `X-RateLimit-Remaining`（剩余还可以发送的请求数） |
 | rejected_code           | int | 否 | 429 | 请求被限流时，返回的 HTTP 状态码                                                         |
@@ -77,12 +77,12 @@ description: 基于 Key 集群限流插件配置参考
 
 ## 配置示例
 
-### 对整个路由进行限流
+### 自定义规则组全局限流
 
 ```yaml
 rule_name: routeA-global-limit-rule
 global_threshold:
-  query_per_minute: 1000 # 整个路由每分钟最多1000次请求
+  query_per_minute: 1000 # 自定义规则组每分钟最多1000次请求
 redis:
   service_name: redis.static
 show_limit_quota_header: true
