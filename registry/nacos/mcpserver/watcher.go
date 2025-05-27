@@ -307,7 +307,8 @@ func (w *watcher) fetchAllMcpConfig() error {
 	if err != nil {
 		return fmt.Errorf("list mcp server failed ,error %s", err.Error())
 	}
-
+	mcpServerLog.Infof("fetch all mcp server config success, configs: %v", mcpConfigs)
+	
 	fetchedConfigs := map[string]bool{}
 	for _, c := range mcpConfigs {
 		fetchedConfigs[c.Id] = true
