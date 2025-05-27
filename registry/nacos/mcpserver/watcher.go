@@ -459,10 +459,10 @@ func (w *watcher) buildVirtualServiceForMcpServer(server *provider.McpServer, da
 	}
 
 	mergePath = "/" + server.Name
-	if w.McpServerBaseUrl != "/" {
+	if w.McpServerBaseUrl != "" && w.McpServerBaseUrl != "/" {
 		mergePath = strings.TrimSuffix(w.McpServerBaseUrl, "/") + mergePath
 	}
-	if exportPath != "/" {
+	if exportPath != "" && exportPath != "/" {
 		mergePath = mergePath + "/" + strings.TrimPrefix(exportPath, "/")
 	}
 
