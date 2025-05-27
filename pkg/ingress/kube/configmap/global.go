@@ -21,7 +21,6 @@ import (
 
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/registry/reconcile"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -375,9 +374,6 @@ func generateEnvoyFilter(namespace string, configPatch []*networking.EnvoyFilter
 
 func (g *GlobalOptionController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
 	g.eventHandler = eventHandler
-}
-
-func (g *GlobalOptionController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
 }
 
 // generateDownstreamEnvoyFilter generates the downstream envoy filter.
