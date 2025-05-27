@@ -453,38 +453,6 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 		matchListConfig = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
 	}
 
-	if m.reconciler != nil {
-		vsFromMcp := m.reconciler.GetAllConfigs(gvk.VirtualService)
-		for _, c := range vsFromMcp {
-			protocol := c.Annotations["service-protocol"]
-			vs := c.Spec.(*networking.VirtualService)
-			var host string
-			if len(vs.Hosts) > 1 {
-				host = fmt.Sprintf("(%s)", strings.Join(vs.Hosts, "|"))
-			} else {
-				host = vs.Hosts[0]
-			}
-			path := vs.Http[0].Match[0].Uri.GetPrefix()
-			if protocol == "mcp-sse" {
-				matchConfigs = append(matchConfigs, fmt.Sprintf(`{
-					"match_rule_domain": "%s",
-					"match_rule_path": "%s",
-					"match_rule_type": "prefix"
-					"upstream_type": "%s",
-					"enable_path_rewrite": %t,
-					"path_rewrite_prefix": "%s"
-				}`, host, path, "sse", true, "/"))
-			} else {
-				matchConfigs = append(matchConfigs, fmt.Sprintf(`{
-					"match_rule_domain": "%s",
-					"match_rule_path": "%s",
-					"match_rule_type": "prefix"
-				}`, host, path))
-			}
-		}
-	}
-	matchList = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
-
 	// Build redis configuration
 	redisConfig := "null"
 	if mcp.Redis != nil {
