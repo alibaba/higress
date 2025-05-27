@@ -93,7 +93,8 @@ type BasicMcpServerInfo struct {
 
 type VersionsMcpServerInfo struct {
 	BasicMcpServerInfo
-	Versions []*VersionDetail `json:"versionDetails"`
+	LatestPublishedVersion string           `json:"latestPublishedVersion"`
+	Versions               []*VersionDetail `json:"versionDetails"`
 }
 
 type VersionDetail struct {
@@ -174,13 +175,7 @@ func (n *NacosRegistryClient) ListenToMcpServer(id string, listener McpServerLis
 			// todo handle err
 		}
 
-		var latestVersion string
-		for _, data := range info.Versions {
-			if data.IsLatest {
-				latestVersion = data.Version
-				break
-			}
-		}
+		latestVersion := info.LatestPublishedVersion
 
 		ctx := n.servers[id]
 		if ctx.versionedMcpServerInfo == nil {
