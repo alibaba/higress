@@ -114,8 +114,9 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	}
 
 	// The nacos mcp server uses these restricted namespaces and groups, and may be adjusted in the future.
-	w.NacosNamespace = "nacos-default-mcp"
-	w.NacosNamespaceId = w.NacosNamespace
+	if w.NacosNamespace == "" {
+		w.NacosNamespace = w.NacosNamespaceId
+	}
 	w.NacosGroups = []string{"mcp-server"}
 
 	mcpServerLog.Infof("new nacos mcp server watcher with config Name:%s", w.Name)
@@ -164,7 +165,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 func WithNacosNamespaceId(nacosNamespaceId string) WatcherOption {
 	return func(w *watcher) {
 		if nacosNamespaceId == "" {
-			w.NacosNamespaceId = "nacos-default-mcp"
+			w.NacosNamespaceId = "public"
 		} else {
 			w.NacosNamespaceId = nacosNamespaceId
 		}
@@ -308,7 +309,7 @@ func (w *watcher) fetchAllMcpConfig() error {
 		return fmt.Errorf("list mcp server failed ,error %s", err.Error())
 	}
 	mcpServerLog.Infof("fetch all mcp server config success, configs: %v", mcpConfigs)
-	
+
 	fetchedConfigs := map[string]bool{}
 	for _, c := range mcpConfigs {
 		fetchedConfigs[c.Id] = true
