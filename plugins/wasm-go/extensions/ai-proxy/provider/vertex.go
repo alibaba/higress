@@ -101,22 +101,22 @@ func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 func (v *vertexProvider) getToken() error {
 	var key ServiceAccountKey
 	if err := json.Unmarshal([]byte(v.config.vertexAuthKey), &key); err != nil {
-		return fmt.Errorf("[vetrtex]: unable to unmarshal auth key json: %v", err)
+		return fmt.Errorf("[vertex]: unable to unmarshal auth key json: %v", err)
 	}
 
 	if key.ClientEmail == "" || key.PrivateKey == "" || key.TokenURI == "" {
-		return fmt.Errorf("[vetrtex]: missing auth params")
+		return fmt.Errorf("[vertex]: missing auth params")
 	}
 
 	jwtToken, err := createJWT(&key)
 	if err != nil {
-		log.Errorf("[vetrtex]: unable to get access token: %v", err)
+		log.Errorf("[vertex]: unable to create JWT token: %v", err)
 		return err
 	}
 
 	err = v.getAccessToken(jwtToken)
 	if err != nil {
-		log.Errorf("[vetrtex]: unable to get access token: %v", err)
+		log.Errorf("[vertex]: unable to get access token: %v", err)
 		return err
 	}
 
@@ -178,7 +178,7 @@ func (v *vertexProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body [
 }
 
 func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
-	log.Infof("[vertexProvider] receive chunk body:%s", string(chunk))
+	log.Infof("[vertexProvider] receive chunk body: %s", string(chunk))
 	if isLastChunk || len(chunk) == 0 {
 		return nil, nil
 	}
