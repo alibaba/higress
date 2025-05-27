@@ -1,5 +1,5 @@
 server:
-  name: shebao-tools-api-server
+  name: shebao-tools
   config:
     apikey: ""
 tools:

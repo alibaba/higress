@@ -317,7 +317,7 @@ func (s *store) GetAllDestinationRuleWrapper() []*ingress.WrapperDestinationRule
 		dr := cfg.Spec.(*v1alpha3.DestinationRule)
 		drwList = append(drwList, &ingress.WrapperDestinationRule{
 			DestinationRule: dr,
-			ServiceKey:      ingress.ServiceKey{ServiceFQDN: dr.Host},
+			ServiceKey:      ingress.ServiceKey{Namespace: "mcp", Name: dr.Host, ServiceFQDN: dr.Host},
 		})
 	}
 
