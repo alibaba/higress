@@ -71,9 +71,9 @@ type ServerContext struct {
 }
 
 type McpServerConfig struct {
-	serverSpecConfig string
-	toolsSpecConfig  string
-	serviceInfo      *model.Service
+	ServerSpecConfig string
+	ToolsSpecConfig  string
+	ServiceInfo      *model.Service
 	Credentials      map[string]string
 }
 
@@ -263,9 +263,9 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 		if strings.HasPrefix(key, SystemConfigIdPrefix) {
 			group := strings.Split(key, "@@")[1]
 			if group == McpServerSpecGroup {
-				result.serverSpecConfig = data.data
+				result.ServerSpecConfig = data.data
 			} else if group == McpToolSpecGroup {
-				result.toolsSpecConfig = data.data
+				result.ToolsSpecConfig = data.data
 			}
 		} else if strings.HasPrefix(key, CredentialPrefix) {
 			credentialId := strings.ReplaceAll(key, CredentialPrefix, "")
@@ -273,7 +273,7 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 		}
 	}
 
-	result.serviceInfo = ctx.serviceInfo
+	result.ServiceInfo = ctx.serviceInfo
 	return result
 }
 
@@ -376,8 +376,6 @@ func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, 
 	}
 
 	configListener := func(namespace, group, dataId, data string) {
-		fmt.Printf("config listener %s %s receive %s", group, dataId, data)
-		wrap.data = data
 		if group == McpToolSpecGroup {
 			n.resetNacosTemplateConfigs(ctx, &wrap)
 		}
@@ -387,6 +385,7 @@ func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, 
 		}
 
 		if ctx.serverChangeListener != nil && wrap.data != data {
+			wrap.data = data
 			n.triggerMcpServerChange(ctx.versionedMcpServerInfo.serverInfo.Id)
 		}
 	}
@@ -452,6 +451,7 @@ func (n *NacosRegistryClient) CancelListenToServer(id string) error {
 			// todo handle error
 			return err
 		}
+		delete(n.servers, id)
 	}
 	return nil
 }
