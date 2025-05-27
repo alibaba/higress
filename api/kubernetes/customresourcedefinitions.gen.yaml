@@ -250,6 +250,10 @@ spec:
               registries:
                 items:
                   properties:
+                    attributes:
+                      additionalProperties:
+                        type: string
+                      type: object
                     authSecretName:
                       type: string
                     consulDatacenter:
@@ -271,6 +275,10 @@ spec:
                       items:
                         type: string
                       type: array
+                    mcpServerRouteNames:
+                      additionalProperties:
+                        type: string
+                      type: object
                     nacosAccessKey:
                       type: string
                     nacosAddressServer:
