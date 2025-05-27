@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	doubaoDomain             = "ark.cn-beijing.volces.com"
-	doubaoChatCompletionPath = "/api/v3/chat/completions"
-	doubaoEmbeddingsPath     = "/api/v3/embeddings"
+	doubaoDomain              = "ark.cn-beijing.volces.com"
+	doubaoChatCompletionPath  = "/api/v3/chat/completions"
+	doubaoEmbeddingsPath      = "/api/v3/embeddings"
+	doubaoImageGenerationPath = "/api/v3/images/generations"
 )
 
 type doubaoProviderInitializer struct{}
@@ -27,8 +28,9 @@ func (m *doubaoProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (m *doubaoProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): doubaoChatCompletionPath,
-		string(ApiNameEmbeddings):     doubaoEmbeddingsPath,
+		string(ApiNameChatCompletion):  doubaoChatCompletionPath,
+		string(ApiNameEmbeddings):      doubaoEmbeddingsPath,
+		string(ApiNameImageGeneration): doubaoImageGenerationPath,
 	}
 }
 
@@ -74,6 +76,9 @@ func (m *doubaoProvider) GetApiName(path string) ApiName {
 	}
 	if strings.Contains(path, doubaoEmbeddingsPath) {
 		return ApiNameEmbeddings
+	}
+	if strings.Contains(path, doubaoImageGenerationPath) {
+		return ApiNameImageGeneration
 	}
 	return ""
 }
