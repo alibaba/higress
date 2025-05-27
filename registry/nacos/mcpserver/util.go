@@ -293,7 +293,7 @@ func (n *NacosRegistryClient) exactConfigsFromContent(ctx *ServerContext, config
 			// todo handle error
 		}
 		result = append(result, configWrap)
-		newContent = strings.Replace(newContent, data, group+"_"+dataId, 1)
+		newContent = strings.Replace(newContent, data, ".config.credentials."+group+"_"+dataId, 1)
 	}
 
 	config.data = newContent
