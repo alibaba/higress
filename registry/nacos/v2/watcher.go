@@ -317,7 +317,9 @@ func (w *watcher) Run() {
 	if err != nil {
 		log.Errorf("first fetch services failed, err:%v", err)
 	} else {
-		w.Ready(true)
+		if w.mcpWatcherReady() {
+			w.Ready(true)
+		}
 	}
 	for {
 		select {
@@ -326,12 +328,21 @@ func (w *watcher) Run() {
 			if err != nil {
 				log.Errorf("fetch services failed, err:%v", err)
 			} else {
-				w.Ready(true)
+				if w.mcpWatcherReady() {
+					w.Ready(true)
+				}
 			}
 		case <-w.stop:
 			return
 		}
 	}
+}
+
+func (w *watcher) mcpWatcherReady() bool {
+	if w.mcpWatcher == nil {
+		return true
+	}
+	return w.mcpWatcher.IsReady()
 }
 
 func (w *watcher) updateNacosClient() {
