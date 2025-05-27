@@ -250,10 +250,10 @@ spec:
               registries:
                 items:
                   properties:
-                    attributes:
-                      additionalProperties:
+                    allowMcpServers:
+                      items:
                         type: string
-                      type: object
+                      type: array
                     authSecretName:
                       type: string
                     consulDatacenter:
@@ -269,15 +269,22 @@ spec:
                       type: string
                     enableMCPServer:
                       type: boolean
+                    enableScopeMcpServers:
+                      type: boolean
                     mcpServerBaseUrl:
                       type: string
                     mcpServerExportDomains:
                       items:
                         type: string
                       type: array
-                    mcpServerRouteNames:
+                    metadata:
                       additionalProperties:
-                        type: string
+                        properties:
+                          innerMap:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
                       type: object
                     nacosAccessKey:
                       type: string
