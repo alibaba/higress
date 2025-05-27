@@ -57,11 +57,13 @@ const (
 var (
 	supportedProtocols = map[string]bool{
 		provider.HttpProtocol:         true,
+		provider.HttpsProtocol:        true,
 		provider.McpSSEProtocol:       true,
 		provider.McpStreambleProtocol: true,
 	}
 	protocolUpstreamTypeMapping = map[string]string{
 		provider.HttpProtocol:         mcpserver.UpstreamTypeRest,
+		provider.HttpsProtocol:        mcpserver.UpstreamTypeRest,
 		provider.McpSSEProtocol:       mcpserver.UpstreamTypeSSE,
 		provider.McpStreambleProtocol: mcpserver.UpstreamTypeStreamable,
 	}
@@ -364,7 +366,7 @@ func (w *watcher) mcpServerListener(dataId string) func(info *McpServerConfig) {
 			mcpServerLog.Errorf("unmarshal config data to mcp server error:%v, dataId:%s", err, dataId)
 		}
 		// TODO support stdio and dubbo protocol
-		if mcpServer.Protocol == provider.StdioProtocol || mcpServer.Protocol == provider.DubboProtocol {
+		if !supportedProtocols[mcpServer.Protocol] {
 			return
 		}
 		if err := w.processServerConfig(dataId, info.ServiceInfo, mcpServer); err != nil {
@@ -555,7 +557,7 @@ func (w *watcher) buildVirtualServiceForMcpServer(server *provider.McpServer, da
 	}
 
 	// we should rewrite path and host for sse and streamble
-	if server.Protocol == provider.McpStreambleProtocol || server.Protocol == provider.McpSSEProtocol {
+	if routeRewriteProtocols[server.Protocol] {
 		if se != nil && se.Resolution == v1alpha3.ServiceEntry_DNS && len(se.Endpoints) > 0 {
 			vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
 				Uri:       "/",
