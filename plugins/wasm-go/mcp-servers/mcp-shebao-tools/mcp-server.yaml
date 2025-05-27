@@ -1,385 +1,522 @@
 server:
-  name: shebao-tools
+  name: shebao-tools-api-server
   config:
     apikey: ""
 tools:
-  - name: calculate_social_security
+  - name: calcCityNormal
     description: |+
-      根据城市信息计算社保、公积金费用。
-      - 输入城市名称和薪资信息。
-      - 返回社保和公积金的详细计算结果。
+      根据工资计算该城市个税缴纳明细。
+      - 输入税前工资、城市名称、城市编码、城市ID等信息。
+      - 考虑社保、公积金、专项附加扣除等因素。
+      - 返回个税缴纳明细。
     args:
-      - name: city
-        description: 城市名称
-        type: string
-        required: true
-      - name: salary
-        description: 个人薪资
-        type: number
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools?jr-api-key={apikey}
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calculate_disability_insurance
-    description: |+
-      根据企业规模计算残保金。
-      - 输入企业员工数量和平均薪资。
-      - 返回残保金的计算结果。
-    args:
-      - name: employee_count
-        description: 企业员工数量
+      - name: salaryPay
+        description: 税前工资
         type: integer
         required: true
-      - name: average_salary
-        description: 企业平均薪资
-        type: number
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools?jr-api-key={apikey}
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calculate_income_tax
-    description: |+
-      根据个人薪资计算个税缴纳费用。
-      - 输入个人薪资。
-      - 返回个税缴纳费用。
-    args:
-      - name: salary
-        description: 个人薪资
-        type: number
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools?jr-api-key={apikey}
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calculate_work_injury_compensation
-    description: |+
-      根据工伤情况计算赔付费用。
-      - 输入工伤等级和薪资信息。
-      - 返回工伤赔付费用。
-    args:
-      - name: injury_level
-        description: 工伤等级
-        type: string
-        required: true
-      - name: salary
-        description: 个人薪资
-        type: number
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools?jr-api-key={apikey}
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calculate_work_death_compensation
-    description: |+
-      根据工亡情况计算赔付费用。
-      - 输入相关信息。
-      - 返回工亡赔付费用。
-    args:
-      - name: relevant_info
-        description: 相关信息（可根据实际情况细化）
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools?jr-api-key={apikey}
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityCanbaoYear
-    description: 根据城市编码查询该城市缴纳残保金年份
-    args:
-      - name: city_code
-        description: 城市编码
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityCanbaoYear
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityShebaoBase
-    description: 根据城市编码和年份查询该城市缴纳残保金基数
-    args:
-      - name: city_code
-        description: 城市编码
-        type: string
-        required: true
-      - name: year
-        description: 年份
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityShebaoBase
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calcCanbaoCity
-    description: 计算该城市推荐雇佣残疾人人数和节省费用
-    args:
-      - name: city_code
-        description: 城市编码
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/calcCanbaoCity
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityPersonDeductRules
-    description: 查询工资薪金个税专项附加扣除
-    args:
-      - name: city_code
-        description: 城市编码
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityPersonDeductRules
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calcCityNormal
-    description: 根据工资计算该城市个税缴纳明细
-    args:
-      - name: city_code
-        description: 城市编码
-        type: string
-        required: true
-      - name: salary
-        description: 个人薪资
-        type: number
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/calcCityNormal
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calcCityLaobar
-    description: 计算一次性劳务报酬应缴纳税额
-    args:
-      - name: city_code
-        description: 城市编码
-        type: string
-        required: true
-      - name: labor_income
-        description: 一次性劳务报酬
-        type: number
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/calcCityLaobar
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityIns
-    description: 根据城市ID查询该城市社保和公积金缴费信息
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityIns
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calcCityYearEndBonus
-    description: 计算全年一次性奖金应缴纳税额
-    args:
-      - name: city_code
-        description: 城市编码
-        type: string
-        required: true
-      - name: year_end_bonus
-        description: 全年一次性奖金
-        type: number
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/calcCityYearEndBonus
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityGm
-    description: 计算该城市工亡赔偿费用
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityGm
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityAvgSalary
-    description: 根据城市ID查询该城市上年度平均工资
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityAvgSalary
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityDisabilityLevel
-    description: 根据城市ID查询该城市伤残等级
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityDisabilityLevel
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityNurseLevel
-    description: 根据城市ID查询该城市护理等级
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityNurseLevel
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityCompensateProject
-    description: 查询所有工伤费用类型
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityCompensateProject
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityInjuryCData
-    description: 查询工伤费用计算规则
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityInjuryCData
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getCityCalcInjury
-    description: 根据城市ID和费用类型项计算工伤费用
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-      - name: expense_type
-        description: 费用类型项
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getCityCalcInjury
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: getshebaoInsOrg
-    description: 查询指定城市社保政策
-    args:
-      - name: city_id
-        description: 城市ID
-        type: string
-        required: true
-    requestTemplate:
-      argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/getshebaoInsOrg
-      method: GET
-      headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
-
-  - name: calculator
-    description: 计算该城市社保和公积金缴纳明细
-    args:
-      - name: city
+      - name: areaName
         description: 城市名称
         type: string
         required: true
-      - name: salary
-        description: 个人薪资
-        type: number
+      - name: areaCode
+        description: 城市编码
+        type: string
+        required: true
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+      - name: sbFlag
+        description: 是否缴纳社保
+        type: integer
+        required: false
+      - name: gjjFlag
+        description: 是否缴纳公积金
+        type: integer
+        required: false
+      - name: sbCode
+        description: 城市社保编号
+        type: string
+        required: false
+      - name: sbBase
+        description: 城市社保基数
+        type: integer
+        required: false
+      - name: gjjCode
+        description: 城市公积金编号
+        type: string
+        required: false
+      - name: gjjBase
+        description: 城市公积金基数
+        type: integer
+        required: false
+      - name: znjyCount
+        description: 子女教育数量
+        type: string
+        required: false
+      - name: znjyCode
+        description: 子女教育扣除方式
+        type: string
+        required: false
+      - name: zfzjCode
+        description: 住房租金
+        type: string
+        required: false
+      - name: zfdkCode
+        description: 住房贷款利息
+        type: string
+        required: false
+      - name: jxjyCode
+        description: 继续教育
+        type: string
+        required: false
+      - name: sylrCode
+        description: 赡养老人
+        type: string
+        required: false
+      - name: sylrFee
+        description: 赡养老人数量
+        type: string
+        required: false
+      - name: yyzhCount
+        description: 三岁以下婴幼儿照护数量
+        type: string
+        required: false
+      - name: yyzhCode
+        description: 三岁以下婴幼儿照护扣除方式
+        type: string
+        required: false
+      - name: avgMonthYanglaoFee
+        description: 平均每月个人养老金
+        type: string
+        required: false
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: calculator
+    description: |+
+      计算该城市社保和公积金缴纳明细。
+      - 输入城市名称、城市编码、城市ID等信息。
+      - 考虑社保、公积金缴纳状态和基数。
+      - 返回社保和公积金缴纳明细。
+    args:
+      - name: areaName
+        description: 城市名称
+        type: string
+        required: true
+      - name: areaCode
+        description: 城市编码
+        type: string
+        required: true
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+      - name: sbCode
+        description: 城市社保编号
+        type: string
+        required: false
+      - name: sbTypeText
+        description: 城市社保类型
+        type: string
+        required: false
+      - name: sbBase
+        description: 城市社保基数
+        type: integer
+        required: false
+      - name: sbFlag
+        description: 是否缴纳社保
+        type: integer
+        required: false
+      - name: gjjFlag
+        description: 是否缴纳公积金
+        type: integer
+        required: false
+      - name: gjjCode
+        description: 城市公积金编号
+        type: string
+        required: false
+      - name: gjjTypeText
+        description: 城市公积金类型
+        type: string
+        required: false
+      - name: gjjBase
+        description: 城市公积金基数
+        type: integer
+        required: false
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: calcCityLaobar
+    description: |+
+      计算一次性劳务报酬应缴纳税额。
+      - 输入劳务报酬。
+      - 返回应缴纳税额。
+    args:
+      - name: laborPay
+        description: 劳务报酬
+        type: string
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/agent/tools/calculator
-      method: GET
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
       headers:
-        - key: jr-api-key
-          value: "{{.config.apikey}}"
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityInjuryCData
+    description: |+
+      查询工伤费用计算规则。
+      - 输入城市ID、伤残等级、护理级别。
+      - 返回工伤费用计算规则。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: string
+        required: true
+      - name: injuryCDisabilityLevel
+        description: 伤残等级
+        type: integer
+        required: true
+      - name: injuryCNurseLevel
+        description: 护理级别
+        type: integer
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityDisabilityLevel
+    description: |+
+      根据城市ID查询该城市伤残等级。
+      - 输入城市ID。
+      - 返回该城市伤残等级。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityCompensateProject
+    description: |+
+      查询所有工伤费用类型。
+      - 返回所有工伤费用类型。
+    args: []
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityNurseLevel
+    description: |+
+      根据城市ID查询该城市护理等级。
+      - 输入城市ID。
+      - 返回该城市护理等级。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: calcCanbaoCity
+    description: |+
+      计算该城市推荐雇佣残疾人人数和节省费用。
+      - 输入城市名称、城市编码、城市ID等信息。
+      - 返回推荐雇佣残疾人人数和节省费用。
+    args:
+      - name: areaName
+        description: 城市名称
+        type: string
+        required: true
+      - name: areaCode
+        description: 城市编码
+        type: string
+        required: true
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+      - name: totalPeople
+        description: 年平均员工数
+        type: integer
+        required: true
+      - name: avgWage
+        description: 年员工平均月薪
+        type: integer
+        required: true
+      - name: insYear
+        description: 残保金缴交年份
+        type: string
+        required: true
+      - name: minWage
+        description: 残疾人月薪
+        type: string
+        required: true
+      - name: shebaoBase
+        description: 残疾人社保缴纳基数
+        type: string
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityPersonDeductRules
+    description: |+
+      查询工资薪金个税专项附加扣除。
+      - 返回工资薪金个税专项附加扣除信息。
+    args: []
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers: []
+
+  - name: getCityAvgSalary
+    description: |+
+      根据城市ID查询该城市上年度平均工资。
+      - 输入城市ID。
+      - 返回该城市上年度平均工资。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityGm
+    description: |+
+      计算该城市工亡赔偿费用。
+      - 输入城市ID、城市名称、该城市上年度月平均工资、职工平均工资。
+      - 返回该城市工亡赔偿费用。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: string
+        required: true
+      - name: areaName
+        description: 城市名称
+        type: string
+        required: true
+      - name: areaYearAverageSalary
+        description: 该城市上年度月平均工资
+        type: number
+        required: true
+      - name: avgSalary
+        description: 职工平均工资
+        type: integer
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityCanbaoYear
+    description: |+
+      根据城市编码查询该城市缴纳残保金年份。
+      - 输入城市编码。
+      - 返回该城市缴纳残保金年份。
+    args:
+      - name: areaCode
+        description: 城市编码
+        type: string
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityShebaoBase
+    description: |+
+      根据城市编码和年份查询该城市缴纳残保金基数。
+      - 输入城市编码和残保金年份。
+      - 返回该城市缴纳残保金基数。
+    args:
+      - name: areaCode
+        description: 城市编码
+        type: string
+        required: true
+      - name: insYear
+        description: 残保金年份
+        type: string
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityIns
+    description: |+
+      根据城市ID查询该城市社保和公积金缴费信息。
+      - 输入城市ID。
+      - 返回该城市社保和公积金缴费信息。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getshebaoInsOrg
+    description: |+
+      查询指定城市社保政策。
+      - 输入城市ID。
+      - 返回指定城市社保政策。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: integer
+        required: true
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getCityCalcInjury
+    description: |+
+      根据城市ID和费用类型项计算工伤费用。
+      - 输入城市ID、城市名称、伤残等级等信息。
+      - 返回工伤费用计算结果。
+    args:
+      - name: areaId
+        description: 城市ID
+        type: string
+        required: true
+      - name: areaName
+        description: 城市名称
+        type: string
+        required: true
+      - name: areaAverageWageAmount
+        description: 该城市上年度月平均工资
+        type: number
+        required: true
+      - name: injuryCDisabilityLevel
+        description: 伤残等级
+        type: integer
+        required: true
+      - name: injuryCNurseLevel
+        description: 护理级别
+        type: integer
+        required: true
+      - name: workerAverageWageAmount
+        description: 职工平均工资
+        type: string
+        required: true
+      - name: initInjuryCYiLiaoFeiInfo
+        description: 医疗费
+        type: object
+        required: true
+      - name: initInjuryCTGLXQJGongZiInfo
+        description: 停工留薪期间工资
+        type: object
+        required: false
+      - name: initInjuryCPCQSHHuLiFeiInfo
+        description: 评残前生活护理费
+        type: object
+        required: false
+      - name: initInjuryCPCHSHHuLiFeiInfo
+        description: 评残后生活护理费
+        type: object
+        required: false
+      - name: initInjuryCYCXCSBuZhuJinInfo
+        description: 一次性伤残补助金
+        type: object
+        required: false
+      - name: initInjuryCYCXGSYLBuZhuJinInfo
+        description: 一次性工伤医疗补助金
+        type: object
+        required: false
+      - name: initInjuryCYCXSCJYBuZhuJinInfo
+        description: 一次性伤残就业补助金
+        type: object
+        required: false
+      - name: initInjuryCShangCanJinTieInfo
+        description: 伤残津贴
+        type: object
+        required: false
+      - name: initInjuryCQiTaPeiChangFeiYongInfo
+        description: 其他补偿费用
+        type: object
+        required: false
+      - name: initInjuryCKangFuFeiInfo
+        description: 康复费用
+        type: object
+        required: false
+      - name: initInjuryCZYHSBuZhuFeiInfo
+        description: 住院治疗
+        type: object
+        required: false
+      - name: initInjuryCJiaoTongShiSuFeiInfo
+        description: 交通食宿费
+        type: object
+        required: false
+      - name: initInjuryCFuZhuQiJuFeiInfo
+        description: 辅助器具费
+        type: object
+        required: false
+    requestTemplate:
+      argsToUrlParam: true
+      url: https://agent-tools.jrit.top/sse?jr-api-key={jr-api-key}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
