@@ -10,23 +10,24 @@
 - 根据城市信息工伤情况计算赔付费用。输入工伤等级和薪资信息，返回赔付费用。
 - 根据城市信息工亡情况计算赔付费用。输入相关信息，返回赔付费用。
 - 详细清单如下:
-  1.getCityCanbaoYear 根据城市编码查询该城市缴纳残保金年份
-  2.getCityShebaoBase 根据城市编码和年份查询该城市缴纳残保金基数
-  3.calcCanbaoCity 计算该城市推荐雇佣残疾人人数和节省费用
-  4.getCityPersonDeductRules 查询工资薪金个税专项附加扣除
-  5.calcCityNormal 根据工资计算该城市个税缴纳明细
-  6.calcCityLaobar 计算一次性劳务报酬应缴纳税额
-  7.getCityIns 根据城市ID查询该城市社保和公积金缴费信息
-  8.calcCityYearEndBonus 计算全年一次性奖金应缴纳税额
-  9.getCityGm 计算该城市工亡赔偿费用
-  10.getCityAvgSalary  根据城市ID查询该城市上年度平均工资
-  11.getCityDisabilityLevel 根据城市ID查询该城市伤残等级
-  12.getCityNurseLevel 根据城市ID查询该城市护理等级
-  13.getCityCompensateProject 查询所有工伤费用类型
-  14.getCityInjuryCData 查询工伤费用计算规则
-  15.getCityCalcInjury 根据城市ID和费用类型项计算工伤费用
-  16.getshebaoInsOrg 查询指定城市社保政策
-  17.calculator 计算该城市社保和公积金缴纳明细
+- 
+  1. getCityCanbaoYear 根据城市编码查询该城市缴纳残保金年份
+  2. getCityShebaoBase 根据城市编码和年份查询该城市缴纳残保金基数
+  3. calcCanbaoCity 计算该城市推荐雇佣残疾人人数和节省费用
+  4. getCityPersonDeductRules 查询工资薪金个税专项附加扣除
+  5. calcCityNormal 根据工资计算该城市个税缴纳明细
+  6. calcCityLaobar 计算一次性劳务报酬应缴纳税额
+  7. getCityIns 根据城市ID查询该城市社保和公积金缴费信息
+  8. calcCityYearEndBonus 计算全年一次性奖金应缴纳税额
+  9. getCityGm 计算该城市工亡赔偿费用
+  10. getCityAvgSalary  根据城市ID查询该城市上年度平均工资
+  11. getCityDisabilityLevel 根据城市ID查询该城市伤残等级
+  12. getCityNurseLevel 根据城市ID查询该城市护理等级
+  13. getCityCompensateProject 查询所有工伤费用类型
+  14. getCityInjuryCData 查询工伤费用计算规则
+  15. getCityCalcInjury 根据城市ID和费用类型项计算工伤费用
+  16. getshebaoInsOrg 查询指定城市社保政策
+  17. calculator 计算该城市社保和公积金缴纳明细
 
 ## 使用教程
 
