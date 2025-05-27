@@ -507,19 +507,22 @@ func (w *watcher) buildVirtualServiceForMcpServer(server *provider.McpServer, da
 			// Example:
 			// Assume mergePath=/mcp/test prefixRewrite=/ requestPath=/mcp/test/abc
 			// If we only use prefix match, the rewritten path will be //abc.
-			Match: []*v1alpha3.HTTPMatchRequest{{
-				Uri: &v1alpha3.StringMatch{
-					MatchType: &v1alpha3.StringMatch_Exact{
-						Exact: mergePath,
+			Match: []*v1alpha3.HTTPMatchRequest{
+				{
+					Uri: &v1alpha3.StringMatch{
+						MatchType: &v1alpha3.StringMatch_Exact{
+							Exact: mergePath,
+						},
 					},
 				},
-			}, {
-				Uri: &v1alpha3.StringMatch{
-					MatchType: &v1alpha3.StringMatch_Prefix{
-						Prefix: mergePath + "/",
+				{
+					Uri: &v1alpha3.StringMatch{
+						MatchType: &v1alpha3.StringMatch_Prefix{
+							Prefix: mergePath + "/",
+						},
 					},
 				},
-			}},
+			},
 			Route: []*v1alpha3.HTTPRouteDestination{{
 				Destination: &v1alpha3.Destination{
 					Host: serviceName,

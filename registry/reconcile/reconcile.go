@@ -36,7 +36,6 @@ import (
 	"github.com/alibaba/higress/registry/eureka"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos"
-	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
 	"github.com/alibaba/higress/registry/zookeeper"
 )
