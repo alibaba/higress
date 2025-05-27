@@ -27,7 +27,6 @@ import (
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
 	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -52,27 +51,6 @@ const (
 	DefaultNacosLogMaxAge       = 3
 	DefaultRefreshInterval      = time.Second * 30
 	DefaultRefreshIntervalLimit = time.Second * 10
-	DefaultJoiner               = "@@"
-)
-
-var (
-	supportedProtocols = map[string]bool{
-		provider.HttpProtocol:         true,
-		provider.McpSSEProtocol:       true,
-		provider.McpStreambleProtocol: true,
-	}
-	protocolUpstreamTypeMapping = map[string]string{
-		provider.HttpProtocol:         mcpserver.UpstreamTypeRest,
-		provider.McpSSEProtocol:       mcpserver.UpstreamTypeSSE,
-		provider.McpStreambleProtocol: mcpserver.UpstreamTypeStreamable,
-	}
-	routeRewriteProtocols = map[string]bool{
-		provider.McpSSEProtocol:       true,
-		provider.McpStreambleProtocol: true,
-	}
-	mcpServerRewriteProtocols = map[string]bool{
-		provider.McpSSEProtocol: true,
-	}
 )
 
 var mcpServerLog = log.RegisterScope("McpServer", "Nacos Mcp Server Watcher process.")
