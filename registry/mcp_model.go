@@ -34,13 +34,13 @@ type McpToolArgsType string
 
 // WasmPluginConfig Struct for mcp tool wasm plugin marshal
 type WasmPluginConfig struct {
-	Rules []*McpServerRule `json:"_rules_"`
+	Rules []*McpServerRule `json:"_rules_,omitempty"`
 }
 
 type McpServerRule struct {
 	MatchRoute []string      `json:"_match_route_,omitempty"`
-	Server     *ServerConfig `json:"server"`
-	Tools      []*McpTool    `json:"tools"`
+	Server     *ServerConfig `json:"server,omitempty"`
+	Tools      []*McpTool    `json:"tools,omitempty"`
 }
 
 type ServerConfig struct {
@@ -76,8 +76,8 @@ type ToolArgs struct {
 }
 
 type RequestTemplate struct {
-	URL            string                    `json:"url"`
-	Method         string                    `json:"method"`
+	URL            string                    `json:"url,omitempty"`
+	Method         string                    `json:"method,omitempty"`
 	Headers        []*RequestTemplateHeaders `json:"headers,omitempty"`
 	Body           string                    `json:"body,omitempty"`
 	ArgsToJsonBody bool                      `json:"argsToJsonBody,omitempty"`
@@ -86,8 +86,8 @@ type RequestTemplate struct {
 }
 
 type RequestTemplateHeaders struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
 type ResponseTemplate struct {
@@ -135,7 +135,7 @@ type McpToolConfig struct {
 type ToolDescription struct {
 	Name        string      `json:"name,omitempty"`
 	Description string      `json:"description,omitempty"`
-	InputSchema InputSchema `json:"inputSchema"`
+	InputSchema InputSchema `json:"inputSchema,omitempty"`
 }
 
 type InputSchema struct {
@@ -151,7 +151,7 @@ type ToolsMeta struct {
 }
 
 type JsonGoTemplate struct {
-	RequestTemplate  RequestTemplate   `json:"requestTemplate"`
-	ResponseTemplate ResponseTemplate  `json:"responseTemplate"`
+	RequestTemplate  RequestTemplate   `json:"requestTemplate,omitempty"`
+	ResponseTemplate ResponseTemplate  `json:"responseTemplate,omitempty"`
 	ArgsPosition     map[string]string `json:"argsPosition,omitempty"`
 }

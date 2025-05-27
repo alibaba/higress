@@ -16,12 +16,15 @@ package v2
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/alibaba/higress/registry/nacos/mcpserver"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
@@ -69,6 +72,9 @@ type watcher struct {
 	updateCacheWhenEmpty bool
 	nacosClientConfig    *constant.ClientConfig
 	authOption           provider.AuthOption
+	namespace            string
+	clusterId            string
+	mcpWatcher           provider.Watcher
 }
 
 type WatcherOption func(w *watcher)
@@ -87,6 +93,30 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 
 	for _, opt := range opts {
 		opt(w)
+	}
+
+	if w.EnableMCPServer != nil && w.EnableMCPServer.GetValue() {
+		mcpWatcher, err := mcpserver.NewWatcher(
+			cache,
+			mcpserver.WithType(w.Type),
+			mcpserver.WithName(w.Name),
+			mcpserver.WithNacosAddressServer(w.NacosAddressServer),
+			mcpserver.WithDomain(w.Domain),
+			mcpserver.WithPort(w.Port),
+			mcpserver.WithNacosAccessKey(w.NacosAccessKey),
+			mcpserver.WithNacosSecretKey(w.NacosSecretKey),
+			mcpserver.WithNacosRefreshInterval(w.NacosRefreshInterval),
+			mcpserver.WithMcpExportDomains(w.McpServerExportDomains),
+			mcpserver.WithMcpBaseUrl(w.McpServerBaseUrl),
+			mcpserver.WithEnableMcpServer(w.EnableMCPServer),
+			mcpserver.WithClusterId(w.clusterId),
+			mcpserver.WithNamespace(w.namespace),
+			mcpserver.WithAuthOption(w.authOption),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("can not create mcp server watcher, err:%v", err)
+		}
+		w.mcpWatcher = mcpWatcher
 	}
 
 	if w.NacosNamespace == "" {
@@ -234,10 +264,43 @@ func WithAuthOption(authOption provider.AuthOption) WatcherOption {
 	}
 }
 
+func WithMcpExportDomains(exportDomains []string) WatcherOption {
+	return func(w *watcher) {
+		w.McpServerExportDomains = exportDomains
+	}
+}
+
+func WithMcpBaseUrl(url string) WatcherOption {
+	return func(w *watcher) {
+		w.McpServerBaseUrl = url
+	}
+}
+
+func WithEnableMcpServer(enable *wrappers.BoolValue) WatcherOption {
+	return func(w *watcher) {
+		w.EnableMCPServer = enable
+	}
+}
+
+func WithNamespace(ns string) WatcherOption {
+	return func(w *watcher) {
+		w.namespace = ns
+	}
+}
+
+func WithClusterId(id string) WatcherOption {
+	return func(w *watcher) {
+		w.clusterId = id
+	}
+}
+
 func (w *watcher) Run() {
 	ticker := time.NewTicker(time.Duration(w.NacosRefreshInterval))
 	defer ticker.Stop()
 	w.Status = provider.ProbeWatcherStatus(w.Domain, strconv.FormatUint(uint64(w.Port), 10))
+	if w.mcpWatcher != nil {
+		w.mcpWatcher.Run()
+	}
 	err := w.fetchAllServices()
 	if err != nil {
 		log.Errorf("first fetch services failed, err:%v", err)
@@ -485,6 +548,9 @@ func (w *watcher) Stop() {
 	defer w.mutex.Unlock()
 	if w.addrProvider != nil {
 		w.addrProvider.Stop()
+	}
+	if w.mcpWatcher != nil {
+		w.mcpWatcher.Stop()
 	}
 	for key := range w.WatchingServices {
 		s := strings.Split(key, DefaultJoiner)

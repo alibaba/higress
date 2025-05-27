@@ -22,8 +22,10 @@ import (
 
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
+	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/logger"
+	"github.com/nacos-group/nacos-sdk-go/v2/model"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 )
 
@@ -33,11 +35,24 @@ const McpToolSpecGroup = "mcp-tools"
 const SystemConfigIdPrefix = "system-"
 const CredentialPrefix = "credentials-"
 
-type ConfigChangeListener = func(namespace, group, dataId, data string)
+type ServerSpecInfo struct {
+	RemoteServerConfig *RemoteServerConfig `json:"remoteServerConfig"`
+}
+
+type RemoteServerConfig struct {
+	ServiceRef *ServiceRef `json:"serviceRef"`
+}
+
+type ServiceRef struct {
+	ServiceName string `json:"serviceName"`
+	GroupName   string `json:"groupName"`
+	NamespaceId string `json:"namespaceId"`
+}
 
 type NacosRegistryClient struct {
 	namespaceId  string
 	configClient config_client.IConfigClient
+	namingClient naming_client.INamingClient
 	servers      map[string]*ServerContext
 }
 
@@ -47,14 +62,18 @@ type VersionedMcpServerInfo struct {
 }
 
 type ServerContext struct {
+	id                     string
 	versionedMcpServerInfo *VersionedMcpServerInfo
-	serverChangeListener   func(info *McpServerConfig)
+	serverChangeListener   McpServerListener
 	configsMap             map[string]*ConfigListenerWrap
+	serviceInfo            *model.Service
+	namingCallBck          func(services []model.Instance, err error)
 }
 
 type McpServerConfig struct {
 	serverSpecConfig string
 	toolsSpecConfig  string
+	serviceInfo      *model.Service
 	Credentials      map[string]string
 }
 
@@ -82,11 +101,15 @@ type VersionDetail struct {
 	IsLatest bool   `json:"is_latest"`
 }
 
+type McpServerListener func(info *McpServerConfig)
+
 func NewMcpRegistryClient(clientConfig *constant.ClientConfig, serverConfig []constant.ServerConfig, namespaceId string) (*NacosRegistryClient, error) {
-	configClient, err := clients.NewConfigClient(vo.NacosClientParam{
+	clientParam := vo.NacosClientParam{
 		ClientConfig:  clientConfig,
 		ServerConfigs: serverConfig,
-	})
+	}
+	configClient, err := clients.NewConfigClient(clientParam)
+	namingClient, err := clients.NewNamingClient(clientParam)
 
 	if err != nil {
 		return nil, err
@@ -95,6 +118,7 @@ func NewMcpRegistryClient(clientConfig *constant.ClientConfig, serverConfig []co
 	return &NacosRegistryClient{
 		namespaceId:  namespaceId,
 		configClient: configClient,
+		namingClient: namingClient,
 		servers:      map[string]*ServerContext{},
 	}, nil
 }
@@ -136,14 +160,14 @@ func (n *NacosRegistryClient) ListMcpServer() ([]BasicMcpServerInfo, error) {
 	return result, nil
 }
 
-func (n *NacosRegistryClient) ListenToMcpServer(id string, listener func(info *McpServerConfig)) error {
+func (n *NacosRegistryClient) ListenToMcpServer(id string, listener McpServerListener) error {
 	versionConfigId := fmt.Sprintf("%s-mcp-versions.json", id)
 	serverVersionConfig, err := n.configClient.GetConfig(vo.ConfigParam{
 		Group:  McpServerVersionGroup,
 		DataId: versionConfigId,
 	})
 
-	versionFileCallBack := func(namespace string, group string, dataId string, content string) {
+	versionConfigCallBack := func(namespace string, group string, dataId string, content string) {
 		info := VersionsMcpServerInfo{}
 		err = json.Unmarshal([]byte(content), &info)
 		if err != nil {
@@ -172,21 +196,22 @@ func (n *NacosRegistryClient) ListenToMcpServer(id string, listener func(info *M
 	}
 
 	n.servers[id] = &ServerContext{
+		id:                   id,
 		serverChangeListener: listener,
 		configsMap: map[string]*ConfigListenerWrap{
 			McpServerVersionGroup: {
 				dataId:   versionConfigId,
 				group:    McpServerVersionGroup,
-				listener: versionFileCallBack,
+				listener: versionConfigCallBack,
 			},
 		},
 	}
 
-	versionFileCallBack(n.namespaceId, McpServerVersionGroup, versionConfigId, serverVersionConfig)
+	versionConfigCallBack(n.namespaceId, McpServerVersionGroup, versionConfigId, serverVersionConfig)
 	err = n.configClient.ListenConfig(vo.ConfigParam{
 		Group:    McpServerVersionGroup,
 		DataId:   versionConfigId,
-		OnChange: versionFileCallBack,
+		OnChange: versionConfigCallBack,
 	})
 
 	if err != nil {
@@ -223,17 +248,18 @@ func (n *NacosRegistryClient) onServerVersionChanged(ctx *ServerContext) {
 
 func (n *NacosRegistryClient) triggerMcpServerChange(id string) {
 	if context, exist := n.servers[id]; exist {
-		if config := mapConfigMapToServerConfig(&context.configsMap); config != nil {
+		if config := mapConfigMapToServerConfig(context); config != nil {
 			context.serverChangeListener(config)
 		}
 	}
 }
 
-func mapConfigMapToServerConfig(configsMap *map[string]*ConfigListenerWrap) *McpServerConfig {
+func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 	result := &McpServerConfig{
 		Credentials: map[string]string{},
 	}
-	for key, data := range *configsMap {
+	configMaps := ctx.configsMap
+	for key, data := range configMaps {
 		if strings.HasPrefix(key, SystemConfigIdPrefix) {
 			group := strings.Split(key, "@@")[1]
 			if group == McpServerSpecGroup {
@@ -246,12 +272,14 @@ func mapConfigMapToServerConfig(configsMap *map[string]*ConfigListenerWrap) *Mcp
 			result.Credentials[credentialId] = data.data
 		}
 	}
+
+	result.serviceInfo = ctx.serviceInfo
 	return result
 }
 
 func (n *NacosRegistryClient) exactConfigsFromContent(ctx *ServerContext, config *ConfigListenerWrap) []*ConfigListenerWrap {
 	var result []*ConfigListenerWrap
-	compile, _ := regexp.Compile("\\$\\{nacos\\.([a-zA-Z0-9-_:\\\\.]+\\/[a-zA-Z0-9-_:\\\\.]+)\\}")
+	compile, _ := regexp.Compile("\\$\\{nacos\\.([a-zA-Z0-9-_:\\\\.]+/[a-zA-Z0-9-_:\\\\.]+)}")
 	allConfigs := compile.FindAllString(config.data, 10)
 	newContent := config.data
 	for _, data := range allConfigs {
@@ -279,6 +307,68 @@ func (n *NacosRegistryClient) resetNacosTemplateConfigs(ctx *ServerContext, conf
 	}
 }
 
+func (n *NacosRegistryClient) refreshServiceListenerIfNeeded(ctx *ServerContext, serverConfig string) {
+	var serverInfo ServerSpecInfo
+	err := json.Unmarshal([]byte(serverConfig), &serverInfo)
+	if err != nil {
+		// todo handle error
+	}
+
+	if serverInfo.RemoteServerConfig != nil && serverInfo.RemoteServerConfig.ServiceRef != nil {
+		ref := serverInfo.RemoteServerConfig.ServiceRef
+		if ctx.serviceInfo != nil {
+			if ctx.serviceInfo.Name == ref.ServiceName && ctx.serviceInfo.GroupName == ref.GroupName {
+				return
+			}
+
+			err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
+				GroupName:         ctx.serviceInfo.GroupName,
+				ServiceName:       ctx.serviceInfo.Name,
+				SubscribeCallback: ctx.namingCallBck,
+			})
+			if err != nil {
+				// todo handle error
+			}
+		}
+
+		service, err := n.namingClient.GetService(vo.GetServiceParam{
+			GroupName:   ref.GroupName,
+			ServiceName: ref.ServiceName,
+		})
+
+		if err != nil {
+			// todo handle error
+		}
+
+		ctx.serviceInfo = &service
+
+		if ctx.namingCallBck == nil {
+			ctx.namingCallBck = func(services []model.Instance, err error) {
+				if ctx.serviceInfo == nil {
+					ctx.serviceInfo = &model.Service{
+						GroupName: ctx.serviceInfo.GroupName,
+						Name:      ctx.serviceInfo.Name,
+					}
+				}
+
+				ctx.serviceInfo.Name = ref.ServiceName
+				ctx.serviceInfo.GroupName = ref.GroupName
+				ctx.serviceInfo.Hosts = services
+				n.triggerMcpServerChange(ctx.id)
+			}
+		}
+
+		err = n.namingClient.Subscribe(&vo.SubscribeParam{
+			GroupName:         ctx.serviceInfo.GroupName,
+			ServiceName:       ctx.serviceInfo.Name,
+			SubscribeCallback: ctx.namingCallBck,
+		})
+		if err != nil {
+			// todo handle error
+		}
+	}
+}
+
 func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, group string) (*ConfigListenerWrap, error) {
 	wrap := ConfigListenerWrap{
 		dataId: dataId,
@@ -290,6 +380,10 @@ func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, 
 		wrap.data = data
 		if group == McpToolSpecGroup {
 			n.resetNacosTemplateConfigs(ctx, &wrap)
+		}
+
+		if group == McpServerSpecGroup {
+			n.refreshServiceListenerIfNeeded(ctx, data)
 		}
 
 		if ctx.serverChangeListener != nil && wrap.data != data {
@@ -309,6 +403,10 @@ func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, 
 	wrap.data = config
 	if group == McpToolSpecGroup {
 		n.resetNacosTemplateConfigs(ctx, &wrap)
+	}
+
+	if group == McpServerSpecGroup {
+		n.refreshServiceListenerIfNeeded(ctx, wrap.data)
 	}
 
 	err = n.configClient.ListenConfig(vo.ConfigParam{
@@ -331,9 +429,34 @@ func (n *NacosRegistryClient) cancelListenToConfig(wrap *ConfigListenerWrap) err
 	})
 }
 
-func (n *NacosRegistryClient) CancelListenToConfig(dataId string) error {
-	return n.configClient.CancelListenConfig(vo.ConfigParam{
-		DataId: dataId,
-		Group:  McpServerVersionGroup,
-	})
+func (n *NacosRegistryClient) CancelListenToServer(id string) error {
+	if server, exist := n.servers[id]; exist {
+		for _, wrap := range server.configsMap {
+			err := n.configClient.CancelListenConfig(vo.ConfigParam{
+				DataId:   wrap.dataId,
+				Group:    wrap.group,
+				OnChange: wrap.listener,
+			})
+
+			if err != nil {
+				// to do handle error
+			}
+		}
+
+		err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
+			GroupName:         server.serviceInfo.GroupName,
+			ServiceName:       server.serviceInfo.Name,
+			SubscribeCallback: server.namingCallBck,
+		})
+		if err != nil {
+			// todo handle error
+			return err
+		}
+	}
+	return nil
+}
+
+func (n *NacosRegistryClient) CloseClient() {
+	n.namingClient.CloseClient()
+	n.configClient.CloseClient()
 }

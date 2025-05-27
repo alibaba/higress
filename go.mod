@@ -31,7 +31,7 @@ require (
 	github.com/hudl/fargo v1.4.0
 	github.com/mholt/acmez v1.2.0
 	github.com/nacos-group/nacos-sdk-go v1.0.8
-	github.com/nacos-group/nacos-sdk-go/v2 v2.1.2
+	github.com/nacos-group/nacos-sdk-go/v2 v2.3.1
 	github.com/onsi/gomega v1.27.10
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
@@ -274,6 +274,5 @@ replace github.com/caddyserver/certmagic => github.com/2456868764/certmagic v1.0
 
 replace (
 	github.com/dubbogo/gost => github.com/johnlanni/gost v1.11.23-0.20220713132522-0967a24036c6
-	github.com/nacos-group/nacos-sdk-go/v2 => github.com/nacos-group/nacos-sdk-go/v2 v2.3.1
 	golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 )

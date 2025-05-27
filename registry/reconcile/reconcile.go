@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
@@ -147,8 +146,8 @@ func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
 	return nil
 }
 
-func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) ([]Watcher, error) {
-	var watcher []Watcher
+func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryConfig, wg *sync.WaitGroup) (Watcher, error) {
+	var watcher Watcher
 	var err error
 
 	authOption, err := r.getAuthOption(registry)
@@ -184,26 +183,13 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithNacosNamespace(registry.NacosNamespace),
 			nacosv2.WithNacosGroups(registry.NacosGroups),
 			nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+			nacosv2.WithMcpExportDomains(registry.McpServerExportDomains),
+			nacosv2.WithMcpBaseUrl(registry.McpServerBaseUrl),
+			nacosv2.WithEnableMcpServer(registry.EnableMCPServer),
+			nacosv2.WithClusterId(r.clusterId),
+			nacosv2.WithNamespace(r.namespace),
 			nacosv2.WithAuthOption(authOption),
 		)
-		watcher, err = mcpserver.NewWatcher(
-			r.Cache,
-			mcpserver.WithType(registry.Type),
-			mcpserver.WithName(registry.Name),
-			mcpserver.WithNacosAddressServer(registry.NacosAddressServer),
-			mcpserver.WithDomain(registry.Domain),
-			mcpserver.WithPort(registry.Port),
-			mcpserver.WithNacosAccessKey(registry.NacosAccessKey),
-			mcpserver.WithNacosSecretKey(registry.NacosSecretKey),
-			mcpserver.WithNacosRefreshInterval(registry.NacosRefreshInterval),
-			mcpserver.WithMcpExportDomains(registry.McpServerExportDomains),
-			mcpserver.WithMcpBaseUrl(registry.McpServerBaseUrl),
-			mcpserver.WithEnableMcpServer(registry.EnableMCPServer),
-			mcpserver.WithClusterId(r.clusterId),
-			mcpserver.WithNamespace(r.namespace),
-			mcpserver.WithAuthOption(authOption),
-		)
-
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
 			r.Cache,

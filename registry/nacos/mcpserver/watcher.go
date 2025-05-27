@@ -269,13 +269,14 @@ func (w *watcher) fetchAllMcpConfig() error {
 
 	for key := range w.watchingConfig {
 		if _, exist := fetchedConfigs[key]; !exist {
-			if err = w.registryClient.CancelListenToConfig(key); err != nil {
+			if err = w.registryClient.CancelListenToServer(key); err != nil {
 				return fmt.Errorf("cancel listen mcp server config %s failed, error %s", key, err.Error())
 			}
 			mcpServerLog.Infof("cancel listen mcp server config %s success", key)
 			delete(w.watchingConfig, key)
 			// clean cache for this config
 			w.cache.UpdateConfigCache(config.GroupVersionKind{}, key, nil, true)
+			w.UpdateService()
 		}
 	}
 
@@ -639,7 +640,7 @@ func (w *watcher) Stop() {
 	defer w.mutex.Unlock()
 
 	for key := range w.watchingConfig {
-		err := w.registryClient.CancelListenToConfig(key)
+		err := w.registryClient.CancelListenToServer(key)
 		if err == nil {
 			delete(w.watchingConfig, key)
 			w.cache.UpdateConfigCache(config.GroupVersionKind{}, key, nil, true)
@@ -649,8 +650,10 @@ func (w *watcher) Stop() {
 
 	w.isStop = true
 
+	w.UpdateService()
 	close(w.stop)
 	w.Ready(false)
+	w.registryClient.CloseClient()
 }
 
 func (w *watcher) IsHealthy() bool {
