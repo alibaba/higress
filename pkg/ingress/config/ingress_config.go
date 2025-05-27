@@ -63,6 +63,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
 	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
 	"github.com/alibaba/higress/pkg/ingress/kube/mcpbridge"
+	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/pkg/ingress/kube/secret"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
@@ -158,6 +159,8 @@ type IngressConfig struct {
 
 	// secretConfigMgr manages secret dependencies
 	secretConfigMgr *SecretConfigMgr
+
+	mcpServerCache mcpserver.McpServerCache
 }
 
 // getSecretValue implements the getValue function for secret references
@@ -224,6 +227,7 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 
 	higressConfigController := configmap.NewController(localKubeClient, clusterId, namespace)
 	config.configmapMgr = configmap.NewConfigmapMgr(xdsUpdater, namespace, higressConfigController, higressConfigController.Lister())
+	config.configmapMgr.RegisterMcpServerProvider(&config.mcpServerCache)
 
 	httpsConfigMgr, _ := cert.NewConfigMgr(namespace, localKubeClient.Kube())
 	config.httpsConfigMgr = httpsConfigMgr
@@ -421,6 +425,10 @@ func (m *IngressConfig) createWrapperConfigs(configs []config.Config) []common.W
 	m.watchedSecretSet = globalContext.WatchedSecrets
 	m.mutex.Unlock()
 
+	if m.mcpServerCache.SetMcpServers(globalContext.McpServers) {
+		m.notifyXDSFullUpdate(mcpserver.GvkMcpServer, "mcp-server-annotation-change", nil)
+	}
+
 	return wrapperConfigs
 }
 
@@ -590,7 +598,7 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 			Spec: vs,
 		})
 	}
-	// add vs from naco3 for mcp server
+	// add vs from nacos3 for mcp server
 	if m.RegistryReconciler != nil {
 		allConfigsFromMcp := m.RegistryReconciler.GetAllConfigs(gvk.VirtualService)
 		for _, cfg := range allConfigsFromMcp {
@@ -1214,9 +1222,9 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 				f(config.Config{Meta: efMetadata}, config.Config{Meta: efMetadata}, istiomodel.EventUpdate)
 			}
 		}, m.localKubeClient, m.namespace, m.clusterId.String())
+		m.configmapMgr.RegisterMcpServerProvider(m.RegistryReconciler)
 	}
 	reconciler := m.RegistryReconciler
-	m.configmapMgr.SetMcpReconciler(m.RegistryReconciler)
 	err = reconciler.Reconcile(mcpbridge)
 	if err != nil {
 		IngressLog.Errorf("Mcpbridge reconcile failed, err:%v", err)
@@ -1781,4 +1789,20 @@ func (m *IngressConfig) Patch(config.Config, config.PatchFunc) (string, error) {
 
 func (m *IngressConfig) Delete(config.GroupVersionKind, string, string, *string) error {
 	return common.ErrUnsupportedOp
+}
+
+func (m *IngressConfig) notifyXDSFullUpdate(gvk config.GroupVersionKind, reason istiomodel.TriggerReason, updatedConfigName *util.ClusterNamespacedName) {
+	var configsUpdated map[istiomodel.ConfigKey]struct{}
+	if updatedConfigName != nil {
+		configsUpdated = map[istiomodel.ConfigKey]struct{}{{
+			Kind:      kind.MustFromGVK(gvk),
+			Name:      updatedConfigName.Name,
+			Namespace: updatedConfigName.Namespace,
+		}: {}}
+	}
+	m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
+		Full:           true,
+		ConfigsUpdated: configsUpdated,
+		Reason:         istiomodel.NewReasonStats(reason),
+	})
 }

@@ -27,6 +27,7 @@ import (
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
 	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/golang/protobuf/ptypes/wrappers"
@@ -52,6 +53,26 @@ const (
 	DefaultRefreshInterval      = time.Second * 30
 	DefaultRefreshIntervalLimit = time.Second * 10
 	DefaultJoiner               = "@@"
+)
+
+var (
+	supportedProtocols = map[string]bool{
+		provider.HttpProtocol:         true,
+		provider.McpSSEProtocol:       true,
+		provider.McpStreambleProtocol: true,
+	}
+	protocolUpstreamTypeMapping = map[string]string{
+		provider.HttpProtocol:         mcpserver.UpstreamTypeRest,
+		provider.McpSSEProtocol:       mcpserver.UpstreamTypeSSE,
+		provider.McpStreambleProtocol: mcpserver.UpstreamTypeStreamable,
+	}
+	routeRewriteProtocols = map[string]bool{
+		provider.McpSSEProtocol:       true,
+		provider.McpStreambleProtocol: true,
+	}
+	mcpServerRewriteProtocols = map[string]bool{
+		provider.McpSSEProtocol: true,
+	}
 )
 
 var mcpServerLog = log.RegisterScope("McpServer", "Nacos Mcp Server Watcher process.")
@@ -503,10 +524,21 @@ func (w *watcher) buildVirtualServiceForMcpServer(server *provider.McpServer, da
 		Gateways: gateways,
 		Http: []*v1alpha3.HTTPRoute{{
 			Name: routeName,
+			// We need to use both exact and prefix matches here to ensure a proper matching.
+			// Also otherwise, prefix rewrite won't work correctly for Streamable HTTP transport, either.
+			// Example:
+			// Assume mergePath=/mcp/test prefixRewrite=/ requestPath=/mcp/test/abc
+			// If we only use prefix match, the rewritten path will be //abc.
 			Match: []*v1alpha3.HTTPMatchRequest{{
 				Uri: &v1alpha3.StringMatch{
+					MatchType: &v1alpha3.StringMatch_Exact{
+						Exact: mergePath,
+					},
+				},
+			}, {
+				Uri: &v1alpha3.StringMatch{
 					MatchType: &v1alpha3.StringMatch_Prefix{
-						Prefix: mergePath,
+						Prefix: mergePath + "/",
 					},
 				},
 			}},
