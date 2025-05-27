@@ -36,7 +36,10 @@ func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 }
 
 func (g *geminiProviderInitializer) DefaultCapabilities() map[string]string {
-	return map[string]string{}
+	return map[string]string{
+		string(ApiNameChatCompletion): "",
+		string(ApiNameEmbeddings):     "",
+	}
 }
 
 func (g *geminiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
@@ -65,6 +68,7 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestHostHeader(headers, geminiDomain)
 	headers.Set(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
+	util.OverwriteRequestAuthorizationHeader(headers, "")
 }
 
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
