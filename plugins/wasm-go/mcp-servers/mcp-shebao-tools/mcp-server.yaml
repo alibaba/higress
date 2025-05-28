@@ -92,7 +92,7 @@ tools:
         required: false
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/geshui/calcNormal?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -151,7 +151,7 @@ tools:
         required: false
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/shebao/calculator?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -169,7 +169,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/shebao/getInsOrg?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -195,7 +195,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/gongshang/searchInitInjuryCData?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -213,7 +213,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/gongshang/searchDisabilityLevel?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -226,7 +226,7 @@ tools:
     args: []
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/gongshang/searchCompensateProject?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -244,7 +244,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/gongshang/searchNurseLevel?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -290,7 +290,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/canbao/cal?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -303,7 +303,7 @@ tools:
     args: []
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/geshui/queryPersonDeductRules?jr-api-key={{.config.apikey}}
       method: POST
       headers: []
 
@@ -319,7 +319,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/gongshang/getProvinceAreaAvgSalary?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -349,7 +349,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/gongshang/submitDeathRefundInfo?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -367,7 +367,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/canbao/allYear?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -389,7 +389,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/canbao/shebaoBase?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -407,7 +407,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/shebao/getInsOrg?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -425,7 +425,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/shebao/getInsOrg?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -515,7 +515,7 @@ tools:
         required: false
     requestTemplate:
       argsToUrlParam: true
-      url: https://agent-tools.jrit.top/sse?jr-api-key={{.config.apikey}}
+      url: https://agent-tools.jrit.top/agent/tools/gongshang/getInitInjuryCData?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
