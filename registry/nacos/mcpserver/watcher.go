@@ -328,30 +328,20 @@ func (w *watcher) fetchAllMcpConfig() error {
 		}
 	}
 
-	wg := sync.WaitGroup{}
 	subscribeFailed := atomic.NewBool(false)
-	watchingKeys := make(chan string, len(fetchedConfigs))
 	for key := range fetchedConfigs {
 		if _, exist := w.watchingConfig[key]; !exist {
-			wg.Add(1)
-			go func(k string) {
-				err = w.registryClient.ListenToMcpServer(key, w.mcpServerListener(key))
-				if err != nil {
-					mcpServerLog.Errorf("subscribe mcp server failed, dataId %v, errors: %v", key, err)
-					subscribeFailed.Store(true)
-				} else {
-					mcpServerLog.Infof("subscribe mcp server success, dataId:%s", key)
-					watchingKeys <- k
-				}
-				wg.Done()
-			}(key)
+			err = w.registryClient.ListenToMcpServer(key, w.mcpServerListener(key))
+			if err != nil {
+				mcpServerLog.Errorf("subscribe mcp server failed, dataId %v, errors: %v", key, err)
+				subscribeFailed.Store(true)
+			} else {
+				mcpServerLog.Infof("subscribe mcp server success, dataId:%s", key)
+				w.watchingConfig[key] = true
+			}
 		}
 	}
-	wg.Wait()
-	close(watchingKeys)
-	for key := range watchingKeys {
-		w.watchingConfig[key] = true
-	}
+
 	if subscribeFailed.Load() {
 		return errors.New("subscribe services failed")
 	}
@@ -472,15 +462,17 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 		}
 
 		requestTemplate, err := getRequestTemplateFromToolMeta(toolMeta)
-		if err != nil {
+		if err != nil || requestTemplate == nil {
 			mcpServerLog.Errorf("get request template from tool meta error:%v, tool name %v", err, t.Name)
+			continue
 		} else {
 			convertTool.RequestTemplate = requestTemplate
 		}
 
 		responseTemplate, err := getResponseTemplateFromToolMeta(toolMeta)
-		if err != nil {
+		if err != nil || responseTemplate == nil {
 			mcpServerLog.Errorf("get response template from tool meta error:%v, tool name %v", err, t.Name)
+			continue
 		} else {
 			convertTool.ResponseTemplate = responseTemplate
 		}
