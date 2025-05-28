@@ -31,7 +31,7 @@ require (
 	github.com/hudl/fargo v1.4.0
 	github.com/mholt/acmez v1.2.0
 	github.com/nacos-group/nacos-sdk-go v1.0.8
-	github.com/nacos-group/nacos-sdk-go/v2 v2.3.1
+	github.com/nacos-group/nacos-sdk-go/v2 v2.3.2
 	github.com/onsi/gomega v1.27.10
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
