@@ -875,12 +875,16 @@ func (ctx *CommonHttpCtx[PluginConfig]) RouteCall(method, rawURL string, headers
 		path = fmt.Sprintf("%s?%s", path, parsedURL.RawQuery)
 	}
 	proxywasm.ReplaceHttpRequestHeader(":path", path)
-	proxywasm.ReplaceHttpRequestHeader(":authority", authority)
+	if authority != "" {
+		proxywasm.ReplaceHttpRequestHeader(":authority", authority)
+	}
 	for _, kv := range headers {
 		proxywasm.ReplaceHttpRequestHeader(kv[0], kv[1])
 	}
 	proxywasm.ReplaceHttpRequestBody(body)
-	log.Infof("route call start, id:%s, method:%s, url:%s, headers:%#v, body:%s", requestID, method, rawURL, headers, strings.ReplaceAll(string(body), "\n", `\n`))
+	reqHeaders, _ := proxywasm.GetHttpRequestHeaders()
+	clusterName, _ := proxywasm.GetProperty([]string{"cluster_name"})
+	log.Infof("route call start, id:%s, method:%s, url:%s, cluster:%s, headers:%#v, body:%s", requestID, method, rawURL, clusterName, reqHeaders, strings.ReplaceAll(string(body), "\n", `\n`))
 	return nil
 }
 
