@@ -18,6 +18,9 @@ type limitRuleItemType string
 // 限流配置项key类型
 type limitConfigItemType string
 
+// 限流类型: token/request
+type limitType string
+
 const (
 	limitByHeaderType      limitRuleItemType = "limit_by_header"
 	limitByParamType       limitRuleItemType = "limit_by_param"
@@ -44,6 +47,9 @@ const (
 	SecondsPerMinute       = 60 * Second
 	SecondsPerHour         = 60 * SecondsPerMinute
 	SecondsPerDay          = 24 * SecondsPerHour
+
+	limitByToken   limitType = "token"   // 基于 ai token 限流
+	limitByRequest limitType = "request" // 基于请求数限流
 )
 
 var timeWindows = map[string]int64{
@@ -82,6 +88,7 @@ type LimitConfigItem struct {
 	regexp     *re.Regexp          // 正则表达式,仅用于itemType为regexpType
 	count      int64               // 指定时间窗口内的总请求数量阈值
 	timeWindow int64               // 时间窗口大小
+	limitType  limitType           // 限流类型，基于 token 或 request，默认为 token
 }
 
 func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
@@ -289,6 +296,12 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 }
 
 func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, key string, ipNet *iptree.IPTree, regexp *re.Regexp) (*LimitConfigItem, error) {
+	kind := limitByToken
+	limitKind := item.Get("limit_type")
+	if limitKind.Exists() && limitType(limitKind.String()) == limitByRequest {
+		kind = limitByRequest
+	}
+
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
 		if q.Exists() && q.Int() > 0 {
@@ -299,6 +312,7 @@ func createConfigItemFromRate(item gjson.Result, itemType limitConfigItemType, k
 				regexp:     regexp,
 				count:      q.Int(),
 				timeWindow: duration,
+				limitType:  kind,
 			}, nil
 		}
 	}

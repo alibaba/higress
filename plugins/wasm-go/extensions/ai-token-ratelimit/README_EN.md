@@ -37,10 +37,11 @@ Field descriptions for each item in `limit_keys`
 | Configuration Item      | Type              | Required                                    | Default Value | Description                                     |
 | ----------------------- | ----------------- | ------------------------------------------- | ------------- | ----------------------------------------------- |
 | key                     | string            | Yes                                         | -             | Matched key value. Types `limit_by_per_header`, `limit_by_per_param`, `limit_by_per_consumer`, `limit_by_per_cookie` support configuring regular expressions (beginning with regexp: followed by the regex) or `*` (representing all). Example regex: `regexp:^d.*` (all strings starting with d); `limit_by_per_ip` supports configuring IP addresses or IP segments |
-| token_per_second        | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token requests per second     |
-| token_per_minute       | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token requests per minute     |
-| token_per_hour         | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token requests per hour       |
-| token_per_day          | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token requests per day        |
+| limit_type |  string | NO | token | limit type， `request` limit base on request, `token` limit base on AI token |
+| token_per_second        | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token/request  per second (decided by `limit_type`)    |
+| token_per_minute       | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token/request per minute (decided by `limit_type`)     |
+| token_per_hour         | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token/request per hour  (decided by `limit_type`)      |
+| token_per_day          | int               | No, optionally select one in `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` | -             | Allowed number of token/request per day  (decided by `limit_type`)       |
 
 Field descriptions for each item in `redis`
 | Configuration Item      | Type              | Required | Default Value                                                                    | Description                                                                                                    |
@@ -77,6 +78,34 @@ rule_items:
 redis:
   service_name: redis.static
 ```
+
+Correspondingly, ratelimit based on the number of requests, just add `limit_mode`: request in `limit_keys`, as shown below:
+```yaml
+rule_name: default_rule
+rule_items:
+  - limit_by_param: apikey
+    limit_keys:
+      - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+        token_per_minute: 10
+        limit_type: request
+      - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
+        token_per_hour: 100
+        limit_type: request
+  - limit_by_per_param: apikey
+    limit_keys:
+      - key: "regexp:^a.*"
+        token_per_second: 10
+        limit_type: request
+      - key: "regexp:^b.*"
+        token_per_minute: 100
+        limit_type: request
+      - key: "*"
+        token_per_hour: 1000
+        limit_type: request
+redis:
+  service_name: redis.static
+```
+
 ### Identify request header x-ca-key for differentiated rate limiting
 ```yaml
 rule_name: default_rule
