@@ -22,6 +22,7 @@ const (
 	defaultOpenaiAudioSpeech        = "/v1/audio/speech"
 	defaultOpenaiImageGeneration    = "/v1/images/generations"
 	defaultOpenaiModels             = "/v1/models"
+	defaultOpenaiExtendRerankPath   = "/v1/rerank"
 )
 
 type openaiProviderInitializer struct {
@@ -40,6 +41,16 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameAudioSpeech):     defaultOpenaiAudioSpeech,
 		string(ApiNameModels):          defaultOpenaiModels,
 	}
+}
+
+func (m *openaiProviderInitializer) ExtendCapabilities() map[string]string {
+	// 先获取默认的 capabilities
+	caps := m.DefaultCapabilities()
+
+	// 添加新的项
+	caps[string(ApiNameOpenaiExtendRerank)] = defaultOpenaiExtendRerankPath
+
+	return caps
 }
 
 func isDirectPath(path string) bool {
@@ -64,7 +75,7 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 		customPath += pairs[1]
 	}
 	isDirectCustomPath := isDirectPath(customPath)
-	capabilities := m.DefaultCapabilities()
+	capabilities := m.ExtendCapabilities()
 	if !isDirectCustomPath {
 		for key, mapPath := range capabilities {
 			capabilities[key] = path.Join(customPath, strings.TrimPrefix(mapPath, "/v1"))
