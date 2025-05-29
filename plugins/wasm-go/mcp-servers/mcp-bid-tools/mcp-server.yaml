@@ -32,7 +32,7 @@ tools:
         required: false
     requestTemplate:
       argsToUrlParam: false
-      url: https://agent-bid.junrunrenli.com/agent/tools/getBiblist?jr-api-key={{.config.apikey}}
+      url: https://agent-bid.junrunrenli.com/agent/tools/getBidList?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
@@ -50,7 +50,7 @@ tools:
         required: true
     requestTemplate:
       argsToUrlParam: false
-      url: https://agent-bid.junrunrenli.com/agent/tools/getBibinfo?jr-api-key={{.config.apikey}}
+      url: https://agent-bid.junrunrenli.com/agent/tools/getBidInfo?jr-api-key={{.config.apikey}}
       method: POST
       headers:
         - key: Content-Type
