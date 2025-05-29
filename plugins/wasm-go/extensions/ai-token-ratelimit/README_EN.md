@@ -79,7 +79,7 @@ redis:
   service_name: redis.static
 ```
 
-Correspondingly, ratelimit based on the number of requests, just add `limit_mode`: request in `limit_keys`, as shown below:
+Correspondingly, ratelimit based on the number of requests, just add `limit_type`: request in `limit_keys`, as shown below:
 ```yaml
 rule_name: default_rule
 rule_items:

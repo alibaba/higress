@@ -91,7 +91,7 @@ redis:
   service_name: redis.static
 ```
 
-相应的，基于请求数限流，只需在 `limit_keys`中添加 `limit_mode`: request，如下所示：
+相应的，基于请求数限流，只需在 `limit_keys`中添加 `limit_type`: request，如下所示：
 ```yaml
 rule_name: default_rule
 rule_items:
