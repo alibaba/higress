@@ -21,11 +21,14 @@ const (
 	defaultOpenaiEmbeddingsPath     = "/v1/embeddings"
 	defaultOpenaiAudioSpeech        = "/v1/audio/speech"
 	defaultOpenaiImageGeneration    = "/v1/images/generations"
+	defaultOpenaiImageEdit          = "/v1/images/edits"
+	defaultOpenaiImageVariation     = "/v1/images/variations"
 	defaultOpenaiModels             = "/v1/models"
+	defaultOpenaiFiles              = "/v1/files"
+	defaultOpenaiBatchs             = "/v1/batches"
 )
 
-type openaiProviderInitializer struct {
-}
+type openaiProviderInitializer struct{}
 
 func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
@@ -37,8 +40,11 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameChatCompletion):  defaultOpenaiChatCompletionPath,
 		string(ApiNameEmbeddings):      defaultOpenaiEmbeddingsPath,
 		string(ApiNameImageGeneration): defaultOpenaiImageGeneration,
+		string(ApiNameImageEdit):       defaultOpenaiImageEdit,
+		string(ApiNameImageVariation):  defaultOpenaiImageVariation,
 		string(ApiNameAudioSpeech):     defaultOpenaiAudioSpeech,
 		string(ApiNameModels):          defaultOpenaiModels,
+		string(ApiNameFiles):           defaultOpenaiFiles,
 	}
 }
 
@@ -121,7 +127,7 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.needToProcessRequestBody(apiName) {
 		// We don't need to process the request body for other APIs.
 		return types.ActionContinue, nil
 	}
