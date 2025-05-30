@@ -25,8 +25,7 @@ const (
 	geminiEmbeddingPath            = "batchEmbedContents"
 )
 
-type geminiProviderInitializer struct {
-}
+type geminiProviderInitializer struct{}
 
 func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {

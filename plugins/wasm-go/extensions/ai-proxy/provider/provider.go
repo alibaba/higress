@@ -16,8 +16,10 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-type ApiName string
-type Pointcut string
+type (
+	ApiName  string
+	Pointcut string
+)
 
 const (
 
@@ -28,6 +30,8 @@ const (
 	ApiNameChatCompletion  ApiName = "openai/v1/chatcompletions"
 	ApiNameEmbeddings      ApiName = "openai/v1/embeddings"
 	ApiNameImageGeneration ApiName = "openai/v1/imagegeneration"
+	ApiNameImageEdit       ApiName = "openai/v1/imageedit"
+	ApiNameImageVariation  ApiName = "openai/v1/imagevariation"
 	ApiNameAudioSpeech     ApiName = "openai/v1/audiospeech"
 	ApiNameFiles           ApiName = "openai/v1/files"
 	ApiNameBatches         ApiName = "openai/v1/batches"
@@ -439,6 +443,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		case string(ApiNameChatCompletion),
 			string(ApiNameEmbeddings),
 			string(ApiNameImageGeneration),
+			string(ApiNameImageVariation),
+			string(ApiNameImageEdit),
 			string(ApiNameAudioSpeech),
 			string(ApiNameCohereV1Rerank):
 			c.capabilities[capability] = pathJson.String()
@@ -703,7 +709,8 @@ func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) 
 }
 
 func (c *ProviderConfig) handleRequestBody(
-	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte,
+) (types.Action, error) {
 	// use original protocol
 	if c.IsOriginal() {
 		return types.ActionContinue, nil
@@ -770,4 +777,17 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 	} else {
 		headers.Del("Content-Length")
 	}
+}
+
+func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
+	switch apiName {
+	case ApiNameChatCompletion,
+		ApiNameEmbeddings,
+		ApiNameImageGeneration,
+		ApiNameImageEdit,
+		ApiNameImageVariation,
+		ApiNameAudioSpeech:
+		return true
+	}
+	return false
 }
