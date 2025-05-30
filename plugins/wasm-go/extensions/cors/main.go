@@ -90,14 +90,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	// Set HttpContext
 	ctx.SetContext(config.HttpContextKey, httpCorsContext)
 
-	// Response forbidden when it is not valid cors request
-	if !httpCorsContext.IsValid {
-		headers := make([][2]string, 0)
-		headers = append(headers, [2]string{config.HeaderPluginTrace, "trace"})
-		proxywasm.SendHttpResponseWithDetail(http.StatusForbidden, "cors.forbidden", headers, []byte("Invalid CORS request"), -1)
-		return types.ActionPause
-	}
-
 	// Response directly when it is cors preflight request
 	if httpCorsContext.IsPreFlight {
 		headers := make([][2]string, 0)
@@ -135,16 +127,16 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig
 		return types.ActionContinue
 	}
 
+	// Add the Vary: Origin response header to prevent caching from causing CORS (Cross-Origin Resource Sharing) issues.
+	proxywasm.AddHttpResponseHeader("Vary", "Origin")
+
 	// Add Cors headers when it is cors and valid request
-	if len(httpCorsContext.AllowOrigin) > 0 {
-		proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowOrigin, httpCorsContext.AllowOrigin)
-	}
-	if len(httpCorsContext.AllowMethods) > 0 {
-		proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowMethods, httpCorsContext.AllowMethods)
-	}
-	if len(httpCorsContext.AllowHeaders) > 0 {
-		proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowHeaders, httpCorsContext.AllowHeaders)
-	}
+	proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowOrigin, corsConfig.GetAllowOrigins(httpCorsContext))
+
+	proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowMethods, corsConfig.GetAllowMethods(httpCorsContext))
+
+	proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowHeaders, corsConfig.GetAllowHeaders(httpCorsContext))
+
 	if len(httpCorsContext.ExposeHeaders) > 0 {
 		proxywasm.AddHttpResponseHeader(config.HeaderAccessControlExposeHeaders, httpCorsContext.ExposeHeaders)
 	}
