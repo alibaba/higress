@@ -25,7 +25,7 @@ const (
 	defaultOpenaiImageVariation     = "/v1/images/variations"
 	defaultOpenaiModels             = "/v1/models"
 	defaultOpenaiFiles              = "/v1/files"
-	defaultOpenaiBatchs             = "/v1/batches"
+	defaultOpenaiBatches            = "/v1/batches"
 )
 
 type openaiProviderInitializer struct{}
@@ -45,6 +45,7 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameAudioSpeech):     defaultOpenaiAudioSpeech,
 		string(ApiNameModels):          defaultOpenaiModels,
 		string(ApiNameFiles):           defaultOpenaiFiles,
+		string(ApiNameBatches):         defaultOpenaiBatches,
 	}
 }
 
