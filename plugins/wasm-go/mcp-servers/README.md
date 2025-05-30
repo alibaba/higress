@@ -399,9 +399,9 @@ server:
   config:
     apiKey: your-api-key-here
   # Optional: If configured, acts as a whitelist - only tools listed here can be called
-  allowTools:
-  - my_tool
-  - another_tool
+allowTools:
+- my_tool
+- another_tool
 ```
 
 > **Important**: The `name` field in the server configuration must exactly match the server name used in the `mcp.AddMCPServer()` call in your code. This is how the system identifies which MCP server should handle the request.
