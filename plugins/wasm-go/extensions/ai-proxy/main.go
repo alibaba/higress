@@ -352,6 +352,12 @@ func getApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/images/generations") {
 		return provider.ApiNameImageGeneration
 	}
+	if strings.HasSuffix(path, "/v1/images/variations") {
+		return provider.ApiNameImageVariation
+	}
+	if strings.HasSuffix(path, "/v1/images/edits") {
+		return provider.ApiNameImageEdit
+	}
 	if strings.HasSuffix(path, "/v1/batches") {
 		return provider.ApiNameBatches
 	}
