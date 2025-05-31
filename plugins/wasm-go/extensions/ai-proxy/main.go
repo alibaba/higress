@@ -358,10 +358,10 @@ func getApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/images/edits") {
 		return provider.ApiNameImageEdit
 	}
-	if strings.HasSuffix(path, "/v1/batches") {
+	if strings.Contains(path, "/v1/batches") {
 		return provider.ApiNameBatches
 	}
-	if strings.HasSuffix(path, "/v1/files") {
+	if strings.Contains(path, "/v1/files") {
 		return provider.ApiNameFiles
 	}
 	if strings.HasSuffix(path, "/v1/models") {
