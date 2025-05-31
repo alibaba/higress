@@ -15,12 +15,10 @@ import (
 
 // sparkProvider is the provider for SparkLLM AI service.
 const (
-	sparkHost               = "spark-api-open.xf-yun.com"
-	sparkChatCompletionPath = "/v1/chat/completions"
+	sparkHost = "spark-api-open.xf-yun.com"
 )
 
-type sparkProviderInitializer struct {
-}
+type sparkProviderInitializer struct{}
 
 type sparkProvider struct {
 	config       ProviderConfig
@@ -58,7 +56,7 @@ func (i *sparkProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 
 func (i *sparkProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): sparkChatCompletionPath,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 	}
 }
 
