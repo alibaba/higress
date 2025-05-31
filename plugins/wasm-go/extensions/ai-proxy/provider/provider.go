@@ -51,6 +51,10 @@ const (
 	PathOpenAIRetrieveBatch       = "/v1/batches/{batch_id}"
 	PathOpenAICancelBatch         = "/v1/batches/{batch_id}/cancel"
 	PathOpenAIModels              = "/v1/models"
+	PathOpenAIImageGeneration     = "/v1/images/generations"
+	PathOpenAIImageEdit           = "/v1/images/edits"
+	PathOpenAIImageVariation      = "/v1/images/variations"
+	PathOpenAIAudioSpeech         = "/v1/audio/speech"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"

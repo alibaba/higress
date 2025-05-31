@@ -15,17 +15,7 @@ import (
 // openaiProvider is the provider for OpenAI service.
 
 const (
-	defaultOpenaiDomain             = "api.openai.com"
-	defaultOpenaiChatCompletionPath = "/v1/chat/completions"
-	defaultOpenaiCompletionPath     = "/v1/completions"
-	defaultOpenaiEmbeddingsPath     = "/v1/embeddings"
-	defaultOpenaiAudioSpeech        = "/v1/audio/speech"
-	defaultOpenaiImageGeneration    = "/v1/images/generations"
-	defaultOpenaiImageEdit          = "/v1/images/edits"
-	defaultOpenaiImageVariation     = "/v1/images/variations"
-	defaultOpenaiModels             = "/v1/models"
-	defaultOpenaiFiles              = "/v1/files"
-	defaultOpenaiBatches            = "/v1/batches"
+	defaultOpenaiDomain = "api.openai.com"
 )
 
 type openaiProviderInitializer struct{}
@@ -36,16 +26,20 @@ func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameCompletion):      defaultOpenaiCompletionPath,
-		string(ApiNameChatCompletion):  defaultOpenaiChatCompletionPath,
-		string(ApiNameEmbeddings):      defaultOpenaiEmbeddingsPath,
-		string(ApiNameImageGeneration): defaultOpenaiImageGeneration,
-		string(ApiNameImageEdit):       defaultOpenaiImageEdit,
-		string(ApiNameImageVariation):  defaultOpenaiImageVariation,
-		string(ApiNameAudioSpeech):     defaultOpenaiAudioSpeech,
-		string(ApiNameModels):          defaultOpenaiModels,
-		string(ApiNameFiles):           defaultOpenaiFiles,
-		string(ApiNameBatches):         defaultOpenaiBatches,
+		string(ApiNameCompletion):          PathOpenAICompletions,
+		string(ApiNameChatCompletion):      PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):          PathOpenAIEmbeddings,
+		string(ApiNameImageGeneration):     PathOpenAIImageGeneration,
+		string(ApiNameImageEdit):           PathOpenAIImageEdit,
+		string(ApiNameImageVariation):      PathOpenAIImageVariation,
+		string(ApiNameAudioSpeech):         PathOpenAIAudioSpeech,
+		string(ApiNameModels):              PathOpenAIModels,
+		string(ApiNameFiles):               PathOpenAIFiles,
+		string(ApiNameRetrieveFile):        PathOpenAIRetrieveFile,
+		string(ApiNameRetrieveFileContent): PathOpenAIRetrieveFileContent,
+		string(ApiNameBatches):             PathOpenAIBatches,
+		string(ApiNameRetrieveBatch):       PathOpenAIRetrieveBatch,
+		string(ApiNameCancelBatch):         PathOpenAICancelBatch,
 	}
 }
 
