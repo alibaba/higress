@@ -23,16 +23,19 @@ import (
 const (
 	qwenResultFormatMessage = "message"
 
-	qwenDefaultDomain                = "dashscope.aliyuncs.com"
-	qwenChatCompletionPath           = "/api/v1/services/aigc/text-generation/generation"
-	qwenTextEmbeddingPath            = "/api/v1/services/embeddings/text-embedding/text-embedding"
-	qwenCompatibleChatCompletionPath = "/compatible-mode/v1/chat/completions"
-	qwenCompatibleCompletionsPath    = "/compatible-mode/v1/completions"
-	qwenCompatibleTextEmbeddingPath  = "/compatible-mode/v1/embeddings"
-	qwenCompatibleFilesPath          = "/compatible-mode/v1/files"
-	qwenCompatibleBatchesPath        = "/compatible-mode/v1/batches"
-	qwenBailianPath                  = "/api/v1/apps"
-	qwenMultimodalGenerationPath     = "/api/v1/services/aigc/multimodal-generation/generation"
+	qwenDefaultDomain                     = "dashscope.aliyuncs.com"
+	qwenChatCompletionPath                = "/api/v1/services/aigc/text-generation/generation"
+	qwenTextEmbeddingPath                 = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenCompatibleChatCompletionPath      = "/compatible-mode/v1/chat/completions"
+	qwenCompatibleCompletionsPath         = "/compatible-mode/v1/completions"
+	qwenCompatibleTextEmbeddingPath       = "/compatible-mode/v1/embeddings"
+	qwenCompatibleFilesPath               = "/compatible-mode/v1/files"
+	qwenCompatibleRetrieveFilePath        = "/compatible-mode/v1/files/{file_id}"
+	qwenCompatibleRetrieveFileContentPath = "/compatible-mode/v1/files/{file_id}/content"
+	qwenCompatibleBatchesPath             = "/compatible-mode/v1/batches"
+	qwenCompatibleRetrieveBatchPath       = "/compatible-mode/v1/batches/{batch_id}"
+	qwenBailianPath                       = "/api/v1/apps"
+	qwenMultimodalGenerationPath          = "/api/v1/services/aigc/multimodal-generation/generation"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
@@ -58,11 +61,14 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool) map[string]string {
 	if qwenEnableCompatible {
 		return map[string]string{
-			string(ApiNameChatCompletion): qwenCompatibleChatCompletionPath,
-			string(ApiNameEmbeddings):     qwenCompatibleTextEmbeddingPath,
-			string(ApiNameCompletion):     qwenCompatibleCompletionsPath,
-			string(ApiNameFiles):          qwenCompatibleFilesPath,
-			string(ApiNameBatches):        qwenCompatibleBatchesPath,
+			string(ApiNameChatCompletion):      qwenCompatibleChatCompletionPath,
+			string(ApiNameEmbeddings):          qwenCompatibleTextEmbeddingPath,
+			string(ApiNameCompletion):          qwenCompatibleCompletionsPath,
+			string(ApiNameFiles):               qwenCompatibleFilesPath,
+			string(ApiNameRetrieveFile):        qwenCompatibleRetrieveFilePath,
+			string(ApiNameRetrieveFileContent): qwenCompatibleRetrieveFileContentPath,
+			string(ApiNameBatches):             qwenCompatibleBatchesPath,
+			string(ApiNameRetrieveBatch):       qwenCompatibleRetrieveBatchPath,
 		}
 	} else {
 		return map[string]string{
