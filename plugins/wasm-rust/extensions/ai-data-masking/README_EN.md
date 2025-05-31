@@ -40,8 +40,9 @@ Plugin Execution Priority: `991`
 |  replace_roles         | array            |   -            | Custom sensitive word regex replacement |
 |  replace_roles.regex   | string           |   -            | Rule regex (built-in GROK rule)    |
 |  replace_roles.type    | [replace, hash]  |   -            | Replacement type                     |
-|  replace_roles.restore  | bool             | false          | Whether to restore                   |
+|  replace_roles.restore  | bool            | false          | Whether to restore                   |
 |  replace_roles.value    | string          |   -            | Replacement value (supports regex variables) |
+|  skip_response          | bool            | false          | Skip response body phase             |
 
 ## Configuration Example
 ```yaml
