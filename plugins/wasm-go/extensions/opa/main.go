@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -58,6 +57,48 @@ func parseConfig(json gjson.Result, config *OpaConfig, log wrapper.Log) error {
 		return errors.New("timeout parse fail: " + err.Error())
 	}
 
+	config.resultPath = json.Get("resultPath").String()
+	if config.resultPath == "" {
+		config.resultPath = defaultResultPath
+	}
+
+	config.skipHeader = json.Get("skipHeader").Bool()
+	config.skipBody = json.Get("skipBody").Bool()
+
+	config.denyCodePath = json.Get("denyCodePath").String()
+	config.denyMappingMessages = make(map[string]string)
+	if config.denyCodePath != "" {
+		denyMappingMessages := json.Get("denyMappingMessages").Map()
+		for k, v := range denyMappingMessages {
+			config.denyMappingMessages[k] = v.String()
+		}
+		if len(config.denyMappingMessages) == 0 {
+			return errors.New("denyMappingMessages not allow empty when denyCodePath not empty")
+		}
+		config.denyMessageContenType = json.Get("denyMessageContenType").String()
+		if config.denyMessageContenType == "" {
+			return errors.New("denyMessageContenType not allow empty when denyCodePath not empty")
+		}
+	}
+
+	config.no200Message = json.Get("no200Message").String()
+	if config.no200Message != "" {
+		config.no200Code = uint32(json.Get("no200Code").Int())
+		config.no200ContenType = json.Get("no200ContenType").String()
+		if config.no200ContenType == "" {
+			return errors.New("no200ContenType not allow empty when no200Message not empty")
+		}
+		if config.no200Code == 0 {
+			return errors.New("no200Code not allow empty when no200Message not empty")
+		}
+	}
+
+	config.extratHeaders = make(map[string]string)
+	extratHeaders := json.Get("extratHeaders").Map()
+	for k, v := range extratHeaders {
+		config.extratHeaders[k] = v.String()
+	}
+
 	var uint32Duration uint32
 
 	if duration.Milliseconds() > int64(^uint32(0)) {
@@ -76,59 +117,66 @@ func parseConfig(json gjson.Result, config *OpaConfig, log wrapper.Log) error {
 	return nil
 }
 
+const (
+	OPACtxKeyHeaders = "headers"
+	OPACtxKeyMethod  = "method"
+	OPACtxKeyScheme  = "scheme"
+	OPACtxKeyPath    = "path"
+	OPACtxKeyQuery   = "query"
+)
+
+func setCtx(ctx wrapper.HttpContext) {
+	p, _ := url.Parse(ctx.Path())
+	headers, _ := proxywasm.GetHttpRequestHeaders()
+	ctx.SetContext(OPACtxKeyMethod, ctx.Method())
+	ctx.SetContext(OPACtxKeyScheme, ctx.Scheme())
+	ctx.SetContext(OPACtxKeyPath, p.Path)
+	ctx.SetContext(OPACtxKeyQuery, p.RawQuery)
+	ctx.SetContext(OPACtxKeyQuery, p.RawQuery)
+	ctx.SetContext(OPACtxKeyHeaders, headers)
+}
+
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config OpaConfig, log wrapper.Log) types.Action {
+	if config.skipHeader {
+		if !config.skipBody {
+			setCtx(ctx)
+		}
+		if len(config.extratHeaders) > 0 {
+			return types.HeaderStopIteration
+		}
+		return types.ActionContinue
+	}
+	setCtx(ctx)
 	return opaCall(ctx, config, nil, log)
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config OpaConfig, body []byte, log wrapper.Log) types.Action {
+	if config.skipBody {
+		return types.ActionContinue
+	}
 	return opaCall(ctx, config, body, log)
 }
 
 func opaCall(ctx wrapper.HttpContext, config OpaConfig, body []byte, log wrapper.Log) types.Action {
 	request := make(map[string]interface{}, 6)
-	headers, _ := proxywasm.GetHttpRequestHeaders()
+	request["headers"] = ctx.GetContext(OPACtxKeyHeaders)
+	request["method"] = ctx.GetContext(OPACtxKeyMethod)
+	request["scheme"] = ctx.GetContext(OPACtxKeyScheme)
+	request["path"] = ctx.GetContext(OPACtxKeyPath)
+	request["query"] = ctx.GetContext(OPACtxKeyQuery)
 
-	request["method"] = ctx.Method()
-	request["scheme"] = ctx.Scheme()
-	request["path"] = ctx.Path()
-	request["headers"] = headers
 	if len(body) != 0 {
 		request["body"] = body
 	}
-	parse, _ := url.Parse(ctx.Path())
-	query, _ := url.ParseQuery(parse.RawQuery)
-	request["query"] = query
 
 	data, _ := json.Marshal(Metadata{Input: map[string]interface{}{"request": request}})
-	if err := config.client.Post(fmt.Sprintf("/v1/data/%s/allow", config.policy),
-		[][2]string{{"Content-Type", "application/json"}},
-		data, rspCall, config.timeout); err != nil {
+	opaUrl := fmt.Sprintf("/v1/data/%s/allow", config.policy)
+	if config.resultPath != "" {
+		opaUrl = fmt.Sprintf("/v1/data/%s", config.policy)
+	}
+	if err := config.client.Post(opaUrl, [][2]string{{"Content-Type", "application/json"}}, data, config.rspCall, config.timeout); err != nil {
 		log.Errorf("client opa fail %v", err)
 		return types.ActionPause
 	}
 	return types.ActionPause
-}
-
-func rspCall(statusCode int, _ http.Header, responseBody []byte) {
-	if statusCode != http.StatusOK {
-		proxywasm.SendHttpResponseWithDetail(uint32(statusCode), "opa.status_ne_200", nil, []byte("opa state not is 200"), -1)
-		return
-	}
-	var rsp map[string]interface{}
-	if err := json.Unmarshal(responseBody, &rsp); err != nil {
-		proxywasm.SendHttpResponseWithDetail(http.StatusInternalServerError, "opa.bad_response_body", nil, []byte(fmt.Sprintf("opa parse rsp fail %+v", err)), -1)
-		return
-	}
-
-	result, ok := rsp["result"].(bool)
-	if !ok {
-		proxywasm.SendHttpResponseWithDetail(http.StatusInternalServerError, "opa.conversion_fail", nil, []byte("rsp type conversion fail"), -1)
-		return
-	}
-
-	if !result {
-		proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "opa.server_not_allowed", nil, []byte("opa server not allowed"), -1)
-		return
-	}
-	proxywasm.ResumeHttpRequest()
 }
