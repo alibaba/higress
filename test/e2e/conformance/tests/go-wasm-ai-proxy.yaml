@@ -315,6 +315,25 @@ spec:
                 port:
                   number: 3000
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-dify
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.dify.ai"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -493,4 +512,14 @@ spec:
           type: zhipuai
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-zhipuai
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            '*': dify
+          type: dify
+          botType: Completion
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-dify
   url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm

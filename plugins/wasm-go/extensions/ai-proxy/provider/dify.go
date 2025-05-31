@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
@@ -138,7 +138,7 @@ func (d *difyProvider) responseDify2OpenAI(ctx wrapper.HttpContext, response *Di
 	}
 	return &chatCompletionResponse{
 		Id:                id,
-		Created:           time.Now().UnixMilli() / 1000,
+		Created:           response.CreatedAt,
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
@@ -222,7 +222,7 @@ func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, respon
 	}
 	return &chatCompletionResponse{
 		Id:                id,
-		Created:           time.Now().UnixMilli() / 1000,
+		Created:           response.CreatedAt,
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
@@ -309,7 +309,7 @@ type DifyChatResponse struct {
 	ConversationId string       `json:"conversation_id"`
 	MessageId      string       `json:"message_id"`
 	Answer         string       `json:"answer"`
-	CreateAt       int64        `json:"create_at"`
+	CreatedAt      int64        `json:"created_at"`
 	Data           DifyData     `json:"data"`
 	MetaData       DifyMetaData `json:"metadata"`
 }
@@ -319,6 +319,7 @@ type DifyChunkChatResponse struct {
 	ConversationId string       `json:"conversation_id"`
 	MessageId      string       `json:"message_id"`
 	Answer         string       `json:"answer"`
+	CreatedAt      int64        `json:"created_at"`
 	Data           DifyData     `json:"data"`
 	MetaData       DifyMetaData `json:"metadata"`
 }

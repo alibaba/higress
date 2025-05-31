@@ -961,6 +961,72 @@ data: [DONE]
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "dify case 1: non-streaming completion request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.dify.ai",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"USER: \n你好\n"},"finish_reason":"stop"}],"created":10,"model":"dify","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "dify case 2: streaming completion request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.dify.ai",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"U"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"S"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"E"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"R"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":":"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":" "}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"\n"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"你"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"好"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"\n"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"USER: \n你好\n"},"finish_reason":"stop"}],"model":"dify","object":"chat.completion.chunk","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}
+
+`),
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugins ai-proxy", func(t *testing.T) {
 			for _, testcase := range testcases {
