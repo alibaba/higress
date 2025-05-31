@@ -30,7 +30,7 @@ const (
 	qwenCompatibleCompletionsPath    = "/compatible-mode/v1/completions"
 	qwenCompatibleTextEmbeddingPath  = "/compatible-mode/v1/embeddings"
 	qwenCompatibleFilesPath          = "/compatible-mode/v1/files"
-	qwenCompatibleBatchsPath         = "/compatible-mode/v1/batchs"
+	qwenCompatibleBatchesPath        = "/compatible-mode/v1/batches"
 	qwenBailianPath                  = "/api/v1/apps"
 	qwenMultimodalGenerationPath     = "/api/v1/services/aigc/multimodal-generation/generation"
 
@@ -62,7 +62,7 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 			string(ApiNameEmbeddings):     qwenCompatibleTextEmbeddingPath,
 			string(ApiNameCompletion):     qwenCompatibleCompletionsPath,
 			string(ApiNameFiles):          qwenCompatibleFilesPath,
-			string(ApiNameBatches):        qwenCompatibleBatchsPath,
+			string(ApiNameBatches):        qwenCompatibleBatchesPath,
 		}
 	} else {
 		return map[string]string{
