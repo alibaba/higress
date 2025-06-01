@@ -376,10 +376,6 @@ func getApiName(path string) provider.ApiName {
 	if util.RegRetrieveFileContentPath.MatchString(path) {
 		return provider.ApiNameRetrieveFileContent
 	}
-	// openai style
-	if strings.HasSuffix(path, "/v1/batches") {
-		return provider.ApiNameBatches
-	}
 	if strings.HasSuffix(path, "/v1/models") {
 		return provider.ApiNameModels
 	}
