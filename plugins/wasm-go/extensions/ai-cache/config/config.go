@@ -90,6 +90,8 @@ func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
 
 	if json.Get("enableSemanticCache").Exists() {
 		c.EnableSemanticCache = json.Get("enableSemanticCache").Bool()
+	} else if c.GetVectorProvider() == nil {
+		c.EnableSemanticCache = false	// set value to false when no vector provider 
 	} else {
 		c.EnableSemanticCache = true // set default value to true
 	}

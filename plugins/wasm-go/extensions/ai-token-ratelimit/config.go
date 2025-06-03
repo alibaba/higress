@@ -142,7 +142,7 @@ func parseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 		config.rejectedCode = DefaultRejectedCode
 	}
 	rejectedMsg := json.Get("rejected_msg")
-	if rejectedCode.Exists() {
+	if rejectedMsg.Exists() {
 		config.rejectedMsg = rejectedMsg.String()
 	} else {
 		config.rejectedMsg = DefaultRejectedMsg
