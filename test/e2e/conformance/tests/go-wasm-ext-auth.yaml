@@ -1,4 +1,3 @@
-
 # Copyright (c) 2022 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,10 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-
 # 1) ConfigMap: configuration for mock-auth-service
-
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -29,7 +25,6 @@ data:
 ---
 
 # 2) Deployment: mock-auth-service
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -68,7 +63,6 @@ spec:
 ---
 
 # 3) Service: mock-auth-service
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -84,7 +78,6 @@ spec:
 ---
 
 # 4) Ingress: ext-auth-envoy (envoy mode, whitelist)
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -107,7 +100,6 @@ spec:
 ---
 
 # 5) Ingress: ext-auth-forward (forward_auth mode, whitelist)
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -130,7 +122,6 @@ spec:
 ---
 
 # 6) Ingress: ext-auth-blacklist (envoy mode, blacklist)
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -153,7 +144,6 @@ spec:
 ---
 
 # 7) Ingress: ext-auth-failover (envoy mode, failure_mode_allow)
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -176,7 +166,6 @@ spec:
 ---
 
 # 8) Ingress: ext-auth-body-test (for request body handling tests)
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -199,7 +188,6 @@ spec:
 ---
 
 # 9) Ingress: ext-auth-custom-error (for custom error status tests)
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -222,7 +210,6 @@ spec:
 ---
 
 # 10) Ingress: ext-auth-header-test (for header transformation tests)
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -244,8 +231,7 @@ spec:
 
 ---
 
-# 11) Ingress: ext-auth-timeout-test (for timeout tests - NEW)
-
+# 11) Ingress: ext-auth-timeout-test (for timeout tests)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -267,8 +253,7 @@ spec:
 
 ---
 
-# 12) Ingress: ext-auth-body-limit-test (for body size limit tests - NEW)
-
+# 12) Ingress: ext-auth-body-limit-test (for body size limit tests)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -291,7 +276,6 @@ spec:
 ---
 
 # 13) WasmPlugin: ext-auth-envoy (envoy mode, whitelist)
-
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -318,7 +302,6 @@ spec:
 ---
 
 # 14) WasmPlugin: ext-auth-forward (forward_auth mode, whitelist)
-
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -346,7 +329,6 @@ spec:
 ---
 
 # 15) WasmPlugin: ext-auth-blacklist (envoy mode, blacklist)
-
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -377,7 +359,6 @@ spec:
 ---
 
 # 16) WasmPlugin: ext-auth-failover (non-existent auth service, failure_mode_allow)
-
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -402,7 +383,6 @@ spec:
 ---
 
 # 17) WasmPlugin: ext-auth-body-test (with body forwarding enabled)
-
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -428,7 +408,6 @@ spec:
 ---
 
 # 18) WasmPlugin: ext-auth-custom-error (custom error status code)
-
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -452,7 +431,6 @@ spec:
 ---
 
 # 19) WasmPlugin: ext-auth-header-test (header transformation)
-
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -482,8 +460,7 @@ spec:
 
 ---
 
-# 20) WasmPlugin: ext-auth-timeout-test (new)
-
+# 20) WasmPlugin: ext-auth-timeout-test
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -507,8 +484,7 @@ spec:
 
 ---
 
-# 21) WasmPlugin: ext-auth-body-limit-test (new)
-
+# 21) WasmPlugin: ext-auth-body-limit-test
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:

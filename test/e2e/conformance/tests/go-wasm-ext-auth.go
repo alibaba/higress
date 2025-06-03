@@ -1,4 +1,3 @@
-
 // Copyright (c) 2022 Alibaba Group Holding Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -34,7 +33,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, s *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
-			// Envoy mode: successful auth
+			// Basic Envoy mode tests
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Envoy Mode - Successful Authentication",
@@ -54,7 +53,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Envoy mode: invalid token
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Envoy Mode - Invalid Token",
@@ -74,7 +72,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 403},
 				},
 			},
-			// Envoy mode: no auth header
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Envoy Mode - Missing Auth Header",
@@ -93,7 +90,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 401},
 				},
 			},
-			// Envoy mode: whitelist bypass
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Envoy Mode - Whitelist Bypass",
@@ -112,7 +108,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Forward_auth mode: successful auth
+
+			// Forward_auth mode tests
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Forward_Auth Mode - Successful Authentication",
@@ -132,7 +129,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Forward_auth mode: missing auth header
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Forward_Auth Mode - Missing Auth Header",
@@ -151,7 +147,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 401},
 				},
 			},
-			// Forward_auth mode: whitelist bypass
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Forward_Auth Mode - Whitelist Bypass",
@@ -170,7 +165,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Blacklist envoy: blocked
+
+			// Blacklist mode tests
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Blacklist - Path Blocked",
@@ -190,7 +186,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 403},
 				},
 			},
-			// Blacklist envoy: allowed
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Blacklist - Path Allowed",
@@ -209,7 +204,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Blacklist POST blocked
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Blacklist - Method Restricted (POST Blocked)",
@@ -229,7 +223,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 403},
 				},
 			},
-			// Blacklist GET allowed
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Blacklist - Method Restricted (GET Allowed)",
@@ -248,7 +241,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Failure mode allow
+
+			// Failure mode allow test
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Failure Mode Allow - Service Unavailable",
@@ -272,7 +266,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
-			// Header propagation
+
+			// Header propagation test with enhanced validation
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Forward_Auth Mode - Header Propagation",
@@ -284,7 +279,10 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 						Host: "foo-forward.com", 
 						Path: "/inspect", 
 						Method: "POST", 
-						Headers: map[string]string{"Authorization": "Bearer valid-token"}, 
+						Headers: map[string]string{
+							"Authorization": "Bearer valid-token",
+							"Content-Type": "application/json",
+						}, 
 						UnfollowRedirect: true,
 					},
 				},
@@ -300,7 +298,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
-			// Request body testing
+
+			// Request body testing with JSON payload
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Request Body Testing - JSON",
@@ -316,7 +315,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 							"Authorization": "Bearer valid-token",
 							"Content-Type": "application/json",
 						}, 
-						Body: []byte(`{"test":"data","key":"value"}`),
+						Body: []byte(`{"test":"data","key":"value","timestamp":"2024-01-01T00:00:00Z"}`),
 						UnfollowRedirect: true,
 					},
 				},
@@ -324,7 +323,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Custom status error code test
+
+			// Custom error status test
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Custom Status on Error",
@@ -343,7 +343,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 503},
 				},
 			},
-			// Header transformation test
+
+			// Header transformation test with multiple headers
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Header Transformation",
@@ -373,10 +374,11 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
-			// Large request body test (testing max_request_body_bytes)
+
+			// Large request body test (within limits)
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "Large Request Body Test",
+					TestCaseName:    "Large Request Body Test - Within Limits",
 					TargetBackend:   "infra-backend-v1", 
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -389,8 +391,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 							"Authorization": "Bearer valid-token",
 							"Content-Type": "application/json",
 						}, 
-						// Generate a large JSON body
-						Body: []byte(generateLargeBody(1024 * 1024)), // 1MB body
+						Body: []byte(generateMediumBody(50 * 1024)), // 50KB - within 100KB limit
 						UnfollowRedirect: true,
 					},
 				},
@@ -398,7 +399,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 200},
 				},
 			},
-			// Timeout test (new)
+
+			// Timeout test with slow auth service
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Timeout Test",
@@ -411,7 +413,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 						Path: "/test-timeout",
 						Method: "GET",
 						Headers: map[string]string{
-							"X-Sleep-Time": "2000", // 2 seconds, longer than the 1s timeout
+							"Authorization": "Bearer valid-token",
+							"X-Sleep-Time": "2000", // 2 seconds, longer than 1s timeout
 						},
 						UnfollowRedirect: true,
 					},
@@ -420,7 +423,8 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 504}, // Gateway Timeout
 				},
 			},
-			// Body size limit exceeded test (new)
+
+			// Body size limit exceeded test
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Body Size Limit Exceeded",
@@ -436,7 +440,6 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 							"Authorization": "Bearer valid-token",
 							"Content-Type": "application/json",
 						},
-						// Generate a body larger than the defined limit (100KB)
 						Body: []byte(generateLargeBody(150 * 1024)), // 150KB, exceeds 100KB limit
 						UnfollowRedirect: true,
 					},
@@ -445,37 +448,126 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					ExpectedResponse: http.Response{StatusCode: 413}, // Payload Too Large
 				},
 			},
+
+			// Additional edge case tests
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Envoy Mode - Empty Authorization Header",
+					TargetBackend:   "infra-backend-v1", 
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo-envoy.com", 
+						Path: "/allowed", 
+						Method: "GET", 
+						Headers: map[string]string{"Authorization": ""}, 
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{StatusCode: 401},
+				},
+			},
+
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Forward_Auth Mode - Malformed Authorization Header",
+					TargetBackend:   "infra-backend-v1", 
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo-forward.com", 
+						Path: "/allowed", 
+						Method: "GET", 
+						Headers: map[string]string{"Authorization": "InvalidFormat"}, 
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{StatusCode: 401},
+				},
+			},
+
+			// Test different HTTP methods
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Multiple HTTP Methods - PUT Request",
+					TargetBackend:   "infra-backend-v1", 
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo-envoy.com", 
+						Path: "/allowed", 
+						Method: "PUT", 
+						Headers: map[string]string{
+							"Authorization": "Bearer valid-token",
+							"Content-Type": "application/json",
+						},
+						Body: []byte(`{"update":"data"}`),
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{StatusCode: 200},
+				},
+			},
 		}
 
-		t.Run("ext-auth plugin", func(t *testing.T) {
+		t.Run("ext-auth plugin comprehensive tests", func(t *testing.T) {
 			for _, tc := range testcases {
-				http.MakeRequestAndExpectEventuallyConsistentResponse(
-					t, s.RoundTripper, s.TimeoutConfig, s.GatewayAddress, tc,
-				)
+				tc := tc // capture loop variable
+				t.Run(tc.Meta.TestCaseName, func(t *testing.T) {
+					http.MakeRequestAndExpectEventuallyConsistentResponse(
+						t, s.RoundTripper, s.TimeoutConfig, s.GatewayAddress, tc,
+					)
+				})
 			}
 		})
 	},
 }
 
-// Helper function to generate a large JSON body for testing
-func generateLargeBody(sizeInBytes int) string {
-	// Create a simple repeating pattern to reach desired size
-	const basePattern = `{"data":"0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz0123456789abcdefghijklmnopqrstuvwxyz"}`
+// Helper function to generate medium-sized JSON body for testing
+func generateMediumBody(sizeInBytes int) string {
+	const basePattern = `{"data":"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"}`
 	baseLen := len(basePattern)
 	
-	// Calculate how many times to repeat the pattern
-	repetitions := sizeInBytes / baseLen
-	if repetitions < 1 {
-		repetitions = 1
+	if sizeInBytes < baseLen {
+		return basePattern
 	}
 	
-	// Build the large body
+	repetitions := sizeInBytes / baseLen
+	
 	body := "{"
 	for i := 0; i < repetitions; i++ {
 		if i > 0 {
 			body += ","
 		}
 		body += fmt.Sprintf(`"field%d":%s`, i, basePattern)
+	}
+	body += "}"
+	
+	return body
+}
+
+// Helper function to generate large JSON body for testing body size limits
+func generateLargeBody(sizeInBytes int) string {
+	const basePattern = `{"data":"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat."}`
+	baseLen := len(basePattern)
+	
+	repetitions := sizeInBytes / baseLen
+	if repetitions < 1 {
+		repetitions = 1
+	}
+	
+	body := "{"
+	for i := 0; i < repetitions; i++ {
+		if i > 0 {
+			body += ","
+		}
+		body += fmt.Sprintf(`"chunk%d":%s`, i, basePattern)
 	}
 	body += "}"
 	
