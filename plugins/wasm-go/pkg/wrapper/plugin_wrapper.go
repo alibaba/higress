@@ -88,6 +88,7 @@ type oldOnHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig) error
 type ParseRawConfigFunc[PluginConfig any] func(configBytes []byte, config *PluginConfig) error
 type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig) error
+type ParseRawRuleConfigFunc[PluginConfig any] func(configBytes []byte, global PluginConfig, config *PluginConfig) error
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte) types.Action
 type onHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool) []byte
@@ -99,7 +100,7 @@ type CommonVmCtx[PluginConfig any] struct {
 	log                         log.Log
 	hasCustomConfig             bool
 	parseConfig                 ParseRawConfigFunc[PluginConfig]
-	parseRuleConfig             ParseRuleConfigFunc[PluginConfig]
+	parseRuleConfig             ParseRawRuleConfigFunc[PluginConfig]
 	onHttpRequestHeaders        onHttpHeadersFunc[PluginConfig]
 	onHttpRequestBody           onHttpBodyFunc[PluginConfig]
 	onHttpStreamingRequestBody  onHttpStreamingBodyFunc[PluginConfig]
@@ -178,6 +179,8 @@ func ParseRawConfig[PluginConfig any](f ParseRawConfigFunc[PluginConfig]) CtxOpt
 }
 
 type parseOverrideConfigOption[PluginConfig any] struct {
+	parseRawConfigF     ParseRawConfigFunc[PluginConfig]
+	parseRawRuleConfigF ParseRawRuleConfigFunc[PluginConfig]
 	parseConfigF        ParseConfigFunc[PluginConfig]
 	parseRuleConfigF    ParseRuleConfigFunc[PluginConfig]
 	oldParseConfigF     oldParseConfigFunc[PluginConfig]
@@ -185,17 +188,22 @@ type parseOverrideConfigOption[PluginConfig any] struct {
 }
 
 func (o *parseOverrideConfigOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginConfig]) {
-	if o.parseConfigF != nil && o.parseRuleConfigF != nil {
+	if o.parseRawConfigF != nil && o.parseRawRuleConfigF != nil {
+		ctx.parseConfig = o.parseRawConfigF
+		ctx.parseRuleConfig = o.parseRawRuleConfigF
+	} else if o.parseConfigF != nil && o.parseRuleConfigF != nil {
 		ctx.parseConfig = func(configBytes []byte, config *PluginConfig) error {
 			return o.parseConfigF(gjson.ParseBytes(configBytes), config)
 		}
-		ctx.parseRuleConfig = o.parseRuleConfigF
+		ctx.parseRuleConfig = func(configBytes []byte, global PluginConfig, config *PluginConfig) error {
+			return o.parseRuleConfigF(gjson.ParseBytes(configBytes), global, config)
+		}
 	} else {
 		ctx.parseConfig = func(configBytes []byte, config *PluginConfig) error {
 			return o.oldParseConfigF(gjson.ParseBytes(configBytes), config, ctx.log)
 		}
-		ctx.parseRuleConfig = func(json gjson.Result, global PluginConfig, config *PluginConfig) error {
-			return o.oldParseRuleConfigF(json, global, config, ctx.log)
+		ctx.parseRuleConfig = func(configBytes []byte, global PluginConfig, config *PluginConfig) error {
+			return o.oldParseRuleConfigF(gjson.ParseBytes(configBytes), global, config, ctx.log)
 		}
 	}
 }
@@ -212,6 +220,13 @@ func ParseOverrideConfig[PluginConfig any](f ParseConfigFunc[PluginConfig], g Pa
 	return &parseOverrideConfigOption[PluginConfig]{
 		parseConfigF:     f,
 		parseRuleConfigF: g,
+	}
+}
+
+func ParseOverrideRawConfig[PluginConfig any](f ParseRawConfigFunc[PluginConfig], g ParseRawRuleConfigFunc[PluginConfig]) CtxOption[PluginConfig] {
+	return &parseOverrideConfigOption[PluginConfig]{
+		parseRawConfigF:     f,
+		parseRawRuleConfigF: g,
 	}
 }
 
@@ -471,7 +486,7 @@ func (ctx *CommonPluginCtx[PluginConfig]) OnPluginStart(int) types.OnPluginStart
 	var parseOverrideConfig func(gjson.Result, PluginConfig, *PluginConfig) error
 	if ctx.vm.parseRuleConfig != nil {
 		parseOverrideConfig = func(js gjson.Result, global PluginConfig, cfg *PluginConfig) error {
-			return ctx.vm.parseRuleConfig(js, global, cfg)
+			return ctx.vm.parseRuleConfig([]byte(js.Raw), global, cfg)
 		}
 	}
 	err = ctx.ParseRuleConfig(jsonData,

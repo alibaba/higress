@@ -62,9 +62,9 @@ func NewJsonRpcIDFromGjson(result gjson.Result) JsonRpcID {
 	}
 }
 
-type JsonRpcRequestHandler func(context wrapper.HttpContext, id JsonRpcID, method string, params gjson.Result) types.Action
+type JsonRpcRequestHandler func(context wrapper.HttpContext, id JsonRpcID, method string, params gjson.Result, rawBody []byte) types.Action
 
-type JsonRpcResponseHandler func(context wrapper.HttpContext, id JsonRpcID, result gjson.Result, error gjson.Result) types.Action
+type JsonRpcResponseHandler func(context wrapper.HttpContext, id JsonRpcID, result gjson.Result, error gjson.Result, rawBody []byte) types.Action
 
 type JsonRpcMethodHandler func(context wrapper.HttpContext, id JsonRpcID, params gjson.Result) error
 
@@ -166,7 +166,7 @@ func HandleJsonRpcRequest(ctx wrapper.HttpContext, body []byte, handle JsonRpcRe
 	method := gjson.GetBytes(body, "method").String()
 	params := gjson.GetBytes(body, "params")
 	log.Debugf("json rpc call method[%s] with params[%s]", method, params.Raw)
-	return handle(ctx, id, method, params)
+	return handle(ctx, id, method, params, body)
 }
 
 func HandleJsonRpcResponse(ctx wrapper.HttpContext, body []byte, handle JsonRpcResponseHandler) types.Action {
@@ -175,5 +175,5 @@ func HandleJsonRpcResponse(ctx wrapper.HttpContext, body []byte, handle JsonRpcR
 	error := gjson.GetBytes(body, "error")
 	result := gjson.GetBytes(body, "result")
 	log.Debugf("json rpc response error[%s] result[%s]", error.Raw, result.Raw)
-	return handle(ctx, id, result, error)
+	return handle(ctx, id, result, error, body)
 }

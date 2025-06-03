@@ -27,18 +27,19 @@ const (
 	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
-type RequestFilterF func(context wrapper.HttpContext, config any, toolName string, toolArgs gjson.Result) types.Action
+type RequestFilterF func(context wrapper.HttpContext, config any, toolName string, toolArgs gjson.Result, rawBody []byte) types.Action
 
-type ResponseFilterF func(context wrapper.HttpContext, config any, isError bool, content gjson.Result) types.Action
+type ResponseFilterF func(context wrapper.HttpContext, config any, isError bool, content gjson.Result, rawBody []byte) types.Action
 
 type OnJsonRpcErrorF func(context wrapper.HttpContext, config any, code int64, message string) types.Action
 
 type Context struct {
-	filterName        string
-	requestFilter     RequestFilterF
-	responseFilter    ResponseFilterF
-	onJsonRpcError    OnJsonRpcErrorF
-	parseFilterConfig ParseFilterConfigF
+	filterName                    string
+	requestFilter                 RequestFilterF
+	responseFilter                ResponseFilterF
+	onJsonRpcError                OnJsonRpcErrorF
+	parseFilterConfig             ParseFilterConfigF
+	parseFilterRuleOverrideConfig ParseFilterRuleOverrideConfigF
 }
 
 type CtxOption interface {
@@ -47,18 +48,31 @@ type CtxOption interface {
 
 var globalContext Context
 
-type ParseFilterConfigF func(configBytes []byte, filterConfig any) error
+type ParseFilterConfigF func(configBytes []byte, filterConfig *any) error
+
+type ParseFilterRuleOverrideConfigF func(configBytes []byte, filterGlobalConfig any, filterConfig *any) error
 
 type setConfigParserOption struct {
 	f ParseFilterConfigF
+	g ParseFilterRuleOverrideConfigF
 }
 
 func SetConfigParser(f ParseFilterConfigF) CtxOption {
-	return &setConfigParserOption{f}
+	return &setConfigParserOption{
+		f: f,
+	}
+}
+
+func SetConfigOverrideParser(f ParseFilterConfigF, g ParseFilterRuleOverrideConfigF) CtxOption {
+	return &setConfigParserOption{
+		f: f,
+		g: g,
+	}
 }
 
 func (o *setConfigParserOption) Apply(ctx *Context) {
 	ctx.parseFilterConfig = o.f
+	ctx.parseFilterRuleOverrideConfig = o.g
 }
 
 type filterNameOption struct {
@@ -125,14 +139,21 @@ func Initialize() {
 	if globalContext.requestFilter == nil && globalContext.responseFilter == nil {
 		panic("At least one of SetRequestFilter or SetResponseFilter needs to be set.")
 	}
+	var configOption wrapper.CtxOption[mcpFilterConfig]
+	if globalContext.parseFilterRuleOverrideConfig == nil {
+		configOption = wrapper.ParseRawConfig(parseRawConfig)
+	} else {
+		configOption = wrapper.ParseOverrideRawConfig(parseGlobalConfig, parseOverrideConfig)
+	}
 	wrapper.SetCtx(
 		globalContext.filterName,
-		wrapper.ParseRawConfig(parseRawConfig),
+		configOption,
 		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessRequestBody(onHttpRequestBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
+
 }
 
 type mcpFilterConfig struct {
@@ -141,30 +162,51 @@ type mcpFilterConfig struct {
 	responseHandler utils.JsonRpcResponseHandler
 }
 
-func parseRawConfig(configBytes []byte, config *mcpFilterConfig) error {
-	err := globalContext.parseFilterConfig(configBytes, config.config)
-	if err != nil {
-		return err
-	}
-	config.requestHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, method string, params gjson.Result) types.Action {
+func installHandler(config *mcpFilterConfig) {
+	config.requestHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, method string, params gjson.Result, rawBody []byte) types.Action {
 		if globalContext.requestFilter == nil {
 			return types.ActionContinue
 		}
 		toolName := params.Get("name").String()
 		toolArgs := params.Get("arguments")
-		return globalContext.requestFilter(context, config.config, toolName, toolArgs)
+		return globalContext.requestFilter(context, config.config, toolName, toolArgs, rawBody)
 	}
-	config.responseHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, result, error gjson.Result) types.Action {
+	config.responseHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, result, error gjson.Result, rawBody []byte) types.Action {
 		if result.Exists() && globalContext.responseFilter != nil {
 			isError := result.Get("isError").Bool()
 			content := result.Get("content")
-			return globalContext.responseFilter(context, config.config, isError, content)
+			return globalContext.responseFilter(context, config.config, isError, content, rawBody)
 		}
 		if error.Exists() && globalContext.onJsonRpcError != nil {
 			return globalContext.onJsonRpcError(context, config.config, error.Get("code").Int(), error.Get("message").String())
 		}
 		return types.ActionContinue
 	}
+}
+
+func parseRawConfig(configBytes []byte, config *mcpFilterConfig) error {
+	err := globalContext.parseFilterConfig(configBytes, &config.config)
+	if err != nil {
+		return err
+	}
+	installHandler(config)
+	return nil
+}
+
+func parseGlobalConfig(configBytes []byte, config *mcpFilterConfig) error {
+	err := globalContext.parseFilterConfig(configBytes, &config.config)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func parseOverrideConfig(configBytes []byte, global mcpFilterConfig, config *mcpFilterConfig) error {
+	err := globalContext.parseFilterRuleOverrideConfig(configBytes, global, &config.config)
+	if err != nil {
+		return err
+	}
+	installHandler(config)
 	return nil
 }
 

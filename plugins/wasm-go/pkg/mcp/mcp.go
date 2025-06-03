@@ -60,7 +60,7 @@ var (
 var (
 	LoadMCPFilter = filter.Load
 
-	InitMCPFIlter = filter.Initialize
+	InitMCPFilter = filter.Initialize
 
 	SetConfigParser = filter.SetConfigParser
 
