@@ -15,17 +15,10 @@ import (
 // openaiProvider is the provider for OpenAI service.
 
 const (
-	defaultOpenaiDomain             = "api.openai.com"
-	defaultOpenaiChatCompletionPath = "/v1/chat/completions"
-	defaultOpenaiCompletionPath     = "/v1/completions"
-	defaultOpenaiEmbeddingsPath     = "/v1/embeddings"
-	defaultOpenaiAudioSpeech        = "/v1/audio/speech"
-	defaultOpenaiImageGeneration    = "/v1/images/generations"
-	defaultOpenaiModels             = "/v1/models"
+	defaultOpenaiDomain = "api.openai.com"
 )
 
-type openaiProviderInitializer struct {
-}
+type openaiProviderInitializer struct{}
 
 func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
@@ -33,12 +26,20 @@ func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameCompletion):      defaultOpenaiCompletionPath,
-		string(ApiNameChatCompletion):  defaultOpenaiChatCompletionPath,
-		string(ApiNameEmbeddings):      defaultOpenaiEmbeddingsPath,
-		string(ApiNameImageGeneration): defaultOpenaiImageGeneration,
-		string(ApiNameAudioSpeech):     defaultOpenaiAudioSpeech,
-		string(ApiNameModels):          defaultOpenaiModels,
+		string(ApiNameCompletion):          PathOpenAICompletions,
+		string(ApiNameChatCompletion):      PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):          PathOpenAIEmbeddings,
+		string(ApiNameImageGeneration):     PathOpenAIImageGeneration,
+		string(ApiNameImageEdit):           PathOpenAIImageEdit,
+		string(ApiNameImageVariation):      PathOpenAIImageVariation,
+		string(ApiNameAudioSpeech):         PathOpenAIAudioSpeech,
+		string(ApiNameModels):              PathOpenAIModels,
+		string(ApiNameFiles):               PathOpenAIFiles,
+		string(ApiNameRetrieveFile):        PathOpenAIRetrieveFile,
+		string(ApiNameRetrieveFileContent): PathOpenAIRetrieveFileContent,
+		string(ApiNameBatches):             PathOpenAIBatches,
+		string(ApiNameRetrieveBatch):       PathOpenAIRetrieveBatch,
+		string(ApiNameCancelBatch):         PathOpenAICancelBatch,
 	}
 }
 
@@ -121,7 +122,7 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.needToProcessRequestBody(apiName) {
 		// We don't need to process the request body for other APIs.
 		return types.ActionContinue, nil
 	}
