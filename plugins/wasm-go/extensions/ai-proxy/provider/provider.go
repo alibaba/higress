@@ -614,7 +614,8 @@ func doGetMappedModel(model string, modelMapping map[string]string) string {
 			}
 		}
 
-		if strings.Contains(k, "(") && strings.Contains(k, ")") {
+		if strings.HasPrefix(k, "~") {
+			k = strings.TrimPrefix(k, "~")
 			re := regexp.MustCompile(k)
 			if re.MatchString(model) {
 				v = re.ReplaceAllString(model, v)
