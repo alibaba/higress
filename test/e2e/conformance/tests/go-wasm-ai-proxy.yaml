@@ -315,6 +315,25 @@ spec:
                 port:
                   number: 3000
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-coze
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.coze.cn"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -493,4 +512,15 @@ spec:
           type: zhipuai
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-zhipuai
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            'gpt-3': coze-chat-4o
+            'gpt-4': coze-chat-4o-latest
+            '*': coze-chat-4o
+          type: coze
+        ingress:
+          - higress-conformance-ai-backend/wasmplugin-ai-proxy-coze
   url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
