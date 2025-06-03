@@ -18,13 +18,10 @@ import (
 // moonshotProvider is the provider for Moonshot AI service.
 
 const (
-	moonshotDomain             = "api.moonshot.cn"
-	moonshotChatCompletionPath = "/v1/chat/completions"
-	moonshotModelsPath         = "/v1/models"
+	moonshotDomain = "api.moonshot.cn"
 )
 
-type moonshotProviderInitializer struct {
-}
+type moonshotProviderInitializer struct{}
 
 func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.moonshotFileId != "" && config.context != nil {
@@ -38,8 +35,8 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 
 func (m *moonshotProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): moonshotChatCompletionPath,
-		string(ApiNameModels):         moonshotModelsPath,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameModels):         PathOpenAIModels,
 	}
 }
 
