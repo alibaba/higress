@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -614,13 +615,25 @@ func doGetMappedModel(model string, modelMapping map[string]string) string {
 	}
 
 	for k, v := range modelMapping {
-		if k == wildcard || !strings.HasSuffix(k, wildcard) {
+		if k == wildcard {
 			continue
 		}
-		k = strings.TrimSuffix(k, wildcard)
-		if strings.HasPrefix(model, k) {
-			log.Debugf("model [%s] is mapped to [%s] via prefix [%s]", model, v, k)
-			return v
+		if strings.HasSuffix(k, wildcard) {
+			k = strings.TrimSuffix(k, wildcard)
+			if strings.HasPrefix(model, k) {
+				log.Debugf("model [%s] is mapped to [%s] via prefix [%s]", model, v, k)
+				return v
+			}
+		}
+
+		if strings.HasPrefix(k, "~") {
+			k = strings.TrimPrefix(k, "~")
+			re := regexp.MustCompile(k)
+			if re.MatchString(model) {
+				v = re.ReplaceAllString(model, v)
+				log.Debugf("model [%s] is mapped to [%s] via regex [%s]", model, v, k)
+				return v
+			}
 		}
 	}
 
