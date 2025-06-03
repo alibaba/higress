@@ -73,7 +73,7 @@ type McpServerConfig struct {
 	ServerSpecConfig string
 	ToolsSpecConfig  string
 	ServiceInfo      *model.Service
-	Credentials      map[string]string
+	Credentials      map[string]interface{}
 }
 
 type ConfigListenerWrap struct {
@@ -260,7 +260,7 @@ func (n *NacosRegistryClient) triggerMcpServerChange(id string) {
 
 func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 	result := &McpServerConfig{
-		Credentials: map[string]string{},
+		Credentials: map[string]interface{}{},
 	}
 	configMaps := ctx.configsMap
 	for key, data := range configMaps {
@@ -273,7 +273,11 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 			}
 		} else if strings.HasPrefix(key, CredentialPrefix) {
 			credentialId := strings.ReplaceAll(key, CredentialPrefix, "")
-			result.Credentials[credentialId] = data.data
+			var credData interface{}
+			if err := json.Unmarshal([]byte(data.data), &credData); err != nil {
+				mcpServerLog.Errorf("parse credential %v error %v", credentialId, err)
+			}
+			result.Credentials[credentialId] = credData
 		}
 	}
 

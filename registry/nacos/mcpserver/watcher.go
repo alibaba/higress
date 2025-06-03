@@ -409,7 +409,7 @@ func (w *watcher) processServerConfig(dataId string, services *model.Service, mc
 	return nil
 }
 
-func (w *watcher) processToolConfig(dataId, data string, credentials map[string]string, server *provider.McpServer) error {
+func (w *watcher) processToolConfig(dataId, data string, credentials map[string]interface{}, server *provider.McpServer) error {
 	if server.Protocol != provider.HttpProtocol && server.Protocol != provider.HttpsProtocol {
 		return nil
 	}
@@ -479,7 +479,7 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 		rule.Tools = append(rule.Tools, convertTool)
 	}
 
-	rule.Server.AllowTools = allowTools
+	rule.AllowTools = allowTools
 	wasmPluginConfig := &config.Config{
 		Meta: config.Meta{
 			GroupVersionKind: gvk.WasmPlugin,
