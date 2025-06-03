@@ -141,9 +141,9 @@ type InputSchema struct {
 }
 
 type ToolsMeta struct {
-	InvokeContext map[string]string      `json:"InvokeContext,omitempty"`
-	Enabled       bool                   `json:"Enabled,omitempty"`
-	Templates     map[string]interface{} `json:"Templates,omitempty"`
+	InvokeContext map[string]string      `json:"invokeContext,omitempty"`
+	Enabled       bool                   `json:"enabled,omitempty"`
+	Templates     map[string]interface{} `json:"templates,omitempty"`
 }
 
 type JsonGoTemplate struct {
