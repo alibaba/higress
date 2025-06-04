@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	//model     string = "qwen-vl-ocr"
 	queryUrl  string = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 	minPixels int    = 3136
 	maxPixels int    = 1003520
