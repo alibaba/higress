@@ -40,8 +40,8 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 
 # 用户消息为：
 {question}`
-	model := json.Get("model").String()
-	switch model {
+	provider := json.Get("provider").String()
+	switch provider {
 	case "qwen":
 		ocrClient, err := qwen.NewQwenOcr(&json)
 		if err != nil {
@@ -50,7 +50,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 		config.ocrClient = ocrClient
 		return nil
 	default:
-		return fmt.Errorf("unkown ocr model:%s", model)
+		return fmt.Errorf("unkown ocr provider:%s", provider)
 	}
 }
 

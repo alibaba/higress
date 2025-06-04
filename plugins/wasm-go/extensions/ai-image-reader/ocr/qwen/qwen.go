@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	model     string = "qwen-vl-ocr"
+	//model     string = "qwen-vl-ocr"
 	queryUrl  string = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 	minPixels int    = 3136
 	maxPixels int    = 1003520
@@ -54,6 +54,7 @@ type content struct {
 
 type QwenOcr struct {
 	apiKey             string
+	model              string
 	timeoutMillisecond uint32
 	client             wrapper.HttpClient
 }
@@ -72,6 +73,10 @@ func NewQwenOcr(config *gjson.Result) (*QwenOcr, error) {
 	if servicePort == 0 {
 		return nil, errors.New("servicePort not found")
 	}
+	ocr.model = config.Get("model").String()
+	if ocr.model == "" {
+		return nil, errors.New("model not found")
+	}
 	ocr.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
@@ -89,7 +94,7 @@ func (q QwenOcr) Client() wrapper.HttpClient {
 
 func (q QwenOcr) CallArgs(imageUrl string) ocr.CallArgs {
 	reqBody := QwenOcrReq{
-		Model: model,
+		Model: q.model,
 		Messages: []chatMessage{
 			{
 				Role: "user",
