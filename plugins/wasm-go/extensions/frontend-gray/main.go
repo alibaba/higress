@@ -63,7 +63,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 	}
 	frontendVersion := util.GetCookieValue(cookie, config.XHigressTag)
 
-	if grayConfig.GrayWeight > 0 {
+	if grayConfig.UniqueGrayTagConfigured || grayConfig.GrayWeight > 0 {
 		ctx.SetContext(grayConfig.UniqueGrayTag, util.GetGrayWeightUniqueId(cookie, grayConfig.UniqueGrayTag))
 	}
 
@@ -182,7 +182,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", config.XHigressTag, frontendVersion, grayConfig.StoreMaxAge))
 	}
 	// 设置GrayWeight 唯一值
-	if grayConfig.GrayWeight > 0 {
+	if grayConfig.UniqueGrayTagConfigured || grayConfig.GrayWeight > 0 {
 		uniqueId, isUniqueIdOk := ctx.GetContext(grayConfig.UniqueGrayTag).(string)
 		if isUniqueIdOk {
 			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", grayConfig.UniqueGrayTag, uniqueId, grayConfig.StoreMaxAge))
