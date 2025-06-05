@@ -47,7 +47,10 @@ func isDirectPath(path string) bool {
 	return strings.HasSuffix(path, "/completions") ||
 		strings.HasSuffix(path, "/embeddings") ||
 		strings.HasSuffix(path, "/audio/speech") ||
-		strings.HasSuffix(path, "/images/generations")
+		strings.HasSuffix(path, "/images/generations") ||
+		strings.HasSuffix(path, "/images/variations") ||
+		strings.HasSuffix(path, "/images/edits") ||
+		strings.HasSuffix(path, "/models")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
@@ -101,7 +104,11 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	if m.customPath != "" && !m.isDirectCustomPath && apiName != "" {
+	if m.isDirectCustomPath {
+		util.OverwriteRequestPathHeader(headers, m.customPath)
+	}
+
+	if apiName != "" {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 
