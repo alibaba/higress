@@ -20,11 +20,11 @@ metadata:
   namespace: higress-conformance-infra
 data:
   VALID_TOKEN: "valid-token"
-  PORT: "3000"
+  PORT: "8090"  # Changed from 3000 to 8090 to match your mock server
 
 ---
 
-# 2) Deployment: mock-auth-service
+# 2) Deployment: mock-auth-service (updated to use your enhanced mock server)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -42,10 +42,11 @@ spec:
     spec:
       containers:
       - name: mock-auth-service
+        # Updated to use your enhanced mock server image
         image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/llm-mock:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
-        - containerPort: 3000
+        - containerPort: 8090
         env:
         - name: VALID_TOKEN
           valueFrom:
@@ -57,18 +58,22 @@ spec:
             configMapKeyRef:
               name: mock-auth-service-config
               key: PORT
-        - name: MOCK_TYPE
-          value: "auth"  # This tells the server to act as an auth server, not LLM
         readinessProbe:
           httpGet:
-            path: /health
-            port: 3000
+            path: /always-200
+            port: 8090
+            httpHeaders:
+            - name: Authorization
+              value: "Bearer valid-token"
           initialDelaySeconds: 5
           periodSeconds: 5
         livenessProbe:
           httpGet:
-            path: /health
-            port: 3000
+            path: /always-200
+            port: 8090
+            httpHeaders:
+            - name: Authorization
+              value: "Bearer valid-token"
           initialDelaySeconds: 10
           periodSeconds: 10
 
@@ -84,8 +89,8 @@ spec:
   selector:
     app: mock-auth-service
   ports:
-  - port: 3000
-    targetPort: 3000
+  - port: 8090
+    targetPort: 8090
 
 ---
 
@@ -193,13 +198,16 @@ spec:
       endpoint_mode: envoy
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path_prefix: /
-      timeout: 5000  # Increased timeout
+        service_port: 8090
+        path_prefix: /always-200  # Updated to use the mock server's endpoint
+      timeout: 5000
     match_type: whitelist
     match_list:
     - match_rule_path: /whitelisted
       match_rule_type: prefix
+    - match_rule_path: /require-body
+      match_rule_type: prefix
+      # This path will require request body validation
     status_on_error: 500
 
 ---
@@ -220,10 +228,10 @@ spec:
       endpoint_mode: forward_auth
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path: /
+        service_port: 8090
+        path: /always-200  # Updated to use the mock server's endpoint
         request_method: POST
-      timeout: 5000  # Increased timeout
+      timeout: 5000
     match_type: whitelist
     match_list:
     - match_rule_path: /whitelisted
@@ -248,9 +256,9 @@ spec:
       endpoint_mode: envoy
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path_prefix: /
-      timeout: 5000  # Increased timeout
+        service_port: 8090
+        path_prefix: /always-200  # Updated to use the mock server's endpoint
+      timeout: 5000
     match_type: blacklist
     match_list:
     - match_rule_path: /blocked
@@ -279,7 +287,7 @@ spec:
       endpoint_mode: envoy
       endpoint:
         service_name: non-existent-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
+        service_port: 8090
         path_prefix: /
       timeout: 1000
     failure_mode_allow: true

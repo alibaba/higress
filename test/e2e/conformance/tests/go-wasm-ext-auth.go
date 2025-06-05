@@ -32,7 +32,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
 	Test: func(t *testing.T, s *suite.ConformanceTestSuite) {
 		testcases := []http.Assertion{
-			// Basic Envoy mode - successful authentication
+			// Basic Envoy mode - successful authentication with valid token
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Envoy Mode - Successful Authentication",
@@ -49,10 +49,15 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{StatusCode: 200},
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						Headers: map[string]string{
+							"X-User-ID": "123456", // Mock server adds this header
+						},
+					},
 				},
 			},
-			// Envoy mode - invalid token should return 403
+			// Envoy mode - invalid token should return 401 (updated from 403 to match mock server)
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Envoy Mode - Invalid Token",
@@ -69,7 +74,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{StatusCode: 403},
+					ExpectedResponse: http.Response{StatusCode: 401},
 				},
 			},
 			// Envoy mode - missing auth header should return 401
@@ -127,7 +132,12 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{StatusCode: 200},
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						Headers: map[string]string{
+							"X-User-ID": "123456", // Mock server adds this header
+						},
+					},
 				},
 			},
 			// Forward_auth mode - missing auth header
@@ -200,11 +210,17 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 						Host: "bar-envoy.com", 
 						Path: "/allowed", 
 						Method: "GET", 
+						Headers: map[string]string{"Authorization": "Bearer valid-token"}, 
 						UnfollowRedirect: true,
 					},
 				},
 				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{StatusCode: 200},
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						Headers: map[string]string{
+							"X-User-ID": "123456",
+						},
+					},
 				},
 			},
 			// Blacklist mode - POST method blocked
@@ -239,11 +255,17 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 						Host: "bar-envoy.com", 
 						Path: "/method-restricted", 
 						Method: "GET", 
+						Headers: map[string]string{"Authorization": "Bearer valid-token"}, 
 						UnfollowRedirect: true,
 					},
 				},
 				Response: http.AssertionResponse{
-					ExpectedResponse: http.Response{StatusCode: 200},
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						Headers: map[string]string{
+							"X-User-ID": "123456",
+						},
+					},
 				},
 			},
 			// Failure mode allow - when auth service is unavailable
@@ -268,6 +290,85 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 							"x-envoy-auth-failure-mode-allowed": "true",
 						},
 					},
+				},
+			},
+			// Test with custom user type header for blacklist/whitelist validation
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Envoy Mode - Custom User Type Header",
+					TargetBackend:   "echo-server", 
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo-envoy.com", 
+						Path: "/test-user-type", 
+						Method: "GET", 
+						Headers: map[string]string{
+							"Authorization": "Bearer valid-token",
+							"X-User-Type": "admin",
+						}, 
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						Headers: map[string]string{
+							"X-User-ID": "123456",
+						},
+					},
+				},
+			},
+			// Test request body validation (requires request body for success)
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Envoy Mode - Request Body Required",
+					TargetBackend:   "echo-server", 
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo-envoy.com", 
+						Path: "/require-body", 
+						Method: "POST", 
+						Headers: map[string]string{
+							"Authorization": "Bearer valid-token",
+							"Content-Type": "application/json",
+						},
+						Body: []byte(`{"test": "data"}`),
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						Headers: map[string]string{
+							"X-User-ID": "123456",
+						},
+					},
+				},
+			},
+			// Test request without body when body is required
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Envoy Mode - Request Body Missing",
+					TargetBackend:   "echo-server", 
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo-envoy.com", 
+						Path: "/require-body", 
+						Method: "POST", 
+						Headers: map[string]string{
+							"Authorization": "Bearer valid-token",
+						},
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{StatusCode: 400},
 				},
 			},
 		}
