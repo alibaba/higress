@@ -320,17 +320,17 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 					},
 				},
 			},
-			// Test request body validation (requires request body for success)
+			// Test request body validation using the actual mock server endpoint
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "Envoy Mode - Request Body Required",
+					TestCaseName:    "Envoy Mode - Request Body Required (Success)",
 					TargetBackend:   "echo-server", 
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host: "foo-envoy.com", 
-						Path: "/require-body", 
+						Path: "/require-request-body-test", 
 						Method: "POST", 
 						Headers: map[string]string{
 							"Authorization": "Bearer valid-token",
@@ -359,7 +359,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host: "foo-envoy.com", 
-						Path: "/require-body", 
+						Path: "/require-request-body-test", 
 						Method: "POST", 
 						Headers: map[string]string{
 							"Authorization": "Bearer valid-token",
@@ -369,6 +369,34 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{StatusCode: 400},
+				},
+			},
+			// Test blacklist/whitelist handler
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "Blacklist/Whitelist Handler Test",
+					TargetBackend:   "echo-server", 
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo-envoy.com", 
+						Path: "/blacklist-whitelist-check", 
+						Method: "GET", 
+						Headers: map[string]string{
+							"Authorization": "Bearer valid-token",
+							"X-Forwarded-Host": "allowed.example.com",
+						},
+						UnfollowRedirect: true,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+						Headers: map[string]string{
+							"X-User-ID": "123456",
+						},
+					},
 				},
 			},
 		}
