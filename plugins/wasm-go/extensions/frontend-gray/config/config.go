@@ -75,6 +75,7 @@ type GrayConfig struct {
 	SkippedByHeaders    map[string]string
 	IndexPaths          []string
 	GrayWeight          int
+	// 表示uniqueGrayTag配置项是否被用户自定义设置
 	UniqueGrayTagConfigured bool
 }
 
