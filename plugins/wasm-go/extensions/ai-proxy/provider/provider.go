@@ -58,6 +58,8 @@ const (
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
+	ApiNameQwenAsyncAIGC ApiName = "api/v1/services/aigc"
+	ApiNameQwenAsyncTask ApiName = "api/v1/tasks/"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
