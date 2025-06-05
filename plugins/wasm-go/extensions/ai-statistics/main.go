@@ -92,7 +92,7 @@ type AIStatisticsConfig struct {
 	attributes []Attribute
 	// If there exist attributes extracted from streaming body, chunks should be buffered
 	shouldBufferStreamingBody bool
-	// If enableOpenaiUsage is true, the usage will be recorded as OpenAI compatible format
+	// If disableOpenaiUsage is true, model/input_token/output_token logs will be skipped
 	disableOpenaiUsage bool
 }
 
