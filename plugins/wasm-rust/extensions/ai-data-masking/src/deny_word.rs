@@ -1,8 +1,11 @@
 use std::collections::HashSet;
 
 use jieba_rs::Jieba;
+use rust_embed::Embed;
 
-use crate::Asset;
+#[derive(Embed)]
+#[folder = "res/"]
+struct Asset;
 
 #[derive(Default, Debug, Clone)]
 pub(crate) struct DenyWord {
