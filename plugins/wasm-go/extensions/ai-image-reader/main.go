@@ -42,7 +42,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 {question}`
 	provider := json.Get("provider").String()
 	switch provider {
-	case "qwen":
+	case "alibaba cloud dashscope":
 		ocrClient, err := qwen.NewQwenOcr(&json)
 		if err != nil {
 			return fmt.Errorf("qwen ocr client init failed:%s", err)
