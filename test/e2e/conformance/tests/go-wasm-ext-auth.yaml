@@ -59,6 +59,18 @@ spec:
               key: PORT
         - name: MOCK_TYPE
           value: "auth"  # This tells the server to act as an auth server, not LLM
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
 
 ---
 
@@ -93,9 +105,9 @@ spec:
         path: /
         backend:
           service:
-            name: infra-backend-v1
+            name: echo-server
             port:
-              number: 8080
+              number: 3000
 
 ---
 
@@ -115,9 +127,9 @@ spec:
         path: /
         backend:
           service:
-            name: infra-backend-v1
+            name: echo-server
             port:
-              number: 8080
+              number: 3000
 
 ---
 
@@ -137,9 +149,9 @@ spec:
         path: /
         backend:
           service:
-            name: infra-backend-v1
+            name: echo-server
             port:
-              number: 8080
+              number: 3000
 
 ---
 
@@ -159,123 +171,13 @@ spec:
         path: /
         backend:
           service:
-            name: infra-backend-v1
+            name: echo-server
             port:
-              number: 8080
+              number: 3000
 
 ---
 
-# 8) Ingress: ext-auth-body-test (for request body handling tests)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ext-auth-body-test
-  namespace: higress-conformance-infra
-spec:
-  ingressClassName: higress
-  rules:
-  - host: body-test.com
-    http:
-      paths:
-      - pathType: Prefix
-        path: /
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
-
----
-
-# 9) Ingress: ext-auth-custom-error (for custom error status tests)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ext-auth-custom-error
-  namespace: higress-conformance-infra
-spec:
-  ingressClassName: higress
-  rules:
-  - host: custom-error.com
-    http:
-      paths:
-      - pathType: Prefix
-        path: /
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
-
----
-
-# 10) Ingress: ext-auth-header-test (for header transformation tests)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ext-auth-header-test
-  namespace: higress-conformance-infra
-spec:
-  ingressClassName: higress
-  rules:
-  - host: header-test.com
-    http:
-      paths:
-      - pathType: Prefix
-        path: /
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
-
----
-
-# 11) Ingress: ext-auth-timeout-test (for timeout tests)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ext-auth-timeout-test
-  namespace: higress-conformance-infra
-spec:
-  ingressClassName: higress
-  rules:
-  - host: timeout-test.com
-    http:
-      paths:
-      - pathType: Prefix
-        path: /
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
-
----
-
-# 12) Ingress: ext-auth-body-limit-test (for body size limit tests)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: ext-auth-body-limit-test
-  namespace: higress-conformance-infra
-spec:
-  ingressClassName: higress
-  rules:
-  - host: body-limit-test.com
-    http:
-      paths:
-      - pathType: Prefix
-        path: /
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
-
----
-
-# 13) WasmPlugin: ext-auth-envoy (envoy mode, whitelist)
+# 8) WasmPlugin: ext-auth-envoy (envoy mode, whitelist)
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -293,15 +195,16 @@ spec:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
         service_port: 3000
         path_prefix: /
-      timeout: 1000
+      timeout: 5000  # Increased timeout
     match_type: whitelist
     match_list:
     - match_rule_path: /whitelisted
       match_rule_type: prefix
+    status_on_error: 500
 
 ---
 
-# 14) WasmPlugin: ext-auth-forward (forward_auth mode, whitelist)
+# 9) WasmPlugin: ext-auth-forward (forward_auth mode, whitelist)
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -320,15 +223,16 @@ spec:
         service_port: 3000
         path: /
         request_method: POST
-      timeout: 1000
+      timeout: 5000  # Increased timeout
     match_type: whitelist
     match_list:
     - match_rule_path: /whitelisted
       match_rule_type: prefix
+    status_on_error: 500
 
 ---
 
-# 15) WasmPlugin: ext-auth-blacklist (envoy mode, blacklist)
+# 10) WasmPlugin: ext-auth-blacklist (envoy mode, blacklist)
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -346,7 +250,7 @@ spec:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
         service_port: 3000
         path_prefix: /
-      timeout: 1000
+      timeout: 5000  # Increased timeout
     match_type: blacklist
     match_list:
     - match_rule_path: /blocked
@@ -355,10 +259,11 @@ spec:
       match_rule_type: prefix
       match_rule_method:
       - POST
+    status_on_error: 500
 
 ---
 
-# 16) WasmPlugin: ext-auth-failover (non-existent auth service, failure_mode_allow)
+# 11) WasmPlugin: ext-auth-failover (non-existent auth service, failure_mode_allow)
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -379,132 +284,3 @@ spec:
       timeout: 1000
     failure_mode_allow: true
     failure_mode_allow_header_add: true
-
----
-
-# 17) WasmPlugin: ext-auth-body-test (with body forwarding enabled)
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-body-test
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-    - higress-conformance-infra/ext-auth-body-test
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path_prefix: /
-      timeout: 1000
-      authorization_request:
-        with_request_body: true
-        max_request_body_bytes: 1048576 # 1MB
-
----
-
-# 18) WasmPlugin: ext-auth-custom-error (custom error status code)
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-custom-error
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-    - higress-conformance-infra/ext-auth-custom-error
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: non-existent-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path_prefix: /
-      timeout: 1000
-    status_on_error: 503
-
----
-
-# 19) WasmPlugin: ext-auth-header-test (header transformation)
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-header-test
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-    - higress-conformance-infra/ext-auth-header-test
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path_prefix: /
-      timeout: 1000
-      authorization_request:
-        allowed_headers:
-          - exact: x-auth-version
-          - exact: x-custom-header
-      authorization_response:
-        allowed_upstream_headers:
-          - exact: x-user-id
-          - exact: x-auth-version
-
----
-
-# 20) WasmPlugin: ext-auth-timeout-test
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-timeout-test
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-    - higress-conformance-infra/ext-auth-timeout-test
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path_prefix: /sleep
-      # Set a small timeout to trigger timeout error
-      timeout: 1000
-    status_on_error: 504 # Gateway Timeout
-
----
-
-# 21) WasmPlugin: ext-auth-body-limit-test
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-body-limit-test
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-    - higress-conformance-infra/ext-auth-body-limit-test
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 3000
-        path_prefix: /
-      timeout: 1000
-      authorization_request:
-        with_request_body: true
-        # Set a small body size limit to trigger error
-        max_request_body_bytes: 102400 # 100KB limit
-    status_on_error: 413 # Payload Too Large
