@@ -70,9 +70,9 @@ Port descriptions:
 > All Higress Docker images use Higress's own image repository and are not affected by Docker Hub rate limits.
 > In addition, the submission and updates of the images are protected by a security scanning mechanism (powered by Alibaba Cloud ACR), making them very secure for use in production environments.
 > 
-> Other mirror docker registry HUB:
+> If you experience a timeout when accessing `higress-registry.cn-hangzhou.cr.aliyuncs.com`, you can try replacing it with the following docker registry mirror source::
 > 
-> Southeast Asia: higress-registry.ap-southeast-7.cr.aliyuncs.com
+> **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
 
 For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
 
