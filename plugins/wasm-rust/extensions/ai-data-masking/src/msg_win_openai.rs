@@ -106,8 +106,6 @@ impl MessageWindowOpenAi {
 
     fn gen_value(&self, flag: &MsgFlag, msg: &[u8], finish: bool) -> Value {
         let mut ret = self.last_value.clone();
-        // ret["content"] = Value::Null;
-        // ret["reasoning_content"] = Value::Null;
         match flag {
             MsgFlag::Content => {
                 ret["delta"]["content"] = Value::String(String::from_utf8_lossy(msg).to_string());

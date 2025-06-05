@@ -1,4 +1,4 @@
-// Copyright (c) 2023 Alibaba Group Holding Ltd.
+// Copyright (c) 2025 Alibaba Group Holding Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -573,9 +573,11 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
-        let mut req_body = match String::from_utf8(req_body.clone()) {
-            Ok(r) => r,
-            Err(_) => return DataAction::Continue,
+        let mut req_body = match serde_json::from_slice::<Value>(req_body) {
+            Ok(r) => r.to_string(),
+            Err(_) => {
+                return DataAction::Continue;
+            }
         };
         if config.deny_openai {
             if let Ok(r) = serde_json::from_str(req_body.as_str()) {
@@ -588,12 +590,10 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                     }
                     let new_content = self.replace_request_msg(&msg.content);
                     if new_content != msg.content {
-                        if let (Ok(from), Ok(to)) = (
-                            serde_json::to_string(&msg.content),
-                            serde_json::to_string(&new_content),
-                        ) {
-                            req_body = req_body.replace(&from, &to);
-                        }
+                        req_body = req_body.replace(
+                            &Value::String(msg.content).to_string(),
+                            &Value::String(new_content).to_string(),
+                        );
                     }
                 }
                 self.replace_http_request_body(req_body.as_bytes());
@@ -613,12 +613,10 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                                 let content = s.to_string();
                                 let new_content = self.replace_request_msg(&content);
                                 if new_content != content {
-                                    if let (Ok(from), Ok(to)) = (
-                                        serde_json::to_string(&content),
-                                        serde_json::to_string(&new_content),
-                                    ) {
-                                        req_body = req_body.replace(&from, &to);
-                                    }
+                                    req_body = req_body.replace(
+                                        &Value::String(content).to_string(),
+                                        &Value::String(new_content).to_string(),
+                                    );
                                 }
                             }
                         }
@@ -645,8 +643,8 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
-        let mut res_body = match String::from_utf8(res_body.clone()) {
-            Ok(r) => r,
+        let mut res_body = match serde_json::from_slice::<Value>(res_body) {
+            Ok(r) => r.to_string(),
             Err(_) => {
                 return DataAction::Continue;
             }
