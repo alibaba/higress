@@ -694,9 +694,9 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	case strings.Contains(path, qwenTextEmbeddingPath),
 		strings.Contains(path, qwenCompatibleTextEmbeddingPath):
 		return ApiNameEmbeddings
-	case strings.Contains(path, "/api/v1/services/aigc"):
+	case strings.Contains(path, qwenAsyncAIGCPath):
 		return ApiNameQwenAsyncAIGC
-	case strings.Contains(path, "/api/v1/tasks/"):
+	case strings.Contains(path, qwenAsyncTaskPath):
 		return ApiNameQwenAsyncTask
 	default:
 		return ""
