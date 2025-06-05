@@ -40,6 +40,7 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameBatches):             PathOpenAIBatches,
 		string(ApiNameRetrieveBatch):       PathOpenAIRetrieveBatch,
 		string(ApiNameCancelBatch):         PathOpenAICancelBatch,
+		string(ApiNameResponses):           PathOpenAIResponses,
 	}
 }
 
@@ -50,7 +51,8 @@ func isDirectPath(path string) bool {
 		strings.HasSuffix(path, "/images/generations") ||
 		strings.HasSuffix(path, "/images/variations") ||
 		strings.HasSuffix(path, "/images/edits") ||
-		strings.HasSuffix(path, "/models")
+		strings.HasSuffix(path, "/models") ||
+		strings.HasSuffix(path, "/responses")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
