@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use higress_wasm_rust::event_stream::EventStream;
-use jsonpath_rust::JsonPath;
 use serde::Deserialize;
 use serde_json::Value;
 
