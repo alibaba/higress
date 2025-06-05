@@ -653,27 +653,25 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             if let Ok(r) = serde_json::from_str(res_body.as_str()) {
                 let res: Res = r;
                 for msg in res.choices {
-                    if let Some(meesage) = msg.message {
-                        if self.check_message(&meesage.content) {
+                    if let Some(message) = msg.message {
+                        if self.check_message(&message.content) {
                             return self.deny(true);
                         }
 
                         if self.mask_map.is_empty() {
                             continue;
                         }
-                        let mut m = meesage.content.clone();
+                        let mut m = message.content.clone();
                         for (from_word, to_word) in self.mask_map.iter() {
                             if let Some(to) = to_word {
                                 m = m.replace(from_word, to);
                             }
                         }
-                        if m != meesage.content {
-                            if let (Ok(from), Ok(to)) = (
-                                serde_json::to_string(&meesage.content),
-                                serde_json::to_string(&m),
-                            ) {
-                                res_body = res_body.replace(&from, &to);
-                            }
+                        if m != message.content {
+                            res_body = res_body.replace(
+                                &Value::String(message.content).to_string(),
+                                &Value::String(m).to_string(),
+                            );
                         }
                     }
                 }
