@@ -308,7 +308,6 @@ func (w *watcher) fetchAllMcpConfig() error {
 	if err != nil {
 		return fmt.Errorf("list mcp server failed ,error %s", err.Error())
 	}
-	mcpServerLog.Infof("fetch all mcp server config success, configs: %v", mcpConfigs)
 
 	fetchedConfigs := map[string]bool{}
 	for _, c := range mcpConfigs {
@@ -552,15 +551,15 @@ func (w *watcher) buildVirtualServiceForMcpServer(server *provider.McpServer, da
 
 	// we should rewrite path and host for sse and streamble
 	if routeRewriteProtocols[server.Protocol] {
-		if se != nil && se.Resolution == v1alpha3.ServiceEntry_DNS && len(se.Endpoints) > 0 {
-			vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
-				Uri:       "/",
-				Authority: se.Endpoints[0].Address,
-			}
-		} else {
-			vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
-				Uri: "/",
-			}
+		vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
+			Uri: "/",
+		}
+	}
+
+	if se != nil && se.Resolution == v1alpha3.ServiceEntry_DNS && len(se.Endpoints) > 0 {
+		vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
+			Uri:       "/",
+			Authority: se.Endpoints[0].Address,
 		}
 	}
 
