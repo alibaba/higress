@@ -549,19 +549,16 @@ func (w *watcher) buildVirtualServiceForMcpServer(server *provider.McpServer, da
 		}},
 	}
 
-	// we should rewrite path and host for sse and streamble
+	// we should rewrite path for sse and streamble
+	rewrite := &v1alpha3.HTTPRewrite{}
 	if routeRewriteProtocols[server.Protocol] {
-		vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
-			Uri: "/",
-		}
+		rewrite.Uri = "/"
 	}
-
+	// we should rewrite host for dns service
 	if se != nil && se.Resolution == v1alpha3.ServiceEntry_DNS && len(se.Endpoints) > 0 {
-		vs.Http[0].Rewrite = &v1alpha3.HTTPRewrite{
-			Uri:       "/",
-			Authority: se.Endpoints[0].Address,
-		}
+		rewrite.Authority = se.Endpoints[0].Address
 	}
+	vs.Http[0].Rewrite = rewrite
 
 	mcpServerLog.Debugf("construct virtualservice %v", vs)
 
