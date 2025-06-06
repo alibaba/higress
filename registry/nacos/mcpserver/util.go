@@ -441,28 +441,32 @@ func (n *NacosRegistryClient) cancelListenToConfig(wrap *ConfigListenerWrap) err
 }
 
 func (n *NacosRegistryClient) CancelListenToServer(id string) error {
-	if server, exist := n.servers[id]; exist {
+	if server, exist := n.servers[id]; exist && server != nil {
 		for _, wrap := range server.configsMap {
-			err := n.configClient.CancelListenConfig(vo.ConfigParam{
-				DataId:   wrap.dataId,
-				Group:    wrap.group,
-				OnChange: wrap.listener,
-			})
+			if wrap != nil {
+				err := n.configClient.CancelListenConfig(vo.ConfigParam{
+					DataId:   wrap.dataId,
+					Group:    wrap.group,
+					OnChange: wrap.listener,
+				})
 
-			if err != nil {
-				mcpServerLog.Errorf("cancel listen config error:%v, dataId:%s, group:%s", err, wrap.dataId, wrap.group)
-				continue
+				if err != nil {
+					mcpServerLog.Errorf("cancel listen config error:%v, dataId:%s, group:%s", err, wrap.dataId, wrap.group)
+					continue
+				}
 			}
 		}
 
-		err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
-			GroupName:         server.serviceInfo.GroupName,
-			ServiceName:       server.serviceInfo.Name,
-			SubscribeCallback: server.namingCallBck,
-		})
-		if err != nil {
-			mcpServerLog.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, server.serviceInfo.GroupName, server.serviceInfo.Name)
-			return err
+		if server.serviceInfo != nil {
+			err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
+				GroupName:         server.serviceInfo.GroupName,
+				ServiceName:       server.serviceInfo.Name,
+				SubscribeCallback: server.namingCallBck,
+			})
+			if err != nil {
+				mcpServerLog.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, server.serviceInfo.GroupName, server.serviceInfo.Name)
+				return err
+			}
 		}
 		delete(n.servers, id)
 	}
