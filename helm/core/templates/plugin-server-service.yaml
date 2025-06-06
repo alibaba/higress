@@ -1,0 +1,14 @@
+{{- if .Values.global.enablePluginServer }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.pluginServer.service.metadata.name }}
+  namespace: {{ .Values.pluginServer.service.metadata.namespace }}
+spec:
+  selector:
+    app: {{ .Values.pluginServer.service.spec.selector.app }}
+  ports:
+    - protocol: {{ .Values.pluginServer.service.spec.ports.protocol }}
+      port: {{ .Values.pluginServer.service.spec.ports.port }}
+      targetPort: {{ .Values.pluginServer.service.spec.ports.targetPort }}
+{{- end }}

@@ -1,0 +1,39 @@
+{{- if .Values.global.enablePluginServer }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.pluginServer.metadata.name }}
+  namespace: {{ .Values.pluginServer.metadata.namespace }}
+spec:
+  replicas: {{ .Values.pluginServer.spec.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.pluginServer.metadata.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.pluginServer.metadata.name }}
+    spec:
+      containers:
+        - name: plugin-server
+          image: {{ .Values.pluginServer.spec.template.spec.containers.image }}
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: {{ .Values.pluginServer.spec.template.spec.containers.resources.limits.cpu }}
+              memory: {{ .Values.pluginServer.spec.template.spec.containers.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.pluginServer.spec.template.spec.containers.resources.requests.cpu }}
+              memory: {{ .Values.pluginServer.spec.template.spec.containers.resources.requests.memory }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - {{ .Values.pluginServer.metadata.name }}
+              topologyKey: {{ .Values.pluginServer.spec.template.spec.affinity.topologyKey }}
+{{- end }}
