@@ -43,7 +43,7 @@ spec:
       containers:
       - name: mock-auth-service
         # Use the existing Higress LLM mock server that supports auth mode
-        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/llm-mock:latest
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-mock-server:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8090
