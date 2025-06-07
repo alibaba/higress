@@ -23,6 +23,7 @@ description: AI可观测配置参考
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|------|-----|------------------------|
 | `attributes` | []Attribute | 非必填  | -   | 用户希望记录在log/span中的信息 |
+| `disable_openai_usage` | bool | 非必填  | false   | 非openai兼容协议时，model、token的支持非标，配置为true时可以避免报错 |
 
 Attribute 配置说明:
 
