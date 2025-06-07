@@ -63,7 +63,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 	}
 	frontendVersion := util.GetCookieValue(cookie, config.XHigressTag)
 
-	if grayConfig.GrayWeight > 0 {
+	if grayConfig.UniqueGrayTagConfigured || grayConfig.GrayWeight > 0 {
 		ctx.SetContext(grayConfig.UniqueGrayTag, util.GetGrayWeightUniqueId(cookie, grayConfig.UniqueGrayTag))
 	}
 
@@ -179,13 +179,13 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 	// 前端版本
 	frontendVersion, isFrontendVersionOk := ctx.GetContext(config.PreHigressVersion).(string)
 	if isFrontendVersionOk {
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", config.XHigressTag, frontendVersion, grayConfig.StoreMaxAge))
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure", config.XHigressTag, frontendVersion, grayConfig.StoreMaxAge))
 	}
 	// 设置GrayWeight 唯一值
-	if grayConfig.GrayWeight > 0 {
+	if grayConfig.UniqueGrayTagConfigured || grayConfig.GrayWeight > 0 {
 		uniqueId, isUniqueIdOk := ctx.GetContext(grayConfig.UniqueGrayTag).(string)
 		if isUniqueIdOk {
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", grayConfig.UniqueGrayTag, uniqueId, grayConfig.StoreMaxAge))
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure", grayConfig.UniqueGrayTag, uniqueId, grayConfig.StoreMaxAge))
 		}
 	}
 	// 设置后端的版本
@@ -194,9 +194,9 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 		if isBackVersionOk {
 			if backendVersion == "" {
 				// 删除后端灰度版本
-				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/;", grayConfig.BackendGrayTag, backendVersion))
+				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; Secure", grayConfig.BackendGrayTag, backendVersion))
 			} else {
-				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.StoreMaxAge))
+				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure", grayConfig.BackendGrayTag, backendVersion, grayConfig.StoreMaxAge))
 			}
 		}
 	}
