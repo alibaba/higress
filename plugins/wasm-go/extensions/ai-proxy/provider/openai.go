@@ -40,6 +40,7 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameBatches):             PathOpenAIBatches,
 		string(ApiNameRetrieveBatch):       PathOpenAIRetrieveBatch,
 		string(ApiNameCancelBatch):         PathOpenAICancelBatch,
+		string(ApiNameResponses):           PathOpenAIResponses,
 	}
 }
 
@@ -47,7 +48,11 @@ func isDirectPath(path string) bool {
 	return strings.HasSuffix(path, "/completions") ||
 		strings.HasSuffix(path, "/embeddings") ||
 		strings.HasSuffix(path, "/audio/speech") ||
-		strings.HasSuffix(path, "/images/generations")
+		strings.HasSuffix(path, "/images/generations") ||
+		strings.HasSuffix(path, "/images/variations") ||
+		strings.HasSuffix(path, "/images/edits") ||
+		strings.HasSuffix(path, "/models") ||
+		strings.HasSuffix(path, "/responses")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
@@ -101,15 +106,14 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	if m.customPath != "" {
-		if m.isDirectCustomPath || apiName == "" {
-			util.OverwriteRequestPathHeader(headers, m.customPath)
-		} else {
-			util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
-		}
-	} else {
+	if m.isDirectCustomPath {
+		util.OverwriteRequestPathHeader(headers, m.customPath)
+	}
+
+	if apiName != "" {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
+
 	if m.customDomain != "" {
 		util.OverwriteRequestHostHeader(headers, m.customDomain)
 	} else {
