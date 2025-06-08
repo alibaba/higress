@@ -373,7 +373,13 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.context = &ContextConfig{}
 		c.context.FromJson(contextJson)
 	}
+
+	// 这里获取 claudeVersion 字段，与结构体中定义 yaml/json 的 tag 不一致
 	c.apiVersion = json.Get("claudeVersion").String()
+	if c.apiVersion == "" {
+		// 增加获取 version 字段，用于适配其他模型的配置，并保持与结构体中定义的 tag 一致
+		c.apiVersion = json.Get("version").String()
+	}
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.awsAccessKey = json.Get("awsAccessKey").String()
