@@ -41,6 +41,7 @@ const (
 	ApiNameRetrieveBatch       ApiName = "openai/v1/retrievebatch"
 	ApiNameCancelBatch         ApiName = "openai/v1/cancelbatch"
 	ApiNameModels              ApiName = "openai/v1/models"
+	ApiNameResponses           ApiName = "openai/v1/responses"
 
 	PathOpenAICompletions         = "/v1/completions"
 	PathOpenAIChatCompletions     = "/v1/chat/completions"
@@ -56,6 +57,7 @@ const (
 	PathOpenAIImageEdit           = "/v1/images/edits"
 	PathOpenAIImageVariation      = "/v1/images/variations"
 	PathOpenAIAudioSpeech         = "/v1/audio/speech"
+	PathOpenAIResponses           = "/v1/responses"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
