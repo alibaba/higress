@@ -99,6 +99,13 @@ func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (v *vertexProvider) getToken() error {
+	cacheKeyName := v.buildTokenKey()
+	cachedAccessToken, err := getCachedAccessToken(cacheKeyName)
+	if err == nil && cachedAccessToken != "" {
+		_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+cachedAccessToken)
+		return nil
+	}
+
 	var key ServiceAccountKey
 	if err := json.Unmarshal([]byte(v.config.vertexAuthKey), &key); err != nil {
 		return fmt.Errorf("[vertex]: unable to unmarshal auth key json: %v", err)
@@ -584,6 +591,72 @@ func (v *vertexProvider) getAccessToken(jwtToken string) error {
 		responseJson := gjson.Parse(responseString)
 		accessToken := responseJson.Get("access_token").String()
 		_ = proxywasm.ReplaceHttpRequestHeader("Authorization", "Bearer "+accessToken)
+
+		expiresIn := int64(3600)
+		if expiresInVal := responseJson.Get("expires_in"); expiresInVal.Exists() {
+			expiresIn = expiresInVal.Int()
+		}
+		expireTime := time.Now().Add(time.Duration(expiresIn) * time.Second).Unix()
+		keyName := v.buildTokenKey()
+		err := setCachedAccessToken(keyName, accessToken, expireTime)
+		if err != nil {
+			log.Errorf("[vertex]: unable to cache access token: %v", err)
+		}
 	}, v.config.timeout)
 	return err
+}
+
+func (v *vertexProvider) buildTokenKey() string {
+	region := v.config.vertexRegion
+	projectID := v.config.vertexProjectId
+
+	return fmt.Sprintf("vertex-%s-%s-access-token", region, projectID)
+}
+
+type cachedAccessToken struct {
+	Token    string `json:"token"`
+	ExpireAt int64  `json:"expireAt"`
+}
+
+func getCachedAccessToken(key string) (string, error) {
+	data, _, err := proxywasm.GetSharedData(key)
+	if err != nil {
+		if errors.Is(err, types.ErrorStatusNotFound) {
+			return "", nil
+		}
+		return "", err
+	}
+	if data == nil {
+		return "", nil
+	}
+
+	var tokenInfo cachedAccessToken
+	if err = json.Unmarshal(data, &tokenInfo); err != nil {
+		return "", err
+	}
+
+	if tokenInfo.ExpireAt > time.Now().Unix() {
+		return tokenInfo.Token, nil
+	}
+
+	return "", nil
+}
+
+func setCachedAccessToken(key string, accessToken string, expireTime int64) error {
+	tokenInfo := cachedAccessToken{
+		Token:    accessToken,
+		ExpireAt: expireTime,
+	}
+
+	_, cas, err := proxywasm.GetSharedData(key)
+	if err != nil && !errors.Is(err, types.ErrorStatusNotFound) {
+		return err
+	}
+
+	data, err := json.Marshal(tokenInfo)
+	if err != nil {
+		return err
+	}
+
+	return proxywasm.SetSharedData(key, data, cas)
 }
