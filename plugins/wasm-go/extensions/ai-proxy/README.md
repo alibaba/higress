@@ -233,7 +233,7 @@ Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 | 名称                  | 数据类型      | 填写要求 | 默认值   | 描述                                                                                                                                       |
 | --------------------- | ------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `geminiSafetySetting` | map of string | 非必填   | -        | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
-| `apiVersion`          | string        | 非必填   | `v1beta` | 用于指定 API 的版, 可选择 `v1` 或 `v1beta` 。 版本差异请参考[API versions explained](https://ai.google.dev/gemini-api/docs/api-versions)。 |
+| `apiVersion`          | string        | 非必填   | `v1beta` | 用于指定 API 的版本, 可选择 `v1` 或 `v1beta` 。 版本差异请参考[API versions explained](https://ai.google.dev/gemini-api/docs/api-versions)。 |
 
 #### DeepL
 
