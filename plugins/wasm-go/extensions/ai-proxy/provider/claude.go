@@ -19,8 +19,8 @@ const (
 	claudeDomain             = "api.anthropic.com"
 	claudeChatCompletionPath = "/v1/messages"
 	claudeCompletionPath     = "/v1/complete"
-	defaultVersion           = "2023-06-01"
-	defaultMaxTokens         = 4096
+	claudeDefaultVersion     = "2023-06-01"
+	claudeDefaultMaxTokens   = 4096
 )
 
 type claudeProviderInitializer struct{}
@@ -124,11 +124,11 @@ func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 
 	headers.Set("x-api-key", c.config.GetApiTokenInUse(ctx))
 
-	if c.config.claudeVersion == "" {
-		c.config.claudeVersion = defaultVersion
+	if c.config.apiVersion == "" {
+		c.config.apiVersion = claudeDefaultVersion
 	}
 
-	headers.Set("anthropic-version", c.config.claudeVersion)
+	headers.Set("anthropic-version", c.config.apiVersion)
 }
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
@@ -212,7 +212,7 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 		TopP:          origRequest.TopP,
 	}
 	if claudeRequest.MaxTokens == 0 {
-		claudeRequest.MaxTokens = defaultMaxTokens
+		claudeRequest.MaxTokens = claudeDefaultMaxTokens
 	}
 
 	for _, message := range origRequest.Messages {
