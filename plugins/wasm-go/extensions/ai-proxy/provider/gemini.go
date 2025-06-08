@@ -19,7 +19,7 @@ import (
 
 const (
 	geminiApiKeyHeader             = "x-goog-api-key"
-	geminiApiVersion               = "v1beta" // 可选: v1 ,v1beta
+	geminiDefaultApiVersion        = "v1beta" // 可选: v1, v1beta
 	geminiDomain                   = "generativelanguage.googleapis.com"
 	geminiChatCompletionPath       = "generateContent"
 	geminiChatCompletionStreamPath = "streamGenerateContent?alt=sse"
@@ -243,9 +243,12 @@ func (g *geminiProvider) onEmbeddingsResponseBody(ctx wrapper.HttpContext, body 
 
 func (g *geminiProvider) getRequestPath(apiName ApiName, model string, stream bool) string {
 	action := ""
+	if g.config.apiVersion == "" {
+		g.config.apiVersion = geminiDefaultApiVersion
+	}
 	switch apiName {
 	case ApiNameModels:
-		return fmt.Sprintf("/%s/%s", geminiApiVersion, geminiModelsPath)
+		return fmt.Sprintf("/%s/%s", g.config.apiVersion, geminiModelsPath)
 	case ApiNameEmbeddings:
 		action = geminiEmbeddingPath
 	case ApiNameChatCompletion:
@@ -257,17 +260,18 @@ func (g *geminiProvider) getRequestPath(apiName ApiName, model string, stream bo
 	case ApiNameImageGeneration:
 		action = geminiImageGenerationPath
 	}
-	return fmt.Sprintf("/%s/models/%s:%s", geminiApiVersion, model, action)
+	return fmt.Sprintf("/%s/models/%s:%s", g.config.apiVersion, model, action)
 }
 
 type geminiGenerationContentRequest struct {
 	// Model and Stream are only used when using the gemini original protocol
-	Model            string                     `json:"model,omitempty"`
-	Stream           bool                       `json:"stream,omitempty"`
-	Contents         []geminiChatContent        `json:"contents"`
-	SafetySettings   []geminiChatSafetySetting  `json:"safetySettings,omitempty"`
-	GenerationConfig geminiChatGenerationConfig `json:"generationConfig,omitempty"`
-	Tools            []geminiChatTools          `json:"tools,omitempty"`
+	Model             string                     `json:"model,omitempty"`
+	Stream            bool                       `json:"stream,omitempty"`
+	Contents          []geminiChatContent        `json:"contents"`
+	SystemInstruction *geminiChatContent         `json:"system_instruction,omitempty"`
+	SafetySettings    []geminiChatSafetySetting  `json:"safetySettings,omitempty"`
+	GenerationConfig  geminiChatGenerationConfig `json:"generationConfig,omitempty"`
+	Tools             []geminiChatTools          `json:"tools,omitempty"`
 }
 
 type geminiChatContent struct {
@@ -379,7 +383,7 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			},
 		}
 	}
-	shouldAddDummyModelMessage := false
+	// shouldAddDummyModelMessage := false
 	for _, message := range request.Messages {
 		content := geminiChatContent{
 			Role: message.Role,
@@ -391,26 +395,16 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 		}
 
 		// there's no assistant role in gemini and API shall vomit if role is not user or model
-		if content.Role == roleAssistant {
+		switch content.Role {
+		case roleSystem:
+			content.Role = ""
+			geminiRequest.SystemInstruction = &content
+			continue
+		case roleAssistant:
 			content.Role = "model"
-		} else if content.Role == roleSystem { // converting system prompt to prompt from user for the same reason
-			content.Role = roleUser
-			shouldAddDummyModelMessage = true
 		}
 		geminiRequest.Contents = append(geminiRequest.Contents, content)
 
-		// if a system message is the last message, we need to add a dummy model message to make gemini happy
-		if shouldAddDummyModelMessage {
-			geminiRequest.Contents = append(geminiRequest.Contents, geminiChatContent{
-				Role: "model",
-				Parts: []geminiPart{
-					{
-						Text: "Okay",
-					},
-				},
-			})
-			shouldAddDummyModelMessage = false
-		}
 	}
 
 	return &geminiRequest
