@@ -290,8 +290,8 @@ type ProviderConfig struct {
 	// @Description zh-CN 配置一个外部获取对话上下文的文件来源，用于在AI请求中补充对话上下文
 	context *ContextConfig `required:"false" yaml:"context" json:"context"`
 	// @Title zh-CN 版本
-	// @Description zh-CN 请求AI服务的版本，目前仅适用于Claude AI服务
-	claudeVersion string `required:"false" yaml:"version" json:"version"`
+	// @Description zh-CN 请求AI服务的版本，目前仅适用于 Gemini 和 Claude AI服务
+	apiVersion string `required:"false" yaml:"apiVersion" json:"apiVersion"`
 	// @Title zh-CN Cloudflare Account ID
 	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
 	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
@@ -375,7 +375,13 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.context = &ContextConfig{}
 		c.context.FromJson(contextJson)
 	}
-	c.claudeVersion = json.Get("claudeVersion").String()
+
+	// 这里获取 claudeVersion 字段，与结构体中定义 yaml/json 的 tag 不一致
+	c.apiVersion = json.Get("claudeVersion").String()
+	if c.apiVersion == "" {
+		// 增加获取 version 字段，用于适配其他模型的配置，并保持与结构体中定义的 tag 一致
+		c.apiVersion = json.Get("apiVersion").String()
+	}
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.awsAccessKey = json.Get("awsAccessKey").String()
