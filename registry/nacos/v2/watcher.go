@@ -23,7 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
@@ -39,6 +38,7 @@ import (
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos/address"
+	"github.com/alibaba/higress/registry/nacos/mcpserver"
 )
 
 const (
@@ -339,10 +339,7 @@ func (w *watcher) Run() {
 }
 
 func (w *watcher) mcpWatcherReady() bool {
-	if w.mcpWatcher == nil {
-		return true
-	}
-	return w.mcpWatcher.IsReady()
+	return w.mcpWatcher == nil || w.mcpWatcher.IsReady()
 }
 
 func (w *watcher) updateNacosClient() {

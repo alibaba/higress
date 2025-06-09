@@ -131,7 +131,7 @@ type McpToolConfig struct {
 type ToolDescription struct {
 	Name        string      `json:"name,omitempty"`
 	Description string      `json:"description,omitempty"`
-	InputSchema InputSchema `json:"inputSchema,omitempty"`
+	InputSchema InputSchema `json:"inputSchema"`
 }
 
 type InputSchema struct {

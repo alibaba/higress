@@ -276,8 +276,11 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 			var credData interface{}
 			if err := json.Unmarshal([]byte(data.data), &credData); err != nil {
 				mcpServerLog.Errorf("parse credential %v error %v", credentialId, err)
+				// keep origin data if data is not an object
+				result.Credentials[credentialId] = data.data
+			} else {
+				result.Credentials[credentialId] = credData
 			}
-			result.Credentials[credentialId] = credData
 		}
 	}
 
@@ -285,9 +288,9 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 	return result
 }
 
-func (n *NacosRegistryClient) exactConfigsFromContent(ctx *ServerContext, config *ConfigListenerWrap) []*ConfigListenerWrap {
+func (n *NacosRegistryClient) extractConfigsFromContent(ctx *ServerContext, config *ConfigListenerWrap) []*ConfigListenerWrap {
 	var result []*ConfigListenerWrap
-	compile, _ := regexp.Compile("\\$\\{nacos\\.([a-zA-Z0-9-_:\\\\.]+/[a-zA-Z0-9-_:\\\\.]+)}")
+	compile := regexp.MustCompile("\\$\\{nacos\\.([a-zA-Z0-9-_:\\\\.]+/[a-zA-Z0-9-_:\\\\.]+)}")
 	allConfigs := compile.FindAllString(config.data, 10)
 	newContent := config.data
 	for _, data := range allConfigs {
@@ -298,7 +301,7 @@ func (n *NacosRegistryClient) exactConfigsFromContent(ctx *ServerContext, config
 		group := strings.TrimSpace(dataIdAndGroupArray[1])
 		configWrap, err := n.ListenToConfig(ctx, dataId, group)
 		if err != nil {
-			mcpServerLog.Errorf("exact configs %v from content error %v", dataId, err)
+			mcpServerLog.Errorf("extract configs %v from content error %v", dataId, err)
 			continue
 		}
 		result = append(result, configWrap)
@@ -310,7 +313,7 @@ func (n *NacosRegistryClient) exactConfigsFromContent(ctx *ServerContext, config
 }
 
 func (n *NacosRegistryClient) resetNacosTemplateConfigs(ctx *ServerContext, config *ConfigListenerWrap) {
-	configWraps := n.exactConfigsFromContent(ctx, config)
+	configWraps := n.extractConfigsFromContent(ctx, config)
 	for _, data := range configWraps {
 		ctx.configsMap[CredentialPrefix+data.group+"_"+data.dataId] = data
 	}
@@ -389,9 +392,7 @@ func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, 
 	configListener := func(namespace, group, dataId, data string) {
 		if group == McpToolSpecGroup {
 			n.resetNacosTemplateConfigs(ctx, &wrap)
-		}
-
-		if group == McpServerSpecGroup {
+		} else if group == McpServerSpecGroup {
 			n.refreshServiceListenerIfNeeded(ctx, data)
 		}
 
@@ -414,9 +415,7 @@ func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, 
 	wrap.data = config
 	if group == McpToolSpecGroup {
 		n.resetNacosTemplateConfigs(ctx, &wrap)
-	}
-
-	if group == McpServerSpecGroup {
+	} else if group == McpServerSpecGroup {
 		n.refreshServiceListenerIfNeeded(ctx, wrap.data)
 	}
 
@@ -442,6 +441,8 @@ func (n *NacosRegistryClient) cancelListenToConfig(wrap *ConfigListenerWrap) err
 
 func (n *NacosRegistryClient) CancelListenToServer(id string) error {
 	if server, exist := n.servers[id]; exist && server != nil {
+		defer delete(n.servers, id)
+
 		for _, wrap := range server.configsMap {
 			if wrap != nil {
 				err := n.configClient.CancelListenConfig(vo.ConfigParam{
@@ -468,7 +469,6 @@ func (n *NacosRegistryClient) CancelListenToServer(id string) error {
 				return err
 			}
 		}
-		delete(n.servers, id)
 	}
 	return nil
 }
