@@ -208,6 +208,17 @@ For DeepL, the corresponding `type` is `deepl`. Its unique configuration field i
 | ------------ | --------- | ----------- | ------- | ------------------------------------ |
 | `targetLang` | string    | Required    | -       | The target language required by the DeepL translation service |
 
+#### Google Vertex AI
+For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
+
+| Name         | Data Type | Requirement | Default | Description                         |
+| -- | -------- |----| ------ |-------------------------------------------------------------------------------|
+| `vertexAuthKey` | string   | 必填 | -      | Google Service Account JSON Key used for authentication. The format should be PEM encoded PKCS#8 private key along with client_email and other information |
+| `vertexRegion` | string   | 必填 | -      | Google Cloud region (e.g., us-central1, europe-west4) used to build the Vertex API address            |
+| `vertexProjectId` | string   | 必填 | -      | Google Cloud Project ID, used to identify the target GCP project                                           |
+| `vertexAuthServiceName` | string   | 必填 | -      | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                |
+| `vertexGeminiSafetySetting` | map of string   | 非必填 | -      | Gemini model content safety filtering settings.                                                           |
+
 ## Usage Examples
 
 ### Using OpenAI Protocol Proxy for Azure OpenAI Service
@@ -1407,6 +1418,64 @@ provider:
     "prompt_tokens": 33,
     "completion_tokens": 61,
     "total_tokens": 94
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services
+**Configuration Information**
+```yaml
+provider:
+  type: vertex
+  vertexAuthKey: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-private-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  vertexRegion: us-central1
+  vertexProjectId: your-project-id
+  vertexAuthServiceName: your-auth-service-name
+```
+
+**Request Example**
+```json
+{
+  "model": "gemini-2.0-flash-001",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am the Gemini model provided by Vertex AI, developed by Google. I can answer questions, provide information, and assist in completing various tasks. How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.0-flash-001",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 43,
+    "total_tokens": 58
   }
 }
 ```

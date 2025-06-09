@@ -265,6 +265,16 @@ Dify 所对应的 `type` 为 `dify`。它特有的配置字段如下:
 | `inputVariable` | string   | 非必填  | -      | dify中应用类型为workflow时需要设置输入变量，当botType为workflow时一起使用 |
 | `outputVariable` | string   | 非必填  | -      | dify中应用类型为workflow时需要设置输出变量，当botType为workflow时一起使用 |
 
+#### Google Vertex AI
+Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下：
+
+| 名称 | 数据类型 | 填写要求 | 默认值 | 描述                                                                            |
+| -- | -------- |----| ------ |-------------------------------------------------------------------------------|
+| `vertexAuthKey` | string   | 必填 | -      | 用于认证的 Google Service Account JSON Key，格式为 PEM 编码的 PKCS#8 私钥和 client_email 等信息 |
+| `vertexRegion` | string   | 必填 | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址             |
+| `vertexProjectId` | string   | 必填 | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                              |
+| `vertexAuthServiceName` | string   | 必填 | -      | 用于 OAuth2 认证的服务名称，该服务为了访问oauth2.googleapis.com                                |
+| `vertexGeminiSafetySetting` | map of string   | 非必填 | -      | Gemini 模型的内容安全过滤设置。                                                           |
 
 ## 用法示例
 
@@ -1620,6 +1630,64 @@ provider:
     "prompt_tokens": 16,
     "completion_tokens": 243,
     "total_tokens": 259
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 Google Vertex 服务
+**配置信息**
+```yaml
+provider:
+  type: vertex
+  vertexAuthKey: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-private-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  vertexRegion: us-central1
+  vertexProjectId: your-project-id
+  vertexAuthServiceName: your-auth-service-name
+```
+
+**请求示例**
+```json
+{
+  "model": "gemini-2.0-flash-001",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是 Vertex AI 提供的 Gemini 模型，由 Google 开发的人工智能助手。我可以回答问题、提供信息和帮助完成各种任务。有什么我可以帮您的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.0-flash-001",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 43,
+    "total_tokens": 58
   }
 }
 ```

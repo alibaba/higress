@@ -293,6 +293,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Vertex 认证服务名
 	// @Description zh-CN 用于Google服务账号认证的服务,DNS类型的服务名
 	vertexAuthServiceName string `required:"false" yaml:"vertexAuthServiceName" json:"vertexAuthServiceName"`
+	// @Title zh-CN Vertex token刷新提前时间
+	// @Description zh-CN 用于Google服务账号认证，access token过期时间判定提前刷新，单位为秒，默认值为60秒
+	vertexTokenRefreshAhead int64 `required:"false" yaml:"vertexTokenRefreshAhead" json:"vertexTokenRefreshAhead"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -389,6 +392,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vertexProjectId = json.Get("vertexProjectId").String()
 	c.vertexAuthKey = json.Get("vertexAuthKey").String()
 	c.vertexAuthServiceName = json.Get("vertexAuthServiceName").String()
+	c.vertexTokenRefreshAhead = json.Get("vertexTokenRefreshAhead").Int()
+	if c.vertexTokenRefreshAhead == 0 {
+		c.vertexTokenRefreshAhead = 60
+	}
 	c.targetLang = json.Get("targetLang").String()
 
 	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
