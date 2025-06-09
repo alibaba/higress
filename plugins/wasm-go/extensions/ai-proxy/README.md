@@ -266,13 +266,14 @@ Dify 所对应的 `type` 为 `dify`。它特有的配置字段如下:
 
 Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下：
 
-| 名称 | 数据类型 | 填写要求 | 默认值 | 描述                                                                            |
-| -- | -------- |----| ------ |-------------------------------------------------------------------------------|
-| `vertexAuthKey` | string   | 必填 | -      | 用于认证的 Google Service Account JSON Key，格式为 PEM 编码的 PKCS#8 私钥和 client_email 等信息 |
-| `vertexRegion` | string   | 必填 | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址             |
-| `vertexProjectId` | string   | 必填 | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                              |
-| `vertexAuthServiceName` | string   | 必填 | -      | 用于 OAuth2 认证的服务名称，该服务为了访问oauth2.googleapis.com                                |
-| `vertexGeminiSafetySetting` | map of string   | 非必填 | -      | Gemini 模型的内容安全过滤设置。                                                           |
+| 名称                         | 数据类型       | 填写要求   | 默认值    | 描述                                                                            |
+|-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
+| `vertexAuthKey`             | string        | 必填     | -      | 用于认证的 Google Service Account JSON Key，格式为 PEM 编码的 PKCS#8 私钥和 client_email 等信息 |
+| `vertexRegion`              | string        | 必填     | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址             |
+| `vertexProjectId`           | string        | 必填     | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                              |
+| `vertexAuthServiceName`     | string        | 必填     | -      | 用于 OAuth2 认证的服务名称，该服务为了访问oauth2.googleapis.com                                |
+| `vertexGeminiSafetySetting` | map of string | 非必填    | -      | Gemini 模型的内容安全过滤设置。                                                           |
+| `vertexTokenRefreshAhead`   | number        | 非必填    | -      | Vertex access token刷新提前时间(单位秒)                                                |
 
 ## 用法示例
 

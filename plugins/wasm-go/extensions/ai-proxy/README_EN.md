@@ -211,13 +211,14 @@ For DeepL, the corresponding `type` is `deepl`. Its unique configuration field i
 #### Google Vertex AI
 For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
 
-| Name         | Data Type | Requirement | Default | Description                         |
-| -- | -------- |----| ------ |-------------------------------------------------------------------------------|
-| `vertexAuthKey` | string   | 必填 | -      | Google Service Account JSON Key used for authentication. The format should be PEM encoded PKCS#8 private key along with client_email and other information |
-| `vertexRegion` | string   | 必填 | -      | Google Cloud region (e.g., us-central1, europe-west4) used to build the Vertex API address            |
-| `vertexProjectId` | string   | 必填 | -      | Google Cloud Project ID, used to identify the target GCP project                                           |
-| `vertexAuthServiceName` | string   | 必填 | -      | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                |
-| `vertexGeminiSafetySetting` | map of string   | 非必填 | -      | Gemini model content safety filtering settings.                                                           |
+| Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `vertexAuthKey`             | string        | Required      | -      | Google Service Account JSON Key used for authentication. The format should be PEM encoded PKCS#8 private key along with client_email and other information  |
+| `vertexRegion`              | string        | Required      | -      | Google Cloud region (e.g., us-central1, europe-west4) used to build the Vertex API address                                                                  |
+| `vertexProjectId`           | string        | Required      | -      | Google Cloud Project ID, used to identify the target GCP project                                                                                            |
+| `vertexAuthServiceName`     | string        | Required      | -      | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                                                                |
+| `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
+| `vertexTokenRefreshAhead`   | number        | Optional      | -      | Vertex access token refresh ahead time in seconds                                                                                                           |
 
 ## Usage Examples
 
