@@ -75,6 +75,8 @@ type GrayConfig struct {
 	SkippedByHeaders    map[string]string
 	IndexPaths          []string
 	GrayWeight          int
+	// 表示uniqueGrayTag配置项是否被用户自定义设置
+	UniqueGrayTagConfigured bool
 }
 
 func isValidName(s string) bool {
@@ -134,6 +136,8 @@ func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) error {
 	grayConfig.GraySubKey = json.Get("graySubKey").String()
 	grayConfig.BackendGrayTag = GetWithDefault(json, "backendGrayTag", "x-mse-tag")
 	grayConfig.UniqueGrayTag = GetWithDefault(json, "uniqueGrayTag", "x-higress-uid")
+	// 判断 uniqueGrayTag 是否被配置
+	grayConfig.UniqueGrayTagConfigured = json.Get("uniqueGrayTag").Exists()
 	grayConfig.StoreMaxAge = 60 * 60 * 24 * 365 // 默认一年
 	storeMaxAge, err := strconv.Atoi(GetWithDefault(json, "StoreMaxAge", strconv.Itoa(grayConfig.StoreMaxAge)))
 	if err != nil {
