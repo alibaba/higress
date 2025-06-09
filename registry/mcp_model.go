@@ -72,8 +72,8 @@ type ToolArgs struct {
 }
 
 type RequestTemplate struct {
-	URL            string                    `json:"url,omitempty"`
-	Method         string                    `json:"method,omitempty"`
+	URL            string                    `json:"url"`
+	Method         string                    `json:"method"`
 	Headers        []*RequestTemplateHeaders `json:"headers,omitempty"`
 	Body           string                    `json:"body,omitempty"`
 	ArgsToJsonBody bool                      `json:"argsToJsonBody,omitempty"`
@@ -82,8 +82,8 @@ type RequestTemplate struct {
 }
 
 type RequestTemplateHeaders struct {
-	Key   string `json:"key,omitempty"`
-	Value string `json:"value,omitempty"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
 type ResponseTemplate struct {

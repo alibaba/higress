@@ -803,12 +803,12 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 				destinationRules[serviceName] = destinationRuleWrapper
 			} else if dr.DestinationRule.TrafficPolicy != nil {
 				// if origin service not set loadBalancer, we should apply consistent hash policy for sse mcp service
-				if dr.DestinationRule.TrafficPolicy.LoadBalancer == nil &&
+				if dr.DestinationRule.TrafficPolicy.LoadBalancer == nil && destinationRuleWrapper.DestinationRule.TrafficPolicy != nil &&
 					destinationRuleWrapper.DestinationRule.TrafficPolicy.LoadBalancer != nil {
 					dr.DestinationRule.TrafficPolicy.LoadBalancer = destinationRuleWrapper.DestinationRule.TrafficPolicy.LoadBalancer
 				}
 				// if origin service not set tls, we should apply simple tls policy for sse mcp service
-				if dr.DestinationRule.TrafficPolicy.Tls == nil &&
+				if dr.DestinationRule.TrafficPolicy.Tls == nil && destinationRuleWrapper.DestinationRule.TrafficPolicy != nil &&
 					destinationRuleWrapper.DestinationRule.TrafficPolicy.Tls != nil {
 					dr.DestinationRule.TrafficPolicy.Tls = destinationRuleWrapper.DestinationRule.TrafficPolicy.Tls
 				}
