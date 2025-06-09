@@ -64,9 +64,11 @@ type ServerContext struct {
 	id                     string
 	versionedMcpServerInfo *VersionedMcpServerInfo
 	serverChangeListener   McpServerListener
-	configsMap             map[string]*ConfigListenerWrap
-	serviceInfo            *model.Service
-	namingCallBck          func(services []model.Instance, err error)
+	// key: config group name, McpServerVersionGroup || McpServerSpecGroup || McpToolSpecGroup
+	// value: ConfigListenerWrap {Config DataId, Config Group, ConfigData, listener func }
+	configsMap    map[string]*ConfigListenerWrap
+	serviceInfo   *model.Service
+	namingCallBck func(services []model.Instance, err error)
 }
 
 type McpServerConfig struct {
@@ -144,7 +146,7 @@ func (n *NacosRegistryClient) ListMcpServer() ([]BasicMcpServerInfo, error) {
 		})
 
 		if err != nil {
-			mcpServerLog.Errorf("Get mcpserver version config error, %v", err)
+			mcpServerLog.Errorf("Get mcpserver version config error, error %v, dataId %v", err, config.DataId)
 			continue
 		}
 		if mcpServerBasicConfig == "" {
@@ -291,7 +293,7 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 func (n *NacosRegistryClient) extractConfigsFromContent(ctx *ServerContext, config *ConfigListenerWrap) []*ConfigListenerWrap {
 	var result []*ConfigListenerWrap
 	compile := regexp.MustCompile("\\$\\{nacos\\.([a-zA-Z0-9-_:\\\\.]+/[a-zA-Z0-9-_:\\\\.]+)}")
-	allConfigs := compile.FindAllString(config.data, 10)
+	allConfigs := compile.FindAllString(config.data, 1000)
 	newContent := config.data
 	for _, data := range allConfigs {
 		dataIdAndGroup := strings.ReplaceAll(data, "${nacos.", "")

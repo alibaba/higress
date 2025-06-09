@@ -113,7 +113,6 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		opt(w)
 	}
 
-	// The nacos mcp server uses these restricted namespaces and groups, and may be adjusted in the future.
 	if w.NacosNamespace == "" {
 		w.NacosNamespace = w.NacosNamespaceId
 	}
@@ -393,7 +392,7 @@ func (w *watcher) processServerConfig(dataId string, services *model.Service, mc
 	}
 	// if protocol is sse, we should apply ConsistentHash policy for this service
 	// if protocol is https, we should apply tls policy for this service
-	destinationRule := generateDrForSSEService(serviceHost, mcpServer.Protocol)
+	destinationRule := generateDrForMcpServer(serviceHost, mcpServer.Protocol)
 	if destinationRule != nil {
 		dr := &config.Config{
 			Meta: config.Meta{
@@ -461,7 +460,7 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 		}
 
 		requestTemplate, err := getRequestTemplateFromToolMeta(toolMeta)
-		if err != nil || requestTemplate == nil {
+		if err != nil {
 			mcpServerLog.Errorf("get request template from tool meta error:%v, tool name %v", err, t.Name)
 			continue
 		} else {
@@ -469,7 +468,7 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 		}
 
 		responseTemplate, err := getResponseTemplateFromToolMeta(toolMeta)
-		if err != nil || responseTemplate == nil {
+		if err != nil {
 			mcpServerLog.Errorf("get response template from tool meta error:%v, tool name %v", err, t.Name)
 			continue
 		} else {
@@ -621,7 +620,7 @@ func (w *watcher) buildMcpServerForMcpServer(vs *v1alpha3.VirtualService, dataId
 	}
 }
 
-func generateDrForSSEService(host, protocol string) *v1alpha3.DestinationRule {
+func generateDrForMcpServer(host, protocol string) *v1alpha3.DestinationRule {
 	switch protocol {
 	case provider.McpSSEProtocol:
 		return &v1alpha3.DestinationRule{
