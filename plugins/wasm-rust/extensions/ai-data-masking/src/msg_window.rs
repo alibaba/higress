@@ -46,11 +46,8 @@ impl MessageWindow {
     pub(crate) fn finish(&mut self) -> Vec<u8> {
         core::mem::take(&mut self.message)
     }
-    pub(crate) fn check_messages<F>(&mut self, call_fn: F) -> bool
-    where
-        F: Fn(&mut Vec<u8>) -> bool,
-    {
-        call_fn(&mut self.message)
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut Vec<u8>> {
+        std::iter::once(&mut self.message)
     }
 }
 

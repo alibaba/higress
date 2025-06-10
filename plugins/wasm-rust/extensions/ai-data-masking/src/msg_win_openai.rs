@@ -153,15 +153,11 @@ impl MessageWindowOpenAi {
 
         ret
     }
-
-    fn check_messages<F>(&mut self, call_fn: F) -> bool
-    where
-        F: Fn(&mut Vec<u8>) -> bool,
-    {
-        for (_, msg) in self.ret_messages.iter_mut() {
-            call_fn(msg);
-        }
-        self.message_window.check_messages(call_fn)
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut Vec<u8>> {
+        self.ret_messages
+            .iter_mut()
+            .map(|(_, msg)| msg)
+            .chain(self.message_window.iter_mut())
     }
 }
 
@@ -263,20 +259,12 @@ impl MsgWindow {
         }
         ret
     }
-
-    pub(crate) fn check_messages<F>(&mut self, call_fn: F) -> bool
-    where
-        F: Fn(&mut Vec<u8>) -> bool,
-    {
-        if !self.base_message_window.check_messages(&call_fn) {
-            return false;
-        }
-        for (_, mw) in self.message_windows.iter_mut() {
-            if !mw.check_messages(&call_fn) {
-                return false;
-            }
-        }
-        true
+    pub(crate) fn messages_iter_mut(&mut self) -> impl Iterator<Item = &mut Vec<u8>> {
+        self.base_message_window.iter_mut().chain(
+            self.message_windows
+                .values_mut()
+                .flat_map(|mw| mw.iter_mut()),
+        )
     }
 }
 
@@ -311,14 +299,13 @@ mod tests {
         for line in data.split("\n") {
             msg_win.push(line.as_bytes(), true);
             msg_win.push(b"\n\n", true);
-            msg_win.check_messages(|message| {
+            for message in msg_win.messages_iter_mut() {
                 if let Ok(mut msg) = String::from_utf8(message.clone()) {
                     msg = msg.replace("Higress", "***higress***");
                     message.clear();
                     message.extend_from_slice(msg.as_bytes());
                 }
-                true
-            });
+            }
 
             buffer.extend(msg_win.pop(7, 7, true));
         }
@@ -332,9 +319,9 @@ mod tests {
             if line.starts_with(b"data: [DONE]") {
                 continue;
             }
-            let des = serde_json::from_slice(&line[b"data:".len()..]);
+            let des = serde_json::from_slice::<Res>(&line[b"data:".len()..]);
             assert!(des.is_ok());
-            let res: Res = des.unwrap();
+            let res = des.unwrap();
             message.push_str(&res.get_text());
         }
         assert_eq!(message, "***higress*** 是一个基于 Istio 的高性能服务网格数据平面项目，旨在提供高吞吐量、低延迟和可扩展的服务通信管理。它为企业级应用提供了丰富的流量治理功能，如负载均衡、熔断、限流等，并支持多协议代理（包括 HTTP/1.1, HTTP/2, gRPC）。***higress*** 的设计目标是优化 Istio 在大规模集群中的性能表现，满足高并发场景下的需求。");

@@ -193,6 +193,26 @@ pub struct AiDataMaskingConfig {
     deny_words: DenyWord,
 }
 
+impl AiDataMaskingConfig {
+    fn check_message(&self, message: &str, log: &Log) -> bool {
+        if let Some(word) = self.deny_words.check(message) {
+            log.warn(&format!(
+                "custom deny word {} matched from {}",
+                word, message
+            ));
+            return true;
+        } else if self.system_deny {
+            if let Some(word) = SYSTEM.deny_word.check(message) {
+                log.warn(&format!(
+                    "system deny word {} matched from {}",
+                    word, message
+                ));
+                return true;
+            }
+        }
+        false
+    }
+}
 #[derive(Debug, Deserialize, Clone)]
 struct Message {
     #[serde(default)]
@@ -346,23 +366,10 @@ impl RootContextWrapper<AiDataMaskingConfig> for AiDataMaskingRoot {
 impl AiDataMasking {
     fn check_message(&self, message: &str) -> bool {
         if let Some(config) = &self.config {
-            if let Some(word) = config.deny_words.check(message) {
-                self.log().warn(&format!(
-                    "custom deny word {} matched from {}",
-                    word, message
-                ));
-                return true;
-            } else if config.system_deny {
-                if let Some(word) = SYSTEM.deny_word.check(message) {
-                    self.log().warn(&format!(
-                        "system deny word {} matched from {}",
-                        word, message
-                    ));
-                    return true;
-                }
-            }
+            config.check_message(message, self.log())
+        } else {
+            false
         }
-        false
     }
     fn msg_to_response(&self, msg: &str, raw_msg: &str, content_type: &str) -> (String, String) {
         if !self.is_openai {
@@ -508,30 +515,29 @@ impl HttpContext for AiDataMasking {
                 }
                 self.msg_window
                     .push(&body, self.is_openai_stream.unwrap_or_default());
-                if let Some(rc) = self.weak.upgrade() {
-                    let self_rc = rc.clone();
-                    let call_fn = move |message: &mut Vec<u8>| {
-                        if let Some(this) = self_rc.borrow_mut().downcast_mut::<AiDataMasking>() {
-                            if let Ok(mut msg) = String::from_utf8(message.clone()) {
-                                if this.check_message(&msg) {
-                                    return false;
-                                }
-                                if !this.mask_map.is_empty() {
-                                    for (from_word, to_word) in this.mask_map.iter() {
-                                        if let Some(to) = to_word {
-                                            msg = msg.replace(from_word, to);
-                                        }
-                                    }
-                                }
-                                message.clear();
-                                message.extend_from_slice(msg.as_bytes());
+                let mut deny = false;
+                let log = Log::new(PLUGIN_NAME.to_string());
+                for message in self.msg_window.messages_iter_mut() {
+                    if let Ok(mut msg) = String::from_utf8(message.clone()) {
+                        if let Some(config) = &self.config {
+                            if config.check_message(&msg, &log) {
+                                deny = true;
+                                break;
                             }
                         }
-                        true
-                    };
-                    if !self.msg_window.check_messages(call_fn) {
-                        return self.deny(true);
+                        if !self.mask_map.is_empty() {
+                            for (from_word, to_word) in self.mask_map.iter() {
+                                if let Some(to) = to_word {
+                                    msg = msg.replace(from_word, to);
+                                }
+                            }
+                        }
+                        message.clear();
+                        message.extend_from_slice(msg.as_bytes());
                     }
+                }
+                if deny {
+                    return self.deny(true);
                 }
             }
         }
@@ -580,8 +586,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             }
         };
         if config.deny_openai {
-            if let Ok(r) = serde_json::from_str(req_body.as_str()) {
-                let req: Req = r;
+            if let Ok(req) = serde_json::from_str::<Req>(req_body.as_str()) {
                 self.is_openai = true;
                 self.stream = req.stream;
                 for msg in req.messages {
@@ -601,8 +606,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             }
         }
         if !config.deny_jsonpath.is_empty() {
-            if let Ok(r) = serde_json::from_str(req_body.as_str()) {
-                let json: Value = r;
+            if let Ok(json) = serde_json::from_str::<Value>(req_body.as_str()) {
                 for jsonpath in config.deny_jsonpath.clone() {
                     for v in jsonpath.find_slice(&json) {
                         if let JsonPathValue::Slice(d, _) = v {
@@ -650,8 +654,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             }
         };
         if config.deny_openai && self.is_openai {
-            if let Ok(r) = serde_json::from_str(res_body.as_str()) {
-                let res: Res = r;
+            if let Ok(res) = serde_json::from_str::<Res>(res_body.as_str()) {
                 for msg in res.choices {
                     if let Some(message) = msg.message {
                         if self.check_message(&message.content) {
