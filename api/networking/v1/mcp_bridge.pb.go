@@ -111,28 +111,31 @@ type RegistryConfig struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Type                   string              `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	Name                   string              `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Domain                 string              `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
-	Port                   uint32              `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
-	NacosAddressServer     string              `protobuf:"bytes,5,opt,name=nacosAddressServer,proto3" json:"nacosAddressServer,omitempty"`
-	NacosAccessKey         string              `protobuf:"bytes,6,opt,name=nacosAccessKey,proto3" json:"nacosAccessKey,omitempty"`
-	NacosSecretKey         string              `protobuf:"bytes,7,opt,name=nacosSecretKey,proto3" json:"nacosSecretKey,omitempty"`
-	NacosNamespaceId       string              `protobuf:"bytes,8,opt,name=nacosNamespaceId,proto3" json:"nacosNamespaceId,omitempty"`
-	NacosNamespace         string              `protobuf:"bytes,9,opt,name=nacosNamespace,proto3" json:"nacosNamespace,omitempty"`
-	NacosGroups            []string            `protobuf:"bytes,10,rep,name=nacosGroups,proto3" json:"nacosGroups,omitempty"`
-	NacosRefreshInterval   int64               `protobuf:"varint,11,opt,name=nacosRefreshInterval,proto3" json:"nacosRefreshInterval,omitempty"`
-	ConsulNamespace        string              `protobuf:"bytes,12,opt,name=consulNamespace,proto3" json:"consulNamespace,omitempty"`
-	ZkServicesPath         []string            `protobuf:"bytes,13,rep,name=zkServicesPath,proto3" json:"zkServicesPath,omitempty"`
-	ConsulDatacenter       string              `protobuf:"bytes,14,opt,name=consulDatacenter,proto3" json:"consulDatacenter,omitempty"`
-	ConsulServiceTag       string              `protobuf:"bytes,15,opt,name=consulServiceTag,proto3" json:"consulServiceTag,omitempty"`
-	ConsulRefreshInterval  int64               `protobuf:"varint,16,opt,name=consulRefreshInterval,proto3" json:"consulRefreshInterval,omitempty"`
-	AuthSecretName         string              `protobuf:"bytes,17,opt,name=authSecretName,proto3" json:"authSecretName,omitempty"`
-	Protocol               string              `protobuf:"bytes,18,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	Sni                    string              `protobuf:"bytes,19,opt,name=sni,proto3" json:"sni,omitempty"`
-	McpServerExportDomains []string            `protobuf:"bytes,20,rep,name=mcpServerExportDomains,proto3" json:"mcpServerExportDomains,omitempty"`
-	McpServerBaseUrl       string              `protobuf:"bytes,21,opt,name=mcpServerBaseUrl,proto3" json:"mcpServerBaseUrl,omitempty"`
-	EnableMCPServer        *wrappers.BoolValue `protobuf:"bytes,22,opt,name=enableMCPServer,proto3" json:"enableMCPServer,omitempty"`
+	Type                   string               `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Name                   string               `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Domain                 string               `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
+	Port                   uint32               `protobuf:"varint,4,opt,name=port,proto3" json:"port,omitempty"`
+	NacosAddressServer     string               `protobuf:"bytes,5,opt,name=nacosAddressServer,proto3" json:"nacosAddressServer,omitempty"`
+	NacosAccessKey         string               `protobuf:"bytes,6,opt,name=nacosAccessKey,proto3" json:"nacosAccessKey,omitempty"`
+	NacosSecretKey         string               `protobuf:"bytes,7,opt,name=nacosSecretKey,proto3" json:"nacosSecretKey,omitempty"`
+	NacosNamespaceId       string               `protobuf:"bytes,8,opt,name=nacosNamespaceId,proto3" json:"nacosNamespaceId,omitempty"`
+	NacosNamespace         string               `protobuf:"bytes,9,opt,name=nacosNamespace,proto3" json:"nacosNamespace,omitempty"`
+	NacosGroups            []string             `protobuf:"bytes,10,rep,name=nacosGroups,proto3" json:"nacosGroups,omitempty"`
+	NacosRefreshInterval   int64                `protobuf:"varint,11,opt,name=nacosRefreshInterval,proto3" json:"nacosRefreshInterval,omitempty"`
+	ConsulNamespace        string               `protobuf:"bytes,12,opt,name=consulNamespace,proto3" json:"consulNamespace,omitempty"`
+	ZkServicesPath         []string             `protobuf:"bytes,13,rep,name=zkServicesPath,proto3" json:"zkServicesPath,omitempty"`
+	ConsulDatacenter       string               `protobuf:"bytes,14,opt,name=consulDatacenter,proto3" json:"consulDatacenter,omitempty"`
+	ConsulServiceTag       string               `protobuf:"bytes,15,opt,name=consulServiceTag,proto3" json:"consulServiceTag,omitempty"`
+	ConsulRefreshInterval  int64                `protobuf:"varint,16,opt,name=consulRefreshInterval,proto3" json:"consulRefreshInterval,omitempty"`
+	AuthSecretName         string               `protobuf:"bytes,17,opt,name=authSecretName,proto3" json:"authSecretName,omitempty"`
+	Protocol               string               `protobuf:"bytes,18,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	Sni                    string               `protobuf:"bytes,19,opt,name=sni,proto3" json:"sni,omitempty"`
+	McpServerExportDomains []string             `protobuf:"bytes,20,rep,name=mcpServerExportDomains,proto3" json:"mcpServerExportDomains,omitempty"`
+	McpServerBaseUrl       string               `protobuf:"bytes,21,opt,name=mcpServerBaseUrl,proto3" json:"mcpServerBaseUrl,omitempty"`
+	EnableMCPServer        *wrappers.BoolValue  `protobuf:"bytes,22,opt,name=enableMCPServer,proto3" json:"enableMCPServer,omitempty"`
+	EnableScopeMcpServers  *wrappers.BoolValue  `protobuf:"bytes,23,opt,name=enableScopeMcpServers,proto3" json:"enableScopeMcpServers,omitempty"`
+	AllowMcpServers        []string             `protobuf:"bytes,24,rep,name=allowMcpServers,proto3" json:"allowMcpServers,omitempty"`
+	Metadata               map[string]*InnerMap `protobuf:"bytes,25,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
 func (x *RegistryConfig) Reset() {
@@ -321,6 +324,74 @@ func (x *RegistryConfig) GetEnableMCPServer() *wrappers.BoolValue {
 	return nil
 }
 
+func (x *RegistryConfig) GetEnableScopeMcpServers() *wrappers.BoolValue {
+	if x != nil {
+		return x.EnableScopeMcpServers
+	}
+	return nil
+}
+
+func (x *RegistryConfig) GetAllowMcpServers() []string {
+	if x != nil {
+		return x.AllowMcpServers
+	}
+	return nil
+}
+
+func (x *RegistryConfig) GetMetadata() map[string]*InnerMap {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+type InnerMap struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	InnerMap map[string]string `protobuf:"bytes,1,rep,name=inner_map,json=innerMap,proto3" json:"inner_map,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *InnerMap) Reset() {
+	*x = InnerMap{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_networking_v1_mcp_bridge_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *InnerMap) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*InnerMap) ProtoMessage() {}
+
+func (x *InnerMap) ProtoReflect() protoreflect.Message {
+	mi := &file_networking_v1_mcp_bridge_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use InnerMap.ProtoReflect.Descriptor instead.
+func (*InnerMap) Descriptor() ([]byte, []int) {
+	return file_networking_v1_mcp_bridge_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *InnerMap) GetInnerMap() map[string]string {
+	if x != nil {
+		return x.InnerMap
+	}
+	return nil
+}
+
 var File_networking_v1_mcp_bridge_proto protoreflect.FileDescriptor
 
 var file_networking_v1_mcp_bridge_proto_rawDesc = []byte{
@@ -338,7 +409,7 @@ var file_networking_v1_mcp_bridge_proto_rawDesc = []byte{
 	0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x25, 0x2e, 0x68, 0x69, 0x67, 0x72, 0x65, 0x73,
 	0x73, 0x2e, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x69, 0x6e, 0x67, 0x2e, 0x76, 0x31, 0x2e,
 	0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x52, 0x0a,
-	0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x69, 0x65, 0x73, 0x22, 0xfd, 0x06, 0x0a, 0x0e, 0x52,
+	0x72, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x69, 0x65, 0x73, 0x22, 0xa8, 0x09, 0x0a, 0x0e, 0x52,
 	0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x17, 0x0a,
 	0x04, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x42, 0x03, 0xe0, 0x41, 0x02,
 	0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02,
@@ -394,11 +465,39 @@ var file_networking_v1_mcp_bridge_proto_rawDesc = []byte{
 	0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x18, 0x16, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e,
 	0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e,
 	0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0f, 0x65, 0x6e, 0x61, 0x62, 0x6c,
-	0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x42, 0x2e, 0x5a, 0x2c, 0x67, 0x69,
-	0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x6c, 0x69, 0x62, 0x61, 0x62, 0x61,
-	0x2f, 0x68, 0x69, 0x67, 0x72, 0x65, 0x73, 0x73, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x6e, 0x65, 0x74,
-	0x77, 0x6f, 0x72, 0x6b, 0x69, 0x6e, 0x67, 0x2f, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
-	0x6f, 0x33,
+	0x65, 0x4d, 0x43, 0x50, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x12, 0x50, 0x0a, 0x15, 0x65, 0x6e,
+	0x61, 0x62, 0x6c, 0x65, 0x53, 0x63, 0x6f, 0x70, 0x65, 0x4d, 0x63, 0x70, 0x53, 0x65, 0x72, 0x76,
+	0x65, 0x72, 0x73, 0x18, 0x17, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67,
+	0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x42, 0x6f, 0x6f, 0x6c,
+	0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x15, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x53, 0x63, 0x6f,
+	0x70, 0x65, 0x4d, 0x63, 0x70, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x12, 0x28, 0x0a, 0x0f,
+	0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x4d, 0x63, 0x70, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x18,
+	0x18, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0f, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x4d, 0x63, 0x70, 0x53,
+	0x65, 0x72, 0x76, 0x65, 0x72, 0x73, 0x12, 0x4f, 0x0a, 0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61,
+	0x74, 0x61, 0x18, 0x19, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x33, 0x2e, 0x68, 0x69, 0x67, 0x72, 0x65,
+	0x73, 0x73, 0x2e, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x69, 0x6e, 0x67, 0x2e, 0x76, 0x31,
+	0x2e, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x72, 0x79, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x2e,
+	0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x08, 0x6d,
+	0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x5c, 0x0a, 0x0d, 0x4d, 0x65, 0x74, 0x61, 0x64,
+	0x61, 0x74, 0x61, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x35, 0x0a, 0x05, 0x76, 0x61,
+	0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x68, 0x69, 0x67, 0x72,
+	0x65, 0x73, 0x73, 0x2e, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x69, 0x6e, 0x67, 0x2e, 0x76,
+	0x31, 0x2e, 0x49, 0x6e, 0x6e, 0x65, 0x72, 0x4d, 0x61, 0x70, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x93, 0x01, 0x0a, 0x08, 0x49, 0x6e, 0x6e, 0x65, 0x72, 0x4d,
+	0x61, 0x70, 0x12, 0x4a, 0x0a, 0x09, 0x69, 0x6e, 0x6e, 0x65, 0x72, 0x5f, 0x6d, 0x61, 0x70, 0x18,
+	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x2d, 0x2e, 0x68, 0x69, 0x67, 0x72, 0x65, 0x73, 0x73, 0x2e,
+	0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x69, 0x6e, 0x67, 0x2e, 0x76, 0x31, 0x2e, 0x49, 0x6e,
+	0x6e, 0x65, 0x72, 0x4d, 0x61, 0x70, 0x2e, 0x49, 0x6e, 0x6e, 0x65, 0x72, 0x4d, 0x61, 0x70, 0x45,
+	0x6e, 0x74, 0x72, 0x79, 0x52, 0x08, 0x69, 0x6e, 0x6e, 0x65, 0x72, 0x4d, 0x61, 0x70, 0x1a, 0x3b,
+	0x0a, 0x0d, 0x49, 0x6e, 0x6e, 0x65, 0x72, 0x4d, 0x61, 0x70, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12,
+	0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65,
+	0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x42, 0x2e, 0x5a, 0x2c, 0x67,
+	0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61, 0x6c, 0x69, 0x62, 0x61, 0x62,
+	0x61, 0x2f, 0x68, 0x69, 0x67, 0x72, 0x65, 0x73, 0x73, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x6e, 0x65,
+	0x74, 0x77, 0x6f, 0x72, 0x6b, 0x69, 0x6e, 0x67, 0x2f, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x33,
 }
 
 var (
@@ -413,20 +512,27 @@ func file_networking_v1_mcp_bridge_proto_rawDescGZIP() []byte {
 	return file_networking_v1_mcp_bridge_proto_rawDescData
 }
 
-var file_networking_v1_mcp_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_networking_v1_mcp_bridge_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_networking_v1_mcp_bridge_proto_goTypes = []interface{}{
 	(*McpBridge)(nil),          // 0: higress.networking.v1.McpBridge
 	(*RegistryConfig)(nil),     // 1: higress.networking.v1.RegistryConfig
-	(*wrappers.BoolValue)(nil), // 2: google.protobuf.BoolValue
+	(*InnerMap)(nil),           // 2: higress.networking.v1.InnerMap
+	nil,                        // 3: higress.networking.v1.RegistryConfig.MetadataEntry
+	nil,                        // 4: higress.networking.v1.InnerMap.InnerMapEntry
+	(*wrappers.BoolValue)(nil), // 5: google.protobuf.BoolValue
 }
 var file_networking_v1_mcp_bridge_proto_depIdxs = []int32{
 	1, // 0: higress.networking.v1.McpBridge.registries:type_name -> higress.networking.v1.RegistryConfig
-	2, // 1: higress.networking.v1.RegistryConfig.enableMCPServer:type_name -> google.protobuf.BoolValue
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	5, // 1: higress.networking.v1.RegistryConfig.enableMCPServer:type_name -> google.protobuf.BoolValue
+	5, // 2: higress.networking.v1.RegistryConfig.enableScopeMcpServers:type_name -> google.protobuf.BoolValue
+	3, // 3: higress.networking.v1.RegistryConfig.metadata:type_name -> higress.networking.v1.RegistryConfig.MetadataEntry
+	4, // 4: higress.networking.v1.InnerMap.inner_map:type_name -> higress.networking.v1.InnerMap.InnerMapEntry
+	2, // 5: higress.networking.v1.RegistryConfig.MetadataEntry.value:type_name -> higress.networking.v1.InnerMap
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_networking_v1_mcp_bridge_proto_init() }
@@ -459,6 +565,18 @@ func file_networking_v1_mcp_bridge_proto_init() {
 				return nil
 			}
 		}
+		file_networking_v1_mcp_bridge_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*InnerMap); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -466,7 +584,7 @@ func file_networking_v1_mcp_bridge_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_networking_v1_mcp_bridge_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
