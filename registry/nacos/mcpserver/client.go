@@ -35,7 +35,7 @@ const SystemConfigIdPrefix = "system-"
 const CredentialPrefix = "credentials-"
 const DefaultNacosListConfigMode = "blur"
 
-const ListMcpServeConfigIdPattern = "*mcp-versions.json"
+const ListMcpServerConfigIdPattern = "*mcp-versions.json"
 
 const DefaultNacosListConfigPageSize = 50
 
@@ -71,7 +71,7 @@ type ServerContext struct {
 	serverChangeListener   McpServerListener
 	configsMap             map[string]*ConfigListenerWrap
 	serviceInfo            *model.Service
-	namingCallBack         func(services []model.Instance, err error)
+	namingCallback         func(services []model.Instance, err error)
 }
 
 type McpServerConfig struct {
@@ -134,7 +134,7 @@ func (n *NacosRegistryClient) listMcpServerConfigs() ([]model.ConfigItem, error)
 	for {
 		configPage, err := n.configClient.SearchConfig(vo.SearchConfigParam{
 			Search:   DefaultNacosListConfigMode,
-			DataId:   ListMcpServeConfigIdPattern,
+			DataId:   ListMcpServerConfigIdPattern,
 			Group:    McpServerVersionGroup,
 			PageNo:   currentPageNum,
 			PageSize: DefaultNacosListConfigPageSize,
@@ -354,7 +354,7 @@ func (n *NacosRegistryClient) replaceTemplateAndExactConfigsItems(ctx *ServerCon
 		group := strings.TrimSpace(dataIdAndGroupArray[1])
 		configWrap, err := n.ListenToConfig(ctx, dataId, group)
 		if err != nil {
-			mcpServerLog.Errorf("exact configs %v from content error %v", dataId, err)
+			mcpServerLog.Errorf("extract configs %v from content error %v", dataId, err)
 			continue
 		}
 		result[CredentialPrefix+configWrap.group+"_"+configWrap.dataId] = configWrap
@@ -404,7 +404,7 @@ func (n *NacosRegistryClient) refreshServiceListenerIfNeeded(ctx *ServerContext,
 			err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
 				GroupName:         ctx.serviceInfo.GroupName,
 				ServiceName:       ctx.serviceInfo.Name,
-				SubscribeCallback: ctx.namingCallBack,
+				SubscribeCallback: ctx.namingCallback,
 			})
 			if err != nil {
 				mcpServerLog.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, ctx.serviceInfo.GroupName, ctx.serviceInfo.Name)
@@ -423,8 +423,8 @@ func (n *NacosRegistryClient) refreshServiceListenerIfNeeded(ctx *ServerContext,
 
 		ctx.serviceInfo = &service
 
-		if ctx.namingCallBack == nil {
-			ctx.namingCallBack = func(services []model.Instance, err error) {
+		if ctx.namingCallback == nil {
+			ctx.namingCallback = func(services []model.Instance, err error) {
 				if ctx.serviceInfo == nil {
 					ctx.serviceInfo = &model.Service{
 						GroupName: ctx.serviceInfo.GroupName,
@@ -442,7 +442,7 @@ func (n *NacosRegistryClient) refreshServiceListenerIfNeeded(ctx *ServerContext,
 		err = n.namingClient.Subscribe(&vo.SubscribeParam{
 			GroupName:         ctx.serviceInfo.GroupName,
 			ServiceName:       ctx.serviceInfo.Name,
-			SubscribeCallback: ctx.namingCallBack,
+			SubscribeCallback: ctx.namingCallback,
 		})
 		if err != nil {
 			mcpServerLog.Errorf("subscribe service error:%v, groupName:%s, serviceName:%s", err, ctx.serviceInfo.GroupName, ctx.serviceInfo.Name)
@@ -529,7 +529,7 @@ func (n *NacosRegistryClient) CancelListenToServer(id string) error {
 			err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
 				GroupName:         server.serviceInfo.GroupName,
 				ServiceName:       server.serviceInfo.Name,
-				SubscribeCallback: server.namingCallBack,
+				SubscribeCallback: server.namingCallback,
 			})
 			if err != nil {
 				mcpServerLog.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, server.serviceInfo.GroupName, server.serviceInfo.Name)

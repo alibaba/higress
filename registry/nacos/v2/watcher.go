@@ -98,7 +98,7 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 
 	if w.EnableMCPServer != nil && w.EnableMCPServer.GetValue() {
 		if w.Type != string(registry.Nacos3) {
-			log.Errorf("nacos2 can not create mcp server watcher")
+			log.Errorf("can not create mcpWatcher for nacos 2.x type, required nacos 3.x")
 		} else {
 			mcpWatcher, err := mcpserver.NewWatcher(
 				cache,
