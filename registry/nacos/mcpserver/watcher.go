@@ -769,7 +769,6 @@ func generateServiceEntry(host string, services *model.Service) *v1alpha3.Servic
 	}
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
-	isDnsService := false
 
 	for _, service := range services.Hosts {
 		protocol := common.HTTP
@@ -784,9 +783,6 @@ func generateServiceEntry(host string, services *model.Service) *v1alpha3.Servic
 		if len(portList) == 0 {
 			portList = append(portList, port)
 		}
-		if !isValidIP(service.Ip) {
-			isDnsService = true
-		}
 		endpoint := &v1alpha3.WorkloadEntry{
 			Address: service.Ip,
 			Ports:   map[string]uint32{port.Protocol: port.Number},
@@ -795,15 +791,11 @@ func generateServiceEntry(host string, services *model.Service) *v1alpha3.Servic
 		endpoints = append(endpoints, endpoint)
 	}
 
-	resolution := v1alpha3.ServiceEntry_STATIC
-	if isDnsService {
-		resolution = v1alpha3.ServiceEntry_DNS
-	}
 	se := &v1alpha3.ServiceEntry{
 		Hosts:      []string{host},
 		Ports:      portList,
 		Location:   v1alpha3.ServiceEntry_MESH_INTERNAL,
-		Resolution: resolution,
+		Resolution: getNacosServiceResolution(services),
 		Endpoints:  endpoints,
 	}
 
@@ -813,6 +805,26 @@ func generateServiceEntry(host string, services *model.Service) *v1alpha3.Servic
 func isValidIP(ipStr string) bool {
 	ip := net.ParseIP(ipStr)
 	return ip != nil
+}
+
+func getNacosServiceResolution(services *model.Service) v1alpha3.ServiceEntry_Resolution {
+	ipEndpoints := 0
+	dnsEndpoints := 0
+	for _, service := range services.Hosts {
+		if isValidIP(service.Ip) {
+			ipEndpoints = ipEndpoints + 1
+		} else {
+			dnsEndpoints = dnsEndpoints + 1
+		}
+	}
+	if ipEndpoints > 0 && dnsEndpoints > 0 {
+		mcpServerLog.Errorf("nacos service %v has both ip and dns endpoints, set to ip resolution ", services.Name)
+		return v1alpha3.ServiceEntry_STATIC
+	}
+	if ipEndpoints > 0 {
+		return v1alpha3.ServiceEntry_STATIC
+	}
+	return v1alpha3.ServiceEntry_DNS
 }
 
 func (w *watcher) Stop() {

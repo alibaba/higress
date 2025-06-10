@@ -66,9 +66,9 @@ type ServerContext struct {
 	serverChangeListener   McpServerListener
 	// key: config group name, McpServerVersionGroup || McpServerSpecGroup || McpToolSpecGroup
 	// value: ConfigListenerWrap {Config DataId, Config Group, ConfigData, listener func }
-	configsMap    map[string]*ConfigListenerWrap
-	serviceInfo   *model.Service
-	namingCallBck func(services []model.Instance, err error)
+	configsMap     map[string]*ConfigListenerWrap
+	serviceInfo    *model.Service
+	namingCallBack func(services []model.Instance, err error)
 }
 
 type McpServerConfig struct {
@@ -339,7 +339,7 @@ func (n *NacosRegistryClient) refreshServiceListenerIfNeeded(ctx *ServerContext,
 			err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
 				GroupName:         ctx.serviceInfo.GroupName,
 				ServiceName:       ctx.serviceInfo.Name,
-				SubscribeCallback: ctx.namingCallBck,
+				SubscribeCallback: ctx.namingCallBack,
 			})
 			if err != nil {
 				mcpServerLog.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, ctx.serviceInfo.GroupName, ctx.serviceInfo.Name)
@@ -358,8 +358,8 @@ func (n *NacosRegistryClient) refreshServiceListenerIfNeeded(ctx *ServerContext,
 
 		ctx.serviceInfo = &service
 
-		if ctx.namingCallBck == nil {
-			ctx.namingCallBck = func(services []model.Instance, err error) {
+		if ctx.namingCallBack == nil {
+			ctx.namingCallBack = func(services []model.Instance, err error) {
 				if ctx.serviceInfo == nil {
 					ctx.serviceInfo = &model.Service{
 						GroupName: ctx.serviceInfo.GroupName,
@@ -377,7 +377,7 @@ func (n *NacosRegistryClient) refreshServiceListenerIfNeeded(ctx *ServerContext,
 		err = n.namingClient.Subscribe(&vo.SubscribeParam{
 			GroupName:         ctx.serviceInfo.GroupName,
 			ServiceName:       ctx.serviceInfo.Name,
-			SubscribeCallback: ctx.namingCallBck,
+			SubscribeCallback: ctx.namingCallBack,
 		})
 		if err != nil {
 			mcpServerLog.Errorf("subscribe service error:%v, groupName:%s, serviceName:%s", err, ctx.serviceInfo.GroupName, ctx.serviceInfo.Name)
@@ -464,7 +464,7 @@ func (n *NacosRegistryClient) CancelListenToServer(id string) error {
 			err := n.namingClient.Unsubscribe(&vo.SubscribeParam{
 				GroupName:         server.serviceInfo.GroupName,
 				ServiceName:       server.serviceInfo.Name,
-				SubscribeCallback: server.namingCallBck,
+				SubscribeCallback: server.namingCallBack,
 			})
 			if err != nil {
 				mcpServerLog.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, server.serviceInfo.GroupName, server.serviceInfo.Name)
