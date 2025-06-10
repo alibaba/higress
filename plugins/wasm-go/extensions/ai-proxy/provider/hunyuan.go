@@ -387,7 +387,7 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     hunyuanFormattedChunk.Usage.PromptTokens,
 			CompletionTokens: hunyuanFormattedChunk.Usage.CompletionTokens,
 			TotalTokens:      hunyuanFormattedChunk.Usage.TotalTokens,
@@ -400,7 +400,7 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 	if hunyuanFormattedChunk.Choices[0].FinishReason == hunyuanStreamEndMark {
 		// log.Debugf("@@@ --- 最后chunk: ")
 		openAIFormattedChunk.Choices = append(openAIFormattedChunk.Choices, chatCompletionChoice{
-			FinishReason: hunyuanFormattedChunk.Choices[0].FinishReason,
+			FinishReason: util.Ptr(hunyuanFormattedChunk.Choices[0].FinishReason),
 		})
 	} else {
 		deltaMsg := chatMessage{
@@ -495,7 +495,7 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 				Content:   choice.Message.Content,
 				ToolCalls: nil,
 			},
-			FinishReason: choice.FinishReason,
+			FinishReason: util.Ptr(choice.FinishReason),
 		})
 	}
 	return &chatCompletionResponse{
@@ -505,7 +505,7 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     hunyuanResponse.Response.Usage.PromptTokens,
 			CompletionTokens: hunyuanResponse.Response.Usage.CompletionTokens,
 			TotalTokens:      hunyuanResponse.Response.Usage.TotalTokens,

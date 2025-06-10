@@ -42,8 +42,7 @@ const (
 	requestIdHeader        = "X-Amzn-Requestid"
 )
 
-type bedrockProviderInitializer struct {
-}
+type bedrockProviderInitializer struct{}
 
 func (b *bedrockProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if len(config.awsAccessKey) == 0 || len(config.awsSecretKey) == 0 {
@@ -104,7 +103,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
 	}
 	if bedrockEvent.StopReason != nil {
-		chatChoice.FinishReason = stopReasonBedrock2OpenAI(*bedrockEvent.StopReason)
+		chatChoice.FinishReason = util.Ptr(stopReasonBedrock2OpenAI(*bedrockEvent.StopReason))
 	}
 	choices = append(choices, chatChoice)
 	requestId := ctx.GetStringContext(requestIdHeader, "")
@@ -118,7 +117,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 	}
 	if bedrockEvent.Usage != nil {
 		openAIFormattedChunk.Choices = choices[:0]
-		openAIFormattedChunk.Usage = usage{
+		openAIFormattedChunk.Usage = &usage{
 			CompletionTokens: bedrockEvent.Usage.OutputTokens,
 			PromptTokens:     bedrockEvent.Usage.InputTokens,
 			TotalTokens:      bedrockEvent.Usage.TotalTokens,
@@ -756,7 +755,7 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 				Role:    bedrockResponse.Output.Message.Role,
 				Content: outputContent,
 			},
-			FinishReason: stopReasonBedrock2OpenAI(bedrockResponse.StopReason),
+			FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 		},
 	}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
@@ -767,7 +766,7 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     bedrockResponse.Usage.InputTokens,
 			CompletionTokens: bedrockResponse.Usage.OutputTokens,
 			TotalTokens:      bedrockResponse.Usage.TotalTokens,
