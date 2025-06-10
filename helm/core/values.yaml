@@ -771,51 +771,28 @@ redis:
       size: 1Gi
 
 pluginServer:
-  metadata:
-    # Deployment instance name (affects Deployment name and Pod label selectors)
-    name: higress-plugin-server
-    # Target namespace (ensure the namespace exists)
-    namespace: higress-system
+  name: "higress-plugin-server"
+  # -- Number of Higress Plugin Server pods, 2 recommended for high availability
+  replicas: 2
+  image: plugin-server
 
-  spec:
-    # Replica configuration
-    replicas: 1  # Adjust based on load requirements
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  tag: ""
 
-    # Pod template configuration
-    template:
-      spec:
-        # Container configuration
-        containers:
-          # Image address (must comply with container registry specifications)
-          image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/plugin-server:latest
-          
-          # Resource limits (adjust based on actual load testing)
-          resources:
-            limits:
-              # CPU limit (unit: cores, 1 core = 1000m)
-              cpu: 500m  # Maximum allowed CPU: 0.5 cores
-              # Memory limit (unit: MiB)
-              memory: 256Mi  # Maximum allowed memory: 256MB
-            
-            requests:
-              # Minimum guaranteed CPU (unit: cores)
-              cpu: 200m  # Guaranteed CPU: 0.2 cores
-              # Minimum guaranteed memory (unit: MiB)
-              memory: 128Mi  # Guaranteed memory: 128MB
+  imagePullSecrets: []
 
-        # Affinity policies
-        affinity:
-          # Topology domain key (for node-level anti-affinity)
-          topologyKey: "kubernetes.io/hostname"  # Ensures no multiple instances on the same node
+  labels: {}
+  # -- Labels to apply to the pod
+  podLabels: {}
+
   #  Plugin-server Service configuration
   service:
-    metadata:
-      name: higress-plugin-server  # Service name 
-      namespace: higress-system    # Service namespace
-    spec:
-      ports:
-        port: 80                   # Service exposed port
-        targetPort: 8080           # Container target port (usually fixed)
-        protocol: TCP              # Protocol type
-      selector:
-        app: higress-plugin-server   # Pod selector (must match deployment labels)
+    port: 80                    # Container target port (usually fixed)
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

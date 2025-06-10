@@ -2,38 +2,38 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.pluginServer.metadata.name }}
-  namespace: {{ .Values.pluginServer.metadata.namespace }}
+  name: {{ include "pluginServer.name" . }}
+  namespace: {{ .Release.Namespace }}
 spec:
-  replicas: {{ .Values.pluginServer.spec.replicas }}
+  replicas: {{ .Values.pluginServer.replicas }}
   selector:
     matchLabels:
-      app: {{ .Values.pluginServer.metadata.name }}
+      {{- include "pluginServer.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        app: {{ .Values.pluginServer.metadata.name }}
+        {{- with .Values.pluginServer.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "pluginServer.selectorLabels" . | nindent 8 }}
     spec:
+      {{- with .Values.pluginServer.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
-        - name: plugin-server
-          image: {{ .Values.pluginServer.spec.template.spec.containers.image }}
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.pluginServer.hub | default .Values.global.hub }}/{{ .Values.pluginServer.image | default "plugin-server" }}:{{ .Values.pluginServer.tag | default "1.0.0" }}
+          {{- if .Values.global.imagePullPolicy }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          {{- end }}
           ports:
             - containerPort: 8080
           resources:
-            limits:
-              cpu: {{ .Values.pluginServer.spec.template.spec.containers.resources.limits.cpu }}
-              memory: {{ .Values.pluginServer.spec.template.spec.containers.resources.limits.memory }}
             requests:
-              cpu: {{ .Values.pluginServer.spec.template.spec.containers.resources.requests.cpu }}
-              memory: {{ .Values.pluginServer.spec.template.spec.containers.resources.requests.memory }}
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: app
-                    operator: In
-                    values:
-                      - {{ .Values.pluginServer.metadata.name }}
-              topologyKey: {{ .Values.pluginServer.spec.template.spec.affinity.topologyKey }}
+              cpu: {{ .Values.pluginServer.resources.requests.cpu }}
+              memory: {{ .Values.pluginServer.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.pluginServer.resources.limits.cpu }}
+              memory: {{ .Values.pluginServer.resources.limits.memory }}
 {{- end }}

@@ -2,13 +2,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.pluginServer.service.metadata.name }}
-  namespace: {{ .Values.pluginServer.service.metadata.namespace }}
+  name: {{ include "pluginServer.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pluginServer.labels" . | nindent 4 }}
 spec:
-  selector:
-    app: {{ .Values.pluginServer.service.spec.selector.app }}
   ports:
-    - protocol: {{ .Values.pluginServer.service.spec.ports.protocol }}
-      port: {{ .Values.pluginServer.service.spec.ports.port }}
-      targetPort: {{ .Values.pluginServer.service.spec.ports.targetPort }}
+    - protocol: TCP
+      port: {{ .Values.pluginServer.service.port }}
+      targetPort: 8080
+  selector:
+    {{- include "pluginServer.selectorLabels" . | nindent 4 }}
 {{- end }}
