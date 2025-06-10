@@ -144,7 +144,7 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.4/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.6/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -191,6 +191,7 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
+HIGRESS_LATEST_IMAGE_TAG ?= latest
 ENVOY_LATEST_IMAGE_TAG ?= 958467a353d411ae3f06e03b096bfd342cddb2c6
 ISTIO_LATEST_IMAGE_TAG ?= d9c728d3b01f64855e012b08d136e306f1160397
 
@@ -268,9 +269,25 @@ higress-conformance-test-clean: $(tools/kind) delete-cluster
 .PHONY: higress-wasmplugin-test-prepare
 higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin
 
+# higress-wasmplugin-test-prepare-skip-docker-build prepares the environment for higress wasmplugin tests without build higress docker image.
+.PHONY: higress-wasmplugin-test-prepare-skip-docker-build
+higress-wasmplugin-test-prepare-skip-docker-build: $(tools/kind) delete-cluster create-cluster prebuild
+	@export TAG="$(HIGRESS_LATEST_IMAGE_TAG)" && \
+	$(MAKE) kube-load-image && \
+	$(MAKE) install-dev-wasmplugin
+
 # higress-wasmplugin-test runs ingress wasmplugin tests.
 .PHONY: higress-wasmplugin-test
 higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
+
+# higress-wasmplugin-test-skip-docker-build runs ingress wasmplugin tests without build higress docker image
+.PHONY: higress-wasmplugin-test-skip-docker-build
+higress-wasmplugin-test-skip-docker-build: $(tools/kind) delete-cluster create-cluster prebuild
+	@export TAG="$(HIGRESS_LATEST_IMAGE_TAG)" && \
+	$(MAKE) kube-load-image && \
+	$(MAKE) install-dev-wasmplugin && \
+	$(MAKE) run-higress-e2e-test-wasmplugin && \
+	$(MAKE) delete-cluster
 
 # higress-wasmplugin-test-clean cleans the environment for higress wasmplugin tests.
 .PHONY: higress-wasmplugin-test-clean
@@ -290,8 +307,12 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 # dubbo-provider-demo和nacos-standlone-rc3的镜像已经上传到阿里云镜像库，第一次需要先拉到本地
 # docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo:0.0.1
 # docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3
+# If TAG is HIGRESS_LATEST_IMAGE_TAG, means we skip building higress docker image, so we need to pull the image first.
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
+	@if [ "$(TAG)" = "$(HIGRESS_LATEST_IMAGE_TAG)" ]; then \
+		tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG); \
+	fi
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot $(ISTIO_LATEST_IMAGE_TAG)
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway $(ENVOY_LATEST_IMAGE_TAG)

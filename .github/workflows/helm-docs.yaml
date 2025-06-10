@@ -6,11 +6,13 @@ on:
       - "*"
     paths:
       - 'helm/**'
+      - '!helm/higress/README.zh.md'
   workflow_dispatch: ~
   push:
     branches: [ main ]
     paths:
       - 'helm/**'
+      - '!helm/higress/README.zh.md'
 
 jobs:
   helm:
@@ -31,7 +33,7 @@ jobs:
         run: |
           GOBIN=$PWD GO111MODULE=on go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.14.2
           ./helm-docs -c ${GITHUB_WORKSPACE}/helm/higress -f ../core/values.yaml
-          DIFF=$(git diff ${GITHUB_WORKSPACE}/helm/higress/*md)
+          DIFF=$(git diff ${GITHUB_WORKSPACE}/helm/higress/README.md)
           if [ ! -z "$DIFF" ]; then
             echo "Please use helm-docs in your clone, of your fork, of the project, and commit a updated README.md for the chart."
           fi
@@ -55,18 +57,19 @@ jobs:
         id: compare_readme
         run: |
           cd ./helm/higress
-          BASE_BRANCH=main
-          UPSTREAM_REPO=https://github.com/alibaba/higress.git
-
-          TEMP_DIR=$(mktemp -d)
-          git clone --depth 1 --branch $BASE_BRANCH $UPSTREAM_REPO $TEMP_DIR
-
-          if diff -q "$TEMP_DIR/README.md" README.md > /dev/null; then
-            echo "README.md has no changes in comparison to base branch. Skipping translation."
+          
+          BASE_BRANCH=${GITHUB_BASE_REF:-main} 
+          git fetch origin $BASE_BRANCH
+          
+          if git diff --quiet origin/$BASE_BRANCH -- README.md; then
+            echo "README.md has no local changes compared to $BASE_BRANCH. Skipping translation."
             echo "skip_translation=true" >> $GITHUB_ENV
           else
-            echo "README.md has changed in comparison to base branch. Proceeding with translation."
+            echo "README.md has local changes compared to $BASE_BRANCH. Proceeding with translation."
             echo "skip_translation=false" >> $GITHUB_ENV
+            echo "--------- diff ---------"
+            git diff origin/$BASE_BRANCH -- README.md
+            echo "------------------------"
           fi
 
       - name: Translate README.md to Chinese
@@ -76,39 +79,74 @@ jobs:
           API_KEY: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
           API_MODEL: ${{ secrets.HIGRESS_OPENAI_API_MODEL }}
         run: |
-          cd ./helm/higress
-          FILE_CONTENT=$(cat README.md)
+          cat << 'EOF' > translate_readme.py
+          import os
+          import json
+          import requests
 
-          PAYLOAD=$(jq -n \
-            --arg model "$API_MODEL" \
-            --arg content "$FILE_CONTENT" \
-            '{
-              model: $model,
-              messages: [
-                {"role": "system", "content": "You are a translation assistant that translates English Markdown text to Chinese."},
-                {"role": "user", "content": $content}
-              ],
-              temperature: 1.1,
-              stream: false
-            }')
+          API_URL = os.environ["API_URL"]
+          API_KEY = os.environ["API_KEY"]
+          API_MODEL = os.environ["API_MODEL"]
+          README_PATH = "./helm/higress/README.md"
+          OUTPUT_PATH = "./helm/higress/README.zh.md"
 
-          RESPONSE=$(curl -s -X POST "$API_URL" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $API_KEY" \
-            -d "$PAYLOAD")
+          def stream_translation(api_url, api_key, payload):
+              headers = {
+                  "Content-Type": "application/json",
+                  "Authorization": f"Bearer {api_key}",
+              }
+              response = requests.post(api_url, headers=headers, json=payload, stream=True)
+              response.raise_for_status()
 
-          echo "Response: $RESPONSE"
+              with open(OUTPUT_PATH, "w", encoding="utf-8") as out_file:
+                  for line in response.iter_lines(decode_unicode=True):
+                      if line.strip() == "" or not line.startswith("data: "):
+                          continue
+                      data = line[6:]
+                      if data.strip() == "[DONE]":
+                          break
+                      try:
+                          chunk = json.loads(data)
+                          content = chunk["choices"][0]["delta"].get("content", "")
+                          if content:
+                              out_file.write(content)
+                      except Exception as e:
+                          print("Error parsing chunk:", e)
 
-          echo "$RESPONSE" | jq -c -r '.choices[] | .message.content' > README.zh.new.md
+          def main():
+              if not os.path.exists(README_PATH):
+                  print("README.md not found!")
+                  return
 
-          if [ -f "README.zh.new.md" ]; then
-            echo "Translation completed and saved to README.zh.new.md."
-          else
-            echo "Translation failed or no content returned!"
-            exit 1
-          fi
+              with open(README_PATH, "r", encoding="utf-8") as f:
+                  content = f.read()
 
-          mv README.zh.new.md README.zh.md
+              payload = {
+                  "model": API_MODEL,
+                  "messages": [
+                      {
+                          "role": "system",
+                          "content": "You are a translation assistant that translates English Markdown text to Chinese. Preserve original Markdown formatting and line breaks."
+                      },
+                      {
+                          "role": "user",
+                          "content": content
+                      }
+                  ],
+                  "temperature": 0.3,
+                  "stream": True
+              }
+
+              print("Streaming translation started...")
+              stream_translation(API_URL, API_KEY, payload)
+              print(f"Translation completed and saved to {OUTPUT_PATH}.")
+
+          if __name__ == "__main__":
+              main()
+          EOF
+          
+          python3 translate_readme.py
+          rm -rf translate_readme.py
 
       - name: Create Pull Request
         if: env.skip_translation == 'false'

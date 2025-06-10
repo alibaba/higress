@@ -1,0 +1,1037 @@
+server:
+  name: yuque-mcp-server
+  config:
+    accessToken: ""
+tools:
+  - name: doc_api_v2_doc_create
+    description: |+
+      创建文档 - 创建文档
+    args:
+      - name: body
+        description: 正文内容
+        type: string
+        position: body
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: format
+        description: |-
+          内容格式
+          (markdown:Markdown 格式, html:HTML 标准格式, lake:语雀 Lake 格式)
+        type: string
+        enum: ["markdown", "html", "lake"]
+        position: body
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+      - name: public
+        description: |+
+          公开性 (0:私密, 1:公开, 2:企业内公开)
+          - 不填则继承知识库的公开性
+        type: integer
+        enum: [0, 1, 2]
+        position: body
+      - name: slug
+        description: 路径
+        type: string
+        position: body
+      - name: title
+        description: 标题
+        type: string
+        position: body
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}/docs
+      method: POST
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.body**: \n正文原始内容 (Type: string)\n  - **data.body_draft**: \n正文草稿内容 (Type: string)\n  - **data.body_html**: \n正文 HTML 标准格式内容 (Type: string)\n  - **data.body_lake**: \n正文语雀 Lake 格式内容 (Type: string)\n  - **data.body_sheet**: \n表格正文内容\n\n\n用本字段读取表格内容, 在文档为表格 (sheet) 类型时会返回。\n\n\n语雀表格 (sheet) 正文格式示例如下, JSON 反序列化后的结构:\n(注意: 所有项的值均为字符串, 公式项为计算后的值, 日期格式: yyyy-mm-dd HH:MM:SS)\n\n\n```json\n{\n  \"version\": \"1.0\",\n  \"data\": [\n    {\n      \"name\": \"Sheet1\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 4,\n      \"table\": [\n        [\"参数名\", \"类型\", \"必填\", \"默认值\"],\n        [\"name\", \"string\", \"1\", \"\"],\n        [\"flag\", \"boolean\", \"0\", \"false\"]\n      ]\n    },\n    {\n      \"name\": \"Sheet2\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 8,\n      \"table\": []\n    }\n  ]\n}\n```\n\n (Type: string)\n  - **data.body_table**: \n数据表正文内容, 用本字段读取数据表内容, 在文档为数据表 (Table) 类型时会返回。\n\n\n```json\n{\ntotalCount: 1000, // 总行数\nrecords: [{\n  {\n// values为数组，顺序按meta中的columns顺序排列\nvalues:[{\n// 复选框，值为true/false\n\"value\": \"true\"\n},{\n// 多选框，对应选中的options\n\"value\": [\n\"AUb7o2\",\n\"rkGdKP\"\n]\n},{\n// 评分：0-5\n\"value\": \"4\"\n}, {\n// 进度：0-100\n\"value\": \"34\"\n}, {\n// 文件\n\"value\": [\n{\n\"name\": \"emails.csv\",\n\"uid\": \"rc-upload-1722830344900-3\",\n\"src\": \"https://host/xx.csv\",\n\"size\": 148,\n\"fileKey\": \"sheet\"\n}\n]\n}, {\n\"value\": \"文本\"\n}, {\n// 单选\n\"value\": \"waiting\"\n}, {\n// 日期\n\"value\": {\n\"seconds\": 3932799476,\n\"text\": \"2024-08-14\",\n\"time\": \"2024-08-14T04:12:13.318Z\"\n}\n}, {\n// 用户\n\"value\": [\n{\n\"id\": 1,\n\"name\": \"txy\",\n\"login\": \"u1\",\n\"avatar_url\": \"https://host/xx_url\",\n\"work_id\": \"\",\n\"description\": null\n}\n]\n}, {\n// 图片\n\"value\": [\n{\n\"name\": \"test.png\",\n\"uid\": \"rc-upload-1722831237360-3\",\n\"src\": \"https://host/xx.png\",\n\"size\": 19154,\n\"width\": 90,\n\"height\": 88\n}\n]\n}],\n\"createdAt\": \"2024-08-02T10:14:13.368Z\",\n\"updatedAt\": \"2024-08-05T11:56:01.102Z\",\n}\n }],\n pageSize: 100,\n page: 1,\n}\n``` (Type: string)\n  - **data.book**:  (Type: object)\n    - **data.book.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.creator_id**: \n创建者 ID (Type: integer)\n    - **data.book.description**: \n简介 (Type: string)\n    - **data.book.id**: \n知识库 ID (Type: integer)\n    - **data.book.items_count**: \n文档数量 (Type: integer)\n    - **data.book.likes_count**: \n点赞数量 (Type: integer)\n    - **data.book.name**: \n名称 (Type: string)\n    - **data.book.namespace**: \n完整路径 (Type: string)\n    - **data.book.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.book.slug**: \n路径 (Type: string)\n    - **data.book.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n    - **data.book.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user**:  (Type: object)\n      - **data.book.user.avatar_url**: \n头像 (Type: string)\n      - **data.book.user.books_count**: \n知识库数量 (Type: integer)\n      - **data.book.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n      - **data.book.user.description**: \n介绍 (Type: string)\n      - **data.book.user.followers_count**: \n被关注的人数 (Type: integer)\n      - **data.book.user.following_count**: \n关注的人数 (Type: integer)\n      - **data.book.user.id**: \n用户 ID (Type: integer)\n      - **data.book.user.login**: \n登录名 (Type: string)\n      - **data.book.user.name**: \n昵称 (Type: string)\n      - **data.book.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n      - **data.book.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n      - **data.book.user.type**: \n类型\nAlways 'User' (Type: string)\n      - **data.book.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user_id**: \n归属用户/团队 ID (Type: integer)\n    - **data.book.watches_count**: \n订阅数量 (Type: integer)\n  - **data.book_id**: \n归属知识库 ID (Type: integer)\n  - **data.comments_count**: \n评论数 (Type: integer)\n  - **data.content_updated_at**: \n内容更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.cover**: \n封面 (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator**:  (Type: object)\n    - **data.creator.avatar_url**: \n头像 (Type: string)\n    - **data.creator.books_count**: \n知识库数量 (Type: integer)\n    - **data.creator.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.creator.description**: \n介绍 (Type: string)\n    - **data.creator.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.creator.following_count**: \n关注的人数 (Type: integer)\n    - **data.creator.id**: \n用户 ID (Type: integer)\n    - **data.creator.login**: \n登录名 (Type: string)\n    - **data.creator.name**: \n昵称 (Type: string)\n    - **data.creator.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.creator.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.creator.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.creator.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.description**: \n摘要 (Type: string)\n  - **data.first_published_at**: \n首次发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.format**: \n内容格式\n(markdown:Markdown 格式, lake:语雀 Lake 格式, html:HTML 标准格式, lakesheet:语雀表格) (Type: string)\n  - **data.hits**: \n阅读数\n\n (Type: integer)\n  - **data.id**: \n文档 ID (Type: integer)\n  - **data.last_editor_id**: \n最后编辑者 ID (Type: integer)\n  - **data.latest_version_id**: \n最新已发版本 ID\n\n (Type: integer)\n  - **data.likes_count**: \n点赞数 (Type: integer)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.published_at**: \n发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.read_count**: \n阅读数\n\n (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.status**: \n状态\n(0:草稿, 1:发布) (Type: string)\n  - **data.tags**:  (Type: object)\n    - **data.tags.book_id**: \n知识库 ID (Type: integer)\n    - **data.tags.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.doc_id**: \n文档 ID (Type: integer)\n    - **data.tags.id**: \nTAG ID (Type: integer)\n    - **data.tags.title**: \nTAG NAME (Type: string)\n    - **data.tags.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.user_id**: \n创建者 ID (Type: integer)\n  - **data.title**: \n标题 (Type: string)\n  - **data.type**: \n文档类型\n(Doc:普通文档, Sheet:表格, Thread:话题, Board:图集, Table:数据表) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.word_count**: \n内容字数 (Type: integer)\n\n## Original Response\n\n"
+  - name: doc_api_v2_doc_destroy
+    description: |+
+      删除文档 - 删除文档
+    args:
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+      - name: id
+        description: 文档 ID or 路径
+        type: string
+        position: path
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}/docs/{id}
+      method: DELETE
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.body**: \n正文原始内容 (Type: string)\n  - **data.body_draft**: \n正文草稿内容 (Type: string)\n  - **data.body_html**: \n正文 HTML 标准格式内容 (Type: string)\n  - **data.body_lake**: \n正文语雀 Lake 格式内容 (Type: string)\n  - **data.body_sheet**: \n表格正文内容\n\n\n用本字段读取表格内容, 在文档为表格 (sheet) 类型时会返回。\n\n\n语雀表格 (sheet) 正文格式示例如下, JSON 反序列化后的结构:\n(注意: 所有项的值均为字符串, 公式项为计算后的值, 日期格式: yyyy-mm-dd HH:MM:SS)\n\n\n```json\n{\n  \"version\": \"1.0\",\n  \"data\": [\n    {\n      \"name\": \"Sheet1\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 4,\n      \"table\": [\n        [\"参数名\", \"类型\", \"必填\", \"默认值\"],\n        [\"name\", \"string\", \"1\", \"\"],\n        [\"flag\", \"boolean\", \"0\", \"false\"]\n      ]\n    },\n    {\n      \"name\": \"Sheet2\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 8,\n      \"table\": []\n    }\n  ]\n}\n```\n\n (Type: string)\n  - **data.body_table**: \n数据表正文内容, 用本字段读取数据表内容, 在文档为数据表 (Table) 类型时会返回。\n\n\n```json\n{\ntotalCount: 1000, // 总行数\nrecords: [{\n  {\n// values为数组，顺序按meta中的columns顺序排列\nvalues:[{\n// 复选框，值为true/false\n\"value\": \"true\"\n},{\n// 多选框，对应选中的options\n\"value\": [\n\"AUb7o2\",\n\"rkGdKP\"\n]\n},{\n// 评分：0-5\n\"value\": \"4\"\n}, {\n// 进度：0-100\n\"value\": \"34\"\n}, {\n// 文件\n\"value\": [\n{\n\"name\": \"emails.csv\",\n\"uid\": \"rc-upload-1722830344900-3\",\n\"src\": \"https://host/xx.csv\",\n\"size\": 148,\n\"fileKey\": \"sheet\"\n}\n]\n}, {\n\"value\": \"文本\"\n}, {\n// 单选\n\"value\": \"waiting\"\n}, {\n// 日期\n\"value\": {\n\"seconds\": 3932799476,\n\"text\": \"2024-08-14\",\n\"time\": \"2024-08-14T04:12:13.318Z\"\n}\n}, {\n// 用户\n\"value\": [\n{\n\"id\": 1,\n\"name\": \"txy\",\n\"login\": \"u1\",\n\"avatar_url\": \"https://host/xx_url\",\n\"work_id\": \"\",\n\"description\": null\n}\n]\n}, {\n// 图片\n\"value\": [\n{\n\"name\": \"test.png\",\n\"uid\": \"rc-upload-1722831237360-3\",\n\"src\": \"https://host/xx.png\",\n\"size\": 19154,\n\"width\": 90,\n\"height\": 88\n}\n]\n}],\n\"createdAt\": \"2024-08-02T10:14:13.368Z\",\n\"updatedAt\": \"2024-08-05T11:56:01.102Z\",\n}\n }],\n pageSize: 100,\n page: 1,\n}\n``` (Type: string)\n  - **data.book**:  (Type: object)\n    - **data.book.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.creator_id**: \n创建者 ID (Type: integer)\n    - **data.book.description**: \n简介 (Type: string)\n    - **data.book.id**: \n知识库 ID (Type: integer)\n    - **data.book.items_count**: \n文档数量 (Type: integer)\n    - **data.book.likes_count**: \n点赞数量 (Type: integer)\n    - **data.book.name**: \n名称 (Type: string)\n    - **data.book.namespace**: \n完整路径 (Type: string)\n    - **data.book.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.book.slug**: \n路径 (Type: string)\n    - **data.book.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n    - **data.book.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user**:  (Type: object)\n      - **data.book.user.avatar_url**: \n头像 (Type: string)\n      - **data.book.user.books_count**: \n知识库数量 (Type: integer)\n      - **data.book.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n      - **data.book.user.description**: \n介绍 (Type: string)\n      - **data.book.user.followers_count**: \n被关注的人数 (Type: integer)\n      - **data.book.user.following_count**: \n关注的人数 (Type: integer)\n      - **data.book.user.id**: \n用户 ID (Type: integer)\n      - **data.book.user.login**: \n登录名 (Type: string)\n      - **data.book.user.name**: \n昵称 (Type: string)\n      - **data.book.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n      - **data.book.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n      - **data.book.user.type**: \n类型\nAlways 'User' (Type: string)\n      - **data.book.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user_id**: \n归属用户/团队 ID (Type: integer)\n    - **data.book.watches_count**: \n订阅数量 (Type: integer)\n  - **data.book_id**: \n归属知识库 ID (Type: integer)\n  - **data.comments_count**: \n评论数 (Type: integer)\n  - **data.content_updated_at**: \n内容更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.cover**: \n封面 (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator**:  (Type: object)\n    - **data.creator.avatar_url**: \n头像 (Type: string)\n    - **data.creator.books_count**: \n知识库数量 (Type: integer)\n    - **data.creator.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.creator.description**: \n介绍 (Type: string)\n    - **data.creator.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.creator.following_count**: \n关注的人数 (Type: integer)\n    - **data.creator.id**: \n用户 ID (Type: integer)\n    - **data.creator.login**: \n登录名 (Type: string)\n    - **data.creator.name**: \n昵称 (Type: string)\n    - **data.creator.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.creator.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.creator.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.creator.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.description**: \n摘要 (Type: string)\n  - **data.first_published_at**: \n首次发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.format**: \n内容格式\n(markdown:Markdown 格式, lake:语雀 Lake 格式, html:HTML 标准格式, lakesheet:语雀表格) (Type: string)\n  - **data.hits**: \n阅读数\n\n (Type: integer)\n  - **data.id**: \n文档 ID (Type: integer)\n  - **data.last_editor_id**: \n最后编辑者 ID (Type: integer)\n  - **data.latest_version_id**: \n最新已发版本 ID\n\n (Type: integer)\n  - **data.likes_count**: \n点赞数 (Type: integer)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.published_at**: \n发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.read_count**: \n阅读数\n\n (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.status**: \n状态\n(0:草稿, 1:发布) (Type: string)\n  - **data.tags**:  (Type: object)\n    - **data.tags.book_id**: \n知识库 ID (Type: integer)\n    - **data.tags.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.doc_id**: \n文档 ID (Type: integer)\n    - **data.tags.id**: \nTAG ID (Type: integer)\n    - **data.tags.title**: \nTAG NAME (Type: string)\n    - **data.tags.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.user_id**: \n创建者 ID (Type: integer)\n  - **data.title**: \n标题 (Type: string)\n  - **data.type**: \n文档类型\n(Doc:普通文档, Sheet:表格, Thread:话题, Board:图集, Table:数据表) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.word_count**: \n内容字数 (Type: integer)\n\n## Original Response\n\n"
+  - name: doc_api_v2_doc_list
+    description: |+
+      获取知识库的文档列表 - 获取知识库的文档列表
+    args:
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+      - name: limit
+        description: 每页数量 [分页参数]
+        type: integer
+        position: query
+      - name: offset
+        description: 偏移量 [分页参数]
+        type: integer
+        position: query
+      - name: optional_properties
+        description: |+
+          获取的额外字段, 多个字段以逗号分隔
+          - 注意: 每页数量超过 100 本字段会失效
+          - 支持的字段有:
+            - hits: 文档阅读数
+            - tags: 标签
+            - latest_version_id: 最新已发版本 ID
+        type: string
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}/docs
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: array)\n  - **data[].book**:  (Type: object)\n    - **data[].book.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].book.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].book.creator_id**: \n创建者 ID (Type: integer)\n    - **data[].book.description**: \n简介 (Type: string)\n    - **data[].book.id**: \n知识库 ID (Type: integer)\n    - **data[].book.items_count**: \n文档数量 (Type: integer)\n    - **data[].book.likes_count**: \n点赞数量 (Type: integer)\n    - **data[].book.name**: \n名称 (Type: string)\n    - **data[].book.namespace**: \n完整路径 (Type: string)\n    - **data[].book.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].book.slug**: \n路径 (Type: string)\n    - **data[].book.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n    - **data[].book.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].book.user**:  (Type: object)\n      - **data[].book.user.avatar_url**: \n头像 (Type: string)\n      - **data[].book.user.books_count**: \n知识库数量 (Type: integer)\n      - **data[].book.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n      - **data[].book.user.description**: \n介绍 (Type: string)\n      - **data[].book.user.followers_count**: \n被关注的人数 (Type: integer)\n      - **data[].book.user.following_count**: \n关注的人数 (Type: integer)\n      - **data[].book.user.id**: \n用户 ID (Type: integer)\n      - **data[].book.user.login**: \n登录名 (Type: string)\n      - **data[].book.user.name**: \n昵称 (Type: string)\n      - **data[].book.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n      - **data[].book.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n      - **data[].book.user.type**: \n类型\nAlways 'User' (Type: string)\n      - **data[].book.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].book.user_id**: \n归属用户/团队 ID (Type: integer)\n    - **data[].book.watches_count**: \n订阅数量 (Type: integer)\n  - **data[].book_id**: \n归属知识库 ID (Type: integer)\n  - **data[].comments_count**: \n评论数 (Type: integer)\n  - **data[].content_updated_at**: \n内容更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].cover**: \n封面 (Type: string)\n  - **data[].created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].description**: \n摘要 (Type: string)\n  - **data[].first_published_at**: \n首次发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].hits**: \n阅读数\n\n\n- 需要传入 `optional_properties=hits` 获取\n\n (Type: integer)\n  - **data[].id**: \n文档 ID (Type: integer)\n  - **data[].last_editor**:  (Type: object)\n    - **data[].last_editor.avatar_url**: \n头像 (Type: string)\n    - **data[].last_editor.books_count**: \n知识库数量 (Type: integer)\n    - **data[].last_editor.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].last_editor.description**: \n介绍 (Type: string)\n    - **data[].last_editor.followers_count**: \n被关注的人数 (Type: integer)\n    - **data[].last_editor.following_count**: \n关注的人数 (Type: integer)\n    - **data[].last_editor.id**: \n用户 ID (Type: integer)\n    - **data[].last_editor.login**: \n登录名 (Type: string)\n    - **data[].last_editor.name**: \n昵称 (Type: string)\n    - **data[].last_editor.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].last_editor.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data[].last_editor.type**: \n类型\nAlways 'User' (Type: string)\n    - **data[].last_editor.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].last_editor_id**: \n最后编辑者 ID (Type: integer)\n  - **data[].latest_version_id**: \n最新已发版本 ID\n\n\n- 需要传入 `optional_properties=latest_version_id` 获取\n\n (Type: integer)\n  - **data[].likes_count**: \n点赞数 (Type: integer)\n  - **data[].public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data[].published_at**: \n发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].read_count**: \n阅读数\n\n\n- 需要传入 `optional_properties=hits` 获取\n\n (Type: integer)\n  - **data[].slug**: \n路径 (Type: string)\n  - **data[].status**: \n状态\n(0:草稿, 1:发布) (Type: string)\n  - **data[].tags**:  (Type: object)\n    - **data[].tags.book_id**: \n知识库 ID (Type: integer)\n    - **data[].tags.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].tags.doc_id**: \n文档 ID (Type: integer)\n    - **data[].tags.id**: \nTAG ID (Type: integer)\n    - **data[].tags.title**: \nTAG NAME (Type: string)\n    - **data[].tags.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].tags.user_id**: \n创建者 ID (Type: integer)\n  - **data[].title**: \n标题 (Type: string)\n  - **data[].type**: \n文档类型\n(Doc:普通文档, Sheet:表格, Thread:话题, Board:图集, Table:数据表) (Type: string)\n  - **data[].updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user**:  (Type: object)\n    - **data[].user.avatar_url**: \n头像 (Type: string)\n    - **data[].user.books_count**: \n知识库数量 (Type: integer)\n    - **data[].user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].user.description**: \n介绍 (Type: string)\n    - **data[].user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data[].user.following_count**: \n关注的人数 (Type: integer)\n    - **data[].user.id**: \n用户 ID (Type: integer)\n    - **data[].user.login**: \n登录名 (Type: string)\n    - **data[].user.name**: \n昵称 (Type: string)\n    - **data[].user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data[].user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data[].user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data[].word_count**: \n内容字数 (Type: integer)\n- **meta**:  (Type: object)\n  - **meta.total**: 结果总量 (Type: integer)\n\n## Original Response\n\n"
+  - name: doc_api_v2_doc_show
+    description: |+
+      获取文档详情 - 获取文档详情
+    args:
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+      - name: id
+        description: 文档 ID or 路径
+        type: string
+        position: path
+      - name: page
+        description: 数据表使用，页码
+        type: integer
+        position: query
+      - name: page_size
+        description: 数据表使用，分页大小
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}/docs/{id}
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.body**: \n正文原始内容 (Type: string)\n  - **data.body_draft**: \n正文草稿内容 (Type: string)\n  - **data.body_html**: \n正文 HTML 标准格式内容 (Type: string)\n  - **data.body_lake**: \n正文语雀 Lake 格式内容 (Type: string)\n  - **data.body_sheet**: \n表格正文内容\n\n\n用本字段读取表格内容, 在文档为表格 (sheet) 类型时会返回。\n\n\n语雀表格 (sheet) 正文格式示例如下, JSON 反序列化后的结构:\n(注意: 所有项的值均为字符串, 公式项为计算后的值, 日期格式: yyyy-mm-dd HH:MM:SS)\n\n\n```json\n{\n  \"version\": \"1.0\",\n  \"data\": [\n    {\n      \"name\": \"Sheet1\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 4,\n      \"table\": [\n        [\"参数名\", \"类型\", \"必填\", \"默认值\"],\n        [\"name\", \"string\", \"1\", \"\"],\n        [\"flag\", \"boolean\", \"0\", \"false\"]\n      ]\n    },\n    {\n      \"name\": \"Sheet2\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 8,\n      \"table\": []\n    }\n  ]\n}\n```\n\n (Type: string)\n  - **data.body_table**: \n数据表正文内容, 用本字段读取数据表内容, 在文档为数据表 (Table) 类型时会返回。\n\n\n```json\n{\ntotalCount: 1000, // 总行数\nrecords: [{\n  {\n// values为数组，顺序按meta中的columns顺序排列\nvalues:[{\n// 复选框，值为true/false\n\"value\": \"true\"\n},{\n// 多选框，对应选中的options\n\"value\": [\n\"AUb7o2\",\n\"rkGdKP\"\n]\n},{\n// 评分：0-5\n\"value\": \"4\"\n}, {\n// 进度：0-100\n\"value\": \"34\"\n}, {\n// 文件\n\"value\": [\n{\n\"name\": \"emails.csv\",\n\"uid\": \"rc-upload-1722830344900-3\",\n\"src\": \"https://host/xx.csv\",\n\"size\": 148,\n\"fileKey\": \"sheet\"\n}\n]\n}, {\n\"value\": \"文本\"\n}, {\n// 单选\n\"value\": \"waiting\"\n}, {\n// 日期\n\"value\": {\n\"seconds\": 3932799476,\n\"text\": \"2024-08-14\",\n\"time\": \"2024-08-14T04:12:13.318Z\"\n}\n}, {\n// 用户\n\"value\": [\n{\n\"id\": 1,\n\"name\": \"txy\",\n\"login\": \"u1\",\n\"avatar_url\": \"https://host/xx_url\",\n\"work_id\": \"\",\n\"description\": null\n}\n]\n}, {\n// 图片\n\"value\": [\n{\n\"name\": \"test.png\",\n\"uid\": \"rc-upload-1722831237360-3\",\n\"src\": \"https://host/xx.png\",\n\"size\": 19154,\n\"width\": 90,\n\"height\": 88\n}\n]\n}],\n\"createdAt\": \"2024-08-02T10:14:13.368Z\",\n\"updatedAt\": \"2024-08-05T11:56:01.102Z\",\n}\n }],\n pageSize: 100,\n page: 1,\n}\n``` (Type: string)\n  - **data.book**:  (Type: object)\n    - **data.book.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.creator_id**: \n创建者 ID (Type: integer)\n    - **data.book.description**: \n简介 (Type: string)\n    - **data.book.id**: \n知识库 ID (Type: integer)\n    - **data.book.items_count**: \n文档数量 (Type: integer)\n    - **data.book.likes_count**: \n点赞数量 (Type: integer)\n    - **data.book.name**: \n名称 (Type: string)\n    - **data.book.namespace**: \n完整路径 (Type: string)\n    - **data.book.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.book.slug**: \n路径 (Type: string)\n    - **data.book.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n    - **data.book.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user**:  (Type: object)\n      - **data.book.user.avatar_url**: \n头像 (Type: string)\n      - **data.book.user.books_count**: \n知识库数量 (Type: integer)\n      - **data.book.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n      - **data.book.user.description**: \n介绍 (Type: string)\n      - **data.book.user.followers_count**: \n被关注的人数 (Type: integer)\n      - **data.book.user.following_count**: \n关注的人数 (Type: integer)\n      - **data.book.user.id**: \n用户 ID (Type: integer)\n      - **data.book.user.login**: \n登录名 (Type: string)\n      - **data.book.user.name**: \n昵称 (Type: string)\n      - **data.book.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n      - **data.book.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n      - **data.book.user.type**: \n类型\nAlways 'User' (Type: string)\n      - **data.book.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user_id**: \n归属用户/团队 ID (Type: integer)\n    - **data.book.watches_count**: \n订阅数量 (Type: integer)\n  - **data.book_id**: \n归属知识库 ID (Type: integer)\n  - **data.comments_count**: \n评论数 (Type: integer)\n  - **data.content_updated_at**: \n内容更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.cover**: \n封面 (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator**:  (Type: object)\n    - **data.creator.avatar_url**: \n头像 (Type: string)\n    - **data.creator.books_count**: \n知识库数量 (Type: integer)\n    - **data.creator.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.creator.description**: \n介绍 (Type: string)\n    - **data.creator.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.creator.following_count**: \n关注的人数 (Type: integer)\n    - **data.creator.id**: \n用户 ID (Type: integer)\n    - **data.creator.login**: \n登录名 (Type: string)\n    - **data.creator.name**: \n昵称 (Type: string)\n    - **data.creator.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.creator.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.creator.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.creator.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.description**: \n摘要 (Type: string)\n  - **data.first_published_at**: \n首次发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.format**: \n内容格式\n(markdown:Markdown 格式, lake:语雀 Lake 格式, html:HTML 标准格式, lakesheet:语雀表格) (Type: string)\n  - **data.hits**: \n阅读数\n\n (Type: integer)\n  - **data.id**: \n文档 ID (Type: integer)\n  - **data.last_editor_id**: \n最后编辑者 ID (Type: integer)\n  - **data.latest_version_id**: \n最新已发版本 ID\n\n (Type: integer)\n  - **data.likes_count**: \n点赞数 (Type: integer)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.published_at**: \n发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.read_count**: \n阅读数\n\n (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.status**: \n状态\n(0:草稿, 1:发布) (Type: string)\n  - **data.tags**:  (Type: object)\n    - **data.tags.book_id**: \n知识库 ID (Type: integer)\n    - **data.tags.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.doc_id**: \n文档 ID (Type: integer)\n    - **data.tags.id**: \nTAG ID (Type: integer)\n    - **data.tags.title**: \nTAG NAME (Type: string)\n    - **data.tags.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.user_id**: \n创建者 ID (Type: integer)\n  - **data.title**: \n标题 (Type: string)\n  - **data.type**: \n文档类型\n(Doc:普通文档, Sheet:表格, Thread:话题, Board:图集, Table:数据表) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.word_count**: \n内容字数 (Type: integer)\n\n## Original Response\n\n"
+  - name: doc_api_v2_doc_update
+    description: |+
+      更新文档 - 更新文档
+    args:
+      - name: body
+        description: 正文内容
+        type: string
+        position: body
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: format
+        description: |-
+          内容格式
+          (markdown:Markdown 格式, html:HTML 标准格式, lake:语雀 Lake 格式)
+        type: string
+        enum: ["markdown","html","lake"]
+        position: body
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+      - name: id
+        description: 文档 ID or 路径
+        type: string
+        position: path
+      - name: public
+        description: |-
+          公开性 (0:私密, 1:公开, 2:企业内公开)
+        type: integer
+        enum: [0,1,2]
+        position: body
+      - name: slug
+        description: 路径
+        type: string
+        position: body
+      - name: title
+        description: 标题
+        type: string
+        position: body
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}/docs/{id}
+      method: PUT
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.body**: \n正文原始内容 (Type: string)\n  - **data.body_draft**: \n正文草稿内容 (Type: string)\n  - **data.body_html**: \n正文 HTML 标准格式内容 (Type: string)\n  - **data.body_lake**: \n正文语雀 Lake 格式内容 (Type: string)\n  - **data.body_sheet**: \n表格正文内容\n\n\n用本字段读取表格内容, 在文档为表格 (sheet) 类型时会返回。\n\n\n语雀表格 (sheet) 正文格式示例如下, JSON 反序列化后的结构:\n(注意: 所有项的值均为字符串, 公式项为计算后的值, 日期格式: yyyy-mm-dd HH:MM:SS)\n\n\n```json\n{\n  \"version\": \"1.0\",\n  \"data\": [\n    {\n      \"name\": \"Sheet1\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 4,\n      \"table\": [\n        [\"参数名\", \"类型\", \"必填\", \"默认值\"],\n        [\"name\", \"string\", \"1\", \"\"],\n        [\"flag\", \"boolean\", \"0\", \"false\"]\n      ]\n    },\n    {\n      \"name\": \"Sheet2\",\n      \"index\": 0,\n      \"rowCount\": 100,\n      \"colCount\": 8,\n      \"table\": []\n    }\n  ]\n}\n```\n\n (Type: string)\n  - **data.body_table**: \n数据表正文内容, 用本字段读取数据表内容, 在文档为数据表 (Table) 类型时会返回。\n\n\n```json\n{\ntotalCount: 1000, // 总行数\nrecords: [{\n  {\n// values为数组，顺序按meta中的columns顺序排列\nvalues:[{\n// 复选框，值为true/false\n\"value\": \"true\"\n},{\n// 多选框，对应选中的options\n\"value\": [\n\"AUb7o2\",\n\"rkGdKP\"\n]\n},{\n// 评分：0-5\n\"value\": \"4\"\n}, {\n// 进度：0-100\n\"value\": \"34\"\n}, {\n// 文件\n\"value\": [\n{\n\"name\": \"emails.csv\",\n\"uid\": \"rc-upload-1722830344900-3\",\n\"src\": \"https://host/xx.csv\",\n\"size\": 148,\n\"fileKey\": \"sheet\"\n}\n]\n}, {\n\"value\": \"文本\"\n}, {\n// 单选\n\"value\": \"waiting\"\n}, {\n// 日期\n\"value\": {\n\"seconds\": 3932799476,\n\"text\": \"2024-08-14\",\n\"time\": \"2024-08-14T04:12:13.318Z\"\n}\n}, {\n// 用户\n\"value\": [\n{\n\"id\": 1,\n\"name\": \"txy\",\n\"login\": \"u1\",\n\"avatar_url\": \"https://host/xx_url\",\n\"work_id\": \"\",\n\"description\": null\n}\n]\n}, {\n// 图片\n\"value\": [\n{\n\"name\": \"test.png\",\n\"uid\": \"rc-upload-1722831237360-3\",\n\"src\": \"https://host/xx.png\",\n\"size\": 19154,\n\"width\": 90,\n\"height\": 88\n}\n]\n}],\n\"createdAt\": \"2024-08-02T10:14:13.368Z\",\n\"updatedAt\": \"2024-08-05T11:56:01.102Z\",\n}\n }],\n pageSize: 100,\n page: 1,\n}\n``` (Type: string)\n  - **data.book**:  (Type: object)\n    - **data.book.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.creator_id**: \n创建者 ID (Type: integer)\n    - **data.book.description**: \n简介 (Type: string)\n    - **data.book.id**: \n知识库 ID (Type: integer)\n    - **data.book.items_count**: \n文档数量 (Type: integer)\n    - **data.book.likes_count**: \n点赞数量 (Type: integer)\n    - **data.book.name**: \n名称 (Type: string)\n    - **data.book.namespace**: \n完整路径 (Type: string)\n    - **data.book.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.book.slug**: \n路径 (Type: string)\n    - **data.book.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n    - **data.book.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user**:  (Type: object)\n      - **data.book.user.avatar_url**: \n头像 (Type: string)\n      - **data.book.user.books_count**: \n知识库数量 (Type: integer)\n      - **data.book.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n      - **data.book.user.description**: \n介绍 (Type: string)\n      - **data.book.user.followers_count**: \n被关注的人数 (Type: integer)\n      - **data.book.user.following_count**: \n关注的人数 (Type: integer)\n      - **data.book.user.id**: \n用户 ID (Type: integer)\n      - **data.book.user.login**: \n登录名 (Type: string)\n      - **data.book.user.name**: \n昵称 (Type: string)\n      - **data.book.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n      - **data.book.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n      - **data.book.user.type**: \n类型\nAlways 'User' (Type: string)\n      - **data.book.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.book.user_id**: \n归属用户/团队 ID (Type: integer)\n    - **data.book.watches_count**: \n订阅数量 (Type: integer)\n  - **data.book_id**: \n归属知识库 ID (Type: integer)\n  - **data.comments_count**: \n评论数 (Type: integer)\n  - **data.content_updated_at**: \n内容更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.cover**: \n封面 (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator**:  (Type: object)\n    - **data.creator.avatar_url**: \n头像 (Type: string)\n    - **data.creator.books_count**: \n知识库数量 (Type: integer)\n    - **data.creator.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.creator.description**: \n介绍 (Type: string)\n    - **data.creator.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.creator.following_count**: \n关注的人数 (Type: integer)\n    - **data.creator.id**: \n用户 ID (Type: integer)\n    - **data.creator.login**: \n登录名 (Type: string)\n    - **data.creator.name**: \n昵称 (Type: string)\n    - **data.creator.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.creator.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.creator.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.creator.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.description**: \n摘要 (Type: string)\n  - **data.first_published_at**: \n首次发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.format**: \n内容格式\n(markdown:Markdown 格式, lake:语雀 Lake 格式, html:HTML 标准格式, lakesheet:语雀表格) (Type: string)\n  - **data.hits**: \n阅读数\n\n (Type: integer)\n  - **data.id**: \n文档 ID (Type: integer)\n  - **data.last_editor_id**: \n最后编辑者 ID (Type: integer)\n  - **data.latest_version_id**: \n最新已发版本 ID\n\n (Type: integer)\n  - **data.likes_count**: \n点赞数 (Type: integer)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.published_at**: \n发布时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.read_count**: \n阅读数\n\n (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.status**: \n状态\n(0:草稿, 1:发布) (Type: string)\n  - **data.tags**:  (Type: object)\n    - **data.tags.book_id**: \n知识库 ID (Type: integer)\n    - **data.tags.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.doc_id**: \n文档 ID (Type: integer)\n    - **data.tags.id**: \nTAG ID (Type: integer)\n    - **data.tags.title**: \nTAG NAME (Type: string)\n    - **data.tags.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.tags.user_id**: \n创建者 ID (Type: integer)\n  - **data.title**: \n标题 (Type: string)\n  - **data.type**: \n文档类型\n(Doc:普通文档, Sheet:表格, Thread:话题, Board:图集, Table:数据表) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.word_count**: \n内容字数 (Type: integer)\n\n## Original Response\n\n"
+  - name: doc_api_v2_doc_version_list
+    description: |+
+      获取文档历史版本列表 - 获取文档历史版本列表
+      - 按时间倒序返回最近 100 个已发布版本
+    args:
+      - name: doc_id
+        description: 文档 ID
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/doc_versions
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: array)\n  - **data[].created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].doc_id**: \n文档 ID (Type: integer)\n  - **data[].id**: \n版本 ID (Type: integer)\n  - **data[].slug**: \n文档路径 (Type: string)\n  - **data[].title**: \n文档标题 (Type: string)\n  - **data[].updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user**:  (Type: object)\n    - **data[].user.avatar_url**: \n头像 (Type: string)\n    - **data[].user.books_count**: \n知识库数量 (Type: integer)\n    - **data[].user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].user.description**: \n介绍 (Type: string)\n    - **data[].user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data[].user.following_count**: \n关注的人数 (Type: integer)\n    - **data[].user.id**: \n用户 ID (Type: integer)\n    - **data[].user.login**: \n登录名 (Type: string)\n    - **data[].user.name**: \n昵称 (Type: string)\n    - **data[].user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data[].user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data[].user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user_id**: \n发版人 ID (Type: integer)\n\n## Original Response\n\n"
+  - name: doc_api_v2_doc_version_show
+    description: |+
+      获取文档历史版本详情 - 获取文档历史版本详情
+    args:
+      - name: id
+        description: 版本 ID
+        type: integer
+        position: path
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/doc_versions/{id}
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.body**: \n正文原始内容 (Type: string)\n  - **data.body_asl**: \n正文语雀 Lake 格式内容 (Type: string)\n  - **data.body_html**: \n正文 HTML 标准格式内容 (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.diff**: \n版本 DIFF (Type: string)\n  - **data.doc_id**: \n文档 ID (Type: integer)\n  - **data.format**: \n内容格式\n(markdown:Markdown 格式, lake:语雀 Lake 格式, html:HTML 标准格式, lakesheet:语雀表格) (Type: string)\n  - **data.id**: \n版本 ID (Type: integer)\n  - **data.slug**: \n文档路径 (Type: string)\n  - **data.title**: \n文档标题 (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n发版人 ID (Type: integer)\n\n## Original Response\n\n"
+  - name: doc_api_v2_repo_toc_show
+    description: |+
+      获取目录 - 获取目录
+    args:
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}/toc
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: array)\n  - **data[].child_uuid**: \n子级第一个节点 uuid (Type: string)\n  - **data[].depth**: \n节点层级 (Type: integer)\n  - **data[].doc_id**: \n文档 ID (Type: integer)\n  - **data[].id**: \n文档 ID (Type: integer)\n  - **data[].level**: \n节点层级 (Type: integer)\n  - **data[].open_window**: \n是否在新窗口打开\n(0:当前页打开, 1:新窗口打开) (Type: integer)\n  - **data[].parent_uuid**: \n父级节点 uuid (Type: string)\n  - **data[].prev_uuid**: \n同级前一个节点 uuid (Type: string)\n  - **data[].sibling_uuid**: \n同级后一个节点 uuid (Type: string)\n  - **data[].slug**: \n节点 URL (Type: string)\n  - **data[].title**: \n节点名称 (Type: string)\n  - **data[].type**: \n节点类型\n(DOC:文档, LINK:外链, TITLE:分组) (Type: string)\n  - **data[].url**: \n节点 URL (Type: string)\n  - **data[].uuid**: \n节点唯一 ID (Type: string)\n  - **data[].visible**: \n是否可见\n(0:不可见, 1:可见) (Type: integer)\n\n## Original Response\n\n"
+  - name: group_api_v2_group_member_destroy
+    description: |-
+      删除成员 - 删除成员
+    args:
+      - name: id
+        description: 用户 Login or ID
+        type: string
+        position: path
+      - name: login
+        description: 团队 Login or ID
+        type: string
+        position: path
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/users/{id}
+      method: DELETE
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+        Below is the response from an API call. To help you understand the data, I've provided:
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+        ## Response Structure
+        > Content-Type: application/json
+        - **data**:  (Type: object)
+          - **data.user_id**: 删除用户 ID (Type: string)
+        ## Original Response
+  - name: group_api_v2_group_member_list
+    description: |+
+      获取团队的成员 - 获取团队的成员
+      - 支持分页, PageSize 固定为 100
+    args:
+      - name: login
+        description: 团队 Login or ID
+        type: string
+        position: path
+      - name: offset
+        description: 偏移量 [分页条件]
+        type: integer
+        position: query
+      - name: role
+        description: |-
+          角色 [筛选条件] (0:管理员, 1:成员, 2:只读成员)
+        type: integer
+        enum: [0,1,2]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/users
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: array)\n  - **data[].created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].group**:  (Type: object)\n    - **data[].group.avatar_url**: \n头像 (Type: string)\n    - **data[].group.books_count**: \n知识库数量 (Type: integer)\n    - **data[].group.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].group.description**: \n介绍 (Type: string)\n    - **data[].group.id**: \n团队 ID (Type: integer)\n    - **data[].group.login**: \n路径 (Type: string)\n    - **data[].group.members_count**: \n成员人数 (Type: integer)\n    - **data[].group.name**: \n名称 (Type: string)\n    - **data[].group.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].group.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data[].group.type**: \n类型\nAlways 'Group' (Type: string)\n    - **data[].group.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].group_id**: \n团队 ID (Type: integer)\n  - **data[].id**: \nID (Type: integer)\n  - **data[].role**: \n成员角色\n(0:管理员, 1:成员, 2:只读成员) (Type: integer)\n  - **data[].updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user**:  (Type: object)\n    - **data[].user.avatar_url**: \n头像 (Type: string)\n    - **data[].user.books_count**: \n知识库数量 (Type: integer)\n    - **data[].user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].user.description**: \n介绍 (Type: string)\n    - **data[].user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data[].user.following_count**: \n关注的人数 (Type: integer)\n    - **data[].user.id**: \n用户 ID (Type: integer)\n    - **data[].user.login**: \n登录名 (Type: string)\n    - **data[].user.name**: \n昵称 (Type: string)\n    - **data[].user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data[].user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data[].user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user_id**: \n成员 ID (Type: integer)\n\n## Original Response\n\n"
+  - name: group_api_v2_group_member_update
+    description: |+
+      变更成员 - 变更成员
+    args:
+      - name: id
+        description: 用户 Login or ID
+        type: string
+        position: path
+      - name: login
+        description: 团队 Login or ID
+        type: string
+        position: path
+      - name: role
+        description: |-
+          角色 (0:管理员, 1:成员, 2:只读成员)
+        type: integer
+        enum: [0,1,2]
+        position: body
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/users/{id}
+      method: PUT
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.group**:  (Type: object)\n    - **data.group.avatar_url**: \n头像 (Type: string)\n    - **data.group.books_count**: \n知识库数量 (Type: integer)\n    - **data.group.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.group.description**: \n介绍 (Type: string)\n    - **data.group.id**: \n团队 ID (Type: integer)\n    - **data.group.login**: \n路径 (Type: string)\n    - **data.group.members_count**: \n成员人数 (Type: integer)\n    - **data.group.name**: \n名称 (Type: string)\n    - **data.group.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.group.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.group.type**: \n类型\nAlways 'Group' (Type: string)\n    - **data.group.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.group_id**: \n团队 ID (Type: integer)\n  - **data.id**: \nID (Type: integer)\n  - **data.role**: \n成员角色\n(0:管理员, 1:成员, 2:只读成员) (Type: integer)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n成员 ID (Type: integer)\n\n## Original Response\n\n"
+  - name: group_api_v2_user_group_list
+    description: |+
+      获取用户的团队 - 获取用户的团队
+      - 支持分页, PageSize 固定为 100
+    args:
+      - name: id
+        description: 用户 login 或 ID
+        type: string
+        position: path
+      - name: offset
+        description: 偏移量 [分页条件]
+        type: integer
+        position: query
+      - name: role
+        description: |-
+          角色 [过滤条件] (0:管理员, 1:成员)
+        type: integer
+        enum: [0,1]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/users/{id}/groups
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.avatar_url**: \n头像 (Type: string)\n  - **data.books_count**: \n知识库数量 (Type: integer)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.description**: \n介绍 (Type: string)\n  - **data.id**: \n团队 ID (Type: integer)\n  - **data.login**: \n路径 (Type: string)\n  - **data.members_count**: \n成员人数 (Type: integer)\n  - **data.name**: \n名称 (Type: string)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.public_books_count**: \n公开的知识库数量 (Type: integer)\n  - **data.type**: \n类型\nAlways 'Group' (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n\n## Original Response\n\n"
+  - name: repo_api_v2_repo_create
+    description: |+
+      创建知识库 - 创建知识库
+    args:
+      - name: description
+        description: 简介
+        type: string
+        position: body
+      - name: enhancedPrivacy
+        description: |-
+          增强私密性
+          - 将除团队管理员之外的团队成员、团队只读成员也设置为无权限
+        type: boolean
+        position: body
+      - name: login
+        description: 用户/团队的 Login 或 ID
+        type: string
+        position: path
+      - name: name
+        description: 名称
+        type: string
+        position: body
+      - name: public
+        description: |-
+          公开性 (0:私密, 1:公开, 2:企业内公开)
+        type: integer
+        enum: [0,1,2]
+        position: body
+      - name: slug
+        description: 路径
+        type: string
+        position: body
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/users/{login}/repos
+      method: POST
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator_id**: \n创建者 ID (Type: integer)\n  - **data.description**: \n简介 (Type: string)\n  - **data.id**: \n知识库 ID (Type: integer)\n  - **data.items_count**: \n文档数量 (Type: integer)\n  - **data.likes_count**: \n点赞数量 (Type: integer)\n  - **data.name**: \n名称 (Type: string)\n  - **data.namespace**: \n完整路径 (Type: string)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.watches_count**: \n订阅数量 (Type: integer)\n\n## Original Response\n\n"
+  - name: repo_api_v2_repo_create-by_group
+    description: |+
+      创建知识库 - 创建知识库
+    args:
+      - name: description
+        description: 简介
+        type: string
+        position: body
+      - name: enhancedPrivacy
+        description: |-
+          增强私密性
+          - 将除团队管理员之外的团队成员、团队只读成员也设置为无权限
+        type: boolean
+        position: body
+      - name: login
+        description: 用户/团队的 Login 或 ID
+        type: string
+        position: path
+      - name: name
+        description: 名称
+        type: string
+        position: body
+      - name: public
+        description: |-
+          公开性 (0:私密, 1:公开, 2:企业内公开)
+        type: integer
+        enum: [0,1,2]
+        position: body
+      - name: slug
+        description: 路径
+        type: string
+        position: body
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/repos
+      method: POST
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator_id**: \n创建者 ID (Type: integer)\n  - **data.description**: \n简介 (Type: string)\n  - **data.id**: \n知识库 ID (Type: integer)\n  - **data.items_count**: \n文档数量 (Type: integer)\n  - **data.likes_count**: \n点赞数量 (Type: integer)\n  - **data.name**: \n名称 (Type: string)\n  - **data.namespace**: \n完整路径 (Type: string)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.watches_count**: \n订阅数量 (Type: integer)\n\n## Original Response\n\n"
+  - name: repo_api_v2_repo_destroy
+    description: |+
+      删除知识库 - 删除知识库
+    args:
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}
+      method: DELETE
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator_id**: \n创建者 ID (Type: integer)\n  - **data.description**: \n简介 (Type: string)\n  - **data.id**: \n知识库 ID (Type: integer)\n  - **data.items_count**: \n文档数量 (Type: integer)\n  - **data.likes_count**: \n点赞数量 (Type: integer)\n  - **data.name**: \n名称 (Type: string)\n  - **data.namespace**: \n完整路径 (Type: string)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.watches_count**: \n订阅数量 (Type: integer)\n\n## Original Response\n\n"
+  - name: repo_api_v2_repo_list
+    description: |+
+      获取知识库列表 - 获取知识库列表
+      GET /api/v2/groups/:id/repos
+      GET /api/v2/groups/:login/repos
+
+      GET /api/v2/users/:id/repos
+      GET /api/v2/users/:login/repos
+    args:
+      - name: limit
+        description: 每页数量 [分页参数]
+        type: integer
+        position: query
+      - name: login
+        description: 用户/团队的 Login 或 ID
+        type: string
+        position: path
+      - name: offset
+        description: 偏移量 [分页参数]
+        type: integer
+        position: query
+      - name: type
+        description: |-
+          类型 [筛选条件]
+          (Book:文档型知识库, Design: 画板型知识库)
+        type: string
+        enum: ["Book", "Design"]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/users/{login}/repos
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: array)\n  - **data[].content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].creator_id**: \n创建者 ID (Type: integer)\n  - **data[].description**: \n简介 (Type: string)\n  - **data[].id**: \n知识库 ID (Type: integer)\n  - **data[].items_count**: \n文档数量 (Type: integer)\n  - **data[].likes_count**: \n点赞数量 (Type: integer)\n  - **data[].name**: \n名称 (Type: string)\n  - **data[].namespace**: \n完整路径 (Type: string)\n  - **data[].public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data[].slug**: \n路径 (Type: string)\n  - **data[].type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n  - **data[].updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user**:  (Type: object)\n    - **data[].user.avatar_url**: \n头像 (Type: string)\n    - **data[].user.books_count**: \n知识库数量 (Type: integer)\n    - **data[].user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].user.description**: \n介绍 (Type: string)\n    - **data[].user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data[].user.following_count**: \n关注的人数 (Type: integer)\n    - **data[].user.id**: \n用户 ID (Type: integer)\n    - **data[].user.login**: \n登录名 (Type: string)\n    - **data[].user.name**: \n昵称 (Type: string)\n    - **data[].user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data[].user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data[].user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data[].watches_count**: \n订阅数量 (Type: integer)\n\n## Original Response\n\n"
+  - name: repo_api_v2_repo_list-by_group
+    description: |+
+      获取知识库列表 - 获取知识库列表
+    args:
+      - name: limit
+        description: 每页数量 [分页参数]
+        type: integer
+        position: query
+      - name: login
+        description: 用户/团队的 Login 或 ID
+        type: string
+        position: path
+      - name: offset
+        description: 偏移量 [分页参数]
+        type: integer
+        position: query
+      - name: type
+        description: |-
+          类型 [筛选条件]
+          (Book:文档型知识库, Design: 画板型知识库)
+        type: string
+        enum: ["Book", "Design"]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/repos
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: array)\n  - **data[].content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].creator_id**: \n创建者 ID (Type: integer)\n  - **data[].description**: \n简介 (Type: string)\n  - **data[].id**: \n知识库 ID (Type: integer)\n  - **data[].items_count**: \n文档数量 (Type: integer)\n  - **data[].likes_count**: \n点赞数量 (Type: integer)\n  - **data[].name**: \n名称 (Type: string)\n  - **data[].namespace**: \n完整路径 (Type: string)\n  - **data[].public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data[].slug**: \n路径 (Type: string)\n  - **data[].type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n  - **data[].updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user**:  (Type: object)\n    - **data[].user.avatar_url**: \n头像 (Type: string)\n    - **data[].user.books_count**: \n知识库数量 (Type: integer)\n    - **data[].user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data[].user.description**: \n介绍 (Type: string)\n    - **data[].user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data[].user.following_count**: \n关注的人数 (Type: integer)\n    - **data[].user.id**: \n用户 ID (Type: integer)\n    - **data[].user.login**: \n登录名 (Type: string)\n    - **data[].user.name**: \n昵称 (Type: string)\n    - **data[].user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data[].user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data[].user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data[].user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data[].user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data[].watches_count**: \n订阅数量 (Type: integer)\n\n## Original Response\n\n"
+  - name: repo_api_v2_repo_show
+    description: |+
+      获取知识库详情 - 获取知识库详情
+    args:
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator_id**: \n创建者 ID (Type: integer)\n  - **data.description**: \n简介 (Type: string)\n  - **data.id**: \n知识库 ID (Type: integer)\n  - **data.items_count**: \n文档数量 (Type: integer)\n  - **data.likes_count**: \n点赞数量 (Type: integer)\n  - **data.name**: \n名称 (Type: string)\n  - **data.namespace**: \n完整路径 (Type: string)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.toc_yml**: \n目录 (Type: string)\n  - **data.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.watches_count**: \n订阅数量 (Type: integer)\n\n## Original Response\n\n"
+  - name: repo_api_v2_repo_update
+    description: |+
+      更新知识库 - 更新知识库
+    args:
+      - name: book_slug
+        description: 知识库路径
+        type: string
+        position: path
+      - name: description
+        description: 简介
+        type: string
+        position: body
+      - name: group_login
+        description: 团队 Login
+        type: string
+        position: path
+      - name: name
+        description: 名称
+        type: string
+        position: body
+      - name: public
+        description: |-
+          公开性 (0:私密, 1:公开, 2:企业内公开)
+        type: integer
+        enum: [0,1,2]
+        position: body
+      - name: slug
+        description: 路径
+        type: string
+        position: body
+      - name: toc
+        description: |+
+          目录
+          - 可利用此字段批量更新知识库的目录
+          - 必须是 Markdown 格式, `[名称](文档路径)` 示例:
+          ```markdown
+          - [新手指引]()
+            - [语雀是什么](about)
+            - [常见问题](faq)
+          - [基础功能]()
+            - [工作台](dashboard)
+            - [如何设置自定义路径](nkt888)
+            - [外链](http://www.alipay.com)
+          ```
+        type: string
+        required: false
+        position: body
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/repos/{group_login}/{book_slug}
+      method: PUT
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.content_updated_at**: \n知识库 META 更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.creator_id**: \n创建者 ID (Type: integer)\n  - **data.description**: \n简介 (Type: string)\n  - **data.id**: \n知识库 ID (Type: integer)\n  - **data.items_count**: \n文档数量 (Type: integer)\n  - **data.likes_count**: \n点赞数量 (Type: integer)\n  - **data.name**: \n名称 (Type: string)\n  - **data.namespace**: \n完整路径 (Type: string)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.slug**: \n路径 (Type: string)\n  - **data.type**: \n类型\n(Book:文档, Design:图集, Sheet:表格, Resource:资源) (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user**:  (Type: object)\n    - **data.user.avatar_url**: \n头像 (Type: string)\n    - **data.user.books_count**: \n知识库数量 (Type: integer)\n    - **data.user.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n    - **data.user.description**: \n介绍 (Type: string)\n    - **data.user.followers_count**: \n被关注的人数 (Type: integer)\n    - **data.user.following_count**: \n关注的人数 (Type: integer)\n    - **data.user.id**: \n用户 ID (Type: integer)\n    - **data.user.login**: \n登录名 (Type: string)\n    - **data.user.name**: \n昵称 (Type: string)\n    - **data.user.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n    - **data.user.public_books_count**: \n公开的知识库数量 (Type: integer)\n    - **data.user.type**: \n类型\nAlways 'User' (Type: string)\n    - **data.user.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.user_id**: \n归属用户/团队 ID (Type: integer)\n  - **data.watches_count**: \n订阅数量 (Type: integer)\n\n## Original Response\n\n"
+  - name: search_api_v2_search
+    description: |+
+      通用搜索 - 通用搜索
+    args:
+      - name: creator
+        description: 仅搜索指定作者 login [筛选条件]
+        type: string
+        position: query
+      - name: creatorId
+        description: 仅搜索指定作者 ID [筛选条件]
+        type: integer
+        position: query
+      - name: offset
+        description: 页码, 非偏移量 [分页参数]
+        type: integer
+        position: query
+      - name: page
+        description: 页码 [分页参数]
+        type: integer
+        position: query
+      - name: q
+        description: 搜索关键词
+        type: string
+        position: query
+      - name: scope
+        description: |-
+          搜索范围, 不填默认为搜索当前用户/团队
+          [例子]
+          ```
+          - 假设:
+            - 团队 URL = https://yuque_domain/group_a
+            - 知识库 URL = https://yuque_domain/group_a/book_x
+          - 则:
+            - 搜索团队里的文档: { type: 'doc', scope: 'group_a' }
+            - 搜索团队里的知识库: { type: 'repo', scope: 'group_a' }
+            - 搜索知识库里的文档: { type: 'doc', scope: 'group_a/book_x' }
+          ```
+        type: string
+        position: query
+      - name: type
+        description: |-
+          搜索类型 (doc:文档, repo:知识库)
+        type: string
+        enum: ["doc", "repo"]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/search
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: array)\n  - **data[].id**: \nID (Type: integer)\n  - **data[].info**: \n归属信息 (Type: string)\n  - **data[].summary**: \n摘要\n`<em></em>` 高亮关键词 (Type: string)\n  - **data[].target**: \n  - **data[].title**: \n标题\n`<em></em>` 高亮关键词 (Type: string)\n  - **data[].type**: \n类型\n(doc:文档, repo:知识库) (Type: string)\n  - **data[].url**: \n访问路径 (Type: string)\n- **meta**:  (Type: object)\n  - **meta.pageNo**: 页码 (Type: integer)\n  - **meta.pageSize**: 每页数量 (Type: integer)\n  - **meta.total**: 结果总量 (Type: integer)\n\n## Original Response\n\n"
+  - name: statistic_api_v2_statistic_all
+    description: |+
+      团队.汇总统计数据 - 团队.汇总统计数据
+    args:
+      - name: login
+        description: 团队的 Login 或 ID
+        type: string
+        position: path
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/statistics
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+        Below is the response from an API call. To help you understand the data, I've provided:
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+        ## Response Structure
+        > Content-Type: application/json
+        - **data**:  (Type: object)
+          - **data**:  (Type: object)
+          - **data.artboard_count**: 图集数量 (Type: string)
+          - **data.attachment_count**: 附件数量 (Type: string)
+          - **data.baike**: 百科全书卷数 (Type: string)
+          - **data.bizdate**: 统计日期 (YYYYMMDD) '' (Type: string)
+          - **data.board_count**: 画板数量 (Type: string)
+          - **data.book_book_count**: 文档知识库数量 (Type: string)
+          - **data.book_count**: 知识库总数量 (Type: string)
+          - **data.book_design_count**: 图片知识库数量 (Type: string)
+          - **data.book_resource_count**: 资源知识库数量 (Type: string)
+          - **data.book_thread_count**: 话题知识库数量 (Type: string)
+          - **data.collaboration_count**: 知识协同次数 (Type: string)
+          - **data.collaborator_count**: 协作者数 (Type: string)
+          - **data.collect_count**: 收藏量 (Type: string)
+          - **data.comment_count**: 评论量 (Type: string)
+          - **data.comment_count_30**: 评论量 (30天) (Type: string)
+          - **data.comment_count_365**: 评论量 (一年) (Type: string)
+          - **data.content_count**: 知识财富数 (Type: string)
+          - **data.data_usage**: 流量使用量 (Type: string)
+          - **data.day_read_count**: 当日阅读量 (Type: string)
+          - **data.day_write_count**: 当日编辑次数 (Type: string)
+          - **data.doc_count**: 文档数量 (Type: string)
+          - **data.follow_count**: 关注量 (Type: string)
+          - **data.grains_count**: 当前稻谷数 (Type: string)
+          - **data.grains_count_consume**: 已消耗稻谷数 (Type: string)
+          - **data.grains_count_sum**: 累计获得稻谷数 (Type: string)
+          - **data.interaction_people_count**: 知识交流人数 (Type: string)
+          - **data.like_count**: 点赞量 (Type: string)
+          - **data.like_count_30**: 点赞量 (30天) (Type: string)
+          - **data.like_count_365**: 点赞量 (一年) (Type: string)
+          - **data.member_count**: 成员数 (Type: string)
+          - **data.organization_id**: 归属空间 ID (Type: string)
+          - **data.private_book_count**: 私密知识库数量 (Type: string)
+          - **data.public_book_count**: 公开知识库数量 (Type: string)
+          - **data.read_count**: 阅读量 (Type: string)
+          - **data.read_count_30**: 阅读量 (30天) (Type: string)
+          - **data.read_count_365**: 阅读量 (一年) (Type: string)
+          - **data.resource_count**: 资源数量 (Type: string)
+          - **data.sheet_count**: 表格数量 (Type: string)
+          - **data.show_count**: 演示文稿数量 (Type: string)
+          - **data.user_id**: 团队 ID (Type: string)
+          - **data.working_hours**: 协同提效时长 (小时) (Type: string)
+          - **data.write_count**: 编辑次数 (Type: string)
+
+        ## Original Response
+  - name: statistic_api_v2_statistic_by_books
+    description: |-
+      团队.知识库统计数据 - 团队.知识库统计数据
+    args:
+      - name: limit
+        description: 分页数量
+        type: integer
+        position: query
+      - name: login
+        description: 团队的 Login 或 ID
+        type: string
+        position: path
+      - name: name
+        description: 知识库名 [过滤条件]
+        type: string
+        position: query
+      - name: page
+        description: 页码
+        type: integer
+        position: query
+      - name: range
+        description: |-
+          时间范围 [过滤条件] (0:全部, 30:近 30 天, 365:近一年)
+        type: integer
+        enum: [0, 30, 365]
+        position: query
+      - name: sortField
+        description: 排序字段
+        type: string
+        enum: ["content_updated_at_ms", "word_count", "post_count", "read_count", "like_count", "watch_count", "comment_count"]
+        position: query
+      - name: sortOrder
+        description: 排序方向
+        type: string
+        enum: ["desc","asc"]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/statistics/books
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+        Below is the response from an API call. To help you understand the data, I've provided:
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+        ## Response Structure
+        > Content-Type: application/json
+        - **data**:  (Type: object)
+          - **data.books**:  (Type: object)
+            - **data.books.artboard_count**: 图集数量 (Type: string)
+            - **data.books.attachment_count**: 附件数量 (Type: string)
+            - **data.books.baike**: 百科全书卷数 (Type: string)
+            - **data.books.bizdate**: 统计日期 (YYYYMMDD) (Type: string)
+            - **data.books.board_count**: 画板数量 (Type: string)
+            - **data.books.book_id**: 知识库 ID (Type: string)
+            - **data.books.collaboration_count**: 知识协同次数 (Type: string)
+            - **data.books.comment_count**: 评论量 (Type: string)
+            - **data.books.comment_count_30**: 评论量 (30天) (Type: string)
+            - **data.books.comment_count_365**: 评论量 (一年) (Type: string)
+            - **data.books.content_count**: 知识财富数 (Type: string)
+            - **data.books.content_updated_at_ms**: 最近更新时间 (Type: string)
+            - **data.books.day_like_count**: 当日点赞量 (Type: string)
+            - **data.books.day_read_count**: 当日阅读量 (Type: string)
+            - **data.books.day_write_count**: 当日编辑次数 (Type: string)
+            - **data.books.doc_count**: 文档数量 (Type: string)
+            - **data.books.interaction_people_count**: 知识交流人数 (Type: string)
+            - **data.books.is_public**: 是否公开 (Type: string)
+            - **data.books.like_count**: 点赞量 (Type: string)
+            - **data.books.like_count_30**: 点赞量 (30天) (Type: string)
+            - **data.books.like_count_365**: 点赞量 (一年) (Type: string)
+            - **data.books.like_count_7**: 点赞量 (7天) (Type: string)
+            - **data.books.like_rank_rate**: 知识库点赞数排名 (Type: string)
+            - **data.books.name**: 知识库名称 (Type: string)
+            - **data.books.organization_id**: 知识库归属空间 ID (Type: string)
+            - **data.books.popularity_30**: 30 天热度 (Type: string)
+            - **data.books.post_count**: 文档数 (Type: string)
+            - **data.books.read_count**: 阅读量 (Type: string)
+            - **data.books.read_count_30**: 阅读量 (30天) (Type: string)
+            - **data.books.read_count_365**: 阅读量 (一年) (Type: string)
+            - **data.books.resource_count**: 资源数量 (Type: string)
+            - **data.books.sheet_count**: 表格数量 (Type: string)
+            - **data.books.show_count**: 演示文稿数量 (Type: string)
+            - **data.books.slug**: 知识库 slug (Type: string)
+            - **data.books.type**: 知识库类型 (Type: string)
+            - **data.books.user_id**: 知识库归属 ID (Type: string)
+            - **data.books.watch_count**: 关注量 (Type: string)
+            - **data.books.watch_count_30**: 关注量 (30天) (Type: string)
+            - **data.books.watch_count_365**: 关注量 (一年) (Type: string)
+            - **data.books.watch_count_7**: 关注量 (7天) (Type: string)
+            - **data.books.word_count**: 字数 (Type: string)
+            - **data.books.working_hours**: 协同提效时长 (小时) (Type: string)
+            - **data.books.write_count**: 编辑次数 (Type: string)
+            - **data.books.write_count_30**: 编辑次数 (30天) (Type: string)
+          - **data.total**: 总数量 (Type: integer)
+        ## Original Response
+  - name: statistic_api_v2_statistic_by_docs
+    description: |-
+      团队.文档统计数据 - 团队.文档统计数据
+    args:
+      - name: bookId
+        description: 指定知识库 [过滤条件]
+        type: integer
+        position: query
+      - name: limit
+        description: 分页数量
+        type: integer
+        position: query
+      - name: login
+        description: 团队的 Login 或 ID
+        type: string
+        position: path
+      - name: name
+        description: 文档名 [过滤条件]
+        type: string
+        position: query
+      - name: page
+        description: 页码
+        type: integer
+        position: query
+      - name: range
+        description: |-
+          时间范围 [过滤条件] (0:全部, 30:近 30 天, 365:近一年)
+        type: integer
+        enum: [0, 30, 365]
+        position: query
+      - name: sortField
+        description: 排序字段
+        type: string
+        enum: ["content_updated_at", "word_count", "read_count", "like_count", "comment_count", "created_at"]
+        position: query
+      - name: sortOrder
+        description: 排序方向
+        type: string
+        enum: ["desc","asc"]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/statistics/docs
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+        Below is the response from an API call. To help you understand the data, I've provided:
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+        ## Response Structure
+        > Content-Type: application/json
+        - **data**:  (Type: object)
+          - **data.docs**:  (Type: object)
+            - **data.docs.attachment_count**: 附件数量 (Type: string)
+            - **data.docs.bizdate**: 统计日期 (YYYYMMDD) (Type: string)
+            - **data.docs.book_id**: 知识库 ID (Type: string)
+            - **data.docs.comment_count**: 评论量 (Type: string)
+            - **data.docs.comment_count_30**: 评论量 (30天) (Type: string)
+            - **data.docs.comment_count_365**: 评论量 (一年) (Type: string)
+            - **data.docs.content_updated_at**: 最近更新时间 (Type: string)
+            - **data.docs.created_at**: 创建时间 (Type: string)
+            - **data.docs.day_like_count**: 当日点赞量 (Type: string)
+            - **data.docs.day_read_count**: 当日阅读量 (Type: string)
+            - **data.docs.day_write_count**: 当日编辑次数 (Type: string)
+            - **data.docs.doc_id**: 文档 ID (Type: string)
+            - **data.docs.is_public**: 是否公开 (Type: string)
+            - **data.docs.like_count**: 点赞量 (Type: string)
+            - **data.docs.like_count_30**: 点赞量 (30天) (Type: string)
+            - **data.docs.like_count_365**: 点赞量 (一年) (Type: string)
+            - **data.docs.like_count_7**: 点赞量 (7天) (Type: string)
+            - **data.docs.organization_id**: 文档归属空间 ID (Type: string)
+            - **data.docs.popularity_30**: 30 天热度 (Type: string)
+            - **data.docs.read_count**: 阅读量 (Type: string)
+            - **data.docs.read_count_30**: 阅读量 (30天) (Type: string)
+            - **data.docs.read_count_365**: 阅读量 (一年) (Type: string)
+            - **data.docs.read_count_7**: 阅读量 (7天) (Type: string)
+            - **data.docs.slug**: 文档 slug (Type: string)
+            - **data.docs.title**: 文档标题 (Type: string)
+            - **data.docs.type**: 知识库类型 (Type: string)
+            - **data.docs.user_id**: 文档归属 ID (Type: string)
+            - **data.docs.word_count**: 字数 (Type: string)
+            - **data.docs.write_count**: 编辑次数 (Type: string)
+          - **data.total**: 总数量 (Type: integer)
+        ## Original Response
+  - name: statistic_api_v2_statistic_by_members
+    description: |-
+      团队.成员统计数据 - 团队.成员统计数据
+    args:
+      - name: limit
+        description: 分页数量
+        type: integer
+        position: query
+      - name: login
+        description: 团队的 Login 或 ID
+        type: string
+        position: path
+      - name: name
+        description: 成员名 [过滤条件]
+        type: string
+        position: query
+      - name: page
+        description: 页码
+        type: integer
+        position: query
+      - name: range
+        description: |-
+          时间范围 [过滤条件] (0:全部, 30:近 30 天, 365:近一年)
+        type: integer
+        enum: [0, 30, 365]
+        position: query
+      - name: sortField
+        description: 排序字段
+        type: string
+        enum: ["write_doc_count", "write_count", "read_count", "like_count"]
+        position: query
+      - name: sortOrder
+        description: 排序方向
+        type: string
+        enum: ["desc","asc"]
+        position: query
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/groups/{login}/statistics/members
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+        Below is the response from an API call. To help you understand the data, I've provided:
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+        ## Response Structure
+        > Content-Type: application/json
+        - **data**:  (Type: object)
+          - **data.members**:  (Type: object)
+            - **data.members.bizdate**: 统计日期 (YYYYMMDD)'' (Type: string)
+            - **data.members.group_id**: 团队 ID (Type: string)
+            - **data.members.like_count**: 点赞量 (Type: string)
+            - **data.members.like_count_30**: 点赞量 (30天) (Type: string)
+            - **data.members.like_count_365**: 点赞量 (一年) (Type: string)
+            - **data.members.organization_id**: 空间 ID (Type: string)
+            - **data.members.read_count**: 阅读量 (Type: string)
+            - **data.members.read_count_30**: 阅读量 (30天) (Type: string)
+            - **data.members.read_count_365**: 阅读量 (一年) (Type: string)
+            - **data.members.user_id**: 成员 ID (Type: string)
+            - **data.members.write_count**: 编辑次数 (Type: string)
+            - **data.members.write_count_30**: 编辑次数 (30天) (Type: string)
+            - **data.members.write_count_365**: 编辑次数 (一年) (Type: string)
+            - **data.members.write_doc_count**: 编辑文档数 (Type: string)
+            - **data.members.write_doc_count_30**: 编辑文档数 (30天) (Type: string)
+            - **data.members.write_doc_count_365**: 编辑文档数 (一年) (Type: string)
+          - **data.total**: 总数量 (Type: integer)
+        ## Original Response
+  - name: user_api_v2_user_info
+    description: |+
+      获取当前 Token 的用户详情 - 获取当前 Token 的用户详情
+      GET /api/v2/user
+    args: []
+    requestTemplate:
+      url: https://www.yuque.com/api/v2/user
+      method: GET
+      headers:
+        - key: X-Auth-Token
+          value: "{{.config.accessToken}}"
+        - key: Content-Type
+          value: application/json
+    responseTemplate:
+      prependBody: "# API Response Information\n\nBelow is the response from an API call. To help you understand the data, I've provided:\n\n1. A detailed description of all fields in the response structure\n2. The complete API response\n\n## Response Structure\n\n> Content-Type: application/json\n\n- **data**:  (Type: object)\n  - **data.avatar_url**: \n头像 (Type: string)\n  - **data.books_count**: \n知识库数量 (Type: integer)\n  - **data.created_at**: \n创建时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n  - **data.description**: \n介绍 (Type: string)\n  - **data.followers_count**: \n被关注的人数 (Type: integer)\n  - **data.following_count**: \n关注的人数 (Type: integer)\n  - **data.id**: \n用户 ID (Type: integer)\n  - **data.login**: \n登录名 (Type: string)\n  - **data.name**: \n昵称 (Type: string)\n  - **data.public**: \n公开性\n(0:私密, 1:公开, 2:企业内公开) (Type: integer)\n  - **data.public_books_count**: \n公开的知识库数量 (Type: integer)\n  - **data.type**: \n类型\nAlways 'User' (Type: string)\n  - **data.updated_at**: \n更新时间\n格式: YYYY-MM-DDTHH:mm:ss.sssZ (ISO_8601) (Type: string)\n\n## Original Response\n\n"

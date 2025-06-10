@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	internal.GlobalRegistry.RegisterServer("nacos-mcp-registry", &NacosConfig{})
+	common.GlobalRegistry.RegisterServer("nacos-mcp-registry", &NacosConfig{})
 }
 
 type NacosConfig struct {
@@ -28,7 +28,7 @@ type NacosConfig struct {
 }
 
 type McpServerToolsChangeListener struct {
-	mcpServer *internal.MCPServer
+	mcpServer *common.MCPServer
 }
 
 func (l *McpServerToolsChangeListener) OnToolChanged(reg registry.McpServerRegistry) {
@@ -137,8 +137,8 @@ func (c *NacosConfig) ParseConfig(config map[string]any) error {
 	return nil
 }
 
-func (c *NacosConfig) NewServer(serverName string) (*internal.MCPServer, error) {
-	mcpServer := internal.NewMCPServer(
+func (c *NacosConfig) NewServer(serverName string) (*common.MCPServer, error) {
+	mcpServer := common.NewMCPServer(
 		serverName,
 		"1.0.0",
 	)
@@ -170,11 +170,11 @@ func (c *NacosConfig) NewServer(serverName string) (*internal.MCPServer, error) 
 	return mcpServer, nil
 }
 
-func resetToolsToMcpServer(mcpServer *internal.MCPServer, reg registry.McpServerRegistry) {
-	wrappedTools := []internal.ServerTool{}
+func resetToolsToMcpServer(mcpServer *common.MCPServer, reg registry.McpServerRegistry) {
+	wrappedTools := []common.ServerTool{}
 	tools := reg.ListToolsDesciption()
 	for _, tool := range tools {
-		wrappedTools = append(wrappedTools, internal.ServerTool{
+		wrappedTools = append(wrappedTools, common.ServerTool{
 			Tool:    mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema),
 			Handler: registry.HandleRegistryToolsCall(reg),
 		})

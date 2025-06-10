@@ -289,6 +289,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 	}
 	ctx.SetRequestBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue
 }
 
@@ -362,7 +363,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 			}, rewriteBody,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				if statusCode != http.StatusOK {
-					log.Errorf("search rewrite failed, status: %d", statusCode)
+					log.Errorf("search rewrite failed, status: %d, request url: %s, request cluster: %s, search rewrite model: %s",
+						statusCode, searchRewrite.url, searchRewrite.client.ClusterName(), searchRewrite.modelName)
 					// After a rewrite failure, no further search is performed, thus quickly identifying the failure.
 					proxywasm.ResumeHttpRequest()
 					return

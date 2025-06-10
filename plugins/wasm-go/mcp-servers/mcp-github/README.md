@@ -33,7 +33,7 @@ On the user's MCP Client interface, add the generated SSE URL to the MCP Server 
 ```json
 "mcpServers": {
     "github": {
-      "url": "http://mcp.higress.ai/mcp-github/{generate_key}",
+      "url": "https://mcp.higress.ai/mcp-github/{generate_key}",
     }
 }
 ```

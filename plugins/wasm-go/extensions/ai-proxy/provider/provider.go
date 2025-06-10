@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -16,27 +17,47 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-type ApiName string
-type Pointcut string
+type (
+	ApiName  string
+	Pointcut string
+)
 
 const (
 
 	// ApiName 格式 {vendor}/{version}/{apitype}
 	// 表示遵循 厂商/版本/接口类型 的格式
 	// 目前openai是事实意义上的标准，但是也有其他厂商存在其他任务的一些可能的标准，比如cohere的rerank
-	ApiNameCompletion      ApiName = "openai/v1/completions"
-	ApiNameChatCompletion  ApiName = "openai/v1/chatcompletions"
-	ApiNameEmbeddings      ApiName = "openai/v1/embeddings"
-	ApiNameImageGeneration ApiName = "openai/v1/imagegeneration"
-	ApiNameAudioSpeech     ApiName = "openai/v1/audiospeech"
-	ApiNameFiles           ApiName = "openai/v1/files"
-	ApiNameBatches         ApiName = "openai/v1/batches"
+	ApiNameCompletion          ApiName = "openai/v1/completions"
+	ApiNameChatCompletion      ApiName = "openai/v1/chatcompletions"
+	ApiNameEmbeddings          ApiName = "openai/v1/embeddings"
+	ApiNameImageGeneration     ApiName = "openai/v1/imagegeneration"
+	ApiNameImageEdit           ApiName = "openai/v1/imageedit"
+	ApiNameImageVariation      ApiName = "openai/v1/imagevariation"
+	ApiNameAudioSpeech         ApiName = "openai/v1/audiospeech"
+	ApiNameFiles               ApiName = "openai/v1/files"
+	ApiNameRetrieveFile        ApiName = "openai/v1/retrievefile"
+	ApiNameRetrieveFileContent ApiName = "openai/v1/retrievefilecontent"
+	ApiNameBatches             ApiName = "openai/v1/batches"
+	ApiNameRetrieveBatch       ApiName = "openai/v1/retrievebatch"
+	ApiNameCancelBatch         ApiName = "openai/v1/cancelbatch"
+	ApiNameModels              ApiName = "openai/v1/models"
+	ApiNameResponses           ApiName = "openai/v1/responses"
 
-	PathOpenAICompletions     = "/v1/completions"
-	PathOpenAIChatCompletions = "/v1/chat/completions"
-	PathOpenAIEmbeddings      = "/v1/embeddings"
-	PathOpenAIFiles           = "/v1/files"
-	PathOpenAIBatches         = "/v1/batches"
+	PathOpenAICompletions         = "/v1/completions"
+	PathOpenAIChatCompletions     = "/v1/chat/completions"
+	PathOpenAIEmbeddings          = "/v1/embeddings"
+	PathOpenAIFiles               = "/v1/files"
+	PathOpenAIRetrieveFile        = "/v1/files/{file_id}"
+	PathOpenAIRetrieveFileContent = "/v1/files/{file_id}/content"
+	PathOpenAIBatches             = "/v1/batches"
+	PathOpenAIRetrieveBatch       = "/v1/batches/{batch_id}"
+	PathOpenAICancelBatch         = "/v1/batches/{batch_id}/cancel"
+	PathOpenAIModels              = "/v1/models"
+	PathOpenAIImageGeneration     = "/v1/images/generations"
+	PathOpenAIImageEdit           = "/v1/images/edits"
+	PathOpenAIImageVariation      = "/v1/images/variations"
+	PathOpenAIAudioSpeech         = "/v1/audio/speech"
+	PathOpenAIResponses           = "/v1/responses"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
@@ -69,6 +90,7 @@ const (
 	providerTypeTogetherAI = "together-ai"
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
+	providerTypeVertex     = "vertex"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -140,6 +162,7 @@ var (
 		providerTypeTogetherAI: &togetherAIProviderInitializer{},
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
+		providerTypeVertex:     &vertexProviderInitializer{},
 	}
 )
 
@@ -269,14 +292,29 @@ type ProviderConfig struct {
 	// @Description zh-CN 配置一个外部获取对话上下文的文件来源，用于在AI请求中补充对话上下文
 	context *ContextConfig `required:"false" yaml:"context" json:"context"`
 	// @Title zh-CN 版本
-	// @Description zh-CN 请求AI服务的版本，目前仅适用于Claude AI服务
-	claudeVersion string `required:"false" yaml:"version" json:"version"`
+	// @Description zh-CN 请求AI服务的版本，目前仅适用于 Gemini 和 Claude AI服务
+	apiVersion string `required:"false" yaml:"apiVersion" json:"apiVersion"`
 	// @Title zh-CN Cloudflare Account ID
 	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
 	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN Vertex AI访问区域
+	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
+	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
+	// @Title zh-CN Vertex AI项目Id
+	// @Description zh-CN 仅适用于Vertex AI服务。创建和管理项目请参阅https://cloud.google.com/resource-manager/docs/creating-managing-projects?hl=zh-cn#identifiers
+	vertexProjectId string `required:"false" yaml:"vertexProjectId" json:"vertexProjectId"`
+	// @Title zh-CN Vertex 认证秘钥
+	// @Description zh-CN 用于Google服务账号认证的完整JSON密钥文件内容，获取可参考https://cloud.google.com/iam/docs/keys-create-delete?hl=zh-cn#iam-service-account-keys-create-console
+	vertexAuthKey string `required:"false" yaml:"vertexAuthKey" json:"vertexAuthKey"`
+	// @Title zh-CN Vertex 认证服务名
+	// @Description zh-CN 用于Google服务账号认证的服务,DNS类型的服务名
+	vertexAuthServiceName string `required:"false" yaml:"vertexAuthServiceName" json:"vertexAuthServiceName"`
+	// @Title zh-CN Vertex token刷新提前时间
+	// @Description zh-CN 用于Google服务账号认证，access token过期时间判定提前刷新，单位为秒，默认值为60秒
+	vertexTokenRefreshAhead int64 `required:"false" yaml:"vertexTokenRefreshAhead" json:"vertexTokenRefreshAhead"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -354,7 +392,13 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.context = &ContextConfig{}
 		c.context.FromJson(contextJson)
 	}
-	c.claudeVersion = json.Get("claudeVersion").String()
+
+	// 这里获取 claudeVersion 字段，与结构体中定义 yaml/json 的 tag 不一致
+	c.apiVersion = json.Get("claudeVersion").String()
+	if c.apiVersion == "" {
+		// 增加获取 version 字段，用于适配其他模型的配置，并保持与结构体中定义的 tag 一致
+		c.apiVersion = json.Get("apiVersion").String()
+	}
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.awsAccessKey = json.Get("awsAccessKey").String()
@@ -363,11 +407,19 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
-	if c.typ == providerTypeGemini {
+	if c.typ == providerTypeGemini || c.typ == providerTypeVertex {
 		c.geminiSafetySetting = make(map[string]string)
 		for k, v := range json.Get("geminiSafetySetting").Map() {
 			c.geminiSafetySetting[k] = v.String()
 		}
+	}
+	c.vertexRegion = json.Get("vertexRegion").String()
+	c.vertexProjectId = json.Get("vertexProjectId").String()
+	c.vertexAuthKey = json.Get("vertexAuthKey").String()
+	c.vertexAuthServiceName = json.Get("vertexAuthServiceName").String()
+	c.vertexTokenRefreshAhead = json.Get("vertexTokenRefreshAhead").Int()
+	if c.vertexTokenRefreshAhead == 0 {
+		c.vertexTokenRefreshAhead = 60
 	}
 	c.targetLang = json.Get("targetLang").String()
 
@@ -437,6 +489,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		case string(ApiNameChatCompletion),
 			string(ApiNameEmbeddings),
 			string(ApiNameImageGeneration),
+			string(ApiNameImageVariation),
+			string(ApiNameImageEdit),
 			string(ApiNameAudioSpeech),
 			string(ApiNameCohereV1Rerank):
 			c.capabilities[capability] = pathJson.String()
@@ -532,6 +586,11 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 			return err
 		}
 		return c.setRequestModel(ctx, req)
+	case *imageGenerationRequest:
+		if err := decodeImageGenerationRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req)
 	default:
 		return errors.New("unsupported request type")
 	}
@@ -544,6 +603,8 @@ func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interf
 	case *chatCompletionRequest:
 		model = &req.Model
 	case *embeddingsRequest:
+		model = &req.Model
+	case *imageGenerationRequest:
 		model = &req.Model
 	default:
 		return errors.New("unsupported request type")
@@ -587,13 +648,25 @@ func doGetMappedModel(model string, modelMapping map[string]string) string {
 	}
 
 	for k, v := range modelMapping {
-		if k == wildcard || !strings.HasSuffix(k, wildcard) {
+		if k == wildcard {
 			continue
 		}
-		k = strings.TrimSuffix(k, wildcard)
-		if strings.HasPrefix(model, k) {
-			log.Debugf("model [%s] is mapped to [%s] via prefix [%s]", model, v, k)
-			return v
+		if strings.HasSuffix(k, wildcard) {
+			k = strings.TrimSuffix(k, wildcard)
+			if strings.HasPrefix(model, k) {
+				log.Debugf("model [%s] is mapped to [%s] via prefix [%s]", model, v, k)
+				return v
+			}
+		}
+
+		if strings.HasPrefix(k, "~") {
+			k = strings.TrimPrefix(k, "~")
+			re := regexp.MustCompile(k)
+			if re.MatchString(model) {
+				v = re.ReplaceAllString(model, v)
+				log.Debugf("model [%s] is mapped to [%s] via regex [%s]", model, v, k)
+				return v
+			}
 		}
 	}
 
@@ -694,7 +767,8 @@ func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) 
 }
 
 func (c *ProviderConfig) handleRequestBody(
-	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte,
+) (types.Action, error) {
 	// use original protocol
 	if c.IsOriginal() {
 		return types.ActionContinue, nil
@@ -761,4 +835,17 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 	} else {
 		headers.Del("Content-Length")
 	}
+}
+
+func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
+	switch apiName {
+	case ApiNameChatCompletion,
+		ApiNameEmbeddings,
+		ApiNameImageGeneration,
+		ApiNameImageEdit,
+		ApiNameImageVariation,
+		ApiNameAudioSpeech:
+		return true
+	}
+	return false
 }

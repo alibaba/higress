@@ -2,7 +2,10 @@ package util
 
 import (
 	"net/http"
+	"regexp"
+	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
@@ -11,6 +14,13 @@ const (
 
 	MimeTypeTextPlain       = "text/plain"
 	MimeTypeApplicationJson = "application/json"
+)
+
+var (
+	RegRetrieveBatchPath       = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)$`)
+	RegCancelBatchPath         = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)/cancel$`)
+	RegRetrieveFilePath        = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)$`)
+	RegRetrieveFileContentPath = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)/content$`)
 )
 
 type ErrorHandlerFunc func(statusCodeDetails string, err error) error
@@ -62,10 +72,45 @@ func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string,
 	if !exist {
 		return
 	}
-	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
+	originPath, err := proxywasm.GetHttpRequestHeader(":path")
+	if err == nil {
 		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
 	}
+	/**
+	这里实现不太优雅，理应通过 apiName 来判断使用哪个正则替换
+	但 ApiName 定义在 provider 中， 而 provider 中又引用了 util
+	会导致循环引用
+	**/
+	if strings.Contains(mappedPath, "{") && strings.Contains(mappedPath, "}") {
+		replacements := []struct {
+			regx *regexp.Regexp
+			key  string
+		}{
+			{RegRetrieveFilePath, "file_id"},
+			{RegRetrieveFileContentPath, "file_id"},
+			{RegRetrieveBatchPath, "batch_id"},
+			{RegCancelBatchPath, "batch_id"},
+		}
+
+		for _, r := range replacements {
+			if r.regx.MatchString(originPath) {
+				subMatch := r.regx.FindStringSubmatch(originPath)
+				if subMatch == nil {
+					continue
+				}
+				index := r.regx.SubexpIndex(r.key)
+				if index < 0 || index >= len(subMatch) {
+					continue
+				}
+				id := subMatch[index]
+				mappedPath = r.regx.ReplaceAllStringFunc(mappedPath, func(s string) string {
+					return strings.Replace(s, "{"+r.key+"}", id, 1)
+				})
+			}
+		}
+	}
 	headers.Set(":path", mappedPath)
+	log.Debugf("[OverwriteRequestPath] originPath=%s, mappedPath=%s", originPath, mappedPath)
 }
 
 func OverwriteRequestAuthorizationHeader(headers http.Header, credential string) {

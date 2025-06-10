@@ -13,6 +13,8 @@ import (
 	"hash/crc32"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +23,8 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -32,7 +36,10 @@ const (
 	bedrockChatCompletionPath = "/model/%s/converse"
 	// converseStream路径 /model/{modelId}/converse-stream
 	bedrockStreamChatCompletionPath = "/model/%s/converse-stream"
-	bedrockSignedHeaders            = "host;x-amz-date"
+	// invoke_model 路径 /model/{modelId}/invoke
+	bedrockInvokeModelPath = "/model/%s/invoke"
+	bedrockSignedHeaders   = "host;x-amz-date"
+	requestIdHeader        = "X-Amzn-Requestid"
 )
 
 type bedrockProviderInitializer struct {
@@ -50,7 +57,8 @@ func (b *bedrockProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 
 func (b *bedrockProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): bedrockChatCompletionPath,
+		string(ApiNameChatCompletion):  bedrockChatCompletionPath,
+		string(ApiNameImageGeneration): bedrockInvokeModelPath,
 	}
 }
 
@@ -99,7 +107,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		chatChoice.FinishReason = stopReasonBedrock2OpenAI(*bedrockEvent.StopReason)
 	}
 	choices = append(choices, chatChoice)
-	requestId := ctx.GetStringContext("X-Amzn-Requestid", "")
+	requestId := ctx.GetStringContext(requestIdHeader, "")
 	openAIFormattedChunk := &chatCompletionResponse{
 		Id:                requestId,
 		Created:           time.Now().UnixMilli() / 1000,
@@ -150,6 +158,74 @@ type contentBlockStart struct {
 
 type toolUseBlockDelta struct {
 	Input string `json:"input"`
+}
+
+type bedrockImageGenerationResponse struct {
+	Images []string `json:"images"`
+	Error  string   `json:"error"`
+}
+
+type bedrockImageGenerationTextToImageParams struct {
+	Text            string  `json:"text"`
+	NegativeText    string  `json:"negativeText,omitempty"`
+	ConditionImage  string  `json:"conditionImage,omitempty"`
+	ControlMode     string  `json:"controlMode,omitempty"`
+	ControlStrength float32 `json:"controlLength,omitempty"`
+}
+
+type bedrockImageGenerationConfig struct {
+	Width          int     `json:"width"`
+	Height         int     `json:"height"`
+	Quality        string  `json:"quality,omitempty"`
+	CfgScale       float32 `json:"cfgScale,omitempty"`
+	Seed           int     `json:"seed,omitempty"`
+	NumberOfImages int     `json:"numberOfImages"`
+}
+
+type bedrockImageGenerationColorGuidedGenerationParams struct {
+	Colors         []string `json:"colors"`
+	ReferenceImage string   `json:"referenceImage"`
+	Text           string   `json:"text"`
+	NegativeText   string   `json:"negativeText,omitempty"`
+}
+
+type bedrockImageGenerationImageVariationParams struct {
+	Images             []string `json:"images"`
+	SimilarityStrength float32  `json:"similarityStrength"`
+	Text               string   `json:"text"`
+	NegativeText       string   `json:"negativeText,omitempty"`
+}
+
+type bedrockImageGenerationInPaintingParams struct {
+	Image        string `json:"image"`
+	MaskPrompt   string `json:"maskPrompt"`
+	MaskImage    string `json:"maskImage"`
+	Text         string `json:"text"`
+	NegativeText string `json:"negativeText,omitempty"`
+}
+
+type bedrockImageGenerationOutPaintingParams struct {
+	Image           string `json:"image"`
+	MaskPrompt      string `json:"maskPrompt"`
+	MaskImage       string `json:"maskImage"`
+	OutPaintingMode string `json:"outPaintingMode"`
+	Text            string `json:"text"`
+	NegativeText    string `json:"negativeText,omitempty"`
+}
+
+type bedrockImageGenerationBackgroundRemovalParams struct {
+	Image string `json:"image"`
+}
+
+type bedrockImageGenerationRequest struct {
+	TaskType                    string                                             `json:"taskType"`
+	ImageGenerationConfig       *bedrockImageGenerationConfig                      `json:"imageGenerationConfig"`
+	TextToImageParams           *bedrockImageGenerationTextToImageParams           `json:"textToImageParams,omitempty"`
+	ColorGuidedGenerationParams *bedrockImageGenerationColorGuidedGenerationParams `json:"colorGuidedGenerationParams,omitempty"`
+	ImageVariationParams        *bedrockImageGenerationImageVariationParams        `json:"imageVariationParams,omitempty"`
+	InPaintingParams            *bedrockImageGenerationInPaintingParams            `json:"inPaintingParams,omitempty"`
+	OutPaintingParams           *bedrockImageGenerationOutPaintingParams           `json:"outPaintingParams,omitempty"`
+	BackgroundRemovalParams     *bedrockImageGenerationBackgroundRemovalParams     `json:"backgroundRemovalParams,omitempty"`
 }
 
 func extractAmazonEventStreamEvents(ctx wrapper.HttpContext, chunk []byte) []ConverseStreamEvent {
@@ -489,7 +565,7 @@ func validateCRC(r io.Reader, expect uint32) error {
 }
 
 func (b *bedrockProvider) TransformResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	ctx.SetContext("X-Amzn-Requestid", headers.Get("X-Amzn-Requestid"))
+	ctx.SetContext(requestIdHeader, headers.Get(requestIdHeader))
 	if headers.Get("Content-Type") == "application/vnd.amazon.eventstream" {
 		headers.Set("Content-Type", "text/event-stream; charset=utf-8")
 	}
@@ -534,19 +610,89 @@ func (b *bedrockProvider) insertHttpContextMessage(body []byte, content string, 
 }
 
 func (b *bedrockProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
+	if gjson.GetBytes(body, "model").Exists() {
+		rawModel := gjson.GetBytes(body, "model").String()
+		encodedModel := url.QueryEscape(rawModel)
+		body, _ = sjson.SetBytes(body, "model", encodedModel)
+	}
 	switch apiName {
 	case ApiNameChatCompletion:
 		return b.onChatCompletionRequestBody(ctx, body, headers)
+	case ApiNameImageGeneration:
+		return b.onImageGenerationRequestBody(ctx, body, headers)
 	default:
 		return b.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
 }
 
 func (b *bedrockProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
-	if apiName == ApiNameChatCompletion {
+	switch apiName {
+	case ApiNameChatCompletion:
 		return b.onChatCompletionResponseBody(ctx, body)
+	case ApiNameImageGeneration:
+		return b.onImageGenerationResponseBody(ctx, body)
 	}
 	return nil, errUnsupportedApiName
+}
+
+func (b *bedrockProvider) onImageGenerationResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
+	bedrockResponse := &bedrockImageGenerationResponse{}
+	if err := json.Unmarshal(body, bedrockResponse); err != nil {
+		log.Errorf("unable to unmarshal bedrock image gerneration response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal bedrock image generation response: %v", err)
+	}
+	response := b.buildBedrockImageGenerationResponse(ctx, bedrockResponse)
+	return json.Marshal(response)
+}
+
+func (b *bedrockProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header) ([]byte, error) {
+	request := &imageGenerationRequest{}
+	err := b.config.parseRequestAndMapModel(ctx, request, body)
+	if err != nil {
+		return nil, err
+	}
+	headers.Set("Accept", "*/*")
+	util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockInvokeModelPath, request.Model))
+	return b.buildBedrockImageGenerationRequest(request, headers)
+}
+
+func (b *bedrockProvider) buildBedrockImageGenerationRequest(origRequest *imageGenerationRequest, headers http.Header) ([]byte, error) {
+	width, height := 1024, 1024
+	pairs := strings.Split(origRequest.Size, "x")
+	if len(pairs) == 2 {
+		width, _ = strconv.Atoi(pairs[0])
+		height, _ = strconv.Atoi(pairs[1])
+	}
+
+	request := &bedrockImageGenerationRequest{
+		TaskType: "TEXT_IMAGE",
+		TextToImageParams: &bedrockImageGenerationTextToImageParams{
+			Text: origRequest.Prompt,
+		},
+		ImageGenerationConfig: &bedrockImageGenerationConfig{
+			NumberOfImages: origRequest.N,
+			Width:          width,
+			Height:         height,
+			Quality:        origRequest.Quality,
+		},
+	}
+	util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockInvokeModelPath, origRequest.Model))
+	requestBytes, err := json.Marshal(request)
+	b.setAuthHeaders(requestBytes, headers)
+	return requestBytes, err
+}
+
+func (b *bedrockProvider) buildBedrockImageGenerationResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockImageGenerationResponse) *imageGenerationResponse {
+	data := make([]imageGenerationData, len(bedrockResponse.Images))
+	for i, image := range bedrockResponse.Images {
+		data[i] = imageGenerationData{
+			B64: image,
+		}
+	}
+	return &imageGenerationResponse{
+		Created: time.Now().UnixMilli() / 1000,
+		Data:    data,
+	}
 }
 
 func (b *bedrockProvider) onChatCompletionResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
@@ -613,7 +759,7 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 			FinishReason: stopReasonBedrock2OpenAI(bedrockResponse.StopReason),
 		},
 	}
-	requestId := ctx.GetStringContext("X-Amzn-Requestid", "")
+	requestId := ctx.GetStringContext(requestIdHeader, "")
 	return &chatCompletionResponse{
 		Id:                requestId,
 		Created:           time.Now().UnixMilli() / 1000,
@@ -763,7 +909,6 @@ func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {
 	hashedPayload := sha256Hex(body)
-	path = urlEncoding(path)
 
 	endpoint := fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion)
 	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-date:%s\n", endpoint, amzDate)
@@ -778,16 +923,6 @@ func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, bod
 	signingKey := getSignatureKey(b.config.awsSecretKey, dateStamp, b.config.awsRegion, awsService)
 	signature := hmacHex(signingKey, stringToSign)
 	return signature
-}
-
-func urlEncoding(rawStr string) string {
-	encodedStr := strings.ReplaceAll(rawStr, ":", "%3A")
-	encodedStr = strings.ReplaceAll(encodedStr, "+", "%2B")
-	encodedStr = strings.ReplaceAll(encodedStr, "=", "%3D")
-	encodedStr = strings.ReplaceAll(encodedStr, "&", "%26")
-	encodedStr = strings.ReplaceAll(encodedStr, "$", "%24")
-	encodedStr = strings.ReplaceAll(encodedStr, "@", "%40")
-	return encodedStr
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {

@@ -31,7 +31,7 @@ require (
 	github.com/hudl/fargo v1.4.0
 	github.com/mholt/acmez v1.2.0
 	github.com/nacos-group/nacos-sdk-go v1.0.8
-	github.com/nacos-group/nacos-sdk-go/v2 v2.1.2
+	github.com/nacos-group/nacos-sdk-go/v2 v2.3.2
 	github.com/onsi/gomega v1.27.10
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
@@ -39,7 +39,7 @@ require (
 	github.com/tidwall/gjson v1.17.0
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.0
-	golang.org/x/net v0.27.0
+	golang.org/x/net v0.33.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20230920204549-e6e6cdab5c13
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.33.0
@@ -71,7 +71,27 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/alecholmes/xfccparser v0.1.0 // indirect
 	github.com/alecthomas/participle v0.4.1 // indirect
-	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1704 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-pop v0.0.6 // indirect
+	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
+	github.com/alibabacloud-go/darabonba-array v0.1.0 // indirect
+	github.com/alibabacloud-go/darabonba-encode-util v0.0.2 // indirect
+	github.com/alibabacloud-go/darabonba-map v0.0.2 // indirect
+	github.com/alibabacloud-go/darabonba-openapi/v2 v2.0.10 // indirect
+	github.com/alibabacloud-go/darabonba-signature-util v0.0.7 // indirect
+	github.com/alibabacloud-go/darabonba-string v1.0.2 // indirect
+	github.com/alibabacloud-go/debug v1.0.1 // indirect
+	github.com/alibabacloud-go/endpoint-util v1.1.0 // indirect
+	github.com/alibabacloud-go/kms-20160120/v3 v3.2.3 // indirect
+	github.com/alibabacloud-go/openapi-util v0.1.0 // indirect
+	github.com/alibabacloud-go/tea v1.2.2 // indirect
+	github.com/alibabacloud-go/tea-utils v1.4.4 // indirect
+	github.com/alibabacloud-go/tea-utils/v2 v2.0.7 // indirect
+	github.com/alibabacloud-go/tea-xml v1.1.3 // indirect
+	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1800 // indirect
+	github.com/aliyun/alibabacloud-dkms-gcs-go-sdk v0.5.1 // indirect
+	github.com/aliyun/alibabacloud-dkms-transfer-go-sdk v0.1.8 // indirect
+	github.com/aliyun/aliyun-secretsmanager-client-go v1.1.5 // indirect
+	github.com/aliyun/credentials-go v1.4.3 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -82,10 +102,12 @@ require (
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/clbanning/mxj v1.8.4 // indirect
+	github.com/clbanning/mxj/v2 v2.5.5 // indirect
 	github.com/cncf/xds/go v0.0.0-20230607035331-e9ce68804cb4 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
 	github.com/coreos/go-oidc/v3 v3.6.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/deckarep/golang-set v1.7.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0 // indirect
 	github.com/docker/cli v24.0.7+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
@@ -165,6 +187,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
 	github.com/openshift/api v0.0.0-20230720094506-afcbe27aec7c // indirect
+	github.com/orcaman/concurrent-map v0.0.0-20210501183033-44dafcb38ecc // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -179,9 +202,11 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/tetratelabs/wazero v1.7.3 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
+	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/toolkits/concurrent v0.0.0-20150624120057-a4371d70e3e3 // indirect
 	github.com/vbatts/tar-split v0.11.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
@@ -197,14 +222,14 @@ require (
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.25.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/oauth2 v0.13.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.22.0 // indirect
-	golang.org/x/term v0.22.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/term v0.27.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
