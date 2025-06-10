@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
@@ -109,6 +110,7 @@ func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string,
 		}
 	}
 	headers.Set(":path", mappedPath)
+	log.Debugf("[OverwriteRequestPath] originPath=%s, mappedPath=%s", originPath, mappedPath)
 }
 
 func OverwriteRequestAuthorizationHeader(headers http.Header, credential string) {
