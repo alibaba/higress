@@ -35,7 +35,7 @@ const SystemConfigIdPrefix = "system-"
 const CredentialPrefix = "credentials-"
 const DefaultNacosListConfigMode = "blur"
 
-const ListMcpServeConfigIdPattern = "*mcp-versions.json"
+const ListMcpServerConfigIdPattern = "*mcp-versions.json"
 
 const DefaultNacosListConfigPageSize = 50
 
@@ -134,7 +134,7 @@ func (n *NacosRegistryClient) listMcpServerConfigs() ([]model.ConfigItem, error)
 	for {
 		configPage, err := n.configClient.SearchConfig(vo.SearchConfigParam{
 			Search:   DefaultNacosListConfigMode,
-			DataId:   ListMcpServeConfigIdPattern,
+			DataId:   ListMcpServerConfigIdPattern,
 			Group:    McpServerVersionGroup,
 			PageNo:   currentPageNum,
 			PageSize: DefaultNacosListConfigPageSize,
