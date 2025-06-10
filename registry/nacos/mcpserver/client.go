@@ -35,7 +35,7 @@ const SystemConfigIdPrefix = "system-"
 const CredentialPrefix = "credentials-"
 const DefaultNacosListConfigMode = "blur"
 
-const ListMcpServerConfigIdPattern = "*mcp-versions.json"
+const ListMcpServeConfigIdPattern = "*mcp-versions.json"
 
 const DefaultNacosListConfigPageSize = 50
 
@@ -134,7 +134,7 @@ func (n *NacosRegistryClient) listMcpServerConfigs() ([]model.ConfigItem, error)
 	for {
 		configPage, err := n.configClient.SearchConfig(vo.SearchConfigParam{
 			Search:   DefaultNacosListConfigMode,
-			DataId:   ListMcpServerConfigIdPattern,
+			DataId:   ListMcpServeConfigIdPattern,
 			Group:    McpServerVersionGroup,
 			PageNo:   currentPageNum,
 			PageSize: DefaultNacosListConfigPageSize,
@@ -368,10 +368,13 @@ func (n *NacosRegistryClient) replaceTemplateAndExactConfigsItems(ctx *ServerCon
 func (n *NacosRegistryClient) resetNacosTemplateConfigs(ctx *ServerContext, config *ConfigListenerWrap) {
 	newCredentials := n.replaceTemplateAndExactConfigsItems(ctx, config)
 
+	credentialsNeedDelete := []string{}
+
 	// cancel all old config listener
 	for key, wrap := range ctx.configsMap {
 		if strings.HasPrefix(key, CredentialPrefix) {
 			if _, ok := newCredentials[key]; !ok {
+				credentialsNeedDelete = append(credentialsNeedDelete, key)
 				err := n.cancelListenToConfig(wrap)
 				if err != nil {
 					mcpServerLog.Errorf("cancel listen to old credential listener error %v", err)
@@ -379,6 +382,10 @@ func (n *NacosRegistryClient) resetNacosTemplateConfigs(ctx *ServerContext, conf
 				}
 			}
 		}
+	}
+
+	for _, credentialKey := range credentialsNeedDelete {
+		delete(ctx.configsMap, credentialKey)
 	}
 
 	for _, data := range newCredentials {
@@ -457,14 +464,15 @@ func (n *NacosRegistryClient) ListenToConfig(ctx *ServerContext, dataId string, 
 	}
 
 	configListener := func(namespace, group, dataId, data string) {
-		if group == McpToolSpecGroup {
-			n.resetNacosTemplateConfigs(ctx, &wrap)
-		} else if group == McpServerSpecGroup {
-			n.refreshServiceListenerIfNeeded(ctx, data)
-		}
-
 		if ctx.serverChangeListener != nil && wrap.data != data {
 			wrap.data = data
+
+			if group == McpToolSpecGroup {
+				n.resetNacosTemplateConfigs(ctx, &wrap)
+			} else if group == McpServerSpecGroup {
+				n.refreshServiceListenerIfNeeded(ctx, data)
+			}
+
 			n.triggerMcpServerChange(ctx.versionedMcpServerInfo.serverInfo.Id)
 		}
 	}
