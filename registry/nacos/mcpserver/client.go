@@ -33,6 +33,11 @@ const McpServerSpecGroup = "mcp-server"
 const McpToolSpecGroup = "mcp-tools"
 const SystemConfigIdPrefix = "system-"
 const CredentialPrefix = "credentials-"
+const DefaultNacosListConfigMode = "blur"
+
+const ListMcpServeConfigIdPattern = "*mcp-versions.json"
+
+const DefaultNacosListConfigPageSize = 50
 
 type ServerSpecInfo struct {
 	RemoteServerConfig *RemoteServerConfig `json:"remoteServerConfig"`
@@ -64,11 +69,9 @@ type ServerContext struct {
 	id                     string
 	versionedMcpServerInfo *VersionedMcpServerInfo
 	serverChangeListener   McpServerListener
-	// key: config group name, McpServerVersionGroup || McpServerSpecGroup || McpToolSpecGroup
-	// value: ConfigListenerWrap {Config DataId, Config Group, ConfigData, listener func }
-	configsMap     map[string]*ConfigListenerWrap
-	serviceInfo    *model.Service
-	namingCallBack func(services []model.Instance, err error)
+	configsMap             map[string]*ConfigListenerWrap
+	serviceInfo            *model.Service
+	namingCallBack         func(services []model.Instance, err error)
 }
 
 type McpServerConfig struct {
@@ -125,32 +128,60 @@ func NewMcpRegistryClient(clientConfig *constant.ClientConfig, serverConfig []co
 	}, nil
 }
 
+func (n *NacosRegistryClient) listMcpServerConfigs() ([]model.ConfigItem, error) {
+	currentPageNum := 1
+	result := make([]model.ConfigItem, 0)
+	for {
+		configPage, err := n.configClient.SearchConfig(vo.SearchConfigParam{
+			Search:   DefaultNacosListConfigMode,
+			DataId:   ListMcpServeConfigIdPattern,
+			Group:    McpServerVersionGroup,
+			PageNo:   currentPageNum,
+			PageSize: DefaultNacosListConfigPageSize,
+		})
+
+		if err != nil {
+			mcpServerLog.Errorf("List mcp server configs for page size %d, page number %d error %v", currentPageNum, DefaultNacosListConfigPageSize)
+		}
+
+		if configPage == nil {
+			mcpServerLog.Errorf("List mcp server configs for page size %d, page number %d null %v", currentPageNum, DefaultNacosListConfigPageSize)
+			continue
+		}
+
+		result = append(result, configPage.PageItems...)
+
+		if configPage.PageNumber >= configPage.PagesAvailable {
+			break
+		}
+
+		currentPageNum += 1
+	}
+	return result, nil
+}
+
+// ListMcpServer List all mcp server from nacos mcp registry /**
 func (n *NacosRegistryClient) ListMcpServer() ([]BasicMcpServerInfo, error) {
-	configPage, err := n.configClient.SearchConfig(vo.SearchConfigParam{
-		Search:   "blur",
-		DataId:   "*mcp-versions.json",
-		Group:    McpServerVersionGroup,
-		PageNo:   1,
-		PageSize: 1000,
-	})
+	configs, err := n.listMcpServerConfigs()
 
 	if err != nil {
 		return nil, err
 	}
 
 	var result []BasicMcpServerInfo
-	for _, config := range configPage.PageItems {
+	for _, config := range configs {
 		mcpServerBasicConfig, err := n.configClient.GetConfig(vo.ConfigParam{
 			Group:  McpServerVersionGroup,
 			DataId: config.DataId,
 		})
 
 		if err != nil {
-			mcpServerLog.Errorf("Get mcpserver version config error, error %v, dataId %v", err, config.DataId)
+			mcpServerLog.Errorf("Get mcp server version config (dataId: %s) error, %v", config.DataId, err)
 			continue
 		}
+
 		if mcpServerBasicConfig == "" {
-			mcpServerLog.Infof("get empty mcpServerBasicConfig, dataId %v", config.DataId)
+			mcpServerLog.Infof("get empty mcp server version config (dataId: %s)", config.DataId)
 			continue
 		}
 
@@ -161,11 +192,21 @@ func (n *NacosRegistryClient) ListMcpServer() ([]BasicMcpServerInfo, error) {
 			continue
 		}
 
+		if !isMcpServerShouldBeDiscoveryForGateway(mcpServer) {
+			mcpServerLog.Infof("mcp server %s don't need to be discovered for gateway, skip it", mcpServerBasicConfig)
+			continue
+		}
+
 		result = append(result, mcpServer)
 	}
 	return result, nil
 }
 
+func isMcpServerShouldBeDiscoveryForGateway(info BasicMcpServerInfo) bool {
+	return "mcp-sse" == info.FrontProtocol || "mcp-streamable" == info.FrontProtocol
+}
+
+// ListenToMcpServer Listen to mcp server config and backend service
 func (n *NacosRegistryClient) ListenToMcpServer(id string, listener McpServerListener) error {
 	versionConfigId := fmt.Sprintf("%s-mcp-versions.json", id)
 	serverVersionConfig, err := n.configClient.GetConfig(vo.ConfigParam{
@@ -173,16 +214,17 @@ func (n *NacosRegistryClient) ListenToMcpServer(id string, listener McpServerLis
 		DataId: versionConfigId,
 	})
 	if err != nil {
-		mcpServerLog.Errorf("Get mcpserver %s version config error, %v", id, err)
+		mcpServerLog.Errorf("Get mcp server(id: %s) version config error, %v", id, err)
 	} else {
-		mcpServerLog.Infof("Get mcpserver %s version config success, %v", id, serverVersionConfig)
+		mcpServerLog.Infof("Get mcp server(id: %s) version config success, config is:\n %v", id, serverVersionConfig)
 	}
 
 	versionConfigCallBack := func(namespace string, group string, dataId string, content string) {
+		mcpServerLog.Infof("Call back to mcp server %s", id)
 		info := VersionsMcpServerInfo{}
 		err = json.Unmarshal([]byte(content), &info)
 		if err != nil {
-			mcpServerLog.Errorf("Parse mcp server version config error %v", err)
+			mcpServerLog.Errorf("Parse mcp server (id: %s) version config callback error, %v", id, err)
 			return
 		}
 		latestVersion := info.LatestPublishedVersion
@@ -193,6 +235,7 @@ func (n *NacosRegistryClient) ListenToMcpServer(id string, listener McpServerLis
 		}
 		ctx.versionedMcpServerInfo.serverInfo = &info.BasicMcpServerInfo
 
+		// first time the version is empty so it will trigger the change finally.
 		if ctx.versionedMcpServerInfo.version != latestVersion {
 			ctx.versionedMcpServerInfo.version = latestVersion
 			n.onServerVersionChanged(ctx)
@@ -212,7 +255,9 @@ func (n *NacosRegistryClient) ListenToMcpServer(id string, listener McpServerLis
 		},
 	}
 
+	// trigger callback manually
 	versionConfigCallBack(n.namespaceId, McpServerVersionGroup, versionConfigId, serverVersionConfig)
+	// Listen after get config to avoid multi-callback on same version
 	err = n.configClient.ListenConfig(vo.ConfigParam{
 		Group:    McpServerVersionGroup,
 		DataId:   versionConfigId,
@@ -236,10 +281,11 @@ func (n *NacosRegistryClient) onServerVersionChanged(ctx *ServerContext) {
 
 	for group, dataId := range configsMap {
 		configsKey := fmt.Sprintf(SystemConfigIdPrefix+"%s@@%s", id, group)
+		// Only listen to the last version of the server, so we should exist and cancel it first
 		if data, exist := ctx.configsMap[configsKey]; exist {
 			err := n.cancelListenToConfig(data)
 			if err != nil {
-				mcpServerLog.Errorf("cancel listen to config %v error %v", dataId, err)
+				mcpServerLog.Errorf("cancel listen to old config %v error %v", dataId, err)
 			}
 		}
 
@@ -290,12 +336,17 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 	return result
 }
 
-func (n *NacosRegistryClient) extractConfigsFromContent(ctx *ServerContext, config *ConfigListenerWrap) []*ConfigListenerWrap {
-	var result []*ConfigListenerWrap
+func (n *NacosRegistryClient) replaceTemplateAndExactConfigsItems(ctx *ServerContext, config *ConfigListenerWrap) map[string]*ConfigListenerWrap {
+	var result map[string]*ConfigListenerWrap
 	compile := regexp.MustCompile("\\$\\{nacos\\.([a-zA-Z0-9-_:\\\\.]+/[a-zA-Z0-9-_:\\\\.]+)}")
-	allConfigs := compile.FindAllString(config.data, 1000)
+	allConfigs := compile.FindAllString(config.data, -1)
+	allConfigsMap := map[string]string{}
+	for _, config := range allConfigs {
+		allConfigsMap[config] = config
+	}
+
 	newContent := config.data
-	for _, data := range allConfigs {
+	for _, data := range allConfigsMap {
 		dataIdAndGroup := strings.ReplaceAll(data, "${nacos.", "")
 		dataIdAndGroup = dataIdAndGroup[0 : len(dataIdAndGroup)-1]
 		dataIdAndGroupArray := strings.Split(dataIdAndGroup, "/")
@@ -303,11 +354,11 @@ func (n *NacosRegistryClient) extractConfigsFromContent(ctx *ServerContext, conf
 		group := strings.TrimSpace(dataIdAndGroupArray[1])
 		configWrap, err := n.ListenToConfig(ctx, dataId, group)
 		if err != nil {
-			mcpServerLog.Errorf("extract configs %v from content error %v", dataId, err)
+			mcpServerLog.Errorf("exact configs %v from content error %v", dataId, err)
 			continue
 		}
-		result = append(result, configWrap)
-		newContent = strings.Replace(newContent, data, ".config.credentials."+group+"_"+dataId, 1)
+		result[CredentialPrefix+configWrap.group+"_"+configWrap.dataId] = configWrap
+		newContent = strings.Replace(newContent, data, ".config.credentials."+group+"_"+dataId, -1)
 	}
 
 	config.data = newContent
@@ -315,8 +366,22 @@ func (n *NacosRegistryClient) extractConfigsFromContent(ctx *ServerContext, conf
 }
 
 func (n *NacosRegistryClient) resetNacosTemplateConfigs(ctx *ServerContext, config *ConfigListenerWrap) {
-	configWraps := n.extractConfigsFromContent(ctx, config)
-	for _, data := range configWraps {
+	newCredentials := n.replaceTemplateAndExactConfigsItems(ctx, config)
+
+	// cancel all old config listener
+	for key, wrap := range ctx.configsMap {
+		if strings.HasPrefix(key, CredentialPrefix) {
+			if _, ok := newCredentials[key]; !ok {
+				err := n.cancelListenToConfig(wrap)
+				if err != nil {
+					mcpServerLog.Errorf("cancel listen to old credential listener error %v", err)
+					continue
+				}
+			}
+		}
+	}
+
+	for _, data := range newCredentials {
 		ctx.configsMap[CredentialPrefix+data.group+"_"+data.dataId] = data
 	}
 }
