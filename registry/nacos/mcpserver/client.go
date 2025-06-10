@@ -337,7 +337,7 @@ func mapConfigMapToServerConfig(ctx *ServerContext) *McpServerConfig {
 }
 
 func (n *NacosRegistryClient) replaceTemplateAndExactConfigsItems(ctx *ServerContext, config *ConfigListenerWrap) map[string]*ConfigListenerWrap {
-	var result map[string]*ConfigListenerWrap
+	result := map[string]*ConfigListenerWrap{}
 	compile := regexp.MustCompile("\\$\\{nacos\\.([a-zA-Z0-9-_:\\\\.]+/[a-zA-Z0-9-_:\\\\.]+)}")
 	allConfigs := compile.FindAllString(config.data, -1)
 	allConfigsMap := map[string]string{}
