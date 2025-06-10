@@ -35,6 +35,7 @@ import (
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
+	"github.com/alibaba/higress/registry"
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
 	"github.com/alibaba/higress/registry/nacos/address"
@@ -96,38 +97,42 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	}
 
 	if w.EnableMCPServer != nil && w.EnableMCPServer.GetValue() {
-		mcpWatcher, err := mcpserver.NewWatcher(
-			cache,
-			mcpserver.WithType(w.Type),
-			mcpserver.WithName(w.Name),
-			mcpserver.WithNacosAddressServer(w.NacosAddressServer),
-			mcpserver.WithDomain(w.Domain),
-			mcpserver.WithPort(w.Port),
-			mcpserver.WithNacosNamespaceId(w.NacosNamespaceId),
-			mcpserver.WithNacosNamespace(w.NacosNamespace),
-			mcpserver.WithNacosGroups(w.NacosGroups),
-			mcpserver.WithNacosAccessKey(w.NacosAccessKey),
-			mcpserver.WithNacosSecretKey(w.NacosSecretKey),
-			mcpserver.WithNacosRefreshInterval(w.NacosRefreshInterval),
-			mcpserver.WithMcpExportDomains(w.McpServerExportDomains),
-			mcpserver.WithMcpBaseUrl(w.McpServerBaseUrl),
-			mcpserver.WithEnableMcpServer(w.EnableMCPServer),
-			mcpserver.WithClusterId(w.clusterId),
-			mcpserver.WithNamespace(w.namespace),
-			mcpserver.WithAuthOption(w.authOption),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("can not create mcp server watcher, err:%v", err)
-		}
-		var once sync.Once
-		mcpWatcher.ReadyHandler(func(ready bool) {
-			once.Do(func() {
-				if ready {
-					log.Infof("Registry mcp Watcher is ready, type:%s, name:%s", w.Type, w.Name)
-				}
+		if w.Type != string(registry.Nacos3) {
+			log.Errorf("nacos2 can not create mcp server watcher")
+		} else {
+			mcpWatcher, err := mcpserver.NewWatcher(
+				cache,
+				mcpserver.WithType(w.Type),
+				mcpserver.WithName(w.Name),
+				mcpserver.WithNacosAddressServer(w.NacosAddressServer),
+				mcpserver.WithDomain(w.Domain),
+				mcpserver.WithPort(w.Port),
+				mcpserver.WithNacosNamespaceId(w.NacosNamespaceId),
+				mcpserver.WithNacosNamespace(w.NacosNamespace),
+				mcpserver.WithNacosGroups(w.NacosGroups),
+				mcpserver.WithNacosAccessKey(w.NacosAccessKey),
+				mcpserver.WithNacosSecretKey(w.NacosSecretKey),
+				mcpserver.WithNacosRefreshInterval(w.NacosRefreshInterval),
+				mcpserver.WithMcpExportDomains(w.McpServerExportDomains),
+				mcpserver.WithMcpBaseUrl(w.McpServerBaseUrl),
+				mcpserver.WithEnableMcpServer(w.EnableMCPServer),
+				mcpserver.WithClusterId(w.clusterId),
+				mcpserver.WithNamespace(w.namespace),
+				mcpserver.WithAuthOption(w.authOption),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("can not create mcp server watcher, err:%v", err)
+			}
+			var once sync.Once
+			mcpWatcher.ReadyHandler(func(ready bool) {
+				once.Do(func() {
+					if ready {
+						log.Infof("Registry mcp Watcher is ready, type:%s, name:%s", w.Type, w.Name)
+					}
+				})
 			})
-		})
-		w.mcpWatcher = mcpWatcher
+			w.mcpWatcher = mcpWatcher
+		}
 	}
 
 	if w.NacosNamespace == "" {
