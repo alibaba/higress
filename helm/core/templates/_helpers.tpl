@@ -113,3 +113,36 @@ kind: VMPodScrape
 {{- fail "unexpected gateway.metrics.provider" -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "pluginServer.name" -}}
+{{- .Values.pluginServer.name | default "higress-plugin-server" -}}
+{{- end }}
+
+{{- define "pluginServer.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "pluginServer.labels" -}}
+helm.sh/chart: {{ include "pluginServer.chart" . }}
+{{ include "pluginServer.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+app.kubernetes.io/name: {{ include "pluginServer.name" . }}
+{{- end }}
+
+{{- define "pluginServer.selectorLabels" -}}
+{{- if hasKey .Values.pluginServer.labels "app" }}
+{{- with .Values.pluginServer.labels.app }}app: {{.|quote}}
+{{- end}}
+{{- else }}app: {{ include "pluginServer.name" . }}
+{{- end }}
+{{- if hasKey .Values.pluginServer.labels "higress" }}
+{{- with .Values.pluginServer.labels.higress }}
+higress: {{.|quote}}
+{{- end}}
+{{- else }}
+higress: {{ include "pluginServer.name" . }}
+{{- end }}
+{{- end }}
