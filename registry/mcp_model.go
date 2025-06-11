@@ -29,7 +29,7 @@ const (
 	HttpsProtocol        = "https"
 	DubboProtocol        = "dubbo"
 	McpSSEProtocol       = "mcp-sse"
-	McpStreambleProtocol = "mcp-streamble"
+	McpStreambleProtocol = "mcp-streamable"
 )
 
 type McpToolArgsType string
