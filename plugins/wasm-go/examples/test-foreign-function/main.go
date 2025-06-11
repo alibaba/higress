@@ -1,7 +1,7 @@
 package main
 
 import (
-	pb "github.com/alibaba/higress/plugins/wasm-go/extensions/test-foreign-function/protos"
+	pb "github.com/alibaba/higress/plugins/wasm-go/pkg/protos"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
