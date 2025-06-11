@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
-	"github.com/go-redis/redis/v8"
 )
 
 type RedisConfig struct {
@@ -275,5 +274,50 @@ func (r *RedisClient) Eval(script string, numKeys int, keys []string, args []int
 		return nil, fmt.Errorf("failed to execute Lua script: %w", err)
 	}
 
+	return result, nil
+}
+
+// Del 删除一个或多个key
+func (r *RedisClient) Del(keys ...string) (int64, error) {
+	result, err := r.client.Del(r.ctx, keys...).Result()
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete keys: %w", err)
+	}
+	return result, nil
+}
+
+// Keys 返回匹配指定模式的所有key
+func (r *RedisClient) Keys(pattern string) ([]string, error) {
+	result, err := r.client.Keys(r.ctx, pattern).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get keys: %w", err)
+	}
+	return result, nil
+}
+
+// Exists 检查key是否存在
+func (r *RedisClient) Exists(keys ...string) (int64, error) {
+	result, err := r.client.Exists(r.ctx, keys...).Result()
+	if err != nil {
+		return 0, fmt.Errorf("failed to check keys: %w", err)
+	}
+	return result, nil
+}
+
+// Expire 设置key的过期时间
+func (r *RedisClient) Expire(key string, expiration time.Duration) (bool, error) {
+	result, err := r.client.Expire(r.ctx, key, expiration).Result()
+	if err != nil {
+		return false, fmt.Errorf("failed to set expiration: %w", err)
+	}
+	return result, nil
+}
+
+// TTL 返回key的剩余生存时间
+func (r *RedisClient) TTL(key string) (time.Duration, error) {
+	result, err := r.client.TTL(r.ctx, key).Result()
+	if err != nil {
+		return 0, fmt.Errorf("failed to get TTL: %w", err)
+	}
 	return result, nil
 }
