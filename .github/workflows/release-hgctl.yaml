@@ -26,7 +26,7 @@ jobs:
         zip -q -r hgctl_${{ env.HGCTL_VERSION }}_windows_arm64.zip out/windows_arm64/
 
     - name: Upload hgctl packages to the GitHub release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
@@ -51,7 +51,7 @@ jobs:
         tar -zcvf hgctl_${{ env.HGCTL_VERSION }}_darwin_arm64.tar.gz out/darwin_arm64/
 
     - name: Upload hgctl packages to the GitHub release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
@@ -73,7 +73,7 @@ jobs:
         tar -zcvf hgctl_${{ env.HGCTL_VERSION }}_darwin_amd64.tar.gz out/darwin_amd64/
 
     - name: Upload hgctl packages to the GitHub release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
