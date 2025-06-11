@@ -4,7 +4,7 @@
 
 **注意**
 1. 原始响应不能够有body，如果有原始的响应body，会造成网关crash
-2. header阶段需返回`types.HeaderContinueAndEndStream`
+2. header阶段需返回`types.ActionPause`
 3. `Endstream`必须设置为`true`
 
 

@@ -37,5 +37,5 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TestConfig, log wrapp
 	if err != nil {
 		log.Errorf("call inject_encoded_data_to_filter_chain_on_header failed, error: %+v", err)
 	}
-	return types.HeaderContinueAndEndStream
+	return types.ActionPause
 }
