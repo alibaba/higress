@@ -29,10 +29,13 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TestConfig, log wrapp
 	proxywasm.RemoveHttpResponseHeader("content-length")
 	ctx.DontReadResponseBody()
 	d := &pb.InjectEncodedDataToFilterChainArguments{
-		Body:      "hello foreign function",
+		Body:      "hello foreign function\n",
 		Endstream: true,
 	}
 	s, _ := proto.Marshal(d)
-	proxywasm.CallForeignFunction("inject_encoded_data_to_filter_chain_on_header", s)
-	return types.ActionPause
+	_, err := proxywasm.CallForeignFunction("inject_encoded_data_to_filter_chain_on_header", s)
+	if err != nil {
+		log.Errorf("call inject_encoded_data_to_filter_chain_on_header failed, error: %+v", err)
+	}
+	return types.HeaderContinueAndEndStream
 }
