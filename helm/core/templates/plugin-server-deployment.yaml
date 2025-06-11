@@ -1,0 +1,39 @@
+{{- if .Values.global.enablePluginServer }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pluginServer.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.pluginServer.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pluginServer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- with .Values.pluginServer.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "pluginServer.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.pluginServer.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.pluginServer.hub | default .Values.global.hub }}/{{ .Values.pluginServer.image | default "plugin-server" }}:{{ .Values.pluginServer.tag | default "1.0.0" }}
+          {{- if .Values.global.imagePullPolicy }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          {{- end }}
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: {{ .Values.pluginServer.resources.requests.cpu }}
+              memory: {{ .Values.pluginServer.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.pluginServer.resources.limits.cpu }}
+              memory: {{ .Values.pluginServer.resources.limits.memory }}
+{{- end }}
