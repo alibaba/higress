@@ -524,7 +524,7 @@ func (g *geminiProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 				choice.Message.Content = part.Text
 			}
 
-			choice.FinishReason = util.Ptr(candidate.FinishReason)
+			choice.FinishReason = util.Ptr(strings.ToLower(candidate.FinishReason))
 			fullTextResponse.Choices = append(fullTextResponse.Choices, choice)
 			choiceIndex += 1
 		}
@@ -560,6 +560,9 @@ func (g *geminiProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 	var choice chatCompletionChoice
 	if len(geminiResp.Candidates) > 0 && len(geminiResp.Candidates[0].Content.Parts) > 0 {
 		choice.Delta = &chatMessage{Content: geminiResp.Candidates[0].Content.Parts[0].Text}
+		if geminiResp.Candidates[0].FinishReason != "" {
+			choice.FinishReason = util.Ptr(strings.ToLower(geminiResp.Candidates[0].FinishReason))
+		}
 	}
 	streamResponse := chatCompletionResponse{
 		Id:      fmt.Sprintf("chatcmpl-%s", uuid.New().String()),
