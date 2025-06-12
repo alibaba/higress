@@ -59,11 +59,3 @@ In the `mcp - server.yaml` file, set the `jr - api - key` field to a valid API k
 
 ### Integrate into MCP Client
 On the user's MCP Client interface, add the relevant configuration to the MCP Server list.
-
-```json
-"mcpServers": {
-    "jr-agent-bid": {
-      "url": "https://agent-bid.junrunrenli.com/sse?jr-api-key={jr-api-key}",
-    }
-} 
-```
