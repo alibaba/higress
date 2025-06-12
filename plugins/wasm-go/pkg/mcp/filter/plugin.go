@@ -17,8 +17,10 @@ package filter
 import (
 	"github.com/tidwall/gjson"
 
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
@@ -27,17 +29,27 @@ const (
 	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
-type RequestFilterF func(context wrapper.HttpContext, config any, toolName string, toolArgs gjson.Result, rawBody []byte) types.Action
+type HTTPFilterF func(context wrapper.HttpContext, config any, headers [][2]string, body []byte) types.Action
 
-type ResponseFilterF func(context wrapper.HttpContext, config any, isError bool, content gjson.Result, rawBody []byte) types.Action
+type ToolCallRequestFilterF func(context wrapper.HttpContext, config any, toolName string, toolArgs gjson.Result, rawBody []byte) types.Action
 
-type OnJsonRpcErrorF func(context wrapper.HttpContext, config any, code int64, message string) types.Action
+type ToolCallResponseFilterF func(context wrapper.HttpContext, config any, isError bool, content gjson.Result, rawBody []byte) types.Action
+
+type ToolListResponseFilterF func(context wrapper.HttpContext, config any, tools gjson.Result, rawBody []byte) types.Action
+
+type JsonRpcRequestFilterF func(context wrapper.HttpContext, config any, id utils.JsonRpcID, method string, params gjson.Result, rawBody []byte) types.Action
+
+type JsonRpcResponseFilterF func(context wrapper.HttpContext, config any, id utils.JsonRpcID, result, error gjson.Result, rawBody []byte) types.Action
 
 type Context struct {
 	filterName                    string
-	requestFilter                 RequestFilterF
-	responseFilter                ResponseFilterF
-	onJsonRpcError                OnJsonRpcErrorF
+	httpRequestFilter             HTTPFilterF
+	httpResponseFilter            HTTPFilterF
+	jsonRpcRequestFilter          JsonRpcRequestFilterF
+	jsonRpcResponseFilter         JsonRpcResponseFilterF
+	toolCallRequestFilter         ToolCallRequestFilterF
+	toolCallResponseFilter        ToolCallResponseFilterF
+	toolListResponseFilter        ToolListResponseFilterF
 	parseFilterConfig             ParseFilterConfigF
 	parseFilterRuleOverrideConfig ParseFilterRuleOverrideConfigF
 }
@@ -87,40 +99,88 @@ func (o *filterNameOption) Apply(ctx *Context) {
 	ctx.filterName = o.name
 }
 
-type setRequestFilterOption struct {
-	f RequestFilterF
+type setJsonRpcRequestFilterOption struct {
+	f JsonRpcRequestFilterF
 }
 
-func SetRequestFilter(f RequestFilterF) CtxOption {
-	return &setRequestFilterOption{f}
+func SetJsonRpcRequestFilter(f JsonRpcRequestFilterF) CtxOption {
+	return &setJsonRpcRequestFilterOption{f}
 }
 
-func (o *setRequestFilterOption) Apply(ctx *Context) {
-	ctx.requestFilter = o.f
+func (o *setJsonRpcRequestFilterOption) Apply(ctx *Context) {
+	ctx.jsonRpcRequestFilter = o.f
 }
 
-type setResponseFilterOption struct {
-	f ResponseFilterF
+type setJsonRpcResponseFilterOption struct {
+	f JsonRpcResponseFilterF
 }
 
-func SetResponseFilter(f ResponseFilterF) CtxOption {
-	return &setResponseFilterOption{f}
+func SetJsonRpcResponseFilter(f JsonRpcResponseFilterF) CtxOption {
+	return &setJsonRpcResponseFilterOption{f}
 }
 
-func (o *setResponseFilterOption) Apply(ctx *Context) {
-	ctx.responseFilter = o.f
+func (o *setJsonRpcResponseFilterOption) Apply(ctx *Context) {
+	ctx.jsonRpcResponseFilter = o.f
 }
 
-type onJsonRpcErrorOption struct {
-	f OnJsonRpcErrorF
+type setFallbackHTTPRequestFilterOption struct {
+	f HTTPFilterF
 }
 
-func OnJsonRpcError(f OnJsonRpcErrorF) CtxOption {
-	return &onJsonRpcErrorOption{f}
+func SetFallbackHTTPRequestFilter(f HTTPFilterF) CtxOption {
+	return &setFallbackHTTPRequestFilterOption{f}
 }
 
-func (o *onJsonRpcErrorOption) Apply(ctx *Context) {
-	ctx.onJsonRpcError = o.f
+func (o *setFallbackHTTPRequestFilterOption) Apply(ctx *Context) {
+	ctx.httpRequestFilter = o.f
+}
+
+type setFallbackHTTPResponseFilterOption struct {
+	f HTTPFilterF
+}
+
+func SetFallbackHTTPResponseFilter(f HTTPFilterF) CtxOption {
+	return &setFallbackHTTPResponseFilterOption{f}
+}
+
+func (o *setFallbackHTTPResponseFilterOption) Apply(ctx *Context) {
+	ctx.httpResponseFilter = o.f
+}
+
+type toolCallRequestFilterOption struct {
+	f ToolCallRequestFilterF
+}
+
+func SetToolCallRequestFilter(f ToolCallRequestFilterF) CtxOption {
+	return &toolCallRequestFilterOption{f: f}
+}
+
+func (o *toolCallRequestFilterOption) Apply(ctx *Context) {
+	ctx.toolCallRequestFilter = o.f
+}
+
+type toolCallResponseFilterOption struct {
+	f ToolCallResponseFilterF
+}
+
+func SetToolCallResponseFilter(f ToolCallResponseFilterF) CtxOption {
+	return &toolCallResponseFilterOption{f: f}
+}
+
+func (o *toolCallResponseFilterOption) Apply(ctx *Context) {
+	ctx.toolCallResponseFilter = o.f
+}
+
+type toolListResponseFilterOption struct {
+	f ToolListResponseFilterF
+}
+
+func SetToolListResponseFilter(f ToolListResponseFilterF) CtxOption {
+	return &toolListResponseFilterOption{f: f}
+}
+
+func (o *toolListResponseFilterOption) Apply(ctx *Context) {
+	ctx.toolListResponseFilter = o.f
 }
 
 func Load(options ...CtxOption) {
@@ -136,7 +196,7 @@ func Initialize() {
 	if globalContext.parseFilterConfig == nil {
 		panic("SetConfigParser not set")
 	}
-	if globalContext.requestFilter == nil && globalContext.responseFilter == nil {
+	if globalContext.jsonRpcRequestFilter == nil && globalContext.jsonRpcResponseFilter == nil {
 		panic("At least one of SetRequestFilter or SetResponseFilter needs to be set.")
 	}
 	var configOption wrapper.CtxOption[mcpFilterConfig]
@@ -157,30 +217,51 @@ func Initialize() {
 }
 
 type mcpFilterConfig struct {
-	config          any
-	requestHandler  utils.JsonRpcRequestHandler
-	responseHandler utils.JsonRpcResponseHandler
+	config                 any
+	httpRequestHandler     HTTPFilterF
+	httpResponseHandler    HTTPFilterF
+	jsonRpcRequestHandler  utils.JsonRpcRequestHandler
+	jsonRpcResponseHandler utils.JsonRpcResponseHandler
 }
 
 func installHandler(config *mcpFilterConfig) {
-	config.requestHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, method string, params gjson.Result, rawBody []byte) types.Action {
-		if globalContext.requestFilter == nil {
+	config.httpRequestHandler = globalContext.httpRequestFilter
+	config.httpResponseHandler = globalContext.httpResponseFilter
+	bizConfig := config.config
+	if globalContext.jsonRpcRequestFilter != nil || globalContext.toolCallRequestFilter != nil {
+		config.jsonRpcRequestHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, method string, params gjson.Result, rawBody []byte) types.Action {
+			if globalContext.jsonRpcRequestFilter != nil {
+				ret := globalContext.jsonRpcRequestFilter(context, bizConfig, id, method, params, rawBody)
+				if ret != types.ActionContinue {
+					return ret
+				}
+			}
+			context.SetContext("JSONRPC_METHOD", method)
+			if method == "tools/call" && globalContext.toolCallRequestFilter != nil {
+				toolName := params.Get("name").String()
+				toolArgs := params.Get("arguments")
+				return globalContext.toolCallRequestFilter(context, bizConfig, toolName, toolArgs, rawBody)
+			}
 			return types.ActionContinue
 		}
-		toolName := params.Get("name").String()
-		toolArgs := params.Get("arguments")
-		return globalContext.requestFilter(context, config.config, toolName, toolArgs, rawBody)
 	}
-	config.responseHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, result, error gjson.Result, rawBody []byte) types.Action {
-		if result.Exists() && globalContext.responseFilter != nil {
-			isError := result.Get("isError").Bool()
-			content := result.Get("content")
-			return globalContext.responseFilter(context, config.config, isError, content, rawBody)
+	if globalContext.jsonRpcResponseFilter != nil || globalContext.toolListResponseFilter != nil || globalContext.toolCallResponseFilter != nil {
+		config.jsonRpcResponseHandler = func(context wrapper.HttpContext, id utils.JsonRpcID, result, error gjson.Result, rawBody []byte) types.Action {
+			if globalContext.jsonRpcResponseFilter != nil {
+				ret := globalContext.jsonRpcResponseFilter(context, bizConfig, id, result, error, rawBody)
+				if ret != types.ActionContinue {
+					return ret
+				}
+			}
+			method := context.GetStringContext("JSONRPC_METHOD", "")
+			if method == "tools/list" && globalContext.toolListResponseFilter != nil {
+				return globalContext.toolListResponseFilter(context, bizConfig, result.Get("tools"), rawBody)
+			}
+			if method == "tools/call" && globalContext.toolCallResponseFilter != nil {
+				return globalContext.toolCallResponseFilter(context, bizConfig, result.Get("isError").Bool(), result.Get("content"), rawBody)
+			}
+			return types.ActionContinue
 		}
-		if error.Exists() && globalContext.onJsonRpcError != nil {
-			return globalContext.onJsonRpcError(context, config.config, error.Get("code").Int(), error.Get("message").String())
-		}
-		return types.ActionContinue
 	}
 }
 
@@ -211,7 +292,7 @@ func parseOverrideConfig(configBytes []byte, global mcpFilterConfig, config *mcp
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config mcpFilterConfig) types.Action {
-	if !wrapper.HasRequestBody() || globalContext.requestFilter == nil {
+	if !wrapper.HasRequestBody() || (config.httpRequestHandler == nil && config.jsonRpcRequestHandler == nil) {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -220,11 +301,22 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config mcpFilterConfig) types
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config mcpFilterConfig, body []byte) types.Action {
-	return utils.HandleJsonRpcRequest(ctx, body, config.requestHandler)
+	if !gjson.GetBytes(body, "jsonrpc").Exists() {
+		if config.httpRequestHandler != nil {
+			headers, err := proxywasm.GetHttpRequestHeaders()
+			if err != nil {
+				log.Errorf("get request headers failed, err:%v", err)
+				return types.ActionContinue
+			}
+			return config.httpRequestHandler(ctx, config.config, headers, body)
+		}
+		return types.ActionContinue
+	}
+	return utils.HandleJsonRpcRequest(ctx, body, config.jsonRpcRequestHandler)
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config mcpFilterConfig) types.Action {
-	if !wrapper.HasResponseBody() || globalContext.responseFilter == nil {
+	if !wrapper.HasResponseBody() || (config.httpResponseHandler == nil && config.jsonRpcResponseHandler == nil) {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
@@ -233,5 +325,16 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config mcpFilterConfig) type
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config mcpFilterConfig, body []byte) types.Action {
-	return utils.HandleJsonRpcResponse(ctx, body, config.responseHandler)
+	if !gjson.GetBytes(body, "jsonrpc").Exists() {
+		if config.httpResponseHandler != nil {
+			headers, err := proxywasm.GetHttpResponseHeaders()
+			if err != nil {
+				log.Errorf("get response headers failed, err:%v", err)
+				return types.ActionContinue
+			}
+			return config.httpResponseHandler(ctx, config.config, headers, body)
+		}
+		return types.ActionContinue
+	}
+	return utils.HandleJsonRpcResponse(ctx, body, config.jsonRpcResponseHandler)
 }
