@@ -55,7 +55,7 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"360gpt-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -77,19 +77,19 @@ var WasmPluginsAiProxy = suite.ConformanceTest{
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"360gpt-turbo","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -115,7 +115,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -137,19 +137,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"baichuan2-13b-chat-v1","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -175,7 +175,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -197,19 +197,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"ernie-3.5-8k","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -235,7 +235,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"deepseek-reasoner","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -257,19 +257,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"deepseek-reasoner","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -295,7 +295,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -317,19 +317,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"fake_doubao_endpoint","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -355,7 +355,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -377,19 +377,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"cohere-command-r-08-2024","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -415,7 +415,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"llama3-8b-8192","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -437,19 +437,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"llama3-8b-8192","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -475,7 +475,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -497,19 +497,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -535,7 +535,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -557,21 +557,21 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
+						Body: []byte(`data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你"},"finish_reason":"","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
-data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"好"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
+data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"好"},"finish_reason":"","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
-data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"，"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
+data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"，"},"finish_reason":"","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
-data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
+data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你"},"finish_reason":"","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
-data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"是"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
+data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"是"},"finish_reason":"","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
-data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"谁"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
+data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"谁"},"finish_reason":"","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
-data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"？"}}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
+data: {"choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"？"},"finish_reason":"","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{}}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智能助理","role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"abab6.5s-chat","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}
 
 `),
 					},
@@ -595,7 +595,7 @@ data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智�
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"mistral-tiny","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -617,19 +617,19 @@ data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"name":"MM智�
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"mistral-tiny","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -655,7 +655,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"qwen-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -677,19 +677,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"qwen-turbo","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -717,7 +717,7 @@ data: [DONE]
 						ContentType: http.ContentTypeApplicationJson,
 						// Since the "created" field is generated by the ai-proxy plugin based on the current timestamp, it is ignored during comparison
 						JsonBodyIgnoreFields: []string{"created"},
-						Body:                 []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":1738218357,"model":"qwen-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:                 []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":1738218357,"model":"qwen-turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -739,7 +739,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"step-1-8k","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -761,19 +761,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"step-1-8k","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -799,7 +799,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -821,19 +821,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"meta-llama/Meta-Llama-3-8B-Instruct-Turbo","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -859,7 +859,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"Yi-Medium","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -881,19 +881,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"Yi-Medium","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -919,7 +919,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop"}],"created":10,"model":"glm-4-plus","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -941,19 +941,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"}}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"}}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"}}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"}}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"}}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"}}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"glm-4-plus","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
@@ -979,7 +979,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"USER: \n你好\n"},"finish_reason":"stop"}],"created":10,"model":"dify","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"USER: \n你好\n"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"dify","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -1001,27 +1001,27 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"U"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"U"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"S"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"S"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"E"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"E"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"R"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"R"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":":"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":":"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":" "}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":" "},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"\n"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"\n"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"你"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"好"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"\n"}}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":{}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"\n"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"USER: \n你好\n"},"finish_reason":"stop"}],"model":"dify","object":"chat.completion.chunk","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"USER: \n你好\n"},"finish_reason":"stop","logprobs":null}],"model":"dify","object":"chat.completion.chunk","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}
 
 `),
 					},

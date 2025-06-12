@@ -500,7 +500,7 @@ func (g *geminiProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 		Object:  objectChatCompletion,
 		Created: time.Now().UnixMilli() / 1000,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     response.UsageMetadata.PromptTokenCount,
 			CompletionTokens: response.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      response.UsageMetadata.TotalTokenCount,
@@ -514,7 +514,7 @@ func (g *geminiProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 				Message: &chatMessage{
 					Role: roleAssistant,
 				},
-				FinishReason: finishReasonStop,
+				FinishReason: util.Ptr(finishReasonStop),
 			}
 			if part.FunctionCall != nil {
 				choice.Message.ToolCalls = g.buildToolCalls(&candidate)
@@ -524,7 +524,7 @@ func (g *geminiProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 				choice.Message.Content = part.Text
 			}
 
-			choice.FinishReason = candidate.FinishReason
+			choice.FinishReason = util.Ptr(candidate.FinishReason)
 			fullTextResponse.Choices = append(fullTextResponse.Choices, choice)
 			choiceIndex += 1
 		}
@@ -567,7 +567,7 @@ func (g *geminiProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 		Created: time.Now().UnixMilli() / 1000,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: []chatCompletionChoice{choice},
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     geminiResp.UsageMetadata.PromptTokenCount,
 			CompletionTokens: geminiResp.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      geminiResp.UsageMetadata.TotalTokenCount,
