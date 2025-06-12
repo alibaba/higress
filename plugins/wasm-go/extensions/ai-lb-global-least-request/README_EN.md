@@ -25,7 +25,7 @@ If an error occurs during the execution of the plugin, the load balancing strate
 
 ## Configuration
 
-| 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
+| Name                | Type         | required          | default       | description                                 |
 |--------------------|-----------------|------------------|-------------|-------------------------------------|
 | `serviceFQDN`      | string          | required              |             | redis FQDN, e.g.  `redis.dns`    |
 | `servicePort`      | int             | required              |             | redis port                      |
