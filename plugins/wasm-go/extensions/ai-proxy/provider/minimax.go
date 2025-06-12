@@ -36,8 +36,7 @@ const (
 	defaultSenderName        string = "小明"
 )
 
-type minimaxProviderInitializer struct {
-}
+type minimaxProviderInitializer struct{}
 
 func (m *minimaxProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	// If using the chat completion Pro API, a group ID must be set.
@@ -368,7 +367,7 @@ func (m *minimaxProvider) responseProToOpenAI(response *minimaxChatCompletionPro
 				Content: message.Text,
 			}
 			choices = append(choices, chatCompletionChoice{
-				FinishReason: choice.FinishReason,
+				FinishReason: util.Ptr(choice.FinishReason),
 				Index:        messageIndex,
 				Message:      message,
 			})
@@ -381,7 +380,7 @@ func (m *minimaxProvider) responseProToOpenAI(response *minimaxChatCompletionPro
 		Created: response.Created,
 		Model:   response.Model,
 		Choices: choices,
-		Usage: usage{
+		Usage: &usage{
 			TotalTokens:      int(response.Usage.TotalTokens),
 			PromptTokens:     int(response.Usage.PromptTokens),
 			CompletionTokens: int(response.Usage.CompletionTokens),

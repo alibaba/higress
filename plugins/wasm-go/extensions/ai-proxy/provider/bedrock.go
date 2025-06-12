@@ -13,6 +13,7 @@ import (
 	"hash/crc32"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +23,8 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
@@ -39,8 +42,7 @@ const (
 	requestIdHeader        = "X-Amzn-Requestid"
 )
 
-type bedrockProviderInitializer struct {
-}
+type bedrockProviderInitializer struct{}
 
 func (b *bedrockProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if len(config.awsAccessKey) == 0 || len(config.awsSecretKey) == 0 {
@@ -101,7 +103,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
 	}
 	if bedrockEvent.StopReason != nil {
-		chatChoice.FinishReason = stopReasonBedrock2OpenAI(*bedrockEvent.StopReason)
+		chatChoice.FinishReason = util.Ptr(stopReasonBedrock2OpenAI(*bedrockEvent.StopReason))
 	}
 	choices = append(choices, chatChoice)
 	requestId := ctx.GetStringContext(requestIdHeader, "")
@@ -115,7 +117,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 	}
 	if bedrockEvent.Usage != nil {
 		openAIFormattedChunk.Choices = choices[:0]
-		openAIFormattedChunk.Usage = usage{
+		openAIFormattedChunk.Usage = &usage{
 			CompletionTokens: bedrockEvent.Usage.OutputTokens,
 			PromptTokens:     bedrockEvent.Usage.InputTokens,
 			TotalTokens:      bedrockEvent.Usage.TotalTokens,
@@ -607,6 +609,11 @@ func (b *bedrockProvider) insertHttpContextMessage(body []byte, content string, 
 }
 
 func (b *bedrockProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
+	if gjson.GetBytes(body, "model").Exists() {
+		rawModel := gjson.GetBytes(body, "model").String()
+		encodedModel := url.QueryEscape(rawModel)
+		body, _ = sjson.SetBytes(body, "model", encodedModel)
+	}
 	switch apiName {
 	case ApiNameChatCompletion:
 		return b.onChatCompletionRequestBody(ctx, body, headers)
@@ -748,18 +755,19 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 				Role:    bedrockResponse.Output.Message.Role,
 				Content: outputContent,
 			},
-			FinishReason: stopReasonBedrock2OpenAI(bedrockResponse.StopReason),
+			FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 		},
 	}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
+	modelId, _ := url.QueryUnescape(ctx.GetStringContext(ctxKeyFinalRequestModel, ""))
 	return &chatCompletionResponse{
 		Id:                requestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
+		Model:             modelId,
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     bedrockResponse.Usage.InputTokens,
 			CompletionTokens: bedrockResponse.Usage.OutputTokens,
 			TotalTokens:      bedrockResponse.Usage.TotalTokens,
@@ -900,8 +908,8 @@ func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 }
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {
+	path = encodeSigV4Path(path)
 	hashedPayload := sha256Hex(body)
-	path = urlEncoding(path)
 
 	endpoint := fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion)
 	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-date:%s\n", endpoint, amzDate)
@@ -918,14 +926,15 @@ func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, bod
 	return signature
 }
 
-func urlEncoding(rawStr string) string {
-	encodedStr := strings.ReplaceAll(rawStr, ":", "%3A")
-	encodedStr = strings.ReplaceAll(encodedStr, "+", "%2B")
-	encodedStr = strings.ReplaceAll(encodedStr, "=", "%3D")
-	encodedStr = strings.ReplaceAll(encodedStr, "&", "%26")
-	encodedStr = strings.ReplaceAll(encodedStr, "$", "%24")
-	encodedStr = strings.ReplaceAll(encodedStr, "@", "%40")
-	return encodedStr
+func encodeSigV4Path(path string) string {
+	segments := strings.Split(path, "/")
+	for i, seg := range segments {
+		if seg == "" {
+			continue
+		}
+		segments[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segments, "/")
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {

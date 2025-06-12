@@ -88,6 +88,10 @@ func (s *store) GetAllConfigs(kind config.GroupVersionKind) map[string]*config.C
 			rule := cfg.Spec.(*registry.McpServerRule)
 			pluginConfig.Rules = append(pluginConfig.Rules, rule)
 		}
+		if len(pluginConfig.Rules) == 0 {
+			log.Infof("there is no mcp server rule exist, skip generate wasm plugin")
+			return map[string]*config.Config{}
+		}
 		rulesBytes, err := json.Marshal(pluginConfig)
 		if err != nil {
 			log.Errorf("marshal mcp wasm plugin config error %v", err)

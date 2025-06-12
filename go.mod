@@ -31,7 +31,7 @@ require (
 	github.com/hudl/fargo v1.4.0
 	github.com/mholt/acmez v1.2.0
 	github.com/nacos-group/nacos-sdk-go v1.0.8
-	github.com/nacos-group/nacos-sdk-go/v2 v2.1.2
+	github.com/nacos-group/nacos-sdk-go/v2 v2.3.2
 	github.com/onsi/gomega v1.27.10
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
@@ -202,6 +202,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/stoewer/go-strcase v1.3.0 // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/tetratelabs/wazero v1.7.3 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
@@ -274,6 +275,5 @@ replace github.com/caddyserver/certmagic => github.com/2456868764/certmagic v1.0
 
 replace (
 	github.com/dubbogo/gost => github.com/johnlanni/gost v1.11.23-0.20220713132522-0967a24036c6
-	github.com/nacos-group/nacos-sdk-go/v2 => github.com/luoxiner/nacos-sdk-go/v2 v2.2.9-60
 	golang.org/x/exp => golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 )

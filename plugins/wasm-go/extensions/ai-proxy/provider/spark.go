@@ -15,12 +15,10 @@ import (
 
 // sparkProvider is the provider for SparkLLM AI service.
 const (
-	sparkHost               = "spark-api-open.xf-yun.com"
-	sparkChatCompletionPath = "/v1/chat/completions"
+	sparkHost = "spark-api-open.xf-yun.com"
 )
 
-type sparkProviderInitializer struct {
-}
+type sparkProviderInitializer struct{}
 
 type sparkProvider struct {
 	config       ProviderConfig
@@ -58,7 +56,7 @@ func (i *sparkProviderInitializer) ValidateConfig(config *ProviderConfig) error 
 
 func (i *sparkProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): sparkChatCompletionPath,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 	}
 }
 
@@ -152,7 +150,7 @@ func (p *sparkProvider) responseSpark2OpenAI(ctx wrapper.HttpContext, response *
 		Object:  objectChatCompletion,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: choices,
-		Usage:   response.Usage,
+		Usage:   &response.Usage,
 	}
 }
 
@@ -170,7 +168,7 @@ func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, resp
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Object:  objectChatCompletion,
 		Choices: choices,
-		Usage:   response.Usage,
+		Usage:   &response.Usage,
 	}
 }
 
