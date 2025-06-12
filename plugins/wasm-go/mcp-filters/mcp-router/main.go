@@ -42,7 +42,7 @@ func init() {
 // ServerConfig represents the routing configuration for a single MCP server
 type ServerConfig struct {
 	Name   string `json:"name"`
-	Domain string `json:"domain"`
+	Domain string `json:"domain,omitempty"`
 	Path   string `json:"path"`
 }
 
@@ -99,12 +99,14 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 		return types.ActionContinue
 	}
 
-	log.Infof("Routing to server '%s': %s%s", serverName, targetServer.Domain, targetServer.Path)
+	log.Infof("Routing to server '%s': domain=[%s], path=[%s]", serverName, targetServer.Domain, targetServer.Path)
 
-	// Modify the :authority header (domain)
-	if err := proxywasm.ReplaceHttpRequestHeader(":authority", targetServer.Domain); err != nil {
-		log.Errorf("Failed to set :authority header to '%s': %v", targetServer.Domain, err)
-		return types.ActionContinue
+	// Modify the :authority header (domain) if it's configured
+	if targetServer.Domain != "" {
+		if err := proxywasm.ReplaceHttpRequestHeader(":authority", targetServer.Domain); err != nil {
+			log.Errorf("Failed to set :authority header to '%s': %v", targetServer.Domain, err)
+			return types.ActionContinue
+		}
 	}
 
 	// Modify the :path header
@@ -125,7 +127,7 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 		return types.ActionContinue
 	}
 
-	log.Infof("Successfully routed request to server '%s' at %s%s, modified tool name from '%s' to '%s' in request body",
-		serverName, targetServer.Domain, targetServer.Path, toolName, actualToolName)
+	log.Infof("Successfully routed request for tool '%s' to server '%s'. New tool name is '%s'.",
+		toolName, serverName, actualToolName)
 	return types.ActionContinue
 }

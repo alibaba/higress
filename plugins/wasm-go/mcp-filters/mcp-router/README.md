@@ -11,7 +11,7 @@ This enables the creation of a unified MCP endpoint that can aggregate tools fro
 |-----------|---------------|----------|---------------|---------------------------------------------------------------------------------------------------------|
 | `servers` | array of objects | Yes      | -             | A list of routing configurations for each backend MCP server.                                           |
 | `servers[].name` | string | Yes | - | The unique identifier for the MCP server. This must match the prefix used in the `tools/call` request's tool name. |
-| `servers[].domain` | string | Yes | - | The domain (authority) of the backend MCP server to which the request will be routed. |
+| `servers[].domain` | string | No | - | The domain (authority) of the backend MCP server. If omitted, the original request's domain will be kept. |
 | `servers[].path` | string | Yes | - | The path of the backend MCP server to which the request will be routed. |
 
 ## How It Works
