@@ -109,10 +109,14 @@ impl MessageWindowOpenAi {
         match flag {
             MsgFlag::Content => {
                 ret["delta"]["content"] = Value::String(String::from_utf8_lossy(msg).to_string());
+                if let Some(m) = ret["delta"].as_object_mut() {
+                    m.remove("reasoning_content");
+                }
             }
             MsgFlag::ReasoningContent => {
                 ret["delta"]["reasoning_content"] =
                     Value::String(String::from_utf8_lossy(msg).to_string());
+                ret["delta"]["content"] = Value::String(String::new());
             }
             _ => {}
         }
@@ -277,16 +281,20 @@ mod tests {
     }
 
     impl Res {
-        fn get_text(&self) -> String {
-            let mut text = String::new();
+        fn get_text(&self) -> (String, String) {
+            let mut content = String::new();
+            let mut reasoning_content = String::new();
             for choice in self.choices.iter() {
                 if let Some(delta) = &choice.delta {
-                    if let Some(content) = &delta.content {
-                        text += content;
+                    if let Some(c) = &delta.content {
+                        content += c;
+                    }
+                    if let Some(rc) = &delta.reasoning_content {
+                        reasoning_content += rc;
                     }
                 }
             }
-            text
+            (content, reasoning_content)
         }
     }
     use super::*;
@@ -311,6 +319,7 @@ mod tests {
         }
         buffer.extend(msg_win.finish(true));
         let mut message = String::new();
+        let mut reasoning_message = String::new();
         for line in buffer.split(|&x| x == b'\n') {
             if line.is_empty() {
                 continue;
@@ -322,13 +331,17 @@ mod tests {
             let des = serde_json::from_slice::<Res>(&line[b"data:".len()..]);
             assert!(des.is_ok());
             let res = des.unwrap();
-            message.push_str(&res.get_text());
+            let (c, rc) = res.get_text();
+            message.push_str(&c);
+            reasoning_message.push_str(&rc);
         }
-        assert_eq!(message, "***higress*** 是一个基于 Istio 的高性能服务网格数据平面项目，旨在提供高吞吐量、低延迟和可扩展的服务通信管理。它为企业级应用提供了丰富的流量治理功能，如负载均衡、熔断、限流等，并支持多协议代理（包括 HTTP/1.1, HTTP/2, gRPC）。***higress*** 的设计目标是优化 Istio 在大规模集群中的性能表现，满足高并发场景下的需求。");
+        let res = "***higress*** 是一个基于 Istio 的高性能服务网格数据平面项目，旨在提供高吞吐量、低延迟和可扩展的服务通信管理。它为企业级应用提供了丰富的流量治理功能，如负载均衡、熔断、限流等，并支持多协议代理（包括 HTTP/1.1, HTTP/2, gRPC）。***higress*** 的设计目标是优化 Istio 在大规模集群中的性能表现，满足高并发场景下的需求。";
+        assert_eq!(message, res);
+        assert_eq!(reasoning_message, res);
     }
 
-    fn raw_message() -> &'static str {
-        r#"data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"H"},"finish_reason":null}]}
+    fn raw_message() -> String {
+        let msg = r#"data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"H"},"finish_reason":null}]}
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"ig"},"finish_reason":null}]}
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"ress"},"finish_reason":null}]}
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" 是"},"finish_reason":null}]}
@@ -423,7 +436,11 @@ data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"场景"},"finish_reason":null}]}
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"下的"},"finish_reason":null}]}
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"需求"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"。"},"finish_reason":null}]}
+data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"。"},"finish_reason":null}]}"#;
+        msg.replace("\"content\":", "\"reasoning_content\":")
+            + "\n"
+            + msg
+            + r#"
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":null,"finish_reason":"stop"}],"usage":null}
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":1,"delta":{},"finish_reason":"stop"}],"usage":{}}
 data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{}}],"usage":{"prompt_tokens":372,"completion_tokens":9,"total_tokens":381}}
