@@ -62,11 +62,3 @@
 ### 集成到 MCP Client
 
 在用户的 MCP Client 界面，将相关配置添加到 MCP Server 列表中。
-
-```json
-"mcpServers": {
-    "jr-agent-bid": {
-      "url": "https://agent-bid.junrunrenli.com/sse?jr-api-key={jr-api-key}",
-    }
-} 
-```
