@@ -760,10 +760,11 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 		},
 	}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
+	modelId, _ := url.QueryUnescape(ctx.GetStringContext(ctxKeyFinalRequestModel, ""))
 	return &chatCompletionResponse{
 		Id:                requestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
+		Model:             modelId,
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
@@ -908,6 +909,7 @@ func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 }
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {
+	path = encodeSigV4Path(path)
 	hashedPayload := sha256Hex(body)
 
 	endpoint := fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion)
@@ -923,6 +925,17 @@ func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, bod
 	signingKey := getSignatureKey(b.config.awsSecretKey, dateStamp, b.config.awsRegion, awsService)
 	signature := hmacHex(signingKey, stringToSign)
 	return signature
+}
+
+func encodeSigV4Path(path string) string {
+	segments := strings.Split(path, "/")
+	for i, seg := range segments {
+		if seg == "" {
+			continue
+		}
+		segments[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segments, "/")
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {
