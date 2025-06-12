@@ -56,20 +56,20 @@ const (
 
 var (
 	supportedProtocols = map[string]bool{
-		provider.HttpProtocol:         true,
-		provider.HttpsProtocol:        true,
-		provider.McpSSEProtocol:       true,
-		provider.McpStreambleProtocol: true,
+		provider.HttpProtocol:          true,
+		provider.HttpsProtocol:         true,
+		provider.McpSSEProtocol:        true,
+		provider.McpStreamableProtocol: true,
 	}
 	protocolUpstreamTypeMapping = map[string]string{
-		provider.HttpProtocol:         mcpserver.UpstreamTypeRest,
-		provider.HttpsProtocol:        mcpserver.UpstreamTypeRest,
-		provider.McpSSEProtocol:       mcpserver.UpstreamTypeSSE,
-		provider.McpStreambleProtocol: mcpserver.UpstreamTypeStreamable,
+		provider.HttpProtocol:          mcpserver.UpstreamTypeRest,
+		provider.HttpsProtocol:         mcpserver.UpstreamTypeRest,
+		provider.McpSSEProtocol:        mcpserver.UpstreamTypeSSE,
+		provider.McpStreamableProtocol: mcpserver.UpstreamTypeStreamable,
 	}
 	routeRewriteProtocols = map[string]bool{
-		provider.McpSSEProtocol:       true,
-		provider.McpStreambleProtocol: true,
+		provider.McpSSEProtocol:        true,
+		provider.McpStreamableProtocol: true,
 	}
 	mcpServerRewriteProtocols = map[string]bool{
 		provider.McpSSEProtocol: true,

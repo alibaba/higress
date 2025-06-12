@@ -302,7 +302,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 		message := qwenMessageToChatMessage(qwenChoice.Message, m.config.reasoningContentMode)
 		choices = append(choices, chatCompletionChoice{
 			Message:      &message,
-			FinishReason: qwenChoice.FinishReason,
+			FinishReason: util.Ptr(qwenChoice.FinishReason),
 		})
 	}
 	return &chatCompletionResponse{
@@ -312,7 +312,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
@@ -413,11 +413,11 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 
 	if finished {
 		finishResponse := *&baseMessage
-		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{Delta: &chatMessage{}, FinishReason: qwenChoice.FinishReason})
+		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{Delta: &chatMessage{}, FinishReason: util.Ptr(qwenChoice.FinishReason)})
 
 		usageResponse := *&baseMessage
 		usageResponse.Choices = []chatCompletionChoice{{Delta: &chatMessage{}}}
-		usageResponse.Usage = usage{
+		usageResponse.Usage = &usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,

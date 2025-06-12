@@ -341,7 +341,7 @@ func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResp
 	choice := chatCompletionChoice{
 		Index:        0,
 		Message:      &chatMessage{Role: roleAssistant, Content: origResponse.Content[0].Text},
-		FinishReason: stopReasonClaude2OpenAI(origResponse.StopReason),
+		FinishReason: util.Ptr(stopReasonClaude2OpenAI(origResponse.StopReason)),
 	}
 
 	return &chatCompletionResponse{
@@ -351,7 +351,7 @@ func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResp
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     origResponse.Usage.InputTokens,
 			CompletionTokens: origResponse.Usage.OutputTokens,
 			TotalTokens:      origResponse.Usage.InputTokens + origResponse.Usage.OutputTokens,
@@ -404,7 +404,7 @@ func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, or
 		choice := chatCompletionChoice{
 			Index:        origResponse.Index,
 			Delta:        &chatMessage{},
-			FinishReason: stopReasonClaude2OpenAI(origResponse.Delta.StopReason),
+			FinishReason: util.Ptr(stopReasonClaude2OpenAI(origResponse.Delta.StopReason)),
 		}
 		return c.createChatCompletionResponse(ctx, origResponse, choice)
 	case "message_stop":
@@ -415,7 +415,7 @@ func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, or
 			Object:      objectChatCompletionChunk,
 			Choices:     []chatCompletionChoice{},
 			ServiceTier: c.serviceTier,
-			Usage: usage{
+			Usage: &usage{
 				PromptTokens:     c.usage.PromptTokens,
 				CompletionTokens: c.usage.CompletionTokens,
 				TotalTokens:      c.usage.TotalTokens,
