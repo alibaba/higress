@@ -10,12 +10,10 @@ import (
 )
 
 const (
-	yiDomain             = "api.lingyiwanwu.com"
-	yiChatCompletionPath = "/v1/chat/completions"
+	yiDomain = "api.lingyiwanwu.com"
 )
 
-type yiProviderInitializer struct {
-}
+type yiProviderInitializer struct{}
 
 func (m *yiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
@@ -26,7 +24,7 @@ func (m *yiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 
 func (m *yiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): yiChatCompletionPath,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 	}
 }
 

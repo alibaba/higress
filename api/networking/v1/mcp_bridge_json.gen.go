@@ -28,6 +28,17 @@ func (this *RegistryConfig) UnmarshalJSON(b []byte) error {
 	return McpBridgeUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
+// MarshalJSON is a custom marshaler for InnerMap
+func (this *InnerMap) MarshalJSON() ([]byte, error) {
+	str, err := McpBridgeMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for InnerMap
+func (this *InnerMap) UnmarshalJSON(b []byte) error {
+	return McpBridgeUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
 var (
 	McpBridgeMarshaler   = &jsonpb.Marshaler{}
 	McpBridgeUnmarshaler = &jsonpb.Unmarshaler{AllowUnknownFields: true}

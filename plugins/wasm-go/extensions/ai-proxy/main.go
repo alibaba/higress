@@ -352,11 +352,29 @@ func getApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/images/generations") {
 		return provider.ApiNameImageGeneration
 	}
+	if strings.HasSuffix(path, "/v1/images/variations") {
+		return provider.ApiNameImageVariation
+	}
+	if strings.HasSuffix(path, "/v1/images/edits") {
+		return provider.ApiNameImageEdit
+	}
 	if strings.HasSuffix(path, "/v1/batches") {
 		return provider.ApiNameBatches
 	}
+	if util.RegRetrieveBatchPath.MatchString(path) {
+		return provider.ApiNameRetrieveBatch
+	}
+	if util.RegCancelBatchPath.MatchString(path) {
+		return provider.ApiNameCancelBatch
+	}
 	if strings.HasSuffix(path, "/v1/files") {
 		return provider.ApiNameFiles
+	}
+	if util.RegRetrieveFilePath.MatchString(path) {
+		return provider.ApiNameRetrieveFile
+	}
+	if util.RegRetrieveFileContentPath.MatchString(path) {
+		return provider.ApiNameRetrieveFileContent
 	}
 	if strings.HasSuffix(path, "/v1/models") {
 		return provider.ApiNameModels

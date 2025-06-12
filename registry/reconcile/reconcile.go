@@ -23,11 +23,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alibaba/higress/registry/nacos/mcpserver"
 	"istio.io/pkg/log"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	higressmcpserver "github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/pkg/kube"
 	. "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/consul"
@@ -37,7 +38,6 @@ import (
 	"github.com/alibaba/higress/registry/nacos"
 	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
 	"github.com/alibaba/higress/registry/zookeeper"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -170,7 +170,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacos.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacos.WithAuthOption(authOption),
 		)
-	case string(Nacos2):
+	case string(Nacos2), string(Nacos3):
 		watcher, err = nacosv2.NewWatcher(
 			r.Cache,
 			nacosv2.WithType(registry.Type),
@@ -184,44 +184,13 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithNacosNamespace(registry.NacosNamespace),
 			nacosv2.WithNacosGroups(registry.NacosGroups),
 			nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
+			nacosv2.WithMcpExportDomains(registry.McpServerExportDomains),
+			nacosv2.WithMcpBaseUrl(registry.McpServerBaseUrl),
+			nacosv2.WithEnableMcpServer(registry.EnableMCPServer),
+			nacosv2.WithClusterId(r.clusterId),
+			nacosv2.WithNamespace(r.namespace),
 			nacosv2.WithAuthOption(authOption),
 		)
-	case string(Nacos3):
-		if registry.EnableMCPServer.GetValue() {
-			watcher, err = mcpserver.NewWatcher(
-				r.Cache,
-				mcpserver.WithType(registry.Type),
-				mcpserver.WithName(registry.Name),
-				mcpserver.WithNacosAddressServer(registry.NacosAddressServer),
-				mcpserver.WithDomain(registry.Domain),
-				mcpserver.WithPort(registry.Port),
-				mcpserver.WithNacosAccessKey(registry.NacosAccessKey),
-				mcpserver.WithNacosSecretKey(registry.NacosSecretKey),
-				mcpserver.WithNacosRefreshInterval(registry.NacosRefreshInterval),
-				mcpserver.WithMcpExportDomains(registry.McpServerExportDomains),
-				mcpserver.WithMcpBaseUrl(registry.McpServerBaseUrl),
-				mcpserver.WithEnableMcpServer(registry.EnableMCPServer),
-				mcpserver.WithClusterId(r.clusterId),
-				mcpserver.WithNamespace(r.namespace),
-				mcpserver.WithAuthOption(authOption),
-			)
-		} else {
-			watcher, err = nacosv2.NewWatcher(
-				r.Cache,
-				nacosv2.WithType(registry.Type),
-				nacosv2.WithName(registry.Name),
-				nacosv2.WithNacosAddressServer(registry.NacosAddressServer),
-				nacosv2.WithDomain(registry.Domain),
-				nacosv2.WithPort(registry.Port),
-				nacosv2.WithNacosAccessKey(registry.NacosAccessKey),
-				nacosv2.WithNacosSecretKey(registry.NacosSecretKey),
-				nacosv2.WithNacosNamespaceId(registry.NacosNamespaceId),
-				nacosv2.WithNacosNamespace(registry.NacosNamespace),
-				nacosv2.WithNacosGroups(registry.NacosGroups),
-				nacosv2.WithNacosRefreshInterval(registry.NacosRefreshInterval),
-				nacosv2.WithAuthOption(authOption),
-			)
-		}
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
 			r.Cache,
@@ -318,6 +287,17 @@ func (r *Reconciler) getAuthOption(registry *apiv1.RegistryConfig) (AuthOption, 
 	}
 
 	return authOption, nil
+}
+
+func (r *Reconciler) GetMcpServers() []*higressmcpserver.McpServer {
+	mcpServersFromMcp := r.GetAllConfigs(higressmcpserver.GvkMcpServer)
+	servers := make([]*higressmcpserver.McpServer, 0, len(mcpServersFromMcp))
+	for _, c := range mcpServersFromMcp {
+		if server, ok := c.Spec.(*higressmcpserver.McpServer); ok {
+			servers = append(servers, server)
+		}
+	}
+	return servers
 }
 
 type RegistryWatcherStatus struct {

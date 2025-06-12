@@ -1,4 +1,4 @@
-package main
+package util
 
 import (
 	"fmt"
@@ -8,8 +8,8 @@ import (
 	"github.com/zmap/go-iptree/iptree"
 )
 
-// parseIPNet 解析Ip段配置
-func parseIPNet(key string) (*iptree.IPTree, error) {
+// ParseIPNet 解析Ip段配置
+func ParseIPNet(key string) (*iptree.IPTree, error) {
 	tree := iptree.New()
 	err := tree.AddByString(key, 0)
 	if err != nil {
@@ -18,8 +18,8 @@ func parseIPNet(key string) (*iptree.IPTree, error) {
 	return tree, nil
 }
 
-// parseIP 解析IP
-func parseIP(source string) string {
+// ParseIP 解析IP
+func ParseIP(source string) string {
 	if strings.Contains(source, ".") {
 		// parse ipv4
 		return strings.Split(source, ":")[0]
@@ -31,8 +31,8 @@ func parseIP(source string) string {
 	return source
 }
 
-// reconvertHeaders headers: map[string][]string -> [][2]string
-func reconvertHeaders(hs map[string][]string) [][2]string {
+// ReconvertHeaders headers: map[string][]string -> [][2]string
+func ReconvertHeaders(hs map[string][]string) [][2]string {
 	var ret [][2]string
 	for k, vs := range hs {
 		for _, v := range vs {
@@ -45,8 +45,8 @@ func reconvertHeaders(hs map[string][]string) [][2]string {
 	return ret
 }
 
-// extractCookieValueByKey 从cookie中提取key对应的value
-func extractCookieValueByKey(cookie string, key string) (value string) {
+// ExtractCookieValueByKey 从cookie中提取key对应的value
+func ExtractCookieValueByKey(cookie string, key string) (value string) {
 	pairs := strings.Split(cookie, ";")
 	for _, pair := range pairs {
 		pair = strings.TrimSpace(pair)
