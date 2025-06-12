@@ -1,13 +1,13 @@
-## 功能说明
+## Introduction
 
-此插件示例用于展示在无响应body情况下如何添加body数据。
+This example is used to show how to add body data when response has no body.
 
-**注意**
-1. header阶段应返回`types.ActionPause`
-2. `Endstream`必须设置为`true`
+**Attention**
+1. Should return `types.ActionPause` on response header phase.
+2. `Endstream` should be set with `true`
 
 
-一份无响应body的flask代码示例：
+A Flask app demo:
 
 ```python
 import os
