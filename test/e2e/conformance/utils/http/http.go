@@ -145,6 +145,7 @@ type Response struct {
 	Headers              map[string]string
 	Body                 []byte
 	JsonBodyIgnoreFields []string
+	JsonBodyMatcher      func(*testing.T, []byte) bool `json:"-"`
 	ContentType          string
 	AbsentHeaders        []string
 }
@@ -320,7 +321,7 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 				You can only choose one to compare between Response and Request.`)
 				return false
 			}
-			if err = CompareResponse(cRes, expected); err != nil {
+			if err = CompareResponse(t, cRes, expected); err != nil {
 				t.Logf("Response expectation failed for actual request: %v  not ready yet: %v (after %v)", req, err, elapsed)
 				return false
 			}
@@ -539,7 +540,7 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 	return nil
 }
 
-func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) error {
+func CompareResponse(t *testing.T, cRes *roundtripper.CapturedResponse, expected Assertion) error {
 	if expected.Response.ExpectedResponse.StatusCode != cRes.StatusCode {
 		return fmt.Errorf("expected status code to be %d, got %d", expected.Response.ExpectedResponse.StatusCode, cRes.StatusCode)
 	}
@@ -608,6 +609,17 @@ func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) er
 					return fmt.Errorf("expected %s body to be %s, got %s", cTyp, string(expected.Response.ExpectedResponse.Body), string(cRes.Body))
 				}
 			case ContentTypeApplicationJson:
+				// 如果定义了 JsonBodyMatcher，使用自定义匹配器
+				if expected.Response.ExpectedResponse.JsonBodyMatcher != nil {
+					// 需要传入 testing.T 实例，这需要修改函数签名
+					if !expected.Response.ExpectedResponse.JsonBodyMatcher(t, cRes.Body) {
+						return fmt.Errorf("JsonBodyMatcher returned false for response body: %s", string(cRes.Body))
+					}
+					// 如果 JsonBodyMatcher 通过，跳过其他 JSON 比较逻辑
+					break
+				}
+
+				// 原有的 JSON 比较逻辑
 				eResBody := make(map[string]interface{})
 				cResBody := make(map[string]interface{})
 				err := json.Unmarshal(expected.Response.ExpectedResponse.Body, &eResBody)
