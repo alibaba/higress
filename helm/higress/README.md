@@ -165,6 +165,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.enableIPv6 | bool | `false` |  |
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
 | global.enableLDSCache | bool | `false` |  |
+| global.enablePluginServer | bool | `false` |  |
 | global.enableProxyProtocol | bool | `false` |  |
 | global.enablePushAllMCPClusters | bool | `true` |  |
 | global.enableRedis | bool | `false` | Whether to enable Redis(redis-stack-server) for Higress, default is false. |
@@ -273,6 +274,19 @@ The command removes all the Kubernetes components associated with the chart and 
 | pilot.serviceAnnotations | object | `{}` |  |
 | pilot.tag | string | `""` |  |
 | pilot.traceSampling | float | `1` |  |
+| pluginServer.hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
+| pluginServer.image | string | `"plugin-server"` |  |
+| pluginServer.imagePullSecrets | list | `[]` |  |
+| pluginServer.labels | object | `{}` |  |
+| pluginServer.name | string | `"higress-plugin-server"` |  |
+| pluginServer.podLabels | object | `{}` | Labels to apply to the pod |
+| pluginServer.replicas | int | `2` | Number of Higress Plugin Server pods, 2 recommended for high availability |
+| pluginServer.resources.limits.cpu | string | `"500m"` |  |
+| pluginServer.resources.limits.memory | string | `"256Mi"` |  |
+| pluginServer.resources.requests.cpu | string | `"200m"` |  |
+| pluginServer.resources.requests.memory | string | `"128Mi"` |  |
+| pluginServer.service.port | int | `80` |  |
+| pluginServer.tag | string | `""` |  |
 | redis.redis.affinity | object | `{}` | Affinity for Redis |
 | redis.redis.image | string | `"redis-stack-server"` | Specify the image |
 | redis.redis.name | string | `"redis-stack-server"` |  |

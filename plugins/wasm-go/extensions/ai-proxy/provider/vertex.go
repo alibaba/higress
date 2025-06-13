@@ -32,8 +32,7 @@ const (
 	vertexEmbeddingAction            = "predict"
 )
 
-type vertexProviderInitializer struct {
-}
+type vertexProviderInitializer struct{}
 
 func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.vertexAuthKey == "" {
@@ -245,7 +244,7 @@ func (v *vertexProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 		Created: time.Now().UnixMilli() / 1000,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: make([]chatCompletionChoice, 0, len(response.Candidates)),
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     response.UsageMetadata.PromptTokenCount,
 			CompletionTokens: response.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      response.UsageMetadata.TotalTokenCount,
@@ -257,7 +256,7 @@ func (v *vertexProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 			Message: &chatMessage{
 				Role: roleAssistant,
 			},
-			FinishReason: candidate.FinishReason,
+			FinishReason: util.Ptr(candidate.FinishReason),
 		}
 		if len(candidate.Content.Parts) > 0 {
 			choice.Message.Content = candidate.Content.Parts[0].Text
@@ -310,7 +309,7 @@ func (v *vertexProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 		Created: time.Now().UnixMilli() / 1000,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: []chatCompletionChoice{choice},
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     vertexResp.UsageMetadata.PromptTokenCount,
 			CompletionTokens: vertexResp.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      vertexResp.UsageMetadata.TotalTokenCount,
