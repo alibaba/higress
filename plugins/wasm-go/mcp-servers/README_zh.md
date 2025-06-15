@@ -232,7 +232,7 @@ tools:
 
 ### 模板语法
 
-REST-to-MCP 功能使用 GJSON Template（[https://github.com/higress-group/gjson_template](https://github.com/higress-group/gjson_template)）库进行模板渲染，该库结合了 Go 的模板语法和 GJSON 的强大路径语法：
+REST-to-MCP 功能使用 [GJSON Template 语法](https://github.com/higress-group/gjson_template)库进行模板渲染，该库结合了 Go 的模板语法和 GJSON 的强大路径语法：
 
 - **请求模板**：用于构造 HTTP 请求 URL、头部和正文
   - 使用 `.config.fieldName` 访问配置值
