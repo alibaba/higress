@@ -16,7 +16,6 @@ package tests
 
 import (
     "testing"
-
     "github.com/alibaba/higress/test/e2e/conformance/utils/http"
     "github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
@@ -27,123 +26,58 @@ func init() {
 
 var WasmPluginsExtAuth = suite.ConformanceTest{
     ShortName:   "WasmPluginsExtAuth",
-    Description: "E2E tests for the ext-auth WASM plugin using mock server endpoints (/always-200, /always-500, etc).",
+    Description: "E2E tests for ext‑auth plugin in envoy & forward_auth modes using mock-auth and echo-server",
     Manifests:   []string{"tests/go-wasm-ext-auth.yaml"},
     Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
     Test: func(t *testing.T, s *suite.ConformanceTestSuite) {
-        testcases := []http.Assertion{
-            {
-                Meta: http.AssertionMeta{
-                    TestCaseName:    "Always 200 - Valid Token",
-                    TargetBackend:   "echo-server",
-                    TargetNamespace: "higress-conformance-infra",
-                },
-                Request: http.AssertionRequest{
-                    ActualRequest: http.Request{
-                        Host:             "foo-envoy.com",
-                        Path:             "/always-200",
-                        Method:           "GET",
-                        Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-                        UnfollowRedirect: true,
-                    },
-                },
-                Response: http.AssertionResponse{
-                    ExpectedResponse: http.Response{
-                        StatusCode: 200,
-                        Headers:    map[string]string{"X-User-ID": "123456"},
-                    },
-                },
-            },
-            {
-                Meta: http.AssertionMeta{
-                    TestCaseName:    "Always 200 - Missing Token (Should Fail)",
-                    TargetBackend:   "echo-server",
-                    TargetNamespace: "higress-conformance-infra",
-                },
-                Request: http.AssertionRequest{
-                    ActualRequest: http.Request{
-                        Host:             "foo-envoy.com",
-                        Path:             "/always-200",
-                        Method:           "GET",
-                        UnfollowRedirect: true,
-                    },
-                },
-                Response: http.AssertionResponse{
-                    ExpectedResponse: http.Response{StatusCode: 401},
-                },
-            },
-            {
-                Meta: http.AssertionMeta{
-                    TestCaseName:    "Always 500 - Valid Token",
-                    TargetBackend:   "echo-server",
-                    TargetNamespace: "higress-conformance-infra",
-                },
-                Request: http.AssertionRequest{
-                    ActualRequest: http.Request{
-                        Host:             "foo-envoy.com",
-                        Path:             "/always-500",
-                        Method:           "GET",
-                        Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-                        UnfollowRedirect: true,
-                    },
-                },
-                Response: http.AssertionResponse{
-                    ExpectedResponse: http.Response{StatusCode: 500},
-                },
-            },
-            {
-                Meta: http.AssertionMeta{
-                    TestCaseName:    "Require Body - Valid Token and Body",
-                    TargetBackend:   "echo-server",
-                    TargetNamespace: "higress-conformance-infra",
-                },
-                Request: http.AssertionRequest{
-                    ActualRequest: http.Request{
-                        Host:             "foo-envoy.com",
-                        Path:             "/require-request-body-200",
-                        Method:           "POST",
-                        Body:             []byte(`{"key":"value"}`),
-                        Headers:          map[string]string{"Authorization": "Bearer valid-token", "Content-Type": "application/json"},
-                        UnfollowRedirect: true,
-                    },
-                },
-                Response: http.AssertionResponse{
-                    ExpectedResponse: http.Response{
-                        StatusCode: 200,
-                        Headers:    map[string]string{"X-User-ID": "123456"},
-                    },
-                },
-            },
-            {
-                Meta: http.AssertionMeta{
-                    TestCaseName:    "Require Body - Missing Body",
-                    TargetBackend:   "echo-server",
-                    TargetNamespace: "higress-conformance-infra",
-                },
-                Request: http.AssertionRequest{
-                    ActualRequest: http.Request{
-                        Host:             "foo-envoy.com",
-                        Path:             "/require-request-body-200",
-                        Method:           "POST",
-                        Headers:          map[string]string{"Authorization": "Bearer valid-token"},
-                        UnfollowRedirect: true,
-                    },
-                },
-                Response: http.AssertionResponse{
-                    ExpectedResponse: http.Response{StatusCode: 400},
-                },
-            },
+        cases := []struct {
+            name       string
+            path       string
+            method     string
+            body       []byte
+            expectCode int
+        }{
+            {"Envoy 200", "/prefix/always-200/test", "GET", nil, 200},
+            {"Envoy 500", "/prefix/always-500/test", "GET", nil, 500},
+            {"Envoy Body 200", "/prefix/require-request-body-200", "POST", []byte(`{"k":"v"}`), 200},
+            {"Envoy Body 400", "/prefix/require-request-body-200", "POST", nil, 400},
+
+            {"Forward 200", "/always-200", "GET", nil, 200},
+            {"Forward 500", "/always-500", "GET", nil, 500},
+            {"Forward Body 200", "/require-request-body-200", "POST", []byte(`{"k":"v"}`), 200},
+            {"Forward Body 400", "/require-request-body-200", "POST", nil, 400},
         }
 
-        t.Run("ext-auth plugin mock server tests", func(t *testing.T) {
-            for _, tc := range testcases {
-                tc := tc // capture variable
-                t.Run(tc.Meta.TestCaseName, func(t *testing.T) {
-                    http.MakeRequestAndExpectEventuallyConsistentResponse(
-                        t, s.RoundTripper, s.TimeoutConfig, s.GatewayAddress, tc,
-                    )
-                })
-            }
-        })
+        for _, tc := range cases {
+            tc := tc
+            t.Run(tc.name, func(t *testing.T) {
+                req := http.Request{
+                    Host:             "test-auth.com",
+                    Path:             tc.path,
+                    Method:           tc.method,
+                    Headers:          map[string]string{"Authorization": "Bearer valid-token"},
+                    Body:             tc.body,
+                    UnfollowRedirect: true,
+                }
+                if tc.body != nil {
+                    req.Headers["Content-Type"] = "application/json"
+                }
+
+                exp := http.Response{StatusCode: tc.expectCode}
+                if tc.expectCode == 200 {
+                    exp.Headers = map[string]string{"X-User-ID": "123456"}
+                }
+
+                assertion := http.Assertion{
+                    Meta:     http.AssertionMeta{TestCaseName: tc.name, TargetBackend: "echo-server", TargetNamespace: "higress-conformance-infra"},
+                    Request:  http.AssertionRequest{ActualRequest: req},
+                    Response: http.AssertionResponse{ExpectedResponse: exp},
+                }
+
+                http.MakeRequestAndExpectEventuallyConsistentResponse(
+                    t, s.RoundTripper, s.TimeoutConfig, s.GatewayAddress, assertion,
+                )
+            })
+        }
     },
 }
