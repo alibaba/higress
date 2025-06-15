@@ -37,11 +37,13 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
             body       []byte
             expectCode int
         }{
+            // Envoy mode (mock-auth uses exact `/prefix/always-...`)
             {"Envoy 200", "/prefix/always-200/test", "GET", nil, 200},
             {"Envoy 500", "/prefix/always-500/test", "GET", nil, 500},
             {"Envoy Body 200", "/prefix/require-request-body-200", "POST", []byte(`{"k":"v"}`), 200},
             {"Envoy Body 400", "/prefix/require-request-body-200", "POST", nil, 400},
 
+            // Forward_auth mode
             {"Forward 200", "/always-200", "GET", nil, 200},
             {"Forward 500", "/always-500", "GET", nil, 500},
             {"Forward Body 200", "/require-request-body-200", "POST", []byte(`{"k":"v"}`), 200},
@@ -63,15 +65,15 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
                     req.Headers["Content-Type"] = "application/json"
                 }
 
-                exp := http.Response{StatusCode: tc.expectCode}
+                resp := http.Response{StatusCode: tc.expectCode}
                 if tc.expectCode == 200 {
-                    exp.Headers = map[string]string{"X-User-ID": "123456"}
+                    resp.Headers = map[string]string{"X-User-ID": "123456"}
                 }
 
                 assertion := http.Assertion{
                     Meta:     http.AssertionMeta{TestCaseName: tc.name, TargetBackend: "echo-server", TargetNamespace: "higress-conformance-infra"},
                     Request:  http.AssertionRequest{ActualRequest: req},
-                    Response: http.AssertionResponse{ExpectedResponse: exp},
+                    Response: http.AssertionResponse{ExpectedResponse: resp},
                 }
 
                 http.MakeRequestAndExpectEventuallyConsistentResponse(

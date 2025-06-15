@@ -21,7 +21,9 @@ metadata:
 data:
   VALID_TOKEN: "valid-token"
   PORT: "8090"
+
 ---
+
 # 2) Deployment
 apiVersion: apps/v1
 kind: Deployment
@@ -39,24 +41,26 @@ spec:
         app: mock-auth-service
     spec:
       containers:
-        - name: mock-auth-service
-          image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-mock-server:latest
-          ports:
-            - containerPort: 8090
-          env:
-            - name: VALID_TOKEN
-              valueFrom:
-                configMapKeyRef:
-                  name: mock-auth-service-config
-                  key: VALID_TOKEN
-            - name: PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: mock-auth-service-config
-                  key: PORT
-            - name: MOCK_TYPE
-              value: "auth"
+      - name: mock-auth-service
+        image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-mock-server:latest
+        ports:
+        - containerPort: 8090
+        env:
+        - name: VALID_TOKEN
+          valueFrom:
+            configMapKeyRef:
+              name: mock-auth-service-config
+              key: VALID_TOKEN
+        - name: PORT
+          valueFrom:
+            configMapKeyRef:
+              name: mock-auth-service-config
+              key: PORT
+        - name: MOCK_TYPE
+          value: "auth"
+
 ---
+
 # 3) Service
 apiVersion: v1
 kind: Service
@@ -67,10 +71,12 @@ spec:
   selector:
     app: mock-auth-service
   ports:
-    - port: 8090
-      targetPort: 8090
+  - port: 8090
+    targetPort: 8090
+
 ---
-# 4) Ingress (routes to echo-server)
+
+# 4) Ingress routing to echo-server
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -79,17 +85,19 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: test-auth.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: echo-server
-                port:
-                  number: 3000
+  - host: test-auth.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: echo-server
+            port:
+              number: 3000
+
 ---
+
 # 5A) Envoy-mode WasmPlugin
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -99,15 +107,16 @@ metadata:
 spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
-    - ingress:
-        - higress-conformance-infra/ext-auth-envoy
+  - ingress:
+      - higress-conformance-infra/ext-auth-envoy
   defaultConfig:
     http_service:
       endpoint_mode: envoy
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
         service_port: 8090
-        path_prefix: /prefix
+        # Align prefix exactly with test paths:
+        path_prefix: /prefix/always-200
       timeout: 5000
     authorization_request:
       with_request_body: true
@@ -120,8 +129,10 @@ spec:
       - match_rule_path: /prefix/require-request-body-200
         match_rule_type: prefix
     status_on_error: 500
+
 ---
-# 5B) Forward_auth WasmPlugin
+
+# 5B) Forward_auth-mode WasmPlugin
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -130,8 +141,8 @@ metadata:
 spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
-    - ingress:
-        - higress-conformance-infra/ext-auth-envoy
+  - ingress:
+      - higress-conformance-infra/ext-auth-envoy
   defaultConfig:
     http_service:
       endpoint_mode: forward_auth
