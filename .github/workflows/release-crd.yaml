@@ -17,7 +17,7 @@ jobs:
         cat helm/core/crds/customresourcedefinitions.gen.yaml helm/core/crds/istio-envoyfilter.yaml > crd.yaml
 
     - name: Upload hgctl packages to the GitHub release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
