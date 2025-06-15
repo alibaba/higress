@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 1) ConfigMap
+# 1) ConfigMap for mock-auth-server
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,7 +24,7 @@ data:
 
 ---
 
-# 2) Deployment
+# 2) Deployment for mock-auth-server
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -33,18 +33,14 @@ metadata:
 spec:
   replicas: 1
   selector:
-    matchLabels:
-      app: mock-auth-service
+    matchLabels: { app: mock-auth-service }
   template:
     metadata:
-      labels:
-        app: mock-auth-service
+      labels: { app: mock-auth-service }
     spec:
       containers:
-      - name: mock-auth-service
+      - name: mock-auth
         image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-mock-server:latest
-        ports:
-        - containerPort: 8090
         env:
         - name: VALID_TOKEN
           valueFrom:
@@ -56,12 +52,12 @@ spec:
             configMapKeyRef:
               name: mock-auth-service-config
               key: PORT
-        - name: MOCK_TYPE
-          value: "auth"
+        ports:
+        - containerPort: 8090
 
 ---
 
-# 3) Service
+# 3) Service for mock-auth-server
 apiVersion: v1
 kind: Service
 metadata:
@@ -76,11 +72,11 @@ spec:
 
 ---
 
-# 4) Ingress routing to echo-server
+# 4) Ingress to echo-server
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ext-auth-envoy
+  name: ext-auth-ingress
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
@@ -93,12 +89,11 @@ spec:
         backend:
           service:
             name: echo-server
-            port:
-              number: 3000
+            port: { number: 3000 }
 
 ---
 
-# 5A) Envoy-mode WasmPlugin
+# 5) Envoy-mode WasmPlugin (default for prefix cases)
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -108,15 +103,14 @@ spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
   - ingress:
-      - higress-conformance-infra/ext-auth-envoy
+      - higress-conformance-infra/ext-auth-ingress
   defaultConfig:
     http_service:
       endpoint_mode: envoy
       endpoint:
         service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
         service_port: 8090
-        # Align prefix exactly with test paths:
-        path_prefix: /prefix/always-200
+        path_prefix: /prefix
       timeout: 5000
     authorization_request:
       with_request_body: true
@@ -132,7 +126,65 @@ spec:
 
 ---
 
-# 5B) Forward_auth-mode WasmPlugin
+# 6) Envoy-mode Whitelist example
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ext-auth-envoy-whitelist
+  namespace: higress-system
+spec:
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
+  matchRules:
+  - ingress:
+      - higress-conformance-infra/ext-auth-ingress
+  defaultConfig:
+    http_service:
+      endpoint_mode: envoy
+      endpoint:
+        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
+        service_port: 8090
+        path_prefix: /always-500
+      timeout: 5000
+    match_type: whitelist
+    match_list:
+      - match_rule_path: /always-500
+        match_rule_type: prefix
+    authorization_request:
+      with_request_body: false
+    status_on_error: 500
+
+---
+
+# 7) Envoy-mode Blacklist example
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ext-auth-envoy-blacklist
+  namespace: higress-system
+spec:
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
+  matchRules:
+  - ingress:
+      - higress-conformance-infra/ext-auth-ingress
+  defaultConfig:
+    http_service:
+      endpoint_mode: envoy
+      endpoint:
+        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
+        service_port: 8090
+        path_prefix: /always-500
+      timeout: 5000
+    match_type: blacklist
+    match_list:
+      - match_rule_path: /always-500
+        match_rule_type: prefix
+    authorization_request:
+      with_request_body: false
+    status_on_error: 500
+
+---
+
+# 8) Forward-auth mode WasmPlugin
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -142,7 +194,7 @@ spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
   - ingress:
-      - higress-conformance-infra/ext-auth-envoy
+      - higress-conformance-infra/ext-auth-ingress
   defaultConfig:
     http_service:
       endpoint_mode: forward_auth
