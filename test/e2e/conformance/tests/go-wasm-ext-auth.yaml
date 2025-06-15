@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# ConfigMap for mock-auth-service
+# 1) ConfigMap for mock-auth-service
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,7 +24,7 @@ data:
 
 ---
 
-# Deployment for mock-auth-service
+# 2) Deployment for mock-auth-service
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,7 +43,6 @@ spec:
       containers:
       - name: mock-auth-service
         image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-mock-server:latest
-        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8090
         env:
@@ -80,7 +79,7 @@ spec:
 
 ---
 
-# Service for mock-auth-service
+# 3) Service for mock-auth-service
 apiVersion: v1
 kind: Service
 metadata:
@@ -95,7 +94,7 @@ spec:
 
 ---
 
-# Ingress for testing ext-auth envoy mode
+# 4) Ingress for final app routing (echo-server)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -107,8 +106,8 @@ spec:
   - host: test-auth.com
     http:
       paths:
-      - pathType: Prefix
-        path: /
+      - path: /
+        pathType: Prefix
         backend:
           service:
             name: echo-server
@@ -117,7 +116,7 @@ spec:
 
 ---
 
-# WasmPlugin for whitelist mode (allow /always-500)
+# 5A) WasmPlugin – whitelist mode for /always-500
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -144,7 +143,8 @@ spec:
 
 ---
 
-# WasmPlugin for blacklist mode (block /always-500)
+# 5B) WasmPlugin – blacklist mode for /always-500
+# (Apply only this instead of the whitelist plugin above)
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -168,3 +168,4 @@ spec:
     - match_rule_path: /always-500
       match_rule_type: prefix
     status_on_error: 500
+
