@@ -36,7 +36,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Always 200 - Valid Token",
-					TargetBackend:   "echo-server",
+					TargetBackend: "mock-auth-service",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
@@ -61,7 +61,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Always 200 - Missing Token (Should Fail)",
-					TargetBackend:   "echo-server",
+					TargetBackend:   "mock-auth-service",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
@@ -80,7 +80,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Always 500 - Valid Token",
-					TargetBackend:   "echo-server",
+					TargetBackend:   "mock-auth-service",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
@@ -100,7 +100,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Require Body - Valid Token and Body",
-					TargetBackend:   "echo-server",
+					TargetBackend:   "mock-auth-service",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
@@ -126,7 +126,7 @@ var WasmPluginsExtAuth = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "Require Body - Missing Body",
-					TargetBackend:   "echo-server",
+					TargetBackend:   "mock-auth-service",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
