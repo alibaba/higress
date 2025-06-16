@@ -275,6 +275,16 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 | `vertexGeminiSafetySetting` | map of string | 非必填    | -      | Gemini 模型的内容安全过滤设置。                                                           |
 | `vertexTokenRefreshAhead`   | number        | 非必填    | -      | Vertex access token刷新提前时间(单位秒)                                                |
 
+#### AWS Bedrock
+
+AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
+
+| 名称             | 数据类型   | 填写要求 | 默认值 | 描述                           |
+|----------------|--------|------|-----|------------------------------|
+| `awsAccessKey` | string | 必填   | -   | AWS Access Key，用于身份认证        |
+| `awsSecretKey` | string | 必填   | -   | AWS Secret Access Key，用于身份认证 |
+| `awsRegion`    | string | 必填   | -   | AWS 区域，例如：us-east-1          |
+
 ## 用法示例
 
 ### 使用 OpenAI 协议代理 Azure OpenAI 服务
@@ -1700,6 +1710,59 @@ provider:
     "prompt_tokens": 15,
     "completion_tokens": 43,
     "total_tokens": 58
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 AWS Bedrock 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: bedrock
+  awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
+  awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
+  awsRegion: "YOUR_AWS_REGION"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "dc5812e2-6a62-49d6-829e-5c327b15e4e2",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好!我是Claude,一个由Anthropic开发的AI助手。很高兴认识你!我的目标是以诚实、有益且有意义的方式与人类交流。我会尽力提供准确和有帮助的信息,同时保持诚实和正直。请问我今天能为你做些什么呢?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1749657608,
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 16,
+    "completion_tokens": 101,
+    "total_tokens": 117
   }
 }
 ```

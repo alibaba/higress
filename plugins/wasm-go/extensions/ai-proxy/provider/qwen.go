@@ -37,6 +37,9 @@ const (
 	qwenBailianPath                       = "/api/v1/apps"
 	qwenMultimodalGenerationPath          = "/api/v1/services/aigc/multimodal-generation/generation"
 
+	qwenAsyncAIGCPath                     = "/api/v1/services/aigc/"
+	qwenAsyncTaskPath                     = "/api/v1/tasks/"
+
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
 
@@ -74,6 +77,8 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 		return map[string]string{
 			string(ApiNameChatCompletion): qwenChatCompletionPath,
 			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+			string(ApiNameQwenAsyncAIGC): qwenAsyncAIGCPath,
+			string(ApiNameQwenAsyncTask): qwenAsyncTaskPath,
 		}
 	}
 }
@@ -302,7 +307,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 		message := qwenMessageToChatMessage(qwenChoice.Message, m.config.reasoningContentMode)
 		choices = append(choices, chatCompletionChoice{
 			Message:      &message,
-			FinishReason: qwenChoice.FinishReason,
+			FinishReason: util.Ptr(qwenChoice.FinishReason),
 		})
 	}
 	return &chatCompletionResponse{
@@ -312,7 +317,7 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
@@ -413,11 +418,11 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 
 	if finished {
 		finishResponse := *&baseMessage
-		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{Delta: &chatMessage{}, FinishReason: qwenChoice.FinishReason})
+		finishResponse.Choices = append(finishResponse.Choices, chatCompletionChoice{Delta: &chatMessage{}, FinishReason: util.Ptr(qwenChoice.FinishReason)})
 
 		usageResponse := *&baseMessage
 		usageResponse.Choices = []chatCompletionChoice{{Delta: &chatMessage{}}}
-		usageResponse.Usage = usage{
+		usageResponse.Usage = &usage{
 			PromptTokens:     qwenResponse.Usage.InputTokens,
 			CompletionTokens: qwenResponse.Usage.OutputTokens,
 			TotalTokens:      qwenResponse.Usage.TotalTokens,
@@ -689,6 +694,10 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	case strings.Contains(path, qwenTextEmbeddingPath),
 		strings.Contains(path, qwenCompatibleTextEmbeddingPath):
 		return ApiNameEmbeddings
+	case strings.Contains(path, qwenAsyncAIGCPath):
+		return ApiNameQwenAsyncAIGC
+	case strings.Contains(path, qwenAsyncTaskPath):
+		return ApiNameQwenAsyncTask
 	default:
 		return ""
 	}
