@@ -218,6 +218,8 @@ impl AiDataMaskingConfig {
 struct Message {
     #[serde(default)]
     content: String,
+    #[serde(default)]
+    reasoning_content: String,
 }
 #[derive(Debug, Deserialize, Clone)]
 struct Req {
@@ -445,7 +447,7 @@ impl AiDataMasking {
                         Type::Hash => {
                             let digest = hmac_sha256::Hash::hash(from_word.as_bytes());
                             digest.iter().fold(String::new(), |mut output, b| {
-                                let _ = write!(output, "{b:02X}");
+                                let _ = write!(output, "{b:02x}");
                                 output
                             })
                         }
@@ -594,14 +596,23 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                 self.is_openai = true;
                 self.stream = req.stream;
                 for msg in req.messages {
-                    if self.check_message(&msg.content) {
+                    if self.check_message(&msg.content)
+                        || self.check_message(&msg.reasoning_content)
+                    {
                         return self.deny(false);
                     }
                     let new_content = self.replace_request_msg(&msg.content);
+                    let new_reasoning_content = self.replace_request_msg(&msg.reasoning_content);
                     if new_content != msg.content {
                         req_body = req_body.replace(
                             &Value::String(msg.content).to_string(),
                             &Value::String(new_content).to_string(),
+                        );
+                    }
+                    if new_reasoning_content != msg.reasoning_content {
+                        req_body = req_body.replace(
+                            &Value::String(msg.reasoning_content).to_string(),
+                            &Value::String(new_reasoning_content).to_string(),
                         );
                     }
                 }
@@ -661,23 +672,34 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             if let Ok(res) = serde_json::from_str::<Res>(res_body.as_str()) {
                 for msg in res.choices {
                     if let Some(message) = msg.message {
-                        if self.check_message(&message.content) {
+                        if self.check_message(&message.content)
+                            || self.check_message(&message.reasoning_content)
+                        {
                             return self.deny(true);
                         }
 
                         if self.mask_map.is_empty() {
                             continue;
                         }
-                        let mut m = message.content.clone();
+                        let mut new_content = message.content.clone();
+                        let mut new_reasoning_content = message.reasoning_content.clone();
                         for (from_word, to_word) in self.mask_map.iter() {
                             if let Some(to) = to_word {
-                                m = m.replace(from_word, to);
+                                new_content = new_content.replace(from_word, to);
+                                new_reasoning_content =
+                                    new_reasoning_content.replace(from_word, to);
                             }
                         }
-                        if m != message.content {
+                        if new_content != message.content {
                             res_body = res_body.replace(
                                 &Value::String(message.content).to_string(),
-                                &Value::String(m).to_string(),
+                                &Value::String(new_content).to_string(),
+                            );
+                        }
+                        if new_reasoning_content != message.reasoning_content {
+                            res_body = res_body.replace(
+                                &Value::String(message.reasoning_content).to_string(),
+                                &Value::String(new_reasoning_content).to_string(),
                             );
                         }
                     }
