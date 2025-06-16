@@ -30,6 +30,7 @@ use serde::Deserializer;
 use serde_json::{json, Value};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::fmt::Write;
 use std::ops::DerefMut;
 use std::rc::{Rc, Weak};
 use std::str::FromStr;
@@ -442,8 +443,11 @@ impl AiDataMasking {
 
                     let to_word = match rule.type_ {
                         Type::Hash => {
-                            let digest = md5::compute(from_word.as_bytes());
-                            format!("{:x}", digest)
+                            let digest = hmac_sha256::Hash::hash(from_word.as_bytes());
+                            digest.iter().fold(String::new(), |mut output, b| {
+                                let _ = write!(output, "{b:02X}");
+                                output
+                            })
                         }
                         Type::Replace => rule.regex.replace(from_word, &rule.value).to_string(),
                     };
