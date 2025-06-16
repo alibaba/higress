@@ -275,6 +275,12 @@ impl MsgWindow {
 #[cfg(test)]
 mod tests {
 
+    use rust_embed::Embed;
+
+    use super::*;
+    #[derive(Embed)]
+    #[folder = "test/"]
+    struct Asset;
     #[derive(Deserialize)]
     struct Res {
         choices: Vec<Choices>,
@@ -297,12 +303,11 @@ mod tests {
             (content, reasoning_content)
         }
     }
-    use super::*;
 
     #[test]
     fn test_msg() {
         let mut msg_win = MsgWindow::default();
-        let data = raw_message();
+        let data = raw_message("raw_message.txt");
         let mut buffer = Vec::new();
         for line in data.split("\n") {
             msg_win.push(line.as_bytes(), true);
@@ -340,110 +345,12 @@ mod tests {
         assert_eq!(reasoning_message, res);
     }
 
-    fn raw_message() -> String {
-        let msg = r#"data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"H"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"ig"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"ress"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" 是"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"一个"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"基于"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" Ist"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"io"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" 的"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"高性能"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"服务"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"网格"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"数据"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"平面"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"项目"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"，"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"旨在"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"提供"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"高"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872009,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"吞"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"吐"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"量"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"、"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"低"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"延迟"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"和"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"可"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"扩展"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"的服务"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"通信"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"管理"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"。"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"它"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"为企业"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"级"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"应用"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"提供了"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"丰富的"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"流量"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"治理"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"功能"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"，"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"如"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"负载"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"均衡"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"、"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"熔"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"断"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"、"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"限"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"流"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872010,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"等"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"，并"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"支持"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"多"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"协议"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"代理"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"（"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"包括"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" HTTP"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"/"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"1"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"."},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"1"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":","},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" HTTP"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"/"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"2"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":","},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" g"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"RPC"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"）。"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"H"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"ig"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"ress"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" 的"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"设计"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"目标"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"是"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"优化"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" Ist"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"io"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":" 在"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"大规模"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"集群"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872011,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"中的"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"性能"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"表现"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"，"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"满足"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"高"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"并发"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"场景"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"下的"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"需求"},"finish_reason":null}]}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{"role":"assistant","content":"。"},"finish_reason":null}]}"#;
-        msg.replace("\"content\":", "\"reasoning_content\":")
-            + "\n"
-            + msg
-            + r#"
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":null,"finish_reason":"stop"}],"usage":null}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":1,"delta":{},"finish_reason":"stop"}],"usage":{}}
-data: {"id":"chatcmpl-936","object":"chat.completion.chunk","created":1739872012,"model":"qwen2.5-coder:32b","system_fingerprint":"fp_ollama","choices":[{"index":0,"delta":{}}],"usage":{"prompt_tokens":372,"completion_tokens":9,"total_tokens":381}}
-data: [DONE]"#
+    fn raw_message(file_name: &str) -> String {
+        if let Some(file) = Asset::get(file_name) {
+            if let Ok(data) = std::str::from_utf8(file.data.as_ref()) {
+                return data.to_string();
+            }
+        }
+        String::new()
     }
 }
