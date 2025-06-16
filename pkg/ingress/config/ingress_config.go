@@ -817,19 +817,23 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 					destinationRuleWrapper.DestinationRule.TrafficPolicy.Tls != nil {
 					dr.DestinationRule.TrafficPolicy.Tls = destinationRuleWrapper.DestinationRule.TrafficPolicy.Tls
 				}
-				portTrafficPolicy := destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings[0]
-				portUpdated := false
-				for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
-					if policy.Port.Number == portTrafficPolicy.Port.Number {
-						policy.Tls = portTrafficPolicy.Tls
-						portUpdated = true
-						break
+				// Directly inherit or override the port policy (if it exists)
+				if len(destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings) > 0 {
+					portTrafficPolicy := destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings[0]
+					portUpdated := false
+					for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
+						if policy.Port.Number == portTrafficPolicy.Port.Number {
+							policy.Tls = portTrafficPolicy.Tls
+							policy.LoadBalancer = portTrafficPolicy.LoadBalancer
+							portUpdated = true
+							break
+						}
 					}
+					if portUpdated {
+						continue
+					}
+					dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, portTrafficPolicy)
 				}
-				if portUpdated {
-					continue
-				}
-				dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, portTrafficPolicy)
 			}
 		}
 	}
