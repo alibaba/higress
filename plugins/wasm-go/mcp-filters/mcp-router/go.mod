@@ -2,7 +2,7 @@ module all-in-one
 
 go 1.24.1
 
-require github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250612122351-913048186a5e
+require github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250612125225-016b165a33c9
 
 require (
 	dario.cat/mergo v1.0.1 // indirect
