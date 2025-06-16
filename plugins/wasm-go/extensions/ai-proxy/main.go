@@ -401,7 +401,7 @@ func getApiName(path string) provider.ApiName {
 		return provider.ApiNameFineTuningPauseJob
 	}
 	if util.RegFineTuningCheckpointPermissionPath.MatchString(path) {
-		return provider.ApiNameFineTuningCheckpointPermission
+		return provider.ApiNameFineTuningCheckpointPermissions
 	}
 	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
 		return provider.PathOpenAIFineDeleteTuningCheckpointPermission
