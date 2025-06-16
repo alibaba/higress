@@ -26,24 +26,34 @@ func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameCompletion):          PathOpenAICompletions,
-		string(ApiNameChatCompletion):      PathOpenAIChatCompletions,
-		string(ApiNameEmbeddings):          PathOpenAIEmbeddings,
-		string(ApiNameImageGeneration):     PathOpenAIImageGeneration,
-		string(ApiNameImageEdit):           PathOpenAIImageEdit,
-		string(ApiNameImageVariation):      PathOpenAIImageVariation,
-		string(ApiNameAudioSpeech):         PathOpenAIAudioSpeech,
-		string(ApiNameModels):              PathOpenAIModels,
-		string(ApiNameFiles):               PathOpenAIFiles,
-		string(ApiNameRetrieveFile):        PathOpenAIRetrieveFile,
-		string(ApiNameRetrieveFileContent): PathOpenAIRetrieveFileContent,
-		string(ApiNameBatches):             PathOpenAIBatches,
-		string(ApiNameRetrieveBatch):       PathOpenAIRetrieveBatch,
-		string(ApiNameCancelBatch):         PathOpenAICancelBatch,
-		string(ApiNameResponses):           PathOpenAIResponses,
+		string(ApiNameCompletion):                      PathOpenAICompletions,
+		string(ApiNameChatCompletion):                  PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):                      PathOpenAIEmbeddings,
+		string(ApiNameImageGeneration):                 PathOpenAIImageGeneration,
+		string(ApiNameImageEdit):                       PathOpenAIImageEdit,
+		string(ApiNameImageVariation):                  PathOpenAIImageVariation,
+		string(ApiNameAudioSpeech):                     PathOpenAIAudioSpeech,
+		string(ApiNameModels):                          PathOpenAIModels,
+		string(ApiNameFiles):                           PathOpenAIFiles,
+		string(ApiNameRetrieveFile):                    PathOpenAIRetrieveFile,
+		string(ApiNameRetrieveFileContent):             PathOpenAIRetrieveFileContent,
+		string(ApiNameBatches):                         PathOpenAIBatches,
+		string(ApiNameRetrieveBatch):                   PathOpenAIRetrieveBatch,
+		string(ApiNameCancelBatch):                     PathOpenAICancelBatch,
+		string(ApiNameResponses):                       PathOpenAIResponses,
+		string(ApiNameFineTuningJobs):                  PathOpenAIFineTuningJobs,
+		string(ApiNameFineTuningRetrieveJob):           PathOpenAIFineTuningRetrieveJob,
+		string(ApiNameFineTuningJobEvents):             PathOpenAIFineTuningJobEvents,
+		string(ApiNameFineTuningJobCheckpoints):        PathOpenAIFineTuningJobCheckpoints,
+		string(ApiNameFineTuningCancelJob):             PathOpenAIFineTuningCancelJob,
+		string(ApiNameFineTuningResumeJob):             PathOpenAIFineTuningResumeJob,
+		string(ApiNameFineTuningPauseJob):              PathOpenAIFineTuningPauseJob,
+		string(ApiNameFineTuningCheckpointPermissions): PathOpenAIFineTuningCheckpointPermissions,
+		string(ApiNameFineTuningCheckpointPermission):  PathOpenAIFineDeleteTuningCheckpointPermission,
 	}
 }
 
+// isDirectPath checks if the path is a known standard OpenAI interface path.
 func isDirectPath(path string) bool {
 	return strings.HasSuffix(path, "/completions") ||
 		strings.HasSuffix(path, "/embeddings") ||
@@ -52,7 +62,8 @@ func isDirectPath(path string) bool {
 		strings.HasSuffix(path, "/images/variations") ||
 		strings.HasSuffix(path, "/images/edits") ||
 		strings.HasSuffix(path, "/models") ||
-		strings.HasSuffix(path, "/responses")
+		strings.HasSuffix(path, "/responses") ||
+		strings.HasSuffix(path, "/fine-tuning/jobs")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
