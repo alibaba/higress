@@ -35,7 +35,7 @@ fn merge_number(target: &mut Value, add: &Value) {
             }
         }
         (Value::Number(t), Value::Number(a)) => {
-            *t = Number::from(t.as_i64().unwrap_or_default() + a.as_i64().unwrap_or_default());
+            *t = Number::from(t.as_i64().unwrap_or_default().saturating_add(a.as_i64().unwrap_or_default()));
         }
         _ => {}
     }
