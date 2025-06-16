@@ -63,7 +63,8 @@ func isDirectPath(path string) bool {
 		strings.HasSuffix(path, "/images/edits") ||
 		strings.HasSuffix(path, "/models") ||
 		strings.HasSuffix(path, "/responses") ||
-		strings.HasSuffix(path, "/fine-tuning/jobs")
+		strings.HasSuffix(path, "/fine_tuning/jobs") ||
+		strings.HasSuffix(path, "/fine_tuning/checkpoints")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {

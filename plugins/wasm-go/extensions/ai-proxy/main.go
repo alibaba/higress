@@ -379,7 +379,7 @@ func getApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/models") {
 		return provider.ApiNameModels
 	}
-	if strings.HasSuffix(path, "/v1/fine-tuning/jobs") {
+	if strings.HasSuffix(path, "/v1/fine_tuning/jobs") {
 		return provider.ApiNameFineTuningJobs
 	}
 	if util.RegRetrieveFineTuningJobPath.MatchString(path) {
