@@ -62,7 +62,7 @@ spec:
       config:
         headers:
           - Content-Type=application/json
-        "body": "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"***.***.***.*** 48a7e98a91d93896d8dac522c5853948 ****@gmail.com\"}}],\"usage\":{}}"
+        "body": "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"***.***.***.*** c11e7177eb60c80cf983ddf8ca98f2dc1272d4c612204ce9bedd2460b18939cc ****@gmail.com\"}}],\"usage\":{}}"
         
     - domain:
         - system_deny.openai.com
@@ -93,7 +93,7 @@ spec:
       config:
         headers:
           - Content-Type=application/json
-        "body": "{\"res\":\"***.***.***.*** 48a7e98a91d93896d8dac522c5853948 ****@gmail.com\"}"
+        "body": "{\"res\":\"***.***.***.*** c11e7177eb60c80cf983ddf8ca98f2dc1272d4c612204ce9bedd2460b18939cc ****@gmail.com\"}"
     - domain:
         - system_deny.raw.com
       config:
