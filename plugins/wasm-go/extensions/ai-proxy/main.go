@@ -392,13 +392,13 @@ func getApiName(path string) provider.ApiName {
 		return provider.ApiNameFineTuningJobCheckpoints
 	}
 	if util.RegCancelFineTuningJobPath.MatchString(path) {
-		return provider.ApiNameFineTuningCancelJob
+		return provider.ApiNameCancelFineTuningJob
 	}
 	if util.RegResumeFineTuningJobPath.MatchString(path) {
-		return provider.ApiNameFineTuningResumeJob
+		return provider.ApiNameResumeFineTuningJob
 	}
 	if util.RegPauseFineTuningJobPath.MatchString(path) {
-		return provider.ApiNameFineTuningPauseJob
+		return provider.ApiNamePauseFineTuningJob
 	}
 	if util.RegFineTuningCheckpointPermissionPath.MatchString(path) {
 		return provider.ApiNameFineTuningCheckpointPermissions
