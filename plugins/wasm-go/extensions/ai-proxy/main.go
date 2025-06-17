@@ -383,13 +383,13 @@ func getApiName(path string) provider.ApiName {
 		return provider.ApiNameFineTuningJobs
 	}
 	if util.RegRetrieveFineTuningJobPath.MatchString(path) {
-		return provider.ApiNameFineTuningRetrieveJob
+		return provider.ApiNameRetrieveFineTuningJob
 	}
 	if util.RegRetrieveFineTuningJobEventsPath.MatchString(path) {
-		return provider.PathOpenAIFineTuningJobEvents
+		return provider.ApiNameFineTuningJobEvents
 	}
 	if util.RegRetrieveFineTuningJobCheckpointsPath.MatchString(path) {
-		return provider.PathOpenAIFineTuningJobCheckpoints
+		return provider.ApiNameFineTuningJobCheckpoints
 	}
 	if util.RegCancelFineTuningJobPath.MatchString(path) {
 		return provider.ApiNameFineTuningCancelJob
@@ -404,7 +404,7 @@ func getApiName(path string) provider.ApiName {
 		return provider.ApiNameFineTuningCheckpointPermissions
 	}
 	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
-		return provider.PathOpenAIFineDeleteTuningCheckpointPermission
+		return provider.ApiNameDeleteFineTuningCheckpointPermission
 	}
 	// cohere style
 	if strings.HasSuffix(path, "/v1/rerank") {

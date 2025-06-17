@@ -43,7 +43,7 @@ const (
 	ApiNameModels                               ApiName = "openai/v1/models"
 	ApiNameResponses                            ApiName = "openai/v1/responses"
 	ApiNameFineTuningJobs                       ApiName = "openai/v1/fine-tuningjobs"
-	ApiNameFineTuningRetrieveJob                ApiName = "openai/v1/retrievefine-tuningjob"
+	ApiNameRetrieveFineTuningJob                ApiName = "openai/v1/retrievefine-tuningjob"
 	ApiNameFineTuningJobEvents                  ApiName = "openai/v1/fine-tuningjobsevents"
 	ApiNameFineTuningJobCheckpoints             ApiName = "openai/v1/fine-tuningjobcheckpoints"
 	ApiNameFineTuningCancelJob                  ApiName = "openai/v1/cancelfine-tuningjob"
