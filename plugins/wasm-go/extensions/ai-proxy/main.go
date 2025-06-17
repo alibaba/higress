@@ -379,6 +379,33 @@ func getApiName(path string) provider.ApiName {
 	if strings.HasSuffix(path, "/v1/models") {
 		return provider.ApiNameModels
 	}
+	if strings.HasSuffix(path, "/v1/fine_tuning/jobs") {
+		return provider.ApiNameFineTuningJobs
+	}
+	if util.RegRetrieveFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameFineTuningRetrieveJob
+	}
+	if util.RegRetrieveFineTuningJobEventsPath.MatchString(path) {
+		return provider.PathOpenAIFineTuningJobEvents
+	}
+	if util.RegRetrieveFineTuningJobCheckpointsPath.MatchString(path) {
+		return provider.PathOpenAIFineTuningJobCheckpoints
+	}
+	if util.RegCancelFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameFineTuningCancelJob
+	}
+	if util.RegResumeFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameFineTuningResumeJob
+	}
+	if util.RegPauseFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameFineTuningPauseJob
+	}
+	if util.RegFineTuningCheckpointPermissionPath.MatchString(path) {
+		return provider.ApiNameFineTuningCheckpointPermissions
+	}
+	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
+		return provider.PathOpenAIFineDeleteTuningCheckpointPermission
+	}
 	// cohere style
 	if strings.HasSuffix(path, "/v1/rerank") {
 		return provider.ApiNameCohereV1Rerank
