@@ -1,4 +1,15 @@
+---
+title: AI负载均衡
+keywords: [higress, llm, load balance]
+description: 针对LLM服务的负载均衡策略
+---
+
 # 功能说明
+
+**注意**：
+- Higress网关版本需要>=v2.1.4
+- APIG网关版本需要>=2.1.6
+- MSE网关版本需要>=2.0.11
 
 对LLM服务提供热插拔的负载均衡策略，如果关闭插件，负载均衡策略会退化为服务本身的负载均衡策略（轮训、本地最小请求数、随机、一致性hash等）。
 
@@ -82,8 +93,8 @@ sequenceDiagram
 
 | 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
 |--------------------|-----------------|------------------|-------------|-------------------------------------|
-| `serviceFQDN`      | string          | 必填              |             | redis服务的FQDN，例如: `redis.dns`    |
-| `servicePort`      | int             | 必填              |             | redis服务的port                      |
+| `serviceFQDN`      | string          | 必填              |             | redis 服务的FQDN，例如: `redis.dns`    |
+| `servicePort`      | int             | 必填              |             | redis 服务的port                      |
 | `username`         | string          | 必填              |             | redis 用户名                         |
 | `password`         | string          | 选填              | 空          | redis 密码                           |
 | `timeout`          | int             | 选填              | 3000ms      | redis 请求超时时间                    |
