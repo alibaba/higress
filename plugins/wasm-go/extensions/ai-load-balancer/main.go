@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -14,7 +13,7 @@ func main() {}
 
 func init() {
 	wrapper.SetCtx(
-		"ai-lbpolicy-leastbusy",
+		"ai-load-balancer",
 		wrapper.ParseConfig(parseConfig),
 		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		wrapper.ProcessRequestBody(onHttpRequestBody),
@@ -54,7 +53,6 @@ func parseConfig(json gjson.Result, config *Config) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
-	log.Infof("lb: %+v", config.lb)
 	return config.lb.HandleHttpRequestHeaders(ctx)
 }
 
