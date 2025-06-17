@@ -25,7 +25,7 @@ func NewLeastBusyLoadBalancer(json gjson.Result) (LeastBusyLoadBalancer, error) 
 
 // Callbacks which are called in request path
 func (lb LeastBusyLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpContext) types.Action {
-	// If return types.ActionContinue, SetUpstreamOverrideHost will failed
+	// If return types.ActionContinue, SetUpstreamOverrideHost will not take effect
 	return types.HeaderStopIteration
 }
 
@@ -61,12 +61,6 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 		proxywasm.SendHttpResponseWithDetail(429, "from llm-load-balancer", nil, []byte("limited resources"), 0)
 	}
 	proxywasm.SetUpstreamOverrideHost([]byte(targetPod.Address))
-	// if isValidAddress(targetPod.Address) {
-	// 	log.Debugf("override upstream host: %s", targetPod.Address)
-	// 	proxywasm.SetUpstreamOverrideHost([]byte(targetPod.Address))
-	// } else {
-	// 	log.Debugf("invalid address: %s", targetPod.Address)
-	// }
 	return types.ActionContinue
 }
 
@@ -82,18 +76,3 @@ func (lb LeastBusyLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.Http
 func (lb LeastBusyLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	return types.ActionContinue
 }
-
-// func isValidAddress(s string) bool {
-// 	host, port, err := net.SplitHostPort(s)
-// 	if err != nil {
-// 		return false
-// 	}
-
-// 	_, err = net.LookupPort("tcp", port)
-// 	if err != nil {
-// 		return false
-// 	}
-
-// 	ip := net.ParseIP(host)
-// 	return ip != nil
-// }
