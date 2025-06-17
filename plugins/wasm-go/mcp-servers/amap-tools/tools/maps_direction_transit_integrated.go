@@ -59,11 +59,11 @@ func (t TransitIntegratedRequest) Call(ctx server.HttpContext, s server.Server) 
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/direction/transit/integrated?key=%s&origin=%s&destination=%s&city=%s&cityd=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Origin), url.QueryEscape(t.Destination), url.QueryEscape(t.City), url.QueryEscape(t.Cityd))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("transit integrated call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("transit integrated call failed, status: %d", statusCode))
 				return
 			}
-			utils.SendMCPToolTextResult(sendDirectly, ctx, string(responseBody))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }
