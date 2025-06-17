@@ -8,7 +8,7 @@ The `model-router` plugin implements routing functionality based on the model pa
 | `modelKey`           | string          | Optional                | model                    | Location of the model parameter in the request body          |
 | `addProviderHeader`  | string          | Optional                | -                        | Which request header to add the provider name parsed from the model parameter |
 | `modelToHeader`      | string          | Optional                | -                        | Which request header to directly add the model parameter to  |
-| `enableOnPathSuffix` | array of string | Optional                | ["/v1/chat/completions"] | Only effective for requests with these specific path suffixes, can be configured as "*" to match all paths |
+| `enableOnPathSuffix` | array of string | Optional                | ["/completions","/embeddings","/images/generations","/audio/speech","/fine_tuning/jobs","/moderations","/image-synthesis","/video-synthesis"] | Only effective for requests with these specific path suffixes, can be configured as "*" to match all paths |
 
 ## Runtime Properties
 

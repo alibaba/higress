@@ -220,6 +220,16 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 | `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
 | `vertexTokenRefreshAhead`   | number        | Optional      | -      | Vertex access token refresh ahead time in seconds                                                                                                           |
 
+#### AWS Bedrock
+
+For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
+
+| Name           | Data Type | Requirement | Default | Description                                   |
+|----------------|-----------|-------------|---------|-----------------------------------------------|
+| `awsAccessKey` | string    | Required    | -       | AWS Access Key used for authentication        |
+| `awsSecretKey` | string    | Required    | -       | AWS Secret Access Key used for authentication |
+| `awsRegion`    | string    | Required    | -       | AWS region, e.g., us-east-1                   |
+
 ## Usage Examples
 
 ### Using OpenAI Protocol Proxy for Azure OpenAI Service
@@ -1477,6 +1487,55 @@ provider:
     "prompt_tokens": 15,
     "completion_tokens": 43,
     "total_tokens": 58
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for AWS Bedrock Services
+**Configuration Information**
+```yaml
+provider:
+  type: bedrock
+  awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
+  awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
+  awsRegion: "YOUR_AWS_REGION"
+```
+
+**Request Example**
+```json
+{
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "messages": [
+    {
+      "role": "user",
+      "content": "who are you"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "d52da49d-daf3-49d9-a105-0b527481fe14",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I'm Claude, an AI created by Anthropic. I aim to be helpful, honest, and harmless. I won't pretend to be human, and I'll always try to be direct and truthful about what I am and what I can do."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1749659050,
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 57,
+    "total_tokens": 67
   }
 }
 ```
