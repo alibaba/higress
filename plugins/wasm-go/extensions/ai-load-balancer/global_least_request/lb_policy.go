@@ -13,11 +13,19 @@ import (
 )
 
 const (
-	RedisKeyFormat = "higress:global_least_request_table:%s"
+	RedisKeyFormat = "higress:global_least_request_table:%s:%s"
 )
 
 type GlobalLeastRequestLoadBalancer struct {
 	redisClient wrapper.RedisClient
+}
+
+func getRouteName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
+		return "-", err
+	} else {
+		return string(raw), nil
+	}
 }
 
 func getClusterName() (string, error) {
@@ -57,6 +65,13 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.Ht
 }
 
 func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, body []byte) types.Action {
+	routeName, err := getRouteName()
+	if err != nil || routeName == "" {
+		ctx.SetContext("error", true)
+		return types.ActionContinue
+	} else {
+		ctx.SetContext("routeName", routeName)
+	}
 	clusterName, err := getClusterName()
 	if err != nil || clusterName == "" {
 		ctx.SetContext("error", true)
@@ -77,7 +92,7 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpC
 		}
 	}
 	// log.Infof("hostRqCount initial: %+v", hostRqCount)
-	err = lb.redisClient.HGetAll(fmt.Sprintf(RedisKeyFormat, clusterName), func(response resp.Value) {
+	err = lb.redisClient.HGetAll(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), func(response resp.Value) {
 		// log.Infof("HGetAll response: %+v", response)
 		if err := response.Error(); err != nil {
 			log.Errorf("HGetAll failed: %+v", err)
@@ -108,7 +123,7 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpC
 		if err := proxywasm.SetUpstreamOverrideHost([]byte(hostSelected)); err != nil {
 			log.Errorf("override upstream host failed, fallback to default lb policy, error informations: %+v", err)
 		}
-		err := lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, clusterName), hostSelected, 1, func(response resp.Value) {
+		err := lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), hostSelected, 1, func(response resp.Value) {
 			if err := response.Error(); err != nil {
 				log.Errorf("HIncrBy failed on request phase: %+v", err)
 			}
@@ -132,12 +147,13 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpStreamingResponseBody(ctx wra
 	if endOfStream {
 		isErr, _ := ctx.GetContext("error").(bool)
 		if !isErr {
+			routeName, _ := ctx.GetContext("routeName").(string)
 			clusterName, _ := ctx.GetContext("clusterName").(string)
 			host_selected, _ := ctx.GetContext("host_selected").(string)
 			if host_selected == "" {
 				log.Errorf("get host_selected failed")
 			} else {
-				lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, clusterName), host_selected, -1, nil)
+				lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), host_selected, -1, nil)
 			}
 		}
 	}
