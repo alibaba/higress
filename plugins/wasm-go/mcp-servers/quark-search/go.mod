@@ -3,7 +3,7 @@ module quark-search
 go 1.24.1
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250507122328-b62384cff88a
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250617125129-8731ba4ea3db
 	github.com/tidwall/gjson v1.18.0
 )
 
@@ -16,7 +16,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b // indirect
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0 // indirect
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80 // indirect
 	github.com/huandu/xstrings v1.5.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -30,5 +30,6 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -57,11 +57,11 @@ func (t WalkingRequest) Call(ctx server.HttpContext, s server.Server) error {
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/direction/walking?key=%s&origin=%s&destination=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Origin), url.QueryEscape(t.Destination))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("walking call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("walking call failed, status: %d", statusCode))
 				return
 			}
-			utils.SendMCPToolTextResult(sendDirectly, ctx, string(responseBody))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }
