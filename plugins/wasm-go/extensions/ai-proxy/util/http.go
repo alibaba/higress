@@ -17,10 +17,18 @@ const (
 )
 
 var (
-	RegRetrieveBatchPath       = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)$`)
-	RegCancelBatchPath         = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)/cancel$`)
-	RegRetrieveFilePath        = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)$`)
-	RegRetrieveFileContentPath = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)/content$`)
+	RegRetrieveBatchPath                        = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)$`)
+	RegCancelBatchPath                          = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)/cancel$`)
+	RegRetrieveFilePath                         = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)$`)
+	RegRetrieveFileContentPath                  = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)/content$`)
+	RegRetrieveFineTuningJobPath                = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)$`)
+	RegRetrieveFineTuningJobEventsPath          = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/events$`)
+	RegRetrieveFineTuningJobCheckpointsPath     = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/checkpoints$`)
+	RegCancelFineTuningJobPath                  = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/cancel$`)
+	RegResumeFineTuningJobPath                  = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/resume$`)
+	RegPauseFineTuningJobPath                   = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/pause$`)
+	RegFineTuningCheckpointPermissionPath       = regexp.MustCompile(`^.*/v1/fine_tuning/checkpoints/(?P<fine_tuned_model_checkpoint>[^/]+)/permissions$`)
+	RegDeleteFineTuningCheckpointPermissionPath = regexp.MustCompile(`^.*/v1/fine_tuning/checkpoints/(?P<fine_tuned_model_checkpoint>[^/]+)/permissions/(?P<permission_id>[^/]+)$`)
 )
 
 type ErrorHandlerFunc func(statusCodeDetails string, err error) error
