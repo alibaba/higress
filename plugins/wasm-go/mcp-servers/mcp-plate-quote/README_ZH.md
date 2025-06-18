@@ -18,40 +18,15 @@
 获取指定概念板块的最新实时行情，包括概念名称、涨跌幅、一周涨跌幅、总市值、涨跌幅排名、成分股数量、涨停/上涨/下跌/平盘股数、领涨股信息等，以及该概念下所有成分股的实时行情（如股票代码、名称、市场、开盘价、当前价、涨跌幅、最高/最低价等），用于快速洞察概念整体及其成分股的最新市场表现。
 
 ## 使用教程
-### 申请APIKey
-访问[今日投资数据市场](https://data-api.investoday.net/mcp)申请apiKey。
+### 申请APICode
+访问[今日投资数据市场](https://data-api.investoday.net/mcp)申请appCode。
 
-### 使用APIKey
-https://data-api.investoday.net/data/mcp?apiKey=申请的apiKey
-> 注意: 协议为`Streamble HTTP`
 
 ### 配置示例
-#### Cline/Roo-Code
-
 ```json
 "mcpServers": {
     "industry-quote": {
-      "type": "streamable-http",
-      "url": "https://data-api.investoday.net/data/mcp?apiKey=申请的apiKey"
-    }
-}
-```
-
-#### Cursor
-```json
-"mcpServers": {
-    "industry-quote": {
-      "url": "https://data-api.investoday.net/data/mcp?apiKey=申请的apiKey"
-    }
-}
-```
-
-#### Dify
-```json
-"mcpServers": {
-    "industry-quote": {
-      "transport": "streamable_http",
-      "url": "https://data-api.investoday.net/data/mcp?apiKey=申请的apiKey"
+      "url": "https://mcp.higress.ai/mcp-plate-quote/{appCode}/sse"
     }
 }
 ```

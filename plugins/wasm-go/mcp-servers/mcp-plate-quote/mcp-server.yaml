@@ -5,7 +5,7 @@ tools:
     description: 概念及关联成分股的最新实时日行情 - 获取指定概念板块的最新实时行情及其所有成分股的实时行情，用于快速洞察概念整体及其成分股的最新市场表现。
     args: []
     requestTemplate:
-      url: https://data-api.investoday.net/data/concept-quote/realtime
+      url: https://data-api.investoday.net/data/concept-quote/stock-realtime
       method: GET
     responseTemplate:
       prependBody: |+

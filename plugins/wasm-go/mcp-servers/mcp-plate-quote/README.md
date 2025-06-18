@@ -18,40 +18,14 @@ Enter a concept type (e.g., Juyuan, CLS) and concept code to retrieve the latest
 Retrieve the latest real-time market data for a specified concept sector, including concept name, price change percentage, one-week change, total market capitalization, performance ranking, number of constituent stocks, counts of stocks that hit limit up / rose / fell / remained flat, and leading stock information. It also provides real-time data for all constituent stocks under the concept, such as stock code, name, market, opening price, current price, price change percentage, and highest/lowest prices—enabling quick insight into both the overall concept and its constituent stocks’ latest market performance.
 
 ## Usage Guide
-### Apply for an API Key
-Visit the [Investoday Data Marketplace](https://data-api.investoday.net/mcp) to apply for your API key.
-
-### Use the API Key
-https://data-api.investoday.net/data/mcp?apiKey=your_api_key
-Note: Protocol used is streamable-http
+### Apply for an APP Code
+Visit the [Investoday Data Marketplace](https://data-api.investoday.net/mcp) to apply for your AppCode.
 
 ### Configuration Examples
-#### Cline/Roo-Code
-
 ```json
 "mcpServers": {
     "industry-quote": {
-      "type": "streamable-http",
-      "url": "https://data-api.investoday.net/data/mcp?apiKey=申请的apiKey"
-    }
-}
-```
-
-#### Cursor
-```json
-"mcpServers": {
-    "industry-quote": {
-      "url": "https://data-api.investoday.net/data/mcp?apiKey=申请的apiKey"
-    }
-}
-```
-
-#### Dify
-```json
-"mcpServers": {
-    "industry-quote": {
-      "transport": "streamable_http",
-      "url": "https://data-api.investoday.net/data/mcp?apiKey=申请的apiKey"
+      "url": "https://mcp.higress.ai/mcp-plate-quote/{appCode}/sse"
     }
 }
 ```
