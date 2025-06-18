@@ -70,12 +70,12 @@ func (t IPLocationRequest) Call(ctx server.HttpContext, s server.Server) error {
 	}
 	url := fmt.Sprintf("https://restapi.amap.com/v3/ip?ip=%s&key=%s&source=ts_mcp", url.QueryEscape(t.IP), serverConfig.ApiKey)
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("ip location call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("ip location call failed, status: %d", statusCode))
 				return
 			}
-			utils.SendMCPToolTextResult(sendDirectly, ctx, string(responseBody))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }
 
