@@ -22,12 +22,6 @@
 访问[今日投资数据市场](https://data-api.investoday.net/mcp)申请appCode。
 
 
-### 配置示例
-```json
-"mcpServers": {
-    "industry-quote": {
-      "url": "https://mcp.higress.ai/mcp-plate-quote/{appCode}/sse"
-    }
-}
-```
+### 配置地址
+使用申请的appCode在higress生成即可。
 

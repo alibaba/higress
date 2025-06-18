@@ -1,5 +1,6 @@
 server:
-  name: openapi-server
+  name: plate-quote
+  description: 板块行情
 tools:
   - name: get_concept_stock_realtime_quote
     description: 概念及关联成分股的最新实时日行情 - 获取指定概念板块的最新实时行情及其所有成分股的实时行情，用于快速洞察概念整体及其成分股的最新市场表现。
@@ -7,6 +8,9 @@ tools:
     requestTemplate:
       url: https://data-api.investoday.net/data/concept-quote/stock-realtime
       method: GET
+      headers:
+        - name: appCode
+          value: {{.config.appCode}}
     responseTemplate:
       prependBody: |+
         # API Response Information
@@ -34,6 +38,9 @@ tools:
     requestTemplate:
       url: https://data-api.investoday.net/data/industry-quote/realtime
       method: GET
+      headers:
+        - name: appCode
+          value: {{.config.appCode}}
     responseTemplate:
       prependBody: |+
         # API Response Information
@@ -78,6 +85,9 @@ tools:
     requestTemplate:
       url: https://data-api.investoday.net/data/industry-quote/stock-realtime
       method: GET
+      headers:
+        - name: appCode
+          value: {{.config.appCode}}
     responseTemplate:
       prependBody: |+
         # API Response Information
