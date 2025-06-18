@@ -588,7 +588,11 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
         let mut req_body = match serde_json::from_slice::<Value>(req_body) {
             Ok(r) => r.to_string(),
             Err(_) => {
-                return DataAction::Continue;
+                if let Ok(r) = String::from_utf8(req_body.clone()) {
+                    r
+                } else {
+                    return DataAction::Continue;
+                }
             }
         };
         if config.deny_openai {
@@ -665,7 +669,11 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
         let mut res_body = match serde_json::from_slice::<Value>(res_body) {
             Ok(r) => r.to_string(),
             Err(_) => {
-                return DataAction::Continue;
+                if let Ok(r) = String::from_utf8(res_body.clone()) {
+                    r
+                } else {
+                    return DataAction::Continue;
+                }
             }
         };
         if config.deny_openai && self.is_openai {
