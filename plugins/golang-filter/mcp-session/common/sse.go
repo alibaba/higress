@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -95,12 +96,23 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 
 	channel := GetSSEChannelName(sessionID)
 
-	messageEndpoint := fmt.Sprintf(
-		"%s%s?sessionId=%s",
-		s.baseURL,
-		s.messageEndpoint,
-		sessionID,
-	)
+	messageEndpoint := ""
+	if strings.Contains(s.messageEndpoint, "?") {
+		messageEndpoint = fmt.Sprintf(
+			"%s%s&sessionId=%s",
+			s.baseURL,
+			s.messageEndpoint,
+			sessionID,
+		)
+
+	} else {
+		messageEndpoint = fmt.Sprintf(
+			"%s%s?sessionId=%s",
+			s.baseURL,
+			s.messageEndpoint,
+			sessionID,
+		)
+	}
 
 	// go func() {
 	// 	for {
@@ -210,7 +222,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
-		if sessionID != ""  {
+		if sessionID != "" {
 			w.WriteHeader(http.StatusAccepted)
 			status = http.StatusAccepted
 		} else {
