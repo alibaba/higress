@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 
 	global_least_request "ai-load-balancer/global_least_request"
 	least_busy "ai-load-balancer/least_busy"
+	prefix_cache "ai-load-balancer/prefix_cache"
 )
 
 func main() {}
@@ -39,6 +42,7 @@ type Config struct {
 const (
 	LeastBusyLoadBalancerPolicy          = "least_busy"
 	GlobalLeastRequestLoadBalancerPolicy = "global_least_request"
+	PrefixCache                          = "prefix_cache"
 )
 
 func parseConfig(json gjson.Result, config *Config) error {
@@ -48,6 +52,10 @@ func parseConfig(json gjson.Result, config *Config) error {
 		config.lb, err = least_busy.NewLeastBusyLoadBalancer(json.Get("lb_config"))
 	} else if config.policy == GlobalLeastRequestLoadBalancerPolicy {
 		config.lb, err = global_least_request.NewGlobalLeastRequestLoadBalancer(json.Get("lb_config"))
+	} else if config.policy == PrefixCache {
+		config.lb, err = prefix_cache.NewPrefixCacheLoadBalancer(json.Get("lb_config"))
+	} else {
+		err = fmt.Errorf("lb_policy %s is not supported", config.policy)
 	}
 	return err
 }
