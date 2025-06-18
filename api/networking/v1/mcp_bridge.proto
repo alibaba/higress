@@ -71,4 +71,11 @@ message RegistryConfig {
   repeated string mcpServerExportDomains = 20;
   string mcpServerBaseUrl = 21;
   google.protobuf.BoolValue enableMCPServer = 22;
+  google.protobuf.BoolValue enableScopeMcpServers = 23;
+  repeated string allowMcpServers = 24;
+  map<string, InnerMap> metadata = 25;
+}
+
+message InnerMap {
+  map<string, string> inner_map = 1;
 }

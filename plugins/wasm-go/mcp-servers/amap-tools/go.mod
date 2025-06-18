@@ -3,8 +3,8 @@ module amap-tools
 go 1.24.1
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250507122328-b62384cff88a
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0
+	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250617125129-8731ba4ea3db
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 )
 
 require (
@@ -30,5 +30,6 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
