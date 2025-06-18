@@ -1,0 +1,358 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SYS_MCP_板块行情",
+    "description": "整合了行业和概念板块的最新实时行情及其成分股明细数据，覆盖指数、涨跌幅、成交量、总市值、涨跌幅排名、领涨股等关键市场指标，面向智能投研与市场热点追踪，助力全方位洞察行业与概念板块的最新动态及成分股表现。",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "https://data-api.investoday.net/data" }
+  ],
+  "paths": {
+    "/industry-quote/realtime": {
+      "get": {
+        "summary": "行业的最新实时日行情",
+        "description": "输入行业代码，获取该行业的最新实时指数、涨跌幅、成交量、总市值、成分股数量、涨停/上涨/下跌/平盘/总股数、涨跌幅排名、领涨股等关键行情数据，用于实时跟踪行业整体表现。",
+        "operationId": "get_industry_realtime_quote",
+        "parameters": [
+          {
+            "name": "industryCode",
+            "in": "query",
+            "description": "行业代码",
+            "required": true,
+            "schema": { "type": "string", "example": "330000" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应行业实时行情",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IndustryRealtimeQuote" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/industry-quote/stock-realtime": {
+      "get": {
+        "summary": "行业及关联成分股的最新实时日行情",
+        "description": "输入行业代码，获取该行业的最新整体行情以及所有关联成分股的实时行情明细，用于全面分析行业及其成分股的最新市场表现。",
+        "operationId": "get_industry_stock_realtime_quote",
+        "parameters": [
+          {
+            "name": "industryCode",
+            "in": "query",
+            "description": "行业代码",
+            "required": true,
+            "schema": { "type": "string", "example": "330000" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应行业及成分股实时行情",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/IndustryStockRealtimeQuote" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/concept-quote/realtime": {
+      "get": {
+        "summary": "概念的最新实时日行情",
+        "description": "输入概念类型（如聚源、财联社）和概念代码，获取该概念板块的最新实时行情数据，包括涨跌幅、一周涨跌幅、总市值、成分股数量、涨停/上涨/下跌/平盘股数、涨跌幅排名、领涨股信息等关键指标。",
+        "operationId": "get_concept_realtime_quote",
+        "parameters": [
+          {
+            "name": "conceptType",
+            "in": "query",
+            "description": "概念类型 (jy-聚源、cls-财联社)",
+            "required": true,
+            "schema": { "type": "string", "example": "jy" }
+          },
+          {
+            "name": "conceptCode",
+            "in": "query",
+            "description": "概念代码",
+            "required": true,
+            "schema": { "type": "string", "example": "14060061" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应概念实时行情",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ConceptRealtimeQuote" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/concept-quote/realtime": {
+      "get": {
+        "summary": "概念及关联成分股的最新实时日行情",
+        "description": "获取指定概念板块的最新实时行情及其所有成分股的实时行情，用于快速洞察概念整体及其成分股的最新市场表现。",
+        "operationId": "get_concept_stock_realtime_quote",
+        "responses": {
+          "200": {
+            "description": "成功响应概念及成分股实时行情",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ConceptStockRealtimeQuote" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "IndustryRealtimeQuote": {
+        "type": "object",
+        "properties": {
+          "industryCode": {
+            "type": "string",
+            "description": "行业代码"
+          },
+          "industryName": {
+            "type": "string",
+            "description": "行业名称"
+          },
+          "price": {
+            "type": "number",
+            "description": "行业指数"
+          },
+          "changeRatio": {
+            "type": "number",
+            "description": "行业涨跌幅"
+          },
+          "volume": {
+            "type": "integer",
+            "description": "行业成交量"
+          },
+          "changeRatio1W": {
+            "type": "number",
+            "description": "行业一周涨跌幅"
+          },
+          "totalValue": {
+            "type": "number",
+            "description": "行业总市值"
+          },
+          "ratioRank": {
+            "type": "integer",
+            "description": "行业涨跌幅排名"
+          },
+          "industryAmount": {
+            "type": "integer",
+            "description": "行业成分股数量"
+          },
+          "limitUpAmount": {
+            "type": "integer",
+            "description": "行业涨停股数量"
+          },
+          "stockUpAmount": {
+            "type": "integer",
+            "description": "行业上涨股数量"
+          },
+          "stockDownAmount": {
+            "type": "integer",
+            "description": "行业下跌股数量"
+          },
+          "stockBxAmount": {
+            "type": "integer",
+            "description": "行业平盘股数量"
+          },
+          "stockAmount": {
+            "type": "integer",
+            "description": "行业股票总数"
+          },
+          "leadUpStockCode": {
+            "type": "string",
+            "description": "行业领涨股代码"
+          },
+          "leadUpStockName": {
+            "type": "string",
+            "description": "行业领涨股名称"
+          },
+          "dataTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "数据时间"
+          }
+        },
+        "required": [
+          "industryCode","industryName","price","changeRatio","volume",
+          "changeRatio1W","totalValue","ratioRank","industryAmount",
+          "limitUpAmount","stockUpAmount","stockDownAmount","stockBxAmount",
+          "stockAmount","leadUpStockCode","leadUpStockName","dataTime"
+        ]
+      },
+      "StockRealQuote": {
+        "type": "object",
+        "properties": {
+          "stockCode": {
+            "type": "string",
+            "description": "股票代码"
+          },
+          "stockName": {
+            "type": "string",
+            "description": "股票名称"
+          },
+          "marketType": {
+            "type": "string",
+            "description": "市场类型"
+          },
+          "openPrice": {
+            "type": "number",
+            "description": "开盘价"
+          },
+          "closePriceYDay": {
+            "type": "number",
+            "description": "昨日收盘价"
+          },
+          "currentPrice": {
+            "type": "number",
+            "description": "当前价格"
+          },
+          "changeRatio": {
+            "type": "number",
+            "description": "涨跌幅"
+          },
+          "highPrice": {
+            "type": "number",
+            "description": "最高价"
+          },
+          "lowPrice": {
+            "type": "number",
+            "description": "最低价"
+          },
+          "dataTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "数据时间"
+          },
+          "sysTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "系统时间"
+          },
+          "status": {
+            "type": "string",
+            "description": "状态"
+          }
+        },
+        "required": [
+          "stockCode","stockName","marketType","openPrice","closePriceYDay",
+          "currentPrice","changeRatio","highPrice","lowPrice","dataTime",
+          "sysTime","status"
+        ]
+      },
+      "IndustryStockRealtimeQuote": {
+        "allOf": [
+          { "$ref": "#/components/schemas/IndustryRealtimeQuote" },
+          {
+            "type": "object",
+            "properties": {
+              "stockRealQuotes": {
+                "type": "array",
+                "description": "股票实时行情数据列表",
+                "items": { "$ref": "#/components/schemas/StockRealQuote" }
+              }
+            },
+            "required": ["stockRealQuotes"]
+          }
+        ]
+      },
+      "ConceptRealtimeQuote": {
+        "type": "object",
+        "properties": {
+          "conceptCode": {
+            "type": "string",
+            "description": "概念板块代码"
+          },
+          "conceptName": {
+            "type": "string",
+            "description": "概念板块名称"
+          },
+          "changeRatio": {
+            "type": "number",
+            "description": "概念板块涨跌幅"
+          },
+          "changeRatio1W": {
+            "type": "number",
+            "description": "概念板块一周涨跌幅"
+          },
+          "ratioRank": {
+            "type": "integer",
+            "description": "概念板块涨跌幅排名（排名值越小涨幅越大）"
+          },
+          "conceptAmount": {
+            "type": "integer",
+            "description": "概念板块成分股数量"
+          },
+          "limitUpAmount": {
+            "type": "integer",
+            "description": "概念板块涨停股数量"
+          },
+          "stockUpAmount": {
+            "type": "integer",
+            "description": "概念板块上涨股数量"
+          },
+          "stockDownAmount": {
+            "type": "integer",
+            "description": "概念板块下跌股数量"
+          },
+          "stockBxAmount": {
+            "type": "integer",
+            "description": "概念板块平盘股数量"
+          },
+          "leadUpStockCode": {
+            "type": "string",
+            "description": "概念板块领涨股代码"
+          },
+          "leadUpStockName": {
+            "type": "string",
+            "description": "概念板块领涨股名称"
+          },
+          "totalValue": {
+            "type": "number",
+            "description": "概念板块总市值"
+          },
+          "dataTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "数据时间"
+          }
+        },
+        "required": [
+          "conceptCode","conceptName","changeRatio","changeRatio1W","ratioRank",
+          "conceptAmount","limitUpAmount","stockUpAmount","stockDownAmount",
+          "stockBxAmount","leadUpStockCode","leadUpStockName","totalValue","dataTime"
+        ]
+      },
+      "ConceptStockRealtimeQuote": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ConceptRealtimeQuote" },
+          {
+            "type": "object",
+            "properties": {
+              "stockRealQuotes": {
+                "type": "array",
+                "description": "股票实时行情数据",
+                "items": { "$ref": "#/components/schemas/StockRealQuote" }
+              }
+            },
+            "required": ["stockRealQuotes"]
+          }
+        ]
+      }
+    }
+  }
+}

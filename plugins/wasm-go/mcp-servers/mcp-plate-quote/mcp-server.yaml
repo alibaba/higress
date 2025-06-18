@@ -1,0 +1,96 @@
+server:
+  name: openapi-server
+tools:
+  - name: get_concept_stock_realtime_quote
+    description: 概念及关联成分股的最新实时日行情 - 获取指定概念板块的最新实时行情及其所有成分股的实时行情，用于快速洞察概念整体及其成分股的最新市场表现。
+    args: []
+    requestTemplate:
+      url: https://data-api.investoday.net/data/concept-quote/realtime
+      method: GET
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: get_industry_realtime_quote
+    description: 行业的最新实时日行情 - 输入行业代码，获取该行业的最新实时指数、涨跌幅、成交量、总市值、成分股数量、涨停/上涨/下跌/平盘/总股数、涨跌幅排名、领涨股等关键行情数据，用于实时跟踪行业整体表现。
+    args:
+      - name: industryCode
+        description: 行业代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://data-api.investoday.net/data/industry-quote/realtime
+      method: GET
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **changeRatio**: 行业涨跌幅 (Type: number)
+        - **changeRatio1W**: 行业一周涨跌幅 (Type: number)
+        - **dataTime**: 数据时间 (Type: string)
+        - **industryAmount**: 行业成分股数量 (Type: integer)
+        - **industryCode**: 行业代码 (Type: string)
+        - **industryName**: 行业名称 (Type: string)
+        - **leadUpStockCode**: 行业领涨股代码 (Type: string)
+        - **leadUpStockName**: 行业领涨股名称 (Type: string)
+        - **limitUpAmount**: 行业涨停股数量 (Type: integer)
+        - **price**: 行业指数 (Type: number)
+        - **ratioRank**: 行业涨跌幅排名 (Type: integer)
+        - **stockAmount**: 行业股票总数 (Type: integer)
+        - **stockBxAmount**: 行业平盘股数量 (Type: integer)
+        - **stockDownAmount**: 行业下跌股数量 (Type: integer)
+        - **stockUpAmount**: 行业上涨股数量 (Type: integer)
+        - **totalValue**: 行业总市值 (Type: number)
+        - **volume**: 行业成交量 (Type: integer)
+
+        ## Original Response
+
+  - name: get_industry_stock_realtime_quote
+    description: 行业及关联成分股的最新实时日行情 - 输入行业代码，获取该行业的最新整体行情以及所有关联成分股的实时行情明细，用于全面分析行业及其成分股的最新市场表现。
+    args:
+      - name: industryCode
+        description: 行业代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://data-api.investoday.net/data/industry-quote/stock-realtime
+      method: GET
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
