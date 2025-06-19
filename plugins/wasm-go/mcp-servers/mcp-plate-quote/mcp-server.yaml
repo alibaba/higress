@@ -1,16 +1,81 @@
 server:
   name: plate-quote
   description: 板块行情
+  config:
+    appCode: ""
 tools:
+  - name: get_concept_realtime_quote
+    description: 概念的最新实时日行情 - 输入概念类型（如聚源、财联社）和概念代码，获取该概念板块的最新实时行情数据，包括涨跌幅、一周涨跌幅、总市值、成分股数量、涨停/上涨/下跌/平盘股数、涨跌幅排名、领涨股信息等关键指标。
+    args:
+      - name: conceptCode
+        description: 概念代码
+        type: string
+        required: true
+        position: query
+      - name: conceptType
+        description: 概念类型 (jy-聚源、cls-财联社)
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://data-api.investoday.net/data/concept-quote/realtime
+      method: GET
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "appCode"
+          value: "{{.config.appCode}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **changeRatio**: 概念板块涨跌幅 (Type: number)
+        - **changeRatio1W**: 概念板块一周涨跌幅 (Type: number)
+        - **conceptAmount**: 概念板块成分股数量 (Type: integer)
+        - **conceptCode**: 概念板块代码 (Type: string)
+        - **conceptName**: 概念板块名称 (Type: string)
+        - **dataTime**: 数据时间 (Type: string)
+        - **leadUpStockCode**: 概念板块领涨股代码 (Type: string)
+        - **leadUpStockName**: 概念板块领涨股名称 (Type: string)
+        - **limitUpAmount**: 概念板块涨停股数量 (Type: integer)
+        - **ratioRank**: 概念板块涨跌幅排名（排名值越小涨幅越大） (Type: integer)
+        - **stockBxAmount**: 概念板块平盘股数量 (Type: integer)
+        - **stockDownAmount**: 概念板块下跌股数量 (Type: integer)
+        - **stockUpAmount**: 概念板块上涨股数量 (Type: integer)
+        - **totalValue**: 概念板块总市值 (Type: number)
+
+        ## Original Response
+
   - name: get_concept_stock_realtime_quote
     description: 概念及关联成分股的最新实时日行情 - 获取指定概念板块的最新实时行情及其所有成分股的实时行情，用于快速洞察概念整体及其成分股的最新市场表现。
-    args: []
+    args:
+      - name: conceptCode
+        description: 概念代码
+        type: string
+        required: true
+        position: query
+      - name: conceptType
+        description: 概念类型 (jy-聚源、cls-财联社)
+        type: string
+        required: true
+        position: query
     requestTemplate:
       url: https://data-api.investoday.net/data/concept-quote/stock-realtime
       method: GET
       headers:
-        - name: appCode
-          value: {{.config.appCode}}
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "appCode"
+          value: "{{.config.appCode}}"
     responseTemplate:
       prependBody: |+
         # API Response Information
@@ -27,6 +92,57 @@ tools:
 
         ## Original Response
 
+  - name: get_industry_basic
+    description: 行业列表 - 用户可输入感兴趣的行业名称、行业类别或行业层级，快速查询当前支持的全部行业信息。可按行业中文名（支持模糊搜索），指定行业体系（如“申万行业”），或根据层级（如一级、二级行业）筛选。返回结果包含行业名称、所属行业体系、行业指数、行业层级等基础信息，可作为后续行业行情、板块分析等业务的基础数据。
+    args:
+      - name: industryCode
+        description: 行业代码
+        type: string
+        position: query
+      - name: industryLevel
+        description: 行业等级
+        type: string
+        position: query
+      - name: industryName
+        description: 行业名称(模糊匹配)
+        type: string
+        position: query
+      - name: industryType
+        description: 行业分类体系(可选：申万行业体系-INDUS4_CL[默认])
+        type: string
+        position: query
+    requestTemplate:
+      url: https://data-api.investoday.net/data/industry/basic
+      method: GET
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "appCode"
+          value: "{{.config.appCode}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码：0 成功 (Type: integer)
+        - **data**: 数据 (Type: array)
+          - **data[].indexCode**: 行业的指数代码 (Type: string)
+          - **data[].industryCode**: 行业代码 (Type: string)
+          - **data[].industryLevel**: 行业等级 (Type: string)
+          - **data[].industryName**: 行业名称 (Type: string)
+          - **data[].industryType**: 行业类型（申万行业体系-INDUS4_CL） (Type: string)
+        - **msg**: 错误信息 (Type: string)
+
+        ## Original Response
+
   - name: get_industry_realtime_quote
     description: 行业的最新实时日行情 - 输入行业代码，获取该行业的最新实时指数、涨跌幅、成交量、总市值、成分股数量、涨停/上涨/下跌/平盘/总股数、涨跌幅排名、领涨股等关键行情数据，用于实时跟踪行业整体表现。
     args:
@@ -39,8 +155,10 @@ tools:
       url: https://data-api.investoday.net/data/industry-quote/realtime
       method: GET
       headers:
-        - name: appCode
-          value: {{.config.appCode}}
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "appCode"
+          value: "{{.config.appCode}}"
     responseTemplate:
       prependBody: |+
         # API Response Information
@@ -86,8 +204,10 @@ tools:
       url: https://data-api.investoday.net/data/industry-quote/stock-realtime
       method: GET
       headers:
-        - name: appCode
-          value: {{.config.appCode}}
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "appCode"
+          value: "{{.config.appCode}}"
     responseTemplate:
       prependBody: |+
         # API Response Information
@@ -101,6 +221,126 @@ tools:
 
         > Content-Type: application/json
 
+
+        ## Original Response
+
+  - name: get_concept_basic
+    description: 概念列表 - 支持用户通过中文自然语言输入概念关键词、板块类别，快速检索A股市场的全部概念板块信息。可模糊搜索概念名称，也可指定来源分类（如“财联社”、“聚源”等），用于查询市场热点、主题板块归属，为行业分析、主题投资等应用提供底层数据支持。
+    args:
+      - name: conceptCode
+        description: 概念代码
+        type: string
+        required: false
+        items:
+          type: string
+        position: query
+      - name: conceptName
+        description: 概念名称（可模糊匹配）
+        type: string
+        required: false
+        position: query
+      - name: conceptClass
+        description: "概念分类(可选: 财联社-C01[默认值],聚源-99)"
+        type: string
+        required: false
+        position: query
+    requestTemplate:
+      url: https://data-api.investoday.net/data/concept/basic
+      method: GET
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "appCode"
+          value: "{{.config.appCode}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码：0 成功 (Type: integer)
+        - **data**: 数据 (Type: array)
+          - **data[].conceptCategoryCode**: 概念类别代码（1是财联社概念、0是聚源概念） (Type: string)
+          - **data[].conceptCategoryName**: 概念类别名称 (Type: string)
+          - **data[].conceptCode**: 概念代码 (Type: string)
+          - **data[].conceptLevel**: 概念级别 (Type: integer)
+          - **data[].conceptName**: 概念名称 (Type: string)
+          - **data[].parentConceptCode**: 父概念代码 (Type: string)
+        - **msg**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: get_stock_concept_classifications
+    description: 股票所属概念 - 支持根据股票代码、概念代码、日期及存续状态，查询股票所属的全部概念，包括概念代码、详细说明、入选和剔除日期等信息，便于追溯股票的历史及当前概念归属关系和变动。
+    args:
+      - name: conceptClass
+        description: 概念类型 （1是财联社概念、0是聚源概念）
+        type: integer
+        required: true
+        position: body
+      - name: conceptCode
+        description: 概念代码（可输入多个，用逗号分隔）
+        type: string
+        required: false
+        items:
+          type: string
+        position: body
+      - name: existenceStatus
+        description: 当前概念存续状态 1、存续 0 、终止
+        type: integer
+        position: body
+      - name: removalDate
+        description: 剔除日期
+        type: string
+        position: body
+      - name: selectionDate
+        description: 入选日期
+        type: string
+        position: body
+      - name: stockCode
+        description: 股票代码（可输入多个，用逗号分隔）
+        type: array
+        required: true
+        items:
+          type: string
+        position: body
+    requestTemplate:
+      url: https://data-api.investoday.net/data/stocks/concept-classifications
+      method: POST
+      headers:
+        - key: "Content-Type"
+          value: "application/json"
+        - key: "appCode"
+          value: "{{.config.appCode}}"
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码：0 成功 (Type: integer)
+        - **data**: 数据 (Type: array)
+          - **data[].conceptCode**: 概念代码 (Type: string)
+          - **data[].conceptName**: 概念名称 (Type: string)
+          - **data[].description**: 说明 (Type: string)
+          - **data[].removalDate**: 剔除日期 (Type: string)
+          - **data[].selectionDate**: 入选日期 (Type: string)
+          - **data[].stockCode**: 股票代码 (Type: string)
+        - **msg**: 错误信息 (Type: string)
 
         ## Original Response
 

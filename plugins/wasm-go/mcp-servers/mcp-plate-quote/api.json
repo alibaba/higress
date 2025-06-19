@@ -1,12 +1,14 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "SYS_MCP_板块行情",
+    "title": "板块行情",
     "description": "整合了行业和概念板块的最新实时行情及其成分股明细数据，覆盖指数、涨跌幅、成交量、总市值、涨跌幅排名、领涨股等关键市场指标，面向智能投研与市场热点追踪，助力全方位洞察行业与概念板块的最新动态及成分股表现。",
     "version": "1.0.0"
   },
   "servers": [
-    { "url": "https://data-api.investoday.net/data" }
+    {
+      "url": "https://data-api.investoday.net/data"
+    }
   ],
   "paths": {
     "/industry-quote/realtime": {
@@ -20,7 +22,10 @@
             "in": "query",
             "description": "行业代码",
             "required": true,
-            "schema": { "type": "string", "example": "330000" }
+            "schema": {
+              "type": "string",
+              "example": "330000"
+            }
           }
         ],
         "responses": {
@@ -28,7 +33,9 @@
             "description": "成功响应行业实时行情",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/IndustryRealtimeQuote" }
+                "schema": {
+                  "$ref": "#/components/schemas/IndustryRealtimeQuote"
+                }
               }
             }
           }
@@ -46,7 +53,10 @@
             "in": "query",
             "description": "行业代码",
             "required": true,
-            "schema": { "type": "string", "example": "330000" }
+            "schema": {
+              "type": "string",
+              "example": "330000"
+            }
           }
         ],
         "responses": {
@@ -54,7 +64,9 @@
             "description": "成功响应行业及成分股实时行情",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/IndustryStockRealtimeQuote" }
+                "schema": {
+                  "$ref": "#/components/schemas/IndustryStockRealtimeQuote"
+                }
               }
             }
           }
@@ -72,14 +84,20 @@
             "in": "query",
             "description": "概念类型 (jy-聚源、cls-财联社)",
             "required": true,
-            "schema": { "type": "string", "example": "jy" }
+            "schema": {
+              "type": "string",
+              "example": "jy"
+            }
           },
           {
             "name": "conceptCode",
             "in": "query",
             "description": "概念代码",
             "required": true,
-            "schema": { "type": "string", "example": "14060061" }
+            "schema": {
+              "type": "string",
+              "example": "14060061"
+            }
           }
         ],
         "responses": {
@@ -87,24 +105,254 @@
             "description": "成功响应概念实时行情",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ConceptRealtimeQuote" }
+                "schema": {
+                  "$ref": "#/components/schemas/ConceptRealtimeQuote"
+                }
               }
             }
           }
         }
       }
     },
-    "concept-quote/stock-realtime": {
+    "/concept-quote/stock-realtime": {
       "get": {
         "summary": "概念及关联成分股的最新实时日行情",
         "description": "获取指定概念板块的最新实时行情及其所有成分股的实时行情，用于快速洞察概念整体及其成分股的最新市场表现。",
         "operationId": "get_concept_stock_realtime_quote",
+        "parameters": [
+          {
+            "name": "conceptType",
+            "in": "query",
+            "description": "概念类型 (jy-聚源、cls-财联社)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "jy"
+            }
+          },
+          {
+            "name": "conceptCode",
+            "in": "query",
+            "description": "概念代码",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "14060061"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "成功响应概念及成分股实时行情",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ConceptStockRealtimeQuote" }
+                "schema": {
+                  "$ref": "#/components/schemas/ConceptStockRealtimeQuote"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stocks/concept-classifications": {
+      "get": {
+        "summary": "股票所属概念",
+        "description": "支持根据股票代码、概念代码、日期及存续状态，查询股票所属的全部概念，包括概念代码、详细说明、入选和剔除日期等信息，便于追溯股票的历史及当前概念归属关系和变动。",
+        "operationId": "get_stock_concept_classifications",
+        "parameters": [
+          {
+            "name": "removalDate",
+            "in": "query",
+            "description": "剔除日期",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2021-01-01"
+            }
+          },
+          {
+            "name": "existenceStatus",
+            "in": "query",
+            "description": "当前概念存续状态 1、存续 0 、终止",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          },
+          {
+            "name": "selectionDate",
+            "in": "query",
+            "description": "入选日期",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "example": "2021-01-01"
+            }
+          },
+          {
+            "name": "conceptClass",
+            "in": "query",
+            "description": "概念类型 （1是财联社概念、0是聚源概念）",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          },
+          {
+            "name": "conceptCode",
+            "in": "query",
+            "description": "概念代码（可输入多个，用逗号分隔）",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": { "type": "string" },
+              "example": ["15030008"]
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "stockCode",
+            "in": "query",
+            "description": "股票代码（可输入多个，用逗号分隔）",
+            "required": true,
+            "schema": {
+              "type": "array",
+              "items": { "type": "string" },
+              "example": ["000001"]
+            },
+            "style": "form",
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应股票所属概念",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockConceptClassificationsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/concept/basic": {
+      "get": {
+        "summary": "概念列表",
+        "description": "支持用户通过中文自然语言输入概念关键词、板块类别，快速检索A股市场的全部概念板块信息。可模糊搜索概念名称，也可指定来源分类（如“财联社”、“聚源”等），用于查询市场热点、主题板块归属，为行业分析、主题投资等应用提供底层数据支持。",
+        "operationId": "get_concept_basic",
+        "parameters": [
+          {
+            "name": "conceptCode",
+            "in": "query",
+            "description": "概念代码",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "items": { "type": "string" },
+              "example": "000001"
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "conceptName",
+            "in": "query",
+            "description": "概念名称（可模糊匹配）",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "腾讯云概念"
+            }
+          },
+	        {
+            "name": "conceptClass",
+            "in": "query",
+            "description": "概念分类(可选: 财联社-C01[默认值],聚源-99)",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "C01"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应概念科目",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockCategoryMappingsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/industry/basic": {
+      "get": {
+        "summary": "行业列表",
+        "description": "用户可输入感兴趣的行业名称、行业类别或行业层级，快速查询当前支持的全部行业信息。可按行业中文名（支持模糊搜索），指定行业体系（如“申万行业”），或根据层级（如一级、二级行业）筛选。返回结果包含行业名称、所属行业体系、行业指数、行业层级等基础信息，可作为后续行业行情、板块分析等业务的基础数据。",
+        "operationId": "get_industry_basic",
+        "parameters": [
+          {
+            "name": "industryName",
+            "in": "query",
+            "description": "行业名称(模糊匹配)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "农林牧渔"
+            }
+          },
+          {
+            "name": "industryType",
+            "in": "query",
+            "description": "行业分类体系(可选：申万行业体系-INDUS4_CL[默认])",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "INDUS4_CL"
+            }
+          },
+          {
+            "name": "industryLevel",
+            "in": "query",
+            "description": "行业等级",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "1"
+            }
+          },
+          {
+            "name": "industryCode",
+            "in": "query",
+            "description": "行业代码",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "110000"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功响应行业列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndustryBasicResponse"
+                }
               }
             }
           }
@@ -117,141 +365,73 @@
       "IndustryRealtimeQuote": {
         "type": "object",
         "properties": {
-          "industryCode": {
-            "type": "string",
-            "description": "行业代码"
-          },
-          "industryName": {
-            "type": "string",
-            "description": "行业名称"
-          },
-          "price": {
-            "type": "number",
-            "description": "行业指数"
-          },
-          "changeRatio": {
-            "type": "number",
-            "description": "行业涨跌幅"
-          },
-          "volume": {
-            "type": "integer",
-            "description": "行业成交量"
-          },
-          "changeRatio1W": {
-            "type": "number",
-            "description": "行业一周涨跌幅"
-          },
-          "totalValue": {
-            "type": "number",
-            "description": "行业总市值"
-          },
-          "ratioRank": {
-            "type": "integer",
-            "description": "行业涨跌幅排名"
-          },
-          "industryAmount": {
-            "type": "integer",
-            "description": "行业成分股数量"
-          },
-          "limitUpAmount": {
-            "type": "integer",
-            "description": "行业涨停股数量"
-          },
-          "stockUpAmount": {
-            "type": "integer",
-            "description": "行业上涨股数量"
-          },
-          "stockDownAmount": {
-            "type": "integer",
-            "description": "行业下跌股数量"
-          },
-          "stockBxAmount": {
-            "type": "integer",
-            "description": "行业平盘股数量"
-          },
-          "stockAmount": {
-            "type": "integer",
-            "description": "行业股票总数"
-          },
-          "leadUpStockCode": {
-            "type": "string",
-            "description": "行业领涨股代码"
-          },
-          "leadUpStockName": {
-            "type": "string",
-            "description": "行业领涨股名称"
-          },
-          "dataTime": {
-            "type": "string",
-            "format": "date-time",
-            "description": "数据时间"
-          }
+          "industryCode": { "type": "string", "description": "行业代码" },
+          "industryName": { "type": "string", "description": "行业名称" },
+          "price": { "type": "number", "description": "行业指数" },
+          "changeRatio": { "type": "number", "description": "行业涨跌幅" },
+          "volume": { "type": "integer", "description": "行业成交量" },
+          "changeRatio1W": { "type": "number", "description": "行业一周涨跌幅" },
+          "totalValue": { "type": "number", "description": "行业总市值" },
+          "ratioRank": { "type": "integer", "description": "行业涨跌幅排名" },
+          "industryAmount": { "type": "integer", "description": "行业成分股数量" },
+          "limitUpAmount": { "type": "integer", "description": "行业涨停股数量" },
+          "stockUpAmount": { "type": "integer", "description": "行业上涨股数量" },
+          "stockDownAmount": { "type": "integer", "description": "行业下跌股数量" },
+          "stockBxAmount": { "type": "integer", "description": "行业平盘股数量" },
+          "stockAmount": { "type": "integer", "description": "行业股票总数" },
+          "leadUpStockCode": { "type": "string", "description": "行业领涨股代码" },
+          "leadUpStockName": { "type": "string", "description": "行业领涨股名称" },
+          "dataTime": { "type": "string", "format": "date-time", "description": "数据时间" }
         },
         "required": [
-          "industryCode","industryName","price","changeRatio","volume",
-          "changeRatio1W","totalValue","ratioRank","industryAmount",
-          "limitUpAmount","stockUpAmount","stockDownAmount","stockBxAmount",
-          "stockAmount","leadUpStockCode","leadUpStockName","dataTime"
+          "industryCode",
+          "industryName",
+          "price",
+          "changeRatio",
+          "volume",
+          "changeRatio1W",
+          "totalValue",
+          "ratioRank",
+          "industryAmount",
+          "limitUpAmount",
+          "stockUpAmount",
+          "stockDownAmount",
+          "stockBxAmount",
+          "stockAmount",
+          "leadUpStockCode",
+          "leadUpStockName",
+          "dataTime"
         ]
       },
       "StockRealQuote": {
         "type": "object",
         "properties": {
-          "stockCode": {
-            "type": "string",
-            "description": "股票代码"
-          },
-          "stockName": {
-            "type": "string",
-            "description": "股票名称"
-          },
-          "marketType": {
-            "type": "string",
-            "description": "市场类型"
-          },
-          "openPrice": {
-            "type": "number",
-            "description": "开盘价"
-          },
-          "closePriceYDay": {
-            "type": "number",
-            "description": "昨日收盘价"
-          },
-          "currentPrice": {
-            "type": "number",
-            "description": "当前价格"
-          },
-          "changeRatio": {
-            "type": "number",
-            "description": "涨跌幅"
-          },
-          "highPrice": {
-            "type": "number",
-            "description": "最高价"
-          },
-          "lowPrice": {
-            "type": "number",
-            "description": "最低价"
-          },
-          "dataTime": {
-            "type": "string",
-            "format": "date-time",
-            "description": "数据时间"
-          },
-          "sysTime": {
-            "type": "string",
-            "format": "date-time",
-            "description": "系统时间"
-          },
-          "status": {
-            "type": "string",
-            "description": "状态"
-          }
+          "stockCode": { "type": "string", "description": "股票代码" },
+          "stockName": { "type": "string", "description": "股票名称" },
+          "marketType": { "type": "string", "description": "市场类型" },
+          "openPrice": { "type": "number", "description": "开盘价" },
+          "closePriceYDay": { "type": "number", "description": "昨日收盘价" },
+          "currentPrice": { "type": "number", "description": "当前价格" },
+          "changeRatio": { "type": "number", "description": "涨跌幅" },
+          "highPrice": { "type": "number", "description": "最高价" },
+          "lowPrice": { "type": "number", "description": "最低价" },
+          "dataTime": { "type": "string", "format": "date-time", "description": "数据时间" },
+          "sysTime": { "type": "string", "format": "date-time", "description": "系统时间" },
+          "status": { "type": "string", "description": "状态" }
         },
         "required": [
-          "stockCode","stockName","marketType","openPrice","closePriceYDay",
-          "currentPrice","changeRatio","highPrice","lowPrice","dataTime",
-          "sysTime","status"
+          "stockCode",
+          "stockName",
+          "marketType",
+          "openPrice",
+          "closePriceYDay",
+          "currentPrice",
+          "changeRatio",
+          "highPrice",
+          "lowPrice",
+          "dataTime",
+          "sysTime",
+          "status"
         ]
       },
       "IndustryStockRealtimeQuote": {
@@ -273,68 +453,36 @@
       "ConceptRealtimeQuote": {
         "type": "object",
         "properties": {
-          "conceptCode": {
-            "type": "string",
-            "description": "概念板块代码"
-          },
-          "conceptName": {
-            "type": "string",
-            "description": "概念板块名称"
-          },
-          "changeRatio": {
-            "type": "number",
-            "description": "概念板块涨跌幅"
-          },
-          "changeRatio1W": {
-            "type": "number",
-            "description": "概念板块一周涨跌幅"
-          },
-          "ratioRank": {
-            "type": "integer",
-            "description": "概念板块涨跌幅排名（排名值越小涨幅越大）"
-          },
-          "conceptAmount": {
-            "type": "integer",
-            "description": "概念板块成分股数量"
-          },
-          "limitUpAmount": {
-            "type": "integer",
-            "description": "概念板块涨停股数量"
-          },
-          "stockUpAmount": {
-            "type": "integer",
-            "description": "概念板块上涨股数量"
-          },
-          "stockDownAmount": {
-            "type": "integer",
-            "description": "概念板块下跌股数量"
-          },
-          "stockBxAmount": {
-            "type": "integer",
-            "description": "概念板块平盘股数量"
-          },
-          "leadUpStockCode": {
-            "type": "string",
-            "description": "概念板块领涨股代码"
-          },
-          "leadUpStockName": {
-            "type": "string",
-            "description": "概念板块领涨股名称"
-          },
-          "totalValue": {
-            "type": "number",
-            "description": "概念板块总市值"
-          },
-          "dataTime": {
-            "type": "string",
-            "format": "date-time",
-            "description": "数据时间"
-          }
+          "conceptCode": { "type": "string", "description": "概念板块代码" },
+          "conceptName": { "type": "string", "description": "概念板块名称" },
+          "changeRatio": { "type": "number", "description": "概念板块涨跌幅" },
+          "changeRatio1W": { "type": "number", "description": "概念板块一周涨跌幅" },
+          "ratioRank": { "type": "integer", "description": "概念板块涨跌幅排名（排名值越小涨幅越大）" },
+          "conceptAmount": { "type": "integer", "description": "概念板块成分股数量" },
+          "limitUpAmount": { "type": "integer", "description": "概念板块涨停股数量" },
+          "stockUpAmount": { "type": "integer", "description": "概念板块上涨股数量" },
+          "stockDownAmount": { "type": "integer", "description": "概念板块下跌股数量" },
+          "stockBxAmount": { "type": "integer", "description": "概念板块平盘股数量" },
+          "leadUpStockCode": { "type": "string", "description": "概念板块领涨股代码" },
+          "leadUpStockName": { "type": "string", "description": "概念板块领涨股名称" },
+          "totalValue": { "type": "number", "description": "概念板块总市值" },
+          "dataTime": { "type": "string", "format": "date-time", "description": "数据时间" }
         },
         "required": [
-          "conceptCode","conceptName","changeRatio","changeRatio1W","ratioRank",
-          "conceptAmount","limitUpAmount","stockUpAmount","stockDownAmount",
-          "stockBxAmount","leadUpStockCode","leadUpStockName","totalValue","dataTime"
+          "conceptCode",
+          "conceptName",
+          "changeRatio",
+          "changeRatio1W",
+          "ratioRank",
+          "conceptAmount",
+          "limitUpAmount",
+          "stockUpAmount",
+          "stockDownAmount",
+          "stockBxAmount",
+          "leadUpStockCode",
+          "leadUpStockName",
+          "totalValue",
+          "dataTime"
         ]
       },
       "ConceptStockRealtimeQuote": {
@@ -352,6 +500,80 @@
             "required": ["stockRealQuotes"]
           }
         ]
+      },
+      "StockConceptClassification": {
+        "type": "object",
+        "properties": {
+          "conceptName": { "type": "string", "description": "概念名称" },
+          "conceptCode": { "type": "string", "description": "概念代码" },
+          "stockCode": { "type": "string", "description": "股票代码" },
+          "description": { "type": "string", "description": "说明" },
+          "selectionDate": { "type": "string", "format": "date", "description": "入选日期" },
+          "removalDate": { "type": "string", "format": "date", "description": "剔除日期" }
+        },
+        "required": ["conceptName","conceptCode","stockCode","description","selectionDate","removalDate"]
+      },
+      "StockConceptClassificationsResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "description": "状态码：0 成功" },
+          "msg": { "type": "string", "description": "错误信息" },
+          "data": {
+            "type": "array",
+            "description": "数据",
+            "items": { "$ref": "#/components/schemas/StockConceptClassification" }
+          }
+        },
+        "required": ["code","msg","data"]
+      },
+      "StockCategoryMapping": {
+        "type": "object",
+        "properties": {
+          "conceptName": { "type": "string", "description": "概念名称" },
+          "conceptCategoryName": { "type": "string", "description": "概念类别名称" },
+          "parentConceptCode": { "type": "string", "description": "父概念代码" },
+          "conceptCategoryCode": { "type": "string", "description": "概念类别代码（1是财联社概念、0是聚源概念）" },
+          "conceptCode": { "type": "string", "description": "概念代码" },
+          "conceptLevel": { "type": "integer", "description": "概念级别" }
+        },
+        "required": ["conceptName","conceptCategoryName","parentConceptCode","conceptCategoryCode","conceptCode","conceptLevel"]
+      },
+      "StockCategoryMappingsResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "description": "状态码：0 成功" },
+          "msg": { "type": "string", "description": "错误信息" },
+          "data": {
+            "type": "array",
+            "description": "数据",
+            "items": { "$ref": "#/components/schemas/StockCategoryMapping" }
+          }
+        },
+        "required": ["code","msg","data"]
+      },
+      "IndustryBasic": {
+        "type": "object",
+        "properties": {
+          "industryType": { "type": "string", "description": "行业类型（申万行业体系-INDUS4_CL）" },
+          "industryName": { "type": "string", "description": "行业名称" },
+          "indexCode": { "type": "string", "description": "行业的指数代码" },
+          "industryCode": { "type": "string", "description": "行业代码" },
+          "industryLevel": { "type": "string", "description": "行业等级" }
+        },
+        "required": ["industryType","industryName","indexCode","industryCode","industryLevel"]
+      },
+      "IndustryBasicResponse": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "integer", "description": "状态码：0 成功" },
+          "msg": { "type": "string", "description": "错误信息" },
+          "data": {
+            "type": "array",
+            "description": "数据",
+            "items": { "$ref": "#/components/schemas/IndustryBasic" }
+          }
+        },
+        "required": ["code","msg","data"]
       }
     }
   }
