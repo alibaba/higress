@@ -116,7 +116,8 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             plugin_type="${{ github.event.inputs.plugin_type }}"
-            # plugin_name is now used for manual builds
+            plugin_name="${{ github.event.inputs.plugin_name }}"    # ← add this line
+            echo "PLUGIN_NAME=$plugin_name" >> $GITHUB_ENV        # ← and export it
           elif [[ -d plugins/wasm-go/extensions/${PLUGIN_NAME} ]]; then
             plugin_type=go
           else
@@ -125,16 +126,16 @@ jobs:
 
           # 版本固定为 1.0.0
           version="1.0.0"
+          echo "VERSION=$version" >> $GITHUB_ENV
 
           if [[ "$plugin_type" == "rust" ]]; then
             builder="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-rust-builder:rust${RUST_VERSION}-oras${ORAS_VERSION}"
           else
             builder="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${GO_VERSION}-tinygo${TINYGO_VERSION}-oras${ORAS_VERSION}"
           fi
-
           echo "PLUGIN_TYPE=$plugin_type" >> $GITHUB_ENV
-          echo "VERSION=$version" >> $GITHUB_ENV
           echo "BUILDER_IMAGE=$builder" >> $GITHUB_ENV
+
 
       - name: Checkout code
         uses: actions/checkout@v3
