@@ -27,40 +27,60 @@ const (
 	// ApiName 格式 {vendor}/{version}/{apitype}
 	// 表示遵循 厂商/版本/接口类型 的格式
 	// 目前openai是事实意义上的标准，但是也有其他厂商存在其他任务的一些可能的标准，比如cohere的rerank
-	ApiNameCompletion          ApiName = "openai/v1/completions"
-	ApiNameChatCompletion      ApiName = "openai/v1/chatcompletions"
-	ApiNameEmbeddings          ApiName = "openai/v1/embeddings"
-	ApiNameImageGeneration     ApiName = "openai/v1/imagegeneration"
-	ApiNameImageEdit           ApiName = "openai/v1/imageedit"
-	ApiNameImageVariation      ApiName = "openai/v1/imagevariation"
-	ApiNameAudioSpeech         ApiName = "openai/v1/audiospeech"
-	ApiNameFiles               ApiName = "openai/v1/files"
-	ApiNameRetrieveFile        ApiName = "openai/v1/retrievefile"
-	ApiNameRetrieveFileContent ApiName = "openai/v1/retrievefilecontent"
-	ApiNameBatches             ApiName = "openai/v1/batches"
-	ApiNameRetrieveBatch       ApiName = "openai/v1/retrievebatch"
-	ApiNameCancelBatch         ApiName = "openai/v1/cancelbatch"
-	ApiNameModels              ApiName = "openai/v1/models"
-	ApiNameResponses           ApiName = "openai/v1/responses"
+	ApiNameCompletion                           ApiName = "openai/v1/completions"
+	ApiNameChatCompletion                       ApiName = "openai/v1/chatcompletions"
+	ApiNameEmbeddings                           ApiName = "openai/v1/embeddings"
+	ApiNameImageGeneration                      ApiName = "openai/v1/imagegeneration"
+	ApiNameImageEdit                            ApiName = "openai/v1/imageedit"
+	ApiNameImageVariation                       ApiName = "openai/v1/imagevariation"
+	ApiNameAudioSpeech                          ApiName = "openai/v1/audiospeech"
+	ApiNameFiles                                ApiName = "openai/v1/files"
+	ApiNameRetrieveFile                         ApiName = "openai/v1/retrievefile"
+	ApiNameRetrieveFileContent                  ApiName = "openai/v1/retrievefilecontent"
+	ApiNameBatches                              ApiName = "openai/v1/batches"
+	ApiNameRetrieveBatch                        ApiName = "openai/v1/retrievebatch"
+	ApiNameCancelBatch                          ApiName = "openai/v1/cancelbatch"
+	ApiNameModels                               ApiName = "openai/v1/models"
+	ApiNameResponses                            ApiName = "openai/v1/responses"
+	ApiNameFineTuningJobs                       ApiName = "openai/v1/fine-tuningjobs"
+	ApiNameFineTuningRetrieveJob                ApiName = "openai/v1/retrievefine-tuningjob"
+	ApiNameFineTuningJobEvents                  ApiName = "openai/v1/fine-tuningjobsevents"
+	ApiNameFineTuningJobCheckpoints             ApiName = "openai/v1/fine-tuningjobcheckpoints"
+	ApiNameFineTuningCancelJob                  ApiName = "openai/v1/cancelfine-tuningjob"
+	ApiNameFineTuningResumeJob                  ApiName = "openai/v1/resumefine-tuningjob"
+	ApiNameFineTuningPauseJob                   ApiName = "openai/v1/pausefine-tuningjob"
+	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
+	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
 
-	PathOpenAICompletions         = "/v1/completions"
-	PathOpenAIChatCompletions     = "/v1/chat/completions"
-	PathOpenAIEmbeddings          = "/v1/embeddings"
-	PathOpenAIFiles               = "/v1/files"
-	PathOpenAIRetrieveFile        = "/v1/files/{file_id}"
-	PathOpenAIRetrieveFileContent = "/v1/files/{file_id}/content"
-	PathOpenAIBatches             = "/v1/batches"
-	PathOpenAIRetrieveBatch       = "/v1/batches/{batch_id}"
-	PathOpenAICancelBatch         = "/v1/batches/{batch_id}/cancel"
-	PathOpenAIModels              = "/v1/models"
-	PathOpenAIImageGeneration     = "/v1/images/generations"
-	PathOpenAIImageEdit           = "/v1/images/edits"
-	PathOpenAIImageVariation      = "/v1/images/variations"
-	PathOpenAIAudioSpeech         = "/v1/audio/speech"
-	PathOpenAIResponses           = "/v1/responses"
+	PathOpenAICompletions                          = "/v1/completions"
+	PathOpenAIChatCompletions                      = "/v1/chat/completions"
+	PathOpenAIEmbeddings                           = "/v1/embeddings"
+	PathOpenAIFiles                                = "/v1/files"
+	PathOpenAIRetrieveFile                         = "/v1/files/{file_id}"
+	PathOpenAIRetrieveFileContent                  = "/v1/files/{file_id}/content"
+	PathOpenAIBatches                              = "/v1/batches"
+	PathOpenAIRetrieveBatch                        = "/v1/batches/{batch_id}"
+	PathOpenAICancelBatch                          = "/v1/batches/{batch_id}/cancel"
+	PathOpenAIModels                               = "/v1/models"
+	PathOpenAIImageGeneration                      = "/v1/images/generations"
+	PathOpenAIImageEdit                            = "/v1/images/edits"
+	PathOpenAIImageVariation                       = "/v1/images/variations"
+	PathOpenAIAudioSpeech                          = "/v1/audio/speech"
+	PathOpenAIResponses                            = "/v1/responses"
+	PathOpenAIFineTuningJobs                       = "/v1/fine_tuning/jobs"
+	PathOpenAIFineTuningRetrieveJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
+	PathOpenAIFineTuningJobEvents                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/events"
+	PathOpenAIFineTuningJobCheckpoints             = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/checkpoints"
+	PathOpenAIFineTuningCancelJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel"
+	PathOpenAIFineTuningResumeJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/resume"
+	PathOpenAIFineTuningPauseJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
+	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
+	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
+	ApiNameQwenAsyncAIGC  ApiName = "api/v1/services/aigc"
+	ApiNameQwenAsyncTask  ApiName = "api/v1/tasks/"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -840,11 +860,14 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 	switch apiName {
 	case ApiNameChatCompletion,
+		ApiNameCompletion,
 		ApiNameEmbeddings,
 		ApiNameImageGeneration,
 		ApiNameImageEdit,
 		ApiNameImageVariation,
-		ApiNameAudioSpeech:
+		ApiNameAudioSpeech,
+		ApiNameFineTuningJobs,
+		ApiNameResponses:
 		return true
 	}
 	return false

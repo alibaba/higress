@@ -37,6 +37,9 @@ const (
 	qwenBailianPath                       = "/api/v1/apps"
 	qwenMultimodalGenerationPath          = "/api/v1/services/aigc/multimodal-generation/generation"
 
+	qwenAsyncAIGCPath                     = "/api/v1/services/aigc/"
+	qwenAsyncTaskPath                     = "/api/v1/tasks/"
+
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
 
@@ -74,6 +77,8 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 		return map[string]string{
 			string(ApiNameChatCompletion): qwenChatCompletionPath,
 			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+			string(ApiNameQwenAsyncAIGC): qwenAsyncAIGCPath,
+			string(ApiNameQwenAsyncTask): qwenAsyncTaskPath,
 		}
 	}
 }
@@ -689,6 +694,10 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	case strings.Contains(path, qwenTextEmbeddingPath),
 		strings.Contains(path, qwenCompatibleTextEmbeddingPath):
 		return ApiNameEmbeddings
+	case strings.Contains(path, qwenAsyncAIGCPath):
+		return ApiNameQwenAsyncAIGC
+	case strings.Contains(path, qwenAsyncTaskPath):
+		return ApiNameQwenAsyncTask
 	default:
 		return ""
 	}
