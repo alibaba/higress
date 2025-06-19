@@ -39,6 +39,7 @@ use std::rc::Rc;
 use std::str::FromStr;
 use std::vec;
 
+
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
     proxy_wasm::set_root_context(|_|Box::new(AiDataMaskingRoot::new()));
@@ -167,6 +168,9 @@ fn default_system_deny() -> bool {
 fn default_deny_code() -> u16 {
     200
 }
+fn default_skip_response() -> bool {
+    false
+}
 fn default_deny_content_type() -> String {
     "application/json".to_string()
 }
@@ -182,6 +186,8 @@ pub struct AiDataMaskingConfig {
     deny_openai: bool,
     #[serde(default = "default_deny_raw")]
     deny_raw: bool,
+    #[serde(default = "default_skip_response")]
+    skip_response: bool,
     #[serde(default, deserialize_with = "deserialize_jsonpath")]
     deny_jsonpath: Vec<JsonPath>,
     #[serde(default = "default_system_deny")]
@@ -397,6 +403,11 @@ impl AiDataMasking {
         }
         false
     }
+    fn parse_unicode(&mut self, body: &str) -> String {
+        let v: Value = serde_json::from_str(body).unwrap();
+        let processed_json = serde_json::to_string(&v).unwrap();
+        return processed_json;
+    }
     fn msg_to_response(&self, msg: &str, raw_msg: &str, content_type: &str) -> (String, String) {
         if !self.is_openai {
             (raw_msg.to_string(), content_type.to_string())
@@ -530,6 +541,13 @@ impl HttpContext for AiDataMasking {
         HeaderAction::Continue
     }
     fn on_http_response_body(&mut self, body_size: usize, end_of_stream: bool) -> DataAction {
+        if self.config.is_none() {
+            return DataAction::Continue;
+        }
+        let config = self.config.as_ref().unwrap();
+        if config.skip_response {
+            return DataAction::Continue;
+        }
         if !self.stream {
             return DataAction::Continue;
         }
@@ -595,6 +613,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                 let req: Req = r;
                 self.is_openai = true;
                 self.stream = req.stream;
+                let mut parsed_body = self.parse_unicode(&req_body);
                 for msg in req.messages {
                     if self.check_message(&msg.content) {
                         return self.deny(false);
@@ -605,11 +624,11 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                             serde_json::to_string(&msg.content),
                             serde_json::to_string(&new_content),
                         ) {
-                            req_body = req_body.replace(&from, &to);
+                            parsed_body = parsed_body.replace(&from, &to);
                         }
                     }
                 }
-                self.replace_http_request_body(req_body.as_bytes());
+                self.replace_http_request_body(parsed_body.as_bytes());
                 return DataAction::Continue;
             }
         }
@@ -658,6 +677,9 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             return DataAction::Continue;
         }
         let config = self.config.as_ref().unwrap();
+        if config.skip_response {
+            return DataAction::Continue;
+        }
         let mut res_body = match String::from_utf8(res_body.clone()) {
             Ok(r) => r,
             Err(_) => {
