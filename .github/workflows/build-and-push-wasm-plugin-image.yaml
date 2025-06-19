@@ -9,8 +9,7 @@ on:
       - 'plugins/wasm-go/extensions/**'
       - 'plugins/wasm-rust/extensions/**'
   pull_request:
-    # 只在 PR 合并到 main 时触发（closed 且 merged）
-    types: [closed]
+    types: [closed]      # 只在 PR 合并到 main 时触发（closed 且 merged）
     branches: [main]
     paths:
       - 'plugins/wasm-go/extensions/**'
@@ -26,39 +25,67 @@ on:
         description: 'Name of the plugin'
         required: true
         type: string
-      version:
-        description: 'Version of the plugin (optional, without leading v)'
-        required: false
-        type: string
 
 jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      plugins: ${{ steps.diff.outputs.changed_plugins }}
+      plugins: ${{ steps.set-plugins.outputs.changed_plugins }}
     steps:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0   # 需要完整历史以 diff PR 和分支间差异
-      - name: Detect changed plugins  # 检查哪些插件被修改
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 1) Use GitHub REST API to get PR files
+      - name: Get PR changed files via API
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        id: pr_files
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const resp = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+            const files = resp.data.map(f => f.filename).join('\n');
+            core.setOutput('files', files);
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 2) Fallback to git-diff for push or manual dispatch
+      - name: Diff changed files (push or manual)
+        if: github.event_name != 'pull_request'
         id: diff
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git fetch origin ${{ github.event.pull_request.base.ref }}:base
-            files=$(git diff --name-only base...HEAD)
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            files="plugins/wasm-${{ github.event.inputs.plugin_type }}/extensions/${{ github.event.inputs.plugin_name }}"
           else
+            git fetch origin ${{ github.event.before }}:base
             files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
           fi
-          echo "Changed files:"
-          echo "$files"
-          # 提取所有被改动插件目录名（第四段路径）
+          echo "$files" > changed.txt
+          echo "::set-output name=files::$(cat changed.txt)"
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 3) Compile unified file list, extract plugin names
+      - name: Compute changed plugins
+        id: set-plugins
+        run: |
+          # merge API-based PR list + git-diff list
+          files="${{ steps.pr_files.outputs.files }}${{ steps.diff.outputs.files }}"
+          echo "All changed files:"; echo "$files"
+
           plugins=$(echo "$files" \
             | grep -E '^plugins/wasm-(go|rust)/extensions/[^/]+' \
-            | awk -F/ '{print $4}' | sort -u | paste -sd ' ' -)
-          # 转成 ["a","b",...] 格式输出给后续 matrix
-          if [[ -z "$plugins" ]]; then
+            | awk -F/ '{print $4}' \
+            | sort -u)
+
+          if [ -z "$plugins" ]; then
             echo "::set-output name=changed_plugins::[]"
           else
+            # always tag as 1.0.0 and latest
             arr=$(printf '"%s",' $plugins | sed 's/,$//')
             echo "::set-output name=changed_plugins::[${arr}]"
           fi
@@ -89,34 +116,54 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             plugin_type="${{ github.event.inputs.plugin_type }}"
-            version="${{ github.event.inputs.version }}"
+            # plugin_name is now used for manual builds
+          elif [[ -d plugins/wasm-go/extensions/${PLUGIN_NAME} ]]; then
+            plugin_type=go
           else
-            # 通过目录判断类型
-            if [[ -d plugins/wasm-go/extensions/${PLUGIN_NAME} ]]; then
-              plugin_type=go
-            else
-              plugin_type=rust
-            fi
-            # 如果是标签事件，则提取版本号；否则为 PR 构建，打 pr-<sha>
-            if [[ "${{ github.ref_name }}" =~ ^wasm- ]]; then
-              version="${{ github.ref_name#*v }}"
-            else
-              version="pr-${GITHUB_SHA:0:7}"
-            fi
+            plugin_type=rust
           fi
-          echo "PLUGIN_TYPE=$plugin_type" >> $GITHUB_ENV
-          echo "VERSION=$version" >> $GITHUB_ENV
 
-          # 根据类型选择对应 builder 镜像
+          # 版本固定为 1.0.0
+          version="1.0.0"
+
           if [[ "$plugin_type" == "rust" ]]; then
             builder="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-rust-builder:rust${RUST_VERSION}-oras${ORAS_VERSION}"
           else
             builder="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${GO_VERSION}-tinygo${TINYGO_VERSION}-oras${ORAS_VERSION}"
           fi
+
+          echo "PLUGIN_TYPE=$plugin_type" >> $GITHUB_ENV
+          echo "VERSION=$version" >> $GITHUB_ENV
           echo "BUILDER_IMAGE=$builder" >> $GITHUB_ENV
 
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Run a wasm-builder
+        run: |
+          docker run -d --name builder -v "${{ github.workspace }}:/workspace" \
+            -e PLUGIN_NAME -e VERSION "${{ env.BUILDER_IMAGE }}" tail -f /dev/null
+
+      # ─────────────────────────────────────────────────────────────────────
+      # Re‑added .prebuild and .buildrc sourcing
+      - name: Prebuild & Build inside builder container
+        run: |
+          cd plugins/wasm-${PLUGIN_TYPE}/extensions/${PLUGIN_NAME}
+
+          if [ -f ./.prebuild ]; then
+            echo 'Found .prebuild file, sourcing it...'
+            . ./.prebuild
+          fi
+
+          if [ -f ./.buildrc ]; then
+            echo 'Found .buildrc file, sourcing it...'
+            . ./.buildrc
+          else
+            echo '.buildrc file not found'
+          fi
+
+          rustup target add wasm32-wasip1
+          cargo build --target wasm32-wasip1 --release
 
       - name: File Check  # 检查 spec.yaml, README.md 等，并拼装 push 命令
         run: |
@@ -138,11 +185,6 @@ jobs:
             fi
           done
           echo "PUSH_COMMAND=$push_command" >> $GITHUB_ENV
-
-      - name: Run a wasm-builder 
-        run: |
-          docker run -d --name builder -v "${{ github.workspace }}:/workspace" \
-            -e PLUGIN_NAME -e PUSH_COMMAND -e VERSION "${{ env.BUILDER_IMAGE }}" tail -f /dev/null
 
       - name: Build Image and Push  # 执行构建并推送镜像
         env:
