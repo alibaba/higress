@@ -69,7 +69,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config) types.Action {
-	return config.lb.HandleHttpRequestHeaders(ctx)
+	return config.lb.HandleHttpResponseHeaders(ctx)
 }
 
 func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config Config, data []byte, endOfStream bool) []byte {
@@ -77,5 +77,5 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config Config, data []
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
-	return config.lb.HandleHttpRequestBody(ctx, body)
+	return config.lb.HandleHttpResponseBody(ctx, body)
 }
