@@ -116,8 +116,8 @@ jobs:
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             plugin_type="${{ github.event.inputs.plugin_type }}"
-            plugin_name="${{ github.event.inputs.plugin_name }}"    # ← add this line
-            echo "PLUGIN_NAME=$plugin_name" >> $GITHUB_ENV        # ← and export it
+            plugin_name="${{ github.event.inputs.plugin_name }}"   
+            echo "PLUGIN_NAME=$plugin_name" >> $GITHUB_ENV 
           elif [[ -d plugins/wasm-go/extensions/${PLUGIN_NAME} ]]; then
             plugin_type=go
           else
