@@ -15,6 +15,6 @@ dependencies:
   version: 2.1.5-rc.1
 - name: higress-console
   repository: "https://higress.io/helm-charts/"
-  version: 2.1.5-rc.1
+  version: 2.1.4
 type: application
 version: 2.1.5-rc.1
