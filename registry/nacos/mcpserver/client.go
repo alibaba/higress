@@ -141,12 +141,13 @@ func (n *NacosRegistryClient) listMcpServerConfigs() ([]model.ConfigItem, error)
 		})
 
 		if err != nil {
-			mcpServerLog.Errorf("List mcp server configs for page size %d, page number %d error %v", currentPageNum, DefaultNacosListConfigPageSize)
+			mcpServerLog.Errorf("List mcp server configs for page size %d, page number %d error %v", currentPageNum, DefaultNacosListConfigPageSize, err)
+			break
 		}
 
 		if configPage == nil {
-			mcpServerLog.Errorf("List mcp server configs for page size %d, page number %d null %v", currentPageNum, DefaultNacosListConfigPageSize)
-			continue
+			mcpServerLog.Errorf("List mcp server configs for page size %d, page number %d null", currentPageNum, DefaultNacosListConfigPageSize)
+			break
 		}
 
 		result = append(result, configPage.PageItems...)
