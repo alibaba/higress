@@ -22,11 +22,5 @@ Retrieve the latest real-time market data for a specified concept sector, includ
 Visit the [Investoday Data Marketplace](https://data-api.investoday.net/mcp) to apply for your AppCode.
 
 ### Configuration Examples
-```json
-"mcpServers": {
-    "industry-quote": {
-      "url": "https://mcp.higress.ai/mcp-plate-quote/{appCode}/sse"
-    }
-}
-```
+Use the applied appCode to generate in Higress.
 
