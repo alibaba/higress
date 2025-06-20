@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -94,13 +95,15 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 	defer s.sessions.Delete(sessionID)
 
 	channel := GetSSEChannelName(sessionID)
+	u, err := url.Parse(s.baseURL + s.messageEndpoint)
+	if err != nil {
+		api.LogErrorf("Failed to parse base URL: %v", err)
+	}
 
-	messageEndpoint := fmt.Sprintf(
-		"%s%s?sessionId=%s",
-		s.baseURL,
-		s.messageEndpoint,
-		sessionID,
-	)
+	q := u.Query()
+	q.Set("sessionId", sessionID)
+	u.RawQuery = q.Encode()
+	messageEndpoint := u.String()
 
 	// go func() {
 	// 	for {
@@ -126,7 +129,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 	// 	}
 	// }()
 
-	err := s.redisClient.Subscribe(channel, stopChan, func(message string) {
+	err = s.redisClient.Subscribe(channel, stopChan, func(message string) {
 		defer cb.EncoderFilterCallbacks().RecoverPanic()
 		api.LogDebugf("SSE Send message: %s", message)
 		cb.EncoderFilterCallbacks().InjectData([]byte(message))
@@ -210,7 +213,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
-		if sessionID != ""  {
+		if sessionID != "" {
 			w.WriteHeader(http.StatusAccepted)
 			status = http.StatusAccepted
 		} else {
