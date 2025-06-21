@@ -120,9 +120,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if m.isDirectCustomPath {
 		util.OverwriteRequestPathHeader(headers, m.customPath)
-	}
-
-	if apiName != "" {
+	} else if apiName != "" {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 
