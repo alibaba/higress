@@ -1,0 +1,74 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: redis-mcp-server
+  namespace: higress-conformance-redis-mcpserver
+  annotations:
+    higress.io/destination: redis-service.default.svc.cluster.local:6379
+    higress.io/mcp-server: |
+      {  
+        "match_list": [  
+          {  
+            "match_rule_domain": "redis-mcpserver.example.com",  
+            "match_rule_path": "/mcp/*",  
+            "match_rule_type": "prefix"  
+          }  
+        ],  
+        "sse_path_suffix": "/sse",  
+        "servers": [  
+          {  
+            "type": "redis",  
+            "name": "redisMCPServer",  
+            "path": "/mcp",  
+            "config": {  
+              "address": "redis-service.default.svc.cluster.local:6379"  
+            }  
+          }  
+        ]  
+      }
+spec:
+  ingressClassName: higress
+  rules:
+    - host: redis-mcpserver.example.com
+      http:
+        paths:
+          - path: /mcp
+            pathType: Prefix
+            backend:
+              service:
+                name: redis-service
+                port:
+                  number: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: default
+spec:
+  ports:
+    - port: 6379
+      protocol: TCP
+      targetPort: 6379
+  selector:
+    app: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:6.2-alpine
+          ports:
+            - containerPort: 6379
