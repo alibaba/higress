@@ -224,11 +224,12 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 
 For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
 
-| Name           | Data Type | Requirement | Default | Description                                   |
-|----------------|-----------|-------------|---------|-----------------------------------------------|
-| `awsAccessKey` | string    | Required    | -       | AWS Access Key used for authentication        |
-| `awsSecretKey` | string    | Required    | -       | AWS Secret Access Key used for authentication |
-| `awsRegion`    | string    | Required    | -       | AWS region, e.g., us-east-1                   |
+| Name                      | Data Type | Requirement | Default | Description                                             |
+|---------------------------|-----------|-------------|---------|---------------------------------------------------------|
+| `awsAccessKey`            | string    | Required    | -       | AWS Access Key used for authentication                  |
+| `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
+| `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
+| `bedrockAdditionalFields` | map       | Optional    | -       | Additional inference parameters that the model supports |
 
 ## Usage Examples
 
@@ -1499,6 +1500,8 @@ provider:
   awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
   awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
   awsRegion: "YOUR_AWS_REGION"
+  bedrockAdditionalFields:
+    top_k: 200
 ```
 
 **Request Example**

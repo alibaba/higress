@@ -279,11 +279,12 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 
 AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
 
-| 名称             | 数据类型   | 填写要求 | 默认值 | 描述                           |
-|----------------|--------|------|-----|------------------------------|
-| `awsAccessKey` | string | 必填   | -   | AWS Access Key，用于身份认证        |
-| `awsSecretKey` | string | 必填   | -   | AWS Secret Access Key，用于身份认证 |
-| `awsRegion`    | string | 必填   | -   | AWS 区域，例如：us-east-1          |
+| 名称                        | 数据类型   | 填写要求 | 默认值 | 描述                           |
+|---------------------------|--------|------|-----|------------------------------|
+| `awsAccessKey`            | string | 必填   | -   | AWS Access Key，用于身份认证        |
+| `awsSecretKey`            | string | 必填   | -   | AWS Secret Access Key，用于身份认证 |
+| `awsRegion`               | string | 必填   | -   | AWS 区域，例如：us-east-1          |
+| `bedrockAdditionalFields` | map    | 非必填  | -   | Bedrock 额外模型请求参数             |
 
 ## 用法示例
 
@@ -1724,6 +1725,8 @@ provider:
   awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
   awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
   awsRegion: "YOUR_AWS_REGION"
+  bedrockAdditionalFields:
+    top_k: 200
 ```
 
 **请求示例**
