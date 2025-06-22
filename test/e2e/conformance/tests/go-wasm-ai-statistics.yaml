@@ -25,14 +25,7 @@ spec:
       http:  
         paths:  
           - pathType: Prefix  
-            path: "/v1/responses"  
-            backend:  
-              service:  
-                name: llm-mock-service  
-                port:  
-                  number: 3000  
-          - pathType: Prefix  
-            path: "/v1/chat/completions"  
+            path: "/"  
             backend:  
               service:  
                 name: llm-mock-service  
