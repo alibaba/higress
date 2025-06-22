@@ -145,7 +145,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
 	var inputToken, outputToken int64
-	if inputToken, outputToken, ok := getUsage(data); ok {
+	if _, inputToken, outputToken, ok := getUsage(data); ok {
 		ctx.SetContext("input_token", inputToken)
 		ctx.SetContext("output_token", outputToken)
 	}
@@ -169,7 +169,58 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConf
 	return data
 }
 
-func getUsage(data []byte) (inputTokenUsage int64, outputTokenUsage int64, ok bool) {
+func getResponseTokenUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
+	resObj := gjson.GetBytes(data, "response")
+
+	// stream response api
+	//
+	if resObj.Exists() {
+		objectType := gjson.GetBytes(data, "response.object").String()
+		if objectType == "response" {
+
+			modelObj := gjson.GetBytes(data, "response.model")
+			if modelObj.Exists() {
+				model = modelObj.String()
+			} else {
+				model = "unknown"
+			}
+
+			inputTokenObj := gjson.GetBytes(data, "response.usage.input_tokens")
+			outputTokenObj := gjson.GetBytes(data, "response.usage.output_tokens")
+
+			if inputTokenObj.Exists() && outputTokenObj.Exists() {
+				inputTokenUsage = inputTokenObj.Int()
+				outputTokenUsage = outputTokenObj.Int()
+				ok = true
+				return
+			}
+		} else {
+			objectType := gjson.GetBytes(data, "object").String()
+			if objectType == "response" {
+
+				modelObj := gjson.GetBytes(data, "model")
+				if modelObj.Exists() {
+					model = modelObj.String()
+				} else {
+					model = "unknown"
+				}
+
+				inputTokenObj := gjson.GetBytes(data, "usage.input_tokens")
+				outputTokenObj := gjson.GetBytes(data, "usage.output_tokens")
+
+				if inputTokenObj.Exists() && outputTokenObj.Exists() {
+					inputTokenUsage = inputTokenObj.Int()
+					outputTokenUsage = outputTokenObj.Int()
+					ok = true
+					return
+				}
+			}
+		}
+	}
+	return
+}
+
+func getChatCompletionTokenUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
 	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
 	for _, chunk := range chunks {
 		// the feature strings are used to identify the usage data, like:
@@ -187,6 +238,16 @@ func getUsage(data []byte) (inputTokenUsage int64, outputTokenUsage int64, ok bo
 		}
 	}
 	return
+}
+
+func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
+	// try to get the v1/completion
+	if model, inputToken, ouputToken, ok := getResponseTokenUsage(data); ok {
+		return model, inputToken, ouputToken, true
+	}
+
+	// get back to the chat.completion
+	return getChatCompletionTokenUsage(data)
 }
 
 func checkRequestAgainstLimitRule(ctx wrapper.HttpContext, ruleItems []LimitRuleItem, log wrapper.Log) (string, *LimitRuleItem, *LimitConfigItem) {

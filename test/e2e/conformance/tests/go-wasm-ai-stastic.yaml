@@ -1,0 +1,53 @@
+---  
+apiVersion: networking.k8s.io/v1  
+kind: Ingress  
+metadata:  
+  name: wasmplugin-ai-statistics-responses  
+  namespace: higress-conformance-ai-backend  
+spec:  
+  ingressClassName: higress  
+  rules:  
+    - host: "api.openai.com"  
+      http:  
+        paths:  
+          - pathType: Prefix  
+            path: "/v1/responses"  
+            backend:  
+              service:  
+                name: llm-mock-service  
+                port:  
+                  number: 3000  
+          - pathType: Prefix  
+            path: "/v1/chat/completions"  
+            backend:  
+              service:  
+                name: llm-mock-service  
+                port:  
+                  number: 3000  
+---  
+apiVersion: extensions.higress.io/v1alpha1  
+kind: WasmPlugin  
+metadata:  
+  name: ai-statistics  
+  namespace: higress-system  
+spec:  
+  defaultConfigDisable: true  
+  phase: UNSPECIFIED_PHASE  
+  priority: 200  
+  matchRules:  
+    - config:  
+        # 启用默认的 OpenAI 使用统计  
+        disable_openai_usage: false  
+        # 可选：添加自定义属性提取  
+        attributes:  
+          - key: response_format  
+            value_source: response_body  
+            value: object  
+            apply_to_log: true  
+          - key: response_status  
+            value_source: response_body  
+            value: status  
+            apply_to_log: true  
+      ingress:  
+        - higress-conformance-ai-backend/wasmplugin-ai-statistics-responses  
+  url: file:///opt/plugins/wasm-go/extensions/ai-statistics/plugin.wasm
