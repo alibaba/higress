@@ -242,8 +242,8 @@ func getChatCompletionTokenUsage(data []byte) (model string, inputTokenUsage int
 
 func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
 	// try to get the v1/completion
-	if model, inputToken, ouputToken, ok := getResponseTokenUsage(data); ok {
-		return model, inputToken, ouputToken, true
+	if model, inputToken, outputToken, ok := getResponseTokenUsage(data); ok {
+		return model, inputToken, outputToken, true
 	}
 
 	// get back to the chat.completion
