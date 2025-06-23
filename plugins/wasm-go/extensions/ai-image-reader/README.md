@@ -7,7 +7,7 @@ description: AI IMAGE READER 插件配置参考
 
 ## 功能说明
 
-通过对接OCR服务实现AI-IMAGE-READER，目前支持alibaba cloud's dashscope的qwen-vl-ocr模型提供OCR服务，流程如图所示：
+通过对接OCR服务实现AI-IMAGE-READER，目前支持阿里云模型服务灵积（dashscope）的qwen-vl-ocr模型提供OCR服务，流程如图所示：
 
 <img src=".\ai-image-reader.png"> 
 
@@ -19,24 +19,26 @@ description: AI IMAGE READER 插件配置参考
 
 ## 配置说明
 
-| 名称                 | 数据类型 | 填写要求 | 默认值 | 描述                                             |
-| -------------------- | -------- | -------- | ------ | ------------------------------------------------ |
-| `apiKey`             | string   | 必填     | -      | 用于在访问OCR服务时进行认证的令牌。              |
-| `serviceName`        | string   | 必填     | -      | 后端OCR服务名                                    |
-| `servicePort`        | int      | 必填     | -      | 后端OCR服务端口                                  |
-| `provider`           | string   | 必填     | -      | 后端OCR服务提供商（例如alibaba cloud dashscope） |
-| `model`              | string   | 必填     | -      | 后端OCR服务模型名称（例如qwen-vl-ocr）           |
-| `timeoutMillisecond` | int      | 选填     | 30000  | API调用超时时间（毫秒）                          |
+| 名称          | 数据类型 | 填写要求 | 默认值 | 描述                                   |
+| ------------- | -------- | -------- | ------ | -------------------------------------- |
+| `apiKey`      | string   | 必填     | -      | 用于在访问OCR服务时进行认证的令牌。    |
+| `type`        | string   | 必填     | -      | 后端OCR服务提供商类型（例如dashscope） |
+| `serviceHost` | string   | 必填     | -      | 后端OCR服务域名                        |
+| `serviceName` | string   | 必填     | -      | 后端OCR服务名                          |
+| `servicePort` | int      | 必填     | -      | 后端OCR服务端口                        |
+| `model`       | string   | 必填     | -      | 后端OCR服务模型名称（例如qwen-vl-ocr） |
+| `timeout`     | int      | 选填     | 10000  | API调用超时时间（毫秒）                |
 
 ## 示例
 
 ```yaml
 "apiKey": "YOUR_API_KEY",
-"serviceName": "dashscope.dns",
-"servicePort": "443"
-"provider": "alibaba cloud dashscope",
+"type": "dashscope",
 "model": "qwen-vl-ocr",
-"timeoutMillisecond": 30000
+"timeout": 10000,
+"serviceHost": "dashscope.aliyuncs.com",
+"serviceName": "dashscope",
+"servicePort": "443"
 ```
 
 请求遵循openai api协议规范:

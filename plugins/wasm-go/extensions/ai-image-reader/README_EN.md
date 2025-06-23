@@ -15,24 +15,26 @@ Plugin execution priority：`400`
 
 ## Configuration Description
 
-| Name                 | Data Type      | Requirement | Default Value | Description                                                  |
-| -------------------- | -------------- | ----------- | ------------- | ------------------------------------------------------------ |
-| `apiKey`             | string         | Required    | -             | Token for authenticating access to OCR services.             |
-| `serviceName`        | string         | Required    | -             | Name of the backend OCR service.                             |
-| `servicePort`        | int            | Required    | -             | Port of the backend OCR service.                             |
-| `provider`           | string         | Required    | -             | Provider of the backend OCR service (e.g., alibaba cloud dashscope). |
-| `model`              | stringRequired | Required    | -             | Model name of the backend OCR service (e.g., qwen-vl-ocr).   |
-| `timeoutMillisecond` | int            | Required    | 30000         | API call timeout duration (milliseconds).                    |
+| Name          | Data Type      | Requirement | Default Value | Description                                                |
+| ------------- | -------------- | ----------- | ------------- | ---------------------------------------------------------- |
+| `apiKey`      | string         | Required    | -             | Token for authenticating access to OCR services.           |
+| `type`        | string         | Required    | -             | Provider of the backend OCR service type(e.g. dashscope).  |
+| `serviceHost` | string         | Required    | -             | Host of the backend OCR service.                           |
+| `serviceName` | string         | Required    | -             | Name of the backend OCR service.                           |
+| `servicePort` | int            | Required    | -             | Port of the backend OCR service.                           |
+| `model`       | stringRequired | Required    | -             | Model name of the backend OCR service (e.g., qwen-vl-ocr). |
+| `timeout`     | int            | Required    | 10000         | API call timeout duration (milliseconds).                  |
 
 ## Example
 
 ```yaml
 "apiKey": "YOUR_API_KEY",
-"serviceName": "dashscope.dns",
-"servicePort": "443"
-"provider": "alibaba cloud dashscope",
+"type": "dashscope",
 "model": "qwen-vl-ocr",
-"timeoutMillisecond": 30000
+"timeout": 10000,
+"serviceHost": "dashscope.aliyuncs.com",
+"serviceName": "dashscope",
+"servicePort": "443"
 ```
 
 Request to follow the OpenAI API protocol specifications:

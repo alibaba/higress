@@ -1,15 +1,13 @@
 package main
 
 import (
-	"ai-image-reader/ocr"
-	"ai-image-reader/ocr/qwen"
+	"errors"
 	"fmt"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"net/http"
 	"strings"
 )
 
@@ -18,13 +16,14 @@ const (
 )
 
 type Config struct {
-	promptTemplate string
-	ocrClient      ocr.OcrClient
+	promptTemplate    string
+	ocrProvider       Provider
+	ocrProviderConfig *ProviderConfig
 }
 
 func main() {
 	wrapper.SetCtx(
-		"ai-image-reader",
+		"ai-image-reader1",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
@@ -40,18 +39,17 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 
 # 用户消息为：
 {question}`
-	provider := json.Get("provider").String()
-	switch provider {
-	case "alibaba cloud dashscope":
-		ocrClient, err := qwen.NewQwenOcr(&json)
-		if err != nil {
-			return fmt.Errorf("qwen ocr client init failed:%s", err)
-		}
-		config.ocrClient = ocrClient
-		return nil
-	default:
-		return fmt.Errorf("unkown ocr provider:%s", provider)
+	config.ocrProviderConfig = &ProviderConfig{}
+	config.ocrProviderConfig.FromJson(json)
+	if err := config.ocrProviderConfig.Validate(); err != nil {
+		return err
 	}
+	var err error
+	config.ocrProvider, err = CreateProvider(*config.ocrProviderConfig)
+	if err != nil {
+		return errors.New("create ocr provider failed")
+	}
+	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
@@ -99,35 +97,33 @@ func executeReadImage(imageUrls []string, config Config, query string, queryInde
 	var totalImages int
 	var finished int
 	for _, imageUrl := range imageUrls {
-		args := config.ocrClient.CallArgs(imageUrl)
-		err := config.ocrClient.Client().Call(args.Method, args.Url, args.Headers, args.Body,
-			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-				defer func() {
-					finished++
-					if totalImages == finished {
-						var processedContents []string
-						for idx := len(imageContents) - 1; idx >= 0; idx-- {
-							processedContents = append(processedContents, fmt.Sprintf("第%d张图片内容为 %s", totalImages-idx, imageContents[idx]))
-						}
-						imageSummary := fmt.Sprintf("总共有 %d 张图片。\n", totalImages)
-						prompt := strings.Replace(config.promptTemplate, "{image_content}", imageSummary+strings.Join(processedContents, "\n"), 1)
-						prompt = strings.Replace(prompt, "{question}", query, 1)
-						modifiedBody, err := sjson.SetBytes(body, fmt.Sprintf("messages.%d.content", queryIndex), prompt)
-						if err != nil {
-							log.Errorf("modify request message content failed, err:%v, body:%s", err, body)
-						} else {
-							log.Debugf("modifeid body:%s", modifiedBody)
-							proxywasm.ReplaceHttpRequestBody(modifiedBody)
-						}
-						proxywasm.ResumeHttpRequest()
+		err := config.ocrProvider.DoOCR(imageUrl, log, func(imageContent string, err error) {
+			defer func() {
+				finished++
+				if totalImages == finished {
+					var processedContents []string
+					for idx := len(imageContents) - 1; idx >= 0; idx-- {
+						processedContents = append(processedContents, fmt.Sprintf("第%d张图片内容为 %s", totalImages-idx, imageContents[idx]))
 					}
-				}()
-				if statusCode != http.StatusOK {
-					log.Errorf("ocr call failed, status: %d", statusCode)
-					return
+					imageSummary := fmt.Sprintf("总共有 %d 张图片。\n", totalImages)
+					prompt := strings.Replace(config.promptTemplate, "{image_content}", imageSummary+strings.Join(processedContents, "\n"), 1)
+					prompt = strings.Replace(prompt, "{question}", query, 1)
+					modifiedBody, err := sjson.SetBytes(body, fmt.Sprintf("messages.%d.content", queryIndex), prompt)
+					if err != nil {
+						log.Errorf("modify request message content failed, err:%v, body:%s", err, body)
+					} else {
+						log.Debugf("modifeid body:%s", modifiedBody)
+						proxywasm.ReplaceHttpRequestBody(modifiedBody)
+					}
+					proxywasm.ResumeHttpRequest()
 				}
-				imageContents = append(imageContents, config.ocrClient.ParseResult(responseBody))
-			}, args.TimeoutMillisecond)
+			}()
+			if err != nil {
+				log.Errorf("do ocr failed, err:%v", err)
+				return
+			}
+			imageContents = append(imageContents, imageContent)
+		})
 		if err != nil {
 			log.Infof("ocr call failed, err:%v", err)
 			continue
