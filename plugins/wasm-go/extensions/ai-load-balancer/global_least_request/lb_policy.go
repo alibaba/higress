@@ -3,6 +3,8 @@ package global_least_request
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -82,6 +84,7 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpC
 	hostInfos, err := proxywasm.GetUpstreamHosts()
 	// log.Infof("%+v", hostInfos)
 	if err != nil {
+		ctx.SetContext("error", true)
 		return types.ActionContinue
 	}
 	// Only healthy host can be selected
@@ -90,6 +93,10 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpC
 		if gjson.Get(hostInfo[1], "health_status").String() == "Healthy" {
 			hostRqCount[hostInfo[0]] = 0
 		}
+	}
+	if len(hostRqCount) == 0 {
+		ctx.SetContext("error", true)
+		return types.ActionContinue
 	}
 	// log.Infof("hostRqCount initial: %+v", hostRqCount)
 	err = lb.redisClient.HGetAll(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), func(response resp.Value) {
@@ -109,15 +116,23 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpC
 			hostRqCount[host] = count
 			index += 2
 		}
-		// log.Infof("hostRqCount final: %+v", hostRqCount)
-		hostSelected := ""
-		for h, c := range hostRqCount {
-			if hostSelected == "" {
-				hostSelected = h
-			} else if c < hostRqCount[hostSelected] {
-				hostSelected = h
+		// get min rq count
+		minCount := math.MaxInt
+		for _, c := range hostRqCount {
+			if c < minCount {
+				minCount = c
 			}
 		}
+		// log.Infof("hostRqCount final: %+v", hostRqCount)
+		// get min count hosts
+		minCountHosts := []string{}
+		for h, c := range hostRqCount {
+			if c == minCount {
+				minCountHosts = append(minCountHosts, h)
+			}
+		}
+		randomIndex := rand.Intn(len(minCountHosts))
+		hostSelected := minCountHosts[randomIndex]
 		log.Debugf("host_selected: %s", hostSelected)
 		ctx.SetContext("host_selected", hostSelected)
 		if err := proxywasm.SetUpstreamOverrideHost([]byte(hostSelected)); err != nil {
