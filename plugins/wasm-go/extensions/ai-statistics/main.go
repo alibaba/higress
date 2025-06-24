@@ -83,7 +83,7 @@ type Attribute struct {
 	Rule               string `json:"rule,omitempty"`
 	ApplyToLog         bool   `json:"apply_to_log,omitempty"`
 	ApplyToSpan        bool   `json:"apply_to_span,omitempty"`
-	AsSeperateLogField bool   `json:"as_seperate_log_field,omitempty"`
+	AsSeparateLogField bool   `json:"as_separate_log_field,omitempty"`
 }
 
 type AIStatisticsConfig struct {
@@ -408,7 +408,7 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
-				if attribute.AsSeperateLogField {
+				if attribute.AsSeparateLogField {
 					marshalledJsonStr := wrapper.MarshalStr(fmt.Sprint(value))
 					if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
 						log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
@@ -493,10 +493,10 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 		log.Warnf("ClusterName typd assert failed, skip metric record")
 		return
 	}
-	
+
 	if config.disableOpenaiUsage {
 		return
-	} 
+	}
 
 	if ctx.GetUserAttribute(Model) == nil || ctx.GetUserAttribute(InputToken) == nil || ctx.GetUserAttribute(OutputToken) == nil {
 		log.Warnf("get usage information failed, skip metric record")
