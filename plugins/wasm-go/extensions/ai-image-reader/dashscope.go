@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"net/http"
@@ -11,12 +12,12 @@ import (
 )
 
 const (
-	DASHSCOPE_DOMAIN             = "dashscope.aliyuncs.com"
-	DASHSCOPE_PORT               = 443
-	DASHSCOPE_DEFAULT_MODEL_NAME = "qwen-vl-ocr"
-	DASHSCOPE_ENDPOINT           = "/compatible-mode/v1/chat/completions"
-	MIN_PIXELS                   = 3136
-	MAX_PIXELS                   = 1003520
+	DashscopeDomain           = "dashscope.aliyuncs.com"
+	DashscopePort             = 443
+	DashscopeDefaultModelName = "qwen-vl-ocr"
+	DashscopeEndpoint         = "/compatible-mode/v1/chat/completions"
+	MinPixels                 = 3136
+	MaxPixels                 = 1003520
 )
 
 type OcrReq struct {
@@ -72,10 +73,10 @@ func (d *dashScopeProviderInitializer) ValidateConfig() error {
 
 func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provider, error) {
 	if c.servicePort == 0 {
-		c.servicePort = DASHSCOPE_PORT
+		c.servicePort = DashscopePort
 	}
 	if c.serviceHost == "" {
-		c.serviceHost = DASHSCOPE_DOMAIN
+		c.serviceHost = DashscopeDomain
 	}
 	return &DSProvider{
 		config: c,
@@ -99,13 +100,13 @@ type DSProvider struct {
 }
 
 func (d *DSProvider) GetProviderType() string {
-	return PROVIDER_TYPE_DASHSCOPE
+	return ProviderTypeDashscope
 }
 
 func (d *DSProvider) CallArgs(imageUrl string) CallArgs {
 	model := d.config.model
 	if model == "" {
-		model = DASHSCOPE_DEFAULT_MODEL_NAME
+		model = DashscopeDefaultModelName
 	}
 	reqBody := OcrReq{
 		Model: model,
@@ -118,8 +119,8 @@ func (d *DSProvider) CallArgs(imageUrl string) CallArgs {
 						ImageUrl: imageURL{
 							URL: imageUrl,
 						},
-						MinPixels: MIN_PIXELS,
-						MaxPixels: MAX_PIXELS,
+						MinPixels: MinPixels,
+						MaxPixels: MaxPixels,
 					},
 				},
 			},
@@ -128,7 +129,7 @@ func (d *DSProvider) CallArgs(imageUrl string) CallArgs {
 	body, _ := json.Marshal(reqBody)
 	return CallArgs{
 		Method: http.MethodPost,
-		Url:    DASHSCOPE_ENDPOINT,
+		Url:    DashscopeEndpoint,
 		Headers: [][2]string{
 			{"Content-Type", "application/json"},
 			{"Authorization", fmt.Sprintf("Bearer %s", dashScopeConfig.apiKey)},
@@ -149,7 +150,6 @@ func (d *DSProvider) parseOcrResponse(responseBody []byte) (*OcrResp, error) {
 
 func (d *DSProvider) DoOCR(
 	imageUrl string,
-	log wrapper.Log,
 	callback func(imageContent string, err error)) error {
 	args := d.CallArgs(imageUrl)
 	err := d.client.Call(args.Method, args.Url, args.Headers, args.Body,

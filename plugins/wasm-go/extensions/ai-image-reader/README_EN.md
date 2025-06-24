@@ -15,15 +15,15 @@ Plugin execution priority：`400`
 
 ## Configuration Description
 
-| Name          | Data Type      | Requirement | Default Value | Description                                                |
-| ------------- | -------------- | ----------- | ------------- | ---------------------------------------------------------- |
-| `apiKey`      | string         | Required    | -             | Token for authenticating access to OCR services.           |
-| `type`        | string         | Required    | -             | Provider of the backend OCR service type(e.g. dashscope).  |
-| `serviceHost` | string         | Required    | -             | Host of the backend OCR service.                           |
-| `serviceName` | string         | Required    | -             | Name of the backend OCR service.                           |
-| `servicePort` | int            | Required    | -             | Port of the backend OCR service.                           |
-| `model`       | stringRequired | Required    | -             | Model name of the backend OCR service (e.g., qwen-vl-ocr). |
-| `timeout`     | int            | Required    | 10000         | API call timeout duration (milliseconds).                  |
+| Name          | Data Type | Requirement | Default Value | Description                                                  |
+| ------------- | --------- | ----------- | ------------- | ------------------------------------------------------------ |
+| `apiKey`      | string    | Required    | -             | Token for authenticating access to OCR services.             |
+| `type`        | string    | Required    | -             | Provider type of the backend OCR service type(e.g. dashscope). |
+| `serviceHost` | string    | Required    | -             | Host of the backend OCR service.                             |
+| `serviceName` | string    | Required    | -             | Name of the backend OCR service.                             |
+| `servicePort` | int       | Required    | -             | Port of the backend OCR service.                             |
+| `model`       | string    | Required    | -             | Model name of the backend OCR service (e.g., qwen-vl-ocr).   |
+| `timeout`     | int       | Required    | 10000         | API call timeout duration (milliseconds).                    |
 
 ## Example
 

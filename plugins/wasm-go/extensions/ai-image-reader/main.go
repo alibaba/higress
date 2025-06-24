@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -12,7 +13,7 @@ import (
 )
 
 const (
-	DEFAULT_MAX_BODY_BYTES uint32 = 100 * 1024 * 1024
+	DefaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
 type Config struct {
@@ -23,14 +24,14 @@ type Config struct {
 
 func main() {
 	wrapper.SetCtx(
-		"ai-image-reader1",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		"ai-image-reader",
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
 	)
 }
 
-func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *Config) error {
 	config.promptTemplate = `# 用户发送的图片解析得到的文字内容如下:
 {image_content}
 在回答时，请注意以下几点：
@@ -52,7 +53,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	if contentType == "" {
 		return types.ActionContinue
@@ -62,12 +63,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-	ctx.SetRequestBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
+	ctx.SetRequestBodyBufferLimit(DefaultMaxBodyBytes)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	var queryIndex int
 	var query string
 	messages := gjson.GetBytes(body, "messages").Array()
@@ -77,9 +78,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 			queryIndex = i
 			content := messages[i].Get("content").Array()
 			for j := len(content) - 1; j >= 0; j-- {
-				if content[j].Get("type").String() == "image_url" {
+				contentType := content[j].Get("type").String()
+				if contentType == "image_url" {
 					imageUrls = append(imageUrls, content[j].Get("image_url.url").String())
-				} else if content[j].Get("type").String() == "text" {
+				} else if contentType == "text" {
 					query = content[j].Get("text").String()
 				}
 			}
@@ -89,15 +91,15 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	if len(imageUrls) == 0 {
 		return types.ActionContinue
 	}
-	return executeReadImage(imageUrls, config, query, queryIndex, body, log)
+	return executeReadImage(imageUrls, config, query, queryIndex, body)
 }
 
-func executeReadImage(imageUrls []string, config Config, query string, queryIndex int, body []byte, log wrapper.Log) types.Action {
+func executeReadImage(imageUrls []string, config Config, query string, queryIndex int, body []byte) types.Action {
 	var imageContents []string
 	var totalImages int
 	var finished int
 	for _, imageUrl := range imageUrls {
-		err := config.ocrProvider.DoOCR(imageUrl, log, func(imageContent string, err error) {
+		err := config.ocrProvider.DoOCR(imageUrl, func(imageContent string, err error) {
 			defer func() {
 				finished++
 				if totalImages == finished {
@@ -112,7 +114,7 @@ func executeReadImage(imageUrls []string, config Config, query string, queryInde
 					if err != nil {
 						log.Errorf("modify request message content failed, err:%v, body:%s", err, body)
 					} else {
-						log.Debugf("modifeid body:%s", modifiedBody)
+						log.Debugf("modified body:%s", modifiedBody)
 						proxywasm.ReplaceHttpRequestBody(modifiedBody)
 					}
 					proxywasm.ResumeHttpRequest()
@@ -125,7 +127,7 @@ func executeReadImage(imageUrls []string, config Config, query string, queryInde
 			imageContents = append(imageContents, imageContent)
 		})
 		if err != nil {
-			log.Infof("ocr call failed, err:%v", err)
+			log.Errorf("ocr call failed, err:%v", err)
 			continue
 		}
 		totalImages++

@@ -2,12 +2,11 @@ package main
 
 import (
 	"errors"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
 const (
-	PROVIDER_TYPE_DASHSCOPE = "dashscope"
+	ProviderTypeDashscope = "dashscope"
 )
 
 type providerInitializer interface {
@@ -18,7 +17,7 @@ type providerInitializer interface {
 
 var (
 	providerInitializers = map[string]providerInitializer{
-		PROVIDER_TYPE_DASHSCOPE: &dashScopeProviderInitializer{},
+		ProviderTypeDashscope: &dashScopeProviderInitializer{},
 	}
 )
 
@@ -106,6 +105,5 @@ type Provider interface {
 	CallArgs(imageUrl string) CallArgs
 	DoOCR(
 		imageUrl string,
-		log wrapper.Log,
 		callback func(imageContent string, err error)) error
 }
