@@ -36,6 +36,8 @@ Attribute Configuration instructions:
 | `rule`      | string | optional  | -   | Rule to extract attribute from streaming response, optional values ​​are `first`, `replace`, `append`|
 | `apply_to_log`      | bool | optional  | false  | Whether to record the extracted information in the log |
 | `apply_to_span`      | bool | optional  | false  | Whether to record the extracted information in the link tracking span |
+| `trace_span_key`      | string | optional  | -  | span attribute key, default is the value of `key` |
+| `as_seperate_log_field`      | bool | optional  | false  | Whether to use a seperate log field, the field name is equal to the value of `key` |
 
 The meanings of various values for `value_source` ​​are as follows:
 

@@ -36,6 +36,8 @@ Attribute 配置说明:
 | `rule`      | string | 非必填  | -   | 从流式响应中提取 attrribute 的规则，可选值为 `first`, `replace`, `append`|
 | `apply_to_log`      | bool | 非必填  | false  | 是否将提取的信息记录在日志中 |
 | `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
+| `trace_span_key`      | string | 非必填  | -  | 链路追踪attribute key，默认会使用`key`的设置 |
+| `as_seperate_log_field`      | bool | 非必填  | false  | 记录日志时是否作为单独的字段，日志字段名使用`key`的设置 |
 
 `value_source` 的各种取值含义如下：
 
