@@ -62,6 +62,21 @@ If you want to record ai-statistic related statistical values in the gateway acc
 '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
 ```
 
+If the field is set with `as_separate_log_field`, for example:
+```yaml
+attributes:
+  - key: consumer
+    value_source: request_header
+    value: x-mse-consumer
+    apply_to_log: true
+    as_separate_log_field: true
+```
+
+Then to print in the log, you need to set log_format additionally:
+```
+'{"consumer":"%FILTER_STATE(wasm.consumer:PLAIN)%"}'
+```
+
 ### Empty
 #### Metric
 

@@ -62,6 +62,21 @@ Attribute 配置说明:
 '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
 ```
 
+如果字段设置了 `as_separate_log_field`，例如：
+```yaml
+attributes:
+  - key: consumer
+    value_source: request_header
+    value: x-mse-consumer
+    apply_to_log: true
+    as_separate_log_field: true
+```
+
+那么要在日志中打印，需要额外设置log_format：
+```
+'{"consumer":"%FILTER_STATE(wasm.consumer:PLAIN)%"}'
+```
+
 ### 空配置
 #### 监控
 
