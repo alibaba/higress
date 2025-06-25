@@ -29,22 +29,24 @@ Attribute 配置说明:
 
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|-----|-----|------------------------|
-| `key`         | string | 必填  | -   | attrribute 名称           |
-| `value_source` | string | 必填  | -   | attrribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
-| `value`      | string | 必填  | -   | attrribute 取值 key value/path |
-| `default_value`      | string | 非必填  | -   | attrribute 默认值 |
-| `rule`      | string | 非必填  | -   | 从流式响应中提取 attrribute 的规则，可选值为 `first`, `replace`, `append`|
+| `key`         | string | 必填  | -   | attribute 名称           |
+| `value_source` | string | 必填  | -   | attribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
+| `value`      | string | 必填  | -   | attribute 取值 key value/path |
+| `default_value`      | string | 非必填  | -   | attribute 默认值 |
+| `rule`      | string | 非必填  | -   | 从流式响应中提取 attribute 的规则，可选值为 `first`, `replace`, `append`|
 | `apply_to_log`      | bool | 非必填  | false  | 是否将提取的信息记录在日志中 |
 | `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
+| `trace_span_key`      | string | 非必填  | -  | 链路追踪attribute key，默认会使用`key`的设置 |
+| `as_separate_log_field`      | bool | 非必填  | false  | 记录日志时是否作为单独的字段，日志字段名使用`key`的设置 |
 
 `value_source` 的各种取值含义如下：
 
 - `fixed_value`：固定值
-- `request_header` ： attrribute 值通过 http 请求头获取，value 配置为 header key
-- `request_body` ：attrribute 值通过请求 body 获取，value 配置格式为 gjson 的 jsonpath
-- `response_header` ：attrribute 值通过 http 响应头获取，value 配置为header key
-- `response_body` ：attrribute 值通过响应 body 获取，value 配置格式为 gjson 的 jsonpath
-- `response_streaming_body` ：attrribute 值通过流式响应 body 获取，value 配置格式为 gjson 的 jsonpath
+- `request_header` ： attribute 值通过 http 请求头获取，value 配置为 header key
+- `request_body` ：attribute 值通过请求 body 获取，value 配置格式为 gjson 的 jsonpath
+- `response_header` ：attribute 值通过 http 响应头获取，value 配置为header key
+- `response_body` ：attribute 值通过响应 body 获取，value 配置格式为 gjson 的 jsonpath
+- `response_streaming_body` ：attribute 值通过流式响应 body 获取，value 配置格式为 gjson 的 jsonpath
 
 
 当 `value_source` 为 `response_streaming_body` 时，应当配置 `rule`，用于指定如何从流式body中获取指定值，取值含义如下：
@@ -58,6 +60,21 @@ Attribute 配置说明:
 
 ```yaml
 '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
+```
+
+如果字段设置了 `as_separate_log_field`，例如：
+```yaml
+attributes:
+  - key: consumer
+    value_source: request_header
+    value: x-mse-consumer
+    apply_to_log: true
+    as_separate_log_field: true
+```
+
+那么要在日志中打印，需要额外设置log_format：
+```
+'{"consumer":"%FILTER_STATE(wasm.consumer:PLAIN)%"}'
 ```
 
 ### 空配置

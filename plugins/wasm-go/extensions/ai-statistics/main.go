@@ -75,13 +75,15 @@ const (
 
 // TracingSpan is the tracing span configuration.
 type Attribute struct {
-	Key          string `json:"key"`
-	ValueSource  string `json:"value_source"`
-	Value        string `json:"value"`
-	DefaultValue string `json:"default_value,omitempty"`
-	Rule         string `json:"rule,omitempty"`
-	ApplyToLog   bool   `json:"apply_to_log,omitempty"`
-	ApplyToSpan  bool   `json:"apply_to_span,omitempty"`
+	Key                string `json:"key"`
+	ValueSource        string `json:"value_source"`
+	Value              string `json:"value"`
+	TraceSpanKey       string `json:"trace_span_key,omitempty"`
+	DefaultValue       string `json:"default_value,omitempty"`
+	Rule               string `json:"rule,omitempty"`
+	ApplyToLog         bool   `json:"apply_to_log,omitempty"`
+	ApplyToSpan        bool   `json:"apply_to_span,omitempty"`
+	AsSeparateLogField bool   `json:"as_separate_log_field,omitempty"`
 }
 
 type AIStatisticsConfig struct {
@@ -406,13 +408,23 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
-				ctx.SetUserAttribute(key, value)
+				if attribute.AsSeparateLogField {
+					marshalledJsonStr := wrapper.MarshalStr(fmt.Sprint(value))
+					if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
+						log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
+					}
+				} else {
+					ctx.SetUserAttribute(key, value)
+				}
 			}
 			// for metrics
 			if key == Model || key == InputToken || key == OutputToken {
 				ctx.SetContext(key, value)
 			}
 			if attribute.ApplyToSpan {
+				if attribute.TraceSpanKey != "" {
+					key = attribute.TraceSpanKey
+				}
 				setSpanAttribute(key, value, log)
 			}
 		}
@@ -481,10 +493,10 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 		log.Warnf("ClusterName typd assert failed, skip metric record")
 		return
 	}
-	
+
 	if config.disableOpenaiUsage {
 		return
-	} 
+	}
 
 	if ctx.GetUserAttribute(Model) == nil || ctx.GetUserAttribute(InputToken) == nil || ctx.GetUserAttribute(OutputToken) == nil {
 		log.Warnf("get usage information failed, skip metric record")

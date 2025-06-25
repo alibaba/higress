@@ -7,7 +7,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func unmarshalStr(marshalledJsonStr string) string {
+func UnmarshalStr(marshalledJsonStr string) string {
 	// e.g. "{\"field1\":\"value1\",\"field2\":\"value2\"}"
 	var jsonStr string
 	err := json.Unmarshal([]byte(marshalledJsonStr), &jsonStr)
@@ -19,7 +19,7 @@ func unmarshalStr(marshalledJsonStr string) string {
 	return jsonStr
 }
 
-func marshalStr(raw string) string {
+func MarshalStr(raw string) string {
 	// e.g. {"field1":"value1","field2":"value2"}
 	helper := map[string]string{
 		"placeholder": raw,
