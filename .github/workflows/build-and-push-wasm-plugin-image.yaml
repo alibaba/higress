@@ -54,19 +54,13 @@ jobs:
             core.setOutput('files', files);
 
       # ─────────────────────────────────────────────────────────────────────
-      # 2) Fallback to git-diff for push or manual dispatch
-      - name: Diff changed files (push or manual)
-        if: github.event_name != 'pull_request'
+      # 2) Set files for manual workflow dispatch
+      - name: Set files for manual workflow
+        if: github.event_name == 'workflow_dispatch'
         id: diff
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            files="plugins/wasm-${{ github.event.inputs.plugin_type }}/extensions/${{ github.event.inputs.plugin_name }}"
-          else
-            git fetch origin ${{ github.event.before }}:base
-            files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
-          fi
-          echo "$files" > changed.txt
-          echo "::set-output name=files::$(cat changed.txt)"
+          files="plugins/wasm-${{ github.event.inputs.plugin_type }}/extensions/${{ github.event.inputs.plugin_name }}"
+          echo "::set-output name=files::$(echo "$files")"
 
       # ─────────────────────────────────────────────────────────────────────
       # 3) Compile unified file list, extract plugin names
@@ -187,7 +181,7 @@ jobs:
           done
           echo "PUSH_COMMAND=$push_command" >> $GITHUB_ENV
 
-      - name: Build Image and Push  # 执行构建并推送镜像
+      - name: Build Image and Push
         env:
           IMAGE_REGISTRY_SERVICE: ${{ env.IMAGE_REGISTRY_SERVICE }}
           IMAGE_REPOSITORY: ${{ env.IMAGE_REPOSITORY }}
