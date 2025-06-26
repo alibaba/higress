@@ -272,8 +272,8 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 | `vertexRegion`              | string        | 必填     | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址             |
 | `vertexProjectId`           | string        | 必填     | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                              |
 | `vertexAuthServiceName`     | string        | 必填     | -      | 用于 OAuth2 认证的服务名称，该服务为了访问oauth2.googleapis.com                                |
-| `vertexGeminiSafetySetting` | map of string | 非必填    | -      | Gemini 模型的内容安全过滤设置。                                                           |
-| `vertexTokenRefreshAhead`   | number        | 非必填    | -      | Vertex access token刷新提前时间(单位秒)                                                |
+| `geminiSafetySetting`       | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
+| `vertexTokenRefreshAhead`   | number        | 非必填   | -      | Vertex access token刷新提前时间(单位秒)                                                |
 
 #### AWS Bedrock
 
@@ -1428,7 +1428,7 @@ provider:
 }
 ```
 
-### 使用 OpenAI 协议代理 gemini 服务
+### 使用 OpenAI 协议代理 Gemini 服务
 
 **配置信息**
 
