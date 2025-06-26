@@ -27,40 +27,60 @@ const (
 	// ApiName 格式 {vendor}/{version}/{apitype}
 	// 表示遵循 厂商/版本/接口类型 的格式
 	// 目前openai是事实意义上的标准，但是也有其他厂商存在其他任务的一些可能的标准，比如cohere的rerank
-	ApiNameCompletion          ApiName = "openai/v1/completions"
-	ApiNameChatCompletion      ApiName = "openai/v1/chatcompletions"
-	ApiNameEmbeddings          ApiName = "openai/v1/embeddings"
-	ApiNameImageGeneration     ApiName = "openai/v1/imagegeneration"
-	ApiNameImageEdit           ApiName = "openai/v1/imageedit"
-	ApiNameImageVariation      ApiName = "openai/v1/imagevariation"
-	ApiNameAudioSpeech         ApiName = "openai/v1/audiospeech"
-	ApiNameFiles               ApiName = "openai/v1/files"
-	ApiNameRetrieveFile        ApiName = "openai/v1/retrievefile"
-	ApiNameRetrieveFileContent ApiName = "openai/v1/retrievefilecontent"
-	ApiNameBatches             ApiName = "openai/v1/batches"
-	ApiNameRetrieveBatch       ApiName = "openai/v1/retrievebatch"
-	ApiNameCancelBatch         ApiName = "openai/v1/cancelbatch"
-	ApiNameModels              ApiName = "openai/v1/models"
-	ApiNameResponses           ApiName = "openai/v1/responses"
+	ApiNameCompletion                           ApiName = "openai/v1/completions"
+	ApiNameChatCompletion                       ApiName = "openai/v1/chatcompletions"
+	ApiNameEmbeddings                           ApiName = "openai/v1/embeddings"
+	ApiNameImageGeneration                      ApiName = "openai/v1/imagegeneration"
+	ApiNameImageEdit                            ApiName = "openai/v1/imageedit"
+	ApiNameImageVariation                       ApiName = "openai/v1/imagevariation"
+	ApiNameAudioSpeech                          ApiName = "openai/v1/audiospeech"
+	ApiNameFiles                                ApiName = "openai/v1/files"
+	ApiNameRetrieveFile                         ApiName = "openai/v1/retrievefile"
+	ApiNameRetrieveFileContent                  ApiName = "openai/v1/retrievefilecontent"
+	ApiNameBatches                              ApiName = "openai/v1/batches"
+	ApiNameRetrieveBatch                        ApiName = "openai/v1/retrievebatch"
+	ApiNameCancelBatch                          ApiName = "openai/v1/cancelbatch"
+	ApiNameModels                               ApiName = "openai/v1/models"
+	ApiNameResponses                            ApiName = "openai/v1/responses"
+	ApiNameFineTuningJobs                       ApiName = "openai/v1/fine-tuningjobs"
+	ApiNameRetrieveFineTuningJob                ApiName = "openai/v1/retrievefine-tuningjob"
+	ApiNameFineTuningJobEvents                  ApiName = "openai/v1/fine-tuningjobsevents"
+	ApiNameFineTuningJobCheckpoints             ApiName = "openai/v1/fine-tuningjobcheckpoints"
+	ApiNameCancelFineTuningJob                  ApiName = "openai/v1/cancelfine-tuningjob"
+	ApiNameResumeFineTuningJob                  ApiName = "openai/v1/resumefine-tuningjob"
+	ApiNamePauseFineTuningJob                   ApiName = "openai/v1/pausefine-tuningjob"
+	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
+	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
 
-	PathOpenAICompletions         = "/v1/completions"
-	PathOpenAIChatCompletions     = "/v1/chat/completions"
-	PathOpenAIEmbeddings          = "/v1/embeddings"
-	PathOpenAIFiles               = "/v1/files"
-	PathOpenAIRetrieveFile        = "/v1/files/{file_id}"
-	PathOpenAIRetrieveFileContent = "/v1/files/{file_id}/content"
-	PathOpenAIBatches             = "/v1/batches"
-	PathOpenAIRetrieveBatch       = "/v1/batches/{batch_id}"
-	PathOpenAICancelBatch         = "/v1/batches/{batch_id}/cancel"
-	PathOpenAIModels              = "/v1/models"
-	PathOpenAIImageGeneration     = "/v1/images/generations"
-	PathOpenAIImageEdit           = "/v1/images/edits"
-	PathOpenAIImageVariation      = "/v1/images/variations"
-	PathOpenAIAudioSpeech         = "/v1/audio/speech"
-	PathOpenAIResponses           = "/v1/responses"
+	PathOpenAICompletions                          = "/v1/completions"
+	PathOpenAIChatCompletions                      = "/v1/chat/completions"
+	PathOpenAIEmbeddings                           = "/v1/embeddings"
+	PathOpenAIFiles                                = "/v1/files"
+	PathOpenAIRetrieveFile                         = "/v1/files/{file_id}"
+	PathOpenAIRetrieveFileContent                  = "/v1/files/{file_id}/content"
+	PathOpenAIBatches                              = "/v1/batches"
+	PathOpenAIRetrieveBatch                        = "/v1/batches/{batch_id}"
+	PathOpenAICancelBatch                          = "/v1/batches/{batch_id}/cancel"
+	PathOpenAIModels                               = "/v1/models"
+	PathOpenAIImageGeneration                      = "/v1/images/generations"
+	PathOpenAIImageEdit                            = "/v1/images/edits"
+	PathOpenAIImageVariation                       = "/v1/images/variations"
+	PathOpenAIAudioSpeech                          = "/v1/audio/speech"
+	PathOpenAIResponses                            = "/v1/responses"
+	PathOpenAIFineTuningJobs                       = "/v1/fine_tuning/jobs"
+	PathOpenAIRetrieveFineTuningJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
+	PathOpenAIFineTuningJobEvents                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/events"
+	PathOpenAIFineTuningJobCheckpoints             = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/checkpoints"
+	PathOpenAICancelFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel"
+	PathOpenAIResumeFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/resume"
+	PathOpenAIPauseFineTuningJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
+	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
+	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
+	ApiNameQwenAsyncAIGC  ApiName = "api/v1/services/aigc"
+	ApiNameQwenAsyncTask  ApiName = "api/v1/tasks/"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -90,6 +110,7 @@ const (
 	providerTypeTogetherAI = "together-ai"
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
+	providerTypeVertex     = "vertex"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -161,6 +182,7 @@ var (
 		providerTypeTogetherAI: &togetherAIProviderInitializer{},
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
+		providerTypeVertex:     &vertexProviderInitializer{},
 	}
 )
 
@@ -274,6 +296,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock Region
 	// @Description zh-CN 仅适用于Amazon Bedrock服务访问
 	awsRegion string `required:"false" yaml:"awsRegion" json:"awsRegion"`
+	// @Title zh-CN Amazon Bedrock 额外模型请求参数
+	// @Description zh-CN 仅适用于Amazon Bedrock服务，用于设置模型特定的推理参数
+	bedrockAdditionalFields map[string]interface{} `required:"false" yaml:"bedrockAdditionalFields" json:"bedrockAdditionalFields"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -290,14 +315,29 @@ type ProviderConfig struct {
 	// @Description zh-CN 配置一个外部获取对话上下文的文件来源，用于在AI请求中补充对话上下文
 	context *ContextConfig `required:"false" yaml:"context" json:"context"`
 	// @Title zh-CN 版本
-	// @Description zh-CN 请求AI服务的版本，目前仅适用于Claude AI服务
-	claudeVersion string `required:"false" yaml:"version" json:"version"`
+	// @Description zh-CN 请求AI服务的版本，目前仅适用于 Gemini 和 Claude AI服务
+	apiVersion string `required:"false" yaml:"apiVersion" json:"apiVersion"`
 	// @Title zh-CN Cloudflare Account ID
 	// @Description zh-CN 仅适用于 Cloudflare Workers AI 服务。参考：https://developers.cloudflare.com/workers-ai/get-started/rest-api/#2-run-a-model-via-api
 	cloudflareAccountId string `required:"false" yaml:"cloudflareAccountId" json:"cloudflareAccountId"`
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN Vertex AI访问区域
+	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
+	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
+	// @Title zh-CN Vertex AI项目Id
+	// @Description zh-CN 仅适用于Vertex AI服务。创建和管理项目请参阅https://cloud.google.com/resource-manager/docs/creating-managing-projects?hl=zh-cn#identifiers
+	vertexProjectId string `required:"false" yaml:"vertexProjectId" json:"vertexProjectId"`
+	// @Title zh-CN Vertex 认证秘钥
+	// @Description zh-CN 用于Google服务账号认证的完整JSON密钥文件内容，获取可参考https://cloud.google.com/iam/docs/keys-create-delete?hl=zh-cn#iam-service-account-keys-create-console
+	vertexAuthKey string `required:"false" yaml:"vertexAuthKey" json:"vertexAuthKey"`
+	// @Title zh-CN Vertex 认证服务名
+	// @Description zh-CN 用于Google服务账号认证的服务,DNS类型的服务名
+	vertexAuthServiceName string `required:"false" yaml:"vertexAuthServiceName" json:"vertexAuthServiceName"`
+	// @Title zh-CN Vertex token刷新提前时间
+	// @Description zh-CN 用于Google服务账号认证，access token过期时间判定提前刷新，单位为秒，默认值为60秒
+	vertexTokenRefreshAhead int64 `required:"false" yaml:"vertexTokenRefreshAhead" json:"vertexTokenRefreshAhead"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -375,20 +415,40 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.context = &ContextConfig{}
 		c.context.FromJson(contextJson)
 	}
-	c.claudeVersion = json.Get("claudeVersion").String()
+
+	// 这里获取 claudeVersion 字段，与结构体中定义 yaml/json 的 tag 不一致
+	c.apiVersion = json.Get("claudeVersion").String()
+	if c.apiVersion == "" {
+		// 增加获取 version 字段，用于适配其他模型的配置，并保持与结构体中定义的 tag 一致
+		c.apiVersion = json.Get("apiVersion").String()
+	}
 	c.hunyuanAuthId = json.Get("hunyuanAuthId").String()
 	c.hunyuanAuthKey = json.Get("hunyuanAuthKey").String()
 	c.awsAccessKey = json.Get("awsAccessKey").String()
 	c.awsSecretKey = json.Get("awsSecretKey").String()
 	c.awsRegion = json.Get("awsRegion").String()
+	if c.typ == providerTypeBedrock {
+		c.bedrockAdditionalFields = make(map[string]interface{})
+		for k, v := range json.Get("bedrockAdditionalFields").Map() {
+			c.bedrockAdditionalFields[k] = v.Value()
+		}
+	}
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
-	if c.typ == providerTypeGemini {
+	if c.typ == providerTypeGemini || c.typ == providerTypeVertex {
 		c.geminiSafetySetting = make(map[string]string)
 		for k, v := range json.Get("geminiSafetySetting").Map() {
 			c.geminiSafetySetting[k] = v.String()
 		}
+	}
+	c.vertexRegion = json.Get("vertexRegion").String()
+	c.vertexProjectId = json.Get("vertexProjectId").String()
+	c.vertexAuthKey = json.Get("vertexAuthKey").String()
+	c.vertexAuthServiceName = json.Get("vertexAuthServiceName").String()
+	c.vertexTokenRefreshAhead = json.Get("vertexTokenRefreshAhead").Int()
+	if c.vertexTokenRefreshAhead == 0 {
+		c.vertexTokenRefreshAhead = 60
 	}
 	c.targetLang = json.Get("targetLang").String()
 
@@ -809,11 +869,14 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 	switch apiName {
 	case ApiNameChatCompletion,
+		ApiNameCompletion,
 		ApiNameEmbeddings,
 		ApiNameImageGeneration,
 		ApiNameImageEdit,
 		ApiNameImageVariation,
-		ApiNameAudioSpeech:
+		ApiNameAudioSpeech,
+		ApiNameFineTuningJobs,
+		ApiNameResponses:
 		return true
 	}
 	return false

@@ -208,6 +208,29 @@ For DeepL, the corresponding `type` is `deepl`. Its unique configuration field i
 | ------------ | --------- | ----------- | ------- | ------------------------------------ |
 | `targetLang` | string    | Required    | -       | The target language required by the DeepL translation service |
 
+#### Google Vertex AI
+For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
+
+| Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `vertexAuthKey`             | string        | Required      | -      | Google Service Account JSON Key used for authentication. The format should be PEM encoded PKCS#8 private key along with client_email and other information  |
+| `vertexRegion`              | string        | Required      | -      | Google Cloud region (e.g., us-central1, europe-west4) used to build the Vertex API address                                                                  |
+| `vertexProjectId`           | string        | Required      | -      | Google Cloud Project ID, used to identify the target GCP project                                                                                            |
+| `vertexAuthServiceName`     | string        | Required      | -      | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                                                                |
+| `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
+| `vertexTokenRefreshAhead`   | number        | Optional      | -      | Vertex access token refresh ahead time in seconds                                                                                                           |
+
+#### AWS Bedrock
+
+For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
+
+| Name                      | Data Type | Requirement | Default | Description                                             |
+|---------------------------|-----------|-------------|---------|---------------------------------------------------------|
+| `awsAccessKey`            | string    | Required    | -       | AWS Access Key used for authentication                  |
+| `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
+| `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
+| `bedrockAdditionalFields` | map       | Optional    | -       | Additional inference parameters that the model supports |
+
 ## Usage Examples
 
 ### Using OpenAI Protocol Proxy for Azure OpenAI Service
@@ -1407,6 +1430,115 @@ provider:
     "prompt_tokens": 33,
     "completion_tokens": 61,
     "total_tokens": 94
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services
+**Configuration Information**
+```yaml
+provider:
+  type: vertex
+  vertexAuthKey: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-private-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  vertexRegion: us-central1
+  vertexProjectId: your-project-id
+  vertexAuthServiceName: your-auth-service-name
+```
+
+**Request Example**
+```json
+{
+  "model": "gemini-2.0-flash-001",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am the Gemini model provided by Vertex AI, developed by Google. I can answer questions, provide information, and assist in completing various tasks. How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.0-flash-001",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 43,
+    "total_tokens": 58
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for AWS Bedrock Services
+**Configuration Information**
+```yaml
+provider:
+  type: bedrock
+  awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
+  awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
+  awsRegion: "YOUR_AWS_REGION"
+  bedrockAdditionalFields:
+    top_k: 200
+```
+
+**Request Example**
+```json
+{
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "messages": [
+    {
+      "role": "user",
+      "content": "who are you"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "d52da49d-daf3-49d9-a105-0b527481fe14",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "I'm Claude, an AI created by Anthropic. I aim to be helpful, honest, and harmless. I won't pretend to be human, and I'll always try to be direct and truthful about what I am and what I can do."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1749659050,
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 57,
+    "total_tokens": 67
   }
 }
 ```

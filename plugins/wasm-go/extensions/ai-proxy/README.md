@@ -230,9 +230,10 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 
 Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 
-| 名称                  | 数据类型      | 填写要求 | 默认值 | 描述                                                                                                           |
-| --------------------- | ------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------- |
-| `geminiSafetySetting` | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
+| 名称                  | 数据类型      | 填写要求 | 默认值   | 描述                                                                                                                                       |
+| --------------------- | ------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `geminiSafetySetting` | map of string | 非必填   | -        | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
+| `apiVersion`          | string        | 非必填   | `v1beta` | 用于指定 API 的版本, 可选择 `v1` 或 `v1beta` 。 版本差异请参考[API versions explained](https://ai.google.dev/gemini-api/docs/api-versions)。 |
 
 #### DeepL
 
@@ -260,6 +261,30 @@ Dify 所对应的 `type` 为 `dify`。它特有的配置字段如下:
 | `botType`        | string   | 非必填   | -      | dify 的应用类型，Chat/Completion/Agent/Workflow                                  |
 | `inputVariable`  | string   | 非必填   | -      | dify 中应用类型为 workflow 时需要设置输入变量，当 botType 为 workflow 时一起使用 |
 | `outputVariable` | string   | 非必填   | -      | dify 中应用类型为 workflow 时需要设置输出变量，当 botType 为 workflow 时一起使用 |
+
+#### Google Vertex AI
+
+Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下：
+
+| 名称                         | 数据类型       | 填写要求   | 默认值    | 描述                                                                            |
+|-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
+| `vertexAuthKey`             | string        | 必填     | -      | 用于认证的 Google Service Account JSON Key，格式为 PEM 编码的 PKCS#8 私钥和 client_email 等信息 |
+| `vertexRegion`              | string        | 必填     | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址             |
+| `vertexProjectId`           | string        | 必填     | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                              |
+| `vertexAuthServiceName`     | string        | 必填     | -      | 用于 OAuth2 认证的服务名称，该服务为了访问oauth2.googleapis.com                                |
+| `vertexGeminiSafetySetting` | map of string | 非必填    | -      | Gemini 模型的内容安全过滤设置。                                                           |
+| `vertexTokenRefreshAhead`   | number        | 非必填    | -      | Vertex access token刷新提前时间(单位秒)                                                |
+
+#### AWS Bedrock
+
+AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
+
+| 名称                        | 数据类型   | 填写要求 | 默认值 | 描述                           |
+|---------------------------|--------|------|-----|------------------------------|
+| `awsAccessKey`            | string | 必填   | -   | AWS Access Key，用于身份认证        |
+| `awsSecretKey`            | string | 必填   | -   | AWS Secret Access Key，用于身份认证 |
+| `awsRegion`               | string | 必填   | -   | AWS 区域，例如：us-east-1          |
+| `bedrockAdditionalFields` | map    | 非必填  | -   | Bedrock 额外模型请求参数             |
 
 ## 用法示例
 
@@ -1627,6 +1652,124 @@ provider:
   }
 }
 ```
+
+### 使用 OpenAI 协议代理 Google Vertex 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: vertex
+  vertexAuthKey: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-private-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  vertexRegion: us-central1
+  vertexProjectId: your-project-id
+  vertexAuthServiceName: your-auth-service-name
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gemini-2.0-flash-001",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是 Vertex AI 提供的 Gemini 模型，由 Google 开发的人工智能助手。我可以回答问题、提供信息和帮助完成各种任务。有什么我可以帮您的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.0-flash-001",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 43,
+    "total_tokens": 58
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 AWS Bedrock 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: bedrock
+  awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
+  awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
+  awsRegion: "YOUR_AWS_REGION"
+  bedrockAdditionalFields:
+    top_k: 200
+```
+
+**请求示例**
+
+```json
+{
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "dc5812e2-6a62-49d6-829e-5c327b15e4e2",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好!我是Claude,一个由Anthropic开发的AI助手。很高兴认识你!我的目标是以诚实、有益且有意义的方式与人类交流。我会尽力提供准确和有帮助的信息,同时保持诚实和正直。请问我今天能为你做些什么呢?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1749657608,
+  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 16,
+    "completion_tokens": 101,
+    "total_tokens": 117
+  }
+}
+```
+
 
 ## 完整配置示例
 

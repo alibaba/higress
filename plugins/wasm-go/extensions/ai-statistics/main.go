@@ -75,13 +75,15 @@ const (
 
 // TracingSpan is the tracing span configuration.
 type Attribute struct {
-	Key          string `json:"key"`
-	ValueSource  string `json:"value_source"`
-	Value        string `json:"value"`
-	DefaultValue string `json:"default_value,omitempty"`
-	Rule         string `json:"rule,omitempty"`
-	ApplyToLog   bool   `json:"apply_to_log,omitempty"`
-	ApplyToSpan  bool   `json:"apply_to_span,omitempty"`
+	Key                string `json:"key"`
+	ValueSource        string `json:"value_source"`
+	Value              string `json:"value"`
+	TraceSpanKey       string `json:"trace_span_key,omitempty"`
+	DefaultValue       string `json:"default_value,omitempty"`
+	Rule               string `json:"rule,omitempty"`
+	ApplyToLog         bool   `json:"apply_to_log,omitempty"`
+	ApplyToSpan        bool   `json:"apply_to_span,omitempty"`
+	AsSeparateLogField bool   `json:"as_separate_log_field,omitempty"`
 }
 
 type AIStatisticsConfig struct {
@@ -92,6 +94,8 @@ type AIStatisticsConfig struct {
 	attributes []Attribute
 	// If there exist attributes extracted from streaming body, chunks should be buffered
 	shouldBufferStreamingBody bool
+	// If disableOpenaiUsage is true, model/input_token/output_token logs will be skipped
+	disableOpenaiUsage bool
 }
 
 func generateMetricName(route, cluster, model, consumer, metricName string) string {
@@ -160,6 +164,10 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 	}
 	// Metric settings
 	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
+
+	// Parse openai usage config setting.
+	config.disableOpenaiUsage = configJson.Get("disable_openai_usage").Bool()
+
 	return nil
 }
 
@@ -264,15 +272,17 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	}
 
 	// Set information about this request
-	if model, inputToken, outputToken, ok := getUsage(data); ok {
-		ctx.SetUserAttribute(Model, model)
-		ctx.SetUserAttribute(InputToken, inputToken)
-		ctx.SetUserAttribute(OutputToken, outputToken)
-		// Set span attributes for ARMS.
-		setSpanAttribute(ArmsModelName, model, log)
-		setSpanAttribute(ArmsInputToken, inputToken, log)
-		setSpanAttribute(ArmsOutputToken, outputToken, log)
-		setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+	if !config.disableOpenaiUsage {
+		if model, inputToken, outputToken, ok := getUsage(data); ok {
+			ctx.SetUserAttribute(Model, model)
+			ctx.SetUserAttribute(InputToken, inputToken)
+			ctx.SetUserAttribute(OutputToken, outputToken)
+			// Set span attributes for ARMS.
+			setSpanAttribute(ArmsModelName, model, log)
+			setSpanAttribute(ArmsInputToken, inputToken, log)
+			setSpanAttribute(ArmsOutputToken, outputToken, log)
+			setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+		}
 	}
 	// If the end of the stream is reached, record metrics/logs/spans.
 	if endOfStream {
@@ -311,15 +321,17 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	}
 
 	// Set information about this request
-	if model, inputToken, outputToken, ok := getUsage(body); ok {
-		ctx.SetUserAttribute(Model, model)
-		ctx.SetUserAttribute(InputToken, inputToken)
-		ctx.SetUserAttribute(OutputToken, outputToken)
-		// Set span attributes for ARMS.
-		setSpanAttribute(ArmsModelName, model, log)
-		setSpanAttribute(ArmsInputToken, inputToken, log)
-		setSpanAttribute(ArmsOutputToken, outputToken, log)
-		setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+	if !config.disableOpenaiUsage {
+		if model, inputToken, outputToken, ok := getUsage(body); ok {
+			ctx.SetUserAttribute(Model, model)
+			ctx.SetUserAttribute(InputToken, inputToken)
+			ctx.SetUserAttribute(OutputToken, outputToken)
+			// Set span attributes for ARMS.
+			setSpanAttribute(ArmsModelName, model, log)
+			setSpanAttribute(ArmsInputToken, inputToken, log)
+			setSpanAttribute(ArmsOutputToken, outputToken, log)
+			setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+		}
 	}
 
 	// Set user defined log & span attributes.
@@ -396,13 +408,23 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
-				ctx.SetUserAttribute(key, value)
+				if attribute.AsSeparateLogField {
+					marshalledJsonStr := wrapper.MarshalStr(fmt.Sprint(value))
+					if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
+						log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
+					}
+				} else {
+					ctx.SetUserAttribute(key, value)
+				}
 			}
 			// for metrics
 			if key == Model || key == InputToken || key == OutputToken {
 				ctx.SetContext(key, value)
 			}
 			if attribute.ApplyToSpan {
+				if attribute.TraceSpanKey != "" {
+					key = attribute.TraceSpanKey
+				}
 				setSpanAttribute(key, value, log)
 			}
 		}
@@ -471,6 +493,11 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 		log.Warnf("ClusterName typd assert failed, skip metric record")
 		return
 	}
+
+	if config.disableOpenaiUsage {
+		return
+	}
+
 	if ctx.GetUserAttribute(Model) == nil || ctx.GetUserAttribute(InputToken) == nil || ctx.GetUserAttribute(OutputToken) == nil {
 		log.Warnf("get usage information failed, skip metric record")
 		return

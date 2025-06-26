@@ -150,7 +150,7 @@ func (p *sparkProvider) responseSpark2OpenAI(ctx wrapper.HttpContext, response *
 		Object:  objectChatCompletion,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: choices,
-		Usage:   response.Usage,
+		Usage:   &response.Usage,
 	}
 }
 
@@ -168,7 +168,7 @@ func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, resp
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Object:  objectChatCompletion,
 		Choices: choices,
-		Usage:   response.Usage,
+		Usage:   &response.Usage,
 	}
 }
 

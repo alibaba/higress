@@ -42,8 +42,7 @@ const (
 	requestIdHeader        = "X-Amzn-Requestid"
 )
 
-type bedrockProviderInitializer struct {
-}
+type bedrockProviderInitializer struct{}
 
 func (b *bedrockProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if len(config.awsAccessKey) == 0 || len(config.awsSecretKey) == 0 {
@@ -104,7 +103,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
 	}
 	if bedrockEvent.StopReason != nil {
-		chatChoice.FinishReason = stopReasonBedrock2OpenAI(*bedrockEvent.StopReason)
+		chatChoice.FinishReason = util.Ptr(stopReasonBedrock2OpenAI(*bedrockEvent.StopReason))
 	}
 	choices = append(choices, chatChoice)
 	requestId := ctx.GetStringContext(requestIdHeader, "")
@@ -118,7 +117,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 	}
 	if bedrockEvent.Usage != nil {
 		openAIFormattedChunk.Choices = choices[:0]
-		openAIFormattedChunk.Usage = usage{
+		openAIFormattedChunk.Usage = &usage{
 			CompletionTokens: bedrockEvent.Usage.OutputTokens,
 			PromptTokens:     bedrockEvent.Usage.InputTokens,
 			TotalTokens:      bedrockEvent.Usage.TotalTokens,
@@ -734,11 +733,16 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 			Temperature: origRequest.Temperature,
 			TopP:        origRequest.TopP,
 		},
-		AdditionalModelRequestFields: map[string]interface{}{},
+		AdditionalModelRequestFields: make(map[string]interface{}),
 		PerformanceConfig: PerformanceConfiguration{
 			Latency: "standard",
 		},
 	}
+
+	for key, value := range b.config.bedrockAdditionalFields {
+		request.AdditionalModelRequestFields[key] = value
+	}
+
 	requestBytes, err := json.Marshal(request)
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err
@@ -756,18 +760,19 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 				Role:    bedrockResponse.Output.Message.Role,
 				Content: outputContent,
 			},
-			FinishReason: stopReasonBedrock2OpenAI(bedrockResponse.StopReason),
+			FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 		},
 	}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
+	modelId, _ := url.QueryUnescape(ctx.GetStringContext(ctxKeyFinalRequestModel, ""))
 	return &chatCompletionResponse{
 		Id:                requestId,
 		Created:           time.Now().UnixMilli() / 1000,
-		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
+		Model:             modelId,
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     bedrockResponse.Usage.InputTokens,
 			CompletionTokens: bedrockResponse.Usage.OutputTokens,
 			TotalTokens:      bedrockResponse.Usage.TotalTokens,
@@ -908,6 +913,7 @@ func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 }
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {
+	path = encodeSigV4Path(path)
 	hashedPayload := sha256Hex(body)
 
 	endpoint := fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion)
@@ -923,6 +929,17 @@ func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, bod
 	signingKey := getSignatureKey(b.config.awsSecretKey, dateStamp, b.config.awsRegion, awsService)
 	signature := hmacHex(signingKey, stringToSign)
 	return signature
+}
+
+func encodeSigV4Path(path string) string {
+	segments := strings.Split(path, "/")
+	for i, seg := range segments {
+		if seg == "" {
+			continue
+		}
+		segments[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segments, "/")
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {
