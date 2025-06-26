@@ -296,6 +296,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock Region
 	// @Description zh-CN 仅适用于Amazon Bedrock服务访问
 	awsRegion string `required:"false" yaml:"awsRegion" json:"awsRegion"`
+	// @Title zh-CN Amazon Bedrock 额外模型请求参数
+	// @Description zh-CN 仅适用于Amazon Bedrock服务，用于设置模型特定的推理参数
+	bedrockAdditionalFields map[string]interface{} `required:"false" yaml:"bedrockAdditionalFields" json:"bedrockAdditionalFields"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -424,6 +427,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.awsAccessKey = json.Get("awsAccessKey").String()
 	c.awsSecretKey = json.Get("awsSecretKey").String()
 	c.awsRegion = json.Get("awsRegion").String()
+	if c.typ == providerTypeBedrock {
+		c.bedrockAdditionalFields = make(map[string]interface{})
+		for k, v := range json.Get("bedrockAdditionalFields").Map() {
+			c.bedrockAdditionalFields[k] = v.Value()
+		}
+	}
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
