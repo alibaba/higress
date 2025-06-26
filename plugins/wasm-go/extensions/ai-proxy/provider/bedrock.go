@@ -733,11 +733,16 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 			Temperature: origRequest.Temperature,
 			TopP:        origRequest.TopP,
 		},
-		AdditionalModelRequestFields: map[string]interface{}{},
+		AdditionalModelRequestFields: make(map[string]interface{}),
 		PerformanceConfig: PerformanceConfiguration{
 			Latency: "standard",
 		},
 	}
+
+	for key, value := range b.config.bedrockAdditionalFields {
+		request.AdditionalModelRequestFields[key] = value
+	}
+
 	requestBytes, err := json.Marshal(request)
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err
