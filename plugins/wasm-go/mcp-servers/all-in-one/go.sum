@@ -22,8 +22,8 @@ github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b h1:rR
 github.com/higress-group/gjson_template v0.0.0-20250413075336-4c4161ed428b/go.mod h1:rU3M+Tq5VrQOo0dxpKHGb03Ty0sdWIZfAH+YCOACx/Y=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80 h1:xqmtTZI0JQ2O+Lg9/CE6c+Tw9KD6FnvWw8EpLVuuvfg=
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80/go.mod h1:tRI2LfMudSkKHhyv1uex3BWzcice2s/l8Ah8axporfA=
-github.com/higress-group/wasm-go v1.0.1-0.20250625131419-5fbf2963eb13 h1:5Ec8AASkF1BgIDETk4uUBySuFYPWutv4i+UeR2G531s=
-github.com/higress-group/wasm-go v1.0.1-0.20250625131419-5fbf2963eb13/go.mod h1:ODBV27sjmhIW8Cqv3R74EUcTnbdkE69bmXBQFuRkY1M=
+github.com/higress-group/wasm-go v1.0.1-0.20250626031433-f44babf43b78 h1:5lB7lUqLjlOQQqVd8LEkMY/1U7kMNlBjzUhpU9TUOD4=
+github.com/higress-group/wasm-go v1.0.1-0.20250626031433-f44babf43b78/go.mod h1:ODBV27sjmhIW8Cqv3R74EUcTnbdkE69bmXBQFuRkY1M=
 github.com/huandu/xstrings v1.5.0 h1:2ag3IFq9ZDANvthTwTiqSSZLjDc+BedvHPAp5tJy2TI=
 github.com/huandu/xstrings v1.5.0/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/invopop/jsonschema v0.13.0 h1:KvpoAJWEjR3uD9Kbm2HWJmqsEaHt8lBUpd0qHcIi21E=
