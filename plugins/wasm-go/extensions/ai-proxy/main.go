@@ -406,6 +406,9 @@ func getApiName(path string) provider.ApiName {
 	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
 		return provider.ApiNameDeleteFineTuningCheckpointPermission
 	}
+	if strings.HasSuffix(path, "/v1/responses") {
+		return provider.ApiNameResponses
+	}
 	// cohere style
 	if strings.HasSuffix(path, "/v1/rerank") {
 		return provider.ApiNameCohereV1Rerank
