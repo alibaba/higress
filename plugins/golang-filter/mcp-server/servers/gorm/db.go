@@ -25,6 +25,14 @@ type DBClient struct {
 	panicCount int32 // Add panic counter
 }
 
+// supports database types
+const (
+	MYSQL      = "mysql"
+	POSTGRES   = "postgres"
+	CLICKHOUSE = "clickhouse"
+	SQLITE     = "sqlite"
+)
+
 // NewDBClient creates a new DBClient instance and establishes a connection to the database
 func NewDBClient(dsn string, dbType string, stop chan struct{}) *DBClient {
 	client := &DBClient{
@@ -53,13 +61,13 @@ func (c *DBClient) connect() error {
 	}
 
 	switch c.dbType {
-	case "postgres":
+	case POSTGRES:
 		db, err = gorm.Open(postgres.Open(c.dsn), &gormConfig)
-	case "clickhouse":
+	case CLICKHOUSE:
 		db, err = gorm.Open(clickhouse.Open(c.dsn), &gormConfig)
-	case "mysql":
+	case MYSQL:
 		db, err = gorm.Open(mysql.Open(c.dsn), &gormConfig)
-	case "sqlite":
+	case SQLITE:
 		db, err = gorm.Open(sqlite.Open(c.dsn), &gormConfig)
 	default:
 		return fmt.Errorf("unsupported database type %s", c.dbType)
@@ -137,12 +145,25 @@ func (c *DBClient) reconnectIfDbEmpty() error {
 	return nil
 }
 
+func (c *DBClient) handleSQLError(err error) error {
+	if err != nil {
+		// If execution fails, connection might be lost, trigger reconnection
+		select {
+		case c.reconnect <- struct{}{}:
+		default:
+		}
+		return fmt.Errorf("failed to execute SQL: %w", err)
+	}
+	return nil
+}
+
 // DescribeTable Get the structure of a specific table.
 func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error) {
 	var sql string
+	var args []string
 	switch c.dbType {
-	case "mysql":
-		sql = fmt.Sprintf(`
+	case MYSQL:
+		sql = `
 			select 
 			    column_name,
 				column_type,
@@ -152,11 +173,12 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 				extra,
 				column_comment 
 			from information_schema.columns
-			where table_schema = database() and table_name = '%s'
-		`, table)
+			where table_schema = database() and table_name = ?
+		`
+		args = []string{table}
 
-	case "postgres":
-		sql = fmt.Sprintf(`
+	case POSTGRES:
+		sql = `
 			select 
 			    column_name,
 				data_type as column_type,
@@ -171,13 +193,14 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 				    when column_default like 'nextval%%' then 'auto_increment'
 				    else ''
 				end as extra,
-				col_description((select oid from pg_class where relname = '%s'), ordinal_position) as column_comment
+				col_description((select oid from pg_class where relname = ?), ordinal_position) as column_comment
 			from information_schema.columns
-			where table_name = '%s'
-		`, table, table)
+			where table_name = ?
+		`
+		args = []string{table, table}
 
-	case "clickhouse":
-		sql = fmt.Sprintf(`
+	case CLICKHOUSE:
+		sql = `
 			select 
 			    name as column_name,
 				type as column_type,
@@ -187,11 +210,12 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 				default_kind as extra,
 				comment as column_comment
 			from system.columns
-			where database = currentDatabase() and table = '%s'
-		`, table)
+			where database = currentDatabase() and table = ?
+		`
+		args = []string{table}
 
-	case "sqlite":
-		sql = fmt.Sprintf(`
+	case SQLITE:
+		sql = `
 			select 
 			    name as column_name,
 				type as column_type,
@@ -200,40 +224,36 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 				dflt_value as column_default,
 				'' as extra,
 				'' as column_comment
-			from pragma_table_info('%s')
-		`, table)
+			from pragma_table_info(?)
+		`
+		args = []string{table}
 
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", c.dbType)
 	}
 
-	return c.Query(sql)
+	return c.Query(sql, args)
 }
 
 // ListTables List all tables in the connected database.
 func (c *DBClient) ListTables() ([]string, error) {
 	var sql string
 	switch c.dbType {
-	case "mysql":
+	case MYSQL:
 		sql = "show tables"
-	case "postgres":
+	case POSTGRES:
 		sql = "select tablename from pg_tables where schemaname = 'public'"
-	case "clickhouse":
+	case CLICKHOUSE:
 		sql = "select name from system.tables where database = currentDatabase()"
-	case "sqlite":
+	case SQLITE:
 		sql = "select name from sqlite_master where type='table'"
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", c.dbType)
 	}
 
 	rows, err := c.db.Raw(sql).Rows()
-	if err != nil {
-		// If execution fails, connection might be lost, trigger reconnection
-		select {
-		case c.reconnect <- struct{}{}:
-		default:
-		}
-		return nil, fmt.Errorf("failed to execute SQL sql: %w", err)
+	if err := c.handleSQLError(err); err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -256,13 +276,8 @@ func (c *DBClient) Execute(sql string, args ...interface{}) (int64, error) {
 	}
 
 	tx := c.db.Exec(sql, args...)
-	if tx.Error != nil {
-		// If execution fails, connection might be lost, trigger reconnection
-		select {
-		case c.reconnect <- struct{}{}:
-		default:
-		}
-		return 0, fmt.Errorf("failed to execute SQL exec: %w", tx.Error)
+	if err := c.handleSQLError(tx.Error); err != nil {
+		return 0, err
 	}
 	defer tx.Commit()
 
@@ -276,13 +291,8 @@ func (c *DBClient) Query(sql string, args ...interface{}) ([]map[string]interfac
 	}
 
 	rows, err := c.db.Raw(sql, args...).Rows()
-	if err != nil {
-		// If execution fails, connection might be lost, trigger reconnection
-		select {
-		case c.reconnect <- struct{}{}:
-		default:
-		}
-		return nil, fmt.Errorf("failed to execute SQL sql: %w", err)
+	if err := c.handleSQLError(err); err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 
