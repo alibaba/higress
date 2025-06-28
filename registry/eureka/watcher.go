@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
 	provider "github.com/alibaba/higress/registry"
 	. "github.com/alibaba/higress/registry/eureka/client"
@@ -53,10 +55,16 @@ type watcher struct {
 	eurekaClient              EurekaHttpClient
 	fullRefreshIntervalLimit  time.Duration
 	deltaRefreshIntervalLimit time.Duration
+	mcpbridgeLister           listersv1.McpBridgeLister
 }
 
 type WatcherOption func(w *watcher)
 
+func WithMcpBridgeLister(lister listersv1.McpBridgeLister) WatcherOption {
+	return func(w *watcher) {
+		w.mcpbridgeLister = lister
+	}
+}
 func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, error) {
 	w := &watcher{
 		WatchingServices: make(map[string]*Plan),
@@ -76,6 +84,9 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	cfg := NewDefaultConfig()
 	cfg.BaseUrl = net.JoinHostPort(w.Domain, strconv.FormatUint(uint64(w.Port), 10))
 	w.eurekaClient = NewEurekaHttpClient(cfg)
+	if w.mcpbridgeLister == nil {
+		return nil, fmt.Errorf("mcpbridgeLister must be provided")
+	}
 
 	return w, nil
 }
@@ -199,7 +210,7 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 		defer w.UpdateService()
 
 		if len(service.Instances) != 0 {
-			se, err := generateServiceEntry(service)
+			se, err := w.generateServiceEntry(service)
 			if err != nil {
 				return err
 			}
@@ -251,10 +262,52 @@ func convertMap(m map[string]interface{}) map[string]string {
 	return result
 }
 
-func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
+func (w *watcher) generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
-
+	sePort := &v1alpha3.ServicePort{
+		Name:     string(common.HTTP),
+		Number:   uint32(80),
+		Protocol: string(common.HTTP),
+	}
+	// 当服务后端实例端口不一致时，必须配置vport
+	vportNecessary := false
+	if len(app.Instances) > 0 {
+		firstPort := app.Instances[0].Port
+		for _, instance := range app.Instances {
+			if instance.Port != firstPort {
+				vportNecessary = true
+				break
+			}
+		}
+	}
+	if vportNecessary {
+		mcpbridge, err := w.mcpbridgeLister.McpBridges("higress-system").Get("default")
+		if err != nil {
+			return nil, err
+		} else {
+			registers := mcpbridge.Spec.Registries
+			for _, register := range registers {
+				if register.Type == w.Type && register.Name == w.Name {
+					log.Debugf("Registry mcp Watcher is ready, type:%s, name:%s", register.Type, register.Name)
+					if register.Vport == nil {
+						return nil, fmt.Errorf("vport is lost witch must be configed")
+					} else {
+						vport := register.Vport
+						sePort.Number = vport.Default
+						for _, service := range vport.Service {
+							if strings.ToLower(service.Name) == strings.ToLower(app.Name) {
+								sePort.Number = service.Value
+								break
+							}
+						}
+					}
+					log.Debugf("the vport of %s is : %d", app.Name, sePort.Number)
+					break
+				}
+			}
+		}
+	}
 	for _, instance := range app.Instances {
 		protocol := common.HTTP
 		if val, _ := instance.Metadata.GetString("protocol"); val != "" {
@@ -268,7 +321,11 @@ func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error
 			Protocol: protocol.String(),
 		}
 		if len(portList) == 0 {
-			portList = append(portList, port)
+			sePort.Name = port.Name
+			sePort.Protocol = port.Protocol
+			if !vportNecessary {
+				sePort.Number = port.Number
+			}
 		}
 		endpoint := v1alpha3.WorkloadEntry{
 			Address: instance.IPAddr,
@@ -277,7 +334,7 @@ func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error
 		}
 		endpoints = append(endpoints, &endpoint)
 	}
-
+	portList = append(portList, sePort)
 	se := &v1alpha3.ServiceEntry{
 		Hosts:      []string{makeHost(app.Name)},
 		Ports:      portList,

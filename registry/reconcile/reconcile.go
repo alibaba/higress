@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"path"
 	"reflect"
 	"sync"
@@ -46,23 +47,27 @@ const (
 
 type Reconciler struct {
 	memory.Cache
-	registries    map[string]*apiv1.RegistryConfig
-	watchers      map[string]Watcher
-	serviceUpdate func()
-	client        kube.Client
-	namespace     string
-	clusterId     string
+	registries      map[string]*apiv1.RegistryConfig
+	watchers        map[string]Watcher
+	serviceUpdate   func()
+	client          kube.Client
+	namespace       string
+	clusterId       string
+	mcpbridgeLister listersv1.McpBridgeLister
 }
 
 func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
+	informerFactory := client.HigressInformer()
+	mcpbridgeLister := informerFactory.Networking().V1().McpBridges().Lister()
 	return &Reconciler{
-		Cache:         memory.NewCache(),
-		registries:    make(map[string]*apiv1.RegistryConfig),
-		watchers:      make(map[string]Watcher),
-		serviceUpdate: serviceUpdate,
-		client:        client,
-		namespace:     namespace,
-		clusterId:     clusterId,
+		Cache:           memory.NewCache(),
+		registries:      make(map[string]*apiv1.RegistryConfig),
+		watchers:        make(map[string]Watcher),
+		serviceUpdate:   serviceUpdate,
+		client:          client,
+		namespace:       namespace,
+		clusterId:       clusterId,
+		mcpbridgeLister: mcpbridgeLister,
 	}
 }
 
@@ -229,6 +234,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			eureka.WithDomain(registry.Domain),
 			eureka.WithType(registry.Type),
 			eureka.WithPort(registry.Port),
+			eureka.WithMcpBridgeLister(r.mcpbridgeLister),
 		)
 	default:
 		return nil, errors.New("unsupported registry type:" + registry.Type)

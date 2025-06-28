@@ -28,6 +28,28 @@ func (this *RegistryConfig) UnmarshalJSON(b []byte) error {
 	return McpBridgeUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
+// MarshalJSON is a custom marshaler for RegistryConfig_VPort
+func (this *RegistryConfig_VPort) MarshalJSON() ([]byte, error) {
+	str, err := McpBridgeMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for RegistryConfig_VPort
+func (this *RegistryConfig_VPort) UnmarshalJSON(b []byte) error {
+	return McpBridgeUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
+// MarshalJSON is a custom marshaler for RegistryConfig_VPort_Service
+func (this *RegistryConfig_VPort_Service) MarshalJSON() ([]byte, error) {
+	str, err := McpBridgeMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for RegistryConfig_VPort_Service
+func (this *RegistryConfig_VPort_Service) UnmarshalJSON(b []byte) error {
+	return McpBridgeUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
 // MarshalJSON is a custom marshaler for InnerMap
 func (this *InnerMap) MarshalJSON() ([]byte, error) {
 	str, err := McpBridgeMarshaler.MarshalToString(this)
