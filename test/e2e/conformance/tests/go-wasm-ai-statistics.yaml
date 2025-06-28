@@ -1,0 +1,59 @@
+# Copyright (c) 2025 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: networking.k8s.io/v1  
+kind: Ingress  
+metadata:  
+  name: wasmplugin-ai-statistics-responses  
+  namespace: higress-conformance-ai-backend  
+spec:  
+  ingressClassName: higress  
+  rules:  
+    - host: "api.openai.com"  
+      http:  
+        paths:  
+          - pathType: Prefix  
+            path: "/"  
+            backend:  
+              service:  
+                name: llm-mock-service  
+                port:  
+                  number: 3000  
+---  
+apiVersion: extensions.higress.io/v1alpha1  
+kind: WasmPlugin  
+metadata:  
+  name: ai-statistics  
+  namespace: higress-system  
+spec:  
+  defaultConfigDisable: true  
+  phase: UNSPECIFIED_PHASE  
+  priority: 200  
+  matchRules:  
+    - config:  
+        # 启用默认的 OpenAI 使用统计  
+        disable_openai_usage: false  
+        # 可选：添加自定义属性提取  
+        attributes:  
+          - key: response_format  
+            value_source: response_body  
+            value: object  
+            apply_to_log: true  
+          - key: response_status  
+            value_source: response_body  
+            value: status  
+            apply_to_log: true  
+      ingress:  
+        - higress-conformance-ai-backend/wasmplugin-ai-statistics-responses  
+  url: file:///opt/plugins/wasm-go/extensions/ai-statistics/plugin.wasm
