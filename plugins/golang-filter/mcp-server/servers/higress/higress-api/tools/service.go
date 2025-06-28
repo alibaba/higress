@@ -1,0 +1,282 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
+	"github.com/mark3labs/mcp-go/mcp"
+)
+
+// RegisterServiceTools registers all service source management tools
+func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
+	// List all service sources
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("list_service_sources", "List all available service sources", getListServiceSourcesSchema()),
+		handleListServiceSources(client),
+	)
+
+	// Get specific service source
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("get_service_source", "Get detailed information about a specific service source", getServiceSourceSchema()),
+		handleGetServiceSource(client),
+	)
+
+	// Add new service source
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("add_service_source", "Add a new service source (SENSITIVE OPERATION)", getAddServiceSourceSchema()),
+		handleAddServiceSource(client),
+	)
+
+	// Update existing service source
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("update_service_source", "Update an existing service source (SENSITIVE OPERATION)", getUpdateServiceSourceSchema()),
+		handleUpdateServiceSource(client),
+	)
+}
+
+// handleListServiceSources handles the list_service_sources tool call
+func handleListServiceSources(client *higress.HigressClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		respBody, err := client.Get("/v1/service-sources")
+		if err != nil {
+			return nil, fmt.Errorf("failed to list service sources: %w", err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(respBody),
+				},
+			},
+		}, nil
+	}
+}
+
+// handleGetServiceSource handles the get_service_source tool call
+func handleGetServiceSource(client *higress.HigressClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		name, ok := arguments["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'name' argument")
+		}
+
+		respBody, err := client.Get(fmt.Sprintf("/v1/service-sources/%s", name))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get service source '%s': %w", name, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(respBody),
+				},
+			},
+		}, nil
+	}
+}
+
+// handleAddServiceSource handles the add_service_source tool call
+func handleAddServiceSource(client *higress.HigressClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		configurations, ok := arguments["configurations"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'configurations' argument")
+		}
+
+		// Validate required fields
+		if _, ok := configurations["name"]; !ok {
+			return nil, fmt.Errorf("missing required field 'name' in configurations")
+		}
+		if _, ok := configurations["type"]; !ok {
+			return nil, fmt.Errorf("missing required field 'type' in configurations")
+		}
+		if _, ok := configurations["domain"]; !ok {
+			return nil, fmt.Errorf("missing required field 'domain' in configurations")
+		}
+		if _, ok := configurations["port"]; !ok {
+			return nil, fmt.Errorf("missing required field 'port' in configurations")
+		}
+
+		respBody, err := client.Post("/v1/service-sources", configurations)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add service source: %w", err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(respBody),
+				},
+			},
+		}, nil
+	}
+}
+
+// handleUpdateServiceSource handles the update_service_source tool call
+func handleUpdateServiceSource(client *higress.HigressClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		name, ok := arguments["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'name' argument")
+		}
+
+		configurations, ok := arguments["configurations"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'configurations' argument")
+		}
+
+		// Get current service source configuration to merge with updates
+		currentBody, err := client.Get(fmt.Sprintf("/v1/service-sources/%s", name))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current service source configuration: %w", err)
+		}
+
+		var currentSource map[string]interface{}
+		if err := json.Unmarshal(currentBody, &currentSource); err != nil {
+			return nil, fmt.Errorf("failed to parse current service source configuration: %w", err)
+		}
+
+		// Merge configurations
+		for key, value := range configurations {
+			currentSource[key] = value
+		}
+
+		respBody, err := client.Put(fmt.Sprintf("/v1/service-sources/%s", name), currentSource)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update service source '%s': %w", name, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(respBody),
+				},
+			},
+		}, nil
+	}
+}
+
+// getListServiceSourcesSchema returns the JSON schema for list_service_sources tool
+func getListServiceSourcesSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {},
+		"additionalProperties": false
+	}`)
+}
+
+// getServiceSourceSchema returns the JSON schema for get_service_source tool
+func getServiceSourceSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string",
+				"description": "The name of the service source to retrieve"
+			}
+		},
+		"required": ["name"],
+		"additionalProperties": false
+	}`)
+}
+
+// getAddServiceSourceSchema returns the JSON schema for add_service_source tool
+func getAddServiceSourceSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"configurations": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "The name of the service source (required)"
+					},
+					"type": {
+						"type": "string",
+						"enum": ["static", "dns"],
+						"description": "The type of service source: 'static' for static IPs, 'dns' for DNS resolution (required)"
+					},
+					"domain": {
+						"type": "string",
+						"description": "The domain name or IP address (required)"
+					},
+					"port": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 65535,
+						"description": "The port number (required)"
+					},
+					"protocol": {
+						"type": "string",
+						"enum": ["http", "https"],
+						"description": "The protocol to use (optional, defaults to http)"
+					},
+					"sni": {
+						"type": "string",
+						"description": "Server Name Indication for HTTPS connections (optional)"
+					}
+				},
+				"required": ["name", "type", "domain", "port"],
+				"additionalProperties": false
+			}
+		},
+		"required": ["configurations"],
+		"additionalProperties": false
+	}`)
+}
+
+// getUpdateServiceSourceSchema returns the JSON schema for update_service_source tool
+func getUpdateServiceSourceSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"name": {
+				"type": "string",
+				"description": "The name of the service source to update (required)"
+			},
+			"configurations": {
+				"type": "object",
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": ["static", "dns"],
+						"description": "The type of service source: 'static' for static IPs, 'dns' for DNS resolution"
+					},
+					"domain": {
+						"type": "string",
+						"description": "The domain name or IP address"
+					},
+					"port": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 65535,
+						"description": "The port number"
+					},
+					"protocol": {
+						"type": "string",
+						"enum": ["http", "https"],
+						"description": "The protocol to use"
+					},
+					"sni": {
+						"type": "string",
+						"description": "Server Name Indication for HTTPS connections"
+					}
+				},
+				"additionalProperties": false
+			}
+		},
+		"required": ["name", "configurations"],
+		"additionalProperties": false
+	}`)
+}

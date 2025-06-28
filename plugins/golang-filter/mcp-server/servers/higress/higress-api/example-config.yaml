@@ -1,0 +1,147 @@
+# Higress MCP Server 配置示例
+# 
+# 这个配置文件展示了如何在 Envoy Filter 中配置 Higress MCP Server
+# 
+# 使用方法：
+# 1. 将此配置添加到 Envoy 的 HTTP Filter 链中
+# 2. 修改 higressURL、username、password 为实际的 Higress Console 信息
+# 3. 根据需要调整 domain_list 和 path
+
+name: mcp-server
+typed_config:
+  "@type": type.googleapis.com/xds.type.v3.TypedStruct
+  type_url: type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+  value:
+    library_id: mcp-server
+    library_path: /path/to/mcp-server.so
+    plugin_name: mcp-server
+    plugin_config:
+      servers:
+        - type: higress-api                      # 服务器类型：higress-api
+          name: higress-console                  # 服务器实例名称
+          path: /higress                         # MCP 服务路径
+          domain_list:                           # 允许访问的域名列表
+            - "console.example.com"
+            - "*.higress.local"
+          config:                                # Higress Console 连接配置
+            higressURL: "https://console.example.com"  # Higress Console URL
+            username: "admin"                    # 用户名
+            password: "your-password"            # 密码
+            description: "Production Higress Console Management"  # 描述（可选）
+
+---
+# 完整的 Envoy HTTP Filter 配置示例
+http_filters:
+  # 首先配置 mcp-session（会话管理）
+  - name: mcp-session
+    typed_config:
+      "@type": type.googleapis.com/xds.type.v3.TypedStruct
+      type_url: type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+      value:
+        library_id: mcp-session
+        library_path: /path/to/mcp-session.so
+        plugin_name: mcp-session
+        plugin_config:
+          redis:
+            host: "redis.example.com"
+            port: 6379
+            password: "redis-password"
+            db: 0
+          rate_limit:
+            default_requests_per_minute: 100
+          auth:
+            enabled: true
+
+  # 然后配置 mcp-server（包含 higress-ops）
+  - name: mcp-server
+    typed_config:
+      "@type": type.googleapis.com/xds.type.v3.TypedStruct
+      type_url: type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
+      value:
+        library_id: mcp-server
+        library_path: /path/to/mcp-server.so
+        plugin_name: mcp-server
+        plugin_config:
+          servers:
+            # GORM 数据库服务器示例
+            - type: gorm
+              name: database-server
+              path: /db
+              domain_list: ["*"]
+              config:
+                dsn: "postgres://user:pass@localhost/dbname?sslmode=disable"
+                
+            # Higress 管理服务器
+            - type: higress-api
+              name: higress-console
+              path: /higress
+              domain_list: ["console.example.com"]
+              config:
+                higressURL: "https://console.example.com"
+                username: "admin"
+                password: "your-password"
+                description: "Higress Console Management Server"
+
+---
+# 使用示例：
+#
+# 1. 建立 SSE 连接：
+#    GET /higress/sse
+#    返回：endpoint URL 和 sessionId
+#
+# 2. 列出所有路由：
+#    POST /higress?sessionId=xxx
+#    {
+#      "method": "tools/call",
+#      "params": {
+#        "name": "list_routes",
+#        "arguments": {}
+#      }
+#    }
+#
+# 3. 获取特定路由：
+#    POST /higress?sessionId=xxx
+#    {
+#      "method": "tools/call",
+#      "params": {
+#        "name": "get_route",
+#        "arguments": {
+#          "name": "my-route"
+#        }
+#      }
+#    }
+#
+# 4. 添加新路由（敏感操作）：
+#    POST /higress?sessionId=xxx
+#    {
+#      "method": "tools/call",
+#      "params": {
+#        "name": "add_route",
+#        "arguments": {
+#          "configurations": {
+#            "name": "new-route",
+#            "path": {
+#              "matchType": "PRE",
+#              "matchValue": "/api/"
+#            },
+#            "services": [
+#              {
+#                "name": "backend-service",
+#                "port": 8080,
+#                "weight": 100
+#              }
+#            ]
+#          }
+#        }
+#      }
+#    }
+#
+# 5. 健康检查：
+#    POST /higress?sessionId=xxx
+#    {
+#      "method": "tools/call",
+#      "params": {
+#        "name": "health_check",
+#        "arguments": {}
+#      }
+#    } 
