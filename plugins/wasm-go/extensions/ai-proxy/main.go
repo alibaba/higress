@@ -25,7 +25,9 @@ const (
 	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseOverrideConfig(parseGlobalConfig, parseOverrideRuleConfig),

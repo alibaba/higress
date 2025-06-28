@@ -26,7 +26,9 @@ const ActionPattern = `Action:\s*(.*?)[.\n]`
 const ActionInputPattern = `Action Input:\s*(.*)`
 const FinalAnswerPattern = `Final Answer:(.*)`
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-agent",
 		wrapper.ParseConfigBy(parseConfig),

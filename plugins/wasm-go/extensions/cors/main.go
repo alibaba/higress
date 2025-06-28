@@ -25,7 +25,9 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"cors",
 		wrapper.ParseConfigBy(parseConfig),

@@ -33,10 +33,11 @@ import (
 // @Contact.email ink33@smlk.org
 //
 // @Example
-//{}
+// {}
 // @End
+func main() {}
 
-func main() {
+func init() {
 	wrapper.SetCtx(
 		// 插件名称
 		"jwt-auth",

@@ -84,7 +84,9 @@ type WeightGroup struct {
 	Accumulate  int64
 }
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		PluginName,
 		wrapper.ParseConfigBy(parseConfig),

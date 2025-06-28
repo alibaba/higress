@@ -110,7 +110,9 @@ type PluginConfig struct {
 	enableJsonSchemaValidation bool
 }
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-json-resp",
 		wrapper.ParseConfigBy(parseConfig),

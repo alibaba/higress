@@ -29,7 +29,9 @@ import (
 	"github.com/tidwall/resp"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-token-ratelimit",
 		wrapper.ParseConfigBy(parseConfig),

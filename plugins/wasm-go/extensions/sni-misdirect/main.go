@@ -9,7 +9,9 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"sni-misdirect",
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),

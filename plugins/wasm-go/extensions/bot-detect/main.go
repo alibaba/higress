@@ -26,7 +26,9 @@ import (
 	regexp "github.com/wasilibs/go-re2"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"bot-detect",
 		wrapper.ParseConfigBy(parseConfig),

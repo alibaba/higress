@@ -26,7 +26,9 @@ const (
 	DEFAULT_MAX_BODY_BYTES uint32 = 100 * 1024 * 1024
 )
 
-func main() {
+func main() {}
+
+func init() {
 	// CreateClient()
 	wrapper.SetCtx(
 		PLUGIN_NAME,

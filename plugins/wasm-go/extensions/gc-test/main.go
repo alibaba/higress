@@ -11,7 +11,9 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	SetCtx(
 		"gc-test",
 		ParseConfigBy(parseConfig),

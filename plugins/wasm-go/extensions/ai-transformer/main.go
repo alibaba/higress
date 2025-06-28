@@ -12,7 +12,9 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-transformer",
 		wrapper.ParseConfigBy(parseConfig),

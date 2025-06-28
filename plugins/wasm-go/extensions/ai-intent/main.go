@@ -23,7 +23,9 @@ const (
 	defaultTimeout = 10 * 1000 // ms
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-intent",
 		wrapper.ParseConfigBy(parseConfig),

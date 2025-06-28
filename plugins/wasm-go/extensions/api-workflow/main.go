@@ -36,7 +36,9 @@ const (
 	DefaultTimeout     uint32 = 5000
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"api-workflow",
 		wrapper.ParseConfigBy(parseConfig),

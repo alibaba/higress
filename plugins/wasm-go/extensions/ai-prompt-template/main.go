@@ -10,7 +10,9 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-prompt-template",
 		wrapper.ParseConfigBy(parseConfig),

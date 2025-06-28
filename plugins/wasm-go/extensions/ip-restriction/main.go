@@ -31,7 +31,9 @@ type RestrictionConfig struct {
 	Message      string         `json:"message"`        //被拒绝时返回的消息
 }
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ip-restriction",
 		wrapper.ParseConfigBy(parseConfig),

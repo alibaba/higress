@@ -26,7 +26,9 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"http-call",
 		wrapper.ParseConfigBy(parseConfig),

@@ -29,7 +29,9 @@ const (
 	ChatHistories            = "chatHistories"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-history",
 		wrapper.ParseConfigBy(parseConfig),

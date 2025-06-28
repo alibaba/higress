@@ -34,7 +34,9 @@ var internalIpCidr []string = []string{"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/11
 	"192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24", "224.0.0.0/3",
 }
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"geo-ip",
 		wrapper.ParseConfigBy(parseConfig),

@@ -32,7 +32,9 @@ const (
 	defaultRejectedCode = 403
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"request-validation",
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),

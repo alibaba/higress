@@ -12,8 +12,9 @@ import (
 )
 
 // 自定义插件配置
+func main() {}
 
-func main() {
+func init() {
 	wrapper.SetCtx(
 		"simple-jwt-auth", // 配置插件名称
 		wrapper.ParseConfigBy(parseConfig),

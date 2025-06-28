@@ -31,7 +31,9 @@ var (
 	protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: Key realm=MSE Gateway
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"key-auth", // middleware name
 		wrapper.ParseOverrideConfigBy(parseGlobalConfig, parseOverrideRuleConfig),

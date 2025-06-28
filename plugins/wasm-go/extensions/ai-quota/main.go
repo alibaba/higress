@@ -39,7 +39,9 @@ const (
 	AdminModeNone    AdminMode = "none"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseConfigBy(parseConfig),

@@ -23,6 +23,7 @@ import (
 
 	"cluster-key-rate-limit/config"
 	"cluster-key-rate-limit/util"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -31,7 +32,9 @@ import (
 	"github.com/tidwall/resp"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"cluster-key-rate-limit",
 		wrapper.ParseConfig(parseConfig),

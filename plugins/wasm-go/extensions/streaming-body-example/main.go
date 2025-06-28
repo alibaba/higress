@@ -21,7 +21,9 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"streaming-body-example",
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),

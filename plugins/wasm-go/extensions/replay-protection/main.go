@@ -3,15 +3,18 @@ package main
 import (
 	"fmt"
 
+	"replay-protection/config"
+	"replay-protection/util"
+
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/resp"
-	"replay-protection/config"
-	"replay-protection/util"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"replay-protection",
 		wrapper.ParseConfigBy(config.ParseConfig),

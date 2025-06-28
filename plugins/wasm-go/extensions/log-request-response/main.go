@@ -36,7 +36,9 @@ var http2HeaderMap = map[string]string{
 	":status":    "status",
 }
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		// Plugin name
 		pluginName,

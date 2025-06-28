@@ -80,7 +80,9 @@ var privateSearchPrompts string
 //go:embed prompts/chinese-internet.md
 var chineseInternetSearchPrompts string
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-search",
 		wrapper.ParseConfigBy(parseConfig),
