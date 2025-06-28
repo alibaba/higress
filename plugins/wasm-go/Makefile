@@ -1,7 +1,7 @@
 PLUGIN_NAME ?= hello-world
 BUILDER_REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
 REGISTRY ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/
-GO_VERSION ?= 1.20.14
+GO_VERSION ?= 1.24
 TINYGO_VERSION ?= 0.29.0
 ORAS_VERSION ?= 1.0.0
 HIGRESS_VERSION ?= 1.0.0-rc
@@ -64,9 +64,8 @@ builder:
 	@echo "image: ${BUILDER}"
 
 local-build:
-	tinygo build -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' \
-		-o extensions/${PLUGIN_NAME}/main.wasm \
-		extensions/${PLUGIN_NAME}/main.go
+	GOOS=wasip1 GOARCH=wasm go build -o extensions/${PLUGIN_NAME}/main.wasm extensions/${PLUGIN_NAME}/main.go
+
 	@echo ""
 	@echo "wasm: extensions/${PLUGIN_NAME}/main.wasm"
 
