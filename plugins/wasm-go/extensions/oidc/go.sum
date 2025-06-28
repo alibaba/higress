@@ -11,8 +11,8 @@ github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/gorilla/mux v1.8.1 h1:TuBL49tXwgrFYWhqrNgrUNEY92u81SPhu7sTdzQEiWY=
 github.com/gorilla/mux v1.8.1/go.mod h1:AKf9I4AEqPTmMytcMc0KkNouC66V3BtZ4qD5fmWSiMQ=
-github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 h1:IHDghbGQ2DTIXHBHxWfqCYQW1fKjyJ/I7W1pMyUDeEA=
-github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520/go.mod h1:Nz8ORLaFiLWotg6GeKlJMhv8cci8mM43uEnLA5t8iew=
+
+
 github.com/higress-group/oauth2-proxy v1.0.1-0.20241112053537-6731cf68d467 h1:A/29Au8/Eoys+2oXRWnY2draLKCZ7Yg4gbg2cWi57lE=
 github.com/higress-group/oauth2-proxy v1.0.1-0.20241112053537-6731cf68d467/go.mod h1:UOXEF1DEkmLIfVO0p+gP5ceGPuWHI4IKMmQGt8aUTrw=
 github.com/higress-group/oauth2-proxy v1.0.1-0.20241227095721-c1a05d79c2a3 h1:wy/whwuL2rJ1BVhysgjGJ3cZ8kPxmX+2YP72fbvVZ9U=

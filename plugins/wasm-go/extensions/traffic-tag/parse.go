@@ -21,15 +21,15 @@ import (
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/wasm-go/pkg/log"
 	regexp "github.com/wasilibs/go-re2"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
 var regexCache = map[string]*regexp.Regexp{}
 
-func parseContentConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.Log) error {
+func parseContentConfig(json gjson.Result, config *TrafficTagConfig, log log.Log) error {
 	var parseError error
 	config.ConditionGroups = []ConditionGroup{}
 
@@ -79,7 +79,7 @@ func parseContentConfig(json gjson.Result, config *TrafficTagConfig, log wrapper
 	return parseError
 }
 
-func parseWeightConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.Log) error {
+func parseWeightConfig(json gjson.Result, config *TrafficTagConfig, log log.Log) error {
 	var parseError error
 	var accumulatedWeight int64
 	config.WeightGroups = []WeightGroup{}

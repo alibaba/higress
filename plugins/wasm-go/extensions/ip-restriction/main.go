@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
 )
@@ -40,7 +41,7 @@ func init() {
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders))
 }
 
-func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *RestrictionConfig, log log.Log) error {
 	sourceType := json.Get("ip_source_type")
 	if sourceType.Exists() && sourceType.String() != "" {
 		switch sourceType.String() {
@@ -119,7 +120,7 @@ func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
 	return realIP, nil
 }
 
-func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig, log log.Log) types.Action {
 	realIp, err := getDownStreamIp(config)
 	if err != nil {
 		return deniedUnauthorized(config, "get_ip_failed")

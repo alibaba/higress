@@ -1,14 +1,15 @@
 module wasm-demo
 
-go 1.18
+go 1.24
 
 require (
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/tidwall/gjson v1.17.3
 )
 
+replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
+
 require (
-	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 // indirect
 	github.com/magefile/mage v1.14.0 // indirect
 	github.com/tidwall/resp v0.1.1 // indirect
 )

@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -58,8 +59,8 @@ func (d *milvusProvider) UploadAnswerAndEmbedding(
 	queryEmb []float64,
 	queryAnswer string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 collectionName, data 和 Authorization. question, answer 可选
 	// 需要填写 id，否则 v2.4.13-hotfix 提示 invalid syntax: invalid parameter[expected=Int64][actual=]
 	// 如果不填写 id，要在创建 collection 的时候设置 autoId 为 true
@@ -120,8 +121,8 @@ type milvusQueryRequest struct {
 func (d *milvusProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 collectionName, data, annsField. outputFields 为可选参数
 	// 下面是一个例子
 	// {
@@ -175,7 +176,7 @@ func (d *milvusProvider) QueryEmbedding(
 	)
 }
 
-func (d *milvusProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
+func (d *milvusProvider) parseQueryResponse(responseBody []byte, log log.Log) ([]QueryResult, error) {
 	if !gjson.GetBytes(responseBody, "data.0.distance").Exists() {
 		log.Errorf("[Milvus] No distance found in response body: %s", responseBody)
 		return nil, errors.New("[Milvus] No distance found in response body")

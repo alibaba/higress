@@ -18,8 +18,9 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -94,7 +95,7 @@ func init() {
 	)
 }
 
-func parseConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *TrafficTagConfig, log log.Log) error {
 
 	jsonStr := strings.TrimSpace(json.Raw)
 	if jsonStr == "{}" || jsonStr == "" {
@@ -110,7 +111,7 @@ func parseConfig(json gjson.Result, config *TrafficTagConfig, log wrapper.Log) e
 	return parseWeightConfig(json, config, log)
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config TrafficTagConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config TrafficTagConfig, log log.Log) types.Action {
 
 	add := false
 	if len(config.ConditionGroups) != 0 {

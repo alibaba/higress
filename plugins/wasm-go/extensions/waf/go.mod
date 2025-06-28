@@ -10,10 +10,12 @@ require (
 	github.com/tidwall/gjson v1.17.3
 )
 
+replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
+
 require (
 	github.com/corazawaf/libinjection-go v0.1.2 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 // indirect
+
 	github.com/magefile/mage v1.14.0 // indirect
 	github.com/petar-dambovaliev/aho-corasick v0.0.0-20211021192214-5ab2d9280aa9 // indirect
 	github.com/tetratelabs/wazero v1.6.0 // indirect
