@@ -43,12 +43,12 @@ const (
 	ApiNameModels                               ApiName = "openai/v1/models"
 	ApiNameResponses                            ApiName = "openai/v1/responses"
 	ApiNameFineTuningJobs                       ApiName = "openai/v1/fine-tuningjobs"
-	ApiNameFineTuningRetrieveJob                ApiName = "openai/v1/retrievefine-tuningjob"
+	ApiNameRetrieveFineTuningJob                ApiName = "openai/v1/retrievefine-tuningjob"
 	ApiNameFineTuningJobEvents                  ApiName = "openai/v1/fine-tuningjobsevents"
 	ApiNameFineTuningJobCheckpoints             ApiName = "openai/v1/fine-tuningjobcheckpoints"
-	ApiNameFineTuningCancelJob                  ApiName = "openai/v1/cancelfine-tuningjob"
-	ApiNameFineTuningResumeJob                  ApiName = "openai/v1/resumefine-tuningjob"
-	ApiNameFineTuningPauseJob                   ApiName = "openai/v1/pausefine-tuningjob"
+	ApiNameCancelFineTuningJob                  ApiName = "openai/v1/cancelfine-tuningjob"
+	ApiNameResumeFineTuningJob                  ApiName = "openai/v1/resumefine-tuningjob"
+	ApiNamePauseFineTuningJob                   ApiName = "openai/v1/pausefine-tuningjob"
 	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
 	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
 
@@ -68,12 +68,12 @@ const (
 	PathOpenAIAudioSpeech                          = "/v1/audio/speech"
 	PathOpenAIResponses                            = "/v1/responses"
 	PathOpenAIFineTuningJobs                       = "/v1/fine_tuning/jobs"
-	PathOpenAIFineTuningRetrieveJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
+	PathOpenAIRetrieveFineTuningJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
 	PathOpenAIFineTuningJobEvents                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/events"
 	PathOpenAIFineTuningJobCheckpoints             = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/checkpoints"
-	PathOpenAIFineTuningCancelJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel"
-	PathOpenAIFineTuningResumeJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/resume"
-	PathOpenAIFineTuningPauseJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
+	PathOpenAICancelFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel"
+	PathOpenAIResumeFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/resume"
+	PathOpenAIPauseFineTuningJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
 	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
 	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
 
@@ -296,6 +296,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock Region
 	// @Description zh-CN 仅适用于Amazon Bedrock服务访问
 	awsRegion string `required:"false" yaml:"awsRegion" json:"awsRegion"`
+	// @Title zh-CN Amazon Bedrock 额外模型请求参数
+	// @Description zh-CN 仅适用于Amazon Bedrock服务，用于设置模型特定的推理参数
+	bedrockAdditionalFields map[string]interface{} `required:"false" yaml:"bedrockAdditionalFields" json:"bedrockAdditionalFields"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -424,6 +427,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.awsAccessKey = json.Get("awsAccessKey").String()
 	c.awsSecretKey = json.Get("awsSecretKey").String()
 	c.awsRegion = json.Get("awsRegion").String()
+	if c.typ == providerTypeBedrock {
+		c.bedrockAdditionalFields = make(map[string]interface{})
+		for k, v := range json.Get("bedrockAdditionalFields").Map() {
+			c.bedrockAdditionalFields[k] = v.Value()
+		}
+	}
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
