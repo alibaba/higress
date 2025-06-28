@@ -1,6 +1,6 @@
 module github.com/alibaba/higress/plugins/wasm-go/extensions/ai-agent
 
-go 1.19
+go 1.24
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v1.4.2

@@ -1,6 +1,6 @@
 module github.com/alibaba/higress/plugins/wasm-go/extensions/oidc
 
-go 1.20
+go 1.24
 
 // toolchain go1.22.5
 

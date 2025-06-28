@@ -1,6 +1,6 @@
 module ai-image-reader
 
-go 1.19
+go 1.24
 
 require (
 	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250621002302-e94ac43dd15c
