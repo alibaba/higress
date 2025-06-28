@@ -2,10 +2,8 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/request-validation
 
 go 1.24
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.3.1
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/santhosh-tekuri/jsonschema v1.2.4
 	github.com/tidwall/gjson v1.17.3

@@ -2,10 +2,8 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/traffic-tag
 
 go 1.24
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.1-0.20240612065146-12cc44b3247f
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/tidwall/gjson v1.17.3
 	github.com/wasilibs/go-re2 v1.6.0

@@ -3,7 +3,7 @@ module mcp-router
 go 1.24.1
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250612125225-016b165a33c9
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250402062734-d50d98c305f0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/sjson v1.2.5

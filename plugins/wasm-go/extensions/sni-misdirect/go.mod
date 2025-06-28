@@ -2,10 +2,8 @@ module wasm_go/higress/plugins/wasm-go/extensions/sni_misdirect
 
 go 1.24
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.3.1
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 )
 

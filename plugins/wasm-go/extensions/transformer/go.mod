@@ -2,10 +2,8 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/transformer
 
 go 1.24
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0-20230829022308-8747e1ddadf0
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4

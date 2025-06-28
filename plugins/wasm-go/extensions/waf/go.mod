@@ -3,7 +3,7 @@ module github.com/corazawaf/coraza-proxy-wasm
 go 1.24
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/corazawaf/coraza-wasilibs v0.0.0-20230408002644-e2e3af21f503
 	github.com/corazawaf/coraza/v3 v3.0.0-rc.1.0.20230407165813-a18681b1ec28
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
@@ -26,5 +26,3 @@ require (
 	golang.org/x/net v0.9.0 // indirect
 	rsc.io/binaryregexp v0.2.0 // indirect
 )
-
-replace github.com/alibaba/higress/plugins/wasm-go => ../..

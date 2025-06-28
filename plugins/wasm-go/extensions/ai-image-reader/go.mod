@@ -3,7 +3,7 @@ module ai-image-reader
 go 1.24
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.4-0.20250621002302-e94ac43dd15c
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/tidwall/gjson v1.18.0
 )
 

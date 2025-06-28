@@ -2,10 +2,8 @@ module ai-token-ratelimit
 
 go 1.18
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.1-0.20240617024146-5f150179637c
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/tidwall/gjson v1.17.3
 	github.com/wasilibs/go-re2 v1.5.3

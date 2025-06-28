@@ -2,10 +2,8 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth
 
 go 1.24
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.3.5
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/tidwall/gjson v1.17.3

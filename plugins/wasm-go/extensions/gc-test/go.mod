@@ -2,12 +2,10 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/gc-test
 
 go 1.24
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
-
 replace github.com/wasilibs/nottinygc v0.5.1 => github.com/higress-group/nottinygc v0.0.0-20231019105920-c4d985d443e1
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/tidwall/gjson v1.17.3
 )

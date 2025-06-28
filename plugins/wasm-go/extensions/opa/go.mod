@@ -3,7 +3,7 @@ module github.com/alibaba/higress/plugins/wasm-go/extensions/opa
 go 1.24
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0
+	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.17.3
@@ -20,5 +20,3 @@ require (
 	github.com/tidwall/resp v0.1.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
