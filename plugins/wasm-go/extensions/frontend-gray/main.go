@@ -129,23 +129,26 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	isIndexRequest, indexOk := ctx.GetContext(config.IsIndexRequest).(bool)
-	if indexOk && isIndexRequest {
-		// 首页请求强制不缓存
-		proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
+	if !grayConfig.UseManifestAsEntry {
+		isIndexRequest, indexOk := ctx.GetContext(config.IsIndexRequest).(bool)
+		if indexOk && isIndexRequest {
+			// 首页请求强制不缓存
+			proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
+			ctx.DontReadResponseBody()
+			return types.ActionContinue
+		}
+
+		isHtmlRequest, htmlOk := ctx.GetContext(config.IsHtmlRequest).(bool)
+		// response 不处理非首页的请求
+		if !htmlOk || !isHtmlRequest {
+			ctx.DontReadResponseBody()
+			return types.ActionContinue
+		} else {
+			// 不会进去Streaming 的Body处理
+			ctx.BufferResponseBody()
+		}
 	}
 
-	isHtmlRequest, htmlOk := ctx.GetContext(config.IsHtmlRequest).(bool)
-	// response 不处理非首页的请求
-	if !htmlOk || !isHtmlRequest {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	} else {
-		// 不会进去Streaming 的Body处理
-		ctx.BufferResponseBody()
-	}
 	// 处理HTML的首页
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
