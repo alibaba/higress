@@ -182,46 +182,30 @@ func getUpdateRequestBlockConfigSchema() json.RawMessage {
 			"configurations": {
 				"type": "object",
 				"properties": {
-					"block_urls": {
-						"type": "array",
-						"items": {"type": "string"},
-						"description": "List of URLs to block"
-					},
-					"block_headers": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"key": {"type": "string"},
-								"value": {"type": "string"}
-							},
-							"required": ["key", "value"]
-						},
-						"description": "List of headers to block"
-					},
-					"block_ips": {
-						"type": "array",
-						"items": {"type": "string"},
-						"description": "List of IP addresses to block"
-					},
 					"block_bodies": {
 						"type": "array",
 						"items": {"type": "string"},
-						"description": "List of request body patterns to block"
+						"description": "List of patterns to match against request body content"
 					},
-					"case_sensitive": {
-						"type": "boolean",
-						"description": "Whether pattern matching is case sensitive"
+					"block_headers": {
+						"type": "array",
+						"items": {"type": "string"},
+						"description": "List of patterns to match against request headers"
+					},
+					"block_urls": {
+						"type": "array",
+						"items": {"type": "string"},
+						"description": "List of patterns to match against request URLs"
 					},
 					"blocked_code": {
 						"type": "integer",
 						"minimum": 100,
 						"maximum": 599,
-						"description": "HTTP status code to return when blocking requests"
+						"description": "HTTP status code to return when a block is matched"
 					},
-					"blocked_message": {
-						"type": "string",
-						"description": "Message to return when blocking requests"
+					"case_sensitive": {
+						"type": "boolean",
+						"description": "Whether the block matching is case sensitive"
 					}
 				},
 				"additionalProperties": false
