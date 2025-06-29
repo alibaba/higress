@@ -20,7 +20,6 @@ type HigressClient struct {
 	httpClient *http.Client
 }
 
-// NewHigressClient creates a new HigressClient instance
 func NewHigressClient(baseURL, username, password string) *HigressClient {
 	client := &HigressClient{
 		baseURL:  baseURL,
@@ -36,22 +35,18 @@ func NewHigressClient(baseURL, username, password string) *HigressClient {
 	return client
 }
 
-// Get performs a GET request to the Higress Console API
 func (c *HigressClient) Get(path string) ([]byte, error) {
 	return c.request("GET", path, nil)
 }
 
-// Post performs a POST request to the Higress Console API
 func (c *HigressClient) Post(path string, data interface{}) ([]byte, error) {
 	return c.request("POST", path, data)
 }
 
-// Put performs a PUT request to the Higress Console API
 func (c *HigressClient) Put(path string, data interface{}) ([]byte, error) {
 	return c.request("PUT", path, data)
 }
 
-// request performs an HTTP request to the Higress Console API
 func (c *HigressClient) request(method, path string, data interface{}) ([]byte, error) {
 	url := c.baseURL + path
 
