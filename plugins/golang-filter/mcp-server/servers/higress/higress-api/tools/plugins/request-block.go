@@ -14,62 +14,13 @@ const RequestBlockPluginName = "request-block"
 
 // RegisterRequestBlockPluginTools registers all request block plugin management tools
 func RegisterRequestBlockPluginTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
-	// Get request block configuration
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("get_request_block_config", "Get request block plugin configuration", getRequestBlockConfigSchema()),
-		handleGetRequestBlockConfig(client),
-	)
-
 	// Update request block configuration
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("update_request_block_config", "Update request block plugin configuration (SENSITIVE OPERATION)", getUpdateRequestBlockConfigSchema()),
+		mcp.NewToolWithRawSchema("update-request-block-config", "Update request block plugin configuration", getUpdateRequestBlockConfigSchema()),
 		handleUpdateRequestBlockConfig(client),
 	)
 }
 
-// handleGetRequestBlockConfig handles the get_request_block_config tool call
-func handleGetRequestBlockConfig(client *higress.HigressClient) common.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		arguments := request.Params.Arguments
-
-		// Parse required parameters
-		scope, ok := arguments["scope"].(string)
-		if !ok {
-			return nil, fmt.Errorf("missing or invalid 'scope' argument")
-		}
-
-		if !IsValidScope(scope) {
-			return nil, fmt.Errorf("invalid scope '%s', must be one of: %v", scope, ValidScopes)
-		}
-
-		// Parse resource_name (required for non-global scopes)
-		var resourceName string
-		if scope != ScopeGlobal {
-			resourceName, ok = arguments["resource_name"].(string)
-			if !ok || resourceName == "" {
-				return nil, fmt.Errorf("'resource_name' is required for scope '%s'", scope)
-			}
-		}
-
-		// Build API path and make request
-		path := BuildPluginPath(RequestBlockPluginName, scope, resourceName)
-		respBody, err := client.Get(path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get request block config at scope '%s': %w", scope, err)
-		}
-
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				mcp.TextContent{
-					Type: "text",
-					Text: string(respBody),
-				},
-			},
-		}, nil
-	}
-}
-
-// handleUpdateRequestBlockConfig handles the update_request_block_config tool call
 func handleUpdateRequestBlockConfig(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -141,27 +92,6 @@ func handleUpdateRequestBlockConfig(client *higress.HigressClient) common.ToolHa
 	}
 }
 
-// getRequestBlockConfigSchema returns the JSON schema for get_request_block_config tool
-func getRequestBlockConfigSchema() json.RawMessage {
-	return json.RawMessage(`{
-		"type": "object",
-		"properties": {
-			"scope": {
-				"type": "string",
-				"enum": ["global", "domain", "service", "route"],
-				"description": "The scope at which the plugin is applied"
-			},
-			"resource_name": {
-				"type": "string",
-				"description": "The name of the resource (required for domain, service, route scopes)"
-			}
-		},
-		"required": ["scope"],
-		"additionalProperties": false
-	}`)
-}
-
-// getUpdateRequestBlockConfigSchema returns the JSON schema for update_request_block_config tool
 func getUpdateRequestBlockConfigSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",

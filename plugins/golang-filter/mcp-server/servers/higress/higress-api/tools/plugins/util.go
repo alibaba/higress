@@ -1,5 +1,7 @@
 package plugins
 
+import "fmt"
+
 // Plugin scope constants
 const (
 	ScopeGlobal  = "global"
@@ -25,14 +27,14 @@ func IsValidScope(scope string) bool {
 func BuildPluginPath(pluginName, scope, resourceName string) string {
 	switch scope {
 	case ScopeGlobal:
-		return "/v1/plugins/" + pluginName
+		return fmt.Sprintf("/v1/global/plugin-instances/%s", pluginName)
 	case ScopeDomain:
-		return "/v1/domains/" + resourceName + "/plugins/" + pluginName
+		return fmt.Sprintf("/v1/domains/%s/plugin-instances/%s", resourceName, pluginName)
 	case ScopeService:
-		return "/v1/services/" + resourceName + "/plugins/" + pluginName
+		return fmt.Sprintf("/v1/services/%s/plugin-instances/%s", resourceName, pluginName)
 	case ScopeRoute:
-		return "/v1/routes/" + resourceName + "/plugins/" + pluginName
+		return fmt.Sprintf("/v1/routes/%s/plugin-instances/%s", resourceName, pluginName)
 	default:
-		return "/v1/plugins/" + pluginName
+		return fmt.Sprintf("/v1/global/plugin-instances/%s", pluginName)
 	}
 }

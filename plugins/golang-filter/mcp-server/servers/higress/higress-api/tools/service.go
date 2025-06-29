@@ -14,30 +14,29 @@ import (
 func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all service sources
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list_service_sources", "List all available service sources", getListServiceSourcesSchema()),
+		mcp.NewToolWithRawSchema("list-service-sources", "List all available service sources", getListServiceSourcesSchema()),
 		handleListServiceSources(client),
 	)
 
 	// Get specific service source
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("get_service_source", "Get detailed information about a specific service source", getServiceSourceSchema()),
+		mcp.NewToolWithRawSchema("get-service-source", "Get detailed information about a specific service source", getServiceSourceSchema()),
 		handleGetServiceSource(client),
 	)
 
 	// Add new service source
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("add_service_source", "Add a new service source (SENSITIVE OPERATION)", getAddServiceSourceSchema()),
+		mcp.NewToolWithRawSchema("add-service-source", "Add a new service source", getAddServiceSourceSchema()),
 		handleAddServiceSource(client),
 	)
 
 	// Update existing service source
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("update_service_source", "Update an existing service source (SENSITIVE OPERATION)", getUpdateServiceSourceSchema()),
+		mcp.NewToolWithRawSchema("update-service-source", "Update an existing service source", getUpdateServiceSourceSchema()),
 		handleUpdateServiceSource(client),
 	)
 }
 
-// handleListServiceSources handles the list_service_sources tool call
 func handleListServiceSources(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		respBody, err := client.Get("/v1/service-sources")
@@ -56,7 +55,6 @@ func handleListServiceSources(client *higress.HigressClient) common.ToolHandlerF
 	}
 }
 
-// handleGetServiceSource handles the get_service_source tool call
 func handleGetServiceSource(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -81,7 +79,6 @@ func handleGetServiceSource(client *higress.HigressClient) common.ToolHandlerFun
 	}
 }
 
-// handleAddServiceSource handles the add_service_source tool call
 func handleAddServiceSource(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -120,7 +117,6 @@ func handleAddServiceSource(client *higress.HigressClient) common.ToolHandlerFun
 	}
 }
 
-// handleUpdateServiceSource handles the update_service_source tool call
 func handleUpdateServiceSource(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -166,7 +162,6 @@ func handleUpdateServiceSource(client *higress.HigressClient) common.ToolHandler
 	}
 }
 
-// getListServiceSourcesSchema returns the JSON schema for list_service_sources tool
 func getListServiceSourcesSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -175,7 +170,6 @@ func getListServiceSourcesSchema() json.RawMessage {
 	}`)
 }
 
-// getServiceSourceSchema returns the JSON schema for get_service_source tool
 func getServiceSourceSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -190,7 +184,7 @@ func getServiceSourceSchema() json.RawMessage {
 	}`)
 }
 
-// getAddServiceSourceSchema returns the JSON schema for add_service_source tool
+// TODO: extend other types of service sources, e.g., nacos, zookeeper, euraka.
 func getAddServiceSourceSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -200,12 +194,12 @@ func getAddServiceSourceSchema() json.RawMessage {
 				"properties": {
 					"name": {
 						"type": "string",
-						"description": "The name of the service source (required)"
+						"description": "The name of the service source"
 					},
 					"type": {
 						"type": "string",
 						"enum": ["static", "dns"],
-						"description": "The type of service source: 'static' for static IPs, 'dns' for DNS resolution (required)"
+						"description": "The type of service source: 'static' for static IPs, 'dns' for DNS resolution"
 					},
 					"domain": {
 						"type": "string",
@@ -236,14 +230,14 @@ func getAddServiceSourceSchema() json.RawMessage {
 	}`)
 }
 
-// getUpdateServiceSourceSchema returns the JSON schema for update_service_source tool
+// TODO: extend other types of service sources, e.g., nacos, zookeeper, euraka.
 func getUpdateServiceSourceSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
 			"name": {
 				"type": "string",
-				"description": "The name of the service source to update (required)"
+				"description": "The name of the service source to update"
 			},
 			"configurations": {
 				"type": "object",
@@ -266,7 +260,7 @@ func getUpdateServiceSourceSchema() json.RawMessage {
 					"protocol": {
 						"type": "string",
 						"enum": ["http", "https"],
-						"description": "The protocol to use"
+						"description": "The protocol to use (optional, defaults to http)"
 					},
 					"sni": {
 						"type": "string",

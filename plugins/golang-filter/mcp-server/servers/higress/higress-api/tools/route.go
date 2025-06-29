@@ -14,30 +14,29 @@ import (
 func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all routes
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list_routes", "List all available routes", getListRoutesSchema()),
+		mcp.NewToolWithRawSchema("list-routes", "List all available routes", getListRoutesSchema()),
 		handleListRoutes(client),
 	)
 
 	// Get specific route
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("get_route", "Get detailed information about a specific route", getRouteSchema()),
+		mcp.NewToolWithRawSchema("get-route", "Get detailed information about a specific route", getRouteSchema()),
 		handleGetRoute(client),
 	)
 
 	// Add new route
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("add_route", "Add a new route (SENSITIVE OPERATION)", getAddRouteSchema()),
+		mcp.NewToolWithRawSchema("add-route", "Add a new route", getAddRouteSchema()),
 		handleAddRoute(client),
 	)
 
 	// Update existing route
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("update_route", "Update an existing route (SENSITIVE OPERATION)", getUpdateRouteSchema()),
+		mcp.NewToolWithRawSchema("update-route", "Update an existing route", getUpdateRouteSchema()),
 		handleUpdateRoute(client),
 	)
 }
 
-// handleListRoutes handles the list_routes tool call
 func handleListRoutes(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		respBody, err := client.Get("/v1/routes")
@@ -56,7 +55,6 @@ func handleListRoutes(client *higress.HigressClient) common.ToolHandlerFunc {
 	}
 }
 
-// handleGetRoute handles the get_route tool call
 func handleGetRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -81,7 +79,6 @@ func handleGetRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	}
 }
 
-// handleAddRoute handles the add_route tool call
 func handleAddRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -117,7 +114,6 @@ func handleAddRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	}
 }
 
-// handleUpdateRoute handles the update_route tool call
 func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -163,7 +159,6 @@ func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	}
 }
 
-// getListRoutesSchema returns the JSON schema for list_routes tool
 func getListRoutesSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -172,14 +167,13 @@ func getListRoutesSchema() json.RawMessage {
 	}`)
 }
 
-// getRouteSchema returns the JSON schema for get_route tool
 func getRouteSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
 			"name": {
 				"type": "string",
-				"description": "The name of the route to retrieve"
+				"description": "The name of the route"
 			}
 		},
 		"required": ["name"],
@@ -187,7 +181,6 @@ func getRouteSchema() json.RawMessage {
 	}`)
 }
 
-// getAddRouteSchema returns the JSON schema for add_route tool
 func getAddRouteSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -197,22 +190,22 @@ func getAddRouteSchema() json.RawMessage {
 				"properties": {
 					"name": {
 						"type": "string",
-						"description": "The name of the route (required)"
+						"description": "The name of the route"
 					},
 					"domains": {
 						"type": "array",
 						"items": {"type": "string"},
-						"description": "List of domain names (only one domain is allowed)"
+						"description": "List of domain names, but only one domain is allowed"
 					},
 					"path": {
 						"type": "object",
 						"properties": {
-							"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"]},
-							"matchValue": {"type": "string"},
-							"caseSensitive": {"type": "boolean"}
+							"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"], "description": "Match type of path"},
+							"matchValue": {"type": "string", "description": "Value to match"},
+							"caseSensitive": {"type": "boolean", "description": "Whether matching is case sensitive"}
 						},
 						"required": ["matchType", "matchValue"],
-						"description": "Path matching configuration (required)"
+						"description": "List of path match conditions"
 					},
 					"methods": {
 						"type": "array",
@@ -224,12 +217,12 @@ func getAddRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"key": {"type": "string"},
-								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"]},
-								"matchValue": {"type": "string"},
-								"caseSensitive": {"type": "boolean"}
+								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"], "description": "Match type of header"},
+								"matchValue": {"type": "string", "description": "Value to match"},
+								"caseSensitive": {"type": "boolean", "description": "Whether matching is case sensitive"},
+								"key": {"type": "string", "description": "Header key name"}
 							},
-							"required": ["key", "matchType", "matchValue"]
+							"required": ["matchType", "matchValue", "key"]
 						},
 						"description": "List of header match conditions"
 					},
@@ -238,12 +231,12 @@ func getAddRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"key": {"type": "string"},
-								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"]},
-								"matchValue": {"type": "string"},
-								"caseSensitive": {"type": "boolean"}
+								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"], "description": "Match type of URL parameter"},
+								"matchValue": {"type": "string", "description": "Value to match"},
+								"caseSensitive": {"type": "boolean", "description": "Whether matching is case sensitive"},
+								"key": {"type": "string", "description": "Parameter key name"}
 							},
-							"required": ["key", "matchType", "matchValue"]
+							"required": ["matchType", "matchValue", "key"]
 						},
 						"description": "List of URL parameter match conditions"
 					},
@@ -252,13 +245,13 @@ func getAddRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"name": {"type": "string"},
-								"port": {"type": "integer"},
-								"weight": {"type": "integer"}
+								"name": {"type": "string", "description": "Service name"},
+								"port": {"type": "integer", "description": "Service port"},
+								"weight": {"type": "integer", "description": "Service weight"}
 							},
 							"required": ["name", "port", "weight"]
 						},
-						"description": "List of services for this route (required)"
+						"description": "List of services for this route"
 					},
 					"customConfigs": {
 						"type": "object",
@@ -275,14 +268,13 @@ func getAddRouteSchema() json.RawMessage {
 	}`)
 }
 
-// getUpdateRouteSchema returns the JSON schema for update_route tool
 func getUpdateRouteSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
 			"name": {
 				"type": "string",
-				"description": "The name of the route to update (required)"
+				"description": "The name of the route"
 			},
 			"configurations": {
 				"type": "object",
@@ -290,17 +282,17 @@ func getUpdateRouteSchema() json.RawMessage {
 					"domains": {
 						"type": "array",
 						"items": {"type": "string"},
-						"description": "List of domain names (only one domain is allowed)"
+						"description": "List of domain names, but only one domain is allowed"
 					},
 					"path": {
 						"type": "object",
 						"properties": {
-							"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"]},
-							"matchValue": {"type": "string"},
-							"caseSensitive": {"type": "boolean"}
+							"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"], "description": "Match type of path"},
+							"matchValue": {"type": "string", "description": "Value to match"},
+							"caseSensitive": {"type": "boolean", "description": "Whether matching is case sensitive"}
 						},
 						"required": ["matchType", "matchValue"],
-						"description": "Path matching configuration"
+						"description": "The path configuration"
 					},
 					"methods": {
 						"type": "array",
@@ -312,12 +304,12 @@ func getUpdateRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"key": {"type": "string"},
-								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"]},
-								"matchValue": {"type": "string"},
-								"caseSensitive": {"type": "boolean"}
+								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"], "description": "Match type of header"},
+								"matchValue": {"type": "string", "description": "Value to match"},
+								"caseSensitive": {"type": "boolean", "description": "Whether matching is case sensitive"},
+								"key": {"type": "string", "description": "Header key name"}
 							},
-							"required": ["key", "matchType", "matchValue"]
+							"required": ["matchType", "matchValue", "key"]
 						},
 						"description": "List of header match conditions"
 					},
@@ -326,12 +318,12 @@ func getUpdateRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"key": {"type": "string"},
-								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"]},
-								"matchValue": {"type": "string"},
-								"caseSensitive": {"type": "boolean"}
+								"matchType": {"type": "string", "enum": ["PRE", "EQUAL", "REGULAR"], "description": "Match type of URL parameter"},
+								"matchValue": {"type": "string", "description": "Value to match"},
+								"caseSensitive": {"type": "boolean", "description": "Whether matching is case sensitive"},
+								"key": {"type": "string", "description": "Parameter key name"}
 							},
-							"required": ["key", "matchType", "matchValue"]
+							"required": ["matchType", "matchValue", "key"]
 						},
 						"description": "List of URL parameter match conditions"
 					},
@@ -340,9 +332,9 @@ func getUpdateRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"name": {"type": "string"},
-								"port": {"type": "integer"},
-								"weight": {"type": "integer"}
+								"name": {"type": "string", "description": "Service name"},
+								"port": {"type": "integer", "description": "Service port"},
+								"weight": {"type": "integer", "description": "Service weight"}
 							},
 							"required": ["name", "port", "weight"]
 						},
