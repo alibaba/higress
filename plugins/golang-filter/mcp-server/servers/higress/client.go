@@ -12,13 +12,6 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-// APIResponse represents the standard API response format
-type APIResponse struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message"`
-	Data    interface{} `json:"data"`
-}
-
 // HigressClient handles Higress Console API connections and operations
 type HigressClient struct {
 	baseURL    string
@@ -96,22 +89,22 @@ func (c *HigressClient) request(method, path string, data interface{}) ([]byte, 
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	api.LogDebugf("Higress API response: %d %s", resp.StatusCode, string(respBody))
-
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	// Parse and validate API response
-	var apiResp APIResponse
-	if err := json.Unmarshal(respBody, &apiResp); err != nil {
-		// If it's not a standard API response format, return the raw body
+	// Parse the JSON response
+	var responseJson map[string]interface{}
+	if err := json.Unmarshal(respBody, &responseJson); err != nil {
+		// If it's not valid JSON, return the raw body
+		api.LogDebugf("Response is not valid JSON, returning raw body")
 		return respBody, nil
 	}
 
-	// Check if the API returned success=false
-	if !apiResp.Success {
-		return nil, fmt.Errorf("API returned error: %s", apiResp.Message)
+	// If success field exists and is False, it indicates an error
+	if success, exists := responseJson["success"]; exists && success == false {
+		errorMsg := "Unknown API error"
+		if msg, ok := responseJson["message"].(string); ok {
+			errorMsg = msg
+		}
+		api.LogErrorf("Request API error for %s %s: %s", method, path, errorMsg)
+		return nil, fmt.Errorf("request API error for %s %s: %s", method, path, errorMsg)
 	}
 
 	return respBody, nil
