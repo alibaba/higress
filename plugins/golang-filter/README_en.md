@@ -59,3 +59,9 @@ Use the following command to quickly build the golang filter plugin:
 ```bash
 make build
 ``` 
+
+If you are on an arm64 architecture, please set `GOARCH=arm64`:
+
+```bash
+make build GOARCH=arm64
+```

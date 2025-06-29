@@ -54,8 +54,14 @@ http_filters:
 
 ## 快速构建
 
-使用以下命令可以快速构建 golang filter 插件:
+使用以下命令可以快速构建 golang filter 插件：
 
 ```bash
 make build
+```
+
+如果是 arm64 架构，请设置 `GOARCH=arm64`：
+
+```bash
+make build GOARCH=arm64
 ```
