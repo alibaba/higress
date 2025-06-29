@@ -58,31 +58,6 @@ func (c *HigressClient) Put(path string, data interface{}) ([]byte, error) {
 	return c.request("PUT", path, data)
 }
 
-// Ping tests the connection to Higress Console
-func (c *HigressClient) Ping() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/v1/routes", nil)
-	if err != nil {
-		return fmt.Errorf("failed to create ping request: %w", err)
-	}
-
-	req.SetBasicAuth(c.username, c.password)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("ping request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("ping failed with status: %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
 // request performs an HTTP request to the Higress Console API
 func (c *HigressClient) request(method, path string, data interface{}) ([]byte, error) {
 	url := c.baseURL + path
