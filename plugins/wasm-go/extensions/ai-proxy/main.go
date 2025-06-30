@@ -161,7 +161,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		if providerConfig.IsOpenAIProtocol() {
+		// 仅 /v1/chat/completions 接口支持 stream_options 参数
+		if providerConfig.IsOpenAIProtocol() && apiName == provider.ApiNameChatCompletion {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
