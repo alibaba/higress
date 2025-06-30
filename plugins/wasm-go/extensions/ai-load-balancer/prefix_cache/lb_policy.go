@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	RedisLua = `-- 将十六进制字符串转换为字节数组
+	RedisLua = `-- hex string => bytes
 local function hex_to_bytes(hex)
     local bytes = {}
     for i = 1, #hex, 2 do
@@ -26,7 +26,7 @@ local function hex_to_bytes(hex)
     return bytes
 end
 
--- 字节转回十六进制字符串
+-- bytes => hex string
 local function bytes_to_hex(bytes)
     local result = ""
     for _, byte in ipairs(bytes) do
