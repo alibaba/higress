@@ -316,7 +316,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 func normalizeOpenAiRequestBody(body []byte) []byte {
 	var err error
 	// Default setting include_usage.
-	if gjson.GetBytes(body, "stream").Bool() {
+	if gjson.GetBytes(body, "stream").Bool() && !gjson.GetBytes(body, "stream_options").Exists() {
 		body, err = sjson.SetBytes(body, "stream_options.include_usage", true)
 		if err != nil {
 			log.Errorf("set include_usage failed, err:%s", err)
