@@ -65,3 +65,4 @@ make build
 ```bash
 make build GOARCH=arm64
 ```
+你也可以直接在 Higress 项目的根目录下执行 `make build-gateway-local` 来构建 Higress Gateway 镜像，`golang-filter.so` 将会自动构建并复制到镜像中。

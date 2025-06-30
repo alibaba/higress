@@ -65,3 +65,5 @@ If you are on an arm64 architecture, please set `GOARCH=arm64`:
 ```bash
 make build GOARCH=arm64
 ```
+
+Alternatively, you can build the Higress Gateway image directly by running `make build-gateway-local` in the root directory of the Higress project. The `golang-filter.so` file will be automatically built and included in the image.
