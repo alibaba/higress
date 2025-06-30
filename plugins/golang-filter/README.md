@@ -54,8 +54,15 @@ http_filters:
 
 ## 快速构建
 
-使用以下命令可以快速构建 golang filter 插件:
+使用以下命令可以快速构建 golang filter 插件：
 
 ```bash
 make build
 ```
+
+如果是 arm64 架构，请设置 `GOARCH=arm64`：
+
+```bash
+make build GOARCH=arm64
+```
+你也可以直接在 Higress 项目的根目录下执行 `make build-gateway-local` 来构建 Higress Gateway 镜像，`golang-filter.so` 将会自动构建并复制到镜像中。
