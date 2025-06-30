@@ -48,13 +48,14 @@ const (
 func parseConfig(json gjson.Result, config *Config) error {
 	config.policy = json.Get("lb_policy").String()
 	var err error
-	if config.policy == LeastBusyLoadBalancerPolicy {
+	switch config.policy {
+	case LeastBusyLoadBalancerPolicy:
 		config.lb, err = least_busy.NewLeastBusyLoadBalancer(json.Get("lb_config"))
-	} else if config.policy == GlobalLeastRequestLoadBalancerPolicy {
+	case GlobalLeastRequestLoadBalancerPolicy:
 		config.lb, err = global_least_request.NewGlobalLeastRequestLoadBalancer(json.Get("lb_config"))
-	} else if config.policy == PrefixCache {
+	case PrefixCache:
 		config.lb, err = prefix_cache.NewPrefixCacheLoadBalancer(json.Get("lb_config"))
-	} else {
+	default:
 		err = fmt.Errorf("lb_policy %s is not supported", config.policy)
 	}
 	return err

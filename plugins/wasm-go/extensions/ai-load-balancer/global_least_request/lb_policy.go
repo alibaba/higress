@@ -3,7 +3,6 @@ package global_least_request
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
@@ -16,6 +15,35 @@ import (
 
 const (
 	RedisKeyFormat = "higress:global_least_request_table:%s:%s"
+	RedisLua       = `local hset_key = KEYS[1]
+local current_target = KEYS[2]
+local current_count = 0
+
+local function is_healthy(addr)
+    for i = 3, #KEYS do
+        if addr == KEYS[i] then
+            return true
+        end
+    end
+    return false
+end
+
+if redis.call('HEXISTS', hset_key, current_target) ~= 0 then
+    current_count = redis.call('HGET', hset_key, current_target)
+    local hash = redis.call('HGETALL', hset_key)
+    for i = 1, #hash, 2 do
+        local addr = hash[i]
+        local count = hash[i+1]
+        if count < current_count and is_healthy(addr) then
+            current_target = addr
+            current_count = count
+        end
+    end
+end
+
+redis.call("HINCRBY", hset_key, current_target, 1)
+
+return current_target`
 )
 
 type GlobalLeastRequestLoadBalancer struct {
@@ -24,7 +52,7 @@ type GlobalLeastRequestLoadBalancer struct {
 
 func getRouteName() (string, error) {
 	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
-		return "-", err
+		return "", err
 	} else {
 		return string(raw), nil
 	}
@@ -82,71 +110,42 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpC
 		ctx.SetContext("clusterName", clusterName)
 	}
 	hostInfos, err := proxywasm.GetUpstreamHosts()
-	// log.Infof("%+v", hostInfos)
 	if err != nil {
 		ctx.SetContext("error", true)
 		return types.ActionContinue
 	}
 	// Only healthy host can be selected
-	hostRqCount := make(map[string]int)
+	healthyHostMap := make(map[string]struct{})
+	healthyHostArray := []string{}
 	for _, hostInfo := range hostInfos {
 		if gjson.Get(hostInfo[1], "health_status").String() == "Healthy" {
-			hostRqCount[hostInfo[0]] = 0
+			healthyHostMap[hostInfo[0]] = struct{}{}
+			healthyHostArray = append(healthyHostArray, hostInfo[0])
 		}
 	}
-	if len(hostRqCount) == 0 {
+	if len(healthyHostArray) == 0 {
 		ctx.SetContext("error", true)
 		return types.ActionContinue
 	}
-	// log.Infof("hostRqCount initial: %+v", hostRqCount)
-	err = lb.redisClient.HGetAll(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), func(response resp.Value) {
-		// log.Infof("HGetAll response: %+v", response)
+	randomIndex := rand.Intn(len(healthyHostArray))
+	hostSelected := healthyHostArray[randomIndex]
+	keys := []interface{}{fmt.Sprintf(RedisKeyFormat, routeName, clusterName), hostSelected}
+	for _, v := range healthyHostArray {
+		keys = append(keys, v)
+	}
+	err = lb.redisClient.Eval(RedisLua, len(keys), keys, []interface{}{}, func(response resp.Value) {
 		if err := response.Error(); err != nil {
 			log.Errorf("HGetAll failed: %+v", err)
 			proxywasm.ResumeHttpRequest()
 			return
 		}
-		// update ongoing request number for each healthy host
-		// redis response format is [addr_1 count_1 addr_2 count_2 ...]
-		index := 0
-		arr := response.Array()
-		for index < len(arr)-1 {
-			host := arr[index].String()
-			count := arr[index+1].Integer()
-			hostRqCount[host] = count
-			index += 2
-		}
-		// get min rq count
-		minCount := math.MaxInt
-		for _, c := range hostRqCount {
-			if c < minCount {
-				minCount = c
-			}
-		}
-		// log.Infof("hostRqCount final: %+v", hostRqCount)
-		// get min count hosts
-		minCountHosts := []string{}
-		for h, c := range hostRqCount {
-			if c == minCount {
-				minCountHosts = append(minCountHosts, h)
-			}
-		}
-		randomIndex := rand.Intn(len(minCountHosts))
-		hostSelected := minCountHosts[randomIndex]
+		hostSelected = response.String()
 		log.Debugf("host_selected: %s", hostSelected)
 		ctx.SetContext("host_selected", hostSelected)
 		if err := proxywasm.SetUpstreamOverrideHost([]byte(hostSelected)); err != nil {
 			log.Errorf("override upstream host failed, fallback to default lb policy, error informations: %+v", err)
 		}
-		err := lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), hostSelected, 1, func(response resp.Value) {
-			if err := response.Error(); err != nil {
-				log.Errorf("HIncrBy failed on request phase: %+v", err)
-			}
-			proxywasm.ResumeHttpRequest()
-		})
-		if err != nil {
-			proxywasm.ResumeHttpRequest()
-		}
+		proxywasm.ResumeHttpRequest()
 	})
 	if err != nil {
 		return types.ActionContinue
