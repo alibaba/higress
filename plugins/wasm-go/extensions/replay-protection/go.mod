@@ -5,18 +5,15 @@ go 1.24.1
 toolchain go1.24.4
 
 require (
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 	github.com/higress-group/wasm-go v1.0.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/resp v0.1.1
 )
-
-replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 
 require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/tetratelabs/wazero v1.7.2 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
-	github.com/wasilibs/go-re2 v1.5.3
 )

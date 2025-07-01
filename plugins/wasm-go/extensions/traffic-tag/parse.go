@@ -20,9 +20,10 @@ import (
 	"strconv"
 	"strings"
 
+	"regexp"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
-	regexp "github.com/wasilibs/go-re2"
 
 	"github.com/tidwall/gjson"
 )

@@ -7,19 +7,16 @@ go 1.24.1
 toolchain go1.24.4
 
 require (
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 	github.com/higress-group/wasm-go v1.0.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.18.0
-	github.com/wasilibs/go-re2 v1.6.0
 )
 
 require (
 	github.com/tetratelabs/wazero v1.7.2 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 )
-
-replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

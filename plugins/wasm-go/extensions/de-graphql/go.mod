@@ -4,13 +4,10 @@ go 1.24
 
 require (
 	github.com/higress-group/wasm-go v1.0.0
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.17.3
-	github.com/wasilibs/go-re2 v1.6.0
 )
-
-replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

@@ -10,8 +10,6 @@ require (
 	github.com/tidwall/gjson v1.17.1
 )
 
-replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
-
 require (
 	github.com/google/uuid v1.6.0 // indirect
 

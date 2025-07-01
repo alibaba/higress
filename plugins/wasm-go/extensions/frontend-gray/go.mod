@@ -6,12 +6,10 @@ require (
 	github.com/higress-group/wasm-go v1.0.0
 	github.com/bmatcuk/doublestar/v4 v4.6.1
 	github.com/google/uuid v1.3.0
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3
 )
-
-replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

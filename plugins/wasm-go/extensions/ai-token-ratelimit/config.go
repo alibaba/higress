@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
+	re "regexp"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
-	re "github.com/wasilibs/go-re2"
 	"github.com/zmap/go-iptree/iptree"
 )
 

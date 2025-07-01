@@ -7,11 +7,9 @@ go 1.24
 require (
 	github.com/higress-group/wasm-go v1.0.0
 	github.com/higress-group/oauth2-proxy v1.0.1-0.20241227095721-c1a05d79c2a3
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 	github.com/tidwall/gjson v1.17.3
 )
-
-replace github.com/higress-group/proxy-wasm-go-sdk => github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 
 require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -28,7 +26,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tidwall/resp v0.1.1 // indirect
-	github.com/wasilibs/go-re2 v1.6.0 // indirect
+	// indirect
 	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/oauth2 v0.20.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect

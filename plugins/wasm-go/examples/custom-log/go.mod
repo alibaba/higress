@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/higress-group/wasm-go v1.0.0
-	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 )
 
 require (
