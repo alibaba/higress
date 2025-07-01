@@ -74,6 +74,42 @@ lb_config:
 ## Introduction
 Select pods based on the prompt prefix match to reuse KV Cache. If no node can be matched by prefix match, select the service node based on the global minimum number of requests.
 
+For example, the following request is routed to pod 1:
+
+```json
+{
+  "model": "qwen-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    }
+  ]
+}
+```
+
+Then subsequent requests with the same prefix will also be routed to pod 1:
+
+```json
+{
+  "model": "qwen-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! How can I assist you today? 😊"
+    },
+    {
+      "role": "user",
+      "content": "write a short story aboud 100 words"
+    }
+  ]
+}
+```
+
 ## Configuration
 
 | Name               | Type            | required              | default     | description                     |

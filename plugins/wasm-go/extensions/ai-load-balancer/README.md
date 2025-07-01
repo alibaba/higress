@@ -89,6 +89,41 @@ lb_config:
 ## 功能说明
 根据 prompt 前缀匹配选择 pod，以复用 KV Cache，如果通过前缀匹配无法匹配到节点，则通过全局最小请求数进行服务节点的选择
 
+例如以下请求被路由到了pod 1
+
+```json
+{
+  "model": "qwen-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    }
+  ]
+}
+```
+
+那么后续具有相同前缀的请求也会被路由到 pod 1
+```json
+{
+  "model": "qwen-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "hi"
+    },
+    {
+      "role": "assistant",
+      "content": "Hi! How can I assist you today? 😊"
+    },
+    {
+      "role": "user",
+      "content": "write a short story aboud 100 words"
+    }
+  ]
+}
+```
+
 ## 配置说明
 
 | 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
