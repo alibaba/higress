@@ -58,9 +58,10 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 	log.Debugf("targetPod: %+v", targetPod.Address)
 	if err != nil {
 		log.Debugf("pod select failed: %v", err)
-		proxywasm.SendHttpResponseWithDetail(429, "from llm-load-balancer", nil, []byte("limited resources"), 0)
+		proxywasm.SendHttpResponseWithDetail(429, "limited resources", nil, []byte("limited resources"), 0)
+	} else {
+		proxywasm.SetUpstreamOverrideHost([]byte(targetPod.Address))
 	}
-	proxywasm.SetUpstreamOverrideHost([]byte(targetPod.Address))
 	return types.ActionContinue
 }
 
