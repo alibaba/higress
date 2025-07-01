@@ -22,53 +22,9 @@ The configuration is:
 
 Current supported load balance policies are:
 
-- `least_busy`: implementation for [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md)
 - `global_least_request`: global least request based on redis
-
-# Least Busy
-## Introduction
-
-wasm implementation for [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md)
-
-```mermaid
-sequenceDiagram
-	participant C as Client
-	participant H as Higress
-	participant H1 as Host1
-	participant H2 as Host2
-
-	loop fetch metrics periodically
-		H ->> H1: /metrics
-		H1 ->> H: vllm metrics
-		H ->> H2: /metrics
-		H2 ->> H: vllm metrics
-	end
-
-	C ->> H: request
-	H ->> H1: select pod according to vllm metrics, bypassing original service load balance policy
-	H1 ->> H: response
-	H ->> C: response
-```
-
-flowchart for pod selection:
-
-![](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/docs/scheduler-flowchart.png)
-
-## Configuration
-
-| Name                | Type         | Required          | default       | description                                 |
-|--------------------|-----------------|------------------|-------------|-------------------------------------|
-| `criticalModels`      | []string          | required              |             | critical model names    |
-
-## Configuration Example
-
-```yaml
-lb_policy: least_busy
-lb_config:
-  criticalModels:
-  - meta-llama/Llama-2-7b-hf
-  - sql-lora
-```
+- `prefix_cache`: Select the backend node based on the prompt prefix match. If the node cannot be matched by prefix matching, the service node is selected based on the global minimum number of requests.
+- `least_busy`: implementation for [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md)
 
 # Global Least Request
 ## Introduction
@@ -114,3 +70,74 @@ lb_config:
   password: '123456'
 ```
 
+# Prefix Cache
+## Introduction
+Select pods based on the prompt prefix match to reuse KV Cache. If no node can be matched by prefix match, select the service node based on the global minimum number of requests.
+
+## Configuration
+
+| Name               | Type            | required              | default     | description                     |
+|--------------------|-----------------|-----------------------|-------------|---------------------------------|
+| `serviceFQDN`      | string          | required              |             | redis FQDN, e.g.  `redis.dns`   |
+| `servicePort`      | int             | required              |             | redis port                      |
+| `username`         | string          | required              |             | redis username                  |
+| `password`         | string          | optional              | ``          | redis password                  |
+| `timeout`          | int             | optional              | 3000ms      | redis request timeout           |
+| `database`         | int             | optional              | 0           | redis database number           |
+| `redisKeyTTL`      | int             | optional              | 1800ms      | prompt prefix key's ttl         ｜
+
+## Configuration Example
+
+```yaml
+lb_policy: prefix_cache
+lb_config:
+  serviceFQDN: redis.static
+  servicePort: 6379
+  username: default
+  password: '123456'
+```
+
+# Least Busy
+## Introduction
+
+wasm implementation for [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md)
+
+```mermaid
+sequenceDiagram
+	participant C as Client
+	participant H as Higress
+	participant H1 as Host1
+	participant H2 as Host2
+
+	loop fetch metrics periodically
+		H ->> H1: /metrics
+		H1 ->> H: vllm metrics
+		H ->> H2: /metrics
+		H2 ->> H: vllm metrics
+	end
+
+	C ->> H: request
+	H ->> H1: select pod according to vllm metrics, bypassing original service load balance policy
+	H1 ->> H: response
+	H ->> C: response
+```
+
+flowchart for pod selection:
+
+![](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/docs/scheduler-flowchart.png)
+
+## Configuration
+
+| Name                | Type         | Required          | default       | description                                 |
+|--------------------|-----------------|------------------|-------------|-------------------------------------|
+| `criticalModels`      | []string          | required              |             | critical model names    |
+
+## Configuration Example
+
+```yaml
+lb_policy: least_busy
+lb_config:
+  criticalModels:
+  - meta-llama/Llama-2-7b-hf
+  - sql-lora
+```
