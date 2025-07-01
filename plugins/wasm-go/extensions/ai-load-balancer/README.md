@@ -25,22 +25,6 @@ description: 针对LLM服务的负载均衡策略
 - `prefix_cache`: 基于 prompt 前缀匹配选择后端节点，如果通过前缀匹配无法匹配到节点，则通过全局最小请求数进行服务节点的选择
 - `least_busy`: [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md) 的 wasm 实现
 
-## 配置说明
-
-| 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
-|--------------------|-----------------|------------------|-------------|-------------------------------------|
-| `criticalModels`      | []string          | 选填              |             | critical的模型列表    |
-
-## 配置示例
-
-```yaml
-lb_policy: least_busy
-lb_config:
-  criticalModels:
-  - meta-llama/Llama-2-7b-hf
-  - sql-lora
-```
-
 # 全局最小请求数
 ## 功能说明
 
@@ -149,6 +133,7 @@ lb_config:
 
 # 最小负载
 ## 功能说明
+[gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md) 的 wasm 实现
 
 ```mermaid
 sequenceDiagram
@@ -173,3 +158,19 @@ sequenceDiagram
 <!-- pod选取流程图如下：
 
 ![](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/docs/scheduler-flowchart.png) -->
+
+## 配置说明
+
+| 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
+|--------------------|-----------------|------------------|-------------|-------------------------------------|
+| `criticalModels`      | []string          | 选填              |             | critical的模型列表    |
+
+## 配置示例
+
+```yaml
+lb_policy: least_busy
+lb_config:
+  criticalModels:
+  - meta-llama/Llama-2-7b-hf
+  - sql-lora
+```
