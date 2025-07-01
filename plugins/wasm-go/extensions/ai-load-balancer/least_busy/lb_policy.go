@@ -1,7 +1,7 @@
 package least_busy
 
 import (
-	"ai-load-balancer/least_busy/scheduling"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/scheduling"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"

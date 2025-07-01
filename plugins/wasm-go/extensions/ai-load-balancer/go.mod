@@ -1,4 +1,4 @@
-module ai-load-balancer
+module github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer
 
 go 1.24.1
 

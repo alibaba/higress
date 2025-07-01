@@ -7,9 +7,9 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 
-	global_least_request "ai-load-balancer/global_least_request"
-	least_busy "ai-load-balancer/least_busy"
-	prefix_cache "ai-load-balancer/prefix_cache"
+	global_least_request "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/global_least_request"
+	least_busy "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy"
+	prefix_cache "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/prefix_cache"
 )
 
 func main() {}

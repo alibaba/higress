@@ -4,7 +4,11 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"math/rand"
+	"strings"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/utils"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -15,7 +19,8 @@ import (
 )
 
 const (
-	RedisLua = `-- hex string => bytes
+	RedisKeyFormat = "higress:global_least_request_table:%s:%s"
+	RedisLua       = `-- hex string => bytes
 local function hex_to_bytes(hex)
     local bytes = {}
     for i = 1, #hex, 2 do
@@ -64,12 +69,23 @@ local function hex_xor(a, b)
     return bytes_to_hex(result_bytes)
 end
 
+-- check host whether healthy
+local function is_healthy(addr)
+    for i = 4, #KEYS do
+        if addr == KEYS[i] then
+            return true
+        end
+    end
+    return false
+end
+
 local target = ""
 local key = ""
 local current_key = ""
 local count = #ARGV
 local ttl = KEYS[1]
-local default_target = KEYS[2]
+local hset_key = KEYS[2]
+local default_target = KEYS[3]
 
 if count == 0 then
     return target
@@ -85,7 +101,11 @@ while index <= count do
     end
     if redis.call("EXISTS", current_key) == 1 then
         key = current_key
-        target = redis.call("GET", key)
+        local tmp_target = redis.call("GET", key)
+		if not is_healthy(tmp_target) then
+			break
+		end
+		target = tmp_target
         -- update ttl for exist keys
         redis.call("EXPIRE", key, ttl)
         index = index + 1
@@ -94,10 +114,28 @@ while index <= count do
     end
 end
 
--- default_target should be passed outside
+
+-- global least request
 if target == "" then
-    target = default_target
+	index = 1
+	local current_count = 0
+	target = default_target
+	if redis.call('HEXISTS', hset_key, target) ~= 0 then
+		current_count = redis.call('HGET', hset_key, target)
+		local hash = redis.call('HGETALL', hset_key)
+		for i = 1, #hash, 2 do
+			local addr = hash[i]
+			local count = hash[i+1]
+			if count < current_count and is_healthy(addr) then
+				target = addr
+				current_count = count
+			end
+		end
+	end
 end
+
+-- update request count
+redis.call("HINCRBY", hset_key, target, 1)
 
 -- add tree-path
 while index <= count do
@@ -154,8 +192,23 @@ func (lb PrefixCacheLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpConte
 
 func (lb PrefixCacheLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	var err error
+	routeName, err := utils.GetRouteName()
+	if err != nil || routeName == "" {
+		ctx.SetContext("error", true)
+		return types.ActionContinue
+	} else {
+		ctx.SetContext("routeName", routeName)
+	}
+	clusterName, err := utils.GetClusterName()
+	if err != nil || clusterName == "" {
+		ctx.SetContext("error", true)
+		return types.ActionContinue
+	} else {
+		ctx.SetContext("clusterName", clusterName)
+	}
 	hostInfos, err := proxywasm.GetUpstreamHosts()
 	if err != nil {
+		ctx.SetContext("error", true)
 		log.Error("get upstream cluster endpoints failed")
 		return types.ActionContinue
 	}
@@ -175,6 +228,7 @@ func (lb PrefixCacheLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext,
 	messages := gjson.GetBytes(body, "messages").Array()
 	for index, obj := range messages {
 		if !obj.Get("role").Exists() || !obj.Get("content").Exists() {
+			ctx.SetContext("error", true)
 			log.Info("cannot extract role or content from request body, skip llm load balancing")
 			return types.ActionContinue
 		}
@@ -190,30 +244,50 @@ func (lb PrefixCacheLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext,
 	if len(params) == 0 {
 		return types.ActionContinue
 	}
-	err = lb.redisClient.Eval(RedisLua, 2, []interface{}{lb.redisKeyTTL, defaultHost}, params, func(response resp.Value) {
+	keys := []interface{}{lb.redisKeyTTL, fmt.Sprintf(RedisKeyFormat, routeName, clusterName), defaultHost}
+	for _, v := range healthyHosts {
+		keys = append(keys, v)
+	}
+	err = lb.redisClient.Eval(RedisLua, len(keys), keys, params, func(response resp.Value) {
+		defer proxywasm.ResumeHttpRequest()
 		if err := response.Error(); err != nil {
+			ctx.SetContext("error", true)
 			log.Errorf("Redis eval failed: %+v", err)
-			proxywasm.ResumeHttpRequest()
 			return
 		}
 		hostSelected := response.String()
 		if err := proxywasm.SetUpstreamOverrideHost([]byte(hostSelected)); err != nil {
+			ctx.SetContext("error", true)
 			log.Errorf("override upstream host failed, fallback to default lb policy, error informations: %+v", err)
 		}
-		proxywasm.ResumeHttpRequest()
+		log.Debugf("host_selected: %s", hostSelected)
+		ctx.SetContext("host_selected", hostSelected)
 	})
 	if err != nil {
+		ctx.SetContext("error", true)
 		return types.ActionContinue
 	}
 	return types.ActionPause
 }
 
 func (lb PrefixCacheLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action {
-	ctx.DontReadResponseBody()
 	return types.ActionContinue
 }
 
 func (lb PrefixCacheLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
+	if endOfStream {
+		isErr, _ := ctx.GetContext("error").(bool)
+		if !isErr {
+			routeName, _ := ctx.GetContext("routeName").(string)
+			clusterName, _ := ctx.GetContext("clusterName").(string)
+			host_selected, _ := ctx.GetContext("host_selected").(string)
+			if host_selected == "" {
+				log.Errorf("get host_selected failed")
+			} else {
+				lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), host_selected, -1, nil)
+			}
+		}
+	}
 	return data
 }
 
@@ -224,5 +298,5 @@ func (lb PrefixCacheLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext
 func computeSHA1(data string) string {
 	hasher := sha1.New()
 	hasher.Write([]byte(data))
-	return hex.EncodeToString(hasher.Sum(nil))
+	return strings.ToUpper(hex.EncodeToString(hasher.Sum(nil)))
 }

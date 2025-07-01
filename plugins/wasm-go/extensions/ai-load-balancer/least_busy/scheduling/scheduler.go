@@ -23,8 +23,8 @@ import (
 	"math/rand"
 	"strings"
 
-	"ai-load-balancer/least_busy/backend"
-	"ai-load-balancer/least_busy/backend/vllm"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend/vllm"
 
 	"github.com/prometheus/common/expfmt"
 )
