@@ -161,7 +161,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		if providerConfig.IsOpenAIProtocol() {
+		// 仅 /v1/chat/completions 和 /v1/completions 接口支持 stream_options 参数
+		if providerConfig.IsOpenAIProtocol() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
@@ -315,7 +316,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 func normalizeOpenAiRequestBody(body []byte) []byte {
 	var err error
 	// Default setting include_usage.
-	if gjson.GetBytes(body, "stream").Bool() {
+	if gjson.GetBytes(body, "stream").Bool() && (!gjson.GetBytes(body, "stream_options").Exists() || !gjson.GetBytes(body, "stream_options.include_usage").Exists()) {
 		body, err = sjson.SetBytes(body, "stream_options.include_usage", true)
 		if err != nil {
 			log.Errorf("set include_usage failed, err:%s", err)
