@@ -14,7 +14,7 @@ import (
 func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all routes
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-routes", "List all available routes", getListRoutesSchema()),
+		mcp.NewToolWithRawSchema("list-routes", "List all available routes", json.RawMessage(`{}`)),
 		handleListRoutes(client),
 	)
 
@@ -34,6 +34,12 @@ func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClie
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema("update-route", "Update an existing route", getUpdateRouteSchema()),
 		handleUpdateRoute(client),
+	)
+
+	// Delete existing route
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("delete-route", "Delete an existing route", getRouteSchema()),
+		handleDeleteRoute(client),
 	)
 }
 
@@ -159,12 +165,28 @@ func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	}
 }
 
-func getListRoutesSchema() json.RawMessage {
-	return json.RawMessage(`{
-		"type": "object",
-		"properties": {},
-		"additionalProperties": false
-	}`)
+func handleDeleteRoute(client *higress.HigressClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		name, ok := arguments["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'name' argument")
+		}
+
+		respBody, err := client.Delete(fmt.Sprintf("/v1/routes/%s", name))
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete route '%s': %w", name, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(respBody),
+				},
+			},
+		}, nil
+	}
 }
 
 func getRouteSchema() json.RawMessage {

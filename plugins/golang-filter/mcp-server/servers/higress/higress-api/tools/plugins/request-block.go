@@ -16,12 +16,12 @@ const RequestBlockPluginName = "request-block"
 func RegisterRequestBlockPluginTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// Update request block configuration
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("update-request-block-config", "Update request block plugin configuration", getUpdateRequestBlockConfigSchema()),
-		handleUpdateRequestBlockConfig(client),
+		mcp.NewToolWithRawSchema("update"+RequestBlockPluginName, "Update request block plugin configuration", getAddOrUpdateRequestBlockConfigSchema()),
+		handleAddOrUpdateRequestBlockConfig(client),
 	)
 }
 
-func handleUpdateRequestBlockConfig(client *higress.HigressClient) common.ToolHandlerFunc {
+func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
 
@@ -92,18 +92,18 @@ func handleUpdateRequestBlockConfig(client *higress.HigressClient) common.ToolHa
 	}
 }
 
-func getUpdateRequestBlockConfigSchema() json.RawMessage {
+func getAddOrUpdateRequestBlockConfigSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
 			"scope": {
 				"type": "string",
-				"enum": ["global", "domain", "service", "route"],
+				"enum": ["GLOBAL", "DOMAIN", "SERVICE", "ROUTE"],
 				"description": "The scope at which the plugin is applied"
 			},
 			"resource_name": {
 				"type": "string",
-				"description": "The name of the resource (required for domain, service, route scopes)"
+				"description": "The name of the resource (required for DOMAIN, SERVICE, ROUTE scopes)"
 			},
 			"enabled": {
 				"type": "boolean",
@@ -112,6 +112,43 @@ func getUpdateRequestBlockConfigSchema() json.RawMessage {
 			"configurations": {
 				"type": "object",
 				"properties": {
+				    "target": {
+						"type": "string",
+						"description": "The name of the target (required for DOMAIN, SERVICE, ROUTE scopes), it should be same as the resource_name"
+					},
+					"targets": {
+						"type": "object",
+						"oneOf": [
+							{
+								"properties": {
+									"DOMAIN": {
+										"type": "string",
+										"description": "The name of the domain"
+									}
+								},
+								"additionalProperties": false
+							},
+							{
+								"properties": {
+									"SERVICE": {
+										"type": "string",
+										"description": "The name of the service"
+									}
+								},
+								"additionalProperties": false
+							},
+							{
+								"properties": {
+									"ROUTE": {
+										"type": "string",
+										"description": "The name of the route"
+									}
+								},
+								"additionalProperties": false
+							}
+						],
+						"description": "The target resource name (required for DOMAIN, SERVICE, ROUTE scopes)"
+					},
 					"block_bodies": {
 						"type": "array",
 						"items": {"type": "string"},
@@ -142,6 +179,31 @@ func getUpdateRequestBlockConfigSchema() json.RawMessage {
 			}
 		},
 		"required": ["scope", "enabled", "configurations"],
+		"allOf": [
+			{
+				"if": {
+					"properties": {
+						"scope": {"const": "GLOBAL"}
+					}
+				},
+				"then": {
+					"properties": {
+						"configurations": {
+							"not": {
+								"required": ["targets"]
+							}
+						}
+					}
+				},
+				"else": {
+					"properties": {
+						"configurations": {
+							"required": ["targets"]
+						}
+					}
+				}
+			}
+		],
 		"additionalProperties": false
 	}`)
 }

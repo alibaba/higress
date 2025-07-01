@@ -47,6 +47,10 @@ func (c *HigressClient) Put(path string, data interface{}) ([]byte, error) {
 	return c.request("PUT", path, data)
 }
 
+func (c *HigressClient) Delete(path string) ([]byte, error) {
+	return c.request("DELETE", path, nil)
+}
+
 func (c *HigressClient) request(method, path string, data interface{}) ([]byte, error) {
 	url := c.baseURL + path
 

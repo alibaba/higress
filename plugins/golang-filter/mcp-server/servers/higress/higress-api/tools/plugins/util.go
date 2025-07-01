@@ -2,12 +2,11 @@ package plugins
 
 import "fmt"
 
-// Plugin scope constants
 const (
-	ScopeGlobal  = "global"
-	ScopeDomain  = "domain"
-	ScopeService = "service"
-	ScopeRoute   = "route"
+	ScopeGlobal  = "GLOBAL"
+	ScopeDomain  = "DOMAIN"
+	ScopeService = "SERVICE"
+	ScopeRoute   = "ROUTE"
 )
 
 // ValidScopes contains all valid plugin scopes

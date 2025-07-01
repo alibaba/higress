@@ -14,7 +14,7 @@ import (
 func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all service sources
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-service-sources", "List all available service sources", getListServiceSourcesSchema()),
+		mcp.NewToolWithRawSchema("list-service-sources", "List all available service sources", json.RawMessage(`{}`)),
 		handleListServiceSources(client),
 	)
 
@@ -34,6 +34,12 @@ func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressCl
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema("update-service-source", "Update an existing service source", getUpdateServiceSourceSchema()),
 		handleUpdateServiceSource(client),
+	)
+
+	// Delete existing service source
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("delete-service-source", "Delete an existing service source", getServiceSourceSchema()),
+		handleDeleteServiceSource(client),
 	)
 }
 
@@ -162,12 +168,28 @@ func handleUpdateServiceSource(client *higress.HigressClient) common.ToolHandler
 	}
 }
 
-func getListServiceSourcesSchema() json.RawMessage {
-	return json.RawMessage(`{
-		"type": "object",
-		"properties": {},
-		"additionalProperties": false
-	}`)
+func handleDeleteServiceSource(client *higress.HigressClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		name, ok := arguments["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'name' argument")
+		}
+
+		respBody, err := client.Delete(fmt.Sprintf("/v1/service-sources/%s", name))
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete service source '%s': %w", name, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(respBody),
+				},
+			},
+		}, nil
+	}
 }
 
 func getServiceSourceSchema() json.RawMessage {

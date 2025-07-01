@@ -14,8 +14,14 @@ import (
 func RegisterCommonPluginTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// Get plugin configuration
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("get-plugin-config", "Get configuration for a specific plugin", getPluginConfigSchema()),
+		mcp.NewToolWithRawSchema("get-plugin", "Get configuration for a specific plugin", getPluginConfigSchema()),
 		handleGetPluginConfig(client),
+	)
+
+	// Delete plugin configuration
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("delete-plugin", "Delete configuration for a specific plugin", getPluginConfigSchema()),
+		handleDeletePluginConfig(client),
 	)
 }
 
@@ -65,6 +71,52 @@ func handleGetPluginConfig(client *higress.HigressClient) common.ToolHandlerFunc
 	}
 }
 
+func handleDeletePluginConfig(client *higress.HigressClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+
+		// Parse required parameters
+		pluginName, ok := arguments["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'name' argument")
+		}
+
+		scope, ok := arguments["scope"].(string)
+		if !ok {
+			return nil, fmt.Errorf("missing or invalid 'scope' argument")
+		}
+
+		if !IsValidScope(scope) {
+			return nil, fmt.Errorf("invalid scope '%s', must be one of: %v", scope, ValidScopes)
+		}
+
+		// Parse resource_name (required for non-global scopes)
+		var resourceName string
+		if scope != ScopeGlobal {
+			resourceName, ok = arguments["resource_name"].(string)
+			if !ok || resourceName == "" {
+				return nil, fmt.Errorf("'resource_name' is required for scope '%s'", scope)
+			}
+		}
+
+		// Build API path and make request
+		path := BuildPluginPath(pluginName, scope, resourceName)
+		respBody, err := client.Delete(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to delete plugin config for '%s' at scope '%s': %w", pluginName, scope, err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(respBody),
+				},
+			},
+		}, nil
+	}
+}
+
 func getPluginConfigSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -75,12 +127,12 @@ func getPluginConfigSchema() json.RawMessage {
 			},
 			"scope": {
 				"type": "string",
-				"enum": ["global", "domain", "service", "route"],
+				"enum": ["GLOBAL", "DOMAIN", "SERVICE", "ROUTE"],
 				"description": "The scope at which the plugin is applied"
 			},
 			"resource_name": {
 				"type": "string",
-				"description": "The name of the resource (required for domain, service, route scopes)"
+				"description": "The name of the resource (required for DOMAIN, SERVICE, ROUTE scopes)"
 			}
 		},
 		"required": ["name", "scope"],
