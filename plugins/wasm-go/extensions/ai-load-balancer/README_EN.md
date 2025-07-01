@@ -84,7 +84,7 @@ Select pods based on the prompt prefix match to reuse KV Cache. If no node can b
 | `password`         | string          | optional              | ``          | redis password                  |
 | `timeout`          | int             | optional              | 3000ms      | redis request timeout           |
 | `database`         | int             | optional              | 0           | redis database number           |
-| `redisKeyTTL`      | int             | optional              | 1800ms      | prompt prefix key's ttl         ｜
+| `redisKeyTTL`      | int             | optional              | 1800ms      | prompt prefix key's ttl         |
 
 ## Configuration Example
 
