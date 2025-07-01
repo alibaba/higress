@@ -101,6 +101,43 @@ func getAddOrUpdateRequestBlockConfigSchema() json.RawMessage {
 				"enum": ["GLOBAL", "DOMAIN", "SERVICE", "ROUTE"],
 				"description": "The scope at which the plugin is applied"
 			},
+			"target": {
+				"type": "string",
+				"description": "The name of the target (required for DOMAIN, SERVICE, ROUTE scopes), it should be same as the resource_name"
+			},
+			"targets": {
+				"type": "object",
+				"oneOf": [
+					{
+						"properties": {
+							"DOMAIN": {
+								"type": "string",
+								"description": "The name of the domain"
+							}
+						},
+						"additionalProperties": false
+					},
+					{
+						"properties": {
+							"SERVICE": {
+								"type": "string",
+								"description": "The name of the service"
+							}
+						},
+						"additionalProperties": false
+					},
+					{
+						"properties": {
+							"ROUTE": {
+								"type": "string",
+								"description": "The name of the route"
+							}
+						},
+						"additionalProperties": false
+					}
+				],
+				"description": "The target resource name (required for DOMAIN, SERVICE, ROUTE scopes)"
+			},
 			"resource_name": {
 				"type": "string",
 				"description": "The name of the resource (required for DOMAIN, SERVICE, ROUTE scopes)"
@@ -112,43 +149,7 @@ func getAddOrUpdateRequestBlockConfigSchema() json.RawMessage {
 			"configurations": {
 				"type": "object",
 				"properties": {
-				    "target": {
-						"type": "string",
-						"description": "The name of the target (required for DOMAIN, SERVICE, ROUTE scopes), it should be same as the resource_name"
-					},
-					"targets": {
-						"type": "object",
-						"oneOf": [
-							{
-								"properties": {
-									"DOMAIN": {
-										"type": "string",
-										"description": "The name of the domain"
-									}
-								},
-								"additionalProperties": false
-							},
-							{
-								"properties": {
-									"SERVICE": {
-										"type": "string",
-										"description": "The name of the service"
-									}
-								},
-								"additionalProperties": false
-							},
-							{
-								"properties": {
-									"ROUTE": {
-										"type": "string",
-										"description": "The name of the route"
-									}
-								},
-								"additionalProperties": false
-							}
-						],
-						"description": "The target resource name (required for DOMAIN, SERVICE, ROUTE scopes)"
-					},
+					"block_methods": {
 					"block_bodies": {
 						"type": "array",
 						"items": {"type": "string"},

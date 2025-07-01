@@ -1,6 +1,6 @@
 # Higress API MCP Server
 
-Higress API MCP Server 提供了 MCP 工具来管理 Higress 路由、服务源和插件等资源。
+Higress API MCP Server 提供了 MCP 工具来管理 Higress 路由、服务来源和插件等资源。
 
 ## 功能特性
 
