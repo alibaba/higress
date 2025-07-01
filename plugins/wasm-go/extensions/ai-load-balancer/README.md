@@ -135,6 +135,6 @@ sequenceDiagram
 	H ->> C: 返回响应
 ```
 
-pod选取流程图如下：
+<!-- pod选取流程图如下：
 
-![](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/docs/scheduler-flowchart.png)
+![](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/docs/scheduler-flowchart.png) -->

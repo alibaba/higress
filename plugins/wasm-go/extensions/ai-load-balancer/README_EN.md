@@ -122,9 +122,9 @@ sequenceDiagram
 	H ->> C: response
 ```
 
-flowchart for pod selection:
+<!-- flowchart for pod selection:
 
-![](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/docs/scheduler-flowchart.png)
+![](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/docs/scheduler-flowchart.png) -->
 
 ## Configuration
 
