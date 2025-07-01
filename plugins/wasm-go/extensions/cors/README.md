@@ -196,7 +196,6 @@ curl -v -X OPTIONS -H "Origin: http://httpbin2.example.org" -H  "Host: httpbin.e
  < HTTP/1.1 200 OK
 < x-cors-version: 1.0.0
 < vary: Origin
-< access-control-allow-origin: http://httpbin.example.net
 < access-control-allow-methods: GET,POST,PATCH
 < access-control-allow-headers: Content-Type,Token,Authorization
 < access-control-expose-headers: X-Custom-Header,X-Env-UTM
