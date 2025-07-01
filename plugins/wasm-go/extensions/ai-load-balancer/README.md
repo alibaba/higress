@@ -99,7 +99,7 @@ lb_config:
 | `password`         | string          | 选填              | 空          | redis 密码                           |
 | `timeout`          | int             | 选填              | 3000ms      | redis 请求超时时间                    |
 | `database`         | int             | 选填              | 0           | redis 数据库序号                      |
-| `redisKeyTTL`      | int             | 选填              | 1800ms      | prompt 前缀对应的key的ttl             ｜
+| `redisKeyTTL`      | int             | 选填              | 1800ms      | prompt 前缀对应的key的ttl             |
 
 ## 配置示例
 
