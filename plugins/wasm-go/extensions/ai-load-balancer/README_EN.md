@@ -8,8 +8,6 @@ description: LLM-oriented load balance policies
 
 **Attention**: 
 - Version of Higress should >= v2.1.5
-- Version of APIG should >= 2.1.6
-- Version of MSE should >= 2.0.11
 
 This plug-in provides the llm-oriented load balancing capability in a hot-swappable manner. If the plugin is closed, the load balancing strategy will degenerate into the load balancing strategy of the service itself (round robin, local minimum request number, random, consistent hash, etc.).
 
