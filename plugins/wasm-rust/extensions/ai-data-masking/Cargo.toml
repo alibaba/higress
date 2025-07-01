@@ -14,7 +14,7 @@ proxy-wasm = { git="https://github.com/higress-group/proxy-wasm-rust-sdk", branc
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 fancy-regex = "0"
-md5 = "0"
+hmac-sha256 = "1"
 grok = "2"
 lazy_static = "1"
 jieba-rs = "0"

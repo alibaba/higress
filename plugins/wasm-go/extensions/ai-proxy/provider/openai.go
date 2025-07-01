@@ -42,12 +42,12 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameCancelBatch):                          PathOpenAICancelBatch,
 		string(ApiNameResponses):                            PathOpenAIResponses,
 		string(ApiNameFineTuningJobs):                       PathOpenAIFineTuningJobs,
-		string(ApiNameFineTuningRetrieveJob):                PathOpenAIFineTuningRetrieveJob,
+		string(ApiNameRetrieveFineTuningJob):                PathOpenAIRetrieveFineTuningJob,
 		string(ApiNameFineTuningJobEvents):                  PathOpenAIFineTuningJobEvents,
 		string(ApiNameFineTuningJobCheckpoints):             PathOpenAIFineTuningJobCheckpoints,
-		string(ApiNameFineTuningCancelJob):                  PathOpenAIFineTuningCancelJob,
-		string(ApiNameFineTuningResumeJob):                  PathOpenAIFineTuningResumeJob,
-		string(ApiNameFineTuningPauseJob):                   PathOpenAIFineTuningPauseJob,
+		string(ApiNameCancelFineTuningJob):                  PathOpenAICancelFineTuningJob,
+		string(ApiNameResumeFineTuningJob):                  PathOpenAIResumeFineTuningJob,
+		string(ApiNamePauseFineTuningJob):                   PathOpenAIPauseFineTuningJob,
 		string(ApiNameFineTuningCheckpointPermissions):      PathOpenAIFineTuningCheckpointPermissions,
 		string(ApiNameDeleteFineTuningCheckpointPermission): PathOpenAIFineDeleteTuningCheckpointPermission,
 	}
@@ -120,9 +120,7 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if m.isDirectCustomPath {
 		util.OverwriteRequestPathHeader(headers, m.customPath)
-	}
-
-	if apiName != "" {
+	} else if apiName != "" {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 
