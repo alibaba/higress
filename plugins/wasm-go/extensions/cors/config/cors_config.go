@@ -342,18 +342,17 @@ func (c *CorsConfig) getHostAndPort(scheme string, host string) (string, string)
 	return host, port
 }
 
-func (c *CorsConfig) GetAllowOrigins(ctx HttpCorsContext) string {
+func (c *CorsConfig) GetAllowOrigins(ctx HttpCorsContext) (string, bool) {
 	for _, allowOriginPattern := range c.allowOriginPatterns {
 		if allowOriginPattern.declaredPattern == defaultMatchAll || allowOriginPattern.pattern.MatchString(ctx.AllowOrigin) {
-			return ctx.AllowOrigin
+			return ctx.AllowOrigin, true
 		}
 	}
 	allowOrigins := strings.Join(c.allowOrigins, ",")
 	if allowOrigins == defaultMatchAll {
-		return ctx.AllowOrigin
-	} else {
-		return allowOrigins
+		return ctx.AllowOrigin, true
 	}
+	return "", false
 }
 
 func (c *CorsConfig) GetAllowMethods(ctx HttpCorsContext) string {

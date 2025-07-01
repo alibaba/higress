@@ -131,8 +131,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig
 	proxywasm.AddHttpResponseHeader("Vary", "Origin")
 
 	// Add Cors headers when it is cors and valid request
-	proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowOrigin, corsConfig.GetAllowOrigins(httpCorsContext))
-
+	allowOrigins, ok := corsConfig.GetAllowOrigins(httpCorsContext)
+	if ok {
+		proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowOrigin, allowOrigins)
+	}
 	proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowMethods, corsConfig.GetAllowMethods(httpCorsContext))
 
 	proxywasm.AddHttpResponseHeader(config.HeaderAccessControlAllowHeaders, corsConfig.GetAllowHeaders(httpCorsContext))
