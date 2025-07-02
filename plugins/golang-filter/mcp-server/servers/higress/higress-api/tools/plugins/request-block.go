@@ -31,7 +31,7 @@ type RequestBlockResponse = higress.APIResponse[RequestBlockInstance]
 func RegisterRequestBlockPluginTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// Update request block configuration
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("update"+RequestBlockPluginName, "Update request block plugin configuration", getAddOrUpdateRequestBlockConfigSchema()),
+		mcp.NewToolWithRawSchema(fmt.Sprintf("update-%s-plugin", RequestBlockPluginName), "Update request block plugin configuration", getAddOrUpdateRequestBlockConfigSchema()),
 		handleAddOrUpdateRequestBlockConfig(client),
 	)
 }

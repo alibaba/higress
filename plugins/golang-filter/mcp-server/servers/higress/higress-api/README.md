@@ -17,9 +17,9 @@ Higress API MCP Server 提供了 MCP 工具来管理 Higress 路由、服务来�
 - `update-service-source`: 更新服务来源
 
 ### 插件管理
-- `list-plugins`: 列出插件
-- `get-plugin-config`: 获取插件配置
-- `update-request-block-config`: 更新 request-block 插件配置
+- `get-plugin`: 获取插件配置
+- `delete-plugin`: 删除插件
+- `update-request-block-plguin`: 更新 request-block 插件配置
 
 ## 配置参数
 
