@@ -72,21 +72,16 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 		currentConfig["enabled"] = enabled
 		currentConfig["scope"] = scope
 
-		// Handle non-global scopes: validate and set target and targets
+		// Handle non-global scopes: automatically set target and targets based on resource_name
 		if scope != ScopeGlobal {
-			// Validate target field
-			if target, ok := arguments["target"].(string); !ok || target == "" {
-				return nil, fmt.Errorf("'target' is required for scope '%s'", scope)
-			} else {
-				currentConfig["target"] = target
-			}
+			// Automatically set target field
+			currentConfig["target"] = resourceName
 
-			// Validate targets field
-			if targets, ok := arguments["targets"].(map[string]interface{}); !ok {
-				return nil, fmt.Errorf("'targets' is required for scope '%s'", scope)
-			} else {
-				currentConfig["targets"] = targets
+			// Automatically set targets field
+			targets := map[string]interface{}{
+				scope: resourceName,
 			}
+			currentConfig["targets"] = targets
 		}
 
 		// Merge configurations
@@ -119,43 +114,7 @@ func getAddOrUpdateRequestBlockConfigSchema() json.RawMessage {
 				"enum": ["GLOBAL", "DOMAIN", "SERVICE", "ROUTE"],
 				"description": "The scope at which the plugin is applied"
 			},
-			"target": {
-				"type": "string",
-				"description": "The name of the target (required for DOMAIN, SERVICE, ROUTE scopes), it should be same as the resource_name"
-			},
-			"targets": {
-				"type": "object",
-				"oneOf": [
-					{
-						"properties": {
-							"DOMAIN": {
-								"type": "string",
-								"description": "The name of the domain"
-							}
-						},
-						"additionalProperties": false
-					},
-					{
-						"properties": {
-							"SERVICE": {
-								"type": "string",
-								"description": "The name of the service"
-							}
-						},
-						"additionalProperties": false
-					},
-					{
-						"properties": {
-							"ROUTE": {
-								"type": "string",
-								"description": "The name of the route"
-							}
-						},
-						"additionalProperties": false
-					}
-				],
-				"description": "The target resource name (required for DOMAIN, SERVICE, ROUTE scopes)"
-			},
+
 			"resource_name": {
 				"type": "string",
 				"description": "The name of the resource (required for DOMAIN, SERVICE, ROUTE scopes)"
