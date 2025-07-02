@@ -85,12 +85,6 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 			if targets, ok := arguments["targets"].(map[string]interface{}); !ok {
 				return nil, fmt.Errorf("'targets' is required for scope '%s'", scope)
 			} else {
-				// Check if the targets contains the correct scope key
-				if targetValue, exists := targets[scope]; !exists {
-					return nil, fmt.Errorf("'targets.%s' is required for scope '%s'", scope, scope)
-				} else if targetStr, ok := targetValue.(string); !ok || targetStr == "" {
-					return nil, fmt.Errorf("'targets.%s' must be a non-empty string for scope '%s'", scope, scope)
-				}
 				currentConfig["targets"] = targets
 			}
 		}
