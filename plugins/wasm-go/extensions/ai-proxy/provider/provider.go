@@ -18,9 +18,9 @@ import (
 )
 
 type (
-	ApiName         string
-	Pointcut        string
-	subPathHandling string
+	ApiName          string
+	Pointcut         string
+	basePathHandling string
 )
 
 const (
@@ -145,8 +145,8 @@ const (
 
 	defaultTimeout = 2 * 60 * 1000 // ms
 
-	subPathHandlingRemovePrefix subPathHandling = "removePrefix"
-	subPathHandlingPrepend      subPathHandling = "prepend"
+	basePathHandlingRemovePrefix basePathHandling = "removePrefix"
+	basePathHandlingPrepend      basePathHandling = "prepend"
 )
 
 type providerInitializer interface {
@@ -362,10 +362,10 @@ type ProviderConfig struct {
 	// @Title zh-CN 额外支持的ai能力
 	// @Description zh-CN 开放的ai能力和urlpath映射，例如： {"openai/v1/chatcompletions": "/v1/chat/completions"}
 	capabilities map[string]string
-	// @Title zh-CN 如果配置了subPath，可用于在请求path中移除该前缀，或添加至请求path中，默认为进行移除
-	subPath string `required:"false" yaml:"subPath" json:"subPath"`
-	// @Title zh-CN subPathHandling用于指定subPath的处理方式，可选值：removePrefix、prepend
-	subPathHandling subPathHandling `required:"false" yaml:"subPathHandling" json:"subPathHandling"`
+	// @Title zh-CN 如果配置了basePath，可用于在请求path中移除该前缀，或添加至请求path中，默认为进行移除
+	basePath string `required:"false" yaml:"basePath" json:"basePath"`
+	// @Title zh-CN basePathHandling用于指定basePath的处理方式，可选值：removePrefix、prepend
+	basePathHandling basePathHandling `required:"false" yaml:"basePathHandling" json:"basePathHandling"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -533,10 +533,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.capabilities[capability] = pathJson.String()
 		}
 	}
-	c.subPath = json.Get("subPath").String()
-	c.subPathHandling = subPathHandling(json.Get("subPathHandling").String())
-	if c.subPath != "" && c.subPathHandling == "" {
-		c.subPathHandling = subPathHandlingRemovePrefix
+	c.basePath = json.Get("basePath").String()
+	c.basePathHandling = basePathHandling(json.Get("basePathHandling").String())
+	if c.basePath != "" && c.basePathHandling == "" {
+		c.basePathHandling = basePathHandlingRemovePrefix
 	}
 }
 
@@ -849,14 +849,14 @@ func (c *ProviderConfig) handleRequestBody(
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
 	headers := util.GetOriginalRequestHeaders()
 	originPath := headers.Get(":path")
-	if c.subPath != "" && c.subPathHandling == subPathHandlingRemovePrefix {
-		headers.Set(":path", strings.TrimPrefix(originPath, c.subPath))
+	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
+		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
 	}
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
 		handler.TransformRequestHeaders(ctx, apiName, headers)
 	}
-	if c.subPath != "" && c.subPathHandling == subPathHandlingPrepend {
-		headers.Set(":path", c.subPath+headers.Get(":path"))
+	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
+		headers.Set(":path", c.basePath+headers.Get(":path"))
 	}
 	if headers.Get(":path") != originPath {
 		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
