@@ -358,6 +358,8 @@ type ProviderConfig struct {
 	// @Title zh-CN 额外支持的ai能力
 	// @Description zh-CN 开放的ai能力和urlpath映射，例如： {"openai/v1/chatcompletions": "/v1/chat/completions"}
 	capabilities map[string]string
+	// @Title zh-CN 如果配置了subPath，将会先移除请求path中该前缀，再进行后续处理
+	subPath string `required:"false" yaml:"subPath" json:"subPath"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -525,6 +527,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.capabilities[capability] = pathJson.String()
 		}
 	}
+	c.subPath = json.Get("subPath").String()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -835,10 +838,17 @@ func (c *ProviderConfig) handleRequestBody(
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
 	headers := util.GetOriginalRequestHeaders()
+	originPath := headers.Get(":path")
+	if c.subPath != "" {
+		headers.Set(":path", strings.TrimPrefix(originPath, c.subPath))
+	}
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
 		handler.TransformRequestHeaders(ctx, apiName, headers)
-		util.ReplaceRequestHeaders(headers)
 	}
+	if headers.Get(":path") != originPath {
+		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
+	}
+	util.ReplaceRequestHeaders(headers)
 }
 
 // defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
