@@ -83,6 +83,10 @@ func (c *HigressClient) request(method, path string, data interface{}) ([]byte, 
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("HTTP error %d", resp.StatusCode)
+	}
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
