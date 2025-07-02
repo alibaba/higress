@@ -45,9 +45,10 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 			return nil, fmt.Errorf("missing or invalid 'configurations' argument")
 		}
 
-		// Parse resource_name (required for non-global scopes)
+		// Parse resource_name for non-global scopes
 		var resourceName string
 		if scope != ScopeGlobal {
+			// Validate and get resource_name
 			resourceName, ok = arguments["resource_name"].(string)
 			if !ok || resourceName == "" {
 				return nil, fmt.Errorf("'resource_name' is required for scope '%s'", scope)
@@ -68,8 +69,31 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 			return nil, fmt.Errorf("failed to parse current request block configuration: %w", err)
 		}
 
-		// Update enabled status
 		currentConfig["enabled"] = enabled
+		currentConfig["scope"] = scope
+
+		// Handle non-global scopes: validate and set target and targets
+		if scope != ScopeGlobal {
+			// Validate target field
+			if target, ok := arguments["target"].(string); !ok || target == "" {
+				return nil, fmt.Errorf("'target' is required for scope '%s'", scope)
+			} else {
+				currentConfig["target"] = target
+			}
+
+			// Validate targets field
+			if targets, ok := arguments["targets"].(map[string]interface{}); !ok {
+				return nil, fmt.Errorf("'targets' is required for scope '%s'", scope)
+			} else {
+				// Check if the targets contains the correct scope key
+				if targetValue, exists := targets[scope]; !exists {
+					return nil, fmt.Errorf("'targets.%s' is required for scope '%s'", scope, scope)
+				} else if targetStr, ok := targetValue.(string); !ok || targetStr == "" {
+					return nil, fmt.Errorf("'targets.%s' must be a non-empty string for scope '%s'", scope, scope)
+				}
+				currentConfig["targets"] = targets
+			}
+		}
 
 		// Merge configurations
 		for key, value := range configurations {

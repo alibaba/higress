@@ -14,7 +14,7 @@ import (
 func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all routes
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-routes", "List all available routes", json.RawMessage(`{}`)),
+		mcp.NewTool("list-routes", mcp.WithDescription("List all available routes")),
 		handleListRoutes(client),
 	)
 

@@ -14,7 +14,7 @@ import (
 func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all service sources
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-service-sources", "List all available service sources", json.RawMessage(`{}`)),
+		mcp.NewTool("list-service-sources", mcp.WithDescription("List all available service sources")),
 		handleListServiceSources(client),
 	)
 
