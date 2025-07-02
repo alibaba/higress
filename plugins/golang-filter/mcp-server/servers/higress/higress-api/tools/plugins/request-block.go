@@ -12,6 +12,21 @@ import (
 
 const RequestBlockPluginName = "request-block"
 
+// RequestBlockConfig represents the configuration for request-block plugin
+type RequestBlockConfig struct {
+	BlockBodies   []string `json:"block_bodies,omitempty"`
+	BlockHeaders  []string `json:"block_headers,omitempty"`
+	BlockUrls     []string `json:"block_urls,omitempty"`
+	BlockedCode   int      `json:"blocked_code,omitempty"`
+	CaseSensitive bool     `json:"case_sensitive,omitempty"`
+}
+
+// RequestBlockInstance represents a request-block plugin instance
+type RequestBlockInstance = PluginInstance[RequestBlockConfig]
+
+// RequestBlockResponse represents the API response for request-block plugin
+type RequestBlockResponse = higress.APIResponse[RequestBlockInstance]
+
 // RegisterRequestBlockPluginTools registers all request block plugin management tools
 func RegisterRequestBlockPluginTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// Update request block configuration
@@ -40,9 +55,9 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 			return nil, fmt.Errorf("missing or invalid 'enabled' argument")
 		}
 
-		configurations, ok := arguments["configurations"].(map[string]interface{})
+		configurations, ok := arguments["configurations"]
 		if !ok {
-			return nil, fmt.Errorf("missing or invalid 'configurations' argument")
+			return nil, fmt.Errorf("missing 'configurations' argument")
 		}
 
 		// Parse resource_name for non-global scopes
@@ -64,30 +79,40 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 			return nil, fmt.Errorf("failed to get current request block configuration: %w", err)
 		}
 
-		var currentConfig map[string]interface{}
-		if err := json.Unmarshal(currentBody, &currentConfig); err != nil {
-			return nil, fmt.Errorf("failed to parse current request block configuration: %w", err)
+		var response RequestBlockResponse
+		if err := json.Unmarshal(currentBody, &response); err != nil {
+			return nil, fmt.Errorf("failed to parse current request block response: %w", err)
 		}
 
-		currentConfig["enabled"] = enabled
-		currentConfig["scope"] = scope
+		currentConfig := response.Data
+		currentConfig.Enabled = enabled
+		currentConfig.Scope = scope
 
-		// Handle non-global scopes: automatically set target and targets based on resource_name
-		if scope != ScopeGlobal {
-			// Automatically set target field
-			currentConfig["target"] = resourceName
-
-			// Automatically set targets field
-			targets := map[string]interface{}{
-				scope: resourceName,
-			}
-			currentConfig["targets"] = targets
+		// Convert the input configurations to RequestBlockConfig and merge
+		configBytes, err := json.Marshal(configurations)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal configurations: %w", err)
 		}
 
-		// Merge configurations
-		for key, value := range configurations {
-			currentConfig[key] = value
+		var newConfig RequestBlockConfig
+		if err := json.Unmarshal(configBytes, &newConfig); err != nil {
+			return nil, fmt.Errorf("failed to parse request block configurations: %w", err)
 		}
+
+		// Update configurations (overwrite with new values where provided)
+		if newConfig.BlockBodies != nil {
+			currentConfig.Configurations.BlockBodies = newConfig.BlockBodies
+		}
+		if newConfig.BlockHeaders != nil {
+			currentConfig.Configurations.BlockHeaders = newConfig.BlockHeaders
+		}
+		if newConfig.BlockUrls != nil {
+			currentConfig.Configurations.BlockUrls = newConfig.BlockUrls
+		}
+		if newConfig.BlockedCode != 0 {
+			currentConfig.Configurations.BlockedCode = newConfig.BlockedCode
+		}
+		currentConfig.Configurations.CaseSensitive = newConfig.CaseSensitive
 
 		respBody, err := client.Put(path, currentConfig)
 		if err != nil {
