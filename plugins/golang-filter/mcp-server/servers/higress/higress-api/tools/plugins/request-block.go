@@ -149,7 +149,6 @@ func getAddOrUpdateRequestBlockConfigSchema() json.RawMessage {
 			"configurations": {
 				"type": "object",
 				"properties": {
-					"block_methods": {
 					"block_bodies": {
 						"type": "array",
 						"items": {"type": "string"},
@@ -180,31 +179,6 @@ func getAddOrUpdateRequestBlockConfigSchema() json.RawMessage {
 			}
 		},
 		"required": ["scope", "enabled", "configurations"],
-		"allOf": [
-			{
-				"if": {
-					"properties": {
-						"scope": {"const": "GLOBAL"}
-					}
-				},
-				"then": {
-					"properties": {
-						"configurations": {
-							"not": {
-								"required": ["targets"]
-							}
-						}
-					}
-				},
-				"else": {
-					"properties": {
-						"configurations": {
-							"required": ["targets"]
-						}
-					}
-				}
-			}
-		],
 		"additionalProperties": false
 	}`)
 }
