@@ -14,11 +14,6 @@ require (
 )
 
 require (
-	github.com/tetratelabs/wazero v1.7.2 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-)
-
-require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.6.0
 	github.com/pmezard/go-difflib v1.0.0 // indirect
