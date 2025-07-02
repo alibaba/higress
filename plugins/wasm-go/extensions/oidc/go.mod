@@ -7,18 +7,13 @@ toolchain go1.24.4
 // toolchain go1.22.5
 
 require (
-	github.com/higress-group/oauth2-proxy v1.0.0
+	github.com/higress-group/oauth2-proxy v1.0.1-0.20250702092041-8932d225759a
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.1
 	github.com/higress-group/wasm-go v1.0.0
 	github.com/tidwall/gjson v1.18.0
 )
 
-require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.3 // indirect
-	github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 // indirect
-	github.com/wasilibs/go-re2 v1.10.0 // indirect
-	github.com/wasilibs/wazero-helpers v0.0.0-20250123031827-cd30c44769bb // indirect
-)
+require github.com/higress-group/nottinygc v0.0.0-20231101025119-e93c4c2f8520 // indirect
 
 require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -30,7 +25,6 @@ require (
 	github.com/magefile/mage v1.15.1-0.20230912152418-9f54e0f83e2a // indirect
 	github.com/ohler55/ojg v1.26.8 // indirect
 	github.com/spf13/cast v1.9.2 // indirect
-	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/resp v0.1.1 // indirect
