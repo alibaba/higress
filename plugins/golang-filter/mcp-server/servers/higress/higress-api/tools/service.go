@@ -10,6 +10,29 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// ServiceSource represents a service source configuration
+type ServiceSource struct {
+	Name       string                 `json:"name"`
+	Version    string                 `json:"version,omitempty"`
+	Type       string                 `json:"type"`
+	Domain     string                 `json:"domain"`
+	Port       int                    `json:"port"`
+	Protocol   string                 `json:"protocol,omitempty"`
+	SNI        *string                `json:"sni,omitempty"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+	AuthN      *ServiceSourceAuthN    `json:"authN,omitempty"`
+	Valid      bool                   `json:"valid,omitempty"`
+}
+
+// ServiceSourceAuthN represents authentication configuration for service source
+type ServiceSourceAuthN struct {
+	Enabled    bool                   `json:"enabled"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+}
+
+// ServiceSourceResponse represents the API response for service source operations
+type ServiceSourceResponse = higress.APIResponse[ServiceSource]
+
 // RegisterServiceTools registers all service source management tools
 func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all service sources
@@ -142,17 +165,51 @@ func handleUpdateServiceSource(client *higress.HigressClient) common.ToolHandler
 			return nil, fmt.Errorf("failed to get current service source configuration: %w", err)
 		}
 
-		var currentSource map[string]interface{}
-		if err := json.Unmarshal(currentBody, &currentSource); err != nil {
-			return nil, fmt.Errorf("failed to parse current service source configuration: %w", err)
+		var response ServiceSourceResponse
+		if err := json.Unmarshal(currentBody, &response); err != nil {
+			return nil, fmt.Errorf("failed to parse current service source response: %w", err)
 		}
 
-		// Merge configurations
-		for key, value := range configurations {
-			currentSource[key] = value
+		currentConfig := response.Data
+
+		// Update configurations using JSON marshal/unmarshal for type conversion
+		configBytes, err := json.Marshal(configurations)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal configurations: %w", err)
 		}
 
-		respBody, err := client.Put(fmt.Sprintf("/v1/service-sources/%s", name), currentSource)
+		var newConfig ServiceSource
+		if err := json.Unmarshal(configBytes, &newConfig); err != nil {
+			return nil, fmt.Errorf("failed to parse service source configurations: %w", err)
+		}
+
+		// Merge configurations (overwrite with new values where provided)
+		if newConfig.Name != "" {
+			currentConfig.Name = newConfig.Name
+		}
+		if newConfig.Type != "" {
+			currentConfig.Type = newConfig.Type
+		}
+		if newConfig.Domain != "" {
+			currentConfig.Domain = newConfig.Domain
+		}
+		if newConfig.Port != 0 {
+			currentConfig.Port = newConfig.Port
+		}
+		if newConfig.Protocol != "" {
+			currentConfig.Protocol = newConfig.Protocol
+		}
+		if newConfig.SNI != nil {
+			currentConfig.SNI = newConfig.SNI
+		}
+		if newConfig.Properties != nil {
+			currentConfig.Properties = newConfig.Properties
+		}
+		if newConfig.AuthN != nil {
+			currentConfig.AuthN = newConfig.AuthN
+		}
+
+		respBody, err := client.Put(fmt.Sprintf("/v1/service-sources/%s", name), currentConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update service source '%s': %w", name, err)
 		}

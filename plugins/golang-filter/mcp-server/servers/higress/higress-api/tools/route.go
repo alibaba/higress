@@ -10,6 +10,50 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// Route represents a route configuration
+type Route struct {
+	Name          string                 `json:"name"`
+	Version       string                 `json:"version,omitempty"`
+	Domains       []string               `json:"domains,omitempty"`
+	Path          *RoutePath             `json:"path,omitempty"`
+	Methods       []string               `json:"methods,omitempty"`
+	Headers       []RouteMatch           `json:"headers,omitempty"`
+	URLParams     []RouteMatch           `json:"urlParams,omitempty"`
+	Services      []RouteService         `json:"services,omitempty"`
+	AuthConfig    *RouteAuthConfig       `json:"authConfig,omitempty"`
+	CustomConfigs map[string]interface{} `json:"customConfigs,omitempty"`
+}
+
+// RoutePath represents path matching configuration
+type RoutePath struct {
+	MatchType     string `json:"matchType"`
+	MatchValue    string `json:"matchValue"`
+	CaseSensitive bool   `json:"caseSensitive,omitempty"`
+}
+
+// RouteMatch represents header or URL parameter matching configuration
+type RouteMatch struct {
+	Key        string `json:"key"`
+	MatchType  string `json:"matchType"`
+	MatchValue string `json:"matchValue"`
+}
+
+// RouteService represents a service in the route
+type RouteService struct {
+	Name   string `json:"name"`
+	Port   int    `json:"port"`
+	Weight int    `json:"weight"`
+}
+
+// RouteAuthConfig represents authentication configuration for a route
+type RouteAuthConfig struct {
+	Enabled          bool     `json:"enabled"`
+	AllowedConsumers []string `json:"allowedConsumers,omitempty"`
+}
+
+// RouteResponse represents the API response for route operations
+type RouteResponse = higress.APIResponse[Route]
+
 // RegisterRouteTools registers all route management tools
 func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all routes
@@ -139,17 +183,51 @@ func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("failed to get current route configuration: %w", err)
 		}
 
-		var currentRoute map[string]interface{}
-		if err := json.Unmarshal(currentBody, &currentRoute); err != nil {
-			return nil, fmt.Errorf("failed to parse current route configuration: %w", err)
+		var response RouteResponse
+		if err := json.Unmarshal(currentBody, &response); err != nil {
+			return nil, fmt.Errorf("failed to parse current route response: %w", err)
 		}
 
-		// Merge configurations
-		for key, value := range configurations {
-			currentRoute[key] = value
+		currentConfig := response.Data
+
+		// Update configurations using JSON marshal/unmarshal for type conversion
+		configBytes, err := json.Marshal(configurations)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal configurations: %w", err)
 		}
 
-		respBody, err := client.Put(fmt.Sprintf("/v1/routes/%s", name), currentRoute)
+		var newConfig Route
+		if err := json.Unmarshal(configBytes, &newConfig); err != nil {
+			return nil, fmt.Errorf("failed to parse route configurations: %w", err)
+		}
+
+		// Merge configurations (overwrite with new values where provided)
+		if newConfig.Domains != nil {
+			currentConfig.Domains = newConfig.Domains
+		}
+		if newConfig.Path != nil {
+			currentConfig.Path = newConfig.Path
+		}
+		if newConfig.Methods != nil {
+			currentConfig.Methods = newConfig.Methods
+		}
+		if newConfig.Headers != nil {
+			currentConfig.Headers = newConfig.Headers
+		}
+		if newConfig.URLParams != nil {
+			currentConfig.URLParams = newConfig.URLParams
+		}
+		if newConfig.Services != nil {
+			currentConfig.Services = newConfig.Services
+		}
+		if newConfig.AuthConfig != nil {
+			currentConfig.AuthConfig = newConfig.AuthConfig
+		}
+		if newConfig.CustomConfigs != nil {
+			currentConfig.CustomConfigs = newConfig.CustomConfigs
+		}
+
+		respBody, err := client.Put(fmt.Sprintf("/v1/routes/%s", name), currentConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update route '%s': %w", name, err)
 		}
