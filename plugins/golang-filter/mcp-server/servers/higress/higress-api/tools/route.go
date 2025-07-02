@@ -382,7 +382,8 @@ func getUpdateRouteSchema() json.RawMessage {
 					"domains": {
 						"type": "array",
 						"items": {"type": "string"},
-						"description": "List of domain names, but only one domain is allowed"
+						"description": "List of domain names, but only one domain is allowed",
+						"maxItems": 1
 					},
 					"path": {
 						"type": "object",
