@@ -79,7 +79,7 @@ jobs:
           if [ -z "$plugins" ]; then
             echo "::set-output name=changed_plugins::[]"
           else
-            # always tag as 1.0.0 and latest
+            # always tag as latest
             arr=$(printf '"%s",' $plugins | sed 's/,$//')
             echo "::set-output name=changed_plugins::[${arr}]"
           fi
