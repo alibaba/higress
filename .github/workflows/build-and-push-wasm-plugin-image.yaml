@@ -118,8 +118,8 @@ jobs:
             plugin_type=rust
           fi
 
-          # 版本固定为 1.0.0
-          version="1.0.0"
+          # 版本固定为 latest
+          version="latest"
           echo "VERSION=$version" >> $GITHUB_ENV
 
           if [[ "$plugin_type" == "rust" ]]; then
