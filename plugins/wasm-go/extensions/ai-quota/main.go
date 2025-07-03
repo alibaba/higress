@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-quota/util"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/tokenusage"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -42,10 +43,10 @@ const (
 func main() {
 	wrapper.SetCtx(
 		pluginName,
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingResponseBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
+		wrapper.ProcessStreamingResponseBody(onHttpStreamingResponseBody),
 	)
 }
 
@@ -72,7 +73,7 @@ type RedisInfo struct {
 	Database    int    `required:"false" yaml:"database" json:"database"`
 }
 
-func parseConfig(json gjson.Result, config *QuotaConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *QuotaConfig) error {
 	log.Debugf("parse config()")
 	// admin
 	config.AdminPath = json.Get("admin_path").String()
@@ -126,7 +127,7 @@ func parseConfig(json gjson.Result, config *QuotaConfig, log wrapper.Log) error 
 	return config.redisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
 }
 
-func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig) types.Action {
 	log.Debugf("onHttpRequestHeaders()")
 	// get tokens
 	consumer, err := proxywasm.GetHttpRequestHeader("x-mse-consumer")
@@ -139,7 +140,7 @@ func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig, log w
 
 	rawPath := context.Path()
 	path, _ := url.Parse(rawPath)
-	chatMode, adminMode := getOperationMode(path.Path, config.AdminPath, log)
+	chatMode, adminMode := getOperationMode(path.Path, config.AdminPath)
 	context.SetContext("chatMode", chatMode)
 	context.SetContext("adminMode", adminMode)
 	context.SetContext("consumer", consumer)
@@ -150,7 +151,7 @@ func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig, log w
 	if chatMode == ChatModeAdmin {
 		// query quota
 		if adminMode == AdminModeQuery {
-			return queryQuota(context, config, consumer, path, log)
+			return queryQuota(context, config, consumer, path)
 		}
 		if adminMode == AdminModeRefresh || adminMode == AdminModeDelta {
 			context.BufferRequestBody()
@@ -183,7 +184,7 @@ func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig, log w
 	return types.HeaderStopAllIterationAndWatermark
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config QuotaConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config QuotaConfig, body []byte) types.Action {
 	log.Debugf("onHttpRequestBody()")
 	chatMode, ok := ctx.GetContext("chatMode").(ChatMode)
 	if !ok {
@@ -202,16 +203,16 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config QuotaConfig, body []byte,
 	}
 
 	if adminMode == AdminModeRefresh {
-		return refreshQuota(ctx, config, adminConsumer, string(body), log)
+		return refreshQuota(ctx, config, adminConsumer, string(body))
 	}
 	if adminMode == AdminModeDelta {
-		return deltaQuota(ctx, config, adminConsumer, string(body), log)
+		return deltaQuota(ctx, config, adminConsumer, string(body))
 	}
 
 	return types.ActionContinue
 }
 
-func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config QuotaConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
+func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config QuotaConfig, data []byte, endOfStream bool) []byte {
 	chatMode, ok := ctx.GetContext("chatMode").(ChatMode)
 	if !ok {
 		return data
@@ -219,11 +220,9 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config QuotaConfig, da
 	if chatMode == ChatModeNone || chatMode == ChatModeAdmin {
 		return data
 	}
-	var inputToken, outputToken int64
-	var consumer string
-	if inputToken, outputToken, ok := getUsage(data); ok {
-		ctx.SetContext("input_token", inputToken)
-		ctx.SetContext("output_token", outputToken)
+	if usage := tokenusage.GetTokenUsage(data); usage.TotalToken > 0 {
+		ctx.SetContext("input_token", usage.InputToken)
+		ctx.SetContext("output_token", usage.OutputToken)
 	}
 
 	// chat completion mode
@@ -235,33 +234,13 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config QuotaConfig, da
 		return data
 	}
 
-	inputToken = ctx.GetContext("input_token").(int64)
-	outputToken = ctx.GetContext("output_token").(int64)
-	consumer = ctx.GetContext("consumer").(string)
+	inputToken := ctx.GetContext("input_token").(int64)
+	outputToken := ctx.GetContext("output_token").(int64)
+	consumer := ctx.GetContext("consumer").(string)
 	totalToken := int(inputToken + outputToken)
 	log.Debugf("update consumer:%s, totalToken:%d", consumer, totalToken)
 	config.redisClient.DecrBy(config.RedisKeyPrefix+consumer, totalToken, nil)
 	return data
-}
-
-func getUsage(data []byte) (inputTokenUsage int64, outputTokenUsage int64, ok bool) {
-	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
-	for _, chunk := range chunks {
-		// the feature strings are used to identify the usage data, like:
-		// {"model":"gpt2","usage":{"prompt_tokens":1,"completion_tokens":1}}
-		if !bytes.Contains(chunk, []byte("prompt_tokens")) || !bytes.Contains(chunk, []byte("completion_tokens")) {
-			continue
-		}
-		inputTokenObj := gjson.GetBytes(chunk, "usage.prompt_tokens")
-		outputTokenObj := gjson.GetBytes(chunk, "usage.completion_tokens")
-		if inputTokenObj.Exists() && outputTokenObj.Exists() {
-			inputTokenUsage = inputTokenObj.Int()
-			outputTokenUsage = outputTokenObj.Int()
-			ok = true
-			return
-		}
-	}
-	return
 }
 
 func deniedNoKeyAuthData() types.Action {
@@ -274,7 +253,7 @@ func deniedUnauthorizedConsumer() types.Action {
 	return types.ActionContinue
 }
 
-func getOperationMode(path string, adminPath string, log wrapper.Log) (ChatMode, AdminMode) {
+func getOperationMode(path string, adminPath string) (ChatMode, AdminMode) {
 	fullAdminPath := "/v1/chat/completions" + adminPath
 	if strings.HasSuffix(path, fullAdminPath+"/refresh") {
 		return ChatModeAdmin, AdminModeRefresh
@@ -291,7 +270,7 @@ func getOperationMode(path string, adminPath string, log wrapper.Log) (ChatMode,
 	return ChatModeNone, AdminModeNone
 }
 
-func refreshQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer string, body string, log wrapper.Log) types.Action {
+func refreshQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer string, body string) types.Action {
 	// check consumer
 	if adminConsumer != config.AdminConsumer {
 		util.SendResponse(http.StatusForbidden, "ai-quota.unauthorized", "text/plain", "Request denied by ai quota check. Unauthorized admin consumer.")
@@ -325,7 +304,8 @@ func refreshQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer str
 
 	return types.ActionPause
 }
-func queryQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer string, url *url.URL, log wrapper.Log) types.Action {
+
+func queryQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer string, url *url.URL) types.Action {
 	// check consumer
 	if adminConsumer != config.AdminConsumer {
 		util.SendResponse(http.StatusForbidden, "ai-quota.unauthorized", "text/plain", "Request denied by ai quota check. Unauthorized admin consumer.")
@@ -368,7 +348,8 @@ func queryQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer strin
 	}
 	return types.ActionPause
 }
-func deltaQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer string, body string, log wrapper.Log) types.Action {
+
+func deltaQuota(ctx wrapper.HttpContext, config QuotaConfig, adminConsumer string, body string) types.Action {
 	// check consumer
 	if adminConsumer != config.AdminConsumer {
 		util.SendResponse(http.StatusForbidden, "ai-quota.unauthorized", "text/plain", "Request denied by ai quota check. Unauthorized admin consumer.")

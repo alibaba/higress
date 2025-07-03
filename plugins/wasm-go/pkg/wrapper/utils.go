@@ -1,6 +1,7 @@
 package wrapper
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -33,4 +34,20 @@ func MarshalStr(raw string) string {
 		proxywasm.LogErrorf("failed to marshal json string, raw string is: %s", raw)
 		return ""
 	}
+}
+
+func GetValueFromBody(data []byte, paths []string) *gjson.Result {
+	for _, path := range paths {
+		obj := gjson.GetBytes(data, path)
+		if obj.Exists() {
+			return &obj
+		}
+	}
+	return nil
+}
+
+func UnifySSEChunk(data []byte) []byte {
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
+	return data
 }
