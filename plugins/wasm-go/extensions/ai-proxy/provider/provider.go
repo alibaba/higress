@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"path"
 	"regexp"
 	"strings"
 
@@ -856,7 +857,7 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 		handler.TransformRequestHeaders(ctx, apiName, headers)
 	}
 	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
-		headers.Set(":path", c.basePath+headers.Get(":path"))
+		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
 	}
 	if headers.Get(":path") != originPath {
 		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
