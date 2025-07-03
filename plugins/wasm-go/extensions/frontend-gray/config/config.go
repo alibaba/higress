@@ -60,6 +60,7 @@ type BodyInjection struct {
 
 type GrayConfig struct {
 	StoreMaxAge         int
+	UseManifestAsEntry  bool
 	GrayKey             string
 	LocalStorageGrayKey string
 	GraySubKey          string
@@ -129,6 +130,7 @@ func convertToStringMap(result gjson.Result) map[string]string {
 func JsonToGrayConfig(json gjson.Result, grayConfig *GrayConfig) error {
 	// 解析 GrayKey
 	grayConfig.LocalStorageGrayKey = json.Get("localStorageGrayKey").String()
+	grayConfig.UseManifestAsEntry = json.Get("useManifestAsEntry").Bool()
 	grayConfig.GrayKey = json.Get("grayKey").String()
 	if grayConfig.LocalStorageGrayKey != "" {
 		grayConfig.GrayKey = grayConfig.LocalStorageGrayKey
