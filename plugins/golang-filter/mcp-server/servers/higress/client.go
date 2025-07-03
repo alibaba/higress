@@ -50,7 +50,6 @@ func (c *HigressClient) Put(path string, data interface{}) ([]byte, error) {
 func (c *HigressClient) Delete(path string) ([]byte, error) {
 	return c.request("DELETE", path, nil)
 }
-
 func (c *HigressClient) request(method, path string, data interface{}) ([]byte, error) {
 	url := c.baseURL + path
 
@@ -92,19 +91,20 @@ func (c *HigressClient) request(method, path string, data interface{}) ([]byte, 
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Parse the JSON response to check for API errors
-	var response APIResponse[json.RawMessage]
-	if err := json.Unmarshal(respBody, &response); err != nil {
+	// Parse the JSON response
+	var responseJson map[string]interface{}
+	if err := json.Unmarshal(respBody, &responseJson); err != nil {
 		// If it's not valid JSON, return the raw body
 		api.LogDebugf("Response is not valid JSON, returning raw body")
 		return respBody, nil
 	}
 
-	// Check if the API request was successful
-	if !response.Success {
+	// If success field exists and is False, it indicates an error
+	// The success response might not contain the success field
+	if success, exists := responseJson["success"]; exists && success == false {
 		errorMsg := "Unknown API error"
-		if response.Message != "" {
-			errorMsg = response.Message
+		if msg, ok := responseJson["message"].(string); ok {
+			errorMsg = msg
 		}
 		api.LogErrorf("Request API error for %s %s: %s", method, path, errorMsg)
 		return nil, fmt.Errorf("request API error for %s %s: %s", method, path, errorMsg)
