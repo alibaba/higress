@@ -5,7 +5,7 @@ go 1.18
 replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v1.4.1-0.20240617024146-5f150179637c
+	github.com/alibaba/higress/plugins/wasm-go v1.4.3
 	github.com/higress-group/proxy-wasm-go-sdk v1.0.0
 	github.com/tidwall/gjson v1.17.3
 	github.com/wasilibs/go-re2 v1.5.3
@@ -15,6 +15,7 @@ require (
 require (
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56 // indirect
 	github.com/tetratelabs/wazero v1.7.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 )
 
 require (

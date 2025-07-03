@@ -352,7 +352,58 @@ func unifySSEChunk(data []byte) []byte {
 	return data
 }
 
-func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
+func getResponseTokenUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
+	resObj := gjson.GetBytes(data, "response")
+
+	// stream response api
+	//
+	if resObj.Exists() {
+		objectType := gjson.GetBytes(data, "response.object").String()
+		if objectType == "response" {
+
+			modelObj := gjson.GetBytes(data, "response.model")
+			if modelObj.Exists() {
+				model = modelObj.String()
+			} else {
+				model = "unknown"
+			}
+
+			inputTokenObj := gjson.GetBytes(data, "response.usage.input_tokens")
+			outputTokenObj := gjson.GetBytes(data, "response.usage.output_tokens")
+
+			if inputTokenObj.Exists() && outputTokenObj.Exists() {
+				inputTokenUsage = inputTokenObj.Int()
+				outputTokenUsage = outputTokenObj.Int()
+				ok = true
+				return
+			}
+		} else {
+			objectType := gjson.GetBytes(data, "object").String()
+			if objectType == "response" {
+
+				modelObj := gjson.GetBytes(data, "model")
+				if modelObj.Exists() {
+					model = modelObj.String()
+				} else {
+					model = "unknown"
+				}
+
+				inputTokenObj := gjson.GetBytes(data, "usage.input_tokens")
+				outputTokenObj := gjson.GetBytes(data, "usage.output_tokens")
+
+				if inputTokenObj.Exists() && outputTokenObj.Exists() {
+					inputTokenUsage = inputTokenObj.Int()
+					outputTokenUsage = outputTokenObj.Int()
+					ok = true
+					return
+				}
+			}
+		}
+	}
+	return
+}
+
+func getChatCompletionTokenUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
 	chunks := bytes.Split(bytes.TrimSpace(unifySSEChunk(data)), []byte("\n\n"))
 	for _, chunk := range chunks {
 		// the feature strings are used to identify the usage data, like:
@@ -379,6 +430,16 @@ func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsag
 		}
 	}
 	return
+}
+
+func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
+	// try to get the v1/completion
+	if model, inputToken, ouputToken, ok := getResponseTokenUsage(data); ok {
+		return model, inputToken, ouputToken, true
+	}
+
+	// get back to the chat.completion
+	return getChatCompletionTokenUsage(data)
 }
 
 // fetches the tracing span value from the specified source.
