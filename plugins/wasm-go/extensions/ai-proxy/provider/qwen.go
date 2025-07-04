@@ -112,7 +112,7 @@ func (m *qwenProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName 
 }
 
 func (m *qwenProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
-	if m.config.qwenEnableCompatible || apiName == ApiNameQwenV1Rerank {
+	if m.config.qwenEnableCompatible {
 		if gjson.GetBytes(body, "model").Exists() {
 			rawModel := gjson.GetBytes(body, "model").String()
 			mappedModel := getMappedModel(rawModel, m.config.modelMapping)
