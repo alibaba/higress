@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"path"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,6 +45,54 @@ const (
 	DefaultReadyTimeout = time.Second * 60
 )
 
+type registryConfigCache struct {
+	memory.Cache
+	mcpBridgeProvider func() *v1.McpBridge
+}
+
+func newRegistryConfigCache(mcpBridgeProvider func() *v1.McpBridge) memory.Cache {
+	return &registryConfigCache{
+		Cache:             memory.NewCache(),
+		mcpBridgeProvider: mcpBridgeProvider,
+	}
+}
+
+func (c *registryConfigCache) UpdateServiceWrapper(service string, data *memory.ServiceWrapper) {
+	if data != nil && data.ServiceEntry != nil {
+		c.normalizeSePort(service, data)
+	}
+	c.Cache.UpdateServiceWrapper(service, data)
+}
+
+func (c *registryConfigCache) normalizeSePort(host string, data *memory.ServiceWrapper) {
+	mcpBridge := c.mcpBridgeProvider()
+	registers := mcpBridge.Spec.Registries
+	for _, register := range registers {
+		if register.Type == data.RegistryType && register.Name == data.RegistryName {
+			vport := register.Vport
+			if vport != nil {
+				if vport.Default >= 0 && vport.Default <= 65535 {
+					servicePortNum := vport.Default
+					for _, service := range vport.Services {
+						if strings.ToLower(service.Name) == strings.ToLower(host) {
+							if service.Value > 0 && service.Value <= 65535 {
+								servicePortNum = service.Value
+							}
+							break
+						}
+					}
+					if servicePortNum > 0 {
+						log.Infof("the vport of %s is : %d, will update", host, servicePortNum)
+						data.ServiceEntry.Ports[0].Number = servicePortNum
+					}
+				}
+			}
+			break
+		}
+
+	}
+}
+
 type Reconciler struct {
 	memory.Cache
 	registries    map[string]*apiv1.RegistryConfig
@@ -52,11 +101,11 @@ type Reconciler struct {
 	client        kube.Client
 	namespace     string
 	clusterId     string
+	mcpBridge     *v1.McpBridge
 }
 
 func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
-	return &Reconciler{
-		Cache:         memory.NewCache(),
+	r := &Reconciler{
 		registries:    make(map[string]*apiv1.RegistryConfig),
 		watchers:      make(map[string]Watcher),
 		serviceUpdate: serviceUpdate,
@@ -64,9 +113,15 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterI
 		namespace:     namespace,
 		clusterId:     clusterId,
 	}
+	r.Cache = newRegistryConfigCache(func() *v1.McpBridge {
+		return r.mcpBridge
+	})
+	return r
 }
 
 func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
+	r.mcpBridge = mcpbridge
+
 	newRegistries := make(map[string]*apiv1.RegistryConfig)
 	if mcpbridge != nil {
 		for _, registry := range mcpbridge.Spec.Registries {
