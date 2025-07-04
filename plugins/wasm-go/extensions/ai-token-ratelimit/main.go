@@ -35,12 +35,22 @@ func main() {
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
 		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingBody),
+		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
+		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingBody),
 	)
 }
 
 const (
-	ClusterRateLimitFormat        string = "higress-token-ratelimit:%s:%s:%d:%d:%s:%s" // ruleName, limitType, timewindow, windowsize, key, val
-	RequestPhaseFixedWindowScript string = `
+	ClusterRateLimitFormat   string = "higress-token-ratelimit:%s:%s:%d:%d:%s:%s" // ruleName, limitType, timewindow, windowsize, key, val
+	RequestFixedWindowScript string = `
+	local ttl = redis.call('ttl', KEYS[1])
+	if ttl < 0 then
+		redis.call('set', KEYS[1], ARGV[1] - 1, 'EX', ARGV[2])
+		return {ARGV[1], ARGV[1] - 1, ARGV[2]}
+	end
+	return {ARGV[1], redis.call('incrby', KEYS[1], -1), ttl}
+    `
+	TokenRequestPhaseFixedWindowScript string = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
 	redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2])
@@ -48,7 +58,7 @@ const (
 	end
 	return {ARGV[1], redis.call('get', KEYS[1]), ttl}
 	`
-	ResponsePhaseFixedWindowScript string = `
+	TokenResponsePhaseFixedWindowScript string = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
 	redis.call('set', KEYS[1], ARGV[1]-ARGV[3], 'EX', ARGV[2])
@@ -57,7 +67,8 @@ const (
 	return {ARGV[1], redis.call('decrby', KEYS[1], ARGV[3]), ttl}
 	`
 
-	LimitRedisContextKey string = "LimitRedisContext"
+	TokenLimitRedisContextKey string = "TokenLimitRedisContext"
+	RequestLimitContextKey    string = "RequestLimitContext"
 
 	ConsumerHeader string = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
 	CookieHeader   string = "cookie"
@@ -101,21 +112,24 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 	if ruleItem == nil || configItem == nil {
 		return types.ActionContinue
 	}
+	redisLua := RequestFixedWindowScript
 
 	// 构建redis限流key和参数
 	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, ruleItem.limitType, configItem.timeWindow, configItem.count, ruleItem.key, val)
 	keys := []interface{}{limitKey}
 	args := []interface{}{configItem.count, configItem.timeWindow}
 
-	limitRedisContext := LimitRedisContext{
-		key:    limitKey,
-		count:  configItem.count,
-		window: configItem.timeWindow,
+	if configItem.limitType == limitByToken {
+		redisLua = TokenRequestPhaseFixedWindowScript
+		limitRedisContext := LimitRedisContext{
+			key:    limitKey,
+			count:  configItem.count,
+			window: configItem.timeWindow,
+		}
+		ctx.SetContext(TokenLimitRedisContextKey, limitRedisContext)
 	}
-	ctx.SetContext(LimitRedisContextKey, limitRedisContext)
-
 	// 执行限流逻辑
-	err := config.redisClient.Eval(RequestPhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
+	err := config.redisClient.Eval(redisLua, 1, keys, args, func(response resp.Value) {
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
 			log.Errorf("redis response parse error, response: %v", response)
@@ -129,10 +143,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		}
 		if context.remaining < 0 {
 			// 触发限流
-			ctx.SetUserAttribute("token_ratelimit_status", "limited")
-			ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+			if configItem.limitType == limitByToken {
+				ctx.SetUserAttribute("token_ratelimit_status", "limited")
+				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+			}
 			rejected(config, context)
 		} else {
+			if configItem.limitType == limitByRequest {
+				ctx.SetContext(RequestLimitContextKey, context)
+			}
 			proxywasm.ResumeHttpRequest()
 		}
 	})
@@ -141,6 +160,23 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		return types.ActionContinue
 	}
 	return types.ActionPause
+}
+
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) types.Action {
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	if strings.Contains(contentType, "text/event-stream") {
+		return types.ActionContinue
+	}
+	ctx.BufferResponseBody()
+	limitContext, ok := ctx.GetContext(RequestLimitContextKey).(LimitContext)
+	if !ok {
+		return types.ActionContinue
+	}
+	if config.showLimitQuotaHeader {
+		_ = proxywasm.ReplaceHttpResponseHeader(RateLimitLimitHeader, strconv.Itoa(limitContext.count))
+		_ = proxywasm.ReplaceHttpResponseHeader(RateLimitRemainingHeader, strconv.Itoa(limitContext.remaining))
+	}
+	return types.ActionContinue
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
@@ -155,13 +191,13 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConf
 		}
 		inputToken = ctx.GetContext("input_token").(int64)
 		outputToken = ctx.GetContext("output_token").(int64)
-		limitRedisContext, ok := ctx.GetContext(LimitRedisContextKey).(LimitRedisContext)
+		limitRedisContext, ok := ctx.GetContext(TokenLimitRedisContextKey).(LimitRedisContext)
 		if !ok {
 			return data
 		}
 		keys := []interface{}{limitRedisContext.key}
 		args := []interface{}{limitRedisContext.count, limitRedisContext.window, inputToken + outputToken}
-		err := config.redisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, nil)
+		err := config.redisClient.Eval(TokenResponsePhaseFixedWindowScript, 1, keys, args, nil)
 		if err != nil {
 			log.Errorf("redis call failed: %v", err)
 		}
