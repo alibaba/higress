@@ -2,29 +2,95 @@ name: Build and Push Wasm Plugin Image
 
 on:
   push:
+    branches: [main]
     tags:
-    - "wasm-*-*-v*.*.*" # 匹配 wasm-{go|rust}-{pluginName}-vX.Y.Z 格式的标签
+      - "wasm-*-*-v*.*.*"  # 匹配 wasm-{go|rust}-{pluginName}-vX.Y.Z
+    paths:
+      - 'plugins/wasm-go/extensions/**'
+      - 'plugins/wasm-rust/extensions/**'
+  pull_request:
+    types: [closed]      # 只在 PR 合并到 main 时触发（closed 且 merged）
+    branches: [main]
+    paths:
+      - 'plugins/wasm-go/extensions/**'
+      - 'plugins/wasm-rust/extensions/**'
   workflow_dispatch:
     inputs:
       plugin_type:
         description: 'Type of the plugin'
         required: true
         type: choice
-        options:
-          - go
-          - rust
+        options: [go, rust]
       plugin_name:
         description: 'Name of the plugin'
         required: true
         type: string
-      version:
-        description: 'Version of the plugin (optional, without leading v)'
-        required: false
-        type: string
 
 jobs:
-  build-and-push-wasm-plugin-image:
+  detect:
     runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.set-plugins.outputs.changed_plugins }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0   # 需要完整历史以 diff PR 和分支间差异
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 1) Use GitHub REST API to get PR files
+      - name: Get PR changed files via API
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        id: pr_files
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const resp = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number
+            });
+            const files = resp.data.map(f => f.filename).join('\n');
+            core.setOutput('files', files);
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 2) Set files for manual workflow dispatch
+      - name: Set files for manual workflow
+        if: github.event_name == 'workflow_dispatch'
+        id: diff
+        run: |
+          files="plugins/wasm-${{ github.event.inputs.plugin_type }}/extensions/${{ github.event.inputs.plugin_name }}"
+          echo "::set-output name=files::$(echo "$files")"
+
+      # ─────────────────────────────────────────────────────────────────────
+      # 3) Compile unified file list, extract plugin names
+      - name: Compute changed plugins
+        id: set-plugins
+        run: |
+          # merge API-based PR list + git-diff list
+          files="${{ steps.pr_files.outputs.files }}${{ steps.diff.outputs.files }}"
+          echo "All changed files:"; echo "$files"
+
+          plugins=$(echo "$files" \
+            | grep -E '^plugins/wasm-(go|rust)/extensions/[^/]+' \
+            | awk -F/ '{print $4}' \
+            | sort -u)
+
+          if [ -z "$plugins" ]; then
+            echo "::set-output name=changed_plugins::[]"
+          else
+            # always tag as latest
+            arr=$(printf '"%s",' $plugins | sed 's/,$//')
+            echo "::set-output name=changed_plugins::[${arr}]"
+          fi
+
+  build:
+    needs: detect
+    if: needs.detect.outputs.plugins != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        plugin: ${{ fromJson(needs.detect.outputs.plugins) }}
     environment:
       name: image-registry-msg
     env:
@@ -34,121 +100,102 @@ jobs:
       GO_VERSION: 1.19
       TINYGO_VERSION: 0.28.1
       ORAS_VERSION: 1.0.0
+
     steps:
-      - name: Set plugin_type, plugin_name and version from inputs or ref_name
+      - name: Set PLUGIN_NAME from matrix
+        run: echo "PLUGIN_NAME=${{ matrix.plugin }}" >> $GITHUB_ENV
+
+      - name: Determine plugin_type, builder_image and version  # 设置插件类型、构建器镜像、版本
         id: set_vars
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             plugin_type="${{ github.event.inputs.plugin_type }}"
-            plugin_name="${{ github.event.inputs.plugin_name }}"
-            version="${{ github.event.inputs.version }}"
+            plugin_name="${{ github.event.inputs.plugin_name }}"   
+            echo "PLUGIN_NAME=$plugin_name" >> $GITHUB_ENV 
+          elif [[ -d plugins/wasm-go/extensions/${PLUGIN_NAME} ]]; then
+            plugin_type=go
           else
-            ref_name=${{ github.ref_name }}
-            plugin_type=${ref_name#*-} # 删除插件类型前面的字段(wasm-)
-            plugin_type=${plugin_type%%-*} # 删除插件类型后面的字段(-{plugin_name}-vX.Y.Z)
-            plugin_name=${ref_name#*-*-} # 删除插件名前面的字段(wasm-go-)
-            plugin_name=${plugin_name%-*} # 删除插件名后面的字段(-vX.Y.Z)
-            version=$(echo "$ref_name" | awk -F'v' '{print $2}')
+            plugin_type=rust
           fi
+
+          # 版本固定为 latest
+          version="latest"
+          echo "VERSION=$version" >> $GITHUB_ENV
+
           if [[ "$plugin_type" == "rust" ]]; then
-            builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-rust-builder:rust${{ env.RUST_VERSION }}-oras${{ env.ORAS_VERSION }}"
+            builder="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-rust-builder:rust${RUST_VERSION}-oras${ORAS_VERSION}"
           else
-            builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${{ env.GO_VERSION }}-tinygo${{ env.TINYGO_VERSION }}-oras${{ env.ORAS_VERSION }}"
+            builder="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${GO_VERSION}-tinygo${TINYGO_VERSION}-oras${ORAS_VERSION}"
           fi
           echo "PLUGIN_TYPE=$plugin_type" >> $GITHUB_ENV
-          echo "PLUGIN_NAME=$plugin_name" >> $GITHUB_ENV
-          echo "VERSION=$version" >> $GITHUB_ENV
-          echo "BUILDER_IMAGE=$builder_image" >> $GITHUB_ENV
+          echo "BUILDER_IMAGE=$builder" >> $GITHUB_ENV
+
 
       - name: Checkout code
         uses: actions/checkout@v3
-      
-      - name: File Check
-        run: | 
-          workspace=${{ github.workspace }}/plugins/wasm-${PLUGIN_TYPE}/extensions/${PLUGIN_NAME}
-          push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
 
-          # 查找spec.yaml
-          if [ -f "${workspace}/spec.yaml" ]; then
-            echo "spec.yaml exists"
-            push_command="./spec.yaml:application/vnd.module.wasm.spec.v1+yaml $push_command "
-          fi
-
-          # 查找README.md
-          if [ -f "${workspace}/README.md" ];then
-              echo "README.md exists"
-              push_command="./README.md:application/vnd.module.wasm.doc.v1+markdown $push_command "
-          fi
-          
-          # 查找README_{lang}.md
-          for file in ${workspace}/README_*.md; do
-            if [ -f "$file" ]; then
-              file_name=$(basename $file)
-              echo "$file_name exists"
-              lang=$(basename $file | sed 's/README_//; s/.md//')
-              push_command="./$file_name:application/vnd.module.wasm.doc.v1.$lang+markdown $push_command "
-            fi
-          done
-
-          echo "PUSH_COMMAND=\"$push_command\"" >> $GITHUB_ENV
-        
       - name: Run a wasm-builder
-        env: 
-          PLUGIN_NAME: ${{ env.PLUGIN_NAME }}
-          BUILDER_IMAGE: ${{ env.BUILDER_IMAGE }}
         run: |
-          docker run -itd --name builder -v ${{ github.workspace }}:/workspace -e PLUGIN_NAME=${{ env.PLUGIN_NAME }} --rm ${{ env.BUILDER_IMAGE }} /bin/bash
+          docker run -d --name builder -v "${{ github.workspace }}:/workspace" \
+            -e PLUGIN_NAME -e VERSION "${{ env.BUILDER_IMAGE }}" tail -f /dev/null
 
-      - name: Build Image and Push
+      # ─────────────────────────────────────────────────────────────────────
+      # Re‑added .prebuild and .buildrc sourcing
+      - name: Prebuild & Build inside builder container
         run: |
-          push_command=${{ env.PUSH_COMMAND }}
-          push_command=${push_command#\"}
-          push_command=${push_command%\"} # 删除PUSH_COMMAND中的双引号，确保oras push正常解析
-          
-          target_image="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:${{ env.VERSION }}"
-          target_image_latest="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:latest"
-          echo "TargetImage=${target_image}"
-          echo "TargetImageLatest=${target_image_latest}"
+          cd plugins/wasm-${PLUGIN_TYPE}/extensions/${PLUGIN_NAME}
 
-          cd ${{ github.workspace }}/plugins/wasm-${PLUGIN_TYPE}/extensions/${PLUGIN_NAME}
+          if [ -f ./.prebuild ]; then
+            echo 'Found .prebuild file, sourcing it...'
+            . ./.prebuild
+          fi
+
           if [ -f ./.buildrc ]; then
             echo 'Found .buildrc file, sourcing it...'
             . ./.buildrc
           else
             echo '.buildrc file not found'
           fi
-          echo "EXTRA_TAGS=${EXTRA_TAGS}"
-          if [ "${PLUGIN_TYPE}" == "go" ]; then
-          command="
-          set -e
-          cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
-          go mod tidy
-          tinygo build -o ./plugin.wasm -scheduler=none -target=wasi -gc=custom -tags=\"custommalloc nottinygc_finalizer ${EXTRA_TAGS}\" .
-          tar czvf plugin.tar.gz plugin.wasm
-          echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${target_image} ${push_command}
-          oras push ${target_image_latest} ${push_command}
-          "
-          elif [ "${PLUGIN_TYPE}" == "rust" ]; then
-          command="
-          set -e
-          cd /workspace/plugins/wasm-rust/extensions/${PLUGIN_NAME}
-          if [ -f ./.prebuild ]; then
-            echo 'Found .prebuild file, sourcing it...'
-            . ./.prebuild
-          fi
+
           rustup target add wasm32-wasip1
           cargo build --target wasm32-wasip1 --release
-          cp target/wasm32-wasip1/release/*.wasm plugin.wasm
-          tar czvf plugin.tar.gz plugin.wasm
-          echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${target_image} ${push_command}
-          oras push ${target_image_latest} ${push_command}
-          "
-          else
 
-          command="
-          echo "unkown type ${PLUGIN_TYPE}"
-          "
+      - name: File Check  # 检查 spec.yaml, README.md 等，并拼装 push 命令
+        run: |
+          workspace="${{ github.workspace }}/plugins/wasm-${PLUGIN_TYPE}/extensions/${PLUGIN_NAME}"
+          push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
+          # spec.yaml
+          if [[ -f "${workspace}/spec.yaml" ]]; then
+            push_command="./spec.yaml:application/vnd.module.wasm.spec.v1+yaml $push_command"
           fi
-          docker exec builder bash -c "$command"
+          # README.md
+          if [[ -f "${workspace}/README.md" ]]; then
+            push_command="./README.md:application/vnd.module.wasm.doc.v1+markdown $push_command"
+          fi
+          # 多语言 README_{lang}.md
+          for f in ${workspace}/README_*.md; do
+            if [[ -f "$f" ]]; then
+              lang=$(basename "$f" | sed 's/README_//; s/.md//')
+              push_command="./$(basename "$f"):application/vnd.module.wasm.doc.v1.$lang+markdown $push_command"
+            fi
+          done
+          echo "PUSH_COMMAND=$push_command" >> $GITHUB_ENV
+
+      - name: Build Image and Push
+        env:
+          IMAGE_REGISTRY_SERVICE: ${{ env.IMAGE_REGISTRY_SERVICE }}
+          IMAGE_REPOSITORY: ${{ env.IMAGE_REPOSITORY }}
+          PLUGIN_NAME: ${{ env.PLUGIN_NAME }}
+          VERSION: ${{ env.VERSION }}
+          PUSH_COMMAND: ${{ env.PUSH_COMMAND }}
+        run: |
+          target="${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}/${PLUGIN_NAME}:${VERSION}"
+          target_latest="${IMAGE_REGISTRY_SERVICE}/${IMAGE_REPOSITORY}/${PLUGIN_NAME}:latest"
+          cd plugins/wasm-${PLUGIN_TYPE}/extensions/${PLUGIN_NAME}
+          # 构建 artifact（若 plugin.wasm 不存在，也确保有 plugin.tar.gz）
+          tar czvf plugin.tar.gz plugin.wasm || true
+          # 登录并推送
+          echo "${{ secrets.REGISTRY_PASSWORD }}" \
+            | oras login -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin "${IMAGE_REGISTRY_SERVICE}"
+          oras push "$target" "$PUSH_COMMAND"
+          oras push "$target_latest" "$PUSH_COMMAND"
