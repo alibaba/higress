@@ -16,8 +16,11 @@ package memory
 
 import (
 	"encoding/json"
+	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,6 +63,7 @@ func NewCache() Cache {
 		toBeDeleted:   make([]*ServiceWrapper, 0),
 		ip2services:   make(map[string]map[string]bool),
 		deferedDelete: make(map[string]struct{}),
+		mcpBridge:     &v1.McpBridge{},
 	}
 }
 
@@ -71,6 +75,7 @@ type store struct {
 	toBeDeleted   []*ServiceWrapper
 	ip2services   map[string]map[string]bool
 	deferedDelete map[string]struct{}
+	mcpBridge     *v1.McpBridge
 }
 
 func (s *store) GetAllConfigs(kind config.GroupVersionKind) map[string]*config.Config {
@@ -197,7 +202,9 @@ func (s *store) UpdateServiceWrapper(service string, data *ServiceWrapper) {
 	}
 
 	log.Debugf("mcp service entry update, name:%s, data:%v", service, data)
-
+	if data != nil && data.ServiceEntry != nil {
+		s.normalizeSePort(service, data)
+	}
 	s.toBeUpdated = append(s.toBeUpdated, data)
 	s.sew[service] = data
 	// service is updated, should not be deleted
@@ -206,6 +213,40 @@ func (s *store) UpdateServiceWrapper(service string, data *ServiceWrapper) {
 		log.Debugf("service in deferedDelete updated, host:%s", service)
 	}
 	log.Infof("ServiceEntry updated, host:%s", service)
+}
+
+func (s *store) normalizeSePort(host string, data *ServiceWrapper) {
+	mcpBridge := s.mcpBridge
+	registries := mcpBridge.Spec.Registries
+	for _, registry := range registries {
+		if registry.Type != data.RegistryType || registry.Name != data.RegistryName {
+			continue
+		}
+		if vport, ok := getServiceVport(host, registry.Vport); ok {
+			log.Infof("the vport of %s is : %d, will update", host, vport)
+			data.ServiceEntry.Ports[0].Number = vport
+		}
+		break
+	}
+}
+
+func getServiceVport(host string, vport *apiv1.RegistryConfig_VPort) (uint32, bool) {
+	if vport == nil {
+		return 0, false
+	}
+	for _, service := range vport.Services {
+		if strings.EqualFold(service.Name, host) && isValidPort(service.Value) {
+			return service.Value, true
+		}
+	}
+	if isValidPort(vport.Default) {
+		return vport.Default, true
+	}
+	return 0, false
+}
+
+func isValidPort(port uint32) bool {
+	return port > 0 && port <= 65535
 }
 
 func (s *store) DeleteServiceWrapper(service string) {
