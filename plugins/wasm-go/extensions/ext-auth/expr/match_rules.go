@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"ext-auth/util"
-	regexp "github.com/wasilibs/go-re2"
+	"regexp"
 )
 
 const (

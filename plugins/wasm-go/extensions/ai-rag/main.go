@@ -9,13 +9,16 @@ import (
 	"ai-rag/dashscope"
 	"ai-rag/dashvector"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-rag",
 		wrapper.ParseConfigBy(parseConfig),
@@ -51,7 +54,7 @@ type Message struct {
 	Content string `json:"content"`
 }
 
-func parseConfig(json gjson.Result, config *AIRagConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *AIRagConfig, log log.Log) error {
 	checkList := []string{
 		"dashscope.apiKey",
 		"dashscope.serviceFQDN",
@@ -91,12 +94,12 @@ func parseConfig(json gjson.Result, config *AIRagConfig, log wrapper.Log) error 
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIRagConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIRagConfig, log log.Log) types.Action {
 	proxywasm.RemoveHttpRequestHeader("content-length")
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config AIRagConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AIRagConfig, body []byte, log log.Log) types.Action {
 	var rawRequest Request
 	_ = json.Unmarshal(body, &rawRequest)
 	messageLength := len(rawRequest.Messages)
@@ -165,7 +168,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIRagConfig, body []byte,
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIRagConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIRagConfig, log log.Log) types.Action {
 	recall, ok := ctx.GetContext("x-envoy-rag-recall").(bool)
 	if ok && recall {
 		proxywasm.AddHttpResponseHeader("x-envoy-rag-recall", "true")

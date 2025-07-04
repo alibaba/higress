@@ -17,11 +17,14 @@ package main
 import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"streaming-body-example",
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
@@ -34,22 +37,22 @@ func main() {
 type Config struct {
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
 	proxywasm.RemoveHttpRequestHeader("content-length")
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+func onHttpRequestBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log log.Log) []byte {
 	log.Infof("receive request body chunk:%s, isLastChunk:%v", chunk, isLastChunk)
 	return []byte("test\n")
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
 	proxywasm.RemoveHttpResponseHeader("content-length")
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+func onHttpResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log log.Log) []byte {
 	log.Infof("receive response body chunk:%s, isLastChunk:%v", chunk, isLastChunk)
 	return []byte("test\n")
 }

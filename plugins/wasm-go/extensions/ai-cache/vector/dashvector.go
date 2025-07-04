@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 type dashVectorProviderInitializer struct {
@@ -119,8 +120,8 @@ func (d *DvProvider) parseQueryResponse(responseBody []byte) (queryResponse, err
 func (d *DvProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error {
 	url, body, headers, err := d.constructEmbeddingQueryParameters(emb)
 	log.Debugf("url:%s, body:%s, headers:%v", url, string(body), headers)
 	if err != nil {
@@ -157,7 +158,7 @@ func getStringValue(fields map[string]interface{}, key string) string {
 	return ""
 }
 
-func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log wrapper.Log) ([]QueryResult, error) {
+func (d *DvProvider) ParseQueryResponse(responseBody []byte, ctx wrapper.HttpContext, log log.Log) ([]QueryResult, error) {
 	resp, err := d.parseQueryResponse(responseBody)
 	if err != nil {
 		return nil, err
@@ -215,7 +216,7 @@ func (d *DvProvider) constructUploadParameters(emb []float64, queryString string
 	return url, requestBody, header, err
 }
 
-func (d *DvProvider) UploadEmbedding(queryString string, queryEmb []float64, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+func (d *DvProvider) UploadEmbedding(queryString string, queryEmb []float64, ctx wrapper.HttpContext, log log.Log, callback func(ctx wrapper.HttpContext, log log.Log, err error)) error {
 	url, body, headers, err := d.constructUploadParameters(queryEmb, queryString, "")
 	if err != nil {
 		return err
@@ -235,7 +236,7 @@ func (d *DvProvider) UploadEmbedding(queryString string, queryEmb []float64, ctx
 	return err
 }
 
-func (d *DvProvider) UploadAnswerAndEmbedding(queryString string, queryEmb []float64, queryAnswer string, ctx wrapper.HttpContext, log wrapper.Log, callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+func (d *DvProvider) UploadAnswerAndEmbedding(queryString string, queryEmb []float64, queryAnswer string, ctx wrapper.HttpContext, log log.Log, callback func(ctx wrapper.HttpContext, log log.Log, err error)) error {
 	url, body, headers, err := d.constructUploadParameters(queryEmb, queryString, queryAnswer)
 	if err != nil {
 		return err

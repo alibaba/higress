@@ -33,7 +33,8 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+	logs "github.com/higress-group/wasm-go/pkg/log"
 )
 
 func main() {
@@ -72,13 +73,13 @@ type PluginConfig struct {
 	secondField string ` + "`required:\"true\"`" + `
 }
 
-func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *PluginConfig, log logs.Log) error {
 	config.firstField = json.Get("firstField").String()
 	config.secondField = json.Get("secondField").String()
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log logs.Log) types.Action {
 	err := proxywasm.AddHttpRequestHeader(config.firstField, config.secondField)
 	if err != nil {
 		log.Critical("failed to set request header")
@@ -90,10 +91,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 
 module {{ .Name }}
 
-go 1.19
+go 1.24
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go main
+	github.com/higress-group/wasm-go main
 	github.com/higress-group/proxy-wasm-go-sdk main
 	github.com/tidwall/gjson v1.14.3
 )

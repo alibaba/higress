@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/antchfx/xmlquery"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"

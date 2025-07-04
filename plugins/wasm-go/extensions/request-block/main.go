@@ -19,15 +19,19 @@ import (
 	"fmt"
 	"strings"
 
+	"regexp"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/tidwall/gjson"
-	regexp "github.com/wasilibs/go-re2"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"request-block",
 		wrapper.ParseConfigBy(parseConfig),
@@ -47,7 +51,7 @@ type RequestBlockConfig struct {
 	blockRegExpArray []*regexp.Regexp
 }
 
-func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *RequestBlockConfig, log log.Log) error {
 	code := json.Get("blocked_code").Int()
 	if code != 0 && code > 100 && code < 600 {
 		config.blockedCode = uint32(code)
@@ -120,7 +124,7 @@ func parseConfig(json gjson.Result, config *RequestBlockConfig, log wrapper.Log)
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, log log.Log) types.Action {
 	if len(config.blockUrls) > 0 {
 		requestUrl, err := proxywasm.GetHttpRequestHeader(":path")
 		if err != nil {
@@ -176,7 +180,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config RequestBlockConfig, lo
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config RequestBlockConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config RequestBlockConfig, body []byte, log log.Log) types.Action {
 	log.Infof("My request-block body: %s\n", string(body))
 	bodyStr := string(body)
 

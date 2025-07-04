@@ -4,12 +4,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"sni-misdirect",
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
@@ -19,7 +22,7 @@ func main() {
 type Config struct {
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
 	// no need to check HTTP/1.0 and HTTP/1.1
 	protocol, err := proxywasm.GetProperty([]string{"request", "protocol"})
 	if err != nil {

@@ -22,7 +22,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -30,7 +31,9 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"basic-auth",
 		wrapper.ParseOverrideConfigBy(parseGlobalConfig, parseOverrideRuleConfig),
@@ -106,7 +109,7 @@ var (
 	protectionSpace = "MSE Gateway" // 认证失败时，返回响应头 WWW-Authenticate: Basic realm=MSE Gateway
 )
 
-func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log wrapper.Log) error {
+func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log log.Log) error {
 	// log.Debug("global config")
 	ruleSet = false
 	global.credential2Name = make(map[string]string)
@@ -155,7 +158,7 @@ func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log wrapper.L
 	return nil
 }
 
-func parseOverrideRuleConfig(json gjson.Result, global BasicAuthConfig, config *BasicAuthConfig, log wrapper.Log) error {
+func parseOverrideRuleConfig(json gjson.Result, global BasicAuthConfig, config *BasicAuthConfig, log log.Log) error {
 	log.Debug("domain/route config")
 	// override config via global
 	*config = global
@@ -188,7 +191,7 @@ func parseOverrideRuleConfig(json gjson.Result, global BasicAuthConfig, config *
 // - global_auth 未设置：
 //   - 若没有一个 domain/route 配置该插件：则遵循 (1*)
 //   - 若有至少一个 domain/route 配置该插件：则遵循 (2*)
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log log.Log) types.Action {
 	var (
 		noAllow            = len(config.allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
 		globalAuthNoSet    = config.globalAuth == nil

@@ -12,9 +12,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -23,7 +24,9 @@ const (
 	defaultTimeout = 10 * 1000 // ms
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-intent",
 		wrapper.ParseConfigBy(parseConfig),
@@ -100,7 +103,7 @@ type KVExtractor struct {
 	ResponseBody string `required:"false" yaml:"responseBody" json:"responseBody"`
 }
 
-func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, c *PluginConfig, log log.Log) error {
 	log.Infof("config:%s", json.Raw)
 	// init scene
 	c.SceneInfo.Category = json.Get("scene.category").String()
@@ -194,14 +197,14 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	log.Debug("start onHttpRequestHeaders function.")
 
 	log.Debug("end onHttpRequestHeaders function.")
 	return types.HeaderStopIteration
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	log.Debug("start onHttpRequestBody function.")
 	bodyJson := gjson.ParseBytes(body)
 	TempKey := strings.Trim(bodyJson.Get(config.KeyFrom.RequestBody).Raw, `"`)
@@ -259,21 +262,21 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	log.Debug("start onHttpResponseHeaders function.")
 
 	log.Debug("end onHttpResponseHeaders function.")
 	return types.ActionContinue
 }
 
-func onStreamingResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+func onStreamingResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log log.Log) []byte {
 	log.Debug("start onStreamingResponseBody function.")
 
 	log.Debug("end onStreamingResponseBody function.")
 	return chunk
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	log.Debug("start onHttpResponseBody function.")
 
 	log.Debug("end onHttpResponseBody function.")
@@ -290,7 +293,7 @@ type ProxyRequestMessage struct {
 	Content string `json:"content"`
 }
 
-func generateProxyRequest(c *PluginConfig, texts []string, log wrapper.Log) (string, []byte, [][2]string) {
+func generateProxyRequest(c *PluginConfig, texts []string, log log.Log) (string, []byte, [][2]string) {
 	url := c.LLMInfo.ProxyPath
 	var userMessage ProxyRequestMessage
 	userMessage.Role = "user"
@@ -338,7 +341,7 @@ type ProxyResponseOutputChoicesMessage struct {
 	Content string `json:"content"`
 }
 
-func proxyResponseHandler(responseBody []byte, log wrapper.Log) (*ProxyResponse, error) {
+func proxyResponseHandler(responseBody []byte, log log.Log) (*ProxyResponse, error) {
 	var response ProxyResponse
 	err := json.Unmarshal(responseBody, &response)
 	if err != nil {
@@ -348,7 +351,7 @@ func proxyResponseHandler(responseBody []byte, log wrapper.Log) (*ProxyResponse,
 	return &response, nil
 }
 
-func getProxyResponseByExtractor(c *PluginConfig, responseBody []byte, log wrapper.Log) string {
+func getProxyResponseByExtractor(c *PluginConfig, responseBody []byte, log log.Log) string {
 	bodyJson := gjson.ParseBytes(responseBody)
 	responseContent := strings.Trim(bodyJson.Get(c.KeyFrom.ResponseBody).Raw, `"`)
 	// llm返回的结果

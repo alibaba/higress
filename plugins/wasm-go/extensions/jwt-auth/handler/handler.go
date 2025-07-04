@@ -18,8 +18,9 @@ import (
 	"time"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 // jwt-auth 插件认证逻辑与 basic-auth 一致：
@@ -36,7 +37,7 @@ import (
 //   - 若有至少一个 domain/route 配置该插件：则遵循 (2*)
 //
 // https://github.com/alibaba/higress/blob/e09edff827b94fa5bcc149bbeadc905361100c2a/plugins/wasm-go/extensions/basic-auth/main.go#L191
-func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log wrapper.Log) types.Action {
+func OnHTTPRequestHeaders(ctx wrapper.HttpContext, config cfg.JWTAuthConfig, log log.Log) types.Action {
 	var (
 		noAllow            = len(config.Allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
 		globalAuthNoSet    = config.GlobalAuthCheck() == cfg.GlobalAuthNoSet

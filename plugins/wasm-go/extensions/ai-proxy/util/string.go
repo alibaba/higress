@@ -1,6 +1,6 @@
 package util
 
-import regexp "github.com/wasilibs/go-re2"
+import "regexp"
 
 func StripPrefix(s string, prefix string) string {
 	if len(prefix) != 0 && len(s) >= len(prefix) && s[0:len(prefix)] == prefix {

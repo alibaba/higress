@@ -56,7 +56,7 @@ func DefaultTimeoutConfig() TimeoutConfig {
 		DeleteTimeout:         10 * time.Second,
 		GetTimeout:            10 * time.Second,
 		ManifestFetchTimeout:  10 * time.Second,
-		MaxTimeToConsistency:  30 * time.Second,
+		MaxTimeToConsistency:  300 * time.Second,
 		NamespacesMustBeReady: 300 * time.Second,
 		RequestTimeout:        10 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,

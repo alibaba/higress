@@ -21,11 +21,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/wasm-go/pkg/log"
 )
 
-func onContentRequestHeaders(conditionGroups []ConditionGroup, log wrapper.Log) bool {
+func onContentRequestHeaders(conditionGroups []ConditionGroup, log log.Log) bool {
 	for _, cg := range conditionGroups {
 		if matchCondition(&cg, log) {
 			addTagHeader(cg.HeaderName, cg.HeaderValue, log)
@@ -37,7 +37,7 @@ func onContentRequestHeaders(conditionGroups []ConditionGroup, log wrapper.Log) 
 }
 
 // matchCondition matches the single condition group
-func matchCondition(conditionGroup *ConditionGroup, log wrapper.Log) bool {
+func matchCondition(conditionGroup *ConditionGroup, log log.Log) bool {
 	for _, condition := range conditionGroup.Conditions {
 		conditionKeyValue, err := getConditionValue(condition, log)
 		if err != nil {
@@ -143,7 +143,7 @@ func matchCondition(conditionGroup *ConditionGroup, log wrapper.Log) bool {
 	return len(conditionGroup.Conditions) > 0 && conditionGroup.Logic == "and" // all conditions are matched
 }
 
-func getConditionValue(condition ConditionRule, log wrapper.Log) (string, error) {
+func getConditionValue(condition ConditionRule, log log.Log) (string, error) {
 	// log.Debugf("conditionType: %s, key: %s", condition.ConditionType, condition.Key)
 
 	switch condition.ConditionType {

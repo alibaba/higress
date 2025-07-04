@@ -17,7 +17,7 @@
 package config
 
 import (
-	regexp "github.com/wasilibs/go-re2"
+	"regexp"
 )
 
 var DefaultBotRegex = []*regexp.Regexp{

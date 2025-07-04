@@ -5,14 +5,17 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-transformer",
 		wrapper.ParseConfigBy(parseConfig),
@@ -52,7 +55,7 @@ const llmRequestTemplate = `{
 	}
 }`
 
-func parseConfig(json gjson.Result, config *AITransformerConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *AITransformerConfig, log log.Log) error {
 	config.requestTransformEnable = json.Get("request.enable").Bool()
 	config.requestTransformPrompt = json.Get("request.prompt").String()
 	config.responseTransformEnable = json.Get("response.enable").Bool()
@@ -89,7 +92,7 @@ func extraceHttpFrame(frame string) ([][2]string, []byte, error) {
 	return headers, body, nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AITransformerConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AITransformerConfig, log log.Log) types.Action {
 	log.Info("onHttpRequestHeaders")
 	if !config.requestTransformEnable || config.requestTransformPrompt == "" {
 		ctx.DontReadRequestBody()
@@ -99,7 +102,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AITransformerConfig, l
 	}
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config AITransformerConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AITransformerConfig, body []byte, log log.Log) types.Action {
 	log.Info("onHttpRequestBody")
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
@@ -133,7 +136,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AITransformerConfig, body
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config AITransformerConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config AITransformerConfig, log log.Log) types.Action {
 	if !config.responseTransformEnable || config.responseTransformPrompt == "" {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
@@ -142,7 +145,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AITransformerConfig, 
 	}
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config AITransformerConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config AITransformerConfig, body []byte, log log.Log) types.Action {
 	headers, err := proxywasm.GetHttpResponseHeaders()
 	if err != nil {
 		log.Error("Failed to get http response headers.")

@@ -22,16 +22,16 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-  - host: "foo.com"
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
+    - host: "foo.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -43,16 +43,16 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-  - host: "foo2.com"
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: infra-backend-echo-body-v1
-            port:
-              number: 8080
+    - host: "foo2.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-echo-body-v1
+                port:
+                  number: 8080
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -62,11 +62,11 @@ metadata:
 spec:
   defaultConfig:
     block_urls:
-    - "swagger.html"
+      - "swagger.html"
     block_regexp_urls:
-    - "/env.*"
+      - "/env.*"
     block_exact_urls:
-    - "/web/info"
+      - "/web/info"
     block_bodies:
-    - "hello world"
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-request-block:1.0.0
+      - "hello world"
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-request-block:2.0.0

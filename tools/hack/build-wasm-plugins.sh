@@ -60,8 +60,8 @@ else
         echo "🚀 Build all Go WasmPlugins under folder of $EXTENSIONS_DIR"
         for file in `ls $EXTENSIONS_DIR`                                   
             do
-                # TODO: adjust waf build
-                if [ "$file" == "waf" ]; then
+                # : adjust waf build
+                if [ "$file" == "" ]; then
                     continue
                 fi
                 if [ -d $EXTENSIONS_DIR$file ]; then

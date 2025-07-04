@@ -20,13 +20,16 @@ import (
 
 	"de-graphql/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"de-graphql",
 		wrapper.ParseConfigBy(parseConfig),
@@ -37,7 +40,7 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, config *config.DeGraphQLConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *config.DeGraphQLConfig, log log.Log) error {
 	log.Debug("parseConfig()")
 	gql := json.Get("gql").String()
 	endpoint := json.Get("endpoint").String()
@@ -57,7 +60,7 @@ func parseConfig(json gjson.Result, config *config.DeGraphQLConfig, log wrapper.
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig, log log.Log) types.Action {
 	log.Debug("onHttpRequestHeaders()")
 	log.Debugf("schema:%s host:%s path:%s", ctx.Scheme(), ctx.Host(), ctx.Path())
 	requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
@@ -102,17 +105,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig
 	return types.ActionPause
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config config.DeGraphQLConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config config.DeGraphQLConfig, body []byte, log log.Log) types.Action {
 	log.Debug("onHttpRequestBody()")
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig, log log.Log) types.Action {
 	log.Debug("onHttpResponseHeaders()")
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config config.DeGraphQLConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config config.DeGraphQLConfig, body []byte, log log.Log) types.Action {
 	log.Debug("onHttpResponseBody()")
 	return types.ActionContinue
 }

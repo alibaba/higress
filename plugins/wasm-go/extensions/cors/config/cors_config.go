@@ -20,7 +20,7 @@ import (
 	"net/url"
 	"strings"
 
-	regexp "github.com/wasilibs/go-re2"
+	"regexp"
 )
 
 const (

@@ -11,9 +11,10 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-agent/dashscope"
 	prompttpl "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-agent/promptTpl"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -26,7 +27,9 @@ const ActionPattern = `Action:\s*(.*?)[.\n]`
 const ActionInputPattern = `Action Input:\s*(.*)`
 const FinalAnswerPattern = `Final Answer:(.*)`
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-agent",
 		wrapper.ParseConfigBy(parseConfig),
@@ -37,7 +40,7 @@ func main() {
 	)
 }
 
-func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
+func parseConfig(gjson gjson.Result, c *PluginConfig, log log.Log) error {
 	initResponsePromptTpl(gjson, c)
 
 	err := initAPIs(gjson, c)
@@ -54,11 +57,11 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	return types.ActionContinue
 }
 
-func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRequest Request, log wrapper.Log) types.Action {
+func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRequest Request, log log.Log) types.Action {
 	log.Debugf("[onHttpRequestBody] firstreq:%s", prompt)
 
 	var userMessage Message
@@ -88,7 +91,7 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 	}
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	log.Debug("onHttpRequestBody start")
 	defer log.Debug("onHttpRequestBody end")
 
@@ -172,7 +175,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	return ret
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	log.Debug("onHttpResponseHeaders start")
 	defer log.Debug("onHttpResponseHeaders end")
 
@@ -200,7 +203,7 @@ func extractJson(bodyStr string) (string, error) {
 	return jsonStr, nil
 }
 
-func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[string]interface{}, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log wrapper.Log) string {
+func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[string]interface{}, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log log.Log) string {
 	prompt := fmt.Sprintf(prompttpl.Json_Resp_Template, jsonSchema, actionInput)
 
 	messages := []dashscope.Message{{Role: "user", Content: prompt}}
@@ -241,7 +244,7 @@ func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[st
 	return content
 }
 
-func noneStream(assistantMessage Message, actionInput string, rawResponse Response, log wrapper.Log) {
+func noneStream(assistantMessage Message, actionInput string, rawResponse Response, log log.Log) {
 	assistantMessage.Role = "assistant"
 	assistantMessage.Content = actionInput
 	rawResponse.Choices[0].Message = assistantMessage
@@ -257,7 +260,7 @@ func noneStream(assistantMessage Message, actionInput string, rawResponse Respon
 	}
 }
 
-func stream(actionInput string, rawResponse Response, log wrapper.Log) {
+func stream(actionInput string, rawResponse Response, log log.Log) {
 	headers := [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}
 	proxywasm.ReplaceHttpResponseHeaders(headers)
 	// Remove quotes from actionInput
@@ -271,7 +274,7 @@ func stream(actionInput string, rawResponse Response, log wrapper.Log) {
 	proxywasm.ResumeHttpResponse()
 }
 
-func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log, statusCode int, responseBody []byte) {
+func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log log.Log, statusCode int, responseBody []byte) {
 	if statusCode != http.StatusOK {
 		log.Debugf("statusCode: %d", statusCode)
 	}
@@ -332,7 +335,7 @@ func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmI
 	}
 }
 
-func outputParser(response string, log wrapper.Log) (string, string) {
+func outputParser(response string, log log.Log) (string, string) {
 	log.Debugf("Raw response:%s", response)
 
 	start := strings.Index(response, "```")
@@ -379,7 +382,7 @@ func outputParser(response string, log wrapper.Log) (string, string) {
 	return "", ""
 }
 
-func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log) (types.Action, string) {
+func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log log.Log) (types.Action, string) {
 	dashscope.MessageStore.AddForAssistant(content)
 
 	action, actionInput := outputParser(content, log)
@@ -514,7 +517,7 @@ func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LL
 }
 
 // 从response接收到firstreq的大模型返回
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	log.Debugf("onHttpResponseBody start")
 	defer log.Debugf("onHttpResponseBody end")
 

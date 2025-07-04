@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 type chromaProviderInitializer struct{}
@@ -44,8 +45,8 @@ func (c *ChromaProvider) GetProviderType() string {
 func (d *ChromaProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 collection_id, embeddings 和 ids
 	// 下面是一个例子
 	// {
@@ -96,8 +97,8 @@ func (d *ChromaProvider) UploadAnswerAndEmbedding(
 	queryEmb []float64,
 	queryAnswer string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 collection_id, embeddings 和 ids
 	// 下面是一个例子
 	// {
@@ -177,7 +178,7 @@ type chromaQueryResponse struct {
 	Included   []string            `json:"included"`
 }
 
-func (d *ChromaProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
+func (d *ChromaProvider) parseQueryResponse(responseBody []byte, log log.Log) ([]QueryResult, error) {
 	var queryResp chromaQueryResponse
 	err := json.Unmarshal(responseBody, &queryResp)
 	if err != nil {

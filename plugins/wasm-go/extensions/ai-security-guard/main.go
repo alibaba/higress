@@ -17,13 +17,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-security-guard",
 		wrapper.ParseConfigBy(parseConfig),
@@ -172,7 +175,7 @@ func generateHexID(length int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func parseConfig(json gjson.Result, config *AISecurityConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *AISecurityConfig, log log.Log) error {
 	serviceName := json.Get("serviceName").String()
 	servicePort := json.Get("servicePort").Int()
 	serviceHost := json.Get("serviceHost").String()
@@ -250,7 +253,7 @@ func generateRandomID() string {
 	return "chatcmpl-" + string(b)
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log log.Log) types.Action {
 	if !config.checkRequest {
 		log.Debugf("request checking is disabled")
 		ctx.DontReadRequestBody()
@@ -258,7 +261,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log 
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log log.Log) types.Action {
 	log.Debugf("checking request body...")
 	startTime := time.Now().UnixMilli()
 	content := gjson.GetBytes(body, config.requestContentJsonPath).String()
@@ -367,7 +370,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log log.Log) types.Action {
 	if !config.checkResponse {
 		log.Debugf("response checking is disabled")
 		ctx.DontReadResponseBody()
@@ -382,7 +385,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log
 	return types.HeaderStopIteration
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body []byte, log log.Log) types.Action {
 	log.Debugf("checking response body...")
 	startTime := time.Now().UnixMilli()
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
@@ -507,7 +510,7 @@ func extractMessageFromStreamingBody(data []byte, jsonPath string) string {
 	return strings.Join(strChunks, "")
 }
 
-func marshalStr(raw string, log wrapper.Log) string {
+func marshalStr(raw string, log log.Log) string {
 	helper := map[string]string{
 		"placeholder": raw,
 	}

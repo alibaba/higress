@@ -17,10 +17,11 @@
 package config
 
 import (
-	"github.com/stretchr/testify/assert"
-	regexp "github.com/wasilibs/go-re2"
 	"log"
+	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func toRegexMatch(regexs []string) []*regexp.Regexp {

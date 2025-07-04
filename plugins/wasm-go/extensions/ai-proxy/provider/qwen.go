@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -37,8 +37,8 @@ const (
 	qwenBailianPath                       = "/api/v1/apps"
 	qwenMultimodalGenerationPath          = "/api/v1/services/aigc/multimodal-generation/generation"
 
-	qwenAsyncAIGCPath                     = "/api/v1/services/aigc/"
-	qwenAsyncTaskPath                     = "/api/v1/tasks/"
+	qwenAsyncAIGCPath = "/api/v1/services/aigc/"
+	qwenAsyncTaskPath = "/api/v1/tasks/"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
@@ -77,8 +77,8 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 		return map[string]string{
 			string(ApiNameChatCompletion): qwenChatCompletionPath,
 			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
-			string(ApiNameQwenAsyncAIGC): qwenAsyncAIGCPath,
-			string(ApiNameQwenAsyncTask): qwenAsyncTaskPath,
+			string(ApiNameQwenAsyncAIGC):  qwenAsyncAIGCPath,
+			string(ApiNameQwenAsyncTask):  qwenAsyncTaskPath,
 		}
 	}
 }

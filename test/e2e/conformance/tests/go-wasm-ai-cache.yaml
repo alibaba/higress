@@ -92,7 +92,7 @@ spec:
         provider:
           type: "qwen"
           qwenEnableCompatible: true
-          apiTokens: 
+          apiTokens:
             - "{{secret.qwenApiKey}}"
           timeout: 1200000
           modelMapping:
@@ -100,4 +100,4 @@ spec:
       ingress:
         - higress-conformance-infra/wasmplugin-ai-cache-openai
         - higress-conformance-infra/wasmplugin-ai-cache-qwen
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:2.0.0

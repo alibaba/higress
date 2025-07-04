@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/google/uuid"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -63,8 +64,8 @@ func (d *qdrantProvider) UploadAnswerAndEmbedding(
 	queryEmb []float64,
 	queryAnswer string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 id 和 vector. payload 可选
 	// 下面是一个例子
 	// {
@@ -122,8 +123,8 @@ type qdrantQueryRequest struct {
 func (d *qdrantProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 vector 和 limit. with_payload 可选，为了直接得到问题答案，所以这里需要
 	// 下面是一个例子
 	// {
@@ -164,7 +165,7 @@ func (d *qdrantProvider) QueryEmbedding(
 	)
 }
 
-func (d *qdrantProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
+func (d *qdrantProvider) parseQueryResponse(responseBody []byte, log log.Log) ([]QueryResult, error) {
 	// 返回的内容例子如下
 	// {
 	// 	"time": 0.002,

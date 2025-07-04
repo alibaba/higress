@@ -52,64 +52,50 @@
 ARG BASE_IMAGE=docker.io/ubuntu
 FROM $BASE_IMAGE
 
-ARG GO_VERSION
-ARG TINYGO_VERSION
-ARG ORAS_VERSION
-ARG HIGRESS_VERSION
-ARG USE_HIGRESS_TINYGO
+ARG GO_VERSION=1.24.0
+ARG TINYGO_VERSION=0.30.0
+ARG ORAS_VERSION=1.0.0
+ARG HIGRESS_VERSION=1.0.0-rc
+ARG USE_HIGRESS_TINYGO=false
 
 LABEL go_version=$GO_VERSION tinygo_version=$TINYGO_VERSION oras_version=$ORAS_VERSION
 
-RUN apt-get update \
-  && apt-get install -y wget \
-  && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y wget tar && rm -rf /var/lib/apt/lists/*
 
-RUN arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
-    go_url=; \
-    tinygo_url=; \
-    go_version=${GO_VERSION:-1.19}; \
-    tinygo_version=${TINYGO_VERSION:-0.25.0}; \
-    oras_version=${ORAS_VERSION:-1.0.0}; \
-    higress_version=${HIGRESS_VERSION:-1.0.0-rc}; \
-    use_higress_tinygo=${USE_HIGRESS_TINYGO:-false}; \
-    echo "arch:           '$arch'"; \
-    echo "go go_version:  '$go_version'"; \
-    echo "tinygo_version: '$tinygo_version'"; \
-    echo "oras_version: '$oras_version'"; \
-    echo "higress_version: '$higress_version'"; \
-    echo "use_higress_tinygo: '$use_higress_tinygo'"; \
+RUN set -e; \
+    arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
+    echo "arch: $arch"; \
+    go_url=""; tinygo_url=""; \
     case "$arch" in \
-        'amd64') \
-            go_url="https://golang.google.cn/dl/go$go_version.linux-amd64.tar.gz"; \
-            if [ "$use_higress_tinygo" = "true" ]; \
-            then \
-                tinygo_url="https://github.com/alibaba/higress/releases/download/v$higress_version/higress-tinygo${tinygo_version}.linux-amd64.tar.gz"; \
-            else \
-                tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo${tinygo_version}.linux-amd64.tar.gz"; \
-            fi; \
-            oras_url="https://github.com/oras-project/oras/releases/download/v$oras_version/oras_${oras_version}_linux_amd64.tar.gz"; \
-            ;; \
-        'arm64') \
-            go_url="https://golang.google.cn/dl/go$go_version.linux-arm64.tar.gz"; \
-            if [ "$use_higress_tinygo" = "true" ]; \
-            then \
-                tinygo_url="https://github.com/alibaba/higress/releases/download/v$higress_version/higress-tinygo${tinygo_version}.linux-arm64.tar.gz"; \
-            else \
-                tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v$tinygo_version/tinygo${tinygo_version}.linux-arm64.tar.gz"; \
-            fi; \
-            oras_url="https://github.com/oras-project/oras/releases/download/v$oras_version/oras_${oras_version}_linux_arm64.tar.gz"; \
-            ;; \
-        *) echo >&2 "error: unsupported architecture '$arch' "; exit 1 ;; \
+      'amd64') \
+        go_url="https://golang.google.cn/dl/go${GO_VERSION}.linux-amd64.tar.gz"; \
+        if [ "$USE_HIGRESS_TINYGO" = "true" ]; then \
+          tinygo_url="https://github.com/alibaba/higress/releases/download/v${HIGRESS_VERSION}/higress-tinygo${TINYGO_VERSION}.linux-amd64.tar.gz"; \
+        else \
+          tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v${TINYGO_VERSION}/tinygo${TINYGO_VERSION}.linux-amd64.tar.gz"; \
+        fi; \
+        oras_url="https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"; \
+        ;; \
+      'arm64') \
+        go_url="https://golang.google.cn/dl/go${GO_VERSION}.linux-arm64.tar.gz"; \
+        if [ "$USE_HIGRESS_TINYGO" = "true" ]; then \
+          tinygo_url="https://github.com/alibaba/higress/releases/download/v${HIGRESS_VERSION}/higress-tinygo${TINYGO_VERSION}.linux-arm64.tar.gz"; \
+        else \
+          tinygo_url="https://github.com/tinygo-org/tinygo/releases/download/v${TINYGO_VERSION}/tinygo${TINYGO_VERSION}.linux-arm64.tar.gz"; \
+        fi; \
+        oras_url="https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_arm64.tar.gz"; \
+        ;; \
+      *) echo >&2 "unsupported architecture: $arch"; exit 1 ;; \
     esac; \
-    echo "go_url: '$go_url'"; \
-    wget -O go.tgz "$go_url" --progress=dot:giga; \
-    rm -rf /usr/local/go && tar -C /usr/local -xzf go.tgz && rm -rf go.tgz; \
-    echo "tinygo_url: '$tinygo_url'"; \
-    wget -O tinygo.tgz "$tinygo_url" --progress=dot:giga; \
-    rm -rf /usr/local/tinygo && tar -C /usr/local -xzf tinygo.tgz && rm -rf tinygo.tgz; \
-    echo "oras_url: '$oras_url'"; \
-    wget -O oras.tgz "$oras_url" --progress=dot:giga; \
-    tar -C /usr/local/bin -xzf oras.tgz && rm -rf oras.tgz; \
+    echo "go_url: $go_url"; \
+    wget -O go.tgz "$go_url" --progress=dot:giga || (echo "Failed to download Go" && exit 1); \
+    tar -C /usr/local -xzf go.tgz && rm go.tgz; \
+    echo "tinygo_url: $tinygo_url"; \
+    wget -O tinygo.tgz "$tinygo_url" --progress=dot:giga || (echo "Failed to download TinyGo" && exit 1); \
+    tar -C /usr/local -xzf tinygo.tgz && rm tinygo.tgz; \
+    echo "oras_url: $oras_url"; \
+    wget -O oras.tgz "$oras_url" --progress=dot:giga || (echo "Failed to download ORAS" && exit 1); \
+    tar -C /usr/local/bin -xzf oras.tgz && rm oras.tgz; \
     echo "done";
 
 ENV PATH=$PATH:/usr/local/go/bin:/usr/local/tinygo/bin:/usr/local/bin

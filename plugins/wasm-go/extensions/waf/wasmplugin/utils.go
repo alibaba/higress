@@ -9,10 +9,11 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	ctypes "github.com/corazawaf/coraza/v3/types"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 const noGRPCStream int32 = -1
@@ -21,7 +22,7 @@ const replaceResponseBody int = 10
 // retrieveAddressInfo retrieves address properties from the proxy
 // Expected targets are "source" or "destination"
 // Envoy ref: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes#connection-attributes
-func retrieveAddressInfo(logger wrapper.Log, target string) (string, int) {
+func retrieveAddressInfo(logger log.Log, target string) (string, int) {
 	var targetIP, targetPortStr string
 	var targetPort int
 	targetAddressRaw, err := proxywasm.GetProperty([]string{target, "address"})
@@ -68,7 +69,7 @@ func parsePort(b []byte) (int, error) {
 
 // parseServerName parses :authority pseudo-header in order to retrieve the
 // virtual host.
-func parseServerName(logger wrapper.Log, authority string) string {
+func parseServerName(logger log.Log, authority string) string {
 	host, _, err := net.SplitHostPort(authority)
 	if err != nil {
 		// missing port or bad format
@@ -78,7 +79,7 @@ func parseServerName(logger wrapper.Log, authority string) string {
 	return host
 }
 
-func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *ctypes.Interruption, log wrapper.Log) types.Action {
+func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *ctypes.Interruption, log log.Log) types.Action {
 	if ctx.GetContext("interruptionHandled").(bool) {
 		// handleInterruption should never be called more than once
 		panic("Interruption already handled")
@@ -105,7 +106,7 @@ func handleInterruption(ctx wrapper.HttpContext, phase string, interruption *cty
 // replaceResponseBodyWhenInterrupted address an interruption raised during phase 4.
 // At this phase, response headers are already sent downstream, therefore an interruption
 // can not change anymore the status code, but only tweak the response body
-func replaceResponseBodyWhenInterrupted(logger wrapper.Log, bodySize int) types.Action {
+func replaceResponseBodyWhenInterrupted(logger log.Log, bodySize int) types.Action {
 	// TODO(M4tteoP): Update response body interruption logic after https://github.com/corazawaf/coraza-proxy-wasm/issues/26
 	// Currently returns a body filled with null bytes that replaces the sensitive data potentially leaked
 	err := proxywasm.ReplaceHttpResponseBody(bytes.Repeat([]byte("\x00"), bodySize))

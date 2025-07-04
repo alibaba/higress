@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 type esProviderInitializer struct{}
@@ -45,8 +46,8 @@ func (c *ESProvider) GetProviderType() string {
 func (d *ESProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error {
 
 	requestBody, err := json.Marshal(esQueryRequest{
 		Source: Source{Excludes: []string{"embedding"}},
@@ -99,8 +100,8 @@ func (d *ESProvider) UploadAnswerAndEmbedding(
 	queryEmb []float64,
 	queryAnswer string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 index, embeddings 和 question
 	// 下面是一个例子
 	// POST /<index>/_doc
@@ -176,7 +177,7 @@ type esQueryResponse struct {
 	} `json:"hits"`
 }
 
-func (d *ESProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
+func (d *ESProvider) parseQueryResponse(responseBody []byte, log log.Log) ([]QueryResult, error) {
 	log.Infof("[ES] responseBody: %s", string(responseBody))
 	var queryResp esQueryResponse
 	err := json.Unmarshal(responseBody, &queryResp)

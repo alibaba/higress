@@ -77,8 +77,8 @@ import (
     "net/http"
     
     "my-mcp-server/config"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+    "github.com/higress-group/wasm-go/pkg/mcp/server"
+    "github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 // 定义带有输入参数的工具结构
@@ -139,8 +139,8 @@ func (t MyTool) Call(ctx server.HttpContext, s server.Server) error {
 package tools
 
 import (
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+    "github.com/higress-group/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp/server"
 )
 
 func LoadTools(server *mcp.MCPServer) server.Server {
@@ -164,7 +164,7 @@ import (
     amap "amap-tools/tools"
     quark "quark-search/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp"
 )
 
 func main() {}
@@ -369,7 +369,7 @@ package main
 import (
     "my-mcp-server/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp"
 )
 
 func main() {}

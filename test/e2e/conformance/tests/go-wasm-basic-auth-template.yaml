@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 apiVersion: v1
 kind: Secret
 metadata:
@@ -74,4 +73,4 @@ spec:
       configDisable: false
       ingress:
         - higress-conformance-infra/wasmplugin-basic-auth
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-basic-auth:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-basic-auth:2.0.0

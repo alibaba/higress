@@ -3,22 +3,22 @@ name: Build and Push Wasm Plugin Image
 on:
   push:
     tags:
-    - "wasm-*-*-v*.*.*" # 匹配 wasm-{go|rust}-{pluginName}-vX.Y.Z 格式的标签
+      - "wasm-*-*-v*.*.*" # 匹配 wasm-{go|rust}-{pluginName}-vX.Y.Z 格式的标签
   workflow_dispatch:
     inputs:
       plugin_type:
-        description: 'Type of the plugin'
+        description: "Type of the plugin"
         required: true
         type: choice
         options:
           - go
           - rust
       plugin_name:
-        description: 'Name of the plugin'
+        description: "Name of the plugin"
         required: true
         type: string
       version:
-        description: 'Version of the plugin (optional, without leading v)'
+        description: "Version of the plugin (optional, without leading v)"
         required: false
         type: string
 
@@ -31,8 +31,7 @@ jobs:
       IMAGE_REGISTRY_SERVICE: ${{ vars.IMAGE_REGISTRY || 'higress-registry.cn-hangzhou.cr.aliyuncs.com' }}
       IMAGE_REPOSITORY: ${{ vars.PLUGIN_IMAGE_REPOSITORY || 'plugins' }}
       RUST_VERSION: 1.82
-      GO_VERSION: 1.19
-      TINYGO_VERSION: 0.28.1
+      GO_VERSION: 1.24.0
       ORAS_VERSION: 1.0.0
     steps:
       - name: Set plugin_type, plugin_name and version from inputs or ref_name
@@ -53,7 +52,7 @@ jobs:
           if [[ "$plugin_type" == "rust" ]]; then
             builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-rust-builder:rust${{ env.RUST_VERSION }}-oras${{ env.ORAS_VERSION }}"
           else
-            builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${{ env.GO_VERSION }}-tinygo${{ env.TINYGO_VERSION }}-oras${{ env.ORAS_VERSION }}"
+            builder_image="higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go${{ env.GO_VERSION }}-oras${{ env.ORAS_VERSION }}"
           fi
           echo "PLUGIN_TYPE=$plugin_type" >> $GITHUB_ENV
           echo "PLUGIN_NAME=$plugin_name" >> $GITHUB_ENV
@@ -62,9 +61,9 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v3
-      
+
       - name: File Check
-        run: | 
+        run: |
           workspace=${{ github.workspace }}/plugins/wasm-${PLUGIN_TYPE}/extensions/${PLUGIN_NAME}
           push_command="./plugin.tar.gz:application/vnd.oci.image.layer.v1.tar+gzip"
 
@@ -79,7 +78,7 @@ jobs:
               echo "README.md exists"
               push_command="./README.md:application/vnd.module.wasm.doc.v1+markdown $push_command "
           fi
-          
+
           # 查找README_{lang}.md
           for file in ${workspace}/README_*.md; do
             if [ -f "$file" ]; then
@@ -91,9 +90,9 @@ jobs:
           done
 
           echo "PUSH_COMMAND=\"$push_command\"" >> $GITHUB_ENV
-        
+
       - name: Run a wasm-builder
-        env: 
+        env:
           PLUGIN_NAME: ${{ env.PLUGIN_NAME }}
           BUILDER_IMAGE: ${{ env.BUILDER_IMAGE }}
         run: |
@@ -104,7 +103,7 @@ jobs:
           push_command=${{ env.PUSH_COMMAND }}
           push_command=${push_command#\"}
           push_command=${push_command%\"} # 删除PUSH_COMMAND中的双引号，确保oras push正常解析
-          
+
           target_image="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:${{ env.VERSION }}"
           target_image_latest="${{ env.IMAGE_REGISTRY_SERVICE }}/${{ env.IMAGE_REPOSITORY}}/${{ env.PLUGIN_NAME }}:latest"
           echo "TargetImage=${target_image}"
@@ -123,7 +122,7 @@ jobs:
           set -e
           cd /workspace/plugins/wasm-go/extensions/${PLUGIN_NAME}
           go mod tidy
-          tinygo build -o ./plugin.wasm -scheduler=none -target=wasi -gc=custom -tags=\"custommalloc nottinygc_finalizer ${EXTRA_TAGS}\" .
+          GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm main.go
           tar czvf plugin.tar.gz plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
           oras push ${target_image} ${push_command}
