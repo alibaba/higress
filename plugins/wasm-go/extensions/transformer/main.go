@@ -911,16 +911,13 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 				}
 			}
 		case ReplaceK:
-			// replace: 若指定 key 不存在，则无操作；否则替换 value 为 newValue
+			// replace: 若指定 key 不存在，相当于添加操作；否则替换 value 为 newValue
 			for _, replace := range kvtOp.replaceKvtGroup {
 				key, newValue := replace.key, replace.newValue
-				if _, ok := kvs[key]; !ok {
-					continue
-				}
 				if replace.reg != nil {
 					newValue = replace.reg.matchAndReplace(newValue, host, path)
 				}
-				kvs[replace.key] = []string{newValue}
+				kvs[key] = []string{newValue}
 			}
 		case AddK:
 			// add: 若指定 key 存在则无操作；否则添加 key:value
@@ -1043,12 +1040,9 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map
 				}
 			}
 		case ReplaceK:
-			// replace: 若指定 key 不存在，则无操作；否则替换 value 为 newValue
+			// replace: 若指定 key 不存在，则相当于添加操作；否则替换 value 为 newValue
 			for _, replace := range kvtOp.replaceKvtGroup {
 				key, newValue, valueType := replace.key, replace.newValue, replace.typ
-				if !gjson.GetBytes(data, key).Exists() {
-					continue
-				}
 				if valueType == "string" && replace.reg != nil {
 					newValue = replace.reg.matchAndReplace(newValue, host, path)
 				}
