@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ const (
 	ClusterName                = "cluster"
 	APIName                    = "api"
 	ConsumerKey                = "x-mse-consumer"
+	RequestPath                = "request_path"
 
 	// Source Type
 	FixedValue            = "fixed_value"
@@ -177,14 +179,17 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
-	api, api_error := getAPIName()
-	if api_error == nil {
+	api, apiError := getAPIName()
+	if apiError == nil {
 		route = api
 	}
 	ctx.SetContext(RouteName, route)
 	ctx.SetContext(ClusterName, cluster)
 	ctx.SetUserAttribute(APIName, api)
 	ctx.SetContext(StatisticsRequestStartTime, time.Now().UnixMilli())
+	if requestPath, _ := proxywasm.GetHttpRequestHeader(":path"); requestPath != "" {
+		ctx.SetContext(RequestPath, requestPath)
+	}
 	if consumer, _ := proxywasm.GetHttpRequestHeader(ConsumerKey); consumer != "" {
 		ctx.SetContext(ConsumerKey, consumer)
 	}
@@ -208,21 +213,37 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	// Set user defined log & span attributes.
 	setAttributeBySource(ctx, config, RequestBody, body)
 	// Set span attributes for ARMS.
-	requestModel := gjson.GetBytes(body, "model").String()
-	if requestModel == "" {
-		requestModel = "UNKNOWN"
+	requestModel := "UNKNOWN"
+	if model := gjson.GetBytes(body, "model"); model.Exists() {
+		requestModel = model.String()
+	} else {
+		requestPath := ctx.GetStringContext(RequestPath, "")
+		if strings.Contains(requestPath, "generateContent") || strings.Contains(requestPath, "streamGenerateContent") { // Google Gemini GenerateContent
+			reg := regexp.MustCompile(`^.*/(?P<api_version>[^/]+)/models/(?P<model>[^:]+):\w+Content$`)
+			matches := reg.FindStringSubmatch(requestPath)
+			if len(matches) == 3 {
+				requestModel = matches[2]
+			}
+		}
 	}
 	setSpanAttribute(ArmsRequestModel, requestModel)
 	// Set the number of conversation rounds
-	if gjson.GetBytes(body, "messages").Exists() {
-		userPromptCount := 0
-		for _, msg := range gjson.GetBytes(body, "messages").Array() {
+
+	userPromptCount := 0
+	if messages := gjson.GetBytes(body, "messages"); messages.Exists() && messages.IsArray() {
+		for _, msg := range messages.Array() {
 			if msg.Get("role").String() == "user" {
 				userPromptCount += 1
 			}
 		}
-		ctx.SetUserAttribute(ChatRound, userPromptCount)
+	} else if contents := gjson.GetBytes(body, "contents"); contents.Exists() && contents.IsArray() { // Google Gemini GenerateContent
+		for _, content := range contents.Array() {
+			if !content.Get("role").Exists() || content.Get("role").String() == "user" {
+				userPromptCount += 1
+			}
+		}
 	}
+	ctx.SetUserAttribute(ChatRound, userPromptCount)
 
 	// Write log
 	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
@@ -244,7 +265,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) t
 func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool) []byte {
 	// Buffer stream body for record log & span attributes
 	if config.shouldBufferStreamingBody {
-		var streamingBodyBuffer []byte
 		streamingBodyBuffer, ok := ctx.GetContext(CtxStreamingBodyBuffer).([]byte)
 		if !ok {
 			streamingBodyBuffer = data
@@ -258,6 +278,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	if chatID := wrapper.GetValueFromBody(data, []string{
 		"id",
 		"response.id",
+		"responseId", // Gemini generateContent
 	}); chatID != nil {
 		ctx.SetUserAttribute(ChatID, chatID.String())
 	}
@@ -324,6 +345,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	if chatID := wrapper.GetValueFromBody(body, []string{
 		"id",
 		"response.id",
+		"responseId", // Gemini generateContent
 	}); chatID != nil {
 		ctx.SetUserAttribute(ChatID, chatID.String())
 	}
@@ -392,7 +414,7 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 				}
 			}
 			// for metrics
-			if key == Model || key == InputToken || key == OutputToken {
+			if key == Model || key == InputToken || key == OutputToken || key == TotalToken {
 				ctx.SetContext(key, value)
 			}
 			if attribute.ApplyToSpan {
@@ -480,20 +502,20 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 		log.Warnf("Model typd assert failed, skip metric record")
 		return
 	}
-	if inputToken, ok := convertToUInt(ctx.GetUserAttribute(InputToken)); ok && inputToken > 0 {
+	if inputToken, ok := convertToUInt(ctx.GetUserAttribute(InputToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, InputToken), inputToken)
 	} else {
-		log.Warnf("InputToken typd assert failed or value is 0, skip metric record")
+		log.Warnf("InputToken typd assert failed, skip metric record")
 	}
-	if outputToken, ok := convertToUInt(ctx.GetUserAttribute(OutputToken)); ok && outputToken > 0 {
+	if outputToken, ok := convertToUInt(ctx.GetUserAttribute(OutputToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, OutputToken), outputToken)
 	} else {
-		log.Warnf("OutputToken typd assert failed or value is 0, skip metric record")
+		log.Warnf("OutputToken typd assert failed, skip metric record")
 	}
-	if totalToken, ok := convertToUInt(ctx.GetUserAttribute(TotalToken)); ok && totalToken > 0 {
+	if totalToken, ok := convertToUInt(ctx.GetUserAttribute(TotalToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, TotalToken), totalToken)
 	} else {
-		log.Warnf("TotalToken typd assert failed or value is 0, skip metric record")
+		log.Warnf("TotalToken typd assert failed, skip metric record")
 	}
 
 	// Generate duration metrics
