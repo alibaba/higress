@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"os"
 	"strings"
+	"sync"
 )
 
 // DorisQueryer 用于管理 Doris 数据库连接和查询
@@ -154,4 +155,142 @@ func IsSafeSQL(sqlStr string) bool {
 		}
 	}
 	return true
+}
+
+// DataSourceConfig 多数据源配置
+type DataSourceConfig struct {
+	Datasources map[string]struct {
+		Host     string `yaml:"host"`
+		Port     int    `yaml:"port"`
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+		Database string `yaml:"database"`
+	} `yaml:"datasources"`
+}
+
+// SQLTemplateConfig SQL模板配置
+type SQLTemplateConfig struct {
+	Templates map[string]struct {
+		SQL        string   `yaml:"sql"`
+		Fields     []string `yaml:"fields"`
+		Mask       []string `yaml:"mask"`
+		AllowRoles []string `yaml:"allow_roles"`
+	} `yaml:"templates"`
+}
+
+// LoadDataSourceConfig 加载多数据源配置
+func LoadDataSourceConfig(path string) (*DataSourceConfig, error) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cfg DataSourceConfig
+	if err := yaml.Unmarshal(f, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// LoadSQLTemplateConfig 加载SQL模板配置
+func LoadSQLTemplateConfig(path string) (*SQLTemplateConfig, error) {
+	f, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cfg SQLTemplateConfig
+	if err := yaml.Unmarshal(f, &cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// DataSourceManager 管理多数据源连接池
+type DataSourceManager struct {
+	mu    sync.Mutex
+	pool  map[string]*sql.DB
+	conf  *DataSourceConfig
+}
+
+// NewDataSourceManager 创建数据源管理器
+func NewDataSourceManager(conf *DataSourceConfig) *DataSourceManager {
+	return &DataSourceManager{
+		pool: make(map[string]*sql.DB),
+		conf: conf,
+	}
+}
+
+// GetDB 获取指定数据源的DB连接
+func (m *DataSourceManager) GetDB(name string) (*sql.DB, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if db, ok := m.pool[name]; ok {
+		return db, nil
+	}
+	cfg, ok := m.conf.Datasources[name]
+	if !ok {
+		return nil, fmt.Errorf("数据源 %s 未配置", name)
+	}
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Database)
+	db, err := sql.Open("mysql", dsn)
+	if err != nil {
+		return nil, err
+	}
+	m.pool[name] = db
+	return db, nil
+}
+
+// MaskData 对敏感字段进行脱敏
+func MaskData(data []map[string]interface{}, maskFields []string) []map[string]interface{} {
+	for _, row := range data {
+		for _, f := range maskFields {
+			if v, ok := row[f].(string); ok {
+				row[f] = maskString(v)
+			}
+		}
+	}
+	return data
+}
+
+// maskString 简单邮箱/手机号脱敏
+func maskString(s string) string {
+	if len(s) <= 2 {
+		return "*" + s
+	}
+	return s[:2] + "****" + s[len(s)-2:]
+}
+
+// CheckRole 校验角色是否有权限
+func CheckRole(allowRoles []string, role string) bool {
+	for _, r := range allowRoles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// ExecuteTemplate 执行SQL模板
+func ExecuteTemplate(manager *DataSourceManager, tplConf *SQLTemplateConfig, tplName, dsName string, args []interface{}, role string) ([]map[string]interface{}, error) {
+	tpl, ok := tplConf.Templates[tplName]
+	if !ok {
+		return nil, fmt.Errorf("模板 %s 未定义", tplName)
+	}
+	if !CheckRole(tpl.AllowRoles, role) {
+		return nil, fmt.Errorf("角色 %s 无权访问该模板", role)
+	}
+	db, err := manager.GetDB(dsName)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(tpl.SQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result, err := rowsToMap(rows)
+	if err != nil {
+		return nil, err
+	}
+	result = MaskData(result, tpl.Mask)
+	return result, nil
 } 
