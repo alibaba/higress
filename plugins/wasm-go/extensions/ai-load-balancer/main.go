@@ -23,6 +23,7 @@ func init() {
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBody(onHttpStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
+		wrapper.ProcessStreamDone(onHttpStreamDone),
 	)
 }
 
@@ -32,6 +33,7 @@ type LoadBalancer interface {
 	HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action
 	HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte
 	HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action
+	HandleHttpStreamDone(ctx wrapper.HttpContext)
 }
 
 type Config struct {
@@ -79,4 +81,8 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config Config, data []
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	return config.lb.HandleHttpResponseBody(ctx, body)
+}
+
+func onHttpStreamDone(ctx wrapper.HttpContext, config Config) {
+	config.lb.HandleHttpStreamDone(ctx)
 }

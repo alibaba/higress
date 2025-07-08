@@ -37,14 +37,14 @@ local function is_healthy(addr)
     return false
 end
 
-if redis.call('HEXISTS', hset_key, current_target) ~= 0 then
+if redis.call('HEXISTS', hset_key, current_target) == 1 then
     current_count = redis.call('HGET', hset_key, current_target)
     local hash = redis.call('HGETALL', hset_key)
     for i = 1, #hash, 2 do
 		local addr = hash[i]
 		local count = hash[i+1]
         if is_healthy(addr) then
-            if count < current_count then
+            if tonumber(count) < tonumber(current_count) then
                 current_target = addr
                 current_count = count
             elseif count == current_count and randomBool() then
@@ -125,7 +125,7 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpC
 	}
 	randomIndex := rand.Intn(len(healthyHostArray))
 	hostSelected := healthyHostArray[randomIndex]
-	keys := []interface{}{time.Now().Unix(), fmt.Sprintf(RedisKeyFormat, routeName, clusterName), hostSelected}
+	keys := []interface{}{time.Now().UnixMicro(), fmt.Sprintf(RedisKeyFormat, routeName, clusterName), hostSelected}
 	for _, v := range healthyHostArray {
 		keys = append(keys, v)
 	}
@@ -157,22 +157,23 @@ func (lb GlobalLeastRequestLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.H
 }
 
 func (lb GlobalLeastRequestLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
-	if endOfStream {
-		isErr, _ := ctx.GetContext("error").(bool)
-		if !isErr {
-			routeName, _ := ctx.GetContext("routeName").(string)
-			clusterName, _ := ctx.GetContext("clusterName").(string)
-			host_selected, _ := ctx.GetContext("host_selected").(string)
-			if host_selected == "" {
-				log.Errorf("get host_selected failed")
-			} else {
-				lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), host_selected, -1, nil)
-			}
-		}
-	}
 	return data
 }
 
 func (lb GlobalLeastRequestLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	return types.ActionContinue
+}
+
+func (lb GlobalLeastRequestLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {
+	isErr, _ := ctx.GetContext("error").(bool)
+	if !isErr {
+		routeName, _ := ctx.GetContext("routeName").(string)
+		clusterName, _ := ctx.GetContext("clusterName").(string)
+		host_selected, _ := ctx.GetContext("host_selected").(string)
+		if host_selected == "" {
+			log.Errorf("get host_selected failed")
+		} else {
+			lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), host_selected, -1, nil)
+		}
+	}
 }
