@@ -77,3 +77,5 @@ func (lb LeastBusyLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.Http
 func (lb LeastBusyLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	return types.ActionContinue
 }
+
+func (lb LeastBusyLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {}
