@@ -1027,6 +1027,56 @@ data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "openai responses case 1: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.openai.com",
+						Path:        "/v1/responses",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"Hello"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"resp_test","object":"response","model":"gpt-4o-2024-08-06","usage":{"input_tokens":328,"output_tokens":52,"total_tokens":380}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "openai responses case 2: streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.openai.com",
+						Path:        "/v1/responses",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"Hello"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"type":"response.created","response":{"id":"resp_test","object":"response","model":"gpt-4o-2024-08-06","usage":null}}  
+  
+data: {"type":"response.completed","response":{"id":"resp_test","object":"response","model":"gpt-4o-2024-08-06","usage":{"input_tokens":328,"output_tokens":52,"total_tokens":380}}}  
+  
+data: [DONE]  
+  
+`),
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugins ai-proxy", func(t *testing.T) {
 			for _, testcase := range testcases {
