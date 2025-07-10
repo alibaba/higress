@@ -79,21 +79,20 @@ local function is_healthy(addr)
     return false
 end
 
+local function randomBool()
+    return math.random() >= 0.5
+end
+
 local target = ""
 local key = ""
 local current_key = ""
-local count = #ARGV
 local ttl = KEYS[1]
 local hset_key = KEYS[2]
 local default_target = KEYS[3]
 
-if count == 0 then
-    return target
-end
-
 -- find longest prefix
 local index = 1
-while index <= count do
+while index <= #ARGV do
     if current_key == "" then
         current_key = ARGV[index]
     else
@@ -120,15 +119,20 @@ if target == "" then
 	index = 1
 	local current_count = 0
 	target = default_target
-	if redis.call('HEXISTS', hset_key, target) ~= 0 then
+	if redis.call('HEXISTS', hset_key, target) == 1 then
 		current_count = redis.call('HGET', hset_key, target)
 		local hash = redis.call('HGETALL', hset_key)
 		for i = 1, #hash, 2 do
 			local addr = hash[i]
 			local count = hash[i+1]
-			if count < current_count and is_healthy(addr) then
-				target = addr
-				current_count = count
+			if is_healthy(addr) then
+				if tonumber(count) < tonumber(current_count) then
+					target = addr
+					current_count = count
+				elseif count == current_count and randomBool() then
+					target = addr
+					current_count = count
+				end
 			end
 		end
 	end
@@ -138,7 +142,7 @@ end
 redis.call("HINCRBY", hset_key, target, 1)
 
 -- add tree-path
-while index <= count do
+while index <= #ARGV do
     if key == "" then
         key = ARGV[index]
     else
@@ -177,7 +181,7 @@ func NewPrefixCacheLoadBalancer(json gjson.Result) (PrefixCacheLoadBalancer, err
 	}
 	// database default is 0
 	database := json.Get("database").Int()
-	if json.Get("redisKeyTTL").Int() == 0 {
+	if json.Get("redisKeyTTL").Int() != 0 {
 		lb.redisKeyTTL = int(json.Get("redisKeyTTL").Int())
 	} else {
 		lb.redisKeyTTL = 1800
@@ -275,24 +279,25 @@ func (lb PrefixCacheLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpCont
 }
 
 func (lb PrefixCacheLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
-	if endOfStream {
-		isErr, _ := ctx.GetContext("error").(bool)
-		if !isErr {
-			routeName, _ := ctx.GetContext("routeName").(string)
-			clusterName, _ := ctx.GetContext("clusterName").(string)
-			host_selected, _ := ctx.GetContext("host_selected").(string)
-			if host_selected == "" {
-				log.Errorf("get host_selected failed")
-			} else {
-				lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), host_selected, -1, nil)
-			}
-		}
-	}
 	return data
 }
 
 func (lb PrefixCacheLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	return types.ActionContinue
+}
+
+func (lb PrefixCacheLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {
+	isErr, _ := ctx.GetContext("error").(bool)
+	if !isErr {
+		routeName, _ := ctx.GetContext("routeName").(string)
+		clusterName, _ := ctx.GetContext("clusterName").(string)
+		host_selected, _ := ctx.GetContext("host_selected").(string)
+		if host_selected == "" {
+			log.Errorf("get host_selected failed")
+		} else {
+			lb.redisClient.HIncrBy(fmt.Sprintf(RedisKeyFormat, routeName, clusterName), host_selected, -1, nil)
+		}
+	}
 }
 
 func computeSHA1(data string) string {

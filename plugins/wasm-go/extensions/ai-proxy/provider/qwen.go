@@ -26,6 +26,7 @@ const (
 	qwenDefaultDomain                     = "dashscope.aliyuncs.com"
 	qwenChatCompletionPath                = "/api/v1/services/aigc/text-generation/generation"
 	qwenTextEmbeddingPath                 = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenTextRerankPath                    = "/api/v1/services/rerank/text-rerank/text-rerank"
 	qwenCompatibleChatCompletionPath      = "/compatible-mode/v1/chat/completions"
 	qwenCompatibleCompletionsPath         = "/compatible-mode/v1/completions"
 	qwenCompatibleTextEmbeddingPath       = "/compatible-mode/v1/embeddings"
@@ -79,6 +80,7 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
 			string(ApiNameQwenAsyncAIGC):  qwenAsyncAIGCPath,
 			string(ApiNameQwenAsyncTask):  qwenAsyncTaskPath,
+			string(ApiNameQwenV1Rerank):   qwenTextRerankPath,
 		}
 	}
 }
@@ -698,6 +700,8 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 		return ApiNameQwenAsyncAIGC
 	case strings.Contains(path, qwenAsyncTaskPath):
 		return ApiNameQwenAsyncTask
+	case strings.Contains(path, qwenTextRerankPath):
+		return ApiNameQwenV1Rerank
 	default:
 		return ""
 	}
