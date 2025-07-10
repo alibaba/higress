@@ -41,13 +41,15 @@ description: AI Token限流插件配置参考
 
 `limit_keys`中每一项的配置字段说明
 
-| 配置项           | 类型   | 必填                                                         | 默认值 | 说明                                                         |
-| ---------------- | ------ | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
-| key              | string | 是                                                           | -      | 匹配的键值，`limit_by_per_header`,`limit_by_per_param`,`limit_by_per_consumer`,`limit_by_per_cookie` 类型支持配置正则表达式（以regexp:开头后面跟正则表达式）或者*（代表所有），正则表达式示例：`regexp:^d.*`（以d开头的所有字符串）；`limit_by_per_ip`支持配置 IP 地址或 IP 段 |
-| token_per_second | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每秒请求token数                                             |
-| token_per_minute | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每分钟请求token数                                           |
-| token_per_hour   | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每小时请求token数                                           |
-| token_per_day    | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每天请求token数                                             |
+
+| 配置项           | 类型   | 必填                                                                                  | 默认值 | 说明                                                                                                                                                                                                                                                                           |
+| ---------------- | ------ | ------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| key              | string | 是                                                                                    | -      | 匹配的键值，`limit_by_per_header`,`limit_by_per_param`,`limit_by_per_consumer`,`limit_by_per_cookie` 类型支持配置正则表达式（以regexp:开头后面跟正则表达式）或者*（代表所有），正则表达式示例：`regexp:^d.*`（以d开头的所有字符串）；`limit_by_per_ip`支持配置 IP 地址或 IP 段 |
+| limit_type |  string | 否 | token | 限流模式， `request` 时基于请求数限流, `token` 时基于 AI token 数限流 |
+| token_per_second | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每秒请求`token/request`数（由 `limit_type`类型决定）                                                                                                                                                                                                                                                            |
+| token_per_minute | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每分钟请求`token/request`数（由 `limit_type` 类型决定）                                                                                                                                                                                                                                                              |
+| token_per_hour   | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每小时请求`token/request`数（由 `limit_type`类型决定）                                                                                                                                                                                                                                                         |
+| token_per_day    | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每天请求`token/request`数（由 `limit_type`类型决定）                                                                                                                                                                                                                                                              |
 
 `redis`中每一项的配置字段说明
 
@@ -63,7 +65,7 @@ description: AI Token限流插件配置参考
 
 ## 配置示例
 
-### 识别请求参数 apikey，进行区别限流
+### 识别请求参数 apikey，进行区别 AI token 限流
 
 ```yaml
 rule_name: default_rule
@@ -89,9 +91,35 @@ redis:
   service_name: redis.static
 ```
 
+相应的，基于请求数限流，只需在 `limit_keys`中添加 `limit_type`: request，如下所示：
+```yaml
+rule_name: default_rule
+rule_items:
+  - limit_by_param: apikey
+    limit_keys:
+      - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+        token_per_minute: 10
+        limit_type: request
+      - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
+        token_per_hour: 100
+        limit_type: request
+  - limit_by_per_param: apikey
+    limit_keys:
+      - key: "regexp:^a.*"
+        token_per_second: 10
+        limit_type: request
+      - key: "regexp:^b.*"
+        token_per_minute: 100
+        limit_type: request
+      - key: "*"
+        token_per_hour: 1000
+        limit_type: request
+redis:
+  service_name: redis.static
+```
 
 
-### 识别请求头 x-ca-key，进行区别限流
+### 识别请求头 x-ca-key，进行区别 AI token 限流
 
 ```yaml
 rule_name: default_rule
@@ -119,7 +147,7 @@ redis:
 
 
 
-### 根据请求头 x-forwarded-for 获取对端IP，进行区别限流
+### 根据请求头 x-forwarded-for 获取对端IP，进行区别 AI token 限流
 
 ```yaml
 rule_name: default_rule
@@ -167,7 +195,7 @@ redis:
 
 
 
-### 识别cookie中的键值对，进行区别限流
+### 识别cookie中的键值对，进行区别 AI token 限流
 
 ```yaml
 rule_name: default_rule
