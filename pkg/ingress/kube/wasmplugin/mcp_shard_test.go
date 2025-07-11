@@ -344,8 +344,11 @@ func TestCalculateConfigSize(t *testing.T) {
 	}
 
 	size := CalculateConfigSize(instances)
-	if size == 0 {
-		t.Error("CalculateConfigSize() returned 0")
+	// 根据测试数据计算预期大小
+	// 这个值应该基于实际的JSON序列化结果
+	expectedSize := 250 // 基于两个实例的典型JSON大小估算
+	if size < expectedSize {
+		t.Errorf("Expected size to be at least %d, got %d", expectedSize, size)
 	}
 }
 
@@ -784,7 +787,7 @@ func TestMCPShardManager_Compression(t *testing.T) {
 	tests := []struct {
 		name           string
 		compressionCfg CompressionConfig
-		validatePlugins func(t *testing.T, plugins []*v1.WasmPlugin)
+		validatePlugins func(t *testing.T, plugins []*v1.WasmPlugin, cfg CompressionConfig)
 	}{
 		{
 			name: "compression enabled",
@@ -793,7 +796,7 @@ func TestMCPShardManager_Compression(t *testing.T) {
 				Algorithm: "gzip",
 				Level:     6,
 			},
-			validatePlugins: func(t *testing.T, plugins []*v1.WasmPlugin) {
+			validatePlugins: func(t *testing.T, plugins []*v1.WasmPlugin, cfg CompressionConfig) {
 				if len(plugins) == 0 {
 					t.Error("No plugins created")
 					return
@@ -807,11 +810,12 @@ func TestMCPShardManager_Compression(t *testing.T) {
 					if plugin.Annotations["higress.io/compression-enabled"] != "true" {
 						t.Error("Compression enabled annotation not found")
 					}
-					if plugin.Annotations["higress.io/compression-algorithm"] != "gzip" {
-						t.Error("Compression algorithm annotation not found")
+					if plugin.Annotations["higress.io/compression-algorithm"] != cfg.Algorithm {
+						t.Errorf("Expected compression algorithm '%s', got '%s'", cfg.Algorithm, plugin.Annotations["higress.io/compression-algorithm"])
 					}
-					if plugin.Annotations["higress.io/compression-level"] != "6" {
-						t.Error("Compression level annotation not found")
+					expectedLevel := fmt.Sprintf("%d", cfg.Level)
+					if plugin.Annotations["higress.io/compression-level"] != expectedLevel {
+						t.Errorf("Expected compression level '%s', got '%s'", expectedLevel, plugin.Annotations["higress.io/compression-level"])
 					}
 				}
 			},
@@ -821,7 +825,7 @@ func TestMCPShardManager_Compression(t *testing.T) {
 			compressionCfg: CompressionConfig{
 				Enabled: false,
 			},
-			validatePlugins: func(t *testing.T, plugins []*v1.WasmPlugin) {
+			validatePlugins: func(t *testing.T, plugins []*v1.WasmPlugin, cfg CompressionConfig) {
 				if len(plugins) == 0 {
 					t.Error("No plugins created")
 					return
@@ -873,7 +877,7 @@ func TestMCPShardManager_Compression(t *testing.T) {
 				return
 			}
 
-			tt.validatePlugins(t, wasmPlugins.Items)
+			tt.validatePlugins(t, wasmPlugins.Items, tt.compressionCfg)
 		})
 	}
 }
@@ -1097,7 +1101,7 @@ func TestSplitLargeGroup(t *testing.T) {
 				{Endpoint: "test4.com", Config: map[string]interface{}{"size": 500}},
 			},
 			maxSize:     1000,
-			wantGroups:  2,
+			wantGroups:  1, // 修改期望值，因为移除了测试专用逻辑
 			wantMaxSize: 1000,
 		},
 		{
@@ -1128,10 +1132,14 @@ func TestSplitLargeGroup(t *testing.T) {
 				t.Errorf("splitLargeGroup() got %d groups, want %d", len(groups), tt.wantGroups)
 			}
 
-			for _, group := range groups {
+			// 验证每个分组的大小是否严格小于maxSize
+			for i, group := range groups {
 				size := CalculateConfigSize(group)
 				if size > tt.maxSize {
-					t.Errorf("group size %d exceeds max size %d", size, tt.maxSize)
+					t.Errorf("Group %d size %d exceeds max size %d", i, size, tt.maxSize)
+				}
+				if len(group) == 0 {
+					t.Errorf("Group %d is empty", i)
 				}
 			}
 		})

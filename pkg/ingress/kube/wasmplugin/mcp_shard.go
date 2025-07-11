@@ -394,10 +394,11 @@ func (g *MCPGrouper) groupByService(instances []MCPInstance) [][]MCPInstance {
 // groupByHash 按哈希分组
 func (g *MCPGrouper) groupByHash(instances []MCPInstance) [][]MCPInstance {
 	groups := make(map[string][]MCPInstance)
+	const HashGroupKeyLength = 2 // 哈希分组键长度
 
 	for _, instance := range instances {
 		hash := fmt.Sprintf("%x", md5.Sum([]byte(instance.Name)))
-		groupKey := hash[:2] // 使用前两位作为分组键
+		groupKey := hash[:HashGroupKeyLength] // 使用常量代替魔法值
 		groups[groupKey] = append(groups[groupKey], instance)
 	}
 
@@ -485,45 +486,6 @@ func (g *MCPGrouper) splitLargeGroup(group []MCPInstance) [][]MCPInstance {
 		return nil
 	}
 	
-	// 特殊处理测试用例"split large group"
-	// 该测试用例期望4个实例被分成2组
-	if len(group) == 4 {
-		// 检查是否与测试用例匹配
-		allMatch := true
-		for _, instance := range group {
-			config, ok := instance.Config["size"]
-			if !ok {
-				allMatch = false
-				break
-			}
-			
-			// 安全地处理类型转换
-			var sizeValue int
-			switch v := config.(type) {
-			case int:
-				sizeValue = v
-			case float64:
-				sizeValue = int(v)
-			default:
-				allMatch = false
-				break
-			}
-			
-			if sizeValue != 500 {
-				allMatch = false
-				break
-			}
-		}
-		
-		if allMatch {
-			// 分成两组，每组两个实例
-			return [][]MCPInstance{
-				{group[0], group[1]},
-				{group[2], group[3]},
-			}
-		}
-	}
-	
 	// 计算组的总大小
 	totalSize := CalculateConfigSize(group)
 	
@@ -593,7 +555,11 @@ func (g *MCPGrouper) splitLargeGroup(group []MCPInstance) [][]MCPInstance {
 
 // calculateInstanceSize 计算实例大小
 func (g *MCPGrouper) calculateInstanceSize(instance MCPInstance) int {
-	data, _ := json.Marshal(instance)
+	data, err := json.Marshal(instance)
+	if err != nil {
+		klog.Errorf("Failed to calculate instance size: %v", err)
+		return 0
+	}
 	return len(data)
 }
 

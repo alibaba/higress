@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -194,6 +195,20 @@ func (cm *ConfigManager) loadFromEnv() (*MCPShardingConfig, error) {
 		}
 		config.Compression.Enabled = enabled
 	}
+	
+	// 压缩算法
+	if val := os.Getenv("HIGRESS_MCP_COMPRESSION_ALGORITHM"); val != "" {
+		config.Compression.Algorithm = val
+	}
+	
+	// 压缩级别
+	if val := os.Getenv("HIGRESS_MCP_COMPRESSION_LEVEL"); val != "" {
+		level, err := strconv.Atoi(val)
+		if err != nil {
+			return nil, fmt.Errorf("invalid HIGRESS_MCP_COMPRESSION_LEVEL: %w", err)
+		}
+		config.Compression.Level = level
+	}
 
 	// 监控启用状态
 	if val := os.Getenv("HIGRESS_MCP_MONITORING_ENABLED"); val != "" {
@@ -327,7 +342,15 @@ func (cm *ConfigManager) ValidateConfig(config *MCPShardingConfig) error {
 	}
 
 	if config.Compression.Enabled {
-		if config.Compression.Algorithm != "gzip" && config.Compression.Algorithm != "zlib" {
+		validAlgorithms := []string{"gzip", "zlib"}
+		valid := false
+		for _, algo := range validAlgorithms {
+			if strings.EqualFold(config.Compression.Algorithm, algo) {
+				valid = true
+				break
+			}
+		}
+		if !valid {
 			return fmt.Errorf("invalid compression algorithm: %s", config.Compression.Algorithm)
 		}
 
@@ -379,6 +402,7 @@ func (config *MCPShardingConfig) ToMCPControllerOptions() MCPControllerOptions {
 		// 如果配置为 nil，返回默认配置对应的控制器选项
 		defaultConfig := &MCPShardingConfig{
 			Enabled:      true,
+			MaxSize:      MaxWasmPluginSize,
 			MaxInstances: MaxMCPInstancesPerShard,
 			Strategy:     string(GroupByHash),
 			Monitoring: MCPMonitoringConfig{

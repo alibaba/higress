@@ -113,8 +113,8 @@ func (r *MCPControllerRunner) reconcileAll(ctx context.Context) error {
 	// 触发协调
 	req := reconcile.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "higress-system",
-			Name:      "mcp-bridge",
+			Namespace: r.controller.options.WatchNamespace,
+			Name:      MCPPluginName,
 		},
 	}
 
@@ -187,6 +187,7 @@ func ExampleUsage() {
 	fmt.Println("Controller options validation passed!")
 
 	// 7. 示例 MCP 实例
+	// 注意：生产环境应通过Kubernetes Secrets存储敏感信息
 	instances := []MCPInstance{
 		{
 			Name:     "weather-service",

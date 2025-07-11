@@ -649,6 +649,7 @@ func (r *MCPWasmPluginController) listMcpBridges(ctx context.Context) ([]*networ
 	}
 
 	if err := r.Client.List(ctx, &mcpBridgeList, listOptions...); err != nil {
+		r.recorder.Eventf(&v1.WasmPlugin{}, "Warning", "ListMcpBridgeFailed", "Failed to list McpBridge resources in namespace %s: %v", r.options.WatchNamespace, err)
 		return nil, fmt.Errorf("failed to list McpBridge resources: %w", err)
 	}
 
@@ -752,7 +753,7 @@ func (r *MCPWasmPluginController) extractMCPInstancesFromBridge(bridge *networki
 			if len(registry.Metadata) > 0 {
 				metadata := make(map[string]interface{})
 				for key, innerMap := range registry.Metadata {
-					if innerMap != nil {
+					if innerMap != nil && innerMap.InnerMap != nil {
 						metadata[key] = innerMap.InnerMap
 					}
 				}
