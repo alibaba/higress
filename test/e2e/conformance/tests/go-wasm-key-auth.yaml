@@ -57,4 +57,4 @@ spec:
       configDisable: false
       ingress:
         - higress-conformance-infra/wasmplugin-key-auth
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-key-auth:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-key-auth:2.0.0

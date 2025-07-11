@@ -45,4 +45,4 @@ spec:
     servicePort: 8181
     policy: example1
     timeout: 5s
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/opa:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/opa:2.0.0
