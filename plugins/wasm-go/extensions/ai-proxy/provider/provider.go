@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -54,6 +54,17 @@ const (
 	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
 	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
 
+	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
+	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
+	ApiNameQwenAsyncAIGC               ApiName = "qwen/v1/services/aigc"
+	ApiNameQwenAsyncTask               ApiName = "qwen/v1/tasks"
+	ApiNameQwenV1Rerank                ApiName = "qwen/v1/rerank"
+	ApiNameGeminiGenerateContent       ApiName = "gemini/v1beta/generatecontent"
+	ApiNameGeminiStreamGenerateContent ApiName = "gemini/v1beta/streamgeneratecontent"
+	ApiNameAnthropicMessages           ApiName = "anthropic/v1/messages"
+	ApiNameAnthropicComplete           ApiName = "anthropic/v1/complete"
+
+	// OpenAI
 	PathOpenAICompletions                          = "/v1/completions"
 	PathOpenAIChatCompletions                      = "/v1/chat/completions"
 	PathOpenAIEmbeddings                           = "/v1/embeddings"
@@ -79,11 +90,12 @@ const (
 	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
 	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
 
-	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
-	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
-	ApiNameQwenV1Rerank   ApiName = "qwen/v1/rerank"
-	ApiNameQwenAsyncAIGC  ApiName = "api/v1/services/aigc"
-	ApiNameQwenAsyncTask  ApiName = "api/v1/tasks/"
+	// Anthropic
+	PathAnthropicMessages = "/v1/messages"
+	PathAnthropicComplete = "/v1/complete"
+
+	// Cohere
+	PathCohereV1Rerank = "/v1/rerank"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -901,7 +913,10 @@ func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 		ApiNameImageVariation,
 		ApiNameAudioSpeech,
 		ApiNameFineTuningJobs,
-		ApiNameResponses:
+		ApiNameResponses,
+		ApiNameGeminiGenerateContent,
+		ApiNameGeminiStreamGenerateContent,
+		ApiNameAnthropicMessages:
 		return true
 	}
 	return false

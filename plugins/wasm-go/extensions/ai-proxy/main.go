@@ -342,28 +342,28 @@ func checkStream(ctx wrapper.HttpContext) {
 
 func getApiName(path string) provider.ApiName {
 	// openai style
-	if strings.HasSuffix(path, "/v1/chat/completions") {
+	if strings.HasSuffix(path, provider.PathOpenAIChatCompletions) {
 		return provider.ApiNameChatCompletion
 	}
-	if strings.HasSuffix(path, "/v1/completions") {
+	if strings.HasSuffix(path, provider.PathOpenAICompletions) {
 		return provider.ApiNameCompletion
 	}
-	if strings.HasSuffix(path, "/v1/embeddings") {
+	if strings.HasSuffix(path, provider.PathOpenAIEmbeddings) {
 		return provider.ApiNameEmbeddings
 	}
-	if strings.HasSuffix(path, "/v1/audio/speech") {
+	if strings.HasSuffix(path, provider.PathOpenAIAudioSpeech) {
 		return provider.ApiNameAudioSpeech
 	}
-	if strings.HasSuffix(path, "/v1/images/generations") {
+	if strings.HasSuffix(path, provider.PathOpenAIImageGeneration) {
 		return provider.ApiNameImageGeneration
 	}
-	if strings.HasSuffix(path, "/v1/images/variations") {
+	if strings.HasSuffix(path, provider.PathOpenAIImageVariation) {
 		return provider.ApiNameImageVariation
 	}
-	if strings.HasSuffix(path, "/v1/images/edits") {
+	if strings.HasSuffix(path, provider.PathOpenAIImageEdit) {
 		return provider.ApiNameImageEdit
 	}
-	if strings.HasSuffix(path, "/v1/batches") {
+	if strings.HasSuffix(path, provider.PathOpenAIBatches) {
 		return provider.ApiNameBatches
 	}
 	if util.RegRetrieveBatchPath.MatchString(path) {
@@ -372,7 +372,7 @@ func getApiName(path string) provider.ApiName {
 	if util.RegCancelBatchPath.MatchString(path) {
 		return provider.ApiNameCancelBatch
 	}
-	if strings.HasSuffix(path, "/v1/files") {
+	if strings.HasSuffix(path, provider.PathOpenAIFiles) {
 		return provider.ApiNameFiles
 	}
 	if util.RegRetrieveFilePath.MatchString(path) {
@@ -381,10 +381,10 @@ func getApiName(path string) provider.ApiName {
 	if util.RegRetrieveFileContentPath.MatchString(path) {
 		return provider.ApiNameRetrieveFileContent
 	}
-	if strings.HasSuffix(path, "/v1/models") {
+	if strings.HasSuffix(path, provider.PathOpenAIModels) {
 		return provider.ApiNameModels
 	}
-	if strings.HasSuffix(path, "/v1/fine_tuning/jobs") {
+	if strings.HasSuffix(path, provider.PathOpenAIFineTuningJobs) {
 		return provider.ApiNameFineTuningJobs
 	}
 	if util.RegRetrieveFineTuningJobPath.MatchString(path) {
@@ -411,11 +411,28 @@ func getApiName(path string) provider.ApiName {
 	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
 		return provider.ApiNameDeleteFineTuningCheckpointPermission
 	}
-	if strings.HasSuffix(path, "/v1/responses") {
+	if strings.HasSuffix(path, provider.PathOpenAIResponses) {
 		return provider.ApiNameResponses
 	}
+
+	// Anthropic
+	if strings.HasSuffix(path, provider.PathAnthropicMessages) {
+		return provider.ApiNameAnthropicMessages
+	}
+	if strings.HasSuffix(path, provider.PathAnthropicComplete) {
+		return provider.ApiNameAnthropicComplete
+	}
+
+	// Gemini
+	if util.RegGeminiGenerateContent.MatchString(path) {
+		return provider.ApiNameGeminiGenerateContent
+	}
+	if util.RegGeminiStreamGenerateContent.MatchString(path) {
+		return provider.ApiNameGeminiStreamGenerateContent
+	}
+
 	// cohere style
-	if strings.HasSuffix(path, "/v1/rerank") {
+	if strings.HasSuffix(path, provider.PathCohereV1Rerank) {
 		return provider.ApiNameCohereV1Rerank
 	}
 	return ""
