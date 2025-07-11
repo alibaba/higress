@@ -16,6 +16,7 @@ package reconcile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -154,6 +155,27 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 	authOption, err := r.getAuthOption(registry)
 	if err != nil {
 		return nil, err
+	}
+
+	// Get MCP configuration if specified
+	mcpInstances, err := r.getMCPConfig(registry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MCP config: %v", err)
+	}
+
+	// If MCP instances are configured, use the first one as primary and handle multiple instances
+	if len(mcpInstances) > 0 {
+		// Use the first instance as the primary configuration
+		primaryInstance := mcpInstances[0]
+		log.Infof("Using MCP instance configuration: %d instances found, primary: %s:%d", 
+			len(mcpInstances), primaryInstance.Domain, primaryInstance.Port)
+		
+		// Override domain and port from MCP configuration
+		registry.Domain = primaryInstance.Domain
+		registry.Port = uint32(primaryInstance.Port)
+		
+		// TODO: In the future, we can implement load balancing across multiple instances
+		// For now, we use the first instance as primary
 	}
 
 	switch registry.Type {
@@ -320,4 +342,29 @@ func (r *Reconciler) GetRegistryWatcherStatusList() []RegistryWatcherStatus {
 		registryStatusList = append(registryStatusList, registryStatus)
 	}
 	return registryStatusList
+}
+
+// getMCPConfig gets MCP instances configuration from ConfigMap
+func (r *Reconciler) getMCPConfig(registry *apiv1.RegistryConfig) ([]MCPInstance, error) {
+	if registry.McpConfigRef == "" {
+		return nil, nil // No MCP config reference, use default single instance
+	}
+	
+	configMap, err := r.client.Kube().CoreV1().ConfigMaps(r.namespace).Get(
+		context.Background(), registry.McpConfigRef, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get MCP config ConfigMap %s in namespace %s error: %v", 
+			registry.McpConfigRef, r.namespace, err)
+	}
+	
+	// Parse MCP instances from ConfigMap data
+	if instancesData, ok := configMap.Data["instances"]; ok {
+		var instances []MCPInstance
+		if err := json.Unmarshal([]byte(instancesData), &instances); err != nil {
+			return nil, fmt.Errorf("failed to parse MCP instances configuration: %v", err)
+		}
+		return instances, nil
+	}
+	
+	return nil, fmt.Errorf("ConfigMap %s missing 'instances' key", registry.McpConfigRef)
 }

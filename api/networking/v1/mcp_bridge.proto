@@ -74,6 +74,7 @@ message RegistryConfig {
   google.protobuf.BoolValue enableScopeMcpServers = 23;
   repeated string allowMcpServers = 24;
   map<string, InnerMap> metadata = 25;
+  string mcpConfigRef = 26;
 }
 
 message InnerMap {

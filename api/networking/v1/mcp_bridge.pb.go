@@ -136,6 +136,7 @@ type RegistryConfig struct {
 	EnableScopeMcpServers  *wrappers.BoolValue  `protobuf:"bytes,23,opt,name=enableScopeMcpServers,proto3" json:"enableScopeMcpServers,omitempty"`
 	AllowMcpServers        []string             `protobuf:"bytes,24,rep,name=allowMcpServers,proto3" json:"allowMcpServers,omitempty"`
 	Metadata               map[string]*InnerMap `protobuf:"bytes,25,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	McpConfigRef           string               `protobuf:"bytes,26,opt,name=mcpConfigRef,proto3" json:"mcpConfigRef,omitempty"`
 }
 
 func (x *RegistryConfig) Reset() {
@@ -343,6 +344,13 @@ func (x *RegistryConfig) GetMetadata() map[string]*InnerMap {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *RegistryConfig) GetMcpConfigRef() string {
+	if x != nil {
+		return x.McpConfigRef
+	}
+	return ""
 }
 
 type InnerMap struct {

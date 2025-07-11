@@ -1,0 +1,165 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Test MCP ConfigMap reference functionality
+
+# Create test ConfigMap with multiple MCP instances
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-mcp-config
+  namespace: higress-conformance-infra
+data:
+  instances: |
+    [
+      {
+        "domain": "nacos-standlone-rc3-service.higress-conformance-app-backend.svc.cluster.local",
+        "port": 8848,
+        "weight": 100
+      }
+    ]
+---
+# Test ConfigMap with multiple instances for load balancing  
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-mcp-multiple-config
+  namespace: higress-conformance-infra
+data:
+  instances: |
+    [
+      {
+        "domain": "nacos-standlone-rc3-service.higress-conformance-app-backend.svc.cluster.local",
+        "port": 8848,
+        "weight": 100
+      },
+      {
+        "domain": "nacos-standlone-rc3-service.higress-conformance-app-backend.svc.cluster.local", 
+        "port": 8848,
+        "weight": 50
+      }
+    ]
+---
+# Test invalid JSON ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-mcp-invalid-config
+  namespace: higress-conformance-infra
+data:
+  instances: "invalid json content"
+---
+# Test missing instances key ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-mcp-missing-key-config
+  namespace: higress-conformance-infra
+data:
+  wrongkey: "some value"
+---
+# McpBridge using ConfigMap reference (single instance)
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: test-mcp-config-ref
+  namespace: higress-conformance-infra
+spec:
+  registries:
+  - type: nacos2
+    name: test-nacos-config-ref
+    domain: dummy.example.com  # This will be overridden by MCP config
+    port: 9999                  # This will be overridden by MCP config
+    nacosNamespaceId: "public"
+    nacosGroups: ["DEFAULT_GROUP"]
+    mcpConfigRef: test-mcp-config
+---
+# McpBridge using ConfigMap reference (multiple instances)
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: test-mcp-multiple-config-ref
+  namespace: higress-conformance-infra
+spec:
+  registries:
+  - type: nacos2
+    name: test-nacos-multiple-config-ref
+    domain: dummy.example.com
+    port: 9999
+    nacosNamespaceId: "public"
+    nacosGroups: ["DEFAULT_GROUP"]
+    mcpConfigRef: test-mcp-multiple-config
+---
+# McpBridge using invalid ConfigMap reference
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: test-mcp-invalid-config-ref
+  namespace: higress-conformance-infra
+spec:
+  registries:
+  - type: nacos2
+    name: test-nacos-invalid-config-ref
+    domain: dummy.example.com
+    port: 9999
+    nacosNamespaceId: "public"
+    nacosGroups: ["DEFAULT_GROUP"]
+    mcpConfigRef: test-mcp-invalid-config
+---
+# McpBridge using nonexistent ConfigMap reference
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: test-mcp-nonexistent-config-ref
+  namespace: higress-conformance-infra
+spec:
+  registries:
+  - type: nacos2
+    name: test-nacos-nonexistent-config-ref
+    domain: dummy.example.com
+    port: 9999
+    nacosNamespaceId: "public"
+    nacosGroups: ["DEFAULT_GROUP"]
+    mcpConfigRef: nonexistent-config
+---
+# McpBridge using missing key ConfigMap reference
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: test-mcp-missing-key-config-ref
+  namespace: higress-conformance-infra
+spec:
+  registries:
+  - type: nacos2
+    name: test-nacos-missing-key-config-ref
+    domain: dummy.example.com
+    port: 9999
+    nacosNamespaceId: "public"
+    nacosGroups: ["DEFAULT_GROUP"]
+    mcpConfigRef: test-mcp-missing-key-config
+---
+# Traditional approach without ConfigMap reference (for comparison)
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: test-mcp-traditional
+  namespace: higress-conformance-infra
+spec:
+  registries:
+  - type: nacos2
+    name: test-nacos-traditional
+    domain: nacos-standlone-rc3-service.higress-conformance-app-backend.svc.cluster.local
+    port: 8848
+    nacosNamespaceId: "public"
+    nacosGroups: ["DEFAULT_GROUP"]

@@ -29,3 +29,10 @@ type AuthOption struct {
 	EtcdUsername  string
 	EtcdPassword  string
 }
+
+// MCPInstance represents a single MCP instance configuration
+type MCPInstance struct {
+	Domain string `json:"domain"`
+	Port   int    `json:"port"`
+	Weight int    `json:"weight,omitempty"` // Optional weight for load balancing
+}
