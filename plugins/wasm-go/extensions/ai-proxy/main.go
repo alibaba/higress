@@ -11,8 +11,10 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -25,7 +27,9 @@ const (
 	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseOverrideConfig(parseGlobalConfig, parseOverrideRuleConfig),
@@ -161,7 +165,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		if providerConfig.IsOpenAIProtocol() {
+		// 仅 /v1/chat/completions 和 /v1/completions 接口支持 stream_options 参数
+		if providerConfig.IsOpenAIProtocol() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
@@ -315,7 +320,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 func normalizeOpenAiRequestBody(body []byte) []byte {
 	var err error
 	// Default setting include_usage.
-	if gjson.GetBytes(body, "stream").Bool() {
+	if gjson.GetBytes(body, "stream").Bool() && (!gjson.GetBytes(body, "stream_options").Exists() || !gjson.GetBytes(body, "stream_options.include_usage").Exists()) {
 		body, err = sjson.SetBytes(body, "stream_options.include_usage", true)
 		if err != nil {
 			log.Errorf("set include_usage failed, err:%s", err)
@@ -378,6 +383,36 @@ func getApiName(path string) provider.ApiName {
 	}
 	if strings.HasSuffix(path, "/v1/models") {
 		return provider.ApiNameModels
+	}
+	if strings.HasSuffix(path, "/v1/fine_tuning/jobs") {
+		return provider.ApiNameFineTuningJobs
+	}
+	if util.RegRetrieveFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameRetrieveFineTuningJob
+	}
+	if util.RegRetrieveFineTuningJobEventsPath.MatchString(path) {
+		return provider.ApiNameFineTuningJobEvents
+	}
+	if util.RegRetrieveFineTuningJobCheckpointsPath.MatchString(path) {
+		return provider.ApiNameFineTuningJobCheckpoints
+	}
+	if util.RegCancelFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameCancelFineTuningJob
+	}
+	if util.RegResumeFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameResumeFineTuningJob
+	}
+	if util.RegPauseFineTuningJobPath.MatchString(path) {
+		return provider.ApiNamePauseFineTuningJob
+	}
+	if util.RegFineTuningCheckpointPermissionPath.MatchString(path) {
+		return provider.ApiNameFineTuningCheckpointPermissions
+	}
+	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
+		return provider.ApiNameDeleteFineTuningCheckpointPermission
+	}
+	if strings.HasSuffix(path, "/v1/responses") {
+		return provider.ApiNameResponses
 	}
 	// cohere style
 	if strings.HasSuffix(path, "/v1/rerank") {

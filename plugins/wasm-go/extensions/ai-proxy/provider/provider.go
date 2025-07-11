@@ -5,12 +5,13 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"path"
 	"regexp"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -18,8 +19,9 @@ import (
 )
 
 type (
-	ApiName  string
-	Pointcut string
+	ApiName          string
+	Pointcut         string
+	basePathHandling string
 )
 
 const (
@@ -27,40 +29,61 @@ const (
 	// ApiName 格式 {vendor}/{version}/{apitype}
 	// 表示遵循 厂商/版本/接口类型 的格式
 	// 目前openai是事实意义上的标准，但是也有其他厂商存在其他任务的一些可能的标准，比如cohere的rerank
-	ApiNameCompletion          ApiName = "openai/v1/completions"
-	ApiNameChatCompletion      ApiName = "openai/v1/chatcompletions"
-	ApiNameEmbeddings          ApiName = "openai/v1/embeddings"
-	ApiNameImageGeneration     ApiName = "openai/v1/imagegeneration"
-	ApiNameImageEdit           ApiName = "openai/v1/imageedit"
-	ApiNameImageVariation      ApiName = "openai/v1/imagevariation"
-	ApiNameAudioSpeech         ApiName = "openai/v1/audiospeech"
-	ApiNameFiles               ApiName = "openai/v1/files"
-	ApiNameRetrieveFile        ApiName = "openai/v1/retrievefile"
-	ApiNameRetrieveFileContent ApiName = "openai/v1/retrievefilecontent"
-	ApiNameBatches             ApiName = "openai/v1/batches"
-	ApiNameRetrieveBatch       ApiName = "openai/v1/retrievebatch"
-	ApiNameCancelBatch         ApiName = "openai/v1/cancelbatch"
-	ApiNameModels              ApiName = "openai/v1/models"
-	ApiNameResponses           ApiName = "openai/v1/responses"
+	ApiNameCompletion                           ApiName = "openai/v1/completions"
+	ApiNameChatCompletion                       ApiName = "openai/v1/chatcompletions"
+	ApiNameEmbeddings                           ApiName = "openai/v1/embeddings"
+	ApiNameImageGeneration                      ApiName = "openai/v1/imagegeneration"
+	ApiNameImageEdit                            ApiName = "openai/v1/imageedit"
+	ApiNameImageVariation                       ApiName = "openai/v1/imagevariation"
+	ApiNameAudioSpeech                          ApiName = "openai/v1/audiospeech"
+	ApiNameFiles                                ApiName = "openai/v1/files"
+	ApiNameRetrieveFile                         ApiName = "openai/v1/retrievefile"
+	ApiNameRetrieveFileContent                  ApiName = "openai/v1/retrievefilecontent"
+	ApiNameBatches                              ApiName = "openai/v1/batches"
+	ApiNameRetrieveBatch                        ApiName = "openai/v1/retrievebatch"
+	ApiNameCancelBatch                          ApiName = "openai/v1/cancelbatch"
+	ApiNameModels                               ApiName = "openai/v1/models"
+	ApiNameResponses                            ApiName = "openai/v1/responses"
+	ApiNameFineTuningJobs                       ApiName = "openai/v1/fine-tuningjobs"
+	ApiNameRetrieveFineTuningJob                ApiName = "openai/v1/retrievefine-tuningjob"
+	ApiNameFineTuningJobEvents                  ApiName = "openai/v1/fine-tuningjobsevents"
+	ApiNameFineTuningJobCheckpoints             ApiName = "openai/v1/fine-tuningjobcheckpoints"
+	ApiNameCancelFineTuningJob                  ApiName = "openai/v1/cancelfine-tuningjob"
+	ApiNameResumeFineTuningJob                  ApiName = "openai/v1/resumefine-tuningjob"
+	ApiNamePauseFineTuningJob                   ApiName = "openai/v1/pausefine-tuningjob"
+	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
+	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
 
-	PathOpenAICompletions         = "/v1/completions"
-	PathOpenAIChatCompletions     = "/v1/chat/completions"
-	PathOpenAIEmbeddings          = "/v1/embeddings"
-	PathOpenAIFiles               = "/v1/files"
-	PathOpenAIRetrieveFile        = "/v1/files/{file_id}"
-	PathOpenAIRetrieveFileContent = "/v1/files/{file_id}/content"
-	PathOpenAIBatches             = "/v1/batches"
-	PathOpenAIRetrieveBatch       = "/v1/batches/{batch_id}"
-	PathOpenAICancelBatch         = "/v1/batches/{batch_id}/cancel"
-	PathOpenAIModels              = "/v1/models"
-	PathOpenAIImageGeneration     = "/v1/images/generations"
-	PathOpenAIImageEdit           = "/v1/images/edits"
-	PathOpenAIImageVariation      = "/v1/images/variations"
-	PathOpenAIAudioSpeech         = "/v1/audio/speech"
-	PathOpenAIResponses           = "/v1/responses"
+	PathOpenAICompletions                          = "/v1/completions"
+	PathOpenAIChatCompletions                      = "/v1/chat/completions"
+	PathOpenAIEmbeddings                           = "/v1/embeddings"
+	PathOpenAIFiles                                = "/v1/files"
+	PathOpenAIRetrieveFile                         = "/v1/files/{file_id}"
+	PathOpenAIRetrieveFileContent                  = "/v1/files/{file_id}/content"
+	PathOpenAIBatches                              = "/v1/batches"
+	PathOpenAIRetrieveBatch                        = "/v1/batches/{batch_id}"
+	PathOpenAICancelBatch                          = "/v1/batches/{batch_id}/cancel"
+	PathOpenAIModels                               = "/v1/models"
+	PathOpenAIImageGeneration                      = "/v1/images/generations"
+	PathOpenAIImageEdit                            = "/v1/images/edits"
+	PathOpenAIImageVariation                       = "/v1/images/variations"
+	PathOpenAIAudioSpeech                          = "/v1/audio/speech"
+	PathOpenAIResponses                            = "/v1/responses"
+	PathOpenAIFineTuningJobs                       = "/v1/fine_tuning/jobs"
+	PathOpenAIRetrieveFineTuningJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
+	PathOpenAIFineTuningJobEvents                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/events"
+	PathOpenAIFineTuningJobCheckpoints             = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/checkpoints"
+	PathOpenAICancelFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel"
+	PathOpenAIResumeFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/resume"
+	PathOpenAIPauseFineTuningJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
+	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
+	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
+	ApiNameQwenV1Rerank   ApiName = "qwen/v1/rerank"
+	ApiNameQwenAsyncAIGC  ApiName = "api/v1/services/aigc"
+	ApiNameQwenAsyncTask  ApiName = "api/v1/tasks/"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -123,6 +146,9 @@ const (
 	wildcard = "*"
 
 	defaultTimeout = 2 * 60 * 1000 // ms
+
+	basePathHandlingRemovePrefix basePathHandling = "removePrefix"
+	basePathHandlingPrepend      basePathHandling = "prepend"
 )
 
 type providerInitializer interface {
@@ -276,6 +302,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock Region
 	// @Description zh-CN 仅适用于Amazon Bedrock服务访问
 	awsRegion string `required:"false" yaml:"awsRegion" json:"awsRegion"`
+	// @Title zh-CN Amazon Bedrock 额外模型请求参数
+	// @Description zh-CN 仅适用于Amazon Bedrock服务，用于设置模型特定的推理参数
+	bedrockAdditionalFields map[string]interface{} `required:"false" yaml:"bedrockAdditionalFields" json:"bedrockAdditionalFields"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -335,6 +364,10 @@ type ProviderConfig struct {
 	// @Title zh-CN 额外支持的ai能力
 	// @Description zh-CN 开放的ai能力和urlpath映射，例如： {"openai/v1/chatcompletions": "/v1/chat/completions"}
 	capabilities map[string]string
+	// @Title zh-CN 如果配置了basePath，可用于在请求path中移除该前缀，或添加至请求path中，默认为进行移除
+	basePath string `required:"false" yaml:"basePath" json:"basePath"`
+	// @Title zh-CN basePathHandling用于指定basePath的处理方式，可选值：removePrefix、prepend
+	basePathHandling basePathHandling `required:"false" yaml:"basePathHandling" json:"basePathHandling"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -404,6 +437,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.awsAccessKey = json.Get("awsAccessKey").String()
 	c.awsSecretKey = json.Get("awsSecretKey").String()
 	c.awsRegion = json.Get("awsRegion").String()
+	if c.typ == providerTypeBedrock {
+		c.bedrockAdditionalFields = make(map[string]interface{})
+		for k, v := range json.Get("bedrockAdditionalFields").Map() {
+			c.bedrockAdditionalFields[k] = v.Value()
+		}
+	}
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
@@ -495,6 +534,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			string(ApiNameCohereV1Rerank):
 			c.capabilities[capability] = pathJson.String()
 		}
+	}
+	c.basePath = json.Get("basePath").String()
+	c.basePathHandling = basePathHandling(json.Get("basePathHandling").String())
+	if c.basePath != "" && c.basePathHandling == "" {
+		c.basePathHandling = basePathHandlingRemovePrefix
 	}
 }
 
@@ -806,10 +850,20 @@ func (c *ProviderConfig) handleRequestBody(
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
 	headers := util.GetOriginalRequestHeaders()
+	originPath := headers.Get(":path")
+	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
+		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
+	}
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
 		handler.TransformRequestHeaders(ctx, apiName, headers)
-		util.ReplaceRequestHeaders(headers)
 	}
+	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
+		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
+	}
+	if headers.Get(":path") != originPath {
+		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
+	}
+	util.ReplaceRequestHeaders(headers)
 }
 
 // defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
@@ -840,11 +894,14 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 	switch apiName {
 	case ApiNameChatCompletion,
+		ApiNameCompletion,
 		ApiNameEmbeddings,
 		ApiNameImageGeneration,
 		ApiNameImageEdit,
 		ApiNameImageVariation,
-		ApiNameAudioSpeech:
+		ApiNameAudioSpeech,
+		ApiNameFineTuningJobs,
+		ApiNameResponses:
 		return true
 	}
 	return false

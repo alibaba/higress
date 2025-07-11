@@ -50,6 +50,8 @@ const (
 	DefaultNacosCacheDir        = "/var/log/nacos/log/mcp/cache"
 	DefaultNacosNotLoadCache    = true
 	DefaultNacosLogMaxAge       = 3
+	DefaultNacosLogMaxSize      = 64
+	DefaultNacosLogMaxBackups   = 3
 	DefaultRefreshInterval      = time.Second * 30
 	DefaultRefreshIntervalLimit = time.Second * 10
 )
@@ -128,6 +130,8 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		constant.WithNotLoadCacheAtStart(DefaultNacosNotLoadCache),
 		constant.WithLogRollingConfig(&constant.ClientLogRollingConfig{
 			MaxAge: DefaultNacosLogMaxAge,
+			MaxSize: DefaultNacosLogMaxSize,
+			MaxBackups: DefaultNacosLogMaxBackups,
 		}),
 		constant.WithUpdateCacheWhenEmpty(w.updateCacheWhenEmpty),
 		constant.WithNamespaceId(w.NacosNamespaceId),

@@ -5,6 +5,7 @@ import (
 
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry/nacos"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/higress-api"
 	mcp_session "github.com/alibaba/higress/plugins/golang-filter/mcp-session"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	xds "github.com/cncf/xds/go/xds/type/v3"
@@ -99,7 +100,7 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 		serverInstance, err := server.NewServer(serverName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize DBServer: %w", err)
+			return nil, fmt.Errorf("failed to initialize MCP Server: %w", err)
 		}
 
 		conf.servers = append(conf.servers, &SSEServerWrapper{

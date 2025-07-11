@@ -183,7 +183,7 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			"replace.raw.com",
 			true,
 			[]byte("{\"test\":[{\"test\":\"test\", \"test1\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
-			[]byte("{\"res\":\"***.***.***.*** 48a7e98a91d93896d8dac522c5853948 ****@gmail.com\"}"),
+			[]byte("{\"res\":\"***.***.***.*** c11e7177eb60c80cf983ddf8ca98f2dc1272d4c612204ce9bedd2460b18939cc ****@gmail.com\"}"),
 		))
 
 		t.Run("WasmPlugins ai-data-masking", func(t *testing.T) {

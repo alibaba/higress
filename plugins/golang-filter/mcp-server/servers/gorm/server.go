@@ -49,10 +49,23 @@ func (c *DBConfig) NewServer(serverName string) (*common.MCPServer, error) {
 	)
 
 	dbClient := NewDBClient(c.dsn, c.dbType, mcpServer.GetDestoryChannel())
+	descriptionSuffix := fmt.Sprintf("in database %s. Database description: %s", c.dbType, c.description)
 	// Add query tool
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("query", fmt.Sprintf("Run a read-only SQL query in database %s. Database description: %s", c.dbType, c.description), GetQueryToolSchema()),
+		mcp.NewToolWithRawSchema("query", fmt.Sprintf("Run a read-only SQL query %s", descriptionSuffix), GetQueryToolSchema()),
 		HandleQueryTool(dbClient),
+	)
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("execute", fmt.Sprintf("Execute an insert, update, or delete SQL %s", descriptionSuffix), GetExecuteToolSchema()),
+		HandleExecuteTool(dbClient),
+	)
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("list tables", fmt.Sprintf("List all tables %s", descriptionSuffix), GetListTablesToolSchema()),
+		HandleListTablesTool(dbClient),
+	)
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("describe table", fmt.Sprintf("Get the structure of a specific table %s", descriptionSuffix), GetDescribeTableToolSchema()),
+		HandleDescribeTableTool(dbClient),
 	)
 
 	return mcpServer, nil

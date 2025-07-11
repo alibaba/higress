@@ -17,7 +17,7 @@ package main
 import (
 	"testing"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )
@@ -25,7 +25,7 @@ import (
 func TestConfig(t *testing.T) {
 	json := gjson.Result{Type: gjson.JSON, Raw: `{"serviceSource": "k8s","serviceName": "opa","servicePort": 8181,"namespace": "example1","policy": "example1","timeout": "5s"}`}
 	config := &OpaConfig{}
-	assert.NoError(t, parseConfig(json, config, wrapper.Log{}))
+	assert.NoError(t, parseConfig(json, config, log.Log{}))
 	assert.Equal(t, config.policy, "example1")
 	assert.Equal(t, config.timeout, uint32(5000))
 	assert.NotNil(t, config.client)
@@ -45,6 +45,6 @@ func TestConfig(t *testing.T) {
 
 	for _, test := range tests {
 		json = gjson.Result{Type: gjson.JSON, Raw: test.raw}
-		assert.Equal(t, parseConfig(json, config, wrapper.Log{}) == nil, test.result)
+		assert.Equal(t, parseConfig(json, config, log.Log{}) == nil, test.result)
 	}
 }

@@ -24,8 +24,8 @@ import (
 
 	"quark-search/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/mcp/server"
+	"github.com/higress-group/wasm-go/pkg/mcp/utils"
 	"github.com/tidwall/gjson"
 )
 
@@ -99,9 +99,9 @@ func (t WebSearch) Call(ctx server.HttpContext, s server.Server) error {
 	}
 	return ctx.RouteCall(http.MethodGet, fmt.Sprintf("https://cloud-iqs.aliyuncs.com/search/genericSearch?query=%s", url.QueryEscape(t.Query)),
 		[][2]string{{"Accept", "application/json"},
-			{"X-API-Key", serverConfig.ApiKey}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
+			{"X-API-Key", serverConfig.ApiKey}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("quark search call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("quark search call failed, status: %d", statusCode))
 				return
 			}
 			jsonObj := gjson.ParseBytes(responseBody)
@@ -125,6 +125,6 @@ func (t WebSearch) Call(ctx server.HttpContext, s server.Server) error {
 					results = append(results, result.Format())
 				}
 			}
-			utils.SendMCPToolTextResult(sendDirectly, ctx, fmt.Sprintf("# Search Results\n\n%s", strings.Join(results, "\n\n")))
+			utils.SendMCPToolTextResult(ctx, fmt.Sprintf("# Search Results\n\n%s", strings.Join(results, "\n\n")))
 		})
 }
