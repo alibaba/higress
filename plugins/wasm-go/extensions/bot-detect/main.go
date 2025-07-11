@@ -19,14 +19,18 @@ package main
 import (
 	"bot-detect/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"regexp"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
-	regexp "github.com/wasilibs/go-re2"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"bot-detect",
 		wrapper.ParseConfigBy(parseConfig),
@@ -34,7 +38,7 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, botDetectConfig *config.BotDetectConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, botDetectConfig *config.BotDetectConfig, log log.Log) error {
 	log.Debug("parseConfig()")
 
 	if json.Get("blocked_code").Exists() {
@@ -81,7 +85,7 @@ func parseConfig(json gjson.Result, botDetectConfig *config.BotDetectConfig, log
 
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, botDetectConfig config.BotDetectConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, botDetectConfig config.BotDetectConfig, log log.Log) types.Action {
 	log.Debug("onHttpRequestHeaders()")
 	//// Get user-agent header
 	ua, err := proxywasm.GetHttpRequestHeader("user-agent")

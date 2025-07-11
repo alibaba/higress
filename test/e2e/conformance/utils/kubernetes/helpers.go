@@ -66,6 +66,7 @@ func NamespacesMustBeAccepted(t *testing.T, c client.Client, timeoutConfig confi
 				}
 			}
 		}
+
 		t.Logf("✅ Gateways and Pods in %s namespaces ready", strings.Join(namespaces, ", "))
 		return true, nil
 	})

@@ -19,13 +19,16 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"cors",
 		wrapper.ParseConfigBy(parseConfig),
@@ -34,7 +37,7 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, corsConfig *config.CorsConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, corsConfig *config.CorsConfig, log log.Log) error {
 	log.Debug("parseConfig()")
 	allowOrigins := json.Get("allow_origins").Array()
 	for _, origin := range allowOrigins {
@@ -71,7 +74,7 @@ func parseConfig(json gjson.Result, corsConfig *config.CorsConfig, log wrapper.L
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig, log log.Log) types.Action {
 	log.Debug("onHttpRequestHeaders()")
 	requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
 	method, _ := proxywasm.GetHttpRequestHeader(":method")
@@ -109,7 +112,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig,
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig, log log.Log) types.Action {
 	log.Debug("onHttpResponseHeaders()")
 	// Remove trace header if existed
 	proxywasm.RemoveHttpResponseHeader(config.HeaderPluginTrace)

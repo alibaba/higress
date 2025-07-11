@@ -4,7 +4,8 @@ import (
 	"testing"
 
 	"ext-auth/expr"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )

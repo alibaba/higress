@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-prompt-template",
 		wrapper.ParseConfigBy(parseConfig),
@@ -23,7 +26,7 @@ type AIPromptTemplateConfig struct {
 	templates map[string]string
 }
 
-func parseConfig(json gjson.Result, config *AIPromptTemplateConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *AIPromptTemplateConfig, log log.Log) error {
 	config.templates = make(map[string]string)
 	for _, v := range json.Get("templates").Array() {
 		config.templates[v.Get("name").String()] = v.Get("template").Raw
@@ -32,7 +35,7 @@ func parseConfig(json gjson.Result, config *AIPromptTemplateConfig, log wrapper.
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptTemplateConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptTemplateConfig, log log.Log) types.Action {
 	templateEnable, _ := proxywasm.GetHttpRequestHeader("template-enable")
 	if templateEnable == "false" {
 		ctx.DontReadRequestBody()
@@ -42,7 +45,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptTemplateConfig
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptTemplateConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptTemplateConfig, body []byte, log log.Log) types.Action {
 	if gjson.GetBytes(body, "template").Exists() && gjson.GetBytes(body, "properties").Exists() {
 		name := gjson.GetBytes(body, "template").String()
 		template := config.templates[name]
