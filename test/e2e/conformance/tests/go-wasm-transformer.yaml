@@ -70,9 +70,8 @@ spec:
               service:
                 name: infra-backend-v1
                 port:
-                  number: 8080                  
+                  number: 8080
 ---
-
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -111,10 +110,10 @@ spec:
               service:
                 name: infra-backend-v1
                 port:
-                  number: 8080                  
----
+                  number: 8080
 ---
 
+---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -133,7 +132,7 @@ spec:
               service:
                 name: infra-backend-v1
                 port:
-                  number: 8080                  
+                  number: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -153,7 +152,7 @@ spec:
               service:
                 name: infra-backend-v1
                 port:
-                  number: 8080                  
+                  number: 8080
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -207,58 +206,58 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-request
       configDisable: false
       config:
-          reqRules:
-            - operate: remove
-              headers:
-                - key: X-remove
-              querys:
-                - key: k1
-            - operate: rename
-              headers:
-                - oldKey: X-not-renamed
-                  newKey: X-renamed
-              querys:
-                - oldKey: k2
-                  newKey: k2-new
-            - operate: replace
-              headers:
-                - key: X-replace
-                  newValue: replaced
-              querys:
-                - key: k2-new
-                  newValue: v2-new
-            - operate: add
-              headers:
-                - key: X-add-append
-                  value: add
-              querys:
-                - key: k3
-                  value: v31
-            - operate: append
-              headers:
-                - key: X-add-append
-                  appendValue: append
-              querys:
-                - key: k3
-                  appendValue: v32
-            - operate: map
-              headers:
-                - fromKey: X-add-append
-                  toKey: X-map
-              querys:
-                - fromKey: k3
-                  toKey: k4
-            - operate: dedupe
-              headers:
-                - key: X-dedupe-first
-                  strategy: RETAIN_FIRST
-                - key: X-dedupe-last
-                  strategy: RETAIN_LAST
-                - key: X-dedupe-unique
-                  strategy: RETAIN_UNIQUE
-              querys:
-                - key: k4
-                  strategy: RETAIN_FIRST
+        reqRules:
+          - operate: remove
+            headers:
+              - key: X-remove
+            querys:
+              - key: k1
+          - operate: rename
+            headers:
+              - oldKey: X-not-renamed
+                newKey: X-renamed
+            querys:
+              - oldKey: k2
+                newKey: k2-new
+          - operate: replace
+            headers:
+              - key: X-replace
+                newValue: replaced
+            querys:
+              - key: k2-new
+                newValue: v2-new
+          - operate: add
+            headers:
+              - key: X-add-append
+                value: add
+            querys:
+              - key: k3
+                value: v31
+          - operate: append
+            headers:
+              - key: X-add-append
+                appendValue: append
+            querys:
+              - key: k3
+                appendValue: v32
+          - operate: map
+            headers:
+              - fromKey: X-add-append
+                toKey: X-map
+            querys:
+              - fromKey: k3
+                toKey: k4
+          - operate: dedupe
+            headers:
+              - key: X-dedupe-first
+                strategy: RETAIN_FIRST
+              - key: X-dedupe-last
+                strategy: RETAIN_LAST
+              - key: X-dedupe-unique
+                strategy: RETAIN_UNIQUE
+            querys:
+              - key: k4
+                strategy: RETAIN_FIRST
 
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-response-header-and-query
@@ -422,7 +421,7 @@ spec:
             headers:
               - key: X-dedupe-last
                 newValue: X-dedupe-last-replaced
-                
+
           - operate: rename
             headers:
               - oldKey: X-dedupe-unique
@@ -436,8 +435,6 @@ spec:
               - key: X-dedupe-first
             querys:
               - key: k1
-          
-
 
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-response-arbitary-rule-order
@@ -475,98 +472,98 @@ spec:
         - higress-conformance-infra/wasmplugin-transform-request-map-from-querys-to-headers
       configDisable: false
       config:
-          reqRules:
-            - operate: map
-              mapSource: querys
-              headers:
-                - fromKey: kmap
-                  toKey: X-map
-              querys:
-                - fromKey: k3
-                  toKey: k4
+        reqRules:
+          - operate: map
+            mapSource: querys
+            headers:
+              - fromKey: kmap
+                toKey: X-map
+            querys:
+              - fromKey: k3
+                toKey: k4
 
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-request-map-from-headers-to-querys
       configDisable: false
       config:
-          reqRules:
-            - operate: map
-              mapSource: headers
-              querys:
-                # 映射来源为headers时，fromKey的匹配不区分大小写
-                - fromKey: X-map
-                  toKey: kmap
+        reqRules:
+          - operate: map
+            mapSource: headers
+            querys:
+              # 映射来源为headers时，fromKey的匹配不区分大小写
+              - fromKey: X-map
+                toKey: kmap
 
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-request-body
       configDisable: false
       config:
-          reqRules:
-            - operate: remove
-              body:
-                - key: X-removed
-            - operate: rename
-              body:
-                - oldKey: X-not-renamed
-                  newKey: X-renamed
-            - operate: replace
-              body:
-                - key: X-replace
-                  newValue: replaced
-            - operate: add
-              body:
-                - key: X-add-append
-                  value: add
-            - operate: append
-              body:
-                - key: X-add-append
-                  appendValue: append
-            - operate: map
-              body:
-                - fromKey: X-to-be-mapped
-                  toKey: X-map
-            - operate: dedupe
-              body:
-                - key: X-dedupe-first
-                  strategy: RETAIN_FIRST
-                - key: X-dedupe-last
-                  strategy: RETAIN_LAST
-                - key: X-dedupe-unique
-                  strategy: RETAIN_UNIQUE
+        reqRules:
+          - operate: remove
+            body:
+              - key: X-removed
+          - operate: rename
+            body:
+              - oldKey: X-not-renamed
+                newKey: X-renamed
+          - operate: replace
+            body:
+              - key: X-replace
+                newValue: replaced
+          - operate: add
+            body:
+              - key: X-add-append
+                value: add
+          - operate: append
+            body:
+              - key: X-add-append
+                appendValue: append
+          - operate: map
+            body:
+              - fromKey: X-to-be-mapped
+                toKey: X-map
+          - operate: dedupe
+            body:
+              - key: X-dedupe-first
+                strategy: RETAIN_FIRST
+              - key: X-dedupe-last
+                strategy: RETAIN_LAST
+              - key: X-dedupe-unique
+                strategy: RETAIN_UNIQUE
     - ingress:
         - higress-conformance-infra/wasmplugin-transform-response-body
       configDisable: false
       config:
-          respRules:
-            - operate: remove
-              body:
-                - key: X-removed
-            - operate: rename
-              body:
-                - oldKey: X-not-renamed
-                  newKey: X-renamed
-            - operate: replace
-              body:
-                - key: X-replace
-                  newValue: replaced
-            - operate: add
-              body:
-                - key: X-add-append
-                  value: add
-            - operate: append
-              body:
-                - key: X-add-append
-                  appendValue: append
-            - operate: map
-              body:
-                - fromKey: X-to-be-mapped
-                  toKey: X-map
-            - operate: dedupe
-              body:
-                - key: X-dedupe-first
-                  strategy: RETAIN_FIRST
-                - key: X-dedupe-last
-                  strategy: RETAIN_LAST
-                - key: X-dedupe-unique
-                  strategy: RETAIN_UNIQUE
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/transformer:1.0.0
+        respRules:
+          - operate: remove
+            body:
+              - key: X-removed
+          - operate: rename
+            body:
+              - oldKey: X-not-renamed
+                newKey: X-renamed
+          - operate: replace
+            body:
+              - key: X-replace
+                newValue: replaced
+          - operate: add
+            body:
+              - key: X-add-append
+                value: add
+          - operate: append
+            body:
+              - key: X-add-append
+                appendValue: append
+          - operate: map
+            body:
+              - fromKey: X-to-be-mapped
+                toKey: X-map
+          - operate: dedupe
+            body:
+              - key: X-dedupe-first
+                strategy: RETAIN_FIRST
+              - key: X-dedupe-last
+                strategy: RETAIN_LAST
+              - key: X-dedupe-unique
+                strategy: RETAIN_UNIQUE
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/transformer:2.0.0

@@ -11,8 +11,10 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -25,7 +27,9 @@ const (
 	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseOverrideConfig(parseGlobalConfig, parseOverrideRuleConfig),

@@ -6,9 +6,11 @@ import (
 	"strings"
 
 	"cluster-key-rate-limit/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	re "regexp"
+
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
-	re "github.com/wasilibs/go-re2"
 	"github.com/zmap/go-iptree/iptree"
 )
 

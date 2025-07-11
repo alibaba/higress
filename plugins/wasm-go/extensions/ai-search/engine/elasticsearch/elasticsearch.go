@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
