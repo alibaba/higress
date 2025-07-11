@@ -52,7 +52,6 @@ builder:
 			--platform linux/amd64,linux/arm64 \
 			--build-arg BASE_IMAGE=docker.io/ubuntu \
 			--build-arg GO_VERSION=$(GO_VERSION) \
-			--build-arg TINYGO_VERSION=$(TINYGO_VERSION) \
 			--build-arg ORAS_VERSION=$(ORAS_VERSION) \
 			--build-arg HIGRESS_VERSION=$(HIGRESS_VERSION) \
 			--build-arg USE_HIGRESS_TINYGO=$(USE_HIGRESS_TINYGO) \
