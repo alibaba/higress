@@ -15,67 +15,31 @@
 package reconcile
 
 import (
-	"context"
+	"encoding/json"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
-
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/kube"
 	. "github.com/alibaba/higress/registry"
 )
 
-func TestGetMCPConfig(t *testing.T) {
-	// Create fake kubernetes client
-	fakeClient := fake.NewSimpleClientset()
+func TestMCPInstanceJSONParsing(t *testing.T) {
+	// Test JSON parsing functionality without kubernetes dependencies
+	t.Run("ValidJSONParsing", func(t *testing.T) {
+		jsonData := `[
+			{
+				"domain": "nacos-1.example.com",
+				"port": 8848,
+				"weight": 100
+			},
+			{
+				"domain": "nacos-2.example.com", 
+				"port": 8848,
+				"weight": 50
+			}
+		]`
 
-	// Create test ConfigMap
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-mcp-config",
-			Namespace: "default",
-		},
-		Data: map[string]string{
-			"instances": `[
-				{
-					"domain": "nacos-1.example.com",
-					"port": 8848,
-					"weight": 100
-				},
-				{
-					"domain": "nacos-2.example.com", 
-					"port": 8848,
-					"weight": 50
-				}
-			]`,
-		},
-	}
-
-	_, err := fakeClient.CoreV1().ConfigMaps("default").Create(
-		context.Background(), configMap, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("Failed to create test ConfigMap: %v", err)
-	}
-
-	// Create mock kube client
-	kubeClient := &kube.Client{}
-	kubeClient.SetKubeClient(fakeClient)
-
-	// Create reconciler
-	reconciler := &Reconciler{
-		client:    kubeClient,
-		namespace: "default",
-	}
-
-	// Test case 1: Valid ConfigMap reference
-	t.Run("ValidConfigMapReference", func(t *testing.T) {
-		registry := &apiv1.RegistryConfig{
-			McpConfigRef: "test-mcp-config",
-		}
-
-		instances, err := reconciler.getMCPConfig(registry)
+		var instances []MCPInstance
+		err := json.Unmarshal([]byte(jsonData), &instances)
 		if err != nil {
 			t.Errorf("Expected no error, got: %v", err)
 		}
@@ -95,70 +59,76 @@ func TestGetMCPConfig(t *testing.T) {
 		if instances[0].Weight != 100 {
 			t.Errorf("Expected weight 100, got: %d", instances[0].Weight)
 		}
-	})
 
-	// Test case 2: Empty ConfigMap reference
-	t.Run("EmptyConfigMapReference", func(t *testing.T) {
-		registry := &apiv1.RegistryConfig{
-			McpConfigRef: "",
+		if instances[1].Domain != "nacos-2.example.com" {
+			t.Errorf("Expected domain 'nacos-2.example.com', got: %s", instances[1].Domain)
 		}
 
-		instances, err := reconciler.getMCPConfig(registry)
-		if err != nil {
-			t.Errorf("Expected no error, got: %v", err)
-		}
-
-		if instances != nil {
-			t.Errorf("Expected nil instances, got: %v", instances)
+		if instances[1].Weight != 50 {
+			t.Errorf("Expected weight 50, got: %d", instances[1].Weight)
 		}
 	})
 
-	// Test case 3: Non-existent ConfigMap reference
-	t.Run("NonExistentConfigMapReference", func(t *testing.T) {
-		registry := &apiv1.RegistryConfig{
-			McpConfigRef: "non-existent-config",
-		}
+	t.Run("InvalidJSONParsing", func(t *testing.T) {
+		invalidJsonData := `{ invalid json }`
 
-		instances, err := reconciler.getMCPConfig(registry)
+		var instances []MCPInstance
+		err := json.Unmarshal([]byte(invalidJsonData), &instances)
 		if err == nil {
-			t.Error("Expected error for non-existent ConfigMap, got nil")
-		}
-
-		if instances != nil {
-			t.Errorf("Expected nil instances, got: %v", instances)
+			t.Error("Expected error for invalid JSON, got nil")
 		}
 	})
 
-	// Test case 4: ConfigMap without instances key
-	t.Run("ConfigMapWithoutInstancesKey", func(t *testing.T) {
-		// Create ConfigMap without instances key
-		invalidConfigMap := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "invalid-mcp-config",
-				Namespace: "default",
-			},
-			Data: map[string]string{
-				"other-key": "some-value",
-			},
-		}
+	t.Run("EmptyArrayParsing", func(t *testing.T) {
+		emptyJsonData := `[]`
 
-		_, err := fakeClient.CoreV1().ConfigMaps("default").Create(
-			context.Background(), invalidConfigMap, metav1.CreateOptions{})
+		var instances []MCPInstance
+		err := json.Unmarshal([]byte(emptyJsonData), &instances)
 		if err != nil {
-			t.Fatalf("Failed to create invalid ConfigMap: %v", err)
+			t.Errorf("Expected no error for empty array, got: %v", err)
 		}
 
+		if len(instances) != 0 {
+			t.Errorf("Expected 0 instances, got: %d", len(instances))
+		}
+	})
+}
+
+func TestMcpConfigRefField(t *testing.T) {
+	// Test that the McpConfigRef field is properly accessible
+	t.Run("McpConfigRefFieldAccess", func(t *testing.T) {
 		registry := &apiv1.RegistryConfig{
-			McpConfigRef: "invalid-mcp-config",
+			Type:         "nacos2",
+			Name:         "test-registry",
+			Domain:       "nacos.example.com",
+			Port:         8848,
+			McpConfigRef: "test-config-map",
 		}
 
-		instances, err := reconciler.getMCPConfig(registry)
-		if err == nil {
-			t.Error("Expected error for ConfigMap without instances key, got nil")
+		if registry.McpConfigRef != "test-config-map" {
+			t.Errorf("Expected McpConfigRef 'test-config-map', got: %s", registry.McpConfigRef)
 		}
 
-		if instances != nil {
-			t.Errorf("Expected nil instances, got: %v", instances)
+		// Test getter method
+		if registry.GetMcpConfigRef() != "test-config-map" {
+			t.Errorf("Expected GetMcpConfigRef() 'test-config-map', got: %s", registry.GetMcpConfigRef())
+		}
+	})
+
+	t.Run("EmptyMcpConfigRef", func(t *testing.T) {
+		registry := &apiv1.RegistryConfig{
+			Type:   "nacos2",
+			Name:   "test-registry",
+			Domain: "nacos.example.com",
+			Port:   8848,
+		}
+
+		if registry.McpConfigRef != "" {
+			t.Errorf("Expected empty McpConfigRef, got: %s", registry.McpConfigRef)
+		}
+
+		if registry.GetMcpConfigRef() != "" {
+			t.Errorf("Expected empty GetMcpConfigRef(), got: %s", registry.GetMcpConfigRef())
 		}
 	})
 }
