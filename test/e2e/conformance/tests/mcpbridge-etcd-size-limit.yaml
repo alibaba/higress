@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: higress-conformance-infra
+---
+# ConfigMap with large number of MCP instances (simulating massive scale)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: massive-scale-mcp-instances
+  namespace: higress-conformance-infra
+data:
+  instances: |
+    [
+      {"domain": "nacos-1.example.com", "port": 8848, "weight": 100},
+      {"domain": "nacos-2.example.com", "port": 8848, "weight": 95},
+      {"domain": "nacos-3.example.com", "port": 8848, "weight": 90},
+      {"domain": "nacos-4.example.com", "port": 8848, "weight": 85},
+      {"domain": "nacos-5.example.com", "port": 8848, "weight": 80},
+      {"domain": "nacos-6.example.com", "port": 8848, "weight": 75},
+      {"domain": "nacos-7.example.com", "port": 8848, "weight": 70},
+      {"domain": "nacos-8.example.com", "port": 8848, "weight": 65},
+      {"domain": "nacos-9.example.com", "port": 8848, "weight": 60},
+      {"domain": "nacos-10.example.com", "port": 8848, "weight": 55},
+      {"domain": "nacos-11.example.com", "port": 8848, "weight": 50},
+      {"domain": "nacos-12.example.com", "port": 8848, "weight": 45},
+      {"domain": "nacos-13.example.com", "port": 8848, "weight": 40},
+      {"domain": "nacos-14.example.com", "port": 8848, "weight": 35},
+      {"domain": "nacos-15.example.com", "port": 8848, "weight": 30},
+      {"domain": "nacos-16.example.com", "port": 8848, "weight": 25},
+      {"domain": "nacos-17.example.com", "port": 8848, "weight": 20},
+      {"domain": "nacos-18.example.com", "port": 8848, "weight": 15},
+      {"domain": "nacos-19.example.com", "port": 8848, "weight": 10},
+      {"domain": "nacos-20.example.com", "port": 8848, "weight": 5}
+    ]
+---
+# McpBridge using ConfigMap reference - should work even with massive scale
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: configref-massive-scale-test
+  namespace: higress-conformance-infra
+spec:
+  registries:
+    - type: nacos2
+      name: massive-scale-nacos-cluster
+      domain: nacos.example.com  # Will be overridden by ConfigMap
+      port: 8848                 # Will be overridden by ConfigMap
+      nacosNamespaceId: public
+      nacosGroups:
+        - DEFAULT_GROUP
+        - PROD_GROUP
+      mcpConfigRef: massive-scale-mcp-instances
+---
+# Demo: What traditional approach would look like (but truncated for readability)
+# This is just for demonstration - the actual test will generate hundreds of entries
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: traditional-approach-demo
+  namespace: higress-conformance-infra
+  annotations:
+    description: "This demonstrates traditional approach - imagine 600+ similar entries"
+spec:
+  registries:
+    - type: nacos2
+      name: nacos-instance-1
+      domain: nacos-1.example.com
+      port: 8848
+      nacosAddressServer: http://nacos-addr-1.example.com:8080
+      nacosAccessKey: access-key-1
+      nacosSecretKey: secret-key-1
+      nacosNamespaceId: public
+      nacosNamespace: default
+      nacosGroups: [DEFAULT_GROUP, PROD_GROUP, TEST_GROUP]
+      nacosRefreshInterval: 30000
+      consulNamespace: consul-ns-1
+      zkServicesPath: [/services-1]
+      consulDatacenter: dc-1
+      consulServiceTag: tag-1
+      consulRefreshInterval: 60000
+      authSecretName: auth-secret-1
+      protocol: http
+      sni: sni-1.example.com
+      mcpServerExportDomains: [service-1.local, api-1.local]
+      mcpServerBaseUrl: http://mcp-1.example.com:8080
+      allowMcpServers: [mcp-1]
+      metadata:
+        region:
+          innerMap:
+            zone: zone-1
+            datacenter: dc-1
+            environment: production
+            cluster: cluster-1
+        monitoring:
+          innerMap:
+            enabled: "true"
+            prometheus: http://prometheus-1:9090
+            grafana: http://grafana-1:3000
+            alerting: http://alertmanager-1:9093
+    - type: nacos2
+      name: nacos-instance-2
+      domain: nacos-2.example.com
+      port: 8848
+      nacosAddressServer: http://nacos-addr-2.example.com:8080
+      nacosAccessKey: access-key-2
+      nacosSecretKey: secret-key-2
+      nacosNamespaceId: public
+      nacosNamespace: default
+      nacosGroups: [DEFAULT_GROUP, PROD_GROUP, TEST_GROUP]
+      nacosRefreshInterval: 30000
+      consulNamespace: consul-ns-2
+      zkServicesPath: [/services-2]
+      consulDatacenter: dc-2
+      consulServiceTag: tag-2
+      consulRefreshInterval: 60000
+      authSecretName: auth-secret-2
+      protocol: http
+      sni: sni-2.example.com
+      mcpServerExportDomains: [service-2.local, api-2.local]
+      mcpServerBaseUrl: http://mcp-2.example.com:8080
+      allowMcpServers: [mcp-2]
+      metadata:
+        region:
+          innerMap:
+            zone: zone-2
+            datacenter: dc-2
+            environment: production
+            cluster: cluster-2
+        monitoring:
+          innerMap:
+            enabled: "true"
+            prometheus: http://prometheus-2:9090
+            grafana: http://grafana-2:3000
+            alerting: http://alertmanager-2:9093
+    # ... (imagine 598 more similar entries)
+    # This is why we get "etcdserver: request is too large" error!
