@@ -5,14 +5,13 @@ version: 1.0.0
 build:
   # The official builder image version
   builder:
-    go: 1.19
-    tinygo: 0.28.1
+    go: 1.24.0
     oras: 1.0.0
   # The WASM plugin project directory
   input: ./
   # The output of the build products
   output:
-  # Choose between 'files' and 'image'
+    # Choose between 'files' and 'image'
     type: files
     # Destination address: when type=files, specify the local directory path, e.g., './out' or
     # type=image, specify the remote docker repository, e.g., 'docker.io/<your_username>/<your_image>'
