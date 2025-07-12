@@ -74,8 +74,33 @@ message RegistryConfig {
   google.protobuf.BoolValue enableScopeMcpServers = 23;
   repeated string allowMcpServers = 24;
   map<string, InnerMap> metadata = 25;
+  string mcpConfigRef = 26;
 }
 
 message InnerMap {
   map<string, string> inner_map = 1;
+}
+
+// MCPInstance represents a single MCP instance configuration
+message MCPInstance {
+  string domain = 1;
+  int32 port = 2;
+  int32 weight = 3;
+  int32 priority = 4;
+  string healthPath = 5;
+}
+
+// MCPConfig represents the complete MCP configuration
+message MCPConfig {
+  repeated MCPInstance instances = 1;
+  string loadBalanceMode = 2;
+  HealthConfig healthCheck = 3;
+}
+
+// HealthConfig represents health check configuration
+message HealthConfig {
+  bool enabled = 1;
+  string interval = 2;
+  string timeout = 3;
+  int32 unhealthyThreshold = 4;
 }

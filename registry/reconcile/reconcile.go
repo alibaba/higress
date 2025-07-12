@@ -18,8 +18,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"path"
 	"reflect"
+	"sort"
 	"sync"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 	higressmcpserver "github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/pkg/kube"
 	. "github.com/alibaba/higress/registry"
+	"github.com/alibaba/higress/registry/config"
 	"github.com/alibaba/higress/registry/consul"
 	"github.com/alibaba/higress/registry/direct"
 	"github.com/alibaba/higress/registry/eureka"
@@ -42,28 +45,58 @@ import (
 
 const (
 	DefaultReadyTimeout = time.Second * 60
+	
+	// ConfigMap watching and caching
+	ConfigMapResyncPeriod = time.Minute * 5
+	MaxConfigMapRetries   = 3
+	ConfigMapRetryDelay   = time.Second * 5
+	
+	// Load balancing defaults
+	DefaultLoadBalanceMode = apiv1.LoadBalanceModeRoundRobin
+	DefaultWeight          = 100
 )
 
 type Reconciler struct {
 	memory.Cache
-	registries    map[string]*apiv1.RegistryConfig
-	watchers      map[string]Watcher
-	serviceUpdate func()
-	client        kube.Client
-	namespace     string
-	clusterId     string
+	registries       map[string]*apiv1.RegistryConfig
+	watchers         map[string]Watcher
+	serviceUpdate    func()
+	client           kube.Client
+	namespace        string
+	clusterId        string
+	
+	// Configuration management using the new abstraction layer
+	configManager    *config.Manager
+	loadBalancers    map[string]*LoadBalancer
 }
 
 func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
-	return &Reconciler{
-		Cache:         memory.NewCache(),
-		registries:    make(map[string]*apiv1.RegistryConfig),
-		watchers:      make(map[string]Watcher),
-		serviceUpdate: serviceUpdate,
-		client:        client,
-		namespace:     namespace,
-		clusterId:     clusterId,
+	// Setup configuration manager with the new abstraction layer
+	configManager, err := config.SetupConfigManager(client.Kube(), namespace)
+	if err != nil {
+		log.Errorf("Failed to setup configuration manager: %v", err)
+		// Fallback to basic reconciler without config management
+		configManager = nil
 	}
+	
+	r := &Reconciler{
+		Cache:          memory.NewCache(),
+		registries:     make(map[string]*apiv1.RegistryConfig),
+		watchers:       make(map[string]Watcher),
+		serviceUpdate:  serviceUpdate,
+		client:         client,
+		namespace:      namespace,
+		clusterId:      clusterId,
+		configManager:  configManager,
+		loadBalancers:  make(map[string]*LoadBalancer),
+	}
+	
+	// Start configuration watcher if manager is available
+	if configManager != nil {
+		go r.startConfigWatcher()
+	}
+	
+	return r
 }
 
 func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
@@ -154,6 +187,29 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 	authOption, err := r.getAuthOption(registry)
 	if err != nil {
 		return nil, err
+	}
+
+	// Get MCP configuration if specified with fallback mechanism
+	selectedInstance, err := r.selectMCPInstance(registry)
+	if err != nil {
+		log.Warnf("Failed to get MCP config for registry %s: %v, falling back to direct configuration", 
+			registry.Name, err)
+		// Fallback to direct configuration from registry
+		selectedInstance = &apiv1.MCPInstance{
+			Domain: registry.Domain,
+			Port:   int32(registry.Port),
+			Weight: DefaultWeight,
+		}
+	}
+
+	// Apply selected MCP instance configuration
+	if selectedInstance != nil {
+		log.Infof("Using MCP instance for registry %s: %s:%d (weight: %d)", 
+			registry.Name, selectedInstance.Domain, selectedInstance.Port, selectedInstance.Weight)
+		
+		// Override domain and port from MCP configuration
+		registry.Domain = selectedInstance.Domain
+		registry.Port = uint32(selectedInstance.Port)
 	}
 
 	switch registry.Type {
@@ -321,3 +377,178 @@ func (r *Reconciler) GetRegistryWatcherStatusList() []RegistryWatcherStatus {
 	}
 	return registryStatusList
 }
+
+// LoadBalancer provides load balancing functionality for MCP instances
+type LoadBalancer struct {
+	config    *apiv1.MCPConfig
+	roundRobinIndex int
+	mutex     sync.Mutex
+}
+
+// startConfigWatcher starts configuration watching using the new abstraction layer
+func (r *Reconciler) startConfigWatcher() {
+	if r.configManager == nil {
+		log.Warn("Configuration manager not available, skipping config watching")
+		return
+	}
+	
+	handler := func(configRef string, config *apiv1.MCPConfig, eventType config.ConfigEventType) error {
+		return r.handleConfigUpdate(configRef, config, eventType)
+	}
+	
+	ctx := context.Background()
+	if err := r.configManager.StartWatching(ctx, handler); err != nil {
+		log.Errorf("Failed to start configuration watching: %v", err)
+	}
+}
+
+// handleConfigUpdate processes configuration updates
+func (r *Reconciler) handleConfigUpdate(configRef string, mcpConfig *apiv1.MCPConfig, eventType config.ConfigEventType) error {
+	switch eventType {
+	case config.ConfigEventTypeAdded, config.ConfigEventTypeModified:
+		if mcpConfig != nil {
+			// Update load balancer
+			r.loadBalancers[configRef] = &LoadBalancer{
+				config: mcpConfig,
+			}
+			log.Infof("Updated MCP config for %s with %d instances", configRef, len(mcpConfig.Instances))
+		}
+	case config.ConfigEventTypeDeleted:
+		delete(r.loadBalancers, configRef)
+		log.Infof("Removed MCP config for %s", configRef)
+	}
+	
+	// Trigger service update if needed
+	if r.serviceUpdate != nil {
+		r.serviceUpdate()
+	}
+	
+	return nil
+}
+
+// selectMCPInstance selects an MCP instance using the new configuration manager
+func (r *Reconciler) selectMCPInstance(registry *apiv1.RegistryConfig) (*apiv1.MCPInstance, error) {
+	if registry.McpConfigRef == "" {
+		return nil, nil // No MCP config reference
+	}
+	
+	if r.configManager == nil {
+		return nil, fmt.Errorf("configuration manager not available")
+	}
+	
+	// Get configuration using the abstraction layer
+	ctx := context.Background()
+	config, err := r.configManager.GetMCPConfig(ctx, config.ConfigSourceConfigMap, registry.McpConfigRef)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MCP config from ConfigMap %s: %w", registry.McpConfigRef, err)
+	}
+	
+	// Get or create load balancer
+	loadBalancer, exists := r.loadBalancers[registry.McpConfigRef]
+	if !exists {
+		loadBalancer = &LoadBalancer{config: config}
+		r.loadBalancers[registry.McpConfigRef] = loadBalancer
+	}
+	
+	// Select instance based on load balancing mode
+	return loadBalancer.selectInstance(registry.Name), nil
+}
+
+// selectInstance selects an instance based on the configured load balancing mode
+func (lb *LoadBalancer) selectInstance(registryName string) *apiv1.MCPInstance {
+	lb.mutex.Lock()
+	defer lb.mutex.Unlock()
+	
+	instances := lb.getHealthyInstances()
+	if len(instances) == 0 {
+		log.Warnf("No healthy instances available for registry %s", registryName)
+		return nil
+	}
+	
+	mode := lb.config.LoadBalanceMode
+	if mode == "" {
+		mode = apiv1.LoadBalanceModeRoundRobin
+	}
+	
+	switch mode {
+	case apiv1.LoadBalanceModeRoundRobin:
+		return lb.selectRoundRobin(instances)
+	case apiv1.LoadBalanceModeWeighted:
+		return lb.selectWeighted(instances)
+	case apiv1.LoadBalanceModeRandom:
+		return lb.selectRandom(instances)
+	default:
+		log.Warnf("Unknown load balance mode %s, falling back to round robin", mode)
+		return lb.selectRoundRobin(instances)
+	}
+}
+
+// getHealthyInstances returns instances sorted by priority
+func (lb *LoadBalancer) getHealthyInstances() []*apiv1.MCPInstance {
+	instances := make([]*apiv1.MCPInstance, len(lb.config.Instances))
+	copy(instances, lb.config.Instances)
+	
+	// Sort by priority (lower priority number = higher priority)
+	sort.Slice(instances, func(i, j int) bool {
+		return instances[i].Priority < instances[j].Priority
+	})
+	
+	return instances
+}
+
+// selectRoundRobin implements round-robin load balancing
+func (lb *LoadBalancer) selectRoundRobin(instances []*apiv1.MCPInstance) *apiv1.MCPInstance {
+	if len(instances) == 0 {
+		return nil
+	}
+	
+	instance := instances[lb.roundRobinIndex%len(instances)]
+	lb.roundRobinIndex++
+	return instance
+}
+
+// selectWeighted implements weighted load balancing
+func (lb *LoadBalancer) selectWeighted(instances []*apiv1.MCPInstance) *apiv1.MCPInstance {
+	if len(instances) == 0 {
+		return nil
+	}
+	
+	totalWeight := int32(0)
+	for _, instance := range instances {
+		weight := instance.Weight
+		if weight <= 0 {
+			weight = DefaultWeight
+		}
+		totalWeight += weight
+	}
+	
+	if totalWeight <= 0 {
+		return instances[0]
+	}
+	
+	target := rand.Int31n(totalWeight)
+	current := int32(0)
+	
+	for _, instance := range instances {
+		weight := instance.Weight
+		if weight <= 0 {
+			weight = DefaultWeight
+		}
+		current += weight
+		if current > target {
+			return instance
+		}
+	}
+	
+	return instances[len(instances)-1]
+}
+
+// selectRandom implements random load balancing
+func (lb *LoadBalancer) selectRandom(instances []*apiv1.MCPInstance) *apiv1.MCPInstance {
+	if len(instances) == 0 {
+		return nil
+	}
+	
+	return instances[rand.Intn(len(instances))]
+}
+

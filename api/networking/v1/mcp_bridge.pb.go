@@ -136,6 +136,7 @@ type RegistryConfig struct {
 	EnableScopeMcpServers  *wrappers.BoolValue  `protobuf:"bytes,23,opt,name=enableScopeMcpServers,proto3" json:"enableScopeMcpServers,omitempty"`
 	AllowMcpServers        []string             `protobuf:"bytes,24,rep,name=allowMcpServers,proto3" json:"allowMcpServers,omitempty"`
 	Metadata               map[string]*InnerMap `protobuf:"bytes,25,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	McpConfigRef           string               `protobuf:"bytes,26,opt,name=mcpConfigRef,proto3" json:"mcpConfigRef,omitempty"`
 }
 
 func (x *RegistryConfig) Reset() {
@@ -345,6 +346,13 @@ func (x *RegistryConfig) GetMetadata() map[string]*InnerMap {
 	return nil
 }
 
+func (x *RegistryConfig) GetMcpConfigRef() string {
+	if x != nil {
+		return x.McpConfigRef
+	}
+	return ""
+}
+
 type InnerMap struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -391,6 +399,214 @@ func (x *InnerMap) GetInnerMap() map[string]string {
 	}
 	return nil
 }
+
+// MCPInstance represents a single MCP instance configuration
+type MCPInstance struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Domain     string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
+	Port       int32  `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	Weight     int32  `protobuf:"varint,3,opt,name=weight,proto3" json:"weight,omitempty"`
+	Priority   int32  `protobuf:"varint,4,opt,name=priority,proto3" json:"priority,omitempty"`
+	HealthPath string `protobuf:"bytes,5,opt,name=healthPath,proto3" json:"healthPath,omitempty"`
+}
+
+func (x *MCPInstance) Reset() {
+	*x = MCPInstance{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_networking_v1_mcp_bridge_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *MCPInstance) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MCPInstance) ProtoMessage() {}
+
+func (x *MCPInstance) ProtoReflect() protoreflect.Message {
+	mi := &file_networking_v1_mcp_bridge_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MCPInstance) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *MCPInstance) GetPort() int32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *MCPInstance) GetWeight() int32 {
+	if x != nil {
+		return x.Weight
+	}
+	return 0
+}
+
+func (x *MCPInstance) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
+}
+
+func (x *MCPInstance) GetHealthPath() string {
+	if x != nil {
+		return x.HealthPath
+	}
+	return ""
+}
+
+// MCPConfig represents the complete MCP configuration
+type MCPConfig struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Instances       []*MCPInstance  `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty"`
+	LoadBalanceMode string          `protobuf:"bytes,2,opt,name=loadBalanceMode,proto3" json:"loadBalanceMode,omitempty"`
+	HealthCheck     *HealthConfig   `protobuf:"bytes,3,opt,name=healthCheck,proto3" json:"healthCheck,omitempty"`
+}
+
+func (x *MCPConfig) Reset() {
+	*x = MCPConfig{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_networking_v1_mcp_bridge_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *MCPConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MCPConfig) ProtoMessage() {}
+
+func (x *MCPConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_networking_v1_mcp_bridge_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *MCPConfig) GetInstances() []*MCPInstance {
+	if x != nil {
+		return x.Instances
+	}
+	return nil
+}
+
+func (x *MCPConfig) GetLoadBalanceMode() string {
+	if x != nil {
+		return x.LoadBalanceMode
+	}
+	return ""
+}
+
+func (x *MCPConfig) GetHealthCheck() *HealthConfig {
+	if x != nil {
+		return x.HealthCheck
+	}
+	return nil
+}
+
+// HealthConfig represents health check configuration
+type HealthConfig struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Enabled            bool   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Interval           string `protobuf:"bytes,2,opt,name=interval,proto3" json:"interval,omitempty"`
+	Timeout            string `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	UnhealthyThreshold int32  `protobuf:"varint,4,opt,name=unhealthyThreshold,proto3" json:"unhealthyThreshold,omitempty"`
+}
+
+func (x *HealthConfig) Reset() {
+	*x = HealthConfig{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_networking_v1_mcp_bridge_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *HealthConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HealthConfig) ProtoMessage() {}
+
+func (x *HealthConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_networking_v1_mcp_bridge_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *HealthConfig) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *HealthConfig) GetInterval() string {
+	if x != nil {
+		return x.Interval
+	}
+	return ""
+}
+
+func (x *HealthConfig) GetTimeout() string {
+	if x != nil {
+		return x.Timeout
+	}
+	return ""
+}
+
+func (x *HealthConfig) GetUnhealthyThreshold() int32 {
+	if x != nil {
+		return x.UnhealthyThreshold
+	}
+	return 0
+}
+
+// LoadBalanceMode constants
+const (
+	LoadBalanceModeRoundRobin = "round_robin"
+	LoadBalanceModeWeighted   = "weighted"
+	LoadBalanceModeRandom     = "random"
+)
 
 var File_networking_v1_mcp_bridge_proto protoreflect.FileDescriptor
 
