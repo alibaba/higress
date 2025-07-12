@@ -256,7 +256,14 @@ func (ec *EnhancedConfigCache) Get(key string) *apiv1.MCPConfig {
 func (ec *EnhancedConfigCache) GetMetrics() CacheMetrics {
 	ec.metrics.mutex.RLock()
 	defer ec.metrics.mutex.RUnlock()
-	return *ec.metrics
+	// 返回值拷贝，避免mutex拷贝
+	return CacheMetrics{
+		hits:       ec.metrics.hits,
+		misses:     ec.metrics.misses,
+		evictions:  ec.metrics.evictions,
+		totalOps:   ec.metrics.totalOps,
+		// mutex不拷贝，使用零值
+	}
 }
 
 // GetHitRatio returns cache hit ratio

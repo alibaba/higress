@@ -284,6 +284,9 @@ func testSizeReductionComparison(t *testing.T, suite *suite.ConformanceTestSuite
 	t.Logf("| Scale | Instances | Traditional | ConfigMap Ref | Reduction | Status |")
 	t.Logf("|-------|-----------|-------------|---------------|-----------|--------|")
 
+	var totalReductions []float64
+	var exceedsLimitCount int
+
 	for _, tc := range testCases {
 		// Calculate traditional approach size
 		traditionalMcpBridge := createTraditionalMcpBridge(fmt.Sprintf("traditional-%s", tc.name), tc.instances)
@@ -297,21 +300,41 @@ func testSizeReductionComparison(t *testing.T, suite *suite.ConformanceTestSuite
 
 		// Calculate reduction percentage
 		reduction := float64(traditionalSize-configRefSize) / float64(traditionalSize) * 100
+		totalReductions = append(totalReductions, reduction)
 
 		const etcdLimit = EtcdSizeLimitBytes
 		status := "✅ Both OK"
 		if traditionalSize > etcdLimit {
 			status = "🔥 Traditional exceeds etcd limit"
+			exceedsLimitCount++
 		}
 
 		t.Logf("| %s | %d | %.2f MB | %.2f KB | %.1f%% | %s |",
 			tc.name, tc.instances, traditionalMB, configRefKB, reduction, status)
 	}
 
+	// Calculate average reduction dynamically
+	var avgReduction float64
+	if len(totalReductions) > 0 {
+		sum := 0.0
+		for _, r := range totalReductions {
+			sum += r
+		}
+		avgReduction = sum / float64(len(totalReductions))
+	}
+
+	// Calculate minimum reduction for conservative reporting
+	minReduction := avgReduction
+	for _, r := range totalReductions {
+		if r < minReduction {
+			minReduction = r
+		}
+	}
+
 	t.Logf("")
 	t.Logf("Summary:")
-	t.Logf("✅ ConfigMap reference approach reduces CR size by 95%+ across all scales")
-	t.Logf("✅ Traditional approach hits etcd limits at large scale")
+	t.Logf("✅ ConfigMap reference approach reduces CR size by %.1f%% (avg) / %.1f%% (min) across all scales", avgReduction, minReduction)
+	t.Logf("✅ Traditional approach hits etcd limits in %d/%d test scenarios", exceedsLimitCount, len(testCases))
 	t.Logf("✅ ConfigMap reference approach enables unlimited scaling")
 	t.Logf("🎯 Solution successfully resolves 'etcdserver: request is too large' error")
 }
