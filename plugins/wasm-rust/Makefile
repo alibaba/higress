@@ -23,15 +23,19 @@ build:
 lint-base:
 	cargo fmt --all --check
 	cargo clippy --workspace --all-features --all-targets
+	cargo clean
 lint:
 	cargo fmt --all --check --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
 	cargo clippy --workspace --all-features --all-targets --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
+	cargo clean --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
 
 test-base:
 	cargo test --lib
+	cargo clean
 
 test:
 	cargo test --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
+	cargo clean --manifest-path extensions/${PLUGIN_NAME}/Cargo.toml
 
 builder:
 	DOCKER_BUILDKIT=1 docker build \

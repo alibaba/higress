@@ -3,7 +3,8 @@ package cache
 import (
 	"errors"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 type redisProviderInitializer struct {
@@ -16,7 +17,7 @@ func (r *redisProviderInitializer) ValidateConfig(cf ProviderConfig) error {
 	return nil
 }
 
-func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig, log wrapper.Log) (Provider, error) {
+func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig, log log.Log) (Provider, error) {
 	rp := redisProvider{
 		config: cf,
 		client: wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
@@ -32,7 +33,7 @@ func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig, log wrapper
 type redisProvider struct {
 	config ProviderConfig
 	client wrapper.RedisClient
-	log    wrapper.Log
+	log    log.Log
 }
 
 func (rp *redisProvider) GetProviderType() string {

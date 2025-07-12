@@ -129,9 +129,15 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 	if method != http.MethodGet {
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 	} else {
+		// to support the query param in Message Endpoint
+		trimmed := strings.TrimSuffix(requestUrl.Path, GlobalSSEPathSuffix)
+		if rq := requestUrl.RawQuery; rq != "" {
+			trimmed += "?" + rq
+		}
+
 		f.config.defaultServer = common.NewSSEServer(common.NewMCPServer(DefaultServerName, Version),
 			common.WithSSEEndpoint(GlobalSSEPathSuffix),
-			common.WithMessageEndpoint(strings.TrimSuffix(requestUrl.Path, GlobalSSEPathSuffix)),
+			common.WithMessageEndpoint(trimmed),
 			common.WithRedisClient(f.config.redisClient))
 		f.serverName = f.config.defaultServer.GetServerName()
 		body := "SSE connection create"

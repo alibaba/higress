@@ -9,14 +9,17 @@ import (
 	oidc "github.com/higress-group/oauth2-proxy"
 	"github.com/higress-group/oauth2-proxy/pkg/apis/options"
 	"github.com/higress-group/oauth2-proxy/pkg/util"
+	"github.com/higress-group/wasm-go/pkg/log"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		// 插件名称
 		"oidc",
@@ -35,7 +38,7 @@ type PluginConfig struct {
 }
 
 // 在控制台插件配置中填写的yaml配置会自动转换为json，此处直接从json这个参数里解析配置即可
-func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *PluginConfig, log log.Log) error {
 	oidc.SetLogger(log)
 	opts, err := oidc.LoadOptions(json)
 	if err != nil {
@@ -55,7 +58,7 @@ func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	config.oidcHandler.SetContext(ctx)
 	req := getHttpRequest()
 	rw := util.NewRecorder()
@@ -77,7 +80,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	value := ctx.GetContext(oidc.SetCookieHeader)
 	if value != nil {
 		proxywasm.AddHttpResponseHeader(oidc.SetCookieHeader, value.(string))

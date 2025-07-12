@@ -6,15 +6,17 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/log"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"frontend-gray",
 		wrapper.ParseConfig(parseConfig),
@@ -129,23 +131,26 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	isIndexRequest, indexOk := ctx.GetContext(config.IsIndexRequest).(bool)
-	if indexOk && isIndexRequest {
-		// 首页请求强制不缓存
-		proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
+	if !grayConfig.UseManifestAsEntry {
+		isIndexRequest, indexOk := ctx.GetContext(config.IsIndexRequest).(bool)
+		if indexOk && isIndexRequest {
+			// 首页请求强制不缓存
+			proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
+			ctx.DontReadResponseBody()
+			return types.ActionContinue
+		}
+
+		isHtmlRequest, htmlOk := ctx.GetContext(config.IsHtmlRequest).(bool)
+		// response 不处理非首页的请求
+		if !htmlOk || !isHtmlRequest {
+			ctx.DontReadResponseBody()
+			return types.ActionContinue
+		} else {
+			// 不会进去Streaming 的Body处理
+			ctx.BufferResponseBody()
+		}
 	}
 
-	isHtmlRequest, htmlOk := ctx.GetContext(config.IsHtmlRequest).(bool)
-	// response 不处理非首页的请求
-	if !htmlOk || !isHtmlRequest {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	} else {
-		// 不会进去Streaming 的Body处理
-		ctx.BufferResponseBody()
-	}
 	// 处理HTML的首页
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {

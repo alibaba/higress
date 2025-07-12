@@ -17,17 +17,21 @@ package main
 import (
 	"strings"
 
+	"regexp"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	regexp "github.com/wasilibs/go-re2"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"transformer",
 		wrapper.ParseConfigBy(parseConfig),
@@ -214,7 +218,7 @@ type Param struct {
 	pathPattern string `yaml:"path_pattern"`
 }
 
-func parseConfig(json gjson.Result, config *TransformerConfig, log wrapper.Log) (err error) {
+func parseConfig(json gjson.Result, config *TransformerConfig, log log.Log) (err error) {
 	reqRulesInJson := json.Get("reqRules")
 	respRulesInJson := json.Get("respRules")
 
@@ -284,7 +288,7 @@ func constructParam(item gjson.Result, op, valueType string) Param {
 	return p
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log log.Log) types.Action {
 	// because it may be a response transformer, so the setting of host and path have to advance
 	host, path := ctx.Host(), ctx.Path()
 	ctx.SetContext("host", host)
@@ -393,7 +397,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log log.Log) types.Action {
 	if config.reqTrans == nil {
 		return types.ActionContinue
 	}
@@ -514,7 +518,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, log log.Log) types.Action {
 	if config.respTrans == nil {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
@@ -582,7 +586,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config TransformerConfig, lo
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body []byte, log log.Log) types.Action {
 	if config.respTrans == nil {
 		return types.ActionContinue
 	}

@@ -7,7 +7,7 @@
 | -----------          | --------------- | ----------------------- | ------                   | -------------------------------------------                                                                                                                                                                                                                  |
 | `modelKey`           | string          | 选填                    | model                    | 请求body中model参数的位置                                                                                                                                                                                                                                    |
 | `modelMapping`       | map of string   | 选填                    | -                        | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>1. 支持前缀匹配。例如用 "gpt-3-*" 匹配所有名称以“gpt-3-”开头的模型；<br/>2. 支持使用 "*" 为键来配置通用兜底映射关系；<br/>3. 如果映射的目标名称为空字符串 ""，则表示保留原模型名称。 |
-| `enableOnPathSuffix` | array of string | 选填                    | ["/v1/chat/completions"] | 只对这些特定路径后缀的请求生效                                                                                                                                                                                                                               |
+| `enableOnPathSuffix` | array of string | 选填                    | ["/completions","/embeddings","/images/generations","/audio/speech","/fine_tuning/jobs","/moderations","/image-synthesis","/video-synthesis"] | 只对这些特定路径后缀的请求生效|
 
 
 ## 效果说明

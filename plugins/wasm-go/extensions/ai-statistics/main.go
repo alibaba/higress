@@ -8,13 +8,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-statistics",
 		wrapper.ParseConfigBy(parseConfig),
@@ -75,13 +78,15 @@ const (
 
 // TracingSpan is the tracing span configuration.
 type Attribute struct {
-	Key          string `json:"key"`
-	ValueSource  string `json:"value_source"`
-	Value        string `json:"value"`
-	DefaultValue string `json:"default_value,omitempty"`
-	Rule         string `json:"rule,omitempty"`
-	ApplyToLog   bool   `json:"apply_to_log,omitempty"`
-	ApplyToSpan  bool   `json:"apply_to_span,omitempty"`
+	Key                string `json:"key"`
+	ValueSource        string `json:"value_source"`
+	Value              string `json:"value"`
+	TraceSpanKey       string `json:"trace_span_key,omitempty"`
+	DefaultValue       string `json:"default_value,omitempty"`
+	Rule               string `json:"rule,omitempty"`
+	ApplyToLog         bool   `json:"apply_to_log,omitempty"`
+	ApplyToSpan        bool   `json:"apply_to_span,omitempty"`
+	AsSeparateLogField bool   `json:"as_separate_log_field,omitempty"`
 }
 
 type AIStatisticsConfig struct {
@@ -92,6 +97,8 @@ type AIStatisticsConfig struct {
 	attributes []Attribute
 	// If there exist attributes extracted from streaming body, chunks should be buffered
 	shouldBufferStreamingBody bool
+	// If disableOpenaiUsage is true, model/input_token/output_token logs will be skipped
+	disableOpenaiUsage bool
 }
 
 func generateMetricName(route, cluster, model, consumer, metricName string) string {
@@ -139,7 +146,7 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 	counter.Increment(inc)
 }
 
-func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrapper.Log) error {
+func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log log.Log) error {
 	// Parse tracing span attributes setting.
 	attributeConfigs := configJson.Get("attributes").Array()
 	config.attributes = make([]Attribute, len(attributeConfigs))
@@ -160,10 +167,14 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig, log wrappe
 	}
 	// Metric settings
 	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
+
+	// Parse openai usage config setting.
+	config.disableOpenaiUsage = configJson.Get("disable_openai_usage").Bool()
+
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log log.Log) types.Action {
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
 	api, api_error := getAPIName()
@@ -193,7 +204,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, lo
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log log.Log) types.Action {
 	// Set user defined log & span attributes.
 	setAttributeBySource(ctx, config, RequestBody, body, log)
 	// Set span attributes for ARMS.
@@ -218,7 +229,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, log log.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if !strings.Contains(contentType, "text/event-stream") {
 		ctx.BufferResponseBody()
@@ -230,7 +241,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig, l
 	return types.ActionContinue
 }
 
-func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
+func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool, log log.Log) []byte {
 	// Buffer stream body for record log & span attributes
 	if config.shouldBufferStreamingBody {
 		var streamingBodyBuffer []byte
@@ -264,15 +275,17 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	}
 
 	// Set information about this request
-	if model, inputToken, outputToken, ok := getUsage(data); ok {
-		ctx.SetUserAttribute(Model, model)
-		ctx.SetUserAttribute(InputToken, inputToken)
-		ctx.SetUserAttribute(OutputToken, outputToken)
-		// Set span attributes for ARMS.
-		setSpanAttribute(ArmsModelName, model, log)
-		setSpanAttribute(ArmsInputToken, inputToken, log)
-		setSpanAttribute(ArmsOutputToken, outputToken, log)
-		setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+	if !config.disableOpenaiUsage {
+		if model, inputToken, outputToken, ok := getUsage(data); ok {
+			ctx.SetUserAttribute(Model, model)
+			ctx.SetUserAttribute(InputToken, inputToken)
+			ctx.SetUserAttribute(OutputToken, outputToken)
+			// Set span attributes for ARMS.
+			setSpanAttribute(ArmsModelName, model, log)
+			setSpanAttribute(ArmsInputToken, inputToken, log)
+			setSpanAttribute(ArmsOutputToken, outputToken, log)
+			setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+		}
 	}
 	// If the end of the stream is reached, record metrics/logs/spans.
 	if endOfStream {
@@ -297,7 +310,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	return data
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte, log log.Log) types.Action {
 	// Get requestStartTime from http context
 	requestStartTime, _ := ctx.GetContext(StatisticsRequestStartTime).(int64)
 
@@ -311,15 +324,17 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	}
 
 	// Set information about this request
-	if model, inputToken, outputToken, ok := getUsage(body); ok {
-		ctx.SetUserAttribute(Model, model)
-		ctx.SetUserAttribute(InputToken, inputToken)
-		ctx.SetUserAttribute(OutputToken, outputToken)
-		// Set span attributes for ARMS.
-		setSpanAttribute(ArmsModelName, model, log)
-		setSpanAttribute(ArmsInputToken, inputToken, log)
-		setSpanAttribute(ArmsOutputToken, outputToken, log)
-		setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+	if !config.disableOpenaiUsage {
+		if model, inputToken, outputToken, ok := getUsage(body); ok {
+			ctx.SetUserAttribute(Model, model)
+			ctx.SetUserAttribute(InputToken, inputToken)
+			ctx.SetUserAttribute(OutputToken, outputToken)
+			// Set span attributes for ARMS.
+			setSpanAttribute(ArmsModelName, model, log)
+			setSpanAttribute(ArmsInputToken, inputToken, log)
+			setSpanAttribute(ArmsOutputToken, outputToken, log)
+			setSpanAttribute(ArmsTotalToken, inputToken+outputToken, log)
+		}
 	}
 
 	// Set user defined log & span attributes.
@@ -370,7 +385,7 @@ func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsag
 }
 
 // fetches the tracing span value from the specified source.
-func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, source string, body []byte, log wrapper.Log) {
+func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, source string, body []byte, log log.Log) {
 	for _, attribute := range config.attributes {
 		var key string
 		var value interface{}
@@ -396,20 +411,30 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
-				ctx.SetUserAttribute(key, value)
+				if attribute.AsSeparateLogField {
+					marshalledJsonStr := wrapper.MarshalStr(fmt.Sprint(value))
+					if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
+						log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
+					}
+				} else {
+					ctx.SetUserAttribute(key, value)
+				}
 			}
 			// for metrics
 			if key == Model || key == InputToken || key == OutputToken {
 				ctx.SetContext(key, value)
 			}
 			if attribute.ApplyToSpan {
+				if attribute.TraceSpanKey != "" {
+					key = attribute.TraceSpanKey
+				}
 				setSpanAttribute(key, value, log)
 			}
 		}
 	}
 }
 
-func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, log wrapper.Log) interface{} {
+func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, log log.Log) interface{} {
 	chunks := bytes.Split(bytes.TrimSpace(unifySSEChunk(data)), []byte("\n\n"))
 	var value interface{}
 	if rule == RuleFirst {
@@ -444,7 +469,7 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string, l
 }
 
 // Set the tracing span with value.
-func setSpanAttribute(key string, value interface{}, log wrapper.Log) {
+func setSpanAttribute(key string, value interface{}, log log.Log) {
 	if value != "" {
 		traceSpanTag := wrapper.TraceSpanTagPrefix + key
 		if e := proxywasm.SetProperty([]string{traceSpanTag}, []byte(fmt.Sprint(value))); e != nil {
@@ -455,7 +480,7 @@ func setSpanAttribute(key string, value interface{}, log wrapper.Log) {
 	}
 }
 
-func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper.Log) {
+func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log log.Log) {
 	// Generate usage metrics
 	var ok bool
 	var route, cluster, model string
@@ -471,6 +496,11 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig, log wrapper
 		log.Warnf("ClusterName typd assert failed, skip metric record")
 		return
 	}
+
+	if config.disableOpenaiUsage {
+		return
+	}
+
 	if ctx.GetUserAttribute(Model) == nil || ctx.GetUserAttribute(InputToken) == nil || ctx.GetUserAttribute(OutputToken) == nil {
 		log.Warnf("get usage information failed, skip metric record")
 		return

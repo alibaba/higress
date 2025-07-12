@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -26,6 +26,7 @@ const (
 	qwenDefaultDomain                     = "dashscope.aliyuncs.com"
 	qwenChatCompletionPath                = "/api/v1/services/aigc/text-generation/generation"
 	qwenTextEmbeddingPath                 = "/api/v1/services/embeddings/text-embedding/text-embedding"
+	qwenTextRerankPath                    = "/api/v1/services/rerank/text-rerank/text-rerank"
 	qwenCompatibleChatCompletionPath      = "/compatible-mode/v1/chat/completions"
 	qwenCompatibleCompletionsPath         = "/compatible-mode/v1/completions"
 	qwenCompatibleTextEmbeddingPath       = "/compatible-mode/v1/embeddings"
@@ -36,6 +37,9 @@ const (
 	qwenCompatibleRetrieveBatchPath       = "/compatible-mode/v1/batches/{batch_id}"
 	qwenBailianPath                       = "/api/v1/apps"
 	qwenMultimodalGenerationPath          = "/api/v1/services/aigc/multimodal-generation/generation"
+
+	qwenAsyncAIGCPath = "/api/v1/services/aigc/"
+	qwenAsyncTaskPath = "/api/v1/tasks/"
 
 	qwenTopPMin = 0.000001
 	qwenTopPMax = 0.999999
@@ -74,6 +78,9 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 		return map[string]string{
 			string(ApiNameChatCompletion): qwenChatCompletionPath,
 			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
+			string(ApiNameQwenAsyncAIGC):  qwenAsyncAIGCPath,
+			string(ApiNameQwenAsyncTask):  qwenAsyncTaskPath,
+			string(ApiNameQwenV1Rerank):   qwenTextRerankPath,
 		}
 	}
 }
@@ -689,6 +696,12 @@ func (m *qwenProvider) GetApiName(path string) ApiName {
 	case strings.Contains(path, qwenTextEmbeddingPath),
 		strings.Contains(path, qwenCompatibleTextEmbeddingPath):
 		return ApiNameEmbeddings
+	case strings.Contains(path, qwenAsyncAIGCPath):
+		return ApiNameQwenAsyncAIGC
+	case strings.Contains(path, qwenAsyncTaskPath):
+		return ApiNameQwenAsyncTask
+	case strings.Contains(path, qwenTextRerankPath):
+		return ApiNameQwenV1Rerank
 	default:
 		return ""
 	}

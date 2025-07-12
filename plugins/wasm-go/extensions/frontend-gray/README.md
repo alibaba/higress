@@ -17,6 +17,7 @@ description: 前端灰度插件配置参考
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                                 |
 |----------------|--------------|----|-----|----------------------------------------------------------------------------------------------------|
 | `grayKey`         | string       | 非必填 | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则 |
+| `useManifestAsEntry` | boolean | 非必填 | false | 是否使用manifest作为入口。当设置为true时，系统将使用manifest文件作为应用入口，适用于微前端架构。在这种模式下，系统会根据manifest文件的内容来加载不同版本的前端资源。 |
 | `localStorageGrayKey`         | string       | 非必填 | -   | 使用JWT鉴权方式，用户ID的唯一标识来自`localStorage`中，如果配置了当前参数，则`grayKey`失效 |
 | `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
 | `storeMaxAge`         | int       | 非必填 | 60 * 60 * 24 * 365   | 网关设置Cookie最大存储时长：单位为秒，默认为1年 |

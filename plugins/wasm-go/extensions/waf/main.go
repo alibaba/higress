@@ -5,7 +5,9 @@ import (
 	wasilibs "github.com/corazawaf/coraza-wasilibs"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wasilibs.RegisterRX()
 	wasilibs.RegisterPM()
 	wasilibs.RegisterSQLi()

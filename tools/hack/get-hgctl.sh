@@ -88,6 +88,11 @@ checkDesiredVersion() {
     elif [ "${HAS_WGET}" == "true" ]; then
       VERSION=$(wget $latest_release_url -O - 2>&1 | grep 'href="/alibaba/higress/releases/tag/v[0-9]*.[0-9]*.[0-9]*\"' | sed -E 's/.*\/alibaba\/higress\/releases\/tag\/(v[0-9\.]+)".*/\1/g' | head -1)
     fi
+    
+    if [ "$VERSION" == "" ]; then 
+      echo "Failed to determine latest version. Please check network or set VERSION manually."
+      exit 1
+    fi
   fi
 }
 

@@ -29,15 +29,16 @@ Plugin execution priority: `100`
 
 **Details for the `provider` configuration fields:**
 
-| Name           | Data Type        | Requirement | Default | Description                                                                                                                                                                                                                                                           |
-| -------------- | --------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                  |
-| `type`         | string          | Required     | -      | Name of the AI service provider                                                                                                                                                                                                                                              |
-| `apiTokens`    | array of string | Optional   | -      | Tokens used for authentication when accessing AI services. If multiple tokens are configured, the plugin randomly selects one for each request. Some service providers only support configuring a single token.                                                                                                                                     |
-| `timeout`      | number          | Optional   | -      | Timeout for accessing AI services, in milliseconds. The default value is 120000, which equals 2 minutes. Only used when retrieving context data. Won't affect the request forwarded to the LLM upstream.                                                                                                                                                                              |
-| `modelMapping` | map of string   | Optional   | -      | Mapping table for AI models, used to map model names in requests to names supported by the service provider.<br/>1. Supports prefix matching. For example, "gpt-3-\*" matches all model names starting with “gpt-3-”;<br/>2. Supports using "\*" as a key for a general fallback mapping;<br/>3. If the mapped target name is an empty string "", the original model name is preserved. |
-| `protocol`     | string          | Optional   | -      | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider)                                                                                                                          |
-| `context`      | object          | Optional   | -      | Configuration for AI conversation context information                                                                                                                                                                                                                                         |
-| `customSettings` | array of customSetting | Optional   | -      | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                 |
+| Name             | Data Type              | Requirement | Default | Description                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------   | ---------------        | --------    | ------  | -------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                                                                                                                                             |
+| `type`           | string                 | Required    | -       | Name of the AI service provider                                                                                                                                                                                                                                                                                                                                                           |
+| `apiTokens`      | array of string        | Optional    | -       | Tokens used for authentication when accessing AI services. If multiple tokens are configured, the plugin randomly selects one for each request. Some service providers only support configuring a single token.                                                                                                                                                                           |
+| `timeout`        | number                 | Optional    | -       | Timeout for accessing AI services, in milliseconds. The default value is 120000, which equals 2 minutes. Only used when retrieving context data. Won't affect the request forwarded to the LLM upstream.                                                                                                                                                                                  |
+| `modelMapping`   | map of string          | Optional    | -       | Mapping table for AI models, used to map model names in requests to names supported by the service provider.<br/>1. Supports prefix matching. For example, "gpt-3-\*" matches all model names starting with “gpt-3-”;<br/>2. Supports using "\*" as a key for a general fallback mapping;<br/>3. If the mapped target name is an empty string "", the original model name is preserved. |
+| `protocol`       | string                 | Optional    | -       | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider)                                                                                                                                                                               |
+| `context`        | object                 | Optional    | -       | Configuration for AI conversation context information                                                                                                                                                                                                                                                                                                                                     |
+| `customSettings` | array of customSetting | Optional    | -       | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                                                                                                                   |
+| `subPath`        | string                 | Optional    | -       | If subPath is configured, the prefix will be removed from the request path before further processing.                                                                                                                                                                                                                                                                                     |
 
 **Details for the `context` configuration fields:**
 
@@ -224,11 +225,12 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 
 For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
 
-| Name           | Data Type | Requirement | Default | Description                                   |
-|----------------|-----------|-------------|---------|-----------------------------------------------|
-| `awsAccessKey` | string    | Required    | -       | AWS Access Key used for authentication        |
-| `awsSecretKey` | string    | Required    | -       | AWS Secret Access Key used for authentication |
-| `awsRegion`    | string    | Required    | -       | AWS region, e.g., us-east-1                   |
+| Name                      | Data Type | Requirement | Default | Description                                             |
+|---------------------------|-----------|-------------|---------|---------------------------------------------------------|
+| `awsAccessKey`            | string    | Required    | -       | AWS Access Key used for authentication                  |
+| `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
+| `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
+| `bedrockAdditionalFields` | map       | Optional    | -       | Additional inference parameters that the model supports |
 
 ## Usage Examples
 
@@ -1499,6 +1501,8 @@ provider:
   awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
   awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
   awsRegion: "YOUR_AWS_REGION"
+  bedrockAdditionalFields:
+    top_k: 200
 ```
 
 **Request Example**
