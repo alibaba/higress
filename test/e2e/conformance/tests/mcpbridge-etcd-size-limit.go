@@ -24,9 +24,12 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	higressclient "github.com/alibaba/higress/client/pkg/clientset/versioned"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
 
@@ -43,6 +46,7 @@ const (
 	// Test resource names
 	TraditionalTestName = "traditional-large-scale"
 	ConfigMapName       = "large-scale-mcp-instances"
+	ConfigRefTestName   = "test-mcp-config-ref"
 )
 
 var McpBridgeEtcdSizeLimitTest = suite.ConformanceTest{
@@ -83,7 +87,25 @@ func setupEtcdSizeLimitTest(t *testing.T, suite *suite.ConformanceTestSuite) err
 }
 
 func cleanupEtcdSizeLimitTest(t *testing.T, suite *suite.ConformanceTestSuite) {
-	client := suite.Client
+	// Create typed clientsets
+	cfg, err := config.GetConfig()
+	if err != nil {
+		t.Logf("Failed to get config for cleanup: %v", err)
+		return
+	}
+
+	k8sClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		t.Logf("Failed to create k8s client for cleanup: %v", err)
+		return
+	}
+
+	higressClient, err := higressclient.NewForConfig(cfg)
+	if err != nil {
+		t.Logf("Failed to create higress client for cleanup: %v", err)
+		return
+	}
+
 	namespace := "higress-conformance-infra"
 
 	// Clean up ConfigMaps
@@ -93,7 +115,7 @@ func cleanupEtcdSizeLimitTest(t *testing.T, suite *suite.ConformanceTestSuite) {
 	}
 
 	for _, cm := range configMaps {
-		client.CoreV1().ConfigMaps(namespace).Delete(
+		k8sClient.CoreV1().ConfigMaps(namespace).Delete(
 			context.Background(), cm, metav1.DeleteOptions{})
 	}
 
@@ -105,7 +127,7 @@ func cleanupEtcdSizeLimitTest(t *testing.T, suite *suite.ConformanceTestSuite) {
 	}
 
 	for _, mcb := range mcpBridges {
-		client.HigressV1().McpBridges(namespace).Delete(
+		higressClient.NetworkingV1().McpBridges(namespace).Delete(
 			context.Background(), mcb, metav1.DeleteOptions{})
 	}
 
@@ -137,10 +159,20 @@ func testTraditionalApproachSizeProblem(t *testing.T, suite *suite.ConformanceTe
 	}
 
 	// Try to create the resource - expect it to fail due to size
-	client := suite.Client
+	// Create typed clientsets
+	cfg, err := config.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	higressClient, err := higressclient.NewForConfig(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create higress client: %v", err)
+	}
+
 	namespace := "higress-conformance-infra"
 
-	_, err := client.HigressV1().McpBridges(namespace).Create(
+	_, err = higressClient.NetworkingV1().McpBridges(namespace).Create(
 		context.Background(), mcpBridge, metav1.CreateOptions{})
 	if err != nil {
 		t.Logf("✅ Traditional approach failed as expected: %v", err)
@@ -153,7 +185,7 @@ func testTraditionalApproachSizeProblem(t *testing.T, suite *suite.ConformanceTe
 	} else {
 		t.Logf("⚠️  Traditional approach succeeded unexpectedly - may need more instances")
 		// Clean up if it succeeded
-		client.HigressV1().McpBridges(namespace).Delete(
+		higressClient.NetworkingV1().McpBridges(namespace).Delete(
 			context.Background(), TraditionalTestName, metav1.DeleteOptions{})
 	}
 }
@@ -165,13 +197,28 @@ func testConfigMapReferenceSolution(t *testing.T, suite *suite.ConformanceTestSu
 
 	t.Logf("Testing ConfigMap reference approach with %d instances (should work)", instanceCount)
 
-	client := suite.Client
+	// Create typed clientsets
+	cfg, err := config.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	k8sClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create k8s client: %v", err)
+	}
+
+	higressClient, err := higressclient.NewForConfig(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create higress client: %v", err)
+	}
+
 	namespace := "higress-conformance-infra"
 
 	// Create ConfigMap with large number of MCP instances
 	configMap := createLargeScaleConfigMap(ConfigMapName, instanceCount)
 	
-	_, err := client.CoreV1().ConfigMaps(namespace).Create(
+	_, err = k8sClient.CoreV1().ConfigMaps(namespace).Create(
 		context.Background(), configMap, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("Failed to create ConfigMap: %v", err)
@@ -194,7 +241,7 @@ func testConfigMapReferenceSolution(t *testing.T, suite *suite.ConformanceTestSu
 	}
 
 	// Try to create the resource - should succeed
-	_, err = client.HigressV1().McpBridges(namespace).Create(
+	_, err = higressClient.NetworkingV1().McpBridges(namespace).Create(
 		context.Background(), mcpBridge, metav1.CreateOptions{})
 	if err != nil {
 		t.Errorf("❌ ConfigMap reference approach failed: %v", err)
@@ -205,7 +252,7 @@ func testConfigMapReferenceSolution(t *testing.T, suite *suite.ConformanceTestSu
 	// Verify the resource was created correctly
 	time.Sleep(5 * time.Second)
 	
-	createdMcpBridge, err := client.HigressV1().McpBridges(namespace).Get(
+	createdMcpBridge, err := higressClient.NetworkingV1().McpBridges(namespace).Get(
 		context.Background(), ConfigRefTestName, metav1.GetOptions{})
 	if err != nil {
 		t.Errorf("Failed to get created McpBridge: %v", err)
@@ -272,10 +319,10 @@ func testSizeReductionComparison(t *testing.T, suite *suite.ConformanceTestSuite
 // Helper functions
 
 func createTraditionalMcpBridge(name string, instanceCount int) *v1.McpBridge {
-	registries := make([]*v1.RegistryConfig, instanceCount)
+	registries := make([]*apiv1.RegistryConfig, instanceCount)
 	
 	for i := 0; i < instanceCount; i++ {
-		registries[i] = &v1.RegistryConfig{
+		registries[i] = &apiv1.RegistryConfig{
 			Type:                   "nacos2",
 			Name:                   fmt.Sprintf("nacos-instance-%d", i),
 			Domain:                 fmt.Sprintf("nacos-%d.example.com", i),
@@ -301,7 +348,7 @@ func createTraditionalMcpBridge(name string, instanceCount int) *v1.McpBridge {
 			},
 			McpServerBaseUrl:  fmt.Sprintf("http://mcp-%d.example.com:8080", i),
 			AllowMcpServers:   []string{fmt.Sprintf("mcp-%d", i)},
-			Metadata: map[string]*v1.InnerMap{
+			Metadata: map[string]*apiv1.InnerMap{
 				"region": {
 					InnerMap: map[string]string{
 						"zone":        fmt.Sprintf("zone-%d", i%10),
@@ -327,7 +374,7 @@ func createTraditionalMcpBridge(name string, instanceCount int) *v1.McpBridge {
 			Name:      name,
 			Namespace: "higress-conformance-infra",
 		},
-		Spec: v1.McpBridgeSpec{
+		Spec: apiv1.McpBridge{
 			Registries: registries,
 		},
 	}
@@ -339,8 +386,8 @@ func createConfigMapRefMcpBridge(name, configMapName string) *v1.McpBridge {
 			Name:      name,
 			Namespace: "higress-conformance-infra",
 		},
-		Spec: v1.McpBridgeSpec{
-			Registries: []*v1.RegistryConfig{
+		Spec: apiv1.McpBridge{
+			Registries: []*apiv1.RegistryConfig{
 				{
 					Type:             "nacos2",
 					Name:             "nacos-cluster",
