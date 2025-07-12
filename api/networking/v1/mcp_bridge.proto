@@ -17,6 +17,7 @@ syntax = "proto3";
 import "google/api/field_behavior.proto";
 import "google/protobuf/wrappers.proto";
 import "google/protobuf/struct.proto";
+import "google/protobuf/duration.proto";
 
 // $schema: higress.networking.v1.McpBridge
 // $title: McpBridge
@@ -90,17 +91,24 @@ message MCPInstance {
   string healthPath = 5;
 }
 
+// LoadBalanceMode defines the load balancing strategy
+enum LoadBalanceMode {
+  ROUND_ROBIN = 0;
+  WEIGHTED = 1;
+  RANDOM = 2;
+}
+
 // MCPConfig represents the complete MCP configuration
 message MCPConfig {
   repeated MCPInstance instances = 1;
-  string loadBalanceMode = 2;
+  LoadBalanceMode load_balance_mode = 2;
   HealthConfig healthCheck = 3;
 }
 
 // HealthConfig represents health check configuration
 message HealthConfig {
   bool enabled = 1;
-  string interval = 2;
-  string timeout = 3;
+  google.protobuf.Duration interval = 2;
+  google.protobuf.Duration timeout = 3;
   int32 unhealthyThreshold = 4;
 }

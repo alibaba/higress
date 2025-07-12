@@ -128,7 +128,10 @@ log_error() {
 # Function to create namespace
 create_namespace() {
     log_info "Creating namespace $NAMESPACE..."
-    kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+    if ! kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -; then
+        log_error "Failed to create namespace $NAMESPACE"
+        return 1
+    fi
     log_success "Namespace ready"
 }
 

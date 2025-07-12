@@ -114,13 +114,17 @@ func (f *ExtendedProviderFactory) registerBuiltinProviders() {
 	// ConfigMap provider factory
 	configMapFactory := &ConfigMapProviderFactory{kubeClient: f.kubeClient}
 	if err := f.registry.RegisterFactory(ConfigSourceConfigMap, configMapFactory); err != nil {
-		log.Warnf("Failed to register ConfigMap provider factory: %v", err)
+		log.Errorf("Critical error: failed to register ConfigMap provider factory: %v", err)
+		// ConfigMap provider is essential, we should panic if it fails to register
+		panic(fmt.Sprintf("failed to register essential ConfigMap provider: %v", err))
 	}
 	
 	// Secret provider factory
 	secretFactory := &SecretProviderFactory{kubeClient: f.kubeClient}
 	if err := f.registry.RegisterFactory(ConfigSourceSecret, secretFactory); err != nil {
-		log.Warnf("Failed to register Secret provider factory: %v", err)
+		log.Errorf("Critical error: failed to register Secret provider factory: %v", err)
+		// Secret provider is essential, we should panic if it fails to register
+		panic(fmt.Sprintf("failed to register essential Secret provider: %v", err))
 	}
 	
 	// Add more providers as needed
@@ -171,20 +175,39 @@ func SetupExtendedConfigManager(kubeClient kubernetes.Interface, namespace strin
 	
 	// Register all available providers
 	supportedSources := factory.SupportedSources()
+	var errors []string
+	registeredCount := 0
+	
 	for _, source := range supportedSources {
-		providerConfig := DefaultProviderConfig(namespace)
-		providerConfig.Source = source
+		providerConfig := DefaultProviderConfig(namespace, source)
 		
 		provider, err := factory.CreateProvider(providerConfig)
 		if err != nil {
-			log.Warnf("Failed to create provider for source %s: %v", source, err)
+			errorMsg := fmt.Sprintf("failed to create provider for source %s: %v", source, err)
+			log.Errorf("Configuration manager setup: %s", errorMsg)
+			errors = append(errors, errorMsg)
 			continue
 		}
 		
 		if err := manager.RegisterProvider(source, provider); err != nil {
-			log.Warnf("Failed to register provider for source %s: %v", source, err)
+			errorMsg := fmt.Sprintf("failed to register provider for source %s: %v", source, err)
+			log.Errorf("Configuration manager setup: %s", errorMsg)
+			errors = append(errors, errorMsg)
 			continue
 		}
+		
+		registeredCount++
+		log.Infof("Successfully registered provider for source: %s", source)
+	}
+	
+	// Ensure at least one provider is registered
+	if registeredCount == 0 {
+		return nil, fmt.Errorf("failed to register any configuration providers: %v", errors)
+	}
+	
+	if len(errors) > 0 {
+		log.Warnf("Configuration manager setup completed with %d/%d providers registered. Errors: %v", 
+			registeredCount, len(supportedSources), errors)
 	}
 	
 	return manager, nil

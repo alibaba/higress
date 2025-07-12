@@ -60,12 +60,14 @@ const (
 
 // ProviderConfig holds common configuration for providers
 type ProviderConfig struct {
-	Source       ConfigSource      `json:"source"`
-	Namespace    string            `json:"namespace"`
-	RetryConfig  RetryConfig       `json:"retryConfig"`
-	CacheConfig  CacheConfig       `json:"cacheConfig"`
-	WatchConfig  WatchConfig       `json:"watchConfig"`
-	ExtraConfig  map[string]string `json:"extraConfig,omitempty"`
+	Source         ConfigSource           `json:"source"`
+	Namespace      string                 `json:"namespace"`
+	RetryConfig    RetryConfig            `json:"retryConfig"`
+	CacheConfig    CacheConfig            `json:"cacheConfig"`
+	WatchConfig    WatchConfig            `json:"watchConfig"`
+	CircuitBreaker *CircuitBreakerConfig  `json:"circuitBreaker,omitempty"`
+	RateLimiter    *RateLimiterConfig     `json:"rateLimiter,omitempty"`
+	ExtraConfig    map[string]string      `json:"extraConfig,omitempty"`
 }
 
 // RetryConfig configures retry behavior
@@ -76,12 +78,25 @@ type RetryConfig struct {
 	BackoffFactor float64       `json:"backoffFactor"`
 }
 
+// CircuitBreakerConfig configures circuit breaker behavior
+type CircuitBreakerConfig struct {
+	MaxFailures  int           `json:"maxFailures"`
+	ResetTimeout time.Duration `json:"resetTimeout"`
+}
+
+// RateLimiterConfig configures rate limiting behavior
+type RateLimiterConfig struct {
+	Capacity   float64 `json:"capacity"`
+	RefillRate float64 `json:"refillRate"`
+}
+
 // CacheConfig configures caching behavior
 type CacheConfig struct {
-	Enabled    bool          `json:"enabled"`
-	TTL        time.Duration `json:"ttl"`
-	MaxSize    int           `json:"maxSize"`
-	EnableLRU  bool          `json:"enableLRU"`
+	Enabled              bool          `json:"enabled"`
+	TTL                  time.Duration `json:"ttl"`
+	MaxSize              int           `json:"maxSize"`
+	EnableLRU            bool          `json:"enableLRU"`
+	OptimizationInterval time.Duration `json:"optimizationInterval"`
 }
 
 // WatchConfig configures watching behavior
@@ -92,10 +107,23 @@ type WatchConfig struct {
 	BufferSize    int           `json:"bufferSize"`
 }
 
-// DefaultProviderConfig returns default provider configuration
-func DefaultProviderConfig(namespace string) *ProviderConfig {
+// DefaultProviderConfig returns default provider configuration for the specified source.
+// This is the base configuration that can be customized for different config sources.
+//
+// Usage examples:
+//   - DefaultProviderConfig(namespace, ConfigSourceConfigMap) for ConfigMap
+//   - DefaultProviderConfig(namespace, ConfigSourceEtcd) for etcd
+//   - DefaultProviderConfig(namespace, ConfigSourceSecret) for Secret
+//   - DefaultProviderConfig(namespace, ConfigSourceConsul) for Consul
+//
+// For source-specific optimizations, consider using the dedicated functions:
+//   - DefaultConfigMapProviderConfig(namespace)
+//   - DefaultEtcdProviderConfig(namespace) 
+//   - DefaultSecretProviderConfig(namespace)
+//   - DefaultConsulProviderConfig(namespace)
+func DefaultProviderConfig(namespace string, source ConfigSource) *ProviderConfig {
 	return &ProviderConfig{
-		Source:    ConfigSourceConfigMap,
+		Source:    source,
 		Namespace: namespace,
 		RetryConfig: RetryConfig{
 			MaxRetries:    3,
@@ -104,10 +132,11 @@ func DefaultProviderConfig(namespace string) *ProviderConfig {
 			BackoffFactor: 2.0,
 		},
 		CacheConfig: CacheConfig{
-			Enabled:   true,
-			TTL:       time.Minute * 5,
-			MaxSize:   1000,
-			EnableLRU: true,
+			Enabled:              true,
+			TTL:                  time.Minute * 5,
+			MaxSize:              1000,
+			EnableLRU:            true,
+			OptimizationInterval: time.Minute * 5,
 		},
 		WatchConfig: WatchConfig{
 			Enabled:       true,
@@ -115,7 +144,43 @@ func DefaultProviderConfig(namespace string) *ProviderConfig {
 			RetryInterval: time.Second * 5,
 			BufferSize:    100,
 		},
+		CircuitBreaker: &CircuitBreakerConfig{
+			MaxFailures:  5,
+			ResetTimeout: time.Minute * 2,
+		},
+		RateLimiter: &RateLimiterConfig{
+			Capacity:   100.0,
+			RefillRate: 10.0,
+		},
 	}
+}
+
+// DefaultEtcdProviderConfig returns default configuration for etcd provider
+func DefaultEtcdProviderConfig(namespace string) *ProviderConfig {
+	config := DefaultProviderConfig(namespace, ConfigSourceEtcd)
+	// Etcd specific optimizations
+	config.CacheConfig.TTL = time.Minute * 10 // Longer TTL for etcd
+	config.CircuitBreaker.MaxFailures = 3     // More sensitive to failures
+	return config
+}
+
+// DefaultConfigMapProviderConfig returns default configuration for ConfigMap provider
+func DefaultConfigMapProviderConfig(namespace string) *ProviderConfig {
+	return DefaultProviderConfig(namespace, ConfigSourceConfigMap)
+}
+
+// DefaultSecretProviderConfig returns default configuration for Secret provider
+func DefaultSecretProviderConfig(namespace string) *ProviderConfig {
+	return DefaultProviderConfig(namespace, ConfigSourceSecret)
+}
+
+// DefaultConsulProviderConfig returns default configuration for Consul provider
+func DefaultConsulProviderConfig(namespace string) *ProviderConfig {
+	config := DefaultProviderConfig(namespace, ConfigSourceConsul)
+	// Consul specific optimizations
+	config.CacheConfig.TTL = time.Minute * 3 // Shorter TTL for dynamic discovery
+	config.WatchConfig.ResyncPeriod = time.Minute * 2
+	return config
 }
 
 // ProviderFactory creates configuration providers

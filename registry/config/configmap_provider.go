@@ -34,6 +34,17 @@ import (
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 )
 
+const (
+	// Port validation constants
+	MinPort = 1
+	MaxPort = 65535
+	// Weight validation constants
+	MinWeight = 0
+	MaxWeight = 100
+	// Priority validation constants
+	MinPriority = 0
+)
+
 // ConfigMapProvider implements ConfigProvider for Kubernetes ConfigMaps
 type ConfigMapProvider struct {
 	client    kubernetes.Interface
@@ -47,10 +58,11 @@ type ConfigMapProvider struct {
 
 // ConfigCache provides caching functionality with TTL and LRU support
 type ConfigCache struct {
-	items   map[string]*CacheItem
-	lruList []string
-	mutex   sync.RWMutex
-	config  CacheConfig
+	items     map[string]*CacheItem
+	lruList   []string
+	indexMap  map[string]int  // 添加索引映射以提高查找效率
+	mutex     sync.RWMutex
+	config    CacheConfig
 }
 
 // CacheItem represents a cached configuration item
@@ -63,7 +75,7 @@ type CacheItem struct {
 // NewConfigMapProvider creates a new ConfigMap provider
 func NewConfigMapProvider(client kubernetes.Interface, config *ProviderConfig) *ConfigMapProvider {
 	if config == nil {
-		config = DefaultProviderConfig("default")
+		config = DefaultConfigMapProviderConfig("default")
 	}
 	
 	return &ConfigMapProvider{
@@ -393,16 +405,16 @@ func (p *ConfigMapProvider) validateMCPInstance(instance *apiv1.MCPInstance, ind
 		return fmt.Errorf("domain is required")
 	}
 	
-	if instance.Port <= 0 || instance.Port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535, got %d", instance.Port)
+	if instance.Port <= 0 || instance.Port > MaxPort {
+		return fmt.Errorf("port must be between %d and %d, got %d", MinPort, MaxPort, instance.Port)
 	}
 	
-	if instance.Weight < 0 || instance.Weight > 100 {
-		return fmt.Errorf("weight must be between 0 and 100, got %d", instance.Weight)
+	if instance.Weight < MinWeight || instance.Weight > MaxWeight {
+		return fmt.Errorf("weight must be between %d and %d, got %d", MinWeight, MaxWeight, instance.Weight)
 	}
 	
-	if instance.Priority < 0 {
-		return fmt.Errorf("priority must be non-negative, got %d", instance.Priority)
+	if instance.Priority < MinPriority {
+		return fmt.Errorf("priority must be non-negative (>= %d), got %d", MinPriority, instance.Priority)
 	}
 	
 	return nil
@@ -413,9 +425,10 @@ func (p *ConfigMapProvider) validateMCPInstance(instance *apiv1.MCPInstance, ind
 // NewConfigCache creates a new configuration cache
 func NewConfigCache(config CacheConfig) *ConfigCache {
 	return &ConfigCache{
-		items:   make(map[string]*CacheItem),
-		lruList: make([]string, 0),
-		config:  config,
+		items:    make(map[string]*CacheItem),
+		lruList:  make([]string, 0),
+		indexMap: make(map[string]int),
+		config:   config,
 	}
 }
 
@@ -479,21 +492,36 @@ func (c *ConfigCache) Clear() {
 	
 	c.items = make(map[string]*CacheItem)
 	c.lruList = c.lruList[:0]
+	c.indexMap = make(map[string]int)
 }
 
-// updateLRU updates the LRU list
+// updateLRU updates the LRU list efficiently using index map
 func (c *ConfigCache) updateLRU(key string) {
-	c.removeLRU(key)
+	// Check if key exists in index map
+	if idx, exists := c.indexMap[key]; exists {
+		// Remove from current position
+		c.lruList = append(c.lruList[:idx], c.lruList[idx+1:]...)
+		// Update indices for shifted elements
+		for i := idx; i < len(c.lruList); i++ {
+			c.indexMap[c.lruList[i]] = i
+		}
+	}
+	// Add to end (most recently used)
 	c.lruList = append(c.lruList, key)
+	c.indexMap[key] = len(c.lruList) - 1
 }
 
-// removeLRU removes a key from LRU list
+// removeLRU removes a key from LRU list efficiently using index map
 func (c *ConfigCache) removeLRU(key string) {
-	for i, k := range c.lruList {
-		if k == key {
-			c.lruList = append(c.lruList[:i], c.lruList[i+1:]...)
-			break
+	if idx, exists := c.indexMap[key]; exists {
+		// Remove from list
+		c.lruList = append(c.lruList[:idx], c.lruList[idx+1:]...)
+		// Update indices for shifted elements
+		for i := idx; i < len(c.lruList); i++ {
+			c.indexMap[c.lruList[i]] = i
 		}
+		// Remove from index map
+		delete(c.indexMap, key)
 	}
 }
 
@@ -506,6 +534,11 @@ func (c *ConfigCache) evictIfNeeded() {
 	for len(c.items) > c.config.MaxSize && len(c.lruList) > 0 {
 		oldest := c.lruList[0]
 		delete(c.items, oldest)
+		delete(c.indexMap, oldest)
 		c.lruList = c.lruList[1:]
+		// Update indices for shifted elements
+		for i := 0; i < len(c.lruList); i++ {
+			c.indexMap[c.lruList[i]] = i
+		}
 	}
 }

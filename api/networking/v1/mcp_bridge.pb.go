@@ -136,6 +136,7 @@ type RegistryConfig struct {
 	EnableScopeMcpServers  *wrappers.BoolValue  `protobuf:"bytes,23,opt,name=enableScopeMcpServers,proto3" json:"enableScopeMcpServers,omitempty"`
 	AllowMcpServers        []string             `protobuf:"bytes,24,rep,name=allowMcpServers,proto3" json:"allowMcpServers,omitempty"`
 	Metadata               map[string]*InnerMap `protobuf:"bytes,25,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// McpConfigRef is the name of the ConfigMap containing MCP configuration
 	McpConfigRef           string               `protobuf:"bytes,26,opt,name=mcpConfigRef,proto3" json:"mcpConfigRef,omitempty"`
 }
 

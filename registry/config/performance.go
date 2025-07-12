@@ -25,6 +25,19 @@ import (
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 )
 
+const (
+	// Default CircuitBreaker configuration
+	DefaultMaxFailures = 5
+	DefaultResetTimeout = 2 * time.Minute
+	
+	// Default RateLimiter configuration
+	DefaultRateLimiterCapacity = 100.0
+	DefaultRateLimiterRefillRate = 10.0
+	
+	// Cache optimization intervals
+	DefaultOptimizationInterval = 5 * time.Minute
+)
+
 // CircuitBreaker implements circuit breaker pattern for provider operations
 type CircuitBreaker struct {
 	maxFailures   int
@@ -313,8 +326,33 @@ type EnhancedProvider struct {
 
 // NewEnhancedProvider wraps a provider with performance enhancements
 func NewEnhancedProvider(provider ConfigProvider, config *ProviderConfig) *EnhancedProvider {
-	circuitBreaker := NewCircuitBreaker(5, time.Minute*2) // 5 failures, 2 min reset
-	rateLimiter := NewRateLimiter(100, 10)                // 100 capacity, 10/sec refill
+	// Use configurable parameters instead of hardcoded values
+	maxFailures := DefaultMaxFailures
+	resetTimeout := DefaultResetTimeout
+	capacity := DefaultRateLimiterCapacity
+	refillRate := DefaultRateLimiterRefillRate
+	
+	// Allow override from config if specified
+	if config.CircuitBreaker != nil {
+		if config.CircuitBreaker.MaxFailures > 0 {
+			maxFailures = config.CircuitBreaker.MaxFailures
+		}
+		if config.CircuitBreaker.ResetTimeout > 0 {
+			resetTimeout = config.CircuitBreaker.ResetTimeout
+		}
+	}
+	
+	if config.RateLimiter != nil {
+		if config.RateLimiter.Capacity > 0 {
+			capacity = config.RateLimiter.Capacity
+		}
+		if config.RateLimiter.RefillRate > 0 {
+			refillRate = config.RateLimiter.RefillRate
+		}
+	}
+	
+	circuitBreaker := NewCircuitBreaker(maxFailures, resetTimeout)
+	rateLimiter := NewRateLimiter(capacity, refillRate)
 	cache := NewEnhancedConfigCache(config.CacheConfig)
 	
 	return &EnhancedProvider{
@@ -381,7 +419,13 @@ type ProviderMetrics struct {
 
 // StartOptimizationLoop starts a background loop for cache optimization
 func (ep *EnhancedProvider) StartOptimizationLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute * 5) // Optimize every 5 minutes
+	optimizationInterval := DefaultOptimizationInterval
+	// Allow configuration override
+	if ep.cache.config.OptimizationInterval > 0 {
+		optimizationInterval = ep.cache.config.OptimizationInterval
+	}
+	
+	ticker := time.NewTicker(optimizationInterval)
 	defer ticker.Stop()
 	
 	for {

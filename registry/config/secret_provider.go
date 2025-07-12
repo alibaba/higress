@@ -39,7 +39,7 @@ type SecretProvider struct {
 // NewSecretProvider creates a new Secret provider
 func NewSecretProvider(client kubernetes.Interface, config *ProviderConfig) *SecretProvider {
 	if config == nil {
-		config = DefaultProviderConfig("default")
+		config = DefaultSecretProviderConfig("default")
 	}
 	
 	return &SecretProvider{
@@ -178,16 +178,16 @@ func (p *SecretProvider) validateMCPInstance(instance *apiv1.MCPInstance, index 
 		return fmt.Errorf("domain is required")
 	}
 	
-	if instance.Port <= 0 || instance.Port > 65535 {
-		return fmt.Errorf("port must be between 1 and 65535, got %d", instance.Port)
+	if instance.Port <= 0 || instance.Port > MaxPort {
+		return fmt.Errorf("port must be between %d and %d, got %d", MinPort, MaxPort, instance.Port)
 	}
 	
-	if instance.Weight < 0 || instance.Weight > 100 {
-		return fmt.Errorf("weight must be between 0 and 100, got %d", instance.Weight)
+	if instance.Weight < MinWeight || instance.Weight > MaxWeight {
+		return fmt.Errorf("weight must be between %d and %d, got %d", MinWeight, MaxWeight, instance.Weight)
 	}
 	
-	if instance.Priority < 0 {
-		return fmt.Errorf("priority must be non-negative, got %d", instance.Priority)
+	if instance.Priority < MinPriority {
+		return fmt.Errorf("priority must be non-negative (>= %d), got %d", MinPriority, instance.Priority)
 	}
 	
 	return nil

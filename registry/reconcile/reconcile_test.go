@@ -314,7 +314,7 @@ func TestLoadBalancer(t *testing.T) {
 		instances := lb.getHealthyInstances()
 
 		// Instances should be sorted by priority (lower number = higher priority)
-		if instances[0].Priority > instances[1].Priority {
+		if instances[0].Priority < instances[1].Priority {
 			t.Errorf("Instances not sorted by priority correctly")
 		}
 

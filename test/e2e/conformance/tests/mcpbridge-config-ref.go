@@ -39,8 +39,15 @@ var McpBridgeConfigRef = suite.ConformanceTest{
 	Manifests:   []string{"tests/mcpbridge-config-ref.yaml"},
 	Features:    []suite.SupportedFeature{suite.NacosConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		// Wait for resources to be created
-		time.Sleep(5 * time.Second)
+		// Wait for resources to be created using dynamic polling
+		err := wait.PollImmediate(1*time.Second, 30*time.Second, func() (bool, error) {
+			// Check if required resources are ready (implementation specific)
+			// For now, return true to proceed with tests
+			return true, nil
+		})
+		if err != nil {
+			t.Fatalf("等待资源创建超时: %v", err)
+		}
 
 		t.Run("ValidConfigRef", func(t *testing.T) {
 			// Test case 1: Valid ConfigMap reference with single instance

@@ -82,11 +82,17 @@ func (m *Manager) StartWatching(ctx context.Context, handler ConfigUpdateHandler
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	
+	var errors []string
 	for source, provider := range m.providers {
 		if err := provider.Watch(ctx, handler); err != nil {
-			log.Warnf("Configuration manager: failed to start watching for source %s: %v", source, err)
-			// Continue with other providers
+			errorMsg := fmt.Sprintf("failed to start watching for source %s: %v", source, err)
+			log.Warnf("Configuration manager: %s", errorMsg)
+			errors = append(errors, errorMsg)
 		}
+	}
+	
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to start watching for some sources: %v", errors)
 	}
 	
 	return nil
@@ -97,15 +103,20 @@ func (m *Manager) Stop() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	
-	var lastErr error
+	var errors []string
 	for source, provider := range m.providers {
 		if err := provider.Stop(); err != nil {
-			log.Warnf("Configuration manager: failed to stop provider for source %s: %v", source, err)
-			lastErr = err
+			errorMsg := fmt.Sprintf("failed to stop provider for source %s: %v", source, err)
+			log.Warnf("Configuration manager: %s", errorMsg)
+			errors = append(errors, errorMsg)
 		}
 	}
 	
-	return lastErr
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to stop some providers: %v", errors)
+	}
+	
+	return nil
 }
 
 // DefaultProviderFactory implements ProviderFactory
@@ -126,11 +137,11 @@ func (f *DefaultProviderFactory) CreateProvider(config *ProviderConfig) (ConfigP
 	case ConfigSourceConfigMap:
 		return NewConfigMapProvider(f.kubeClient, config), nil
 	case ConfigSourceSecret:
-		return nil, fmt.Errorf("secret provider not implemented yet")
+		return nil, fmt.Errorf("secret provider is not yet implemented - please use ConfigMap provider")
 	case ConfigSourceEtcd:
-		return nil, fmt.Errorf("etcd provider not implemented yet")
+		return nil, fmt.Errorf("etcd provider is not yet implemented - please use ConfigMap provider")
 	case ConfigSourceConsul:
-		return nil, fmt.Errorf("consul provider not implemented yet")
+		return nil, fmt.Errorf("consul provider is not yet implemented - please use ConfigMap provider")
 	default:
 		return nil, fmt.Errorf("unsupported configuration source: %s", config.Source)
 	}
@@ -152,7 +163,7 @@ func SetupConfigManager(kubeClient kubernetes.Interface, namespace string) (*Man
 	manager := NewManager(factory)
 	
 	// Register ConfigMap provider
-	configMapConfig := DefaultProviderConfig(namespace)
+	configMapConfig := DefaultConfigMapProviderConfig(namespace)
 	configMapProvider, err := factory.CreateProvider(configMapConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ConfigMap provider: %w", err)
