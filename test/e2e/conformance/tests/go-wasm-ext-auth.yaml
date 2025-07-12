@@ -1,4 +1,4 @@
-# Copyright (c) 2022 Alibaba Group Holding Ltd.
+# Copyright (c) 2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,206 +12,88 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# 1) ConfigMap for mock-auth-server
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: mock-auth-service-config
-  namespace: higress-conformance-infra
-data:
-  VALID_TOKEN: "valid-token"
-  PORT: "8090"
-
----
-
-# 2) Deployment for mock-auth-server
+# Deployment for mock-auth-server
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mock-auth-service
+  name: ext-auth-mock-service
   namespace: higress-conformance-infra
 spec:
   replicas: 1
   selector:
-    matchLabels: { app: mock-auth-service }
+    matchLabels:
+      app: ext-auth-mock-service
   template:
     metadata:
-      labels: { app: mock-auth-service }
+      labels:
+        app: ext-auth-mock-service
     spec:
       containers:
       - name: mock-auth
         image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/ext-auth-mock-server:latest
-        env:
-        - name: VALID_TOKEN
-          valueFrom:
-            configMapKeyRef:
-              name: mock-auth-service-config
-              key: VALID_TOKEN
-        - name: PORT
-          valueFrom:
-            configMapKeyRef:
-              name: mock-auth-service-config
-              key: PORT
         ports:
         - containerPort: 8090
 
 ---
 
-# 3) Service for mock-auth-server
+# Service for mock-auth-server
 apiVersion: v1
 kind: Service
 metadata:
-  name: mock-auth-service
+  name: ext-auth-mock-service
   namespace: higress-conformance-infra
 spec:
   selector:
-    app: mock-auth-service
+    app: ext-auth-mock-service
   ports:
   - port: 8090
     targetPort: 8090
 
 ---
 
-# 4) Ingress to echo-server
+# Ingress to echo-server,ext-auth使用forward_auth模式，使用ext-auth mock服务的/always-200接口
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: ext-auth-ingress
+  name: wasmplugin-ext-auth-forward-auth-mode-always-200
   namespace: higress-conformance-infra
 spec:
   ingressClassName: higress
   rules:
-  - host: test-auth.com
+  - host: "test-ext-auth-ingress1.com"
     http:
       paths:
-      - path: /
+      - path: "/"
         pathType: Prefix
         backend:
           service:
-            name: echo-server
-            port: { number: 3000 }
+            name: infra-backend-v1
+            port:
+              number: 8080
 
 ---
 
-# 5) Envoy-mode WasmPlugin (default for prefix cases)
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
-  name: ext-auth-envoy
+  name: ext-auth
   namespace: higress-system
 spec:
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
   matchRules:
-  - ingress:
-      - higress-conformance-infra/ext-auth-ingress
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path_prefix: /prefix
-      timeout: 5000
-    authorization_request:
-      with_request_body: true
-    match_type: whitelist
-    match_list:
-      - match_rule_path: /prefix/always-200
-        match_rule_type: prefix
-      - match_rule_path: /prefix/always-500
-        match_rule_type: prefix
-      - match_rule_path: /prefix/require-request-body-200
-        match_rule_type: prefix
-    status_on_error: 500
-
----
-
-# 6) Envoy-mode Whitelist example
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-envoy-whitelist
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-      - higress-conformance-infra/ext-auth-ingress
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path_prefix: /always-500
-      timeout: 5000
-    match_type: whitelist
-    match_list:
-      - match_rule_path: /always-500
-        match_rule_type: prefix
-    authorization_request:
-      with_request_body: false
-    status_on_error: 500
-
----
-
-# 7) Envoy-mode Blacklist example
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-envoy-blacklist
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-      - higress-conformance-infra/ext-auth-ingress
-  defaultConfig:
-    http_service:
-      endpoint_mode: envoy
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path_prefix: /always-500
-      timeout: 5000
-    match_type: blacklist
-    match_list:
-      - match_rule_path: /always-500
-        match_rule_type: prefix
-    authorization_request:
-      with_request_body: false
-    status_on_error: 500
-
----
-
-# 8) Forward-auth mode WasmPlugin
-apiVersion: extensions.higress.io/v1alpha1
-kind: WasmPlugin
-metadata:
-  name: ext-auth-forward
-  namespace: higress-system
-spec:
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ext-auth:1.0.0
-  matchRules:
-  - ingress:
-      - higress-conformance-infra/ext-auth-ingress
-  defaultConfig:
-    http_service:
-      endpoint_mode: forward_auth
-      endpoint:
-        service_name: mock-auth-service.higress-conformance-infra.svc.cluster.local
-        service_port: 8090
-        path: /always-200
-        request_method: POST
-      timeout: 5000
-    authorization_request:
-      with_request_body: true
-    match_type: whitelist
-    match_list:
-      - match_rule_path: /always-200
-        match_rule_type: prefix
-      - match_rule_path: /always-500
-        match_rule_type: prefix
-      - match_rule_path: /require-request-body-200
-        match_rule_type: prefix
-    status_on_error: 500
+    - config:
+        http_service:
+          endpoint_mode: forward_auth
+          endpoint:
+            service_name: ext-auth-mock-service.higress-conformance-infra.svc.cluster.local
+            service_port: 8090
+            path: /always-200
+          timeout: 5000
+          authorization_response:
+            allowed_upstream_headers:
+              - prefix: x-
+          authorization_request:
+            with_request_body: false
+            endpoint_mode: forward_auth
+      ingress:
+        - higress-conformance-infra/wasmplugin-ext-auth-forward-auth-mode-always-200
