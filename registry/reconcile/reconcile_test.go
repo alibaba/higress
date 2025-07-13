@@ -55,11 +55,11 @@ func TestGetMCPConfig(t *testing.T) {
 						"healthPath": "/nacos/health"
 					}
 				],
-				"loadBalanceMode": "weighted",
+				"loadBalanceMode": 1,
 				"healthCheck": {
 					"enabled": true,
-					"interval": "30s",
-					"timeout": "5s",
+					"interval": {"seconds": 30},
+					"timeout": {"seconds": 5},
 					"unhealthyThreshold": 3
 				}
 			}`,
@@ -106,8 +106,8 @@ func TestGetMCPConfig(t *testing.T) {
 			t.Errorf("Expected weight 100, got: %d", config.Instances[0].Weight)
 		}
 
-		if config.LoadBalanceMode != "weighted" {
-			t.Errorf("Expected load balance mode 'weighted', got: %s", config.LoadBalanceMode)
+		if config.LoadBalanceMode != 1 { // LoadBalanceMode_WEIGHTED = 1
+			t.Errorf("Expected load balance mode WEIGHTED (1), got: %v", config.LoadBalanceMode)
 		}
 	})
 

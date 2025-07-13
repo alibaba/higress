@@ -108,7 +108,9 @@ message MCPConfig {
 // HealthConfig represents health check configuration
 message HealthConfig {
   bool enabled = 1;
+  // interval specifies the health check interval in Duration format (e.g., "30s", "2m")
   google.protobuf.Duration interval = 2;
+  // timeout specifies the health check timeout in Duration format (e.g., "5s", "10s")
   google.protobuf.Duration timeout = 3;
   int32 unhealthyThreshold = 4;
 }

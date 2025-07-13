@@ -35,13 +35,13 @@ import (
 )
 
 const (
-	// Port validation constants
+	// Port validation constants - TCP/UDP port range (1-65535)
 	MinPort = 1
 	MaxPort = 65535
-	// Weight validation constants
+	// Weight validation constants - load balancing weight range (0-100)
 	MinWeight = 0
 	MaxWeight = 100
-	// Priority validation constants
+	// Priority validation constants - service priority (>= 0, lower values indicate higher priority)
 	MinPriority = 0
 )
 
@@ -57,10 +57,11 @@ type ConfigMapProvider struct {
 }
 
 // ConfigCache provides caching functionality with TTL and LRU support
+// Uses indexMap for O(1) key lookup optimization in LRU operations
 type ConfigCache struct {
 	items     map[string]*CacheItem
-	lruList   []string
-	indexMap  map[string]int  // 添加索引映射以提高查找效率
+	lruList   []string            // LRU order list (least -> most recently used)
+	indexMap  map[string]int      // Key -> index mapping for O(1) position lookup
 	mutex     sync.RWMutex
 	config    CacheConfig
 }
@@ -367,7 +368,7 @@ func (p *ConfigMapProvider) parseMCPConfig(configMap *corev1.ConfigMap) (*apiv1.
 		
 		return &apiv1.MCPConfig{
 			Instances:       instances,
-			LoadBalanceMode: apiv1.LoadBalanceModeRoundRobin,
+			LoadBalanceMode: apiv1.LoadBalanceMode_ROUND_ROBIN,
 		}, nil
 	}
 	
@@ -387,13 +388,11 @@ func (p *ConfigMapProvider) validateMCPConfig(config *apiv1.MCPConfig) error {
 	}
 	
 	// Validate load balance mode
-	if config.LoadBalanceMode != "" {
-		switch config.LoadBalanceMode {
-		case apiv1.LoadBalanceModeRoundRobin, apiv1.LoadBalanceModeWeighted, apiv1.LoadBalanceModeRandom:
-			// Valid modes
-		default:
-			return fmt.Errorf("invalid load balance mode: %s", config.LoadBalanceMode)
-		}
+	switch config.LoadBalanceMode {
+	case apiv1.LoadBalanceMode_ROUND_ROBIN, apiv1.LoadBalanceMode_WEIGHTED, apiv1.LoadBalanceMode_RANDOM:
+		// Valid modes
+	default:
+		return fmt.Errorf("invalid load balance mode: %v", config.LoadBalanceMode)
 	}
 	
 	return nil
@@ -496,36 +495,41 @@ func (c *ConfigCache) Clear() {
 }
 
 // updateLRU updates the LRU list efficiently using index map
+// Time complexity: O(1) for lookup + O(k) for slice operations where k is elements after removed position
+// Space complexity: O(n) for indexMap storage
 func (c *ConfigCache) updateLRU(key string) {
-	// Check if key exists in index map
+	// Check if key exists in index map - O(1) operation
 	if idx, exists := c.indexMap[key]; exists {
-		// Remove from current position
+		// Remove from current position - O(k) where k = len(slice) - idx
 		c.lruList = append(c.lruList[:idx], c.lruList[idx+1:]...)
-		// Update indices for shifted elements
+		// Update indices for shifted elements - O(k) operation
 		for i := idx; i < len(c.lruList); i++ {
 			c.indexMap[c.lruList[i]] = i
 		}
 	}
-	// Add to end (most recently used)
+	// Add to end (most recently used) - O(1) operation
 	c.lruList = append(c.lruList, key)
 	c.indexMap[key] = len(c.lruList) - 1
 }
 
 // removeLRU removes a key from LRU list efficiently using index map
+// Time complexity: O(1) for lookup + O(k) for slice operations where k is elements after removed position
 func (c *ConfigCache) removeLRU(key string) {
 	if idx, exists := c.indexMap[key]; exists {
-		// Remove from list
+		// Remove from list - O(k) where k = len(slice) - idx
 		c.lruList = append(c.lruList[:idx], c.lruList[idx+1:]...)
-		// Update indices for shifted elements
+		// Update indices for shifted elements - O(k) operation
 		for i := idx; i < len(c.lruList); i++ {
 			c.indexMap[c.lruList[i]] = i
 		}
-		// Remove from index map
+		// Remove from index map - O(1) operation
 		delete(c.indexMap, key)
 	}
 }
 
 // evictIfNeeded evicts least recently used items if cache is full
+// Time complexity: O(n) in worst case when evicting multiple items
+// Only triggered when cache exceeds MaxSize limit to avoid frequent operations
 func (c *ConfigCache) evictIfNeeded() {
 	if c.config.MaxSize <= 0 {
 		return
@@ -533,12 +537,46 @@ func (c *ConfigCache) evictIfNeeded() {
 	
 	for len(c.items) > c.config.MaxSize && len(c.lruList) > 0 {
 		oldest := c.lruList[0]
-		delete(c.items, oldest)
-		delete(c.indexMap, oldest)
-		c.lruList = c.lruList[1:]
-		// Update indices for shifted elements
+		delete(c.items, oldest)                    // O(1) operation
+		delete(c.indexMap, oldest)                 // O(1) operation
+		c.lruList = c.lruList[1:]                  // O(1) operation (slice header modification)
+		// Update indices for shifted elements - O(n) operation
 		for i := 0; i < len(c.lruList); i++ {
 			c.indexMap[c.lruList[i]] = i
 		}
 	}
+}
+
+// validateConsistency performs internal consistency checks for debugging
+// This method is intended for development and testing purposes
+func (c *ConfigCache) validateConsistency() error {
+	// Check if indexMap size matches lruList length
+	if len(c.indexMap) != len(c.lruList) {
+		return fmt.Errorf("indexMap size (%d) doesn't match lruList length (%d)", 
+			len(c.indexMap), len(c.lruList))
+	}
+	
+	// Check if all lruList entries have correct indices in indexMap
+	for i, key := range c.lruList {
+		if idx, exists := c.indexMap[key]; !exists {
+			return fmt.Errorf("key %s at position %d not found in indexMap", key, i)
+		} else if idx != i {
+			return fmt.Errorf("key %s has incorrect index in indexMap: expected %d, got %d", 
+				key, i, idx)
+		}
+	}
+	
+	// Check if all indexMap entries point to valid lruList positions
+	for key, idx := range c.indexMap {
+		if idx < 0 || idx >= len(c.lruList) {
+			return fmt.Errorf("indexMap key %s has invalid index %d (lruList length: %d)", 
+				key, idx, len(c.lruList))
+		}
+		if c.lruList[idx] != key {
+			return fmt.Errorf("indexMap key %s at index %d doesn't match lruList entry %s", 
+				key, idx, c.lruList[idx])
+		}
+	}
+	
+	return nil
 }

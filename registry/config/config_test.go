@@ -23,7 +23,6 @@ func TestConfigManagerBasicFunctionality(t *testing.T) {
 		},
 		Data: map[string]string{
 			"instances": `[{"domain":"test1.com","port":8080,"weight":80},{"domain":"test2.com","port":8081,"weight":90}]`,
-			"loadBalanceMode": "round_robin",
 		},
 	}
 	
