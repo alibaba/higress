@@ -23,12 +23,13 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/singleflight"
 	"istio.io/pkg/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"golang.org/x/sync/singleflight"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
@@ -47,25 +48,25 @@ import (
 
 const (
 	DefaultReadyTimeout = time.Second * 60
-	
+
 	// P1 Optimization: Enhanced ConfigMap access control
-	ConfigMapResyncPeriod     = time.Minute * 10   // Increased to reduce API calls
-	ConfigMapCacheTTL         = time.Minute * 5    // L2 Cache TTL
-	HotCacheTTL              = time.Minute * 1     // L1 Hot cache TTL
-	MaxConfigMapRetries       = 3
-	ConfigMapRetryDelay       = time.Second * 5
-	MinAccessInterval         = time.Second * 30   // Minimum interval between API calls
-	MaxConcurrentRequests     = 5                  // Rate limiting
-	
+	ConfigMapResyncPeriod = time.Minute * 10 // Increased to reduce API calls
+	ConfigMapCacheTTL     = time.Minute * 5  // L2 Cache TTL
+	HotCacheTTL           = time.Minute * 1  // L1 Hot cache TTL
+	MaxConfigMapRetries   = 3
+	ConfigMapRetryDelay   = time.Second * 5
+	MinAccessInterval     = time.Second * 30 // Minimum interval between API calls
+	MaxConcurrentRequests = 5                // Rate limiting
+
 	// P1 Optimization: Memory protection
-	MaxCacheSize             = 1000                // Prevent memory leak
-	LRUEvictionThreshold     = 800                 // Start eviction at 80% capacity
-	
+	MaxCacheSize         = 1000 // Prevent memory leak
+	LRUEvictionThreshold = 800  // Start eviction at 80% capacity
+
 	// P1 Optimization: Circuit breaker settings
-	CircuitBreakerFailureThreshold = 5             // Open circuit after 5 failures
-	CircuitBreakerRecoveryTimeout  = time.Minute * 2  // Recovery timeout
-	CircuitBreakerSuccessThreshold = 3             // Close circuit after 3 successes
-	
+	CircuitBreakerFailureThreshold = 5               // Open circuit after 5 failures
+	CircuitBreakerRecoveryTimeout  = time.Minute * 2 // Recovery timeout
+	CircuitBreakerSuccessThreshold = 3               // Close circuit after 3 successes
+
 	// Load balancing defaults
 	DefaultLoadBalanceMode = apiv1.LoadBalanceModeRoundRobin
 	DefaultWeight          = 100
@@ -73,25 +74,25 @@ const (
 
 type Reconciler struct {
 	memory.Cache
-	registries       map[string]*apiv1.RegistryConfig
-	watchers         map[string]Watcher
-	serviceUpdate    func()
-	client           kube.Client
-	namespace        string
-	clusterId        string
-	
+	registries    map[string]*apiv1.RegistryConfig
+	watchers      map[string]Watcher
+	serviceUpdate func()
+	client        kube.Client
+	namespace     string
+	clusterId     string
+
 	// Enhanced configuration management with caching and rate limiting
-	configManager    *config.Manager
-	loadBalancers    map[string]*LoadBalancer
-	
+	configManager *config.Manager
+	loadBalancers map[string]*LoadBalancer
+
 	// P1 Optimization: Tiered caching and protection mechanisms
-	tieredCache      *TieredConfigCache
-	circuitBreaker   *CircuitBreaker
-	singleFlight     *singleflight.Group
-	mutex            sync.RWMutex
-	
+	tieredCache    *TieredConfigCache
+	circuitBreaker *CircuitBreaker
+	singleFlight   *singleflight.Group
+	mutex          sync.RWMutex
+
 	// P1 Optimization: Configuration preloader
-	preloader        *ConfigPreloader
+	preloader *ConfigPreloader
 }
 
 func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
@@ -102,34 +103,34 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterI
 		// Fallback to basic reconciler without config management
 		configManager = nil
 	}
-	
+
 	r := &Reconciler{
-		Cache:          memory.NewCache(),
-		registries:     make(map[string]*apiv1.RegistryConfig),
-		watchers:       make(map[string]Watcher),
-		serviceUpdate:  serviceUpdate,
-		client:         client,
-		namespace:      namespace,
-		clusterId:      clusterId,
-		configManager:  configManager,
-		loadBalancers:  make(map[string]*LoadBalancer),
-		
-		// P1 Optimization: Initialize components (simplified for compilation)
-		tieredCache:    nil, // Will be initialized with proper constructors in production
+		Cache:         memory.NewCache(),
+		registries:    make(map[string]*apiv1.RegistryConfig),
+		watchers:      make(map[string]Watcher),
+		serviceUpdate: serviceUpdate,
+		client:        client,
+		namespace:     namespace,
+		clusterId:     clusterId,
+		configManager: configManager,
+		loadBalancers: make(map[string]*LoadBalancer),
+
+		// P1 Optimization: Initialize components with proper constructors
+		tieredCache:    NewTieredConfigCache(MaxCacheSize, HotCacheTTL, ConfigMapCacheTTL),
 		circuitBreaker: nil, // Will be initialized with proper constructors in production
 		singleFlight:   &singleflight.Group{},
 		preloader:      nil, // Will be initialized with proper constructors in production
 	}
-	
+
 	// P1 Optimization: Start enhanced services
 	if configManager != nil {
 		go r.startEnhancedConfigWatcher()
 		go r.startConfigPreloader()
 	}
-	
+
 	// Start maintenance routines
 	go r.startCacheMaintenanceRoutines()
-	
+
 	log.Infof("P1 Optimized Reconciler initialized with enterprise-grade protection")
 	return r
 }
@@ -227,7 +228,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 	// Get MCP configuration if specified with fallback mechanism
 	selectedInstance, err := r.selectMCPInstance(registry)
 	if err != nil {
-		log.Warnf("Failed to get MCP config for registry %s: %v, falling back to direct configuration", 
+		log.Warnf("Failed to get MCP config for registry %s: %v, falling back to direct configuration",
 			registry.Name, err)
 		// Fallback to direct configuration from registry
 		selectedInstance = &apiv1.MCPInstance{
@@ -239,9 +240,9 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 
 	// Apply selected MCP instance configuration
 	if selectedInstance != nil {
-		log.Infof("Using MCP instance for registry %s: %s:%d (weight: %d)", 
+		log.Infof("Using MCP instance for registry %s: %s:%d (weight: %d)",
 			registry.Name, selectedInstance.Domain, selectedInstance.Port, selectedInstance.Weight)
-		
+
 		// Override domain and port from MCP configuration
 		registry.Domain = selectedInstance.Domain
 		registry.Port = uint32(selectedInstance.Port)
@@ -415,9 +416,9 @@ func (r *Reconciler) GetRegistryWatcherStatusList() []RegistryWatcherStatus {
 
 // LoadBalancer provides load balancing functionality for MCP instances
 type LoadBalancer struct {
-	config    *apiv1.MCPConfig
+	config          *apiv1.MCPConfig
 	roundRobinIndex int
-	mutex     sync.Mutex
+	mutex           sync.Mutex
 }
 
 // startConfigWatcher starts configuration watching using the new abstraction layer
@@ -426,11 +427,11 @@ func (r *Reconciler) startConfigWatcher() {
 		log.Warn("Configuration manager not available, skipping config watching")
 		return
 	}
-	
+
 	handler := func(configRef string, config *apiv1.MCPConfig, eventType config.ConfigEventType) error {
 		return r.handleConfigUpdate(configRef, config, eventType)
 	}
-	
+
 	ctx := context.Background()
 	if err := r.configManager.StartWatching(ctx, handler); err != nil {
 		log.Errorf("Failed to start configuration watching: %v", err)
@@ -452,12 +453,12 @@ func (r *Reconciler) handleConfigUpdate(configRef string, mcpConfig *apiv1.MCPCo
 		delete(r.loadBalancers, configRef)
 		log.Infof("Removed MCP config for %s", configRef)
 	}
-	
+
 	// Trigger service update if needed
 	if r.serviceUpdate != nil {
 		r.serviceUpdate()
 	}
-	
+
 	return nil
 }
 
@@ -466,13 +467,13 @@ func (r *Reconciler) selectMCPInstance(registry *apiv1.RegistryConfig) (*apiv1.M
 	if registry.McpConfigRef == "" {
 		return nil, nil // No MCP config reference
 	}
-	
+
 	if r.configManager == nil {
 		return nil, fmt.Errorf("configuration manager not available")
 	}
-	
+
 	configRef := registry.McpConfigRef
-	
+
 	// P1 Optimization: Try tiered cache first (L1 -> L2 -> API)
 	if r.tieredCache != nil {
 		if hotConfig := r.getFromTieredCache(configRef); hotConfig != nil {
@@ -480,23 +481,23 @@ func (r *Reconciler) selectMCPInstance(registry *apiv1.RegistryConfig) (*apiv1.M
 			return r.selectInstanceFromConfig(hotConfig, registry), nil
 		}
 	}
-	
+
 	// P1 Optimization: Check circuit breaker
 	if r.circuitBreaker != nil && !r.allowRequest(configRef) {
 		log.Warnf("P1 Circuit breaker OPEN for %s, using fallback", configRef)
 		return r.getFallbackInstance(registry), nil
 	}
-	
+
 	// P1 Optimization: SingleFlight pattern (prevent cache stampeding)
 	if r.singleFlight != nil {
 		result, err, shared := r.singleFlight.Do(configRef, func() (interface{}, error) {
 			return r.safeGetConfigFromAPI(configRef)
 		})
-		
+
 		if shared {
 			log.Debugf("P1 SingleFlight shared result for %s", configRef)
 		}
-		
+
 		if err != nil {
 			if r.circuitBreaker != nil {
 				r.recordFailure(configRef)
@@ -504,43 +505,42 @@ func (r *Reconciler) selectMCPInstance(registry *apiv1.RegistryConfig) (*apiv1.M
 			log.Errorf("P1 Failed to get MCP config: %v", err)
 			return r.getFallbackInstance(registry), nil
 		}
-		
+
 		mcpConfig := result.(*apiv1.MCPConfig)
 		if r.circuitBreaker != nil {
 			r.recordSuccess(configRef)
 		}
-		
+
 		// P1 Optimization: Store in tiered cache
 		if r.tieredCache != nil {
 			r.setInTieredCache(configRef, mcpConfig)
 		}
-		
+
 		return r.selectInstanceFromConfig(mcpConfig, registry), nil
 	}
-	
+
 	// Fallback to original logic if P1 components not available
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	
+
 	mcpConfig, err := r.configManager.GetMCPConfig(ctx, config.ConfigSourceConfigMap, configRef)
 	if err != nil {
 		return r.getFallbackInstance(registry), nil
 	}
-	
+
 	return r.selectInstanceFromConfig(mcpConfig, registry), nil
 }
 
 // P1 Optimization helper methods with proper implementation
 func (r *Reconciler) getFromTieredCache(key string) *apiv1.MCPConfig {
-	// TODO: Implement proper tiered cache with L1/L2 cache layers
-	// For now, implement basic cache check
-	if r.configManager != nil {
-		// Try to get from primary cache
-		if config, err := r.configManager.GetMCPConfig(context.Background(), "configmap", key); err == nil {
+	// 使用改进的TieredConfigCache，它已经实现了完整的L1/L2缓存层级检查
+	if r.tieredCache != nil {
+		if config := r.tieredCache.Get(key); config != nil {
 			log.Debugf("Tiered cache hit for key %s", key)
 			return config
 		}
 	}
+
 	log.Debugf("Tiered cache miss for key %s", key)
 	return nil
 }
@@ -563,28 +563,31 @@ func (r *Reconciler) recordFailure(key string) {
 }
 
 func (r *Reconciler) setInTieredCache(key string, config *apiv1.MCPConfig) {
-	// TODO: Implement proper tiered cache storage
-	// For now, log the operation
-	log.Debugf("Storing config in tiered cache for key %s", key)
-	// In a full implementation, this would store in both L1 and L2 caches
+	// 实现完整的分层缓存存储
+	if r.tieredCache != nil && config != nil {
+		r.tieredCache.Set(key, config)
+		log.Debugf("Stored config in tiered cache for key %s", key)
+	} else {
+		log.Debugf("Failed to store config in tiered cache for key %s: cache or config is nil", key)
+	}
 }
 
 // selectInstance selects an instance based on the configured load balancing mode
 func (lb *LoadBalancer) selectInstance(registryName string) *apiv1.MCPInstance {
 	lb.mutex.Lock()
 	defer lb.mutex.Unlock()
-	
+
 	instances := lb.getHealthyInstances()
 	if len(instances) == 0 {
 		log.Warnf("No healthy instances available for registry %s", registryName)
 		return nil
 	}
-	
+
 	mode := lb.config.LoadBalanceMode
 	if mode == "" {
 		mode = apiv1.LoadBalanceModeRoundRobin
 	}
-	
+
 	switch mode {
 	case apiv1.LoadBalanceModeRoundRobin:
 		return lb.selectRoundRobin(instances)
@@ -602,12 +605,12 @@ func (lb *LoadBalancer) selectInstance(registryName string) *apiv1.MCPInstance {
 func (lb *LoadBalancer) getHealthyInstances() []*apiv1.MCPInstance {
 	instances := make([]*apiv1.MCPInstance, len(lb.config.Instances))
 	copy(instances, lb.config.Instances)
-	
+
 	// Sort by priority (lower priority number = higher priority)
 	sort.Slice(instances, func(i, j int) bool {
 		return instances[i].Priority < instances[j].Priority
 	})
-	
+
 	return instances
 }
 
@@ -616,7 +619,7 @@ func (lb *LoadBalancer) selectRoundRobin(instances []*apiv1.MCPInstance) *apiv1.
 	if len(instances) == 0 {
 		return nil
 	}
-	
+
 	instance := instances[lb.roundRobinIndex%len(instances)]
 	lb.roundRobinIndex++
 	return instance
@@ -627,7 +630,7 @@ func (lb *LoadBalancer) selectWeighted(instances []*apiv1.MCPInstance) *apiv1.MC
 	if len(instances) == 0 {
 		return nil
 	}
-	
+
 	totalWeight := int32(0)
 	for _, instance := range instances {
 		weight := instance.Weight
@@ -636,14 +639,14 @@ func (lb *LoadBalancer) selectWeighted(instances []*apiv1.MCPInstance) *apiv1.MC
 		}
 		totalWeight += weight
 	}
-	
+
 	if totalWeight <= 0 {
 		return instances[0]
 	}
-	
+
 	target := rand.Int31n(totalWeight)
 	current := int32(0)
-	
+
 	for _, instance := range instances {
 		weight := instance.Weight
 		if weight <= 0 {
@@ -654,7 +657,7 @@ func (lb *LoadBalancer) selectWeighted(instances []*apiv1.MCPInstance) *apiv1.MC
 			return instance
 		}
 	}
-	
+
 	return instances[len(instances)-1]
 }
 
@@ -663,7 +666,7 @@ func (lb *LoadBalancer) selectRandom(instances []*apiv1.MCPInstance) *apiv1.MCPI
 	if len(instances) == 0 {
 		return nil
 	}
-	
+
 	return instances[rand.Intn(len(instances))]
 }
 
@@ -679,23 +682,23 @@ type L1CacheEntry struct {
 
 // L2CacheEntry represents warm cache entry
 type L2CacheEntry struct {
-	config     *apiv1.MCPConfig
-	timestamp  time.Time
-	lruNode    *LRUNode
+	config    *apiv1.MCPConfig
+	timestamp time.Time
+	lruNode   *LRUNode
 }
 
 // LRUNode represents a node in LRU list
 type LRUNode struct {
-	key        string
-	prev       *LRUNode
-	next       *LRUNode
+	key  string
+	prev *LRUNode
+	next *LRUNode
 }
 
 // LRUList implements LRU eviction list
 type LRUList struct {
-	head       *LRUNode
-	tail       *LRUNode
-	size       int
+	head *LRUNode
+	tail *LRUNode
+	size int
 }
 
 // CacheStats provides cache performance metrics
@@ -718,40 +721,40 @@ const (
 
 // CircuitState tracks per-key circuit breaker state
 type CircuitState struct {
-	state          CircuitBreakerState
-	failureCount   int32
-	successCount   int32
-	lastFailure    time.Time
-	nextRetry      time.Time
+	state        CircuitBreakerState
+	failureCount int32
+	successCount int32
+	lastFailure  time.Time
+	nextRetry    time.Time
 }
 
 // TieredConfigCache implements L1/L2 tiered caching with LRU eviction
 type TieredConfigCache struct {
 	// L1 Cache: Hot data, lock-free access
-	l1Cache    sync.Map
-	l1Stats    int64  // Hit counter
-	
+	l1Cache sync.Map
+	l1Stats int64 // Hit counter
+
 	// L2 Cache: Warm data, LRU managed
-	l2Cache    map[string]*L2CacheEntry
-	l2Mutex    sync.RWMutex
-	l2LRU      *LRUList
-	maxSize    int
-	
+	l2Cache map[string]*L2CacheEntry
+	l2Mutex sync.RWMutex
+	l2LRU   *LRUList
+	maxSize int
+
 	// TTL management
-	l1TTL      time.Duration
-	l2TTL      time.Duration
-	
+	l1TTL time.Duration
+	l2TTL time.Duration
+
 	// Statistics
-	l1Hits     int64
-	l2Hits     int64
-	l1Misses   int64
-	l2Misses   int64
+	l1Hits   int64
+	l2Hits   int64
+	l1Misses int64
+	l2Misses int64
 }
 
 // CircuitBreaker implements enterprise circuit breaker pattern
 type CircuitBreaker struct {
-	states         map[string]*CircuitState
-	mutex          sync.RWMutex
+	states           map[string]*CircuitState
+	mutex            sync.RWMutex
 	failureThreshold int
 	recoveryTimeout  time.Duration
 	successThreshold int
@@ -783,7 +786,7 @@ func (r *Reconciler) startCacheMaintenanceRoutines() {
 func (r *Reconciler) safeGetConfigFromAPI(configRef string) (*apiv1.MCPConfig, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	
+
 	return r.configManager.GetMCPConfig(ctx, config.ConfigSourceConfigMap, configRef)
 }
 
@@ -793,14 +796,14 @@ func (r *Reconciler) selectInstanceFromConfig(mcpConfig *apiv1.MCPConfig, regist
 	r.mutex.RLock()
 	loadBalancer, exists := r.loadBalancers[registry.McpConfigRef]
 	r.mutex.RUnlock()
-	
+
 	if !exists {
 		r.mutex.Lock()
 		loadBalancer = &LoadBalancer{config: mcpConfig}
 		r.loadBalancers[registry.McpConfigRef] = loadBalancer
 		r.mutex.Unlock()
 	}
-	
+
 	return loadBalancer.selectInstance(registry.Name)
 }
 
@@ -815,17 +818,17 @@ func (r *Reconciler) getFallbackInstance(registry *apiv1.RegistryConfig) *apiv1.
 }
 
 // =====================================================
-// P1 Optimization: Constructor Functions  
+// P1 Optimization: Constructor Functions
 // =====================================================
 
 // NewTieredConfigCache creates enterprise-grade tiered cache
 func NewTieredConfigCache(maxSize int, l1TTL, l2TTL time.Duration) *TieredConfigCache {
 	return &TieredConfigCache{
-		l2Cache:  make(map[string]*L2CacheEntry),
-		l2LRU:    NewLRUList(),
-		maxSize:  maxSize,
-		l1TTL:    l1TTL,
-		l2TTL:    l2TTL,
+		l2Cache: make(map[string]*L2CacheEntry),
+		l2LRU:   NewLRUList(),
+		maxSize: maxSize,
+		l1TTL:   l1TTL,
+		l2TTL:   l2TTL,
 	}
 }
 
@@ -838,7 +841,7 @@ func NewLRUList() *LRUList {
 	return &LRUList{head: head, tail: tail}
 }
 
-// Set stores config in tiered cache  
+// Set stores config in tiered cache
 func (tc *TieredConfigCache) Set(key string, config *apiv1.MCPConfig) {
 	// Store in L1 hot cache
 	entry := &L1CacheEntry{
@@ -850,13 +853,32 @@ func (tc *TieredConfigCache) Set(key string, config *apiv1.MCPConfig) {
 
 // Get retrieves config from tiered cache
 func (tc *TieredConfigCache) Get(key string) *apiv1.MCPConfig {
-	// Try L1 first
+	// Try L1 first (hot cache)
 	if val, ok := tc.l1Cache.Load(key); ok {
 		if entry, ok := val.(*L1CacheEntry); ok {
 			if time.Since(entry.timestamp) < tc.l1TTL {
+				atomic.AddInt64(&tc.l1Hits, 1)
 				return entry.config
 			}
 		}
 	}
+	atomic.AddInt64(&tc.l1Misses, 1)
+
+	// Try L2 cache (warm cache)
+	tc.l2Mutex.RLock()
+	l2Entry, exists := tc.l2Cache[key]
+	tc.l2Mutex.RUnlock()
+
+	if exists && time.Since(l2Entry.timestamp) < tc.l2TTL {
+		// Promote to L1 cache for faster future access
+		tc.l1Cache.Store(key, &L1CacheEntry{
+			config:    l2Entry.config,
+			timestamp: time.Now(),
+		})
+		atomic.AddInt64(&tc.l2Hits, 1)
+		return l2Entry.config
+	}
+	atomic.AddInt64(&tc.l2Misses, 1)
+
 	return nil
 }

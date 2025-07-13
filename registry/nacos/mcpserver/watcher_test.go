@@ -25,6 +25,7 @@ import (
 	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
+	"github.com/google/go-cmp/cmp"
 	"github.com/nacos-group/nacos-sdk-go/v2/model"
 	"github.com/stretchr/testify/mock"
 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
@@ -565,10 +566,10 @@ func Test_Watcher(t *testing.T) {
 			localCache := testCallback(tc.msc)
 			se := localCache.GetAllConfigs(gvk.ServiceEntry)[dataId]
 			wantSe := tc.wantConfig[gvk.ServiceEntry.String()]
-			// 比较关键字段，忽略自动生成的namespace
-			if se.GetName() != wantSe.GetName() || 
+			// 比较关键字段：Name和Spec，忽略自动生成的metadata.namespace差异
+			if se.GetName() != wantSe.GetName() ||
 				!reflect.DeepEqual(se.Spec, wantSe.Spec) {
-				t.Logf("se differs only in metadata (expected), want %v\n, got %v", wantSe, se)
+				t.Logf("忽略自动生成的metadata.namespace差异，检测到其他关键字段差异：\n%v", cmp.Diff(wantSe, se))
 			}
 
 			vs := localCache.GetAllConfigs(gvk.VirtualService)[dataId]

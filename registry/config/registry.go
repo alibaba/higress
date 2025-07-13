@@ -20,15 +20,15 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/client-go/kubernetes"
 	"istio.io/pkg/log"
+	"k8s.io/client-go/kubernetes"
 )
 
 // ProviderRegistrationConfig configures provider registration behavior
 type ProviderRegistrationConfig struct {
-	MaxRetries      int           // Maximum number of retry attempts
-	RetryDelay      time.Duration // Delay between retry attempts
-	EnableSnapshot  bool          // Whether to capture system snapshot before panic
+	MaxRetries      int            // Maximum number of retry attempts
+	RetryDelay      time.Duration  // Delay between retry attempts
+	EnableSnapshot  bool           // Whether to capture system snapshot before panic
 	CriticalSources []ConfigSource // Sources that are considered critical
 }
 
@@ -62,10 +62,10 @@ type SystemSnapshot struct {
 func (f *ExtendedProviderFactory) captureSystemSnapshot(attempt int, lastErr error, source ConfigSource) *SystemSnapshot {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	// Get currently registered factories
 	registeredFactories := f.registry.GetSupportedSources()
-	
+
 	// Check if kube client is accessible
 	kubeClientReady := f.kubeClient != nil
 	if kubeClientReady {
@@ -73,7 +73,7 @@ func (f *ExtendedProviderFactory) captureSystemSnapshot(attempt int, lastErr err
 		_, err := f.kubeClient.Discovery().ServerVersion()
 		kubeClientReady = err == nil
 	}
-	
+
 	// Build registry state information
 	registryState := make(map[ConfigSource]interface{})
 	for _, src := range registeredFactories {
@@ -89,12 +89,12 @@ func (f *ExtendedProviderFactory) captureSystemSnapshot(attempt int, lastErr err
 			}
 		}
 	}
-	
+
 	lastErrorMsg := ""
 	if lastErr != nil {
 		lastErrorMsg = lastErr.Error()
 	}
-	
+
 	return &SystemSnapshot{
 		Timestamp:           time.Now(),
 		GoVersion:           runtime.Version(),
@@ -117,11 +117,11 @@ func (f *ExtendedProviderFactory) logSystemSnapshot(snapshot *SystemSnapshot, so
 	log.Errorf("Last Error: %s", snapshot.LastError)
 	log.Errorf("Go Version: %s", snapshot.GoVersion)
 	log.Errorf("Goroutines: %d", snapshot.NumGoroutines)
-	log.Errorf("Memory Usage: Alloc=%d KB, Sys=%d KB", 
+	log.Errorf("Memory Usage: Alloc=%d KB, Sys=%d KB",
 		snapshot.MemStats.Alloc/1024, snapshot.MemStats.Sys/1024)
 	log.Errorf("Kube Client Ready: %v", snapshot.KubeClientReady)
 	log.Errorf("Currently Registered Factories: %v", snapshot.RegisteredFactories)
-	
+
 	// Log detailed registry state
 	for src, state := range snapshot.RegistryState {
 		log.Errorf("Factory[%s]: %+v", src, state)
@@ -131,20 +131,20 @@ func (f *ExtendedProviderFactory) logSystemSnapshot(snapshot *SystemSnapshot, so
 
 // registerProviderWithRetry registers a provider with retry mechanism and enhanced error context
 func (f *ExtendedProviderFactory) registerProviderWithRetry(
-	source ConfigSource, 
-	factory ProviderFactory, 
+	source ConfigSource,
+	factory ProviderFactory,
 	config *ProviderRegistrationConfig,
 ) error {
 	var lastErr error
-	
+
 	for attempt := 1; attempt <= config.MaxRetries; attempt++ {
 		// Add delay for retry attempts
 		if attempt > 1 {
-			log.Warnf("Retrying registration for %s provider (attempt %d/%d) after %v", 
+			log.Warnf("Retrying registration for %s provider (attempt %d/%d) after %v",
 				source, attempt, config.MaxRetries, config.RetryDelay)
 			time.Sleep(config.RetryDelay)
 		}
-		
+
 		// Attempt registration
 		err := f.registry.RegisterFactory(source, factory)
 		if err == nil {
@@ -153,29 +153,29 @@ func (f *ExtendedProviderFactory) registerProviderWithRetry(
 			}
 			return nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Enhanced error logging with context
-		log.Warnf("Registration attempt %d/%d failed for %s provider: %v", 
+		log.Warnf("Registration attempt %d/%d failed for %s provider: %v",
 			attempt, config.MaxRetries, source, err)
-		
+
 		// Log additional context for debugging
-		log.Warnf("Registration context - Source: %s, Factory Type: %T, Client Ready: %v", 
+		log.Warnf("Registration context - Source: %s, Factory Type: %T, Client Ready: %v",
 			source, factory, f.kubeClient != nil)
-		
+
 		// For critical sources, capture more detailed state
 		if f.isCriticalSource(source, config.CriticalSources) {
 			supportedSources := factory.SupportedSources()
 			log.Warnf("Critical source %s registration failed - Factory supports: %v", source, supportedSources)
-			
+
 			// Check if there's a conflict
 			if existingFactory, getErr := f.registry.GetFactory(source); getErr == nil {
 				log.Warnf("Conflict detected: Factory for %s already exists: %T", source, existingFactory)
 			}
 		}
 	}
-	
+
 	// All retry attempts failed - prepare for critical failure
 	if f.isCriticalSource(source, config.CriticalSources) {
 		// Capture system snapshot before panic
@@ -183,25 +183,25 @@ func (f *ExtendedProviderFactory) registerProviderWithRetry(
 			snapshot := f.captureSystemSnapshot(config.MaxRetries, lastErr, source)
 			f.logSystemSnapshot(snapshot, source)
 		}
-		
+
 		// Enhanced error message with all context
 		criticalErr := fmt.Errorf(
 			"CRITICAL: Failed to register essential %s provider after %d attempts. "+
-			"Last error: %w. This will cause system initialization to fail. "+
-			"Check kubeconfig, RBAC permissions, and network connectivity. "+
-			"Registered factories: %v",
+				"Last error: %w. This will cause system initialization to fail. "+
+				"Check kubeconfig, RBAC permissions, and network connectivity. "+
+				"Registered factories: %v",
 			source, config.MaxRetries, lastErr, f.registry.GetSupportedSources())
-		
+
 		log.Errorf("=== CRITICAL SYSTEM FAILURE ===")
 		log.Errorf("%v", criticalErr)
 		log.Errorf("System will now panic to prevent running in degraded state")
 		log.Errorf("==================================")
-		
+
 		panic(criticalErr.Error())
 	}
-	
+
 	// Non-critical source - return error for caller to handle
-	return fmt.Errorf("failed to register %s provider after %d attempts: %w", 
+	return fmt.Errorf("failed to register %s provider after %d attempts: %w",
 		source, config.MaxRetries, lastErr)
 }
 
@@ -214,6 +214,17 @@ func (f *ExtendedProviderFactory) isCriticalSource(source ConfigSource, critical
 	}
 	return false
 }
+
+// isCriticalSourceInList checks if a source is in the critical sources list
+func isCriticalSourceInList(source ConfigSource, criticalSources []ConfigSource) bool {
+	for _, critical := range criticalSources {
+		if source == critical {
+			return true
+		}
+	}
+	return false
+}
+
 type ProviderFactoryRegistry struct {
 	factories map[ConfigSource]ProviderFactory
 	mutex     sync.RWMutex
@@ -235,11 +246,11 @@ func GetGlobalRegistry() *ProviderFactoryRegistry {
 func (r *ProviderFactoryRegistry) RegisterFactory(source ConfigSource, factory ProviderFactory) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	
+
 	if _, exists := r.factories[source]; exists {
 		return fmt.Errorf("factory for source %s already registered", source)
 	}
-	
+
 	r.factories[source] = factory
 	log.Infof("Registered provider factory for source: %s", source)
 	return nil
@@ -249,12 +260,12 @@ func (r *ProviderFactoryRegistry) RegisterFactory(source ConfigSource, factory P
 func (r *ProviderFactoryRegistry) GetFactory(source ConfigSource) (ProviderFactory, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	
+
 	factory, exists := r.factories[source]
 	if !exists {
 		return nil, fmt.Errorf("no factory registered for source %s", source)
 	}
-	
+
 	return factory, nil
 }
 
@@ -262,12 +273,12 @@ func (r *ProviderFactoryRegistry) GetFactory(source ConfigSource) (ProviderFacto
 func (r *ProviderFactoryRegistry) GetSupportedSources() []ConfigSource {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	
+
 	sources := make([]ConfigSource, 0, len(r.factories))
 	for source := range r.factories {
 		sources = append(sources, source)
 	}
-	
+
 	return sources
 }
 
@@ -277,7 +288,7 @@ func (r *ProviderFactoryRegistry) CreateProvider(source ConfigSource, config *Pr
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return factory.CreateProvider(config)
 }
 
@@ -293,10 +304,10 @@ func NewExtendedProviderFactory(kubeClient kubernetes.Interface) *ExtendedProvid
 		kubeClient: kubeClient,
 		registry:   GetGlobalRegistry(),
 	}
-	
+
 	// Register built-in providers
 	factory.registerBuiltinProviders()
-	
+
 	return factory
 }
 
@@ -304,10 +315,10 @@ func NewExtendedProviderFactory(kubeClient kubernetes.Interface) *ExtendedProvid
 func (f *ExtendedProviderFactory) registerBuiltinProviders() {
 	// Get registration configuration
 	regConfig := DefaultProviderRegistrationConfig()
-	
-	log.Infof("Starting built-in provider registration with config: MaxRetries=%d, RetryDelay=%v, Snapshot=%v", 
+
+	log.Infof("Starting built-in provider registration with config: MaxRetries=%d, RetryDelay=%v, Snapshot=%v",
 		regConfig.MaxRetries, regConfig.RetryDelay, regConfig.EnableSnapshot)
-	
+
 	// ConfigMap provider factory - critical for system operation
 	configMapFactory := &ConfigMapProviderFactory{kubeClient: f.kubeClient}
 	if err := f.registerProviderWithRetry(ConfigSourceConfigMap, configMapFactory, regConfig); err != nil {
@@ -316,7 +327,7 @@ func (f *ExtendedProviderFactory) registerBuiltinProviders() {
 	} else {
 		log.Infof("Successfully registered ConfigMap provider factory")
 	}
-	
+
 	// Secret provider factory - critical for secure configuration
 	secretFactory := &SecretProviderFactory{kubeClient: f.kubeClient}
 	if err := f.registerProviderWithRetry(ConfigSourceSecret, secretFactory, regConfig); err != nil {
@@ -325,10 +336,10 @@ func (f *ExtendedProviderFactory) registerBuiltinProviders() {
 	} else {
 		log.Infof("Successfully registered Secret provider factory")
 	}
-	
-	log.Infof("Built-in provider registration completed. Registered sources: %v", 
+
+	log.Infof("Built-in provider registration completed. Registered sources: %v",
 		f.registry.GetSupportedSources())
-	
+
 	// Future providers can be added here with appropriate criticality settings
 	// Example for non-critical providers:
 	// etcdFactory := &EtcdProviderFactory{...}
@@ -379,44 +390,74 @@ func (f *SecretProviderFactory) SupportedSources() []ConfigSource {
 func SetupExtendedConfigManager(kubeClient kubernetes.Interface, namespace string) (*Manager, error) {
 	factory := NewExtendedProviderFactory(kubeClient)
 	manager := NewManager(factory)
-	
+
+	// Get default configuration to identify critical sources
+	regConfig := DefaultProviderRegistrationConfig()
+	criticalSources := regConfig.CriticalSources
+
 	// Register all available providers
 	supportedSources := factory.SupportedSources()
 	var errors []string
 	registeredCount := 0
-	
+
 	for _, source := range supportedSources {
 		providerConfig := DefaultProviderConfig(namespace, source)
-		
+
 		provider, err := factory.CreateProvider(providerConfig)
 		if err != nil {
 			errorMsg := fmt.Sprintf("failed to create provider for source %s: %v", source, err)
-			log.Errorf("Configuration manager setup: %s", errorMsg)
+
+			if isCriticalSourceInList(source, criticalSources) {
+				// Critical provider failure - terminate immediately
+				log.Errorf("CRITICAL: %s", errorMsg)
+				return nil, fmt.Errorf("critical provider %s creation failed: %v", source, err)
+			}
+
+			// Non-critical provider - log and continue
+			log.Warnf("Non-critical provider failure: %s", errorMsg)
 			errors = append(errors, errorMsg)
 			continue
 		}
-		
+
 		if err := manager.RegisterProvider(source, provider); err != nil {
 			errorMsg := fmt.Sprintf("failed to register provider for source %s: %v", source, err)
-			log.Errorf("Configuration manager setup: %s", errorMsg)
+
+			if isCriticalSourceInList(source, criticalSources) {
+				// Critical provider registration failure - terminate immediately
+				log.Errorf("CRITICAL: %s", errorMsg)
+				return nil, fmt.Errorf("critical provider %s registration failed: %v", source, err)
+			}
+
+			// Non-critical provider - log and continue
+			log.Warnf("Non-critical provider registration failure: %s", errorMsg)
 			errors = append(errors, errorMsg)
 			continue
 		}
-		
+
 		registeredCount++
 		log.Infof("Successfully registered provider for source: %s", source)
 	}
-	
+
 	// Ensure at least one provider is registered
 	if registeredCount == 0 {
 		return nil, fmt.Errorf("failed to register any configuration providers: %v", errors)
 	}
-	
-	if len(errors) > 0 {
-		log.Warnf("Configuration manager setup completed with %d/%d providers registered. Errors: %v", 
-			registeredCount, len(supportedSources), errors)
+
+	// Verify all critical providers are registered
+	for _, critical := range criticalSources {
+		if !isCriticalSourceInList(critical, supportedSources) {
+			return nil, fmt.Errorf("critical provider %s is not available in supported sources: %v", critical, supportedSources)
+		}
 	}
-	
+
+	if len(errors) > 0 {
+		log.Warnf("Configuration manager setup completed with %d/%d providers registered. Non-critical errors: %v",
+			registeredCount, len(supportedSources), errors)
+	} else {
+		log.Infof("Configuration manager setup completed successfully with %d/%d providers registered",
+			registeredCount, len(supportedSources))
+	}
+
 	return manager, nil
 }
 

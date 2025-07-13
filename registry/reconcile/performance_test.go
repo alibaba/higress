@@ -315,14 +315,20 @@ func TestCacheEvictionPolicy(t *testing.T) {
 			return nil
 		}
 
-		// 移到最后（最近使用）
-		for i, k := range cache.order {
-			if k == key {
-				cache.order = append(cache.order[:i], cache.order[i+1:]...)
-				break
+		// 使用position索引快速移到最后（最近使用）
+		if pos, found := cache.positions[key]; found {
+			// 移除旧位置
+			cache.order = append(cache.order[:pos], cache.order[pos+1:]...)
+			// 更新后续元素的位置索引
+			for i := pos; i < len(cache.order); i++ {
+				cache.positions[cache.order[i]] = i
 			}
+			delete(cache.positions, key)
 		}
+
+		// 添加到最后
 		cache.order = append(cache.order, key)
+		cache.positions[key] = len(cache.order) - 1
 
 		return config
 	}
@@ -366,6 +372,15 @@ func TestConcurrentCacheAccess(t *testing.T) {
 
 	t.Run("ConcurrentReadWrite", func(t *testing.T) {
 		var wg sync.WaitGroup
+		var errorsMutex sync.Mutex
+		var errors []string
+
+		// 添加错误收集函数（线程安全）
+		addError := func(err string) {
+			errorsMutex.Lock()
+			defer errorsMutex.Unlock()
+			errors = append(errors, err)
+		}
 
 		// Launch multiple goroutines for concurrent access
 		for i := 0; i < 20; i++ {
@@ -380,15 +395,50 @@ func TestConcurrentCacheAccess(t *testing.T) {
 						},
 					}
 
-					key := "concurrent-" + string(rune(index))
+					key := fmt.Sprintf("concurrent-%d-%d", index, j)
 					cache.Set(key, config)
-					cache.Get(key)
+
+					// 验证缓存操作的结果
+					gotConfig := cache.Get(key)
+					if gotConfig == nil {
+						addError(fmt.Sprintf("Expected config for key %s, but got nil", key))
+						return
+					}
+
+					// 验证配置内容是否匹配
+					if len(gotConfig.Instances) != len(config.Instances) {
+						addError(fmt.Sprintf("Config instances count mismatch for key %s: expected %d, got %d",
+							key, len(config.Instances), len(gotConfig.Instances)))
+						return
+					}
+
+					// 验证实例内容
+					if len(gotConfig.Instances) > 0 && len(config.Instances) > 0 {
+						gotInstance := gotConfig.Instances[0]
+						expectedInstance := config.Instances[0]
+						if gotInstance.Domain != expectedInstance.Domain ||
+							gotInstance.Port != expectedInstance.Port ||
+							gotInstance.Weight != expectedInstance.Weight {
+							addError(fmt.Sprintf("Config content mismatch for key %s: expected %+v, got %+v",
+								key, expectedInstance, gotInstance))
+							return
+						}
+					}
 				}
 			}(i)
 		}
 
 		wg.Wait()
-		t.Log("Concurrent access test completed without race conditions")
+
+		// 检查是否有错误发生
+		if len(errors) > 0 {
+			for _, err := range errors {
+				t.Error(err)
+			}
+			t.Fatalf("Found %d errors in concurrent cache operations", len(errors))
+		}
+
+		t.Log("Concurrent access test completed successfully without errors")
 	})
 }
 
@@ -433,4 +483,121 @@ func TestConfigMapProviderPerformance(t *testing.T) {
 			t.Errorf("Expected > 100 ops/sec, got %.0f ops/sec", opsPerSecond)
 		}
 	})
+}
+
+// BenchmarkLRUCache tests the performance of the optimized LRU cache
+func BenchmarkLRUCache(b *testing.B) {
+	// 使用优化后的LRU缓存
+	type simpleLRUCache struct {
+		capacity  int
+		items     map[string]*apiv1.MCPConfig
+		order     []string
+		positions map[string]int
+		mutex     sync.Mutex
+	}
+
+	newLRUCache := func(cap int) *simpleLRUCache {
+		return &simpleLRUCache{
+			capacity:  cap,
+			items:     make(map[string]*apiv1.MCPConfig),
+			order:     make([]string, 0, cap),
+			positions: make(map[string]int),
+		}
+	}
+
+	lruSet := func(cache *simpleLRUCache, key string, config *apiv1.MCPConfig) {
+		cache.mutex.Lock()
+		defer cache.mutex.Unlock()
+
+		// 如果key已存在，更新并移到最后
+		if _, exists := cache.items[key]; exists {
+			// 使用position索引快速移除旧位置
+			if pos, found := cache.positions[key]; found {
+				cache.order = append(cache.order[:pos], cache.order[pos+1:]...)
+				// 更新后续元素的位置索引
+				for i := pos; i < len(cache.order); i++ {
+					cache.positions[cache.order[i]] = i
+				}
+				delete(cache.positions, key)
+			}
+		} else if len(cache.items) >= cache.capacity {
+			// 淘汰最久未使用的
+			oldest := cache.order[0]
+			delete(cache.items, oldest)
+			delete(cache.positions, oldest)
+			cache.order = cache.order[1:]
+			// 更新所有位置索引
+			for i, k := range cache.order {
+				cache.positions[k] = i
+			}
+		}
+
+		// 添加到最后
+		cache.items[key] = config
+		cache.order = append(cache.order, key)
+		cache.positions[key] = len(cache.order) - 1
+	}
+
+	lruGet := func(cache *simpleLRUCache, key string) *apiv1.MCPConfig {
+		cache.mutex.Lock()
+		defer cache.mutex.Unlock()
+
+		config, exists := cache.items[key]
+		if !exists {
+			return nil
+		}
+
+		// 使用position索引快速移到最后（最近使用）
+		if pos, found := cache.positions[key]; found {
+			// 移除旧位置
+			cache.order = append(cache.order[:pos], cache.order[pos+1:]...)
+			// 更新后续元素的位置索引
+			for i := pos; i < len(cache.order); i++ {
+				cache.positions[cache.order[i]] = i
+			}
+			delete(cache.positions, key)
+		}
+
+		// 添加到最后
+		cache.order = append(cache.order, key)
+		cache.positions[key] = len(cache.order) - 1
+
+		return config
+	}
+
+	// 测试不同缓存大小的性能
+	for _, cacheSize := range []int{100, 1000, 10000} {
+		b.Run(fmt.Sprintf("CacheSize-%d", cacheSize), func(b *testing.B) {
+			cache := newLRUCache(cacheSize)
+
+			// 预填充缓存
+			for i := 0; i < cacheSize; i++ {
+				config := &apiv1.MCPConfig{
+					Instances: []*apiv1.MCPInstance{
+						{Domain: fmt.Sprintf("test%d.com", i), Port: int32(8080 + i), Weight: 100},
+					},
+				}
+				lruSet(cache, fmt.Sprintf("key-%d", i), config)
+			}
+
+			b.ResetTimer()
+
+			// 混合读写操作测试
+			for i := 0; i < b.N; i++ {
+				key := fmt.Sprintf("key-%d", i%cacheSize)
+
+				// 70% 读操作，30% 写操作
+				if i%10 < 7 {
+					lruGet(cache, key)
+				} else {
+					config := &apiv1.MCPConfig{
+						Instances: []*apiv1.MCPInstance{
+							{Domain: fmt.Sprintf("updated%d.com", i), Port: int32(9000 + i), Weight: 150},
+						},
+					}
+					lruSet(cache, key, config)
+				}
+			}
+		})
+	}
 }
