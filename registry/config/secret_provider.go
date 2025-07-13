@@ -140,7 +140,7 @@ func (p *SecretProvider) parseMCPConfigFromSecret(secret *corev1.Secret) (*apiv1
 		
 		return &apiv1.MCPConfig{
 			Instances:       instances,
-			LoadBalanceMode: apiv1.LoadBalanceModeRoundRobin,
+			LoadBalanceMode: apiv1.LoadBalanceMode_ROUND_ROBIN,
 		}, nil
 	}
 	
@@ -160,9 +160,9 @@ func (p *SecretProvider) validateMCPConfig(config *apiv1.MCPConfig) error {
 	}
 	
 	// Validate load balance mode
-	if config.LoadBalanceMode != "" {
+	if config.LoadBalanceMode != apiv1.LoadBalanceMode_ROUND_ROBIN {
 		switch config.LoadBalanceMode {
-		case apiv1.LoadBalanceModeRoundRobin, apiv1.LoadBalanceModeWeighted, apiv1.LoadBalanceModeRandom:
+		case apiv1.LoadBalanceMode_ROUND_ROBIN, apiv1.LoadBalanceMode_WEIGHTED, apiv1.LoadBalanceMode_RANDOM:
 			// Valid modes
 		default:
 			return fmt.Errorf("invalid load balance mode: %s", config.LoadBalanceMode)

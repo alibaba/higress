@@ -78,21 +78,7 @@ var (
 	)
 )
 
-// CircuitBreaker simple circuit breaker implementation
-type CircuitBreaker struct {
-	states        map[string]*CircuitState
-	mutex         sync.RWMutex
-	failureThreshold int
-	recoveryTimeout  time.Duration
-}
-
-type CircuitState struct {
-	State       CircuitBreakerState
-	FailureCount int
-	LastFailure  time.Time
-	LastSuccess  time.Time
-}
-
+// CircuitBreakerState represents the state for manager circuit breaker
 type CircuitBreakerState int
 
 const (
@@ -100,6 +86,22 @@ const (
 	CircuitOpen
 	CircuitHalfOpen
 )
+
+// ManagerCircuitState represents a circuit state for the manager
+type ManagerCircuitState struct {
+	State       CircuitBreakerState
+	FailureCount int
+	LastFailure  time.Time
+	LastSuccess  time.Time
+}
+
+// ManagerCircuitBreaker is a simple circuit breaker implementation for manager
+type ManagerCircuitBreaker struct {
+	states        map[string]*ManagerCircuitState
+	mutex         sync.RWMutex
+	failureThreshold int
+	recoveryTimeout  time.Duration
+}
 
 // StaleCache provides fallback cached configurations
 type StaleCache struct {
@@ -115,17 +117,17 @@ type StaleCacheItem struct {
 	CachedAt  time.Time
 }
 
-// NewCircuitBreaker creates a new circuit breaker
-func NewCircuitBreaker(failureThreshold int, recoveryTimeout time.Duration) *CircuitBreaker {
-	return &CircuitBreaker{
-		states:          make(map[string]*CircuitState),
+// NewManagerCircuitBreaker creates a new circuit breaker for manager
+func NewManagerCircuitBreaker(failureThreshold int, recoveryTimeout time.Duration) *ManagerCircuitBreaker {
+	return &ManagerCircuitBreaker{
+		states:          make(map[string]*ManagerCircuitState),
 		failureThreshold: failureThreshold,
 		recoveryTimeout:  recoveryTimeout,
 	}
 }
 
 // IsOpen checks if circuit breaker is open for a source
-func (cb *CircuitBreaker) IsOpen(source string) bool {
+func (cb *ManagerCircuitBreaker) IsOpen(source string) bool {
 	cb.mutex.RLock()
 	defer cb.mutex.RUnlock()
 	
@@ -151,13 +153,13 @@ func (cb *CircuitBreaker) IsOpen(source string) bool {
 }
 
 // RecordFailure records a failure for the circuit breaker
-func (cb *CircuitBreaker) RecordFailure(source string) {
+func (cb *ManagerCircuitBreaker) RecordFailure(source string) {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 	
 	state, exists := cb.states[source]
 	if !exists {
-		state = &CircuitState{}
+		state = &ManagerCircuitState{}
 		cb.states[source] = state
 	}
 	
@@ -172,13 +174,13 @@ func (cb *CircuitBreaker) RecordFailure(source string) {
 }
 
 // RecordSuccess records a success for the circuit breaker
-func (cb *CircuitBreaker) RecordSuccess(source string) {
+func (cb *ManagerCircuitBreaker) RecordSuccess(source string) {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 	
 	state, exists := cb.states[source]
 	if !exists {
-		state = &CircuitState{}
+		state = &ManagerCircuitState{}
 		cb.states[source] = state
 	}
 	
@@ -235,7 +237,7 @@ func (sc *StaleCache) SetStale(source ConfigSource, configRef string, config *ap
 type Manager struct {
 	providers      map[ConfigSource]ConfigProvider
 	factory        ProviderFactory
-	circuitBreaker *CircuitBreaker
+	circuitBreaker *ManagerCircuitBreaker
 	staleCache     *StaleCache
 	mu             sync.RWMutex
 }
@@ -245,7 +247,7 @@ func NewManager(factory ProviderFactory) *Manager {
 	return &Manager{
 		providers:      make(map[ConfigSource]ConfigProvider),
 		factory:        factory,
-		circuitBreaker: NewCircuitBreaker(3, 30*time.Second), // 3 failures, 30s recovery
+		circuitBreaker: NewManagerCircuitBreaker(3, 30*time.Second), // 3 failures, 30s recovery
 		staleCache:     NewStaleCache(5 * time.Minute),       // 5 minute stale cache
 	}
 }

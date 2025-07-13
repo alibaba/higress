@@ -68,7 +68,7 @@ const (
 	CircuitBreakerSuccessThreshold = 3               // Close circuit after 3 successes
 
 	// Load balancing defaults
-	DefaultLoadBalanceMode = apiv1.LoadBalanceModeRoundRobin
+	DefaultLoadBalanceMode = apiv1.LoadBalanceMode_ROUND_ROBIN
 	DefaultWeight          = 100
 )
 
@@ -584,16 +584,16 @@ func (lb *LoadBalancer) selectInstance(registryName string) *apiv1.MCPInstance {
 	}
 
 	mode := lb.config.LoadBalanceMode
-	if mode == "" {
-		mode = apiv1.LoadBalanceModeRoundRobin
+	if mode == 0 {
+		mode = apiv1.LoadBalanceMode_ROUND_ROBIN
 	}
 
 	switch mode {
-	case apiv1.LoadBalanceModeRoundRobin:
+	case apiv1.LoadBalanceMode_ROUND_ROBIN:
 		return lb.selectRoundRobin(instances)
-	case apiv1.LoadBalanceModeWeighted:
+	case apiv1.LoadBalanceMode_WEIGHTED:
 		return lb.selectWeighted(instances)
-	case apiv1.LoadBalanceModeRandom:
+	case apiv1.LoadBalanceMode_RANDOM:
 		return lb.selectRandom(instances)
 	default:
 		log.Warnf("Unknown load balance mode %s, falling back to round robin", mode)

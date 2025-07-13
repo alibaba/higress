@@ -213,6 +213,7 @@ func min(a, b float64) float64 {
 // EnhancedConfigCache provides advanced caching with metrics and TTL optimization
 type EnhancedConfigCache struct {
 	*ConfigCache
+	config      CacheConfig
 	metrics     *CacheMetrics
 	optimizer   *TTLOptimizer
 }
@@ -239,6 +240,7 @@ type TTLOptimizer struct {
 func NewEnhancedConfigCache(config CacheConfig) *EnhancedConfigCache {
 	return &EnhancedConfigCache{
 		ConfigCache: NewConfigCache(config),
+		config:      config,
 		metrics:     &CacheMetrics{},
 		optimizer: &TTLOptimizer{
 			baseTTL:        config.TTL,
