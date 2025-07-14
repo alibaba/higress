@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -24,6 +23,7 @@ import (
 	"time"
 	"unicode"
 
+<<<<<<< Updated upstream
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -32,12 +32,19 @@ import (
 
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 
+=======
+>>>>>>> Stashed changes
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/arxiv"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/bing"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/elasticsearch"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/google"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/quark"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type SearchRewrite struct {
@@ -618,12 +625,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte, log
 	return types.ActionContinue
 }
 
-func unifySSEChunk(data []byte) []byte {
-	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
-	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
-	return data
-}
-
 const (
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	BUFFER_CONTENT_CONTEXT_KEY  = "bufferContent"
@@ -638,7 +639,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	if references == "" {
 		return chunk
 	}
-	chunk = unifySSEChunk(chunk)
+	chunk = wrapper.UnifySSEChunk(chunk)
 	var partialMessage []byte
 	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
 	log.Debugf("[handleStreamChunk] buffer content: %v", ctx.GetContext(BUFFER_CONTENT_CONTEXT_KEY))
