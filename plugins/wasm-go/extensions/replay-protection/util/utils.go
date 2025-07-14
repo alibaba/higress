@@ -1,6 +1,6 @@
 package util
 
-import re "github.com/wasilibs/go-re2"
+import re "regexp"
 
 // IsValidBase64 checks if a string is a valid base64 encoded string
 func IsValidBase64(s string) bool {
