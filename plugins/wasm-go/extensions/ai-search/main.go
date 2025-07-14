@@ -23,26 +23,16 @@ import (
 	"time"
 	"unicode"
 
-<<<<<<< Updated upstream
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
-
-	"github.com/higress-group/wasm-go/pkg/wrapper"
-
-=======
->>>>>>> Stashed changes
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/arxiv"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/bing"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/elasticsearch"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/google"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/quark"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -93,16 +83,16 @@ func main() {}
 func init() {
 	wrapper.SetCtx(
 		"ai-search",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
+		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
+		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
 }
 
-func parseConfig(json gjson.Result, config *Config, log log.Log) error {
+func parseConfig(json gjson.Result, config *Config) error {
 	config.defaultEnable = true // Default to true if not specified
 	if json.Get("defaultEnable").Exists() {
 		config.defaultEnable = json.Get("defaultEnable").Bool()
@@ -286,7 +276,7 @@ func parseConfig(json gjson.Result, config *Config, log log.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	// The request does not have a body.
 	if contentType == "" {
@@ -303,7 +293,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) t
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log log.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	// Check if plugin should be enabled based on config and request
 	webSearchOptions := gjson.GetBytes(body, "web_search_options")
 	if !config.defaultEnable {
@@ -444,7 +434,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 					proxywasm.ResumeHttpRequest()
 					return
 				}
-				if types.ActionContinue == executeSearch(ctx, config, queryIndex, body, searchContexts, log) {
+				if types.ActionContinue == executeSearch(ctx, config, queryIndex, body, searchContexts) {
 					proxywasm.ResumeHttpRequest()
 				}
 			}, searchRewrite.timeoutMillisecond)
@@ -460,10 +450,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	return executeSearch(ctx, config, queryIndex, body, []engine.SearchContext{{
 		Querys:   []string{query},
 		Language: config.defaultLanguage,
-	}}, log)
+	}})
 }
 
-func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []engine.SearchContext, log log.Log) types.Action {
+func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []engine.SearchContext) types.Action {
 	searchResultGroups := make([][]engine.SearchResult, len(config.engine))
 	var finished int
 	var searching int
@@ -566,7 +556,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	if !config.needReference {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
@@ -583,7 +573,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log log.Log) 
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte, log log.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	references := ctx.GetStringContext("References", "")
 	if references == "" {
 		return types.ActionContinue
@@ -631,7 +621,7 @@ const (
 	BUFFER_SIZE                 = 30
 )
 
-func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log log.Log) []byte {
+func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool) []byte {
 	if ctx.GetBoolContext("ReferenceAppended", false) {
 		return chunk
 	}
@@ -652,7 +642,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	var newMessages []string
 	for i, msg := range messages {
 		if i < len(messages)-1 {
-			newMsg := processSSEMessage(ctx, msg, fmt.Sprintf(config.referenceFormat, references), config.referenceLocation == "tail", log)
+			newMsg := processSSEMessage(ctx, msg, fmt.Sprintf(config.referenceFormat, references), config.referenceLocation == "tail")
 			if newMsg != "" {
 				newMessages = append(newMessages, newMsg)
 			}
@@ -670,7 +660,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	}
 }
 
-func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references string, tailReference bool, log log.Log) string {
+func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references string, tailReference bool) string {
 	log.Debugf("single sse message: %s", sseMessage)
 	subMessages := strings.Split(sseMessage, "\n")
 	var message string
