@@ -16,6 +16,7 @@ package tests
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -242,6 +243,16 @@ func testConfigMapParsing(t *testing.T, suite *suite.ConformanceTestSuite) {
 			}
 
 			if tc.expectSuccess {
+				// Parse and validate the instances count
+				var instances []interface{}
+				err := json.Unmarshal([]byte(instancesData), &instances)
+				if err != nil {
+					t.Errorf("解析配置失败: %v", err)
+					return
+				}
+				if len(instances) != tc.expectedCount {
+					t.Errorf("期望实例数%v，实际%v", tc.expectedCount, len(instances))
+				}
 				t.Logf("ConfigMap %s contains valid instances data: %s", tc.configMapName, instancesData)
 			} else {
 				t.Logf("ConfigMap %s contains invalid data as expected", tc.configMapName)

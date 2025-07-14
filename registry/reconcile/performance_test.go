@@ -27,7 +27,7 @@ func TestConfigCachePerformance(t *testing.T) {
 			{Domain: "test1.com", Port: 8080, Weight: 100},
 			{Domain: "test2.com", Port: 8080, Weight: 200},
 		},
-		LoadBalanceMode: apiv1.LoadBalanceModeRoundRobin,
+		LoadBalanceMode: apiv1.LoadBalanceMode_ROUND_ROBIN,
 	}
 
 	t.Run("CacheHitRatio", func(t *testing.T) {
@@ -167,7 +167,7 @@ func TestReconcilerWithPerformanceOptimizations(t *testing.T) {
 		Instances: []*apiv1.MCPInstance{
 			{Domain: "test.com", Port: 8080, Weight: 100},
 		},
-		LoadBalanceMode: apiv1.LoadBalanceModeRoundRobin,
+		LoadBalanceMode: apiv1.LoadBalanceMode_ROUND_ROBIN,
 	}
 
 	t.Run("OptimizedConfigAccess", func(t *testing.T) {

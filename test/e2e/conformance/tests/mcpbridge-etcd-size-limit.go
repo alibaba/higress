@@ -33,6 +33,26 @@ import (
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 )
 
+// getClients creates and returns Kubernetes and Higress clients
+func getClients(t *testing.T) (*kubernetes.Clientset, higressclient.Interface) {
+	cfg, err := config.GetConfig()
+	if err != nil {
+		t.Fatalf("Failed to get config: %v", err)
+	}
+
+	k8sClient, err := kubernetes.NewForConfig(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create k8s client: %v", err)
+	}
+
+	higressClient, err := higressclient.NewForConfig(cfg)
+	if err != nil {
+		t.Fatalf("Failed to create higress client: %v", err)
+	}
+
+	return k8sClient, higressClient
+}
+
 func init() {
 	Register(McpBridgeEtcdSizeLimitTest)
 }
@@ -87,24 +107,8 @@ func setupEtcdSizeLimitTest(t *testing.T, suite *suite.ConformanceTestSuite) err
 }
 
 func cleanupEtcdSizeLimitTest(t *testing.T, suite *suite.ConformanceTestSuite) {
-	// Create typed clientsets
-	cfg, err := config.GetConfig()
-	if err != nil {
-		t.Logf("Failed to get config for cleanup: %v", err)
-		return
-	}
-
-	k8sClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		t.Logf("Failed to create k8s client for cleanup: %v", err)
-		return
-	}
-
-	higressClient, err := higressclient.NewForConfig(cfg)
-	if err != nil {
-		t.Logf("Failed to create higress client for cleanup: %v", err)
-		return
-	}
+	// Create typed clientsets using helper function
+	k8sClient, higressClient := getClients(t)
 
 	namespace := "higress-conformance-infra"
 
@@ -159,20 +163,12 @@ func testTraditionalApproachSizeProblem(t *testing.T, suite *suite.ConformanceTe
 	}
 
 	// Try to create the resource - expect it to fail due to size
-	// Create typed clientsets
-	cfg, err := config.GetConfig()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	higressClient, err := higressclient.NewForConfig(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create higress client: %v", err)
-	}
+	// Create typed clientsets using helper function
+	_, higressClient := getClients(t)
 
 	namespace := "higress-conformance-infra"
 
-	_, err = higressClient.NetworkingV1().McpBridges(namespace).Create(
+	_, err := higressClient.NetworkingV1().McpBridges(namespace).Create(
 		context.Background(), mcpBridge, metav1.CreateOptions{})
 	if err != nil {
 		t.Logf("✅ Traditional approach failed as expected: %v", err)
@@ -197,26 +193,16 @@ func testConfigMapReferenceSolution(t *testing.T, suite *suite.ConformanceTestSu
 
 	t.Logf("Testing ConfigMap reference approach with %d instances (should work)", instanceCount)
 
-	// Create typed clientsets
-	cfg, err := config.GetConfig()
-	if err != nil {
-		t.Fatalf("Failed to get config: %v", err)
-	}
-
-	k8sClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create k8s client: %v", err)
-	}
-
-	higressClient, err := higressclient.NewForConfig(cfg)
-	if err != nil {
-		t.Fatalf("Failed to create higress client: %v", err)
-	}
+	// Create typed clientsets using helper function
+	k8sClient, higressClient := getClients(t)
 
 	namespace := "higress-conformance-infra"
 
 	// Create ConfigMap with large number of MCP instances
-	configMap := createLargeScaleConfigMap(ConfigMapName, instanceCount)
+	configMap, err := createLargeScaleConfigMap(ConfigMapName, instanceCount)
+	if err != nil {
+		t.Fatalf("Failed to create ConfigMap: %v", err)
+	}
 	
 	_, err = k8sClient.CoreV1().ConfigMaps(namespace).Create(
 		context.Background(), configMap, metav1.CreateOptions{})
@@ -425,7 +411,7 @@ func createConfigMapRefMcpBridge(name, configMapName string) *v1.McpBridge {
 	}
 }
 
-func createLargeScaleConfigMap(name string, instanceCount int) *corev1.ConfigMap {
+func createLargeScaleConfigMap(name string, instanceCount int) (*corev1.ConfigMap, error) {
 	instances := make([]*apiv1.MCPInstance, instanceCount)
 	for i := 0; i < instanceCount; i++ {
 		instances[i] = &apiv1.MCPInstance{
@@ -437,7 +423,7 @@ func createLargeScaleConfigMap(name string, instanceCount int) *corev1.ConfigMap
 
 	instancesJSON, err := json.Marshal(instances)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to marshal instances: %v", err))
+		return nil, fmt.Errorf("failed to marshal instances: %v", err)
 	}
 
 	return &corev1.ConfigMap{
@@ -448,7 +434,7 @@ func createLargeScaleConfigMap(name string, instanceCount int) *corev1.ConfigMap
 		Data: map[string]string{
 			"instances": string(instancesJSON),
 		},
-	}
+	}, nil
 }
 
 func calculateMcpBridgeSize(t *testing.T, mcpBridge *v1.McpBridge) int {

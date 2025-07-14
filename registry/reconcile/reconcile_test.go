@@ -27,44 +27,65 @@ import (
 	"github.com/alibaba/higress/registry/config"
 )
 
-func TestGetMCPConfig(t *testing.T) {
-	// Create test ConfigMap with new structured format
-	configMap := &corev1.ConfigMap{
+// newTestConfigMap creates a test ConfigMap with standard metadata and the given config data
+func newTestConfigMap(name string, configJSON string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-mcp-config",
+			Name:      name,
 			Namespace: "default",
 			Labels: map[string]string{
 				"app.higress.io/mcp-config": "true",
 			},
 		},
 		Data: map[string]string{
-			"config": `{
-				"instances": [
-					{
-						"domain": "nacos-1.example.com",
-						"port": 8848,
-						"weight": 100,
-						"priority": 1,
-						"healthPath": "/nacos/health"
-					},
-					{
-						"domain": "nacos-2.example.com", 
-						"port": 8848,
-						"weight": 50,
-						"priority": 2,
-						"healthPath": "/nacos/health"
-					}
-				],
-				"loadBalanceMode": 1,
-				"healthCheck": {
-					"enabled": true,
-					"interval": {"seconds": 30},
-					"timeout": {"seconds": 5},
-					"unhealthyThreshold": 3
-				}
-			}`,
+			"config": configJSON,
 		},
 	}
+}
+
+// newTestLegacyConfigMap creates a test ConfigMap with legacy format (instances key)
+func newTestLegacyConfigMap(name string, instancesJSON string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+			Labels: map[string]string{
+				"app.higress.io/mcp-config": "true",
+			},
+		},
+		Data: map[string]string{
+			"instances": instancesJSON,
+		},
+	}
+}
+
+func TestGetMCPConfig(t *testing.T) {
+	// Create test ConfigMap with new structured format using helper function
+	configMap := newTestConfigMap("test-mcp-config", `{
+		"instances": [
+			{
+				"domain": "nacos-1.example.com",
+				"port": 8848,
+				"weight": 100,
+				"priority": 1,
+				"healthPath": "/nacos/health"
+			},
+			{
+				"domain": "nacos-2.example.com", 
+				"port": 8848,
+				"weight": 50,
+				"priority": 2,
+				"healthPath": "/nacos/health"
+			}
+		],
+		"loadBalanceMode": 1,
+		"healthCheck": {
+			"enabled": true,
+			"interval": {"seconds": 30},
+			"timeout": {"seconds": 5},
+			"unhealthyThreshold": 3
+		}
+	}`)
 
 	// Create mock kube client  
 	kubeClient := kube.NewFakeClient()
@@ -126,19 +147,8 @@ func TestGetMCPConfig(t *testing.T) {
 
 	// Test case 3: ConfigMap with invalid JSON
 	t.Run("ConfigMapWithInvalidJSON", func(t *testing.T) {
-		// Create ConfigMap with invalid JSON
-		invalidConfigMap := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "invalid-json-config",
-				Namespace: "default",
-				Labels: map[string]string{
-					"app.higress.io/mcp-config": "true",
-				},
-			},
-			Data: map[string]string{
-				"config": `{"invalid": json}`, // Invalid JSON
-			},
-		}
+		// Create ConfigMap with invalid JSON using helper function
+		invalidConfigMap := newTestConfigMap("invalid-json-config", `{"invalid": json}`) // Invalid JSON
 
 		_, err := kubeClient.Kube().CoreV1().ConfigMaps("default").Create(
 			context.Background(), invalidConfigMap, metav1.CreateOptions{})
@@ -159,25 +169,14 @@ func TestGetMCPConfig(t *testing.T) {
 
 	// Test case 4: Legacy format compatibility
 	t.Run("LegacyFormatCompatibility", func(t *testing.T) {
-		// Create ConfigMap with legacy format
-		legacyConfigMap := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "legacy-format-config",
-				Namespace: "default",
-				Labels: map[string]string{
-					"app.higress.io/mcp-config": "true",
-				},
-			},
-			Data: map[string]string{
-				"instances": `[
-					{
-						"domain": "nacos-legacy.example.com",
-						"port": 8848,
-						"weight": 100
-					}
-				]`,
-			},
-		}
+		// Create ConfigMap with legacy format using helper function
+		legacyConfigMap := newTestLegacyConfigMap("legacy-format-config", `[
+			{
+				"domain": "nacos-legacy.example.com",
+				"port": 8848,
+				"weight": 100
+			}
+		]`)
 
 		_, err := kubeClient.Kube().CoreV1().ConfigMaps("default").Create(
 			context.Background(), legacyConfigMap, metav1.CreateOptions{})
@@ -195,7 +194,7 @@ func TestGetMCPConfig(t *testing.T) {
 			t.Errorf("Expected 1 instance, got: %d", len(config.Instances))
 		}
 
-		if config.LoadBalanceMode != apiv1.LoadBalanceModeRoundRobin {
+		if config.LoadBalanceMode != apiv1.LoadBalanceMode_ROUND_ROBIN {
 			t.Errorf("Expected default load balance mode, got: %s", config.LoadBalanceMode)
 		}
 	})
@@ -231,7 +230,7 @@ func TestLoadBalancer(t *testing.T) {
 
 	// Test round-robin load balancing
 	t.Run("RoundRobinLoadBalancing", func(t *testing.T) {
-		config.LoadBalanceMode = apiv1.LoadBalanceModeRoundRobin
+		config.LoadBalanceMode = apiv1.LoadBalanceMode_ROUND_ROBIN
 		lb := &LoadBalancer{config: config}
 
 		// Test multiple selections
@@ -258,7 +257,7 @@ func TestLoadBalancer(t *testing.T) {
 
 	// Test weighted load balancing
 	t.Run("WeightedLoadBalancing", func(t *testing.T) {
-		config.LoadBalanceMode = apiv1.LoadBalanceModeWeighted
+		config.LoadBalanceMode = apiv1.LoadBalanceMode_WEIGHTED
 		lb := &LoadBalancer{config: config}
 
 		// Test multiple selections
@@ -288,7 +287,7 @@ func TestLoadBalancer(t *testing.T) {
 
 	// Test random load balancing
 	t.Run("RandomLoadBalancing", func(t *testing.T) {
-		config.LoadBalanceMode = apiv1.LoadBalanceModeRandom
+		config.LoadBalanceMode = apiv1.LoadBalanceMode_RANDOM
 		lb := &LoadBalancer{config: config}
 
 		// Test multiple selections
@@ -308,13 +307,13 @@ func TestLoadBalancer(t *testing.T) {
 
 	// Test priority-based selection
 	t.Run("PriorityBasedSelection", func(t *testing.T) {
-		config.LoadBalanceMode = apiv1.LoadBalanceModeRoundRobin
+		config.LoadBalanceMode = apiv1.LoadBalanceMode_ROUND_ROBIN
 		lb := &LoadBalancer{config: config}
 
 		instances := lb.getHealthyInstances()
 
 		// Instances should be sorted by priority (lower number = higher priority)
-		if instances[0].Priority < instances[1].Priority {
+		if instances[0].Priority > instances[1].Priority {
 			t.Errorf("Instances not sorted by priority correctly")
 		}
 
@@ -348,7 +347,7 @@ func TestLoadBalancer(t *testing.T) {
 	t.Run("EmptyInstancesList", func(t *testing.T) {
 		emptyConfig := &apiv1.MCPConfig{
 			Instances:       []*apiv1.MCPInstance{},
-			LoadBalanceMode: apiv1.LoadBalanceModeRoundRobin,
+			LoadBalanceMode: apiv1.LoadBalanceMode_ROUND_ROBIN,
 		}
 		lb := &LoadBalancer{config: emptyConfig}
 
@@ -384,35 +383,27 @@ func TestConfigManagerFailureScenarios(t *testing.T) {
 	// Test unsupported source
 	t.Run("UnsupportedConfigSource", func(t *testing.T) {
 		ctx := context.Background()
-		_, err := configManager.GetMCPConfig(ctx, "unsupported-source", "test-config")
-		if err == nil {
-			t.Error("Expected error for unsupported source, got nil")
+		// Test multiple invalid source types
+		for _, source := range []string{"unsupported-source", "invalid-source", "123", ""} {
+			_, err := configManager.GetMCPConfig(ctx, config.ConfigSource(source), "test-config")
+			if err == nil {
+				t.Errorf("Expected error for unsupported source %s, got nil", source)
+			}
 		}
 	})
 
 	// Test configuration validation failures
 	t.Run("ConfigValidationFailure", func(t *testing.T) {
-		// Create ConfigMap with invalid configuration
-		invalidConfigMap := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "invalid-config",
-				Namespace: "default",
-				Labels: map[string]string{
-					"app.higress.io/mcp-config": "true",
-				},
-			},
-			Data: map[string]string{
-				"config": `{
-					"instances": [
-						{
-							"domain": "",
-							"port": 99999,
-							"weight": -10
-						}
-					]
-				}`,
-			},
-		}
+		// Create ConfigMap with invalid configuration using helper function
+		invalidConfigMap := newTestConfigMap("invalid-config", `{
+			"instances": [
+				{
+					"domain": "",
+					"port": 99999,
+					"weight": -10
+				}
+			]
+		}`)
 
 		_, err := kubeClient.Kube().CoreV1().ConfigMaps("default").Create(
 			context.Background(), invalidConfigMap, metav1.CreateOptions{})
