@@ -23,18 +23,19 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/arxiv"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/bing"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/elasticsearch"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/google"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/quark"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/arxiv"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/bing"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/elasticsearch"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/google"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/quark"
 )
 
 type SearchRewrite struct {
