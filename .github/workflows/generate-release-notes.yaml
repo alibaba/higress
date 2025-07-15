@@ -89,9 +89,11 @@ jobs:
 
           echo "# ${REPORT_TITLE}" >>release-notes/${CLEAN_VERSION}/README_ZH.md
           sed 's/# Release Notes//' report.md >>release-notes/${CLEAN_VERSION}/README_ZH.md
+          echo "\n" >>release-notes/${CLEAN_VERSION}/README_ZH.md
 
           echo "# ${REPORT_TITLE}" >>release-notes/${CLEAN_VERSION}/README.md
           sed 's/# Release Notes//' report.EN.md >>release-notes/${CLEAN_VERSION}/README.md
+          echo "\n" >>release-notes/${CLEAN_VERSION}/README_ZH.md
 
           rm report.md
           rm report.EN.md
