@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 // geminiProvider is the provider for google gemini/gemini flash service.
@@ -39,10 +39,12 @@ func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (g *geminiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion):  "",
-		string(ApiNameEmbeddings):      "",
-		string(ApiNameModels):          "",
-		string(ApiNameImageGeneration): "",
+		string(ApiNameChatCompletion):              "",
+		string(ApiNameEmbeddings):                  "",
+		string(ApiNameModels):                      "",
+		string(ApiNameImageGeneration):             "",
+		string(ApiNameGeminiGenerateContent):       "",
+		string(ApiNameGeminiStreamGenerateContent): "",
 	}
 }
 
@@ -91,6 +93,7 @@ func (g *geminiProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, ap
 	case ApiNameImageGeneration:
 		return g.onImageGenerationRequestBody(ctx, body, headers)
 	}
+	log.Debugf("TransformRequestBodyHeaders apiName:%s", apiName)
 	return body, nil
 }
 
@@ -259,6 +262,10 @@ func (g *geminiProvider) getRequestPath(apiName ApiName, model string, stream bo
 		}
 	case ApiNameImageGeneration:
 		action = geminiImageGenerationPath
+	case ApiNameGeminiGenerateContent:
+		action = geminiChatCompletionPath
+	case ApiNameGeminiStreamGenerateContent:
+		action = geminiChatCompletionStreamPath
 	}
 	return fmt.Sprintf("/%s/models/%s:%s", g.config.apiVersion, model, action)
 }
