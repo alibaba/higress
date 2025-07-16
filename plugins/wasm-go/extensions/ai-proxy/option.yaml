@@ -5,7 +5,7 @@ version: 1.0.0
 build:
   # The official builder image version
   builder:
-    go: 1.24.0
+    go: 1.24.4
     oras: 1.0.0
   # The WASM plugin project directory
   input: ./
