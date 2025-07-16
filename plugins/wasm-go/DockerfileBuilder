@@ -32,4 +32,4 @@ RUN set -e; \
     tar -C /usr/local/bin -xzf oras.tgz && rm oras.tgz; \
     echo "done";
 
-ENV PATH=$PATH:/usr/local/go/bin:/usr/local/tinygo/bin:/usr/local/bin
+ENV PATH=$PATH:/usr/local/go/bin:/usr/local/bin
