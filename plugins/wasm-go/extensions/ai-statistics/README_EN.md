@@ -38,6 +38,7 @@ Attribute Configuration instructions:
 | `apply_to_span`      | bool | optional  | false  | Whether to record the extracted information in the link tracking span |
 | `trace_span_key`      | string | optional  | -  | span attribute key, default is the value of `key` |
 | `as_separate_log_field`      | bool | optional  | false  | Whether to use a separate log field, the field name is equal to the value of `key` |
+| `skip_pattern`      | string | optional  | -  | If the extracted information **contains** a regular expression corresponding to this field, replace the extracted information with `[skipped]`, indicating that the extraction of this information is skipped. |
 
 The meanings of various values for `value_source` ​​are as follows:
 

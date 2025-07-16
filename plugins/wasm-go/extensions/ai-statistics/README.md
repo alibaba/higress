@@ -38,6 +38,7 @@ Attribute 配置说明:
 | `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
 | `trace_span_key`      | string | 非必填  | -  | 链路追踪attribute key，默认会使用`key`的设置 |
 | `as_separate_log_field`      | bool | 非必填  | false  | 记录日志时是否作为单独的字段，日志字段名使用`key`的设置 |
+| `skip_pattern`      | string | 非必填  | -  | 当提取信息中**包含**该字段对应正则表达式时，则将该提取信息替换为`[skipped]`，表明跳过该信息的提取 |
 
 `value_source` 的各种取值含义如下：
 
