@@ -385,7 +385,7 @@ type ProviderConfig struct {
 	// @Title zh-CN basePathHandling用于指定basePath的处理方式，可选值：removePrefix、prepend
 	basePathHandling basePathHandling `required:"false" yaml:"basePathHandling" json:"basePathHandling"`
 	// @Title zh-CN apiToken 与 consumer 的绑定关系
-	// @Description zh-CN 用于同一个 Provider 多个账户情况下，指定不同 consumer 使用不同账户的模型，例如：{"apiToken1": ["consumer1"], "apiToken2": ["consumer1","consumer2"]}
+	// @Description zh-CN 用于同一个 Provider 多个账户情况下，指定 consumer 可以调用不同账户的模型，例如：{"consumer1": ["apiTokem1"], "consumer2": ["apiToken1","apiToken2"]}
 	consumerBinding map[string][]string `required:"false" yaml:"consumerBinding" json:"consumerBinding"`
 }
 
