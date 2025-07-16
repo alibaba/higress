@@ -1,62 +1,9 @@
-# The Dockerfile for wasm-go builder only support amd64 and arm64 yet.
-# If you want to build on another architecture, the following information may be helpful.
-#
-# - arch: amd64
-#   base image: docker.io/ubuntu
-#   go_url: https://golang.google.cn/dl/go1.20.1.linux-amd64.tar.gz"
-#   tinygo_url: https://github.com/alibaba/higress/releases/download/v1.0.0-rc/higress-tinygo0.25.0.linux-amd64.tar.gz
-#   oras_url: https://github.com/oras-project/oras/releases/download/v1.0.0/oras_1.0.0_linux_amd64.tar.gz
-#
-# - arch: arm64
-#   base image: docker.io/ubuntu
-#   go_url: https://golang.google.cn/dl/go1.20.1.linux-arm64.tar.gz
-#   tinygo_url: https://github.com/alibaba/higress/releases/download/v1.0.0-rc/higress-tinygo0.25.0.linux-arm64.tar.gz
-#   oras_url: https://github.com/oras-project/oras/releases/download/v1.0.0/oras_1.0.0_linux_arm64.tar.gz
-#
-# - arch: armel
-#   base image: build yourself
-#   go_url: install from source code
-#   tinygo_url: build yourself
-#   oras_url: build your self
-#
-# - arch: i386
-#   base image: build yourself
-#   go_url: https://dl.google.com/go/go1.20.1.linux-386.tar.gz
-#   tinygo_url: build yourself
-#   oras_url: build your self
-#
-# - arch: mips64el
-#   base image: build your self
-#   go_url: https://dl.google.com/go/go1.20.1.linux-386.tar.gz
-#   tinygo_url: build your self
-#   oras_url: build your self
-#
-# - arch: ppc64el
-#   base image: build your self
-#   go_url: https://dl.google.com/go/go1.20.1.linux-ppc64le.tar.gz
-#   tinygo_url: build your self
-#   oras_url: build your self
-#
-# - arch: s390x
-#   base image: docker.io/ubuntu
-#   go_url: https://dl.google.com/go/go1.20.1.linux-s390x.tar.gz
-#   tinygo_url: build your self
-#   oras_url: build your self
-#
-# - arch: armhf
-#   base image: build your self
-#   go_url: https://golang.google.cn/dl/go1.20.1.linux-armv6l.tar.gz
-#   tinygo_url: https://github.com/tinygo-org/tinygo/releases/download/v0.25.0/tinygo_0.25.0_armhf.deb
-#   oras_url: build your self
-
 ARG BASE_IMAGE=docker.io/ubuntu
 FROM $BASE_IMAGE
 
-ARG GO_VERSION=1.24.0
-ARG TINYGO_VERSION=0.30.0
+ARG GO_VERSION=1.24.4
 ARG ORAS_VERSION=1.0.0
 ARG HIGRESS_VERSION=1.0.0-rc
-ARG USE_HIGRESS_TINYGO=false
 
 LABEL go_version=$GO_VERSION oras_version=$ORAS_VERSION
 
