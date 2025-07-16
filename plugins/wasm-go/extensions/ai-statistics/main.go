@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ const (
 	ClusterName                = "cluster"
 	APIName                    = "api"
 	ConsumerKey                = "x-mse-consumer"
+	SkippedStr				   = "[skipped]"
 
 	// Source Type
 	FixedValue            = "fixed_value"
@@ -87,6 +89,7 @@ type Attribute struct {
 	ApplyToLog         bool   `json:"apply_to_log,omitempty"`
 	ApplyToSpan        bool   `json:"apply_to_span,omitempty"`
 	AsSeparateLogField bool   `json:"as_separate_log_field,omitempty"`
+	SkipPattern 	   string `json:"skip_pattern,omitempty"`
 }
 
 type AIStatisticsConfig struct {
@@ -409,6 +412,16 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			if (value == nil || value == "") && attribute.DefaultValue != "" {
 				value = attribute.DefaultValue
 			}
+			if attribute.SkipPattern != "" {
+				if str := fmt.Sprint(value); str != "" {
+					matched, _ := regexp.MatchString(attribute.SkipPattern, str)
+					log.Debugf("[attribute] skip pattern: %s, matched: %s", attribute.SkipPattern, matched)
+					if matched {
+						value = SkippedStr
+					}
+				}
+			}
+
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
 				if attribute.AsSeparateLogField {
