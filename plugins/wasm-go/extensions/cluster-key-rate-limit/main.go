@@ -135,7 +135,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateL
 		log.Errorf("redis call failed: %v", err)
 		return types.ActionContinue
 	}
-	return types.ActionPause
+	return types.HeaderStopAllIterationAndWatermark
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateLimitConfig) types.Action {
