@@ -58,6 +58,10 @@ jobs:
           echo "Extracting PR numbers from ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME} release notes..."
           PR_NUMS=$(cat release_page.html | grep -o "/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/pull/[0-9]*" | grep -o "[0-9]*$" | sort -n | uniq | tr '\n' ',')
           PR_NUMS=${PR_NUMS%,}
+          if [ -z "${PR_NUMS}" ]; then
+              echo "No PR numbers found in release notes for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME} tag=${RELEASE_VERSION}."
+              exit 0
+          fi
 
           echo "Identifying important PRs..."
           IMPORTANT_PR_NUMS=$(cat release_page.html | grep -o "<strong>.*/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/pull/[0-9]*.*</strong>" | grep -o "pull/[0-9]*" | grep -o "[0-9]*" | sort -n | uniq | tr '\n' ',')
