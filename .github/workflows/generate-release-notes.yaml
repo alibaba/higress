@@ -10,13 +10,13 @@ jobs:
   generate-release-notes:
     runs-on: ubuntu-latest
     env:
-      DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
-      MODEL_NAME: ${{ secrets.MODEL_NAME }}
+      DASHSCOPE_API_KEY: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
+      MODEL_NAME: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
       MODEL_SERVER: ${{ secrets.MODEL_SERVER }}
       RELEASE_VERSION: ${{ github.ref_name }}
 
     steps:
-      - name: Checkout Higress code
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -120,9 +120,44 @@ jobs:
         run: |
           bash generate_release_report.sh
 
+      - name: Create Update Release Notes Script
+        run: |
+          cat > update_release_note.sh << 'EOF'
+          #!/bin/bash
+          CLEAN_VERSION=${RELEASE_VERSION#v}
+         
+          RELEASE_INFO=$(curl -s -L \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/tags/${RELEASE_VERSION})
+          RELEASE_ID=$(echo $RELEASE_INFO | jq -r .id)
+         
+          RELEASE_NOTES=$(cat release-notes/${CLEAN_VERSION}/README.md | awk '{printf "%s\\r\\n", $0}')
+         
+          curl -L \
+              -X PATCH \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/${RELEASE_ID} \
+              -d "{\"tag_name\":\"${RELEASE_VERSION}\",\"name\":\"${RELEASE_VERSION}\",\"body\":\"${RELEASE_NOTES}\",\"draft\":false,\"prerelease\":false}"
+          
+          EOF
+          chmod +x generate_release_report.sh
+
+      - name: Update Release Notes
+        env:
+          GITHUB_REPO_OWNER: alibaba
+          GITHUB_REPO_NAME: higress
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bash update_release_note.sh
+
       - name: Clean
         run: |
           rm generate_release_report.sh
+          rm update_release_note.sh
           rm -rf higress-report-agent
           rm -rf github-mcp-server
 
