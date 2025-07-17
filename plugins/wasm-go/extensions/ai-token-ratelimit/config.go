@@ -3,9 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
-	"strings"
-
 	re "regexp"
+	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -86,7 +85,7 @@ type LimitConfigItem struct {
 	timeWindow int64               // 时间窗口大小
 }
 
-func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig, log log.Log) error {
+func initRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
 	redisConfig := json.Get("redis")
 	if !redisConfig.Exists() {
 		return errors.New("missing redis in config")
