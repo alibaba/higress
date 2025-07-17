@@ -80,7 +80,11 @@ func parseConfig(json gjson.Result, config *OpaConfig, log log.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config OpaConfig, log log.Log) types.Action {
-	return opaCall(ctx, config, nil, log)
+	act := opaCall(ctx, config, nil, log)
+	if act == types.ActionPause {
+		return types.HeaderStopAllIterationAndWatermark
+	}
+	return types.HeaderContinue
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config OpaConfig, body []byte, log log.Log) types.Action {
