@@ -105,12 +105,12 @@ jobs:
           EOF
           chmod +x generate_release_report.sh
 
-      - name: Generate Release Notes for Higress Core
+      - name: Generate Release Notes for Higress
         env:
           GITHUB_REPO_OWNER: alibaba
           GITHUB_REPO_NAME: higress
           GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPORT_TITLE: Higress Core
+          REPORT_TITLE: Higress
         run: |
           export RELEASE_VERSION=$(cat ${GITHUB_WORKSPACE}/VERSION)
           bash generate_release_report.sh
