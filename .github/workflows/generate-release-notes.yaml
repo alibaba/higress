@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DASHSCOPE_API_KEY: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
-      MODEL_NAME: ${{ secrets.HIGRESS_OPENAI_API_KEY }}
+      MODEL_NAME: ${{ secrets.HIGRESS_OPENAI_API_MODEL }}
       MODEL_SERVER: ${{ secrets.MODEL_SERVER }}
       RELEASE_VERSION: ${{ github.ref_name }}
 
