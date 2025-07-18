@@ -27,6 +27,7 @@ header:
     - 'plugins/**'
     - 'CODEOWNERS'
     - 'VERSION'
+    - 'DEP_VERSION'
     - 'tools/'
     - 'test/README.md'
     - 'test/README_CN.md'
