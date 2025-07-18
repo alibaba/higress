@@ -414,10 +414,14 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 			if attribute.SkipPattern != "" {
 				if str := fmt.Sprint(value); str != "" {
-					matched, _ := regexp.MatchString(attribute.SkipPattern, str)
-					log.Debugf("[attribute] skip pattern: %s, matched: %s", attribute.SkipPattern, matched)
-					if matched {
-						value = SkippedStr
+					matched, err := regexp.MatchString(attribute.SkipPattern, str)
+					if err != nil {
+						log.Errorf("[attribute] Invalid skip_pattern regex: %s, error: %v", attribute.SkipPattern, err)
+					} else {
+						log.Debugf("[attribute] skip pattern: %s, matched: %t", attribute.SkipPattern, matched)
+						if matched {
+							value = SkippedStr
+						}
 					}
 				}
 			}
