@@ -17,7 +17,7 @@
 本次发布包含 **9** 项重要更新，建议重点关注：
 
 - **fix: The mcp to rest capability of the mcp server supports returning status without returning a body from the backend, and instead responds via sse** ([#2445](https://github.com/alibaba/higress/pull/2445)): 提升了MCP服务器在处理特定REST请求时的稳定性与兼容性，避免因后端无返回体导致异常，增强用户体验一致性。
-- **feat(mcp/sse): support passthourgh the query parameter in sse server to the rest api server ** ([#2460](https://github.com/alibaba/higress/pull/2460)): 增强了SSE功能的灵活性，使查询参数能够正确传递，提升系统兼容性和用户体验。
+- **feat(mcp/sse): support passthrough the query parameter in sse server to the rest api server ** ([#2460](https://github.com/alibaba/higress/pull/2460)): 增强了SSE功能的灵活性，使查询参数能够正确传递，提升系统兼容性和用户体验。
 - **fix too much logs when nacos is not avaiable** ([#2469](https://github.com/alibaba/higress/pull/2469)): 提升了系统稳定性，避免因日志错误导致的程序崩溃，同时减少了无效日志输出，提高日志可读性和系统性能。
 - **feat: support for wanxiang image/video generation in ai-proxy & ai-statistics** ([#2378](https://github.com/alibaba/higress/pull/2378)): 支持异步图像/视频生成，提升AI服务能力；配置优化避免日志统计错误，增强系统兼容性与稳定性。
 - **feat: add DB MCP Server execute, list tables, describe table tools** ([#2506](https://github.com/alibaba/higress/pull/2506)): 用户可更便捷地执行SQL语句、列出表名及描述表结构，提升了数据库管理与调试效率。
