@@ -44,7 +44,7 @@ const (
 	APIName                    = "api"
 	ConsumerKey                = "x-mse-consumer"
 	RequestPath                = "request_path"
-  SkippedStr				         = "[skipped]"
+	SkippedStr                 = "[skipped]"
 
 	// Source Type
 	FixedValue            = "fixed_value"
