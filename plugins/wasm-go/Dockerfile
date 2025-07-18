@@ -13,9 +13,8 @@ COPY . .
 
 WORKDIR /workspace/extensions/$PLUGIN_NAME
 
-RUN go mod tidy
-RUN \
-    GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o /main.wasm ./ 
+RUN go mod tidy -v
+RUN GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o /main.wasm ./
 
 FROM scratch AS output
 
