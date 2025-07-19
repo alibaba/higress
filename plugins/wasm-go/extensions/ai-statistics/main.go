@@ -191,6 +191,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 	if consumer, _ := proxywasm.GetHttpRequestHeader(ConsumerKey); consumer != "" {
 		ctx.SetContext(ConsumerKey, consumer)
 	}
+	if requestModel, _ := proxywasm.GetHttpRequestHeader("x-higress-llm-model"); requestModel != "" {
+		ctx.SetContext(tokenusage.CtxKeyRequestModel, requestModel)
+	}
 	hasRequestBody := wrapper.HasRequestBody()
 	if hasRequestBody {
 		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
@@ -244,7 +247,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	ctx.SetUserAttribute(ChatRound, userPromptCount)
 
 	// Write log
-	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	return types.ActionContinue
 }
 
@@ -321,7 +324,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		}
 
 		// Write log
-		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+		_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 		// Write metrics
 		writeMetric(ctx, config)
@@ -361,7 +364,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	setAttributeBySource(ctx, config, ResponseBody, body)
 
 	// Write log
-	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 	// Write metrics
 	writeMetric(ctx, config)
@@ -374,7 +377,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, source string, body []byte) {
 	for _, attribute := range config.attributes {
 		var key string
-		var value interface{}
+		var value any
 		if source == attribute.ValueSource {
 			key = attribute.Key
 			switch source {
@@ -420,9 +423,9 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 	}
 }
 
-func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) interface{} {
+func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) any {
 	chunks := bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n"))
-	var value interface{}
+	var value any
 	if rule == RuleFirst {
 		for _, chunk := range chunks {
 			jsonObj := gjson.GetBytes(chunk, jsonPath)
@@ -455,7 +458,7 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) i
 }
 
 // Set the tracing span with value.
-func setSpanAttribute(key string, value interface{}) {
+func setSpanAttribute(key string, value any) {
 	if value != "" {
 		traceSpanTag := wrapper.TraceSpanTagPrefix + key
 		if e := proxywasm.SetProperty([]string{traceSpanTag}, []byte(fmt.Sprint(value))); e != nil {
@@ -534,7 +537,7 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	}
 }
 
-func convertToUInt(val interface{}) (uint64, bool) {
+func convertToUInt(val any) (uint64, bool) {
 	switch v := val.(type) {
 	case float32:
 		return uint64(v), true
