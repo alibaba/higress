@@ -204,7 +204,7 @@ notgoo: nottar
 			desc:   "invalid-yaml",
 			diff1:  `Ij#**#f#`,
 			diff2:  `fm*##)n`,
-			expect: "error unmarshaling JSON: while decoding JSON: json: cannot unmarshal string into Go value of type map[string]interface {}",
+			expect: "error unmarshalling JSON: while decoding JSON: json: cannot unmarshal string into Go value of type map[string]interface {}",
 		},
 	}
 	for _, tt := range tests {

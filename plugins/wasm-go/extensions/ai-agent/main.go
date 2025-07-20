@@ -99,7 +99,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	var rawRequest Request
 	err := json.Unmarshal(body, &rawRequest)
 	if err != nil {
-		log.Debugf("[onHttpRequestBody] body json umarshal err: %s", err.Error())
+		log.Debugf("[onHttpRequestBody] body json unmarshal err: %s", err.Error())
 		return types.ActionContinue
 	}
 	log.Debugf("onHttpRequestBody rawRequest: %v", rawRequest)
@@ -366,7 +366,7 @@ func outputParser(response string, log log.Log) (string, string) {
 		}
 	}
 	log.Debugf("json parse err: %s", err.Error())
-	// Fallback to regex parsing if JSON unmarshaling fails
+	// Fallback to regex parsing if JSON unmarshalling fails
 	pattern := `\{\s*"action":\s*"([^"]+)",\s*"action_input":\s*((?:\{[^}]+\})|"[^"]+")\s*\}`
 	re := regexp.MustCompile(pattern)
 	match := re.FindStringSubmatch(jsonStr)
