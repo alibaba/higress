@@ -59,7 +59,6 @@ const (
 	LLMDurationCount       = "llm_duration_count"
 	LLMStreamDurationCount = "llm_stream_duration_count"
 	ResponseType           = "response_type"
-	ChatID                 = "chat_id"
 	ChatRound              = "chat_round"
 
 	// Inner span attributes
@@ -219,14 +218,15 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 		requestModel = model.String()
 	} else {
 		requestPath := ctx.GetStringContext(RequestPath, "")
-		if strings.Contains(requestPath, "generateContent") || strings.Contains(requestPath, "streamGenerateContent") { // Google Gemini GenerateContent
-			reg := regexp.MustCompile(`^.*/(?P<api_version>[^/]+)/models/(?P<model>[^:]+):\w+Content$`)
+		if strings.Contains(requestPath, "generateContent") || strings.Contains(requestPath, "streamGenerateContent") || strings.Contains(requestPath, "countTokens") { // Google Gemini GenerateContent
+			reg := regexp.MustCompile(`^.*/(?P<api_version>[^/]+)/models/(?P<model>[^:]+):(\w+Content|countTokens)$`)
 			matches := reg.FindStringSubmatch(requestPath)
 			if len(matches) == 3 {
 				requestModel = matches[2]
 			}
 		}
 	}
+	ctx.SetContext(tokenusage.CtxKeyRequestModel, requestModel)
 	setSpanAttribute(ArmsRequestModel, requestModel)
 	// Set the number of conversation rounds
 
@@ -276,14 +276,8 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 	}
 
 	ctx.SetUserAttribute(ResponseType, "stream")
-	if chatID := wrapper.GetValueFromBody(data, []string{
-		"id",
-		"response.id",
-		"responseId", // Gemini generateContent
-		"message.id", // anthropic messages
-	}); chatID != nil {
-		ctx.SetUserAttribute(ChatID, chatID.String())
-	}
+
+	tokenusage.ExtractChatId(ctx, data)
 
 	// Get requestStartTime from http context
 	requestStartTime, ok := ctx.GetContext(StatisticsRequestStartTime).(int64)
@@ -340,14 +334,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	ctx.SetUserAttribute(LLMServiceDuration, responseEndTime-requestStartTime)
 
 	ctx.SetUserAttribute(ResponseType, "normal")
-	if chatID := wrapper.GetValueFromBody(body, []string{
-		"id",
-		"response.id",
-		"responseId", // Gemini generateContent
-		"message.id", // anthropic messages
-	}); chatID != nil {
-		ctx.SetUserAttribute(ChatID, chatID.String())
-	}
+
+	tokenusage.ExtractChatId(ctx, body)
 
 	// Set information about this request
 	if !config.disableOpenaiUsage {
@@ -461,7 +449,7 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) a
 func setSpanAttribute(key string, value any) {
 	if value != "" {
 		traceSpanTag := wrapper.TraceSpanTagPrefix + key
-		if e := proxywasm.SetProperty([]string{traceSpanTag}, []byte(fmt.Sprint(value))); e != nil {
+		if e := proxywasm.SetProperty([]string{traceSpanTag}, fmt.Append(nil, value)); e != nil {
 			log.Warnf("failed to set %s in filter state: %v", traceSpanTag, e)
 		}
 	} else {
