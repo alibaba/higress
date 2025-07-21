@@ -77,7 +77,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher
 	serviceList := services.Doms
 	pattern, err := regexp.Compile(serviceMatcher)
 	if err != nil {
-		api.LogErrorf("Match service error for patter %s", serviceMatcher)
+		api.LogErrorf("Match service error for pattern %s", serviceMatcher)
 		return false
 	}
 
