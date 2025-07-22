@@ -39,6 +39,7 @@ func parseConfig(jsonConfig gjson.Result, config *AIPromptDecoratorConfig, log l
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	proxywasm.RemoveHttpRequestHeader("content-length")
 	return types.ActionContinue
 }
