@@ -61,6 +61,7 @@ func parseConfig(json gjson.Result, config *config.DeGraphQLConfig, log log.Log)
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.DeGraphQLConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	log.Debug("onHttpRequestHeaders()")
 	log.Debugf("schema:%s host:%s path:%s", ctx.Scheme(), ctx.Host(), ctx.Path())
 	requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
