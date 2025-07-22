@@ -92,11 +92,11 @@ jobs:
 
           echo "# ${REPORT_TITLE}" >>release-notes/${CLEAN_VERSION}/README_ZH.md
           sed 's/# Release Notes//' report.md >>release-notes/${CLEAN_VERSION}/README_ZH.md
-          echo "\n" >>release-notes/${CLEAN_VERSION}/README_ZH.md
+          echo -e "\n" >>release-notes/${CLEAN_VERSION}/README_ZH.md
 
           echo "# ${REPORT_TITLE}" >>release-notes/${CLEAN_VERSION}/README.md
           sed 's/# Release Notes//' report.EN.md >>release-notes/${CLEAN_VERSION}/README.md
-          echo "\n" >>release-notes/${CLEAN_VERSION}/README.md
+          echo -e "\n" >>release-notes/${CLEAN_VERSION}/README.md
 
           rm report.md
           rm report.EN.md
@@ -132,13 +132,18 @@ jobs:
           CLEAN_VERSION=${RELEASE_VERSION#v}
 
           RELEASE_INFO=$(curl -s -L \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/tags/${RELEASE_VERSION})
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/tags/${RELEASE_VERSION})
           RELEASE_ID=$(echo $RELEASE_INFO | jq -r .id)
 
-          RELEASE_NOTES=$(cat release-notes/${CLEAN_VERSION}/README.md | awk '{printf "%s\\r\\n", $0}')
+          RELEASE_NOTES=$(cat release-notes/${CLEAN_VERSION}/README.md)
+          JSON_DATA=$(jq -n \
+              --arg tag "$RELEASE_VERSION" \
+              --arg name "$RELEASE_VERSION" \
+              --arg body "$RELEASE_NOTES" \
+              '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
 
           curl -L \
               -X PATCH \
@@ -146,7 +151,7 @@ jobs:
               -H "Authorization: Bearer ${GITHUB_TOKEN}" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/${RELEASE_ID} \
-              -d "{\"tag_name\":\"${RELEASE_VERSION}\",\"name\":\"${RELEASE_VERSION}\",\"body\":\"${RELEASE_NOTES}\",\"draft\":false,\"prerelease\":false}"
+              -d "$JSON_DATA"
 
           EOF
           chmod +x update_release_note.sh
