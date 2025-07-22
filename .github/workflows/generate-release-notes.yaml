@@ -43,6 +43,17 @@ jobs:
           git clone https://github.com/higress-group/higress-report-agent.git
           mv github-mcp-serve higress-report-agent/
 
+      - name: Clean up old release notes
+        run: |
+          RELEASE_VERSION=$(cat ${GITHUB_WORKSPACE}/VERSION)
+          CLEAN_VERSION=${RELEASE_VERSION#v}
+          if [ -d "release-notes/${CLEAN_VERSION}" ]; then
+              echo "Removing old release notes directory: release-notes/${CLEAN_VERSION}"
+              rm -rf release-notes/${CLEAN_VERSION}
+          else
+              echo "No old release notes directory found for version ${CLEAN_VERSION}."
+          fi
+          
       - name: Create Release Report Script
         run: |
           cat > generate_release_report.sh << 'EOF'
@@ -59,6 +70,7 @@ jobs:
           PR_NUMS=${PR_NUMS%,}
           if [ -z "${PR_NUMS}" ]; then
               echo "No PR numbers found in release notes for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME} tag=${RELEASE_VERSION}."
+              rm release_page.html
               exit 0
           fi
 
@@ -138,12 +150,27 @@ jobs:
               https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/tags/${RELEASE_VERSION})
           RELEASE_ID=$(echo $RELEASE_INFO | jq -r .id)
 
+          RELEASE_BODY=$(echo $RELEASE_INFO | jq -r .body)
+          NEW_CONTRIBUTORS=$(echo "$RELEASE_BODY" | awk '/## New Contributors/{flag=1; next} /\*\*Full Changelog\*\*/{flag=0} flag' | sed 's/\\n/\n/g')
+          FULL_CHANGELOG=$(echo "$RELEASE_BODY" | awk '/\*\*Full Changelog\*\*:/{print $0}' | sed 's/\*\*Full Changelog\*\*: //g' | sed 's/\\n/\n/g')
+
           RELEASE_NOTES=$(cat release-notes/${CLEAN_VERSION}/README.md)
+
+          if [[ -n "$NEW_CONTRIBUTORS" ]]; then
+              RELEASE_NOTES="${RELEASE_NOTES}
+
+          # New Contributors
+          ${NEW_CONTRIBUTORS}"
+          fi
+          if [[ -n "$FULL_CHANGELOG" ]]; then
+              RELEASE_NOTES="${RELEASE_NOTES}
+
+          **Full Changelog**: ${FULL_CHANGELOG}"
+          fi
+
           JSON_DATA=$(jq -n \
-              --arg tag "$RELEASE_VERSION" \
-              --arg name "$RELEASE_VERSION" \
               --arg body "$RELEASE_NOTES" \
-              '{tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false}')
+              '{body: $body}')
 
           curl -L \
               -X PATCH \
