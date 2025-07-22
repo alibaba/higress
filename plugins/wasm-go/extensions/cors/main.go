@@ -75,6 +75,7 @@ func parseConfig(json gjson.Result, corsConfig *config.CorsConfig, log log.Log) 
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, corsConfig config.CorsConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	log.Debug("onHttpRequestHeaders()")
 	requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
 	method, _ := proxywasm.GetHttpRequestHeader(":method")

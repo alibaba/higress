@@ -58,6 +58,7 @@ func parseConfig(json gjson.Result, c *config.PluginConfig, log log.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, c config.PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	skipCache, _ := proxywasm.GetHttpRequestHeader(SKIP_CACHE_HEADER)
 	if skipCache == "on" {
 		ctx.SetContext(SKIP_CACHE_HEADER, struct{}{})

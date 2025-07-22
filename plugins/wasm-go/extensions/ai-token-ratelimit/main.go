@@ -99,6 +99,7 @@ func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig) types.Action {
+	ctx.DisableReroute()
 	// 判断是否命中限流规则
 	val, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, config.ruleItems)
 	if ruleItem == nil || configItem == nil {

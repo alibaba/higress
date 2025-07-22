@@ -254,6 +254,7 @@ func generateRandomID() string {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AISecurityConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	if !config.checkRequest {
 		log.Debugf("request checking is disabled")
 		ctx.DontReadRequestBody()
