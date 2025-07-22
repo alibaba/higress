@@ -175,6 +175,7 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
+	ctx.DisableReroute()
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
 	api, apiError := getAPIName()
