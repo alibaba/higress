@@ -49,8 +49,8 @@ void deniedInvalidCredentials(const std::string& realm) {
                     {{"WWW-Authenticate", absl::StrCat("Key realm=", realm)}});
 }
 
-void deniedUnauthorizedConsumer(const std::string& realm) {
-  sendLocalResponse(403, "Request denied by Key Auth check. Unauthorized consumer", "",
+void deniedUnauthorizedConsumer(const std::string& realm, const std::string& consumer) {
+  sendLocalResponse(403, absl::StrCat("Request denied by Key Auth check. Unauthorized consumer::", consumer), "",
                     {{"WWW-Authenticate", absl::StrCat("Basic realm=", realm)}});
 }
 
@@ -313,7 +313,7 @@ bool PluginRootContext::checkPlugin(
         if (allow_set && !allow_set->empty()) {
           if (allow_set->find(credential_to_name_iter->second) ==
               allow_set->end()) {
-            deniedUnauthorizedConsumer(rule.realm);
+            deniedUnauthorizedConsumer(rule.realm, credential_to_name_iter->second);
             LOG_DEBUG("unauthorized consumer: " +
                       credential_to_name_iter->second);
             return false;
@@ -353,11 +353,11 @@ bool PluginRootContext::checkPlugin(
           if (allow_set) {
             if (allow_set->empty()) {
               LOG_DEBUG("allow set is empty, nobody is allowed");
-              deniedUnauthorizedConsumer(rule.realm);
+              deniedUnauthorizedConsumer(rule.realm, credential_to_name_iter->second);
               return false;
             }
             if (allow_set->find(credential_to_name_iter->second) == allow_set->end()) {
-              deniedUnauthorizedConsumer(rule.realm);
+              deniedUnauthorizedConsumer(rule.realm, credential_to_name_iter->second);
               LOG_DEBUG("unauthorized consumer: " +
                         credential_to_name_iter->second);
               return false;
