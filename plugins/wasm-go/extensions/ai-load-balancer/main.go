@@ -64,6 +64,7 @@ func parseConfig(json gjson.Result, config *Config) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
+	ctx.DisableReroute()
 	return config.lb.HandleHttpRequestHeaders(ctx)
 }
 
