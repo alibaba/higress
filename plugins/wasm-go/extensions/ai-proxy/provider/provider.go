@@ -65,6 +65,7 @@ const (
 	ApiNameAnthropicComplete           ApiName = "anthropic/v1/complete"
 
 	// OpenAI
+	PathOpenAIPrefix                               = "/v1"
 	PathOpenAICompletions                          = "/v1/completions"
 	PathOpenAIChatCompletions                      = "/v1/chat/completions"
 	PathOpenAIEmbeddings                           = "/v1/embeddings"
@@ -835,7 +836,7 @@ func (c *ProviderConfig) handleRequestBody(
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body)
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
-		headers := util.GetOriginalRequestHeaders()
+		headers := util.GetRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 		util.ReplaceRequestHeaders(headers)
 	} else {
@@ -861,7 +862,7 @@ func (c *ProviderConfig) handleRequestBody(
 }
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
-	headers := util.GetOriginalRequestHeaders()
+	headers := util.GetRequestHeaders()
 	originPath := headers.Get(":path")
 	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
 		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
@@ -871,9 +872,6 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 	}
 	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
 		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
-	}
-	if headers.Get(":path") != originPath {
-		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
 	}
 	util.ReplaceRequestHeaders(headers)
 }
@@ -892,7 +890,9 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 	}
 	model := gjson.GetBytes(body, "model").String()
 	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	return sjson.SetBytes(body, "model", getMappedModel(model, c.modelMapping))
+	mappedModel := getMappedModel(model, c.modelMapping)
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+	return sjson.SetBytes(body, "model", mappedModel)
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {
