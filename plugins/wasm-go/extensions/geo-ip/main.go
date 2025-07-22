@@ -204,6 +204,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.L
 		s   string
 		err error
 	)
+	ctx.DisableReroute()
 	if config.IPSourceType == HeaderSourceType {
 		s, err = proxywasm.GetHttpRequestHeader(config.IPHeaderName)
 		if err == nil {
