@@ -862,6 +862,9 @@ func (c *ProviderConfig) handleRequestBody(
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
 	headers := util.GetOriginalRequestHeaders()
+	// Clean up the externally provided original path&host
+	headers.Del("X-ENVOY-ORIGINAL-PATH")
+	headers.Del("X-ENVOY-ORIGINAL-HOST")
 	originPath := headers.Get(":path")
 	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
 		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
