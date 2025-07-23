@@ -734,7 +734,7 @@ func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.Re
 			}
 			return &template.ResponseTemplate, template.ErrorResponseTemplate, nil
 		default:
-			return nil, "", fmt.Errorf("unsupport tool meta type")
+			return nil, "", fmt.Errorf("unsuppored tool meta type: %s", kind)
 		}
 	}
 	return nil, "", nil
