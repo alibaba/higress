@@ -64,15 +64,19 @@ func OverwriteRequestAuthorization(credential string) error {
 }
 
 func OverwriteRequestHostHeader(headers http.Header, host string) {
-	if originHost, err := proxywasm.GetHttpRequestHeader(":authority"); err == nil {
-		headers.Set("X-ENVOY-ORIGINAL-HOST", originHost)
+	if exist := headers.Get("X-ENVOY-ORIGINAL-HOST"); exist == "" {
+		if originHost := headers.Get(":authority"); originHost != "" {
+			headers.Set("X-ENVOY-ORIGINAL-HOST", originHost)
+		}
 	}
 	headers.Set(":authority", host)
 }
 
 func OverwriteRequestPathHeader(headers http.Header, path string) {
-	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
-		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
+	if exist := headers.Get("X-ENVOY-ORIGINAL-PATH"); exist == "" {
+		if originPath := headers.Get(":path"); originPath != "" {
+			headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
+		}
 	}
 	headers.Set(":path", path)
 }
@@ -82,8 +86,8 @@ func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string,
 	if !exist {
 		return
 	}
-	originPath, err := proxywasm.GetHttpRequestHeader(":path")
-	if err == nil {
+	originPath := headers.Get(":path")
+	if exist := headers.Get("X-ENVOY-ORIGINAL-PATH"); exist == "" {
 		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
 	}
 	/**
