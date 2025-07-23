@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -723,21 +723,34 @@ func (b *bedrockProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, b
 
 func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCompletionRequest, headers http.Header) ([]byte, error) {
 	messages := make([]bedrockMessage, 0, len(origRequest.Messages))
-	for i := range origRequest.Messages {
-		messages = append(messages, chatMessage2BedrockMessage(origRequest.Messages[i]))
+	systemMessages := make([]systemContentBlock, 0)
+
+	for _, msg := range origRequest.Messages {
+		if msg.Role == roleSystem {
+			systemMessages = append(systemMessages, systemContentBlock{Text: msg.StringContent()})
+		} else {
+			messages = append(messages, chatMessage2BedrockMessage(msg))
+		}
 	}
+
 	request := &bedrockTextGenRequest{
+		System:   systemMessages,
 		Messages: messages,
 		InferenceConfig: bedrockInferenceConfig{
 			MaxTokens:   origRequest.MaxTokens,
 			Temperature: origRequest.Temperature,
 			TopP:        origRequest.TopP,
 		},
-		AdditionalModelRequestFields: map[string]interface{}{},
+		AdditionalModelRequestFields: make(map[string]interface{}),
 		PerformanceConfig: PerformanceConfiguration{
 			Latency: "standard",
 		},
 	}
+
+	for key, value := range b.config.bedrockAdditionalFields {
+		request.AdditionalModelRequestFields[key] = value
+	}
+
 	requestBytes, err := json.Marshal(request)
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err

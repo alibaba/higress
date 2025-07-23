@@ -29,22 +29,24 @@ Attribute Configuration instructions:
 
 | Name             | Type  | Required | Default | Description |
 |----------------|-------|-----|-----|------------------------|
-| `key`         | string | required  | -   | attrribute key           |
-| `value_source` | string | required  | -   | attrribute value source, optional values ​​are `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
-| `value`      | string | required  | -   | how to get attrribute value |
+| `key`         | string | required  | -   | attribute key           |
+| `value_source` | string | required  | -   | attribute value source, optional values ​​are `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
+| `value`      | string | required  | -   | how to get attribute value |
 | `default_value`      | string | optional  | -   | default value for attribute |
 | `rule`      | string | optional  | -   | Rule to extract attribute from streaming response, optional values ​​are `first`, `replace`, `append`|
 | `apply_to_log`      | bool | optional  | false  | Whether to record the extracted information in the log |
 | `apply_to_span`      | bool | optional  | false  | Whether to record the extracted information in the link tracking span |
+| `trace_span_key`      | string | optional  | -  | span attribute key, default is the value of `key` |
+| `as_separate_log_field`      | bool | optional  | false  | Whether to use a separate log field, the field name is equal to the value of `key` |
 
 The meanings of various values for `value_source` ​​are as follows:
 
 - `fixed_value`: fixed value
-- `request_header`: The attrribute is obtained through the http request header
-- `request_body`: The attrribute is obtained through the http request body
-- `response_header`: The attrribute is obtained through the http response header
-- `response_body`: The attrribute is obtained through the http response body
-- `response_streaming_body`: The attrribute is obtained through the http streaming response body
+- `request_header`: The attribute is obtained through the http request header
+- `request_body`: The attribute is obtained through the http request body
+- `response_header`: The attribute is obtained through the http response header
+- `response_body`: The attribute is obtained through the http response body
+- `response_streaming_body`: The attribute is obtained through the http streaming response body
 
 
 When `value_source` is `response_streaming_body`, `rule` should be configured to specify how to obtain the specified value from the streaming body. The meaning of the value is as follows:
@@ -58,6 +60,21 @@ If you want to record ai-statistic related statistical values in the gateway acc
 
 ```yaml
 '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
+```
+
+If the field is set with `as_separate_log_field`, for example:
+```yaml
+attributes:
+  - key: consumer
+    value_source: request_header
+    value: x-mse-consumer
+    apply_to_log: true
+    as_separate_log_field: true
+```
+
+Then to print in the log, you need to set log_format additionally:
+```
+'{"consumer":"%FILTER_STATE(wasm.consumer:PLAIN)%"}'
 ```
 
 ### Empty

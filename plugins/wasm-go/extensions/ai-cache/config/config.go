@@ -6,7 +6,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/cache"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/embedding"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-cache/vector"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/tidwall/gjson"
 )
 
@@ -46,7 +46,7 @@ type PluginConfig struct {
 	CacheKeyStrategy string
 }
 
-func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
+func (c *PluginConfig) FromJson(json gjson.Result, log log.Log) {
 	c.embeddingProviderConfig = &embedding.ProviderConfig{}
 	c.vectorProviderConfig = &vector.ProviderConfig{}
 	c.cacheProviderConfig = &cache.ProviderConfig{}
@@ -91,7 +91,7 @@ func (c *PluginConfig) FromJson(json gjson.Result, log wrapper.Log) {
 	if json.Get("enableSemanticCache").Exists() {
 		c.EnableSemanticCache = json.Get("enableSemanticCache").Bool()
 	} else if c.GetVectorProvider() == nil {
-		c.EnableSemanticCache = false	// set value to false when no vector provider 
+		c.EnableSemanticCache = false // set value to false when no vector provider
 	} else {
 		c.EnableSemanticCache = true // set default value to true
 	}
@@ -142,7 +142,7 @@ func (c *PluginConfig) Validate() error {
 	return nil
 }
 
-func (c *PluginConfig) Complete(log wrapper.Log) error {
+func (c *PluginConfig) Complete(log log.Log) error {
 	var err error
 	if c.embeddingProviderConfig.GetProviderType() != "" {
 		log.Debugf("embedding provider is set to %s", c.embeddingProviderConfig.GetProviderType())
@@ -193,7 +193,7 @@ func (c *PluginConfig) GetCacheProvider() cache.Provider {
 	return c.cacheProvider
 }
 
-func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log wrapper.Log) {
+func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log log.Log) {
 	keyMap := map[string]string{
 		"cacheKeyFrom.requestBody":         "cacheKeyFrom",
 		"cacheValueFrom.requestBody":       "cacheValueFrom",
@@ -212,7 +212,7 @@ func convertLegacyMapFields(c *PluginConfig, json gjson.Result, log wrapper.Log)
 	}
 }
 
-func setField(c *PluginConfig, fieldName string, value string, log wrapper.Log) {
+func setField(c *PluginConfig, fieldName string, value string, log log.Log) {
 	switch fieldName {
 	case "cacheKeyFrom":
 		c.CacheKeyFrom = value

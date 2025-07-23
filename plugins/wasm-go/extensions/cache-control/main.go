@@ -1,17 +1,21 @@
 package main
 
 import (
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/tidwall/gjson"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"cache-control",
 		wrapper.ParseConfigBy(parseConfig),
@@ -25,7 +29,7 @@ type CacheControlConfig struct {
 	expires string
 }
 
-func parseConfig(json gjson.Result, config *CacheControlConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *CacheControlConfig, log log.Log) error {
 	suffix := json.Get("suffix").String()
 	if suffix != "" {
 		parts := strings.Split(suffix, "|")
@@ -38,7 +42,7 @@ func parseConfig(json gjson.Result, config *CacheControlConfig, log wrapper.Log)
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config CacheControlConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config CacheControlConfig, log log.Log) types.Action {
 	path := ctx.Path()
 	if strings.Contains(path, "?") {
 		path = strings.Split(path, "?")[0]
@@ -49,7 +53,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config CacheControlConfig, lo
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config CacheControlConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config CacheControlConfig, log log.Log) types.Action {
 	hit := false
 	if len(config.suffix) == 0 {
 		hit = true

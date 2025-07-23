@@ -23,15 +23,18 @@ import (
 
 	"cluster-key-rate-limit/config"
 	"cluster-key-rate-limit/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/resp"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"cluster-key-rate-limit",
 		wrapper.ParseConfig(parseConfig),
@@ -84,6 +87,7 @@ func parseConfig(json gjson.Result, cfg *config.ClusterKeyRateLimitConfig) error
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateLimitConfig) types.Action {
+	ctx.DisableReroute()
 	limitKey, count, timeWindow := "", int64(0), int64(0)
 
 	if config.GlobalThreshold != nil {
@@ -132,7 +136,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateL
 		log.Errorf("redis call failed: %v", err)
 		return types.ActionContinue
 	}
-	return types.ActionPause
+	return types.HeaderStopAllIterationAndWatermark
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateLimitConfig) types.Action {

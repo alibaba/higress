@@ -9,18 +9,16 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 // claudeProvider is the provider for Claude service.
 const (
-	claudeDomain             = "api.anthropic.com"
-	claudeChatCompletionPath = "/v1/messages"
-	claudeCompletionPath     = "/v1/complete"
-	claudeDefaultVersion     = "2023-06-01"
-	claudeDefaultMaxTokens   = 4096
+	claudeDomain           = "api.anthropic.com"
+	claudeDefaultVersion   = "2023-06-01"
+	claudeDefaultMaxTokens = 4096
 )
 
 type claudeProviderInitializer struct{}
@@ -123,8 +121,8 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (c *claudeProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): claudeChatCompletionPath,
-		string(ApiNameCompletion):     claudeCompletionPath,
+		string(ApiNameChatCompletion): PathAnthropicMessages,
+		string(ApiNameCompletion):     PathAnthropicComplete,
 		// docs: https://docs.anthropic.com/en/docs/build-with-claude/embeddings#voyage-http-api
 		string(ApiNameEmbeddings): PathOpenAIEmbeddings,
 		string(ApiNameModels):     PathOpenAIModels,
@@ -461,10 +459,10 @@ func (c *claudeProvider) insertHttpContextMessage(body []byte, content string, o
 }
 
 func (c *claudeProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, claudeChatCompletionPath) {
+	if strings.Contains(path, PathAnthropicMessages) {
 		return ApiNameChatCompletion
 	}
-	if strings.Contains(path, claudeCompletionPath) {
+	if strings.Contains(path, PathAnthropicComplete) {
 		return ApiNameCompletion
 	}
 	if strings.Contains(path, PathOpenAIModels) {

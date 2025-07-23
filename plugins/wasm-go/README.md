@@ -45,16 +45,15 @@ output wasm file: extensions/request-block/plugin.wasm
 
 编译环境要求如下：
 
-- Go 版本: >= 1.18 (需要支持范型特性)
-
-- TinyGo 版本: >= 0.28.1
+- Go 版本: >= 1.24 (需要支持 wasm 构建特性)
 
 下面是本地多步骤构建 [request-block](extensions/request-block) 的例子。
 
 ### step1. 编译 wasm
 
 ```bash
-tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' ./extensions/request-block/main.go
+GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o ./extensions/request-block/main.wasm ./extensions/request-block
+
 ```
 
 详细的编译说明，包括要使用更复杂的 Header 状态管理机制，请参考[ Go 开发插件的最佳实践](https://higress.io/docs/latest/user/wasm-go/#3-%E7%BC%96%E8%AF%91%E7%94%9F%E6%88%90-wasm-%E6%96%87%E4%BB%B6)。
@@ -70,8 +69,8 @@ COPY main.wasm plugin.wasm
 ```
 
 ```bash
-docker build -t <your_registry_hub>/request-block:1.0.0 -f <your_dockerfile> .
-docker push <your_registry_hub>/request-block:1.0.0
+docker build -t <your_registry_hub>/request-block:2.0.0 -f <your_dockerfile> .
+docker push <your_registry_hub>/request-block:2.0.0
 ```
 
 ## 创建 WasmPlugin 资源使插件生效
@@ -144,7 +143,7 @@ spec:
       block_bodies:
       - "foo"
       - "bar"
-  url: oci://<your_registry_hub>/request-block:1.0.0
+  url: oci://<your_registry_hub>/request-block:2.0.0
 ```
 
 所有规则会按上面配置的顺序一次执行匹配，当有一个规则匹配时，就停止匹配，并选择匹配的配置执行插件逻辑。
