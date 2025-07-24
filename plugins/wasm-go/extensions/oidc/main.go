@@ -59,6 +59,7 @@ func parseConfig(json gjson.Result, config *PluginConfig, log log.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	config.oidcHandler.SetContext(ctx)
 	req := getHttpRequest()
 	rw := util.NewRecorder()
