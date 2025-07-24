@@ -93,6 +93,7 @@ func extraceHttpFrame(frame string) ([][2]string, []byte, error) {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AITransformerConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	log.Info("onHttpRequestHeaders")
 	if !config.requestTransformEnable || config.requestTransformPrompt == "" {
 		ctx.DontReadRequestBody()

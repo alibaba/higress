@@ -16,7 +16,7 @@ import (
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/resp"
-	
+
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-quota/util"
 )
 
@@ -131,6 +131,7 @@ func parseConfig(json gjson.Result, config *QuotaConfig) error {
 }
 
 func onHttpRequestHeaders(context wrapper.HttpContext, config QuotaConfig) types.Action {
+	context.DisableReroute()
 	log.Debugf("onHttpRequestHeaders()")
 	// get tokens
 	consumer, err := proxywasm.GetHttpRequestHeader("x-mse-consumer")

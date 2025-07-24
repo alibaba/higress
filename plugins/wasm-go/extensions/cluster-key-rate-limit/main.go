@@ -87,6 +87,7 @@ func parseConfig(json gjson.Result, cfg *config.ClusterKeyRateLimitConfig) error
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateLimitConfig) types.Action {
+	ctx.DisableReroute()
 	limitKey, count, timeWindow := "", int64(0), int64(0)
 
 	if config.GlobalThreshold != nil {

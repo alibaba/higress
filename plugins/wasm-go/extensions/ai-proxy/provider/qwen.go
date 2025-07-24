@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -37,6 +37,7 @@ const (
 	qwenCompatibleRetrieveBatchPath       = "/compatible-mode/v1/batches/{batch_id}"
 	qwenBailianPath                       = "/api/v1/apps"
 	qwenMultimodalGenerationPath          = "/api/v1/services/aigc/multimodal-generation/generation"
+	qwenAnthropicMessagesPath             = "/api/v2/apps/claude-code-proxy/v1/messages"
 
 	qwenAsyncAIGCPath = "/api/v1/services/aigc/"
 	qwenAsyncTaskPath = "/api/v1/tasks/"
@@ -56,7 +57,7 @@ func (m *qwenProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if len(config.qwenFileIds) != 0 && config.context != nil {
 		return errors.New("qwenFileIds and context cannot be configured at the same time")
 	}
-	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+	if len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
@@ -73,14 +74,16 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 			string(ApiNameRetrieveFileContent): qwenCompatibleRetrieveFileContentPath,
 			string(ApiNameBatches):             qwenCompatibleBatchesPath,
 			string(ApiNameRetrieveBatch):       qwenCompatibleRetrieveBatchPath,
+			string(ApiNameAnthropicMessages):   qwenAnthropicMessagesPath,
 		}
 	} else {
 		return map[string]string{
-			string(ApiNameChatCompletion): qwenChatCompletionPath,
-			string(ApiNameEmbeddings):     qwenTextEmbeddingPath,
-			string(ApiNameQwenAsyncAIGC):  qwenAsyncAIGCPath,
-			string(ApiNameQwenAsyncTask):  qwenAsyncTaskPath,
-			string(ApiNameQwenV1Rerank):   qwenTextRerankPath,
+			string(ApiNameChatCompletion):    qwenChatCompletionPath,
+			string(ApiNameEmbeddings):        qwenTextEmbeddingPath,
+			string(ApiNameQwenAsyncAIGC):     qwenAsyncAIGCPath,
+			string(ApiNameQwenAsyncTask):     qwenAsyncTaskPath,
+			string(ApiNameQwenV1Rerank):      qwenTextRerankPath,
+			string(ApiNameAnthropicMessages): qwenAnthropicMessagesPath,
 		}
 	}
 }

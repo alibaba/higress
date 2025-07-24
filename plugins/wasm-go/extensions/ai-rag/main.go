@@ -95,6 +95,7 @@ func parseConfig(json gjson.Result, config *AIRagConfig, log log.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIRagConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	proxywasm.RemoveHttpRequestHeader("content-length")
 	return types.ActionContinue
 }

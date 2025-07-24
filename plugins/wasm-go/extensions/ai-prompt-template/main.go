@@ -36,6 +36,7 @@ func parseConfig(json gjson.Result, config *AIPromptTemplateConfig, log log.Log)
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptTemplateConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	templateEnable, _ := proxywasm.GetHttpRequestHeader("template-enable")
 	if templateEnable == "false" {
 		ctx.DontReadRequestBody()

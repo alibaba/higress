@@ -60,7 +60,7 @@ builder:
 	@echo "image: ${BUILDER}"
 
 local-build:
-	GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o extensions/${PLUGIN_NAME}/main.wasm extensions/${PLUGIN_NAME}/main.go
+	cd extensions/${PLUGIN_NAME};GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o ./main.wasm ./
 
 	@echo ""
 	@echo "wasm: extensions/${PLUGIN_NAME}/main.wasm"

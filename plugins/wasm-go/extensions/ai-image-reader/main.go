@@ -57,6 +57,7 @@ func parseConfig(json gjson.Result, config *Config) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
+	ctx.DisableReroute()
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	if contentType == "" {
 		return types.ActionContinue

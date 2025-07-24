@@ -175,6 +175,7 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
+	ctx.DisableReroute()
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
 	api, apiError := getAPIName()
@@ -191,11 +192,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 	if consumer, _ := proxywasm.GetHttpRequestHeader(ConsumerKey); consumer != "" {
 		ctx.SetContext(ConsumerKey, consumer)
 	}
-	hasRequestBody := wrapper.HasRequestBody()
-	if hasRequestBody {
-		_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-		ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
-	}
+
+	ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 
 	// Set user defined log & span attributes which type is fixed_value
 	setAttributeBySource(ctx, config, FixedValue, nil)
