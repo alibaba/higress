@@ -3,21 +3,22 @@ package provider
 import (
 	"bytes"
 	"errors"
+	"maps"
 	"math/rand"
 	"net/http"
 	"path"
 	"regexp"
 	"strconv"
-
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 )
 
 type (
@@ -163,6 +164,8 @@ const (
 
 	basePathHandlingRemovePrefix basePathHandling = "removePrefix"
 	basePathHandlingPrepend      basePathHandling = "prepend"
+
+	consumerKey = "x-mse-consumer"
 )
 
 type providerInitializer interface {
@@ -385,6 +388,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
+	// @Title zh-CN apiToken 与 consumer 的绑定关系
+	// @Description zh-CN 用于同一个 Provider 多个账户情况下，指定 consumer 可以调用不同账户的模型，例如：{"consumer1": ["apiTokem1"], "consumer2": ["apiToken1","apiToken2"]}
+	consumerBinding map[string][]string `required:"false" yaml:"consumerBinding" json:"consumerBinding"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -457,7 +463,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.awsSecretKey = json.Get("awsSecretKey").String()
 	c.awsRegion = json.Get("awsRegion").String()
 	if c.typ == providerTypeBedrock {
-		c.bedrockAdditionalFields = make(map[string]interface{})
+		c.bedrockAdditionalFields = make(map[string]any)
 		for k, v := range json.Get("bedrockAdditionalFields").Map() {
 			c.bedrockAdditionalFields[k] = v.Value()
 		}
@@ -481,7 +487,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.targetLang = json.Get("targetLang").String()
 
-	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
+	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]any); ok {
 		c.responseJsonSchema = schemaValue
 	} else {
 		c.responseJsonSchema = nil
@@ -516,7 +522,6 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			break
 		default:
 			c.reasoningContentMode = reasoningBehaviorPassThrough
-			break
 		}
 	}
 
@@ -559,6 +564,14 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.basePath != "" && c.basePathHandling == "" {
 		c.basePathHandling = basePathHandlingRemovePrefix
 	}
+
+	c.consumerBinding = make(map[string][]string)
+	for consumerName, bindingJson := range json.Get("consumerBinding").Map() {
+		c.consumerBinding[consumerName] = make([]string, 0)
+		for _, apiToken := range bindingJson.Array() {
+			c.consumerBinding[consumerName] = append(c.consumerBinding[consumerName], apiToken.String())
+		}
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -597,6 +610,15 @@ func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) strin
 		ctx.SetContext(ctxKeyApiKey, ctxApiKey)
 	}
 	return ctxApiKey.(string)
+}
+
+func (c *ProviderConfig) GetApiTokenByConsumer(consumer string) string {
+	if c.consumerBinding != nil {
+		if apiTokens, ok := c.consumerBinding[consumer]; ok && len(apiTokens) > 0 {
+			return apiTokens[rand.Intn(len(apiTokens))]
+		}
+	}
+	return c.GetRandomToken()
 }
 
 func (c *ProviderConfig) GetRandomToken() string {
@@ -824,9 +846,7 @@ func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {
 }
 
 func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) {
-	for capability, path := range capabilities {
-		c.capabilities[capability] = path
-	}
+	maps.Copy(c.capabilities, capabilities)
 }
 
 func (c *ProviderConfig) handleRequestBody(
