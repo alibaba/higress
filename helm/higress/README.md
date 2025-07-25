@@ -121,7 +121,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.readinessFailureThreshold | int | `30` | The number of successive failed probes before indicating readiness failure. |
 | gateway.readinessInitialDelaySeconds | int | `1` | The initial delay for readiness probes in seconds. |
 | gateway.readinessPeriodSeconds | int | `2` | The period between readiness probes. |
-| gateway.readinessSuccessThreshold | int | `1` | The number of successive successed probes before indicating readiness success. |
+| gateway.readinessSuccessThreshold | int | `1` | The number of successive successful probes before indicating readiness success. |
 | gateway.readinessTimeoutSeconds | int | `3` | The readiness timeout seconds |
 | gateway.replicas | int | `2` | Number of Higress Gateway pods |
 | gateway.resources.limits.cpu | string | `"2000m"` |  |
@@ -217,7 +217,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.proxy.readinessFailureThreshold | int | `30` | The number of successive failed probes before indicating readiness failure. |
 | global.proxy.readinessInitialDelaySeconds | int | `1` | The initial delay for readiness probes in seconds. |
 | global.proxy.readinessPeriodSeconds | int | `2` | The period between readiness probes. |
-| global.proxy.readinessSuccessThreshold | int | `30` | The number of successive successed probes before indicating readiness success. |
+| global.proxy.readinessSuccessThreshold | int | `30` | The number of successive successful probes before indicating readiness success. |
 | global.proxy.readinessTimeoutSeconds | int | `3` | The readiness timeout seconds |
 | global.proxy.resources | object | `{"limits":{"cpu":"2000m","memory":"1024Mi"},"requests":{"cpu":"100m","memory":"128Mi"}}` | Resources for the sidecar. |
 | global.proxy.statusPort | int | `15020` | Default port for Pilot agent health checks. A value of 0 will disable health checking. |
@@ -249,7 +249,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | pilot.autoscaleEnabled | bool | `false` |  |
 | pilot.autoscaleMax | int | `5` |  |
 | pilot.autoscaleMin | int | `1` |  |
-| pilot.configMap | bool | `true` | Install the mesh config map, generated from values.yaml. If false, pilot wil use default values (by default) or user-supplied values. |
+| pilot.configMap | bool | `true` | Install the mesh config map, generated from values.yaml. If false, pilot will use default values (by default) or user-supplied values. |
 | pilot.configSource | object | `{"subscribedResources":[]}` | This is used to set the source of configuration for the associated address in configSource, if nothing is specified the default MCP is assumed. |
 | pilot.cpu.targetAverageUtilization | int | `80` |  |
 | pilot.deploymentLabels | object | `{}` | Additional labels to apply to the deployment. |

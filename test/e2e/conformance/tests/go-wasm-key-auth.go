@@ -116,7 +116,7 @@ var WasmPluginsKeyAuth = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 5:  Muti Key Authentication information found",
+					TestCaseName:    "case 5:  Multi Key Authentication information found",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
