@@ -10,7 +10,14 @@ import (
 )
 
 const (
-	HeaderContentType = "Content-Type"
+	HeaderContentType   = "Content-Type"
+	HeaderPath          = ":path"
+	HeaderAuthority     = ":authority"
+	HeaderAuthorization = "Authorization"
+
+	HeaderOriginalPath = "X-ENVOY-ORIGINAL-PATH"
+	HeaderOriginalHost = "X-ENVOY-ORIGINAL-HOST"
+	HeaderOriginalAuth = "X-HI-ORIGINAL-AUTH"
 
 	MimeTypeTextPlain       = "text/plain"
 	MimeTypeApplicationJson = "application/json"
@@ -48,49 +55,49 @@ func CreateHeaders(kvs ...string) [][2]string {
 }
 
 func OverwriteRequestPath(path string) error {
-	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
-		_ = proxywasm.ReplaceHttpRequestHeader("X-ENVOY-ORIGINAL-PATH", originPath)
-	}
-	return proxywasm.ReplaceHttpRequestHeader(":path", path)
+	return proxywasm.ReplaceHttpRequestHeader(HeaderPath, path)
 }
 
 func OverwriteRequestAuthorization(credential string) error {
-	if exist, _ := proxywasm.GetHttpRequestHeader("X-HI-ORIGINAL-AUTH"); exist == "" {
-		if originAuth, err := proxywasm.GetHttpRequestHeader("Authorization"); err == nil {
-			_ = proxywasm.AddHttpRequestHeader("X-HI-ORIGINAL-AUTH", originAuth)
+	if exist, _ := proxywasm.GetHttpRequestHeader(HeaderOriginalAuth); exist == "" {
+		if originAuth, err := proxywasm.GetHttpRequestHeader(HeaderAuthorization); err == nil {
+			_ = proxywasm.AddHttpRequestHeader(HeaderOriginalPath, originAuth)
 		}
 	}
-	return proxywasm.ReplaceHttpRequestHeader("Authorization", credential)
+	return proxywasm.ReplaceHttpRequestHeader(HeaderAuthorization, credential)
 }
 
 func OverwriteRequestHostHeader(headers http.Header, host string) {
-	if originHost, err := proxywasm.GetHttpRequestHeader(":authority"); err == nil {
-		headers.Set("X-ENVOY-ORIGINAL-HOST", originHost)
+	if originHost, err := proxywasm.GetHttpRequestHeader(HeaderAuthority); err == nil {
+		headers.Set(HeaderOriginalHost, originHost)
 	}
-	headers.Set(":authority", host)
+	headers.Set(HeaderAuthority, host)
 }
 
 func OverwriteRequestPathHeader(headers http.Header, path string) {
-	if originPath, err := proxywasm.GetHttpRequestHeader(":path"); err == nil {
-		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
-	}
-	headers.Set(":path", path)
+	headers.Set(HeaderPath, path)
 }
 
 func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string, mapping map[string]string) {
-	mappedPath, exist := mapping[apiName]
-	if !exist {
+	originPath := GetOriginalRequestPath()
+	mappedPath := MapRequestPathByCapability(apiName, originPath, mapping)
+	if mappedPath == "" {
 		return
 	}
-	originPath, err := proxywasm.GetHttpRequestHeader(":path")
-	if err == nil {
-		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
-	}
+	headers.Set(HeaderPath, mappedPath)
+	log.Debugf("[OverwriteRequestPath] originPath=%s, mappedPath=%s", originPath, mappedPath)
+}
+
+func MapRequestPathByCapability(apiName string, originPath string, mapping map[string]string) string {
 	/**
 	这里实现不太优雅，理应通过 apiName 来判断使用哪个正则替换
 	但 ApiName 定义在 provider 中， 而 provider 中又引用了 util
 	会导致循环引用
 	**/
+	mappedPath, exist := mapping[apiName]
+	if !exist {
+		return ""
+	}
 	if strings.Contains(mappedPath, "{") && strings.Contains(mappedPath, "}") {
 		replacements := []struct {
 			regx *regexp.Regexp
@@ -119,17 +126,61 @@ func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string,
 			}
 		}
 	}
-	headers.Set(":path", mappedPath)
-	log.Debugf("[OverwriteRequestPath] originPath=%s, mappedPath=%s", originPath, mappedPath)
+	return mappedPath
+}
+
+func GetOriginalRequestPath() string {
+	path, err := proxywasm.GetHttpRequestHeader(HeaderOriginalPath)
+	if path != "" && err == nil {
+		return path
+	}
+	if path, err = proxywasm.GetHttpRequestHeader(HeaderPath); err == nil {
+		return path
+	}
+	return ""
+}
+
+func SetOriginalRequestPath(path string) {
+	_ = proxywasm.ReplaceHttpRequestHeader(HeaderOriginalPath, path)
+}
+
+func GetOriginalRequestHost() string {
+	host, err := proxywasm.GetHttpRequestHeader(HeaderOriginalHost)
+	if host != "" && err == nil {
+		return host
+	}
+	if host, err = proxywasm.GetHttpRequestHeader(HeaderAuthority); err == nil {
+		return host
+	}
+	return ""
+}
+
+func SetOriginalRequestHost(host string) {
+	_ = proxywasm.ReplaceHttpRequestHeader(HeaderOriginalHost, host)
+}
+
+func GetOriginalRequestAuth() string {
+	auth, err := proxywasm.GetHttpRequestHeader(HeaderOriginalAuth)
+	if auth != "" && err == nil {
+		return auth
+	}
+	if auth, err = proxywasm.GetHttpRequestHeader(HeaderAuthorization); err == nil {
+		return auth
+	}
+	return ""
+}
+
+func SetOriginalRequestAuth(auth string) {
+	_ = proxywasm.ReplaceHttpRequestHeader(HeaderOriginalAuth, auth)
 }
 
 func OverwriteRequestAuthorizationHeader(headers http.Header, credential string) {
-	if exist := headers.Get("X-HI-ORIGINAL-AUTH"); exist == "" {
-		if originAuth := headers.Get("Authorization"); originAuth != "" {
-			headers.Set("X-HI-ORIGINAL-AUTH", originAuth)
+	if exist := headers.Get(HeaderOriginalAuth); exist == "" {
+		if originAuth := headers.Get(HeaderAuthorization); originAuth != "" {
+			headers.Set(HeaderOriginalAuth, originAuth)
 		}
 	}
-	headers.Set("Authorization", credential)
+	headers.Set(HeaderAuthorization, credential)
 }
 
 func HeaderToSlice(header http.Header) [][2]string {
@@ -152,22 +203,22 @@ func SliceToHeader(slice [][2]string) http.Header {
 	return header
 }
 
-func GetOriginalRequestHeaders() http.Header {
-	originalHeaders, _ := proxywasm.GetHttpRequestHeaders()
-	return SliceToHeader(originalHeaders)
+func GetRequestHeaders() http.Header {
+	header, _ := proxywasm.GetHttpRequestHeaders()
+	return SliceToHeader(header)
 }
 
-func GetOriginalResponseHeaders() http.Header {
-	originalHeaders, _ := proxywasm.GetHttpResponseHeaders()
-	return SliceToHeader(originalHeaders)
+func GetResponseHeaders() http.Header {
+	headers, _ := proxywasm.GetHttpResponseHeaders()
+	return SliceToHeader(headers)
 }
 
 func ReplaceRequestHeaders(headers http.Header) {
-	modifiedHeaders := HeaderToSlice(headers)
-	_ = proxywasm.ReplaceHttpRequestHeaders(modifiedHeaders)
+	headerSlice := HeaderToSlice(headers)
+	_ = proxywasm.ReplaceHttpRequestHeaders(headerSlice)
 }
 
 func ReplaceResponseHeaders(headers http.Header) {
-	modifiedHeaders := HeaderToSlice(headers)
-	_ = proxywasm.ReplaceHttpResponseHeaders(modifiedHeaders)
+	headerSlice := HeaderToSlice(headers)
+	_ = proxywasm.ReplaceHttpResponseHeaders(headerSlice)
 }
