@@ -19,12 +19,10 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 const (
@@ -604,16 +602,12 @@ func (b *bedrockProvider) insertHttpContextMessage(body []byte, content string, 
 	}
 
 	requestBytes, err := json.Marshal(request)
+	// TODO: Known bug: headers are not set in the request. So no auth header is set here.
 	b.setAuthHeaders(requestBytes, nil)
 	return requestBytes, err
 }
 
 func (b *bedrockProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
-	if gjson.GetBytes(body, "model").Exists() {
-		rawModel := gjson.GetBytes(body, "model").String()
-		encodedModel := url.QueryEscape(rawModel)
-		body, _ = sjson.SetBytes(body, "model", encodedModel)
-	}
 	switch apiName {
 	case ApiNameChatCompletion:
 		return b.onChatCompletionRequestBody(ctx, body, headers)
@@ -651,7 +645,7 @@ func (b *bedrockProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, 
 		return nil, err
 	}
 	headers.Set("Accept", "*/*")
-	util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockInvokeModelPath, request.Model))
+	b.overwriteRequestPathHeader(headers, bedrockInvokeModelPath, request.Model)
 	return b.buildBedrockImageGenerationRequest(request, headers)
 }
 
@@ -675,7 +669,6 @@ func (b *bedrockProvider) buildBedrockImageGenerationRequest(origRequest *imageG
 			Quality:        origRequest.Quality,
 		},
 	}
-	util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockInvokeModelPath, origRequest.Model))
 	requestBytes, err := json.Marshal(request)
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err
@@ -714,9 +707,9 @@ func (b *bedrockProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, b
 	streaming := request.Stream
 	headers.Set("Accept", "*/*")
 	if streaming {
-		util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockStreamChatCompletionPath, request.Model))
+		b.overwriteRequestPathHeader(headers, bedrockStreamChatCompletionPath, request.Model)
 	} else {
-		util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockChatCompletionPath, request.Model))
+		b.overwriteRequestPathHeader(headers, bedrockChatCompletionPath, request.Model)
 	}
 	return b.buildBedrockTextGenerationRequest(request, headers)
 }
@@ -786,6 +779,17 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 			TotalTokens:      bedrockResponse.Usage.TotalTokens,
 		},
 	}
+}
+
+func (b *bedrockProvider) overwriteRequestPathHeader(headers http.Header, format, model string) {
+	modelInPath := model
+	// Just in case the model name has already been URL-escaped, we shouldn't escape it again.
+	if !strings.ContainsRune(model, '%') {
+		modelInPath = url.QueryEscape(model)
+	}
+	path := fmt.Sprintf(format, modelInPath)
+	log.Debugf("overwriting bedrock request path: %s", path)
+	util.OverwriteRequestPathHeader(headers, path)
 }
 
 func stopReasonBedrock2OpenAI(reason string) string {
