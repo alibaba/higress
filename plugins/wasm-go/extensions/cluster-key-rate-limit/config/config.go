@@ -3,12 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
+	re "regexp"
 	"strings"
 
 	"cluster-key-rate-limit/util"
-
-	re "regexp"
-
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
@@ -191,11 +190,25 @@ func initLimitRule(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
 	}
 
 	var ruleItems []LimitRuleItem
+	// 用于记录已出现的LimitType和Key的组合
+	seenLimitRules := make(map[string]bool)
+
 	for _, item := range items {
 		ruleItem, err := parseLimitRuleItem(item)
 		if err != nil {
 			return fmt.Errorf("failed to parse rule_item in rule_items: %w", err)
 		}
+
+		// 构造LimitType和Key的唯一标识
+		ruleKey := string(ruleItem.LimitType) + ":" + ruleItem.Key
+
+		// 检查是否有重复的LimitType和Key组合
+		if seenLimitRules[ruleKey] {
+			log.Warnf("duplicate rule found: %s='%s' in rule_items", ruleItem.LimitType, ruleItem.Key)
+		} else {
+			seenLimitRules[ruleKey] = true
+		}
+
 		ruleItems = append(ruleItems, *ruleItem)
 	}
 	config.RuleItems = ruleItems
