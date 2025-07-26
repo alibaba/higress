@@ -167,7 +167,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 4: request transformer with arbitary order",
+					TestCaseName:    "case 4: request transformer with arbitrary order",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -204,7 +204,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 5: response transformer with arbitary order",
+					TestCaseName:    "case 5: response transformer with arbitrary order",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
