@@ -36,7 +36,7 @@ type ToolChangeEventListener interface {
 }
 
 type McpServerRegistry interface {
-	ListToolsDesciption() []*ToolDescription
+	ListToolsDescription() []*ToolDescription
 	GetToolRpcContext(toolname string) (*RpcContext, bool)
 	RegisterToolChangeEventListener(listener ToolChangeEventListener)
 }

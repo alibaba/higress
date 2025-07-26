@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -136,7 +136,7 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if v.config.IsOriginal() {
 		return types.ActionContinue, nil
 	}
-	headers := util.GetOriginalRequestHeaders()
+	headers := util.GetRequestHeaders()
 	body, err := v.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 	util.ReplaceRequestHeaders(headers)
 	_ = proxywasm.ReplaceHttpRequestBody(body)

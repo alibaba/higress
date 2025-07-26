@@ -129,7 +129,7 @@ func (w *watcher) Stop() {
 	w.Ready(false)
 }
 
-var domainRegex = regexp.MustCompile(`^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6}$`)
+var domainRegex = regexp.MustCompile(`^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$`)
 
 func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
