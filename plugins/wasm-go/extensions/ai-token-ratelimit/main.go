@@ -44,7 +44,11 @@ func init() {
 }
 
 const (
-	ClusterRateLimitFormat        string = "higress-token-ratelimit:%s:%s:%d:%d:%s:%s" // ruleName, limitType, timewindow, windowsize, key, val
+	RedisKeyPrefix string = "higress-token-ratelimit"
+	// AiTokenGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
+	AiTokenGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d:%d"
+	// AiTokenRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
+	AiTokenRateLimitFormat        string = RedisKeyPrefix + ":%s:%s:%d:%d:%s:%s"
 	RequestPhaseFixedWindowScript string = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
@@ -99,25 +103,35 @@ func parseConfig(json gjson.Result, cfg *config.AiTokenRateLimitConfig) error {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitConfig) types.Action {
 	ctx.DisableReroute()
-	// 判断是否命中限流规则
-	val, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, cfg.RuleItems)
-	if ruleItem == nil || configItem == nil {
-		return types.ActionContinue
+	limitKey, count, timeWindow := "", int64(0), int64(0)
+
+	if cfg.GlobalThreshold != nil {
+		// 全局限流模式
+		limitKey = fmt.Sprintf(AiTokenGlobalRateLimitFormat, cfg.RuleName, cfg.GlobalThreshold.TimeWindow, cfg.GlobalThreshold.Count)
+		count = cfg.GlobalThreshold.Count
+		timeWindow = cfg.GlobalThreshold.TimeWindow
+	} else {
+		// 规则限流模式
+		val, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, cfg.RuleItems)
+		if ruleItem == nil || configItem == nil {
+			// 没有匹配到限流规则直接返回
+			return types.ActionContinue
+		}
+
+		limitKey = fmt.Sprintf(AiTokenRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, configItem.Count, ruleItem.Key, val)
+		count = configItem.Count
+		timeWindow = configItem.TimeWindow
 	}
 
-	// 构建redis限流key和参数
-	limitKey := fmt.Sprintf(ClusterRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, configItem.Count, ruleItem.Key, val)
-	keys := []interface{}{limitKey}
-	args := []interface{}{configItem.Count, configItem.TimeWindow}
-
-	limitRedisContext := LimitRedisContext{
+	ctx.SetContext(LimitRedisContextKey, LimitRedisContext{
 		key:    limitKey,
-		count:  configItem.Count,
-		window: configItem.TimeWindow,
-	}
-	ctx.SetContext(LimitRedisContextKey, limitRedisContext)
+		count:  count,
+		window: timeWindow,
+	})
 
 	// 执行限流逻辑
+	keys := []interface{}{limitKey}
+	args := []interface{}{count, timeWindow}
 	err := cfg.RedisClient.Eval(RequestPhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
@@ -172,10 +186,12 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitCon
 }
 
 func checkRequestAgainstLimitRule(ctx wrapper.HttpContext, ruleItems []config.LimitRuleItem) (string, *config.LimitRuleItem, *config.LimitConfigItem) {
-	for _, rule := range ruleItems {
-		val, ruleItem, configItem := hitRateRuleItem(ctx, rule)
-		if ruleItem != nil && configItem != nil {
-			return val, ruleItem, configItem
+	if len(ruleItems) > 0 {
+		for _, rule := range ruleItems {
+			val, ruleItem, configItem := hitRateRuleItem(ctx, rule)
+			if ruleItem != nil && configItem != nil {
+				return val, ruleItem, configItem
+			}
 		}
 	}
 	return "", nil, nil

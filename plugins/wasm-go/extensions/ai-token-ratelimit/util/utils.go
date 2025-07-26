@@ -5,10 +5,11 @@ import (
 	"sort"
 	"strings"
 
-	"ai-token-ratelimit/config"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/zmap/go-iptree/iptree"
 )
+
+const ConsumerHeader = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
 
 // ParseIPNet 解析Ip段配置
 func ParseIPNet(key string) (*iptree.IPTree, error) {
@@ -78,7 +79,7 @@ func GetClusterName() (string, error) {
 }
 
 func GetConsumer() (string, error) {
-	if consumer, err := proxywasm.GetHttpRequestHeader(config.ConsumerHeader); err != nil {
+	if consumer, err := proxywasm.GetHttpRequestHeader(ConsumerHeader); err != nil {
 		return "none", err
 	} else {
 		return consumer, nil

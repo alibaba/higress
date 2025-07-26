@@ -44,12 +44,12 @@ func init() {
 }
 
 const (
-	// ClusterKeyPrefix 集群限流插件在 Redis 中 key 的统一前缀
-	ClusterKeyPrefix = "higress-cluster-key-rate-limit"
-	// ClusterGlobalRateLimitFormat  全局限流模式 redis key 为 ClusterKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
-	ClusterGlobalRateLimitFormat = ClusterKeyPrefix + ":%s:global_threshold:%d:%d"
-	// ClusterRateLimitFormat 规则限流模式 redis key 为 ClusterKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
-	ClusterRateLimitFormat = ClusterKeyPrefix + ":%s:%s:%d:%d:%s:%s"
+	// RedisKeyPrefix 集群限流插件在 Redis 中 key 的统一前缀
+	RedisKeyPrefix = "higress-cluster-key-rate-limit"
+	// ClusterGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
+	ClusterGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d:%d"
+	// ClusterRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
+	ClusterRateLimitFormat = RedisKeyPrefix + ":%s:%s:%d:%d:%s:%s"
 	FixedWindowScript      = `
     	local ttl = redis.call('ttl', KEYS[1])
     	if ttl < 0 then
@@ -86,24 +86,24 @@ func parseConfig(json gjson.Result, cfg *config.ClusterKeyRateLimitConfig) error
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateLimitConfig) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ClusterKeyRateLimitConfig) types.Action {
 	ctx.DisableReroute()
 	limitKey, count, timeWindow := "", int64(0), int64(0)
 
-	if config.GlobalThreshold != nil {
+	if cfg.GlobalThreshold != nil {
 		// 全局限流模式
-		limitKey = fmt.Sprintf(ClusterGlobalRateLimitFormat, config.RuleName, config.GlobalThreshold.TimeWindow, config.GlobalThreshold.Count)
-		count = config.GlobalThreshold.Count
-		timeWindow = config.GlobalThreshold.TimeWindow
+		limitKey = fmt.Sprintf(ClusterGlobalRateLimitFormat, cfg.RuleName, cfg.GlobalThreshold.TimeWindow, cfg.GlobalThreshold.Count)
+		count = cfg.GlobalThreshold.Count
+		timeWindow = cfg.GlobalThreshold.TimeWindow
 	} else {
 		// 规则限流模式
-		val, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, config.RuleItems)
+		val, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, cfg.RuleItems)
 		if ruleItem == nil || configItem == nil {
 			// 没有匹配到限流规则直接返回
 			return types.ActionContinue
 		}
 
-		limitKey = fmt.Sprintf(ClusterRateLimitFormat, config.RuleName, ruleItem.LimitType, configItem.TimeWindow, configItem.Count, ruleItem.Key, val)
+		limitKey = fmt.Sprintf(ClusterRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, configItem.Count, ruleItem.Key, val)
 		count = configItem.Count
 		timeWindow = configItem.TimeWindow
 	}
@@ -111,7 +111,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateL
 	// 执行限流逻辑
 	keys := []interface{}{limitKey}
 	args := []interface{}{count, timeWindow}
-	err := config.RedisClient.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
+	err := cfg.RedisClient.Eval(FixedWindowScript, 1, keys, args, func(response resp.Value) {
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
 			log.Errorf("redis response parse error, response: %v", response)
@@ -125,7 +125,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ClusterKeyRateL
 		}
 		if context.remaining < 0 {
 			// 触发限流
-			rejected(config, context)
+			rejected(cfg, context)
 		} else {
 			ctx.SetContext(LimitContextKey, context)
 			proxywasm.ResumeHttpRequest()

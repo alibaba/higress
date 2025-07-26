@@ -36,8 +36,6 @@ const (
 	AllType    LimitConfigItemType = "*"      // 匹配所有情况
 	IpNetType  LimitConfigItemType = "ipNet"  // ip段
 
-	ConsumerHeader string = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
-
 	RemoteAddrSourceType = "remote-addr"
 	HeaderSourceType     = "header"
 
@@ -58,24 +56,13 @@ var timeWindows = map[string]int64{
 }
 
 type AiTokenRateLimitConfig struct {
-	RuleName       string          // 限流规则名称
-	RuleItems      []LimitRuleItem // 限流规则项
-	RejectedCode   uint32          // 当请求超过阈值被拒绝时,返回的HTTP状态码
-	RejectedMsg    string          // 当请求超过阈值被拒绝时,返回的响应体
-	RedisClient    wrapper.RedisClient
-	CounterMetrics map[string]proxywasm.MetricCounter // Metrics
-}
-
-func (cfg *AiTokenRateLimitConfig) IncrementCounter(metricName string, inc uint64) {
-	if inc == 0 {
-		return
-	}
-	counter, ok := cfg.CounterMetrics[metricName]
-	if !ok {
-		counter = proxywasm.DefineCounterMetric(metricName)
-		cfg.CounterMetrics[metricName] = counter
-	}
-	counter.Increment(inc)
+	RuleName        string           // 限流规则名称
+	GlobalThreshold *GlobalThreshold // 全局限流配置
+	RuleItems       []LimitRuleItem  // 限流规则项
+	RejectedCode    uint32           // 当请求超过阈值被拒绝时,返回的HTTP状态码
+	RejectedMsg     string           // 当请求超过阈值被拒绝时,返回的响应体
+	RedisClient     wrapper.RedisClient
+	CounterMetrics  map[string]proxywasm.MetricCounter // Metrics
 }
 
 type GlobalThreshold struct {
@@ -102,6 +89,18 @@ type LimitConfigItem struct {
 	Regexp     *re.Regexp          // 正则表达式,仅用于itemType为regexpType
 	Count      int64               // 指定时间窗口内的token数
 	TimeWindow int64               // 时间窗口大小
+}
+
+func (cfg *AiTokenRateLimitConfig) IncrementCounter(metricName string, inc uint64) {
+	if inc == 0 {
+		return
+	}
+	counter, ok := cfg.CounterMetrics[metricName]
+	if !ok {
+		counter = proxywasm.DefineCounterMetric(metricName)
+		cfg.CounterMetrics[metricName] = counter
+	}
+	counter.Increment(inc)
 }
 
 func InitRedisClusterClient(json gjson.Result, config *AiTokenRateLimitConfig) error {
@@ -153,8 +152,8 @@ func ParseAiTokenRateLimitConfig(json gjson.Result, config *AiTokenRateLimitConf
 	}
 	config.RuleName = ruleName.String()
 
-	// 初始化ruleItems
-	err := initRuleItems(json, config)
+	// 初始化限流规则
+	err := initLimitRule(json, config)
 	if err != nil {
 		return err
 	}
@@ -174,83 +173,138 @@ func ParseAiTokenRateLimitConfig(json gjson.Result, config *AiTokenRateLimitConf
 	return nil
 }
 
-func initRuleItems(json gjson.Result, config *AiTokenRateLimitConfig) error {
+func initLimitRule(json gjson.Result, config *AiTokenRateLimitConfig) error {
+	globalThresholdResult := json.Get("global_threshold")
 	ruleItemsResult := json.Get("rule_items")
-	if !ruleItemsResult.Exists() {
-		return errors.New("missing rule_items in config")
+
+	hasGlobal := globalThresholdResult.Exists()
+	hasRule := ruleItemsResult.Exists()
+	if !hasGlobal && !hasRule {
+		return errors.New("at least one of 'global_threshold' or 'rule_items' must be set")
+	} else if hasGlobal && hasRule {
+		return errors.New("'global_threshold' and 'rule_items' cannot be set at the same time")
 	}
-	if len(ruleItemsResult.Array()) == 0 {
+
+	// 处理全局限流配置
+	if hasGlobal {
+		threshold, err := parseGlobalThreshold(globalThresholdResult)
+		if err != nil {
+			return fmt.Errorf("failed to parse global_threshold: %w", err)
+		}
+		config.GlobalThreshold = threshold
+		return nil
+	}
+
+	// 处理条件限流规则
+	items := ruleItemsResult.Array()
+	if len(items) == 0 {
 		return errors.New("config rule_items cannot be empty")
 	}
+
 	var ruleItems []LimitRuleItem
-	for _, item := range ruleItemsResult.Array() {
-		var ruleItem LimitRuleItem
+	// 用于记录已出现的LimitType和Key的组合
+	seenLimitRules := make(map[string]bool)
 
-		// 根据配置区分限流类型
-		var limitType LimitRuleItemType
-		setLimitByKeyIfExists := func(field gjson.Result, limitTypeStr LimitRuleItemType) {
-			if field.Exists() && field.String() != "" {
-				ruleItem.Key = field.String()
-				limitType = limitTypeStr
-			}
-		}
-		setLimitByKeyIfExists(item.Get("limit_by_header"), LimitByHeaderType)
-		setLimitByKeyIfExists(item.Get("limit_by_param"), LimitByParamType)
-		setLimitByKeyIfExists(item.Get("limit_by_cookie"), LimitByCookieType)
-		setLimitByKeyIfExists(item.Get("limit_by_per_header"), LimitByPerHeaderType)
-		setLimitByKeyIfExists(item.Get("limit_by_per_param"), LimitByPerParamType)
-		setLimitByKeyIfExists(item.Get("limit_by_per_cookie"), LimitByPerCookieType)
-
-		limitByConsumer := item.Get("limit_by_consumer")
-		if limitByConsumer.Exists() {
-			ruleItem.Key = ConsumerHeader
-			limitType = LimitByConsumerType
-		}
-		limitByPerConsumer := item.Get("limit_by_per_consumer")
-		if limitByPerConsumer.Exists() {
-			ruleItem.Key = ConsumerHeader
-			limitType = LimitByPerConsumerType
-		}
-
-		limitByPerIpResult := item.Get("limit_by_per_ip")
-		if limitByPerIpResult.Exists() && limitByPerIpResult.String() != "" {
-			limitByPerIp := limitByPerIpResult.String()
-			ruleItem.Key = limitByPerIp
-			if strings.HasPrefix(limitByPerIp, "from-header-") {
-				headerName := limitByPerIp[len("from-header-"):]
-				if headerName == "" {
-					return errors.New("limit_by_per_ip parse error: empty after 'from-header-'")
-				}
-				ruleItem.LimitByPerIp = LimitByPerIp{
-					SourceType: HeaderSourceType,
-					HeaderName: headerName,
-				}
-			} else if limitByPerIp == "from-remote-addr" {
-				ruleItem.LimitByPerIp = LimitByPerIp{
-					SourceType: RemoteAddrSourceType,
-					HeaderName: "",
-				}
-			} else {
-				return errors.New("the 'limit_by_per_ip' restriction must start with 'from-header-' or be exactly 'from-remote-addr'")
-			}
-			limitType = LimitByPerIpType
-		}
-
-		if limitType == "" {
-			return errors.New("only one of 'limit_by_header' and 'limit_by_param' and 'limit_by_consumer' and 'limit_by_cookie' and 'limit_by_per_header' and 'limit_by_per_param' and 'limit_by_per_consumer' and 'limit_by_per_cookie' and 'limit_by_per_ip' can be set")
-		}
-		ruleItem.LimitType = limitType
-
-		// 初始化configItems
-		err := initConfigItems(item, &ruleItem)
+	for _, item := range items {
+		ruleItem, err := parseLimitRuleItem(item)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to parse rule_item in rule_items: %w", err)
 		}
 
-		ruleItems = append(ruleItems, ruleItem)
+		// 构造LimitType和Key的唯一标识
+		ruleKey := string(ruleItem.LimitType) + ":" + ruleItem.Key
+
+		// 检查是否有重复的LimitType和Key组合
+		if seenLimitRules[ruleKey] {
+			log.Warnf("duplicate rule found: %s='%s' in rule_items", ruleItem.LimitType, ruleItem.Key)
+		} else {
+			seenLimitRules[ruleKey] = true
+		}
+
+		ruleItems = append(ruleItems, *ruleItem)
 	}
 	config.RuleItems = ruleItems
 	return nil
+}
+
+func parseGlobalThreshold(item gjson.Result) (*GlobalThreshold, error) {
+	for timeWindowKey, duration := range timeWindows {
+		q := item.Get(timeWindowKey)
+		if q.Exists() && q.Int() > 0 {
+			return &GlobalThreshold{
+				Count:      q.Int(),
+				TimeWindow: duration,
+			}, nil
+		}
+	}
+	return nil, errors.New("one of 'token_per_second', 'token_per_minute', 'token_per_hour', or 'token_per_day' must be set for global_threshold")
+}
+
+func parseLimitRuleItem(item gjson.Result) (*LimitRuleItem, error) {
+	var ruleItem LimitRuleItem
+
+	// 根据配置区分限流类型
+	var limitType LimitRuleItemType
+	setLimitByKeyIfExists := func(field gjson.Result, limitTypeStr LimitRuleItemType) {
+		if field.Exists() && field.String() != "" {
+			ruleItem.Key = field.String()
+			limitType = limitTypeStr
+		}
+	}
+	setLimitByKeyIfExists(item.Get("limit_by_header"), LimitByHeaderType)
+	setLimitByKeyIfExists(item.Get("limit_by_param"), LimitByParamType)
+	setLimitByKeyIfExists(item.Get("limit_by_cookie"), LimitByCookieType)
+	setLimitByKeyIfExists(item.Get("limit_by_per_header"), LimitByPerHeaderType)
+	setLimitByKeyIfExists(item.Get("limit_by_per_param"), LimitByPerParamType)
+	setLimitByKeyIfExists(item.Get("limit_by_per_cookie"), LimitByPerCookieType)
+
+	limitByConsumer := item.Get("limit_by_consumer")
+	if limitByConsumer.Exists() {
+		ruleItem.Key = util.ConsumerHeader
+		limitType = LimitByConsumerType
+	}
+	limitByPerConsumer := item.Get("limit_by_per_consumer")
+	if limitByPerConsumer.Exists() {
+		ruleItem.Key = util.ConsumerHeader
+		limitType = LimitByPerConsumerType
+	}
+
+	limitByPerIpResult := item.Get("limit_by_per_ip")
+	if limitByPerIpResult.Exists() && limitByPerIpResult.String() != "" {
+		limitByPerIp := limitByPerIpResult.String()
+		ruleItem.Key = limitByPerIp
+		if strings.HasPrefix(limitByPerIp, "from-header-") {
+			headerName := limitByPerIp[len("from-header-"):]
+			if headerName == "" {
+				return nil, errors.New("limit_by_per_ip parse error: empty after 'from-header-'")
+			}
+			ruleItem.LimitByPerIp = LimitByPerIp{
+				SourceType: HeaderSourceType,
+				HeaderName: headerName,
+			}
+		} else if limitByPerIp == "from-remote-addr" {
+			ruleItem.LimitByPerIp = LimitByPerIp{
+				SourceType: RemoteAddrSourceType,
+				HeaderName: "",
+			}
+		} else {
+			return nil, errors.New("the 'limit_by_per_ip' restriction must start with 'from-header-' or be exactly 'from-remote-addr'")
+		}
+		limitType = LimitByPerIpType
+	}
+
+	if limitType == "" {
+		return nil, errors.New("only one of 'limit_by_header' and 'limit_by_param' and 'limit_by_consumer' and 'limit_by_cookie' and 'limit_by_per_header' and 'limit_by_per_param' and 'limit_by_per_consumer' and 'limit_by_per_cookie' and 'limit_by_per_ip' can be set")
+	}
+	ruleItem.LimitType = limitType
+
+	// 初始化configItems
+	err := initConfigItems(item, &ruleItem)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ruleItem, nil
 }
 
 func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
