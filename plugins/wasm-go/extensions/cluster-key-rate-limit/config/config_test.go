@@ -21,6 +21,16 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 			expectedErr: errors.New("missing rule_name in config"),
 		},
 		{
+			name: "GlobalThreshold_InvalidThreshold",
+			json: `{
+				"rule_name": "invalid-threshold",
+				"global_threshold": {
+					"query_per_minute": -100
+				}
+			}`,
+			expectedErr: errors.New("failed to parse global_threshold: 'query_per_minute' must be a positive integer, got -100"),
+		},
+		{
 			name: "GlobalThreshold_QueryPerSecond",
 			json: `{
 				"rule_name": "global-route-limit",
@@ -55,6 +65,21 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 				RejectedCode: DefaultRejectedCode,
 				RejectedMsg:  DefaultRejectedMsg,
 			},
+		},
+		{
+			name: "RuleItems_InvalidThreshold",
+			json: `{
+				"rule_name": "invalid-threshold",
+				"rule_items": [
+					{
+						"limit_by_header": "x-test",
+						"limit_keys": [
+							{"key": "key1", "query_per_minute": -100}
+						]
+					}
+				]
+			}`,
+			expectedErr: errors.New("failed to parse rule_item in rule_items: 'query_per_minute' must be a positive integer for key 'key1', got -100"),
 		},
 		{
 			name: "RuleItems_SingleRule",

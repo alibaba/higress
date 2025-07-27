@@ -230,9 +230,13 @@ func initLimitRule(json gjson.Result, config *AiTokenRateLimitConfig) error {
 func parseGlobalThreshold(item gjson.Result) (*GlobalThreshold, error) {
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
-		if q.Exists() && q.Int() > 0 {
+		if q.Exists() {
+			count := q.Int()
+			if count <= 0 {
+				return nil, fmt.Errorf("'%s' must be a positive integer, got %d", timeWindowKey, count)
+			}
 			return &GlobalThreshold{
-				Count:      q.Int(),
+				Count:      count,
 				TimeWindow: duration,
 			}, nil
 		}
@@ -369,13 +373,17 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 func createConfigItemFromRate(item gjson.Result, itemType LimitConfigItemType, key string, ipNet *iptree.IPTree, regexp *re.Regexp) (*LimitConfigItem, error) {
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
-		if q.Exists() && q.Int() > 0 {
+		if q.Exists() {
+			count := q.Int()
+			if count <= 0 {
+				return nil, fmt.Errorf("'%s' must be a positive integer for key '%s', got %d", timeWindowKey, key, count)
+			}
 			return &LimitConfigItem{
 				ConfigType: itemType,
 				Key:        key,
 				IpNet:      ipNet,
 				Regexp:     regexp,
-				Count:      q.Int(),
+				Count:      count,
 				TimeWindow: duration,
 			}, nil
 		}
