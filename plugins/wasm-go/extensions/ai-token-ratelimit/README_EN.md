@@ -122,7 +122,7 @@ rule_name: default_rule
 rule_items:
   - limit_by_header: x-ca-key
     limit_keys:
-    	- key: 102234
+      - key: 102234
         token_per_minute: 10
       - key: 308239
         token_per_hour: 10
