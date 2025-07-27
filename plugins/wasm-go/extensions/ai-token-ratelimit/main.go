@@ -48,8 +48,8 @@ const (
 	// AiTokenGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
 	AiTokenGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d:%d"
 	// AiTokenRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
-	AiTokenRateLimitFormat        string = RedisKeyPrefix + ":%s:%s:%d:%d:%s:%s"
-	RequestPhaseFixedWindowScript string = `
+	AiTokenRateLimitFormat        = RedisKeyPrefix + ":%s:%s:%d:%d:%s:%s"
+	RequestPhaseFixedWindowScript = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
 	redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2])
@@ -57,7 +57,7 @@ const (
 	end
 	return {ARGV[1], redis.call('get', KEYS[1]), ttl}
 	`
-	ResponsePhaseFixedWindowScript string = `
+	ResponsePhaseFixedWindowScript = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
 	redis.call('set', KEYS[1], ARGV[1]-ARGV[3], 'EX', ARGV[2])
@@ -66,11 +66,11 @@ const (
 	return {ARGV[1], redis.call('decrby', KEYS[1], ARGV[3]), ttl}
 	`
 
-	LimitRedisContextKey string = "LimitRedisContext"
+	LimitRedisContextKey = "LimitRedisContext"
 
-	CookieHeader string = "cookie"
+	CookieHeader = "cookie"
 
-	RateLimitResetHeader string = "X-TokenRateLimit-Reset" // 限流重置时间（触发限流时返回）
+	RateLimitResetHeader = "X-TokenRateLimit-Reset" // 限流重置时间（触发限流时返回）
 
 	TokenRateLimitCount = "token_ratelimit_count" // metric name
 )
@@ -223,9 +223,9 @@ func hitRateRuleItem(ctx wrapper.HttpContext, rule config.LimitRuleItem) (string
 		return val[0], &rule, findMatchingItem(rule.LimitType, rule.ConfigItems, val[0])
 	// 根据consumer限流
 	case config.LimitByConsumerType, config.LimitByPerConsumerType:
-		val, err := proxywasm.GetHttpRequestHeader(config.ConsumerHeader)
+		val, err := proxywasm.GetHttpRequestHeader(util.ConsumerHeader)
 		if err != nil {
-			return logDebugAndReturnEmpty("failed to get request header %s: %v", config.ConsumerHeader, err)
+			return logDebugAndReturnEmpty("failed to get request header %s: %v", util.ConsumerHeader, err)
 		}
 		return val, &rule, findMatchingItem(rule.LimitType, rule.ConfigItems, val)
 	// 根据cookie中key值限流

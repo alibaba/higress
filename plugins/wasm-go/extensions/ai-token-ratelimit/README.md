@@ -4,10 +4,12 @@ keywords: [ AI网关, AI token限流 ]
 description: AI Token限流插件配置参考
 ---
 
-
 ## 功能说明
 
-`ai-token-ratelimit`插件实现了基于特定键值实现token限流，键值来源可以是 URL 参数、HTTP 请求头、客户端 IP 地址、consumer 名称、cookie中 key 名称
+`ai-token-ratelimit`插件基于 Redis 实现了 AI Token 限流功能，支持以下两种限流模式：
+
+- **规则级全局限流**：依据相同的`rule_name`与`global_threshold`配置，为自定义规则组设置全局 token 限流阈值
+- **Key 级动态限流**：根据请求中的动态 Key（包括 URL 参数、请求头、客户端 IP、Consumer 名称或 Cookie 字段等）进行分组 token 限流
 
 ## 运行属性
 
@@ -19,12 +21,22 @@ description: AI Token限流插件配置参考
 | 配置项                  | 类型   | 必填 | 默认值 | 说明                                                                        |
 | ----------------------- | ------ | ---- | ------ |---------------------------------------------------------------------------|
 | rule_name               | string | 是 | - | 限流规则名称，根据限流规则名称+限流类型+限流key名称+限流key对应的实际值来拼装redis key                      |
-| rule_items | array of object | 是   | -                 | 限流规则项，按照rule_items下的排列顺序，匹配第一个rule_item后命中限流规则，后续规则将被忽略                   |
+| global_threshold | Object | 否，`global_threshold` 或 `rule_items` 选填一项 | - | 对整个自定义规则组进行限流 |
+| rule_items | array of object | 否，`global_threshold` 或 `rule_items` 选填一项 | -                | 限流规则项，按照rule_items下的排列顺序，匹配第一个rule_item后命中限流规则，后续规则将被忽略                   |
 | rejected_code           | int | 否 | 429 | 请求被限流时，返回的HTTP状态码                                                         |
 | rejected_msg            | string | 否 | Too many requests | 请求被限流时，返回的响应体                                                             |
-| redis                   | object          | 是                                                           | -                 | redis相关配置                                                                 |
+| redis                   | object          | 是                                                           | -                | redis相关配置                                                                 |
 
-`rule_items`中每一项的配置字段说明
+`global_threshold` 中每一项的配置字段说明。
+
+| 配置项           | 类型 | 必填                                                         | 默认值 | 说明                  |
+| ---------------- | ---- | ------------------------------------------------------------ | ------ | --------------------- |
+| token_per_second | int  | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每秒请求token数   |
+| token_per_minute | int  | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每分钟请求token数 |
+| token_per_hour   | int  | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每小时请求token数 |
+| token_per_day    | int  | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每天请求token数   |
+
+`rule_items`中每一项的配置字段说明。
 
 | 配置项                | 类型            | 必填                       | 默认值 | 说明                                                         |
 | --------------------- | --------------- | -------------------------- | ------ | ------------------------------------------------------------ |
@@ -39,7 +51,7 @@ description: AI Token限流插件配置参考
 | limit_by_per_ip       | string          | 否，`limit_by_*`中选填一项 | -      | 按规则匹配特定 IP，并对每个 IP 分别计算限流，配置获取限流键值的来源 IP 参数名称，从请求头获取，以`from-header-对应的header名`，示例：`from-header-x-forwarded-for`，直接获取对端socket ip，配置为`from-remote-addr` |
 | limit_keys            | array of object | 是                         | -      | 配置匹配键值后的限流次数                                     |
 
-`limit_keys`中每一项的配置字段说明
+`limit_keys`中每一项的配置字段说明。
 
 | 配置项           | 类型   | 必填                                                         | 默认值 | 说明                                                         |
 | ---------------- | ------ | ------------------------------------------------------------ | ------ | ------------------------------------------------------------ |
@@ -49,7 +61,7 @@ description: AI Token限流插件配置参考
 | token_per_hour   | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每小时请求token数                                           |
 | token_per_day    | int    | 否，`token_per_second`,`token_per_minute`,`token_per_hour`,`token_per_day` 中选填一项 | -      | 允许每天请求token数                                             |
 
-`redis`中每一项的配置字段说明
+`redis`中每一项的配置字段说明。
 
 | 配置项       | 类型   | 必填 | 默认值                                                     | 说明                                                                                         |
 | ------------ | ------ | ---- | ---------------------------------------------------------- | ---------------------------                                                                  |
@@ -62,6 +74,17 @@ description: AI Token限流插件配置参考
 
 
 ## 配置示例
+
+### 自定义规则组全局限流
+
+```yaml
+rule_name: routeA-global-limit-rule
+global_threshold:
+  query_per_minute: 1000 # 自定义规则组每分钟1000个token
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
+```
 
 ### 识别请求参数 apikey，进行区别限流
 
@@ -89,8 +112,6 @@ redis:
   service_name: redis.static
 ```
 
-
-
 ### 识别请求头 x-ca-key，进行区别限流
 
 ```yaml
@@ -98,7 +119,7 @@ rule_name: default_rule
 rule_items:
   - limit_by_header: x-ca-key
     limit_keys:
-    	- key: 102234
+      - key: 102234
         token_per_minute: 10
       - key: 308239
         token_per_hour: 10
@@ -112,12 +133,10 @@ rule_items:
         token_per_minute: 100
       # 兜底用，匹配所有请求，每个apikey对应的请求1000qdh
       - key: "*"
-        token_per_hour: 1000            
+        token_per_hour: 1000
 redis:
   service_name: redis.static
 ```
-
-
 
 ### 根据请求头 x-forwarded-for 获取对端IP，进行区别限流
 
@@ -160,12 +179,10 @@ rule_items:
         token_per_minute: 100
       # 兜底用，匹配所有请求，每个consumer对应的请求1000qdh
       - key: "*"
-        token_per_hour: 1000     
+        token_per_hour: 1000
 redis:
   service_name: redis.static
 ```
-
-
 
 ### 识别cookie中的键值对，进行区别限流
 
@@ -188,7 +205,7 @@ rule_items:
         token_per_minute: 100
       # 兜底用，匹配所有请求，每个cookie中的value对应的请求1000qdh
       - key: "*"
-        token_per_hour: 1000 
+        token_per_hour: 1000
 rejected_code: 200
 rejected_msg: '{"code":-1,"msg":"Too many requests"}'
 redis:
@@ -198,6 +215,7 @@ redis:
 ## 完整示例
 
 AI Token 限流插件依赖 Redis 记录剩余可用的 token 数，因此首先需要部署 Redis 服务。
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -286,6 +304,7 @@ spec:
   phase: UNSPECIFIED_PHASE
   priority: 600
 ```
+
 注意，AI Token 限流插件中的 Redis 配置项 `service_name` 来自 McpBridge 中配置的服务来源，另外我们还需要在 McpBridge 中配置通义千问服务的访问地址。
 
 ```yaml
