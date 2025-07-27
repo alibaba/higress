@@ -86,7 +86,7 @@ Plugin execution priority: `600`
 ```yaml
 rule_name: routeA-global-limit-rule
 global_threshold:
-  query_per_minute: 1000 # 1000 tokens per minute for the custom rule group
+  token_per_minute: 1000 # 1000 tokens per minute for the custom rule group
 redis:
   service_name: redis.static
 show_limit_quota_header: true

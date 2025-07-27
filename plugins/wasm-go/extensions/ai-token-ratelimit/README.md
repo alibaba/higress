@@ -80,7 +80,7 @@ description: AI Token限流插件配置参考
 ```yaml
 rule_name: routeA-global-limit-rule
 global_threshold:
-  query_per_minute: 1000 # 自定义规则组每分钟1000个token
+  token_per_minute: 1000 # 自定义规则组每分钟1000个token
 redis:
   service_name: redis.static
 show_limit_quota_header: true
