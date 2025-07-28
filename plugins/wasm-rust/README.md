@@ -360,9 +360,10 @@ docker build -t request-block:latest --build-arg PLUGIN_NAME=request-block .
 docker build -t my-custom-plugin:latest --build-arg PLUGIN_NAME=my-custom-plugin .
 ```
 
-**Dockerfile 特性**：
+**插件分发特性**：
+- 遵循OCI镜像规范的插件分发，可以参考[OCI镜像规范](https://github.com/opencontainers/image-spec/blob/main/image-layout.md)
 - 基于 `rust:1.80` 构建环境
-- 自动安装 WASI 目标和 clang 编译器
+- 自动安装 WASI 目标
 - 多阶段构建，最终镜像基于 `scratch`
 - 最小化镜像大小（约 300-400KB）
 - 只包含编译后的 WASM 文件
