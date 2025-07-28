@@ -37,7 +37,7 @@ type ServiceSourceResponse = higress.APIResponse[ServiceSource]
 func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all service sources
 	mcpServer.AddTool(
-		mcp.NewTool("list-service-sources", mcp.WithDescription("List all available service sources")),
+		mcp.NewToolWithRawSchema("list-service-sources", "List all available service sources", listServiceSourcesSchema()),
 		handleListServiceSources(client),
 	)
 
@@ -129,6 +129,7 @@ func handleAddServiceSource(client *higress.HigressClient) common.ToolHandlerFun
 		if _, ok := configurations["port"]; !ok {
 			return nil, fmt.Errorf("missing required field 'port' in configurations")
 		}
+		// valid protocol,sni,properties,auth
 
 		respBody, err := client.Post("/v1/service-sources", configurations)
 		if err != nil {
@@ -247,6 +248,15 @@ func handleDeleteServiceSource(client *higress.HigressClient) common.ToolHandler
 			},
 		}, nil
 	}
+}
+
+func listServiceSourcesSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {},
+		"required": [],
+		"additionalProperties": false
+	}`)
 }
 
 func getServiceSourceSchema() json.RawMessage {
