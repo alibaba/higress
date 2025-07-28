@@ -310,7 +310,7 @@ func getAddServiceSourceSchema() json.RawMessage {
 						"description": "Server Name Indication for HTTPS connections (optional)"
 					}
 				},
-				"required": ["name", "type", "domain", "port"],
+				"required": ["name", "type", "domain", "port", "protocol"],
 				"additionalProperties": false
 			}
 		},
