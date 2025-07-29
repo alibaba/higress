@@ -45,6 +45,14 @@ const (
 	ConsumerKey                = "x-mse-consumer"
 	RequestPath                = "request_path"
 
+	// AI API Paths
+	PathOpenAIChatCompletions       = "/v1/chat/completions"
+	PathOpenAICompletions           = "/v1/completions"
+	PathOpenAIEmbeddings            = "/v1/embeddings"
+	PathOpenAIModels                = "/v1/models"
+	PathGeminiGenerateContent       = "/generateContent"
+	PathGeminiStreamGenerateContent = "/streamGenerateContent"
+
 	// Source Type
 	FixedValue            = "fixed_value"
 	RequestHeader         = "request_header"
@@ -229,12 +237,12 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	// Set default values if not configured
 	if len(config.EnableOnPathSuffix) == 0 {
 		config.EnableOnPathSuffix = []string{
-			"/v1/chat/completions",
-			"/v1/completions",
-			"/v1/embeddings",
-			"/v1/models",
-			"/generateContent",
-			"/streamGenerateContent",
+			PathOpenAIChatCompletions,
+			PathOpenAICompletions,
+			PathOpenAIEmbeddings,
+			PathOpenAIModels,
+			PathGeminiGenerateContent,
+			PathGeminiStreamGenerateContent,
 		}
 	}
 
