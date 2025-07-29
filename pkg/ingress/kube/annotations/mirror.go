@@ -48,7 +48,7 @@ func (m mirror) Parse(annotations Annotations, config *Ingress, globalContext *G
 	}
 
 	// if FQDN is set, then parse FQDN
-	if fadn, err := annotations.ParseStringASAP(mirrorTargetFQDN); err == nil {
+	if fqdn, err := annotations.ParseStringASAP(mirrorTargetFQDN); err == nil {
 		// default is 80
 		var port uint32
 		port = 80
@@ -59,7 +59,7 @@ func (m mirror) Parse(annotations Annotations, config *Ingress, globalContext *G
 
 		config.Mirror = &MirrorConfig{
 			Percentage: parsePercentage(annotations),
-			FQDN:       fadn,
+			FQDN:       fqdn,
 			FPort:      port,
 		}
 		return nil

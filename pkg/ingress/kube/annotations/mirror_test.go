@@ -44,7 +44,7 @@ func TestParseMirror(t *testing.T) {
 		{
 			input: []map[string]string{
 				{buildHigressAnnotationKey(mirrorTargetFQDN): "192.168.252.112", buildHigressAnnotationKey(mirrorTargetFQDNPort): "8080"},
-				{buildNginxAnnotationKey(mirrorTargetFQDN): "192.168.252.112", buildHigressAnnotationKey(mirrorTargetFQDNPort): "8080"},
+				{buildNginxAnnotationKey(mirrorTargetFQDN): "192.168.252.112", buildNginxAnnotationKey(mirrorTargetFQDNPort): "8080"},
 			},
 			expect: &MirrorConfig{
 				ServiceInfo: util.ServiceInfo{},
