@@ -400,7 +400,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AISecurityConfig) typ
 		ctx.NeedPauseStreamingResponse()
 		return types.ActionContinue
 	} else {
-		ctx.DisableStreamingHandler()
+		ctx.BufferResponseBody()
 		return types.HeaderStopIteration
 	}
 }
@@ -443,9 +443,7 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config AISecurityConfi
 		endStream := ctx.GetContext("end_of_stream_received").(bool) && ctx.BufferQueueSize() == 0
 		proxywasm.InjectEncodedDataToFilterChain(bytes.Join(bufferQueue, []byte("")), endStream)
 		bufferQueue = [][]byte{}
-		if endStream {
-			proxywasm.ResumeHttpResponse()
-		} else {
+		if !endStream {
 			ctx.SetContext("during_call", false)
 			singleCall()
 		}
