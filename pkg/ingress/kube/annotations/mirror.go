@@ -22,8 +22,10 @@ import (
 )
 
 const (
-	mirrorTargetService = "mirror-target-service"
-	mirrorPercentage    = "mirror-percentage"
+	mirrorTargetService  = "mirror-target-service"
+	mirrorPercentage     = "mirror-percentage"
+	mirrorTargetFQDN     = "mirror-target-fqdn"
+	mirrorTargetFQDNPort = "mirror-target-fqdn-port"
 )
 
 var (
@@ -34,12 +36,32 @@ var (
 type MirrorConfig struct {
 	util.ServiceInfo
 	Percentage *wrappers.DoubleValue
+	FQDN       string
+	FPort      uint32 // Port for FQDN
 }
 
 type mirror struct{}
 
 func (m mirror) Parse(annotations Annotations, config *Ingress, globalContext *GlobalContext) error {
 	if !needMirror(annotations) {
+		return nil
+	}
+
+	// if FQDN is set, then parse FQDN
+	if fadn, err := annotations.ParseStringASAP(mirrorTargetFQDN); err == nil {
+		// default is 80
+		var port uint32
+		port = 80
+
+		if p, err := annotations.ParseInt32ASAP(mirrorTargetFQDNPort); err == nil {
+			port = uint32(p)
+		}
+
+		config.Mirror = &MirrorConfig{
+			Percentage: parsePercentage(annotations),
+			FQDN:       fadn,
+			FPort:      port,
+		}
 		return nil
 	}
 
@@ -78,7 +100,16 @@ func (m mirror) Parse(annotations Annotations, config *Ingress, globalContext *G
 		serviceInfo.Port = uint32(service.Spec.Ports[0].Port)
 	}
 
+	config.Mirror = &MirrorConfig{
+		ServiceInfo: serviceInfo,
+		Percentage:  parsePercentage(annotations),
+	}
+	return nil
+}
+
+func parsePercentage(annotations Annotations) *wrappers.DoubleValue {
 	var percentage *wrappers.DoubleValue
+
 	if value, err := annotations.ParseIntASAP(mirrorPercentage); err == nil {
 		if value < 100 {
 			percentage = &wrappers.DoubleValue{
@@ -86,12 +117,7 @@ func (m mirror) Parse(annotations Annotations, config *Ingress, globalContext *G
 			}
 		}
 	}
-
-	config.Mirror = &MirrorConfig{
-		ServiceInfo: serviceInfo,
-		Percentage:  percentage,
-	}
-	return nil
+	return percentage
 }
 
 func (m mirror) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
@@ -99,10 +125,21 @@ func (m mirror) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 		return
 	}
 
+	var mirrorHost string
+	var mirrorPort uint32
+
+	if config.Mirror.FQDN != "" {
+		mirrorHost = config.Mirror.FQDN
+		mirrorPort = config.Mirror.FPort
+	} else {
+		mirrorHost = util.CreateServiceFQDN(config.Mirror.Namespace, config.Mirror.Name)
+		mirrorPort = config.Mirror.Port
+	}
+
 	route.Mirror = &networking.Destination{
-		Host: util.CreateServiceFQDN(config.Mirror.Namespace, config.Mirror.Name),
+		Host: mirrorHost,
 		Port: &networking.PortSelector{
-			Number: config.Mirror.Port,
+			Number: mirrorPort,
 		},
 	}
 
@@ -114,5 +151,5 @@ func (m mirror) ApplyRoute(route *networking.HTTPRoute, config *Ingress) {
 }
 
 func needMirror(annotations Annotations) bool {
-	return annotations.HasASAP(mirrorTargetService)
+	return annotations.HasASAP(mirrorTargetService) || annotations.HasASAP(mirrorTargetFQDN)
 }
