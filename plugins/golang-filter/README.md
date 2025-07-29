@@ -20,28 +20,49 @@ Golang HTTP Filter 允许开发者使用 Go 语言编写自定义的 Envoy Filte
 
 请参考 [Envoy Golang HTTP Filter 示例](https://github.com/envoyproxy/examples/tree/main/golang-http) 了解如何开发和运行一个基本的 Golang Filter。
 
+## 插件注册
+
+在开发新的 Golang Filter 时，需要在`main.go` 的 `init()` 函数中注册你的插件。注册时需要提供插件名称、Filter 工厂函数和配置解析器：
+
+```go
+func init() {
+    envoyHttp.RegisterHttpFilterFactoryAndConfigParser(
+        "your-plugin-name",    // 插件名称
+        yourFilterFactory,     // Filter 工厂函数
+        &yourConfigParser{},   // 配置解析器
+    )
+}
+```
+
 ## 配置示例
+
+多个 Golang Filter 插件可以共同编译到一个 `golang-filter.so` 文件中，通过 `plugin_name` 来指定要使用的插件。配置示例如下：
 
 ```yaml
 http_filters:
 - name: envoy.filters.http.golang
   typed_config:
     "@type": type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config
-    library_id: my-go-filter
-    library_path: "./my-go-filter.so"
-    plugin_name: my-go-filter
+    library_id: your-plugin-name
+    library_path: "./golang-filter.so"  # 包含多个插件的共享库文件
+    plugin_name: your-plugin-name       # 指定要使用的插件名称，需要与 init() 函数中注册的插件名称保持一致
     plugin_config:
       "@type": type.googleapis.com/xds.type.v3.TypedStruct
       value:
           your_config_here: value
-                  
 ```
-
 
 ## 快速构建
 
-使用以下命令可以快速构建 golang filter 插件:
+使用以下命令可以快速构建 golang filter 插件：
 
 ```bash
-GO_FILTER_NAME=mcp-server make build
+make build
 ```
+
+如果是 arm64 架构，请设置 `GOARCH=arm64`：
+
+```bash
+make build GOARCH=arm64
+```
+你也可以直接在 Higress 项目的根目录下执行 `make build-gateway-local` 来构建 Higress Gateway 镜像，`golang-filter.so` 将会自动构建并复制到镜像中。

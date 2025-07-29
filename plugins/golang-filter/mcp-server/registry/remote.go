@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -50,8 +50,11 @@ func FixedQueryToken(cred *CredentialInfo, h *HttpRemoteCallHandle) {
 	h.Query[key.(string)] = value.(string)
 }
 
-func newHttpRemoteCallHandle(ctx *RpcContext) *HttpRemoteCallHandle {
-	instance := selectOneInstance(ctx)
+func newHttpRemoteCallHandle(ctx *RpcContext) (*HttpRemoteCallHandle, error) {
+	instance, err := selectOneInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
 	method, ok := ctx.ToolMeta.InvokeContext["method"]
 	if !ok {
 		method = DEFAULT_HTTP_METHOD
@@ -64,7 +67,7 @@ func newHttpRemoteCallHandle(ctx *RpcContext) *HttpRemoteCallHandle {
 
 	return &HttpRemoteCallHandle{
 		CommonRemoteCallHandle: CommonRemoteCallHandle{
-			Instance: &instance,
+			Instance: instance,
 		},
 		Protocol: ctx.Protocol,
 		Headers:  http.Header{},
@@ -72,7 +75,7 @@ func newHttpRemoteCallHandle(ctx *RpcContext) *HttpRemoteCallHandle {
 		Query:    map[string]string{},
 		Path:     path,
 		Method:   method,
-	}
+	}, nil
 }
 
 // http remote handle implementation
@@ -119,14 +122,14 @@ func (h *HttpRemoteCallHandle) handleParamMapping(mapInfo *map[string]ParameterM
 	for param, value := range params {
 		if info, ok := paramMapInfo[param]; ok {
 			if info.Position == "Query" {
-				h.Query[info.BackendName] = fmt.Sprintf("%s", value)
+				h.Query[info.BackendName] = fmt.Sprintf("%v", value)
 			} else if info.Position == "Header" {
-				h.Headers[info.BackendName] = []string{fmt.Sprintf("%s", value)}
+				h.Headers[info.BackendName] = []string{fmt.Sprintf("%v", value)}
 			} else {
 				return fmt.Errorf("Unsupport position for args %s, pos is %s", param, info.Position)
 			}
 		} else {
-			h.Query[param] = fmt.Sprintf("%s", value)
+			h.Query[param] = fmt.Sprintf("%v", value)
 		}
 	}
 	return nil
@@ -160,20 +163,25 @@ func (h *HttpRemoteCallHandle) doHttpCall() (*http.Response, error) {
 	return http.DefaultClient.Do(&request)
 }
 
-func selectOneInstance(ctx *RpcContext) Instance {
+func selectOneInstance(ctx *RpcContext) (*Instance, error) {
 	instanceId := 0
+	if ctx.Instances == nil || len(*ctx.Instances) == 0 {
+		return nil, fmt.Errorf("No instance")
+	}
+
 	instances := *ctx.Instances
-	if len(instances) != 1 {
+	if len(instances) > 1 {
 		instanceId = rand.Intn(len(instances) - 1)
 	}
-	return instances[instanceId]
+	select_instance := instances[instanceId]
+	return &select_instance, nil
 }
 
-func getRemoteCallhandle(ctx *RpcContext) RemoteCallHandle {
+func getRemoteCallHandle(ctx *RpcContext) (RemoteCallHandle, error) {
 	if ctx.Protocol == PROTOCOL_HTTP || ctx.Protocol == PROTOCOL_HTTPS {
 		return newHttpRemoteCallHandle(ctx)
 	} else {
-		return nil
+		return nil, nil
 	}
 }
 
@@ -184,15 +192,19 @@ func CommonRemoteCall(reg McpServerRegistry, toolName string, parameters map[str
 		return nil, fmt.Errorf("Unknown tool %s", toolName)
 	}
 
-	remoteHandle := getRemoteCallhandle(ctx)
+	remoteHandle, err := getRemoteCallHandle(ctx)
 	if remoteHandle == nil {
 		return nil, fmt.Errorf("Unknown backend protocol %s", ctx.Protocol)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("Call backend server error: %w", err)
 	}
 
 	return remoteHandle.HandleToolCall(ctx, parameters)
 }
 
-func HandleRegistryToolsCall(reg McpServerRegistry) internal.ToolHandlerFunc {
+func HandleRegistryToolsCall(reg McpServerRegistry) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
 		return CommonRemoteCall(reg, request.Params.Name, arguments)

@@ -36,14 +36,24 @@ namespace model_router {
 
 #endif
 
+#define MODE_BYPASS 0
+#define MODE_JSON 1
+#define MODE_MULTIPART 2
+
+#define CRLF ("\r\n")
+#define CRLF_CRLF ("\r\n\r\n")
+
 struct ModelRouterConfigRule {
   std::string model_key_ = "model";
   std::string add_provider_header_;
   std::string model_to_header_;
   std::vector<std::string> enable_on_path_suffix_ = {
       "/completions",  "/embeddings",       "/images/generations",
-      "/audio/speech", "/fine_tuning/jobs", "/moderations"};
+      "/audio/speech", "/fine_tuning/jobs", "/moderations",
+      "/image-synthesis", "/video-synthesis"};
 };
+
+class PluginContext;
 
 // PluginRootContext is the root context for all streams processed by the
 // thread. It has the same lifetime as the worker thread and acts as target for
@@ -55,8 +65,9 @@ class PluginRootContext : public RootContext,
       : RootContext(id, root_id) {}
   ~PluginRootContext() {}
   bool onConfigure(size_t) override;
-  FilterHeadersStatus onHeader(const ModelRouterConfigRule&);
-  FilterDataStatus onBody(const ModelRouterConfigRule&, std::string_view);
+  FilterHeadersStatus onHeader(PluginContext& ctx, const ModelRouterConfigRule&);
+  FilterDataStatus onJsonBody(const ModelRouterConfigRule&, std::string_view);
+  FilterDataStatus onMultipartBody(PluginContext& ctx, const ModelRouterConfigRule& rule, WasmDataPtr& body, bool end_stream);
   bool configure(size_t);
 
  private:
@@ -69,6 +80,8 @@ class PluginContext : public Context {
   explicit PluginContext(uint32_t id, RootContext* root) : Context(id, root) {}
   FilterHeadersStatus onRequestHeaders(uint32_t, bool) override;
   FilterDataStatus onRequestBody(size_t, bool) override;
+  int mode_;
+  std::string boundary_;
 
  private:
   inline PluginRootContext* rootContext() {

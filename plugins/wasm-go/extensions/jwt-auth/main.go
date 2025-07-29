@@ -17,7 +17,7 @@ package main
 import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/handler"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 // @Name jwt-proxy
@@ -33,10 +33,11 @@ import (
 // @Contact.email ink33@smlk.org
 //
 // @Example
-//{}
+// {}
 // @End
+func main() {}
 
-func main() {
+func init() {
 	wrapper.SetCtx(
 		// 插件名称
 		"jwt-auth",

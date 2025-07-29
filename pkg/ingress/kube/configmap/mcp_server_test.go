@@ -15,6 +15,7 @@
 package configmap
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -45,24 +46,92 @@ func Test_validMcpServer(t *testing.T) {
 		{
 			name: "enabled but no redis config",
 			mcp: &McpServer{
-				Enable:    true,
-				Redis:     nil,
-				MatchList: []*MatchRule{},
-				Servers:   []*SSEServer{},
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList:             []*MatchRule{},
+				Servers:               []*SSEServer{},
 			},
-			wantErr: errors.New("redis config cannot be empty when mcp server is enabled"),
+			wantErr: nil,
+		},
+		{
+			name: "enabled but bad match_rule_type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/mcp",
+						MatchRuleType:   "bad-type",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("invalid match_rule_type: bad-type, must be one of: exact, prefix, suffix, contains, regex"),
+		},
+		{
+			name: "enabled but bad upstream_type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/mcp",
+						MatchRuleType:   "prefix",
+						UpstreamType:    "bad-type",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("invalid upstream_type: bad-type, must be one of: rest, sse, streamable"),
+		},
+		{
+			name: "enabled but path rewrite with unsupported upstream type",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: false,
+				Redis:                 nil,
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain:   "*",
+						MatchRulePath:     "/mcp",
+						MatchRuleType:     "prefix",
+						UpstreamType:      "rest",
+						EnablePathRewrite: true,
+						PathRewritePrefix: "/",
+					},
+				},
+				Servers: []*SSEServer{},
+			},
+			wantErr: errors.New("path rewrite is only supported for SSE upstream type"),
+		},
+		{
+			name: "enabled with user level server but no redis config",
+			mcp: &McpServer{
+				Enable:                true,
+				EnableUserLevelServer: true,
+				Redis:                 nil,
+				MatchList:             []*MatchRule{},
+				Servers:               []*SSEServer{},
+			},
+			wantErr: errors.New("redis config cannot be empty when user level server is enabled"),
 		},
 		{
 			name: "valid config with redis",
 			mcp: &McpServer{
-				Enable: true,
+				Enable:                true,
+				EnableUserLevelServer: true,
 				Redis: &RedisConfig{
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -224,7 +293,7 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -251,7 +320,7 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Password: "password",
 					DB:       0,
 				},
-				SsePathSuffix: "/sse",
+				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
 					{
 						MatchRuleDomain: "*",
@@ -406,6 +475,345 @@ func TestMcpServerController_AddOrUpdateHigressConfig(t *testing.T) {
 			assert.Equal(t, tt.wantEventPush, eventPush)
 			assert.Equal(t, tt.wantErr, err)
 			assert.Equal(t, tt.wantMcp, m.GetMcpServer())
+		})
+	}
+}
+
+func TestMcpServerController_ValidHigressConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		higressConfig *HigressConfig
+		wantErr       error
+	}{
+		{
+			name:          "nil config",
+			higressConfig: nil,
+			wantErr:       nil,
+		},
+		{
+			name: "nil mcp server",
+			higressConfig: &HigressConfig{
+				McpServer: nil,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid config",
+			higressConfig: &HigressConfig{
+				McpServer: &McpServer{
+					Enable: true,
+					Redis: &RedisConfig{
+						Address: "localhost:6379",
+					},
+					MatchList: []*MatchRule{},
+					Servers:   []*SSEServer{},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "invalid config - user level server without redis",
+			higressConfig: &HigressConfig{
+				McpServer: &McpServer{
+					Enable:                true,
+					EnableUserLevelServer: true,
+					Redis:                 nil,
+					MatchList:             []*MatchRule{},
+					Servers:               []*SSEServer{},
+				},
+			},
+			wantErr: errors.New("redis config cannot be empty when user level server is enabled"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMcpServerController("test-namespace")
+			err := m.ValidHigressConfig(tt.higressConfig)
+			assert.Equal(t, tt.wantErr, err)
+		})
+	}
+}
+
+func TestMcpServerController_ConstructEnvoyFilters(t *testing.T) {
+	tests := []struct {
+		name        string
+		mcpServer   *McpServer
+		wantConfigs int
+		wantErr     error
+	}{
+		{
+			name:        "nil mcp server",
+			mcpServer:   nil,
+			wantConfigs: 0,
+			wantErr:     nil,
+		},
+		{
+			name: "disabled mcp server",
+			mcpServer: &McpServer{
+				Enable: false,
+			},
+			wantConfigs: 0,
+			wantErr:     nil,
+		},
+		{
+			name: "valid mcp server with redis",
+			mcpServer: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address: "localhost:6379",
+				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
+			},
+			wantConfigs: 2, // Both session and server filters
+			wantErr:     nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMcpServerController("test-namespace")
+			m.mcpServer.Store(tt.mcpServer)
+			configs, err := m.ConstructEnvoyFilters()
+			assert.Equal(t, tt.wantErr, err)
+			assert.Equal(t, tt.wantConfigs, len(configs))
+		})
+	}
+}
+
+func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
+	tests := []struct {
+		name     string
+		mcp      *McpServer
+		wantJSON string
+	}{
+		{
+			name: "minimal config",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address: "localhost:6379",
+				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
+			},
+			wantJSON: `{
+				"name": "envoy.filters.http.golang",
+				"typed_config": {
+					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+					"value": {
+						"library_id": "mcp-session",
+						"library_path": "/var/lib/istio/envoy/golang-filter.so",
+						"plugin_name": "mcp-session",
+						"plugin_config": {
+							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+							"value": {
+								"redis": {
+									"address": "localhost:6379",
+									"username": "",
+									"password": "",
+									"db": 0
+								},
+								"rate_limit": null,
+								"sse_path_suffix": "",
+								"match_list": [],
+								"enable_user_level_server": false
+							}
+						}
+					}
+				}
+			}`,
+		},
+		{
+			name: "full config",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address:  "localhost:6379",
+					Username: "user",
+					Password: "pass",
+					DB:       1,
+				},
+				SSEPathSuffix: "/sse",
+				MatchList: []*MatchRule{
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/test",
+						MatchRuleType:   "exact",
+					},
+					{
+						MatchRuleDomain: "*",
+						MatchRulePath:   "/sse-test-1",
+						MatchRuleType:   "prefix",
+						UpstreamType:    "sse",
+					},
+					{
+						MatchRuleDomain:   "*",
+						MatchRulePath:     "/sse-test-2",
+						MatchRuleType:     "prefix",
+						UpstreamType:      "sse",
+						EnablePathRewrite: true,
+						PathRewritePrefix: "/mcp",
+					},
+				},
+				EnableUserLevelServer: true,
+				Ratelimit: &MCPRatelimitConfig{
+					Limit:     100,
+					Window:    3600,
+					WhiteList: []string{"user1", "user2"},
+				},
+			},
+			wantJSON: `{
+				"name": "envoy.filters.http.golang",
+				"typed_config": {
+					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+					"value": {
+						"library_id": "mcp-session",
+						"library_path": "/var/lib/istio/envoy/golang-filter.so",
+						"plugin_name": "mcp-session",
+						"plugin_config": {
+							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+							"value": {
+								"redis": {
+									"address": "localhost:6379",
+									"username": "user",
+									"password": "pass",
+									"db": 1
+								},
+								"rate_limit": {
+									"limit": 100,
+									"window": 3600,
+									"white_list": ["user1","user2"]
+								},
+								"sse_path_suffix": "/sse",
+								"match_list": [{
+									"match_rule_domain": "*",
+									"match_rule_path": "/test",
+									"match_rule_type": "exact",
+									"upstream_type": "",
+									"enable_path_rewrite": false,
+									"path_rewrite_prefix": ""
+								},{
+									"match_rule_domain": "*",
+									"match_rule_path": "/sse-test-1",
+									"match_rule_type": "prefix",
+									"upstream_type": "sse",
+									"enable_path_rewrite": false,
+									"path_rewrite_prefix": ""
+								},{
+									"match_rule_domain": "*",
+									"match_rule_path": "/sse-test-2",
+									"match_rule_type": "prefix",
+									"upstream_type": "sse",
+									"enable_path_rewrite": true,
+									"path_rewrite_prefix": "/mcp"
+								}],
+								"enable_user_level_server": true
+							}
+						}
+					}
+				}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMcpServerController("test-namespace")
+			got := m.constructMcpSessionStruct(tt.mcp)
+			// Normalize JSON strings for comparison
+			var gotJSON, wantJSON interface{}
+			json.Unmarshal([]byte(got), &gotJSON)
+			json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
+			assert.Equal(t, wantJSON, gotJSON)
+		})
+	}
+}
+
+func TestMcpServerController_constructMcpServerStruct(t *testing.T) {
+	tests := []struct {
+		name     string
+		mcp      *McpServer
+		wantJSON string
+	}{
+		{
+			name: "no servers",
+			mcp: &McpServer{
+				Servers: []*SSEServer{},
+			},
+			wantJSON: `{
+				"name": "envoy.filters.http.golang",
+				"typed_config": {
+					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+					"value": {
+						"library_id": "mcp-server",
+						"library_path": "/var/lib/istio/envoy/golang-filter.so",
+						"plugin_name": "mcp-server",
+						"plugin_config": {
+							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+							"value": {
+								"servers": []
+							}
+						}
+					}
+				}
+			}`,
+		},
+		{
+			name: "with servers",
+			mcp: &McpServer{
+				Servers: []*SSEServer{
+					{
+						Name: "test-server",
+						Path: "/test",
+						Type: "test",
+						Config: map[string]interface{}{
+							"key": "value",
+						},
+						DomainList: []string{"example.com"},
+					},
+				},
+			},
+			wantJSON: `{
+				"name": "envoy.filters.http.golang",
+				"typed_config": {
+					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+					"value": {
+						"library_id": "mcp-server",
+						"library_path": "/var/lib/istio/envoy/golang-filter.so",
+						"plugin_name": "mcp-server",
+						"plugin_config": {
+							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+							"value": {
+								"servers": [{
+									"name": "test-server",
+									"path": "/test",
+									"type": "test",
+									"domain_list": ["example.com"],
+									"config": {"key":"value"}
+								}]
+							}
+						}
+					}
+				}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := NewMcpServerController("test-namespace")
+			got := m.constructMcpServerStruct(tt.mcp)
+			// Normalize JSON strings for comparison
+			var gotJSON, wantJSON interface{}
+			json.Unmarshal([]byte(got), &gotJSON)
+			json.Unmarshal([]byte(tt.wantJSON), &wantJSON)
+			assert.Equal(t, wantJSON, gotJSON)
 		})
 	}
 }

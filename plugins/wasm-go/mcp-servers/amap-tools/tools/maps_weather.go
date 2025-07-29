@@ -23,8 +23,8 @@ import (
 
 	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/mcp/server"
+	"github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 var _ server.Tool = WeatherRequest{}
@@ -34,7 +34,7 @@ type WeatherRequest struct {
 }
 
 func (t WeatherRequest) Description() string {
-	return "根据城市名称或者标准adcode查询指定城市的天气"
+	return "根据城市名称或者标准adcode查询指定城市的天气，城市名称可以通过基于ip定位位置的mcp工具获取"
 }
 
 func (t WeatherRequest) InputSchema() map[string]any {
@@ -56,7 +56,7 @@ func (t WeatherRequest) Call(ctx server.HttpContext, s server.Server) error {
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/weather/weatherInfo?city=%s&key=%s&source=ts_mcp&extensions=all", url.QueryEscape(t.City), serverConfig.ApiKey)
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("weather call failed, status: %d", statusCode))
 				return

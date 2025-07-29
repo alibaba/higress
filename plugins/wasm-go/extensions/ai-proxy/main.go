@@ -11,8 +11,10 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -23,9 +25,28 @@ const (
 	pluginName = "ai-proxy"
 
 	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
+
+	ctxOriginalPath = "original_path"
+	ctxOriginalHost = "original_host"
+	ctxOriginalAuth = "original_auth"
 )
 
-func main() {
+var (
+	headersCtxKeyMapping = map[string]string{
+		util.HeaderAuthority:     ctxOriginalHost,
+		util.HeaderPath:          ctxOriginalPath,
+		util.HeaderAuthorization: ctxOriginalAuth,
+	}
+	headerToOriginalHeaderMapping = map[string]string{
+		util.HeaderAuthority:     util.HeaderOriginalHost,
+		util.HeaderPath:          util.HeaderOriginalPath,
+		util.HeaderAuthorization: util.HeaderOriginalAuth,
+	}
+)
+
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseOverrideConfig(parseGlobalConfig, parseOverrideRuleConfig),
@@ -71,6 +92,30 @@ func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, plug
 	return nil
 }
 
+func initContext(ctx wrapper.HttpContext) {
+	for header, ctxKey := range headersCtxKeyMapping {
+		value, _ := proxywasm.GetHttpRequestHeader(header)
+		ctx.SetContext(ctxKey, value)
+	}
+}
+
+func saveContextsToHeaders(ctx wrapper.HttpContext) {
+	for header, ctxKey := range headersCtxKeyMapping {
+		originalValue := ctx.GetStringContext(ctxKey, "")
+		if originalValue == "" {
+			continue
+		}
+		currentValue, _ := proxywasm.GetHttpRequestHeader(header)
+		if currentValue == "" || originalValue == currentValue {
+			continue
+		}
+		originalHeader := headerToOriginalHeaderMapping[header]
+		if originalHeader != "" {
+			_ = proxywasm.ReplaceHttpRequestHeader(originalHeader, originalValue)
+		}
+	}
+}
+
 func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConfig) types.Action {
 	activeProvider := pluginConfig.GetProvider()
 
@@ -82,7 +127,14 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	log.Debugf("[onHttpRequestHeader] provider=%s", activeProvider.GetProviderType())
 
+	initContext(ctx)
+
 	rawPath := ctx.Path()
+
+	defer func() {
+		saveContextsToHeaders(ctx)
+	}()
+
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
 	providerConfig := pluginConfig.GetProviderConfig()
@@ -150,6 +202,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 	}
 	log.Debugf("[onHttpRequestBody] provider=%s", activeProvider.GetProviderType())
 
+	defer func() {
+		saveContextsToHeaders(ctx)
+	}()
+
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		providerConfig := pluginConfig.GetProviderConfig()
@@ -161,7 +217,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		if providerConfig.IsOpenAIProtocol() {
+		// 仅 /v1/chat/completions 和 /v1/completions 接口支持 stream_options 参数
+		if providerConfig.IsOpenAIProtocol() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
@@ -209,7 +266,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	// the apiToken is removed only when the number of consecutive request failures exceeds the threshold.
 	providerConfig.ResetApiTokenRequestFailureCount(apiTokenInUse)
 
-	headers := util.GetOriginalResponseHeaders()
+	headers := util.GetResponseHeaders()
 	if handler, ok := activeProvider.(provider.TransformResponseHeadersHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		handler.TransformResponseHeaders(ctx, apiName, headers)
@@ -315,7 +372,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 func normalizeOpenAiRequestBody(body []byte) []byte {
 	var err error
 	// Default setting include_usage.
-	if gjson.GetBytes(body, "stream").Bool() {
+	if gjson.GetBytes(body, "stream").Bool() && (!gjson.GetBytes(body, "stream_options").Exists() || !gjson.GetBytes(body, "stream_options.include_usage").Exists()) {
 		body, err = sjson.SetBytes(body, "stream_options.include_usage", true)
 		if err != nil {
 			log.Errorf("set include_usage failed, err:%s", err)
@@ -337,29 +394,97 @@ func checkStream(ctx wrapper.HttpContext) {
 
 func getApiName(path string) provider.ApiName {
 	// openai style
-	if strings.HasSuffix(path, "/v1/chat/completions") {
+	if strings.HasSuffix(path, provider.PathOpenAIChatCompletions) {
 		return provider.ApiNameChatCompletion
 	}
-	if strings.HasSuffix(path, "/v1/completions") {
+	if strings.HasSuffix(path, provider.PathOpenAICompletions) {
 		return provider.ApiNameCompletion
 	}
-	if strings.HasSuffix(path, "/v1/embeddings") {
+	if strings.HasSuffix(path, provider.PathOpenAIEmbeddings) {
 		return provider.ApiNameEmbeddings
 	}
-	if strings.HasSuffix(path, "/v1/audio/speech") {
+	if strings.HasSuffix(path, provider.PathOpenAIAudioSpeech) {
 		return provider.ApiNameAudioSpeech
 	}
-	if strings.HasSuffix(path, "/v1/images/generations") {
+	if strings.HasSuffix(path, provider.PathOpenAIImageGeneration) {
 		return provider.ApiNameImageGeneration
 	}
-	if strings.HasSuffix(path, "/v1/batches") {
+	if strings.HasSuffix(path, provider.PathOpenAIImageVariation) {
+		return provider.ApiNameImageVariation
+	}
+	if strings.HasSuffix(path, provider.PathOpenAIImageEdit) {
+		return provider.ApiNameImageEdit
+	}
+	if strings.HasSuffix(path, provider.PathOpenAIBatches) {
 		return provider.ApiNameBatches
 	}
-	if strings.HasSuffix(path, "/v1/files") {
+	if util.RegRetrieveBatchPath.MatchString(path) {
+		return provider.ApiNameRetrieveBatch
+	}
+	if util.RegCancelBatchPath.MatchString(path) {
+		return provider.ApiNameCancelBatch
+	}
+	if strings.HasSuffix(path, provider.PathOpenAIFiles) {
 		return provider.ApiNameFiles
 	}
+	if util.RegRetrieveFilePath.MatchString(path) {
+		return provider.ApiNameRetrieveFile
+	}
+	if util.RegRetrieveFileContentPath.MatchString(path) {
+		return provider.ApiNameRetrieveFileContent
+	}
+	if strings.HasSuffix(path, provider.PathOpenAIModels) {
+		return provider.ApiNameModels
+	}
+	if strings.HasSuffix(path, provider.PathOpenAIFineTuningJobs) {
+		return provider.ApiNameFineTuningJobs
+	}
+	if util.RegRetrieveFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameRetrieveFineTuningJob
+	}
+	if util.RegRetrieveFineTuningJobEventsPath.MatchString(path) {
+		return provider.ApiNameFineTuningJobEvents
+	}
+	if util.RegRetrieveFineTuningJobCheckpointsPath.MatchString(path) {
+		return provider.ApiNameFineTuningJobCheckpoints
+	}
+	if util.RegCancelFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameCancelFineTuningJob
+	}
+	if util.RegResumeFineTuningJobPath.MatchString(path) {
+		return provider.ApiNameResumeFineTuningJob
+	}
+	if util.RegPauseFineTuningJobPath.MatchString(path) {
+		return provider.ApiNamePauseFineTuningJob
+	}
+	if util.RegFineTuningCheckpointPermissionPath.MatchString(path) {
+		return provider.ApiNameFineTuningCheckpointPermissions
+	}
+	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
+		return provider.ApiNameDeleteFineTuningCheckpointPermission
+	}
+	if strings.HasSuffix(path, provider.PathOpenAIResponses) {
+		return provider.ApiNameResponses
+	}
+
+	// Anthropic
+	if strings.HasSuffix(path, provider.PathAnthropicMessages) {
+		return provider.ApiNameAnthropicMessages
+	}
+	if strings.HasSuffix(path, provider.PathAnthropicComplete) {
+		return provider.ApiNameAnthropicComplete
+	}
+
+	// Gemini
+	if util.RegGeminiGenerateContent.MatchString(path) {
+		return provider.ApiNameGeminiGenerateContent
+	}
+	if util.RegGeminiStreamGenerateContent.MatchString(path) {
+		return provider.ApiNameGeminiStreamGenerateContent
+	}
+
 	// cohere style
-	if strings.HasSuffix(path, "/v1/rerank") {
+	if strings.HasSuffix(path, provider.PathCohereV1Rerank) {
 		return provider.ApiNameCohereV1Rerank
 	}
 	return ""

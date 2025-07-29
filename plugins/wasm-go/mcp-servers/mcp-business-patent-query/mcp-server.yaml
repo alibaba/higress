@@ -1,0 +1,136 @@
+server:
+  name: business-patent-query
+  config:
+    appCode: ""
+tools:
+  - name: business-patent-query
+    description: 查询企业或某技术的专利，帮助用户掌握相同技术领域的发展状况，为规避他人知识产权和调整研发方向提供参考
+    args:
+      - name: dtype
+        description: 返回数据格式：json或xml，默认json
+        type: string
+        position: query
+      - name: keyword
+        description: 搜索关键字（公司名称、社会统一信用代码、注册号）
+        type: string
+        required: true
+        position: query
+      - name: pageIndex
+        description: 页码，默认第1页
+        type: integer
+        position: query
+      - name: pageSize
+        description: 每页条数，默认为10，最大不超过10条
+        type: integer
+        position: query
+    requestTemplate:
+      url: http://icpatent.market.alicloudapi.com/utn/ip/PatentPageByKey/V2
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.Items**:  (Type: array)
+            - **data.Items[].Agency**: 代理机构 (Type: string)
+            - **data.Items[].ApplicationDate**: 申请日期 (Type: string)
+            - **data.Items[].ApplicationNumber**: 申请号 (Type: string)
+            - **data.Items[].AssigneeStringList**: 申请人 (Type: string)
+            - **data.Items[].IPCDesc**: IPC分类描述 (Type: string)
+            - **data.Items[].IPCList**: IPC分类号 (Type: string)
+            - **data.Items[].Id**: ID (Type: integer)
+            - **data.Items[].InventorStringList**: 发明人 (Type: string)
+            - **data.Items[].KindCodeDesc**: 类别代码描述 (Type: string)
+            - **data.Items[].LegalStatusDesc**: 法律状态描述 (Type: string)
+            - **data.Items[].PublicationDate**: 公开日期 (Type: string)
+            - **data.Items[].PublicationNumber**: 公开号 (Type: string)
+            - **data.Items[].Title**: 标题 (Type: string)
+          - **data.Paging**:  (Type: object)
+            - **data.Paging.PageIndex**: 当前页码 (Type: integer)
+            - **data.Paging.PageSize**: 每页显示条数 (Type: integer)
+            - **data.Paging.TotalRecords**: 总记录数 (Type: integer)
+        - **orderNo**: 订单号 (Type: integer)
+        - **statusCode**: 状态码 (Type: integer)
+        - **statusMessage**: 状态消息 (Type: string)
+
+        ## Original Response
+
+  - name: patent-detail
+    description: 查询企业或某技术的专利，帮助用户掌握相同技术领域的发展状况，为规避他人知识产权和调整研发方向提供参考
+    args:
+      - name: dtype
+        description: 返回数据格式：json或xml，默认json
+        type: string
+        position: query
+      - name: id
+        description: 专利信息列表接口返回的Id
+        type: integer
+        required: true
+        position: query
+    requestTemplate:
+      url: http://icpatent.market.alicloudapi.com/utn/ip/PatentDetail
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.Abstract**: 摘要 (Type: string)
+          - **data.Agency**: 代理机构 (Type: string)
+          - **data.Agent**: 代理人 (Type: string)
+          - **data.ApplicationDate**: 申请日期 (Type: string)
+          - **data.ApplicationNumber**: 申请号 (Type: string)
+          - **data.AssiantExaminer**: 辅助审查员 (Type: string)
+          - **data.AssigneestringList**: 专利权人列表 (Type: string)
+          - **data.Cites**: 引用 (Type: string)
+          - **data.DocumentTypes**: 文档类型 (Type: string)
+          - **data.IPCDesc**: 国际专利分类号描述 (Type: string)
+          - **data.IPCList**: 国际专利分类号列表 (Type: string)
+          - **data.InventorStringList**: 发明人列表 (Type: string)
+          - **data.KindCodeDesc**: 类型代码描述 (Type: string)
+          - **data.LegalStatusDate**: 法律状态日期 (Type: string)
+          - **data.LegalStatusDesc**: 法律状态描述 (Type: string)
+          - **data.OtherReferences**: 其他引用 (Type: string)
+          - **data.PatentImage**: 专利图片链接 (Type: string)
+          - **data.PatentLegalHistory**:  (Type: array)
+            - **data.PatentLegalHistory[].Desc**: 描述 (Type: string)
+            - **data.PatentLegalHistory[].LegalStatus**: 法律状态 (Type: string)
+            - **data.PatentLegalHistory[].LegalStatusDate**: 法律状态日期 (Type: string)
+          - **data.PrimaryExaminer**: 主审查员 (Type: string)
+          - **data.PublicationDate**: 公布日期 (Type: string)
+          - **data.PublicationNumber**: 公布号 (Type: string)
+          - **data.Title**: 标题 (Type: string)
+        - **orderNo**: 订单编号 (Type: integer)
+        - **statusCode**: 状态码 (Type: integer)
+        - **statusMessage**: 状态消息 (Type: string)
+
+        ## Original Response
+

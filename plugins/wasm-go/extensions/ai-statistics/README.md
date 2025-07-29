@@ -23,27 +23,30 @@ description: AI可观测配置参考
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|------|-----|------------------------|
 | `attributes` | []Attribute | 非必填  | -   | 用户希望记录在log/span中的信息 |
+| `disable_openai_usage` | bool | 非必填  | false   | 非openai兼容协议时，model、token的支持非标，配置为true时可以避免报错 |
 
 Attribute 配置说明:
 
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|-----|-----|------------------------|
-| `key`         | string | 必填  | -   | attrribute 名称           |
-| `value_source` | string | 必填  | -   | attrribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
-| `value`      | string | 必填  | -   | attrribute 取值 key value/path |
-| `default_value`      | string | 非必填  | -   | attrribute 默认值 |
-| `rule`      | string | 非必填  | -   | 从流式响应中提取 attrribute 的规则，可选值为 `first`, `replace`, `append`|
+| `key`         | string | 必填  | -   | attribute 名称           |
+| `value_source` | string | 必填  | -   | attribute 取值来源，可选值为 `fixed_value`, `request_header`, `request_body`, `response_header`, `response_body`, `response_streaming_body`             |
+| `value`      | string | 必填  | -   | attribute 取值 key value/path |
+| `default_value`      | string | 非必填  | -   | attribute 默认值 |
+| `rule`      | string | 非必填  | -   | 从流式响应中提取 attribute 的规则，可选值为 `first`, `replace`, `append`|
 | `apply_to_log`      | bool | 非必填  | false  | 是否将提取的信息记录在日志中 |
 | `apply_to_span`      | bool | 非必填  | false  | 是否将提取的信息记录在链路追踪span中 |
+| `trace_span_key`      | string | 非必填  | -  | 链路追踪attribute key，默认会使用`key`的设置 |
+| `as_separate_log_field`      | bool | 非必填  | false  | 记录日志时是否作为单独的字段，日志字段名使用`key`的设置 |
 
 `value_source` 的各种取值含义如下：
 
 - `fixed_value`：固定值
-- `request_header` ： attrribute 值通过 http 请求头获取，value 配置为 header key
-- `request_body` ：attrribute 值通过请求 body 获取，value 配置格式为 gjson 的 jsonpath
-- `response_header` ：attrribute 值通过 http 响应头获取，value 配置为header key
-- `response_body` ：attrribute 值通过响应 body 获取，value 配置格式为 gjson 的 jsonpath
-- `response_streaming_body` ：attrribute 值通过流式响应 body 获取，value 配置格式为 gjson 的 jsonpath
+- `request_header` ： attribute 值通过 http 请求头获取，value 配置为 header key
+- `request_body` ：attribute 值通过请求 body 获取，value 配置格式为 gjson 的 jsonpath
+- `response_header` ：attribute 值通过 http 响应头获取，value 配置为header key
+- `response_body` ：attribute 值通过响应 body 获取，value 配置格式为 gjson 的 jsonpath
+- `response_streaming_body` ：attribute 值通过流式响应 body 获取，value 配置格式为 gjson 的 jsonpath
 
 
 当 `value_source` 为 `response_streaming_body` 时，应当配置 `rule`，用于指定如何从流式body中获取指定值，取值含义如下：
@@ -59,47 +62,22 @@ Attribute 配置说明:
 '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%"}'
 ```
 
-### 空配置
-#### 监控
-```
-route_upstream_model_metric_input_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 10
-route_upstream_model_metric_llm_duration_count{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 1
-route_upstream_model_metric_llm_first_token_duration{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 309
-route_upstream_model_metric_llm_service_duration{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 1955
-route_upstream_model_metric_output_token{ai_route="llm",ai_cluster="outbound|443||qwen.dns",ai_model="qwen-turbo"} 69
-```
-
-#### 日志
-```json
-{
-  "ai_log":"{\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
-}
-```
-
-#### 链路追踪
-配置为空时，不会在span中添加额外的attribute
-
-### 从非openai协议提取token使用信息
-在ai-proxy中设置协议为original时，以百炼为例，可作如下配置指定如何提取model, input_token, output_token
-
+如果字段设置了 `as_separate_log_field`，例如：
 ```yaml
 attributes:
-  - key: model
-    value_source: response_body
-    value: usage.models.0.model_id
+  - key: consumer
+    value_source: request_header
+    value: x-mse-consumer
     apply_to_log: true
-    apply_to_span: false
-  - key: input_token
-    value_source: response_body
-    value: usage.models.0.input_tokens
-    apply_to_log: true
-    apply_to_span: false
-  - key: output_token
-    value_source: response_body
-    value: usage.models.0.output_tokens
-    apply_to_log: true
-    apply_to_span: false
+    as_separate_log_field: true
 ```
+
+那么要在日志中打印，需要额外设置log_format：
+```
+'{"consumer":"%FILTER_STATE(wasm.consumer:PLAIN)%"}'
+```
+
+### 空配置
 #### 监控
 
 ```
@@ -141,10 +119,50 @@ irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 ```
 
 #### 日志
+```json
+{
+  "ai_log":"{\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
+}
+```
+
+#### 链路追踪
+配置为空时，不会在span中添加额外的attribute
+
+### 从非openai协议提取token使用信息
+在ai-proxy中设置协议为original时，以百炼为例，可作如下配置指定如何提取model, input_token, output_token
+
+```yaml
+attributes:
+  - key: model
+    value_source: response_body
+    value: usage.models.0.model_id
+    apply_to_log: true
+    apply_to_span: false
+  - key: input_token
+    value_source: response_body
+    value: usage.models.0.input_tokens
+    apply_to_log: true
+    apply_to_span: false
+  - key: output_token
+    value_source: response_body
+    value: usage.models.0.output_tokens
+    apply_to_log: true
+    apply_to_span: false
+```
+#### 监控
+
+```
+route_upstream_model_consumer_metric_input_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 343
+route_upstream_model_consumer_metric_output_token{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 153
+route_upstream_model_consumer_metric_llm_service_duration{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 3725
+route_upstream_model_consumer_metric_llm_duration_count{ai_route="bailian",ai_cluster="qwen",ai_model="qwen-max"} 1
+```
+
+#### 日志
 此配置下日志效果如下：
 ```json
 {
-  "ai_log": "{\"model\":\"qwen-max\",\"input_token\":\"343\",\"output_token\":\"153\",\"llm_service_duration\":\"19110\"}"  
+  "ai_log": "{\"model\":\"qwen-max\",\"input_token\":\"343\",\"output_token\":\"153\",\"llm_service_duration\":\"19110\"}"
 }
 ```
 
@@ -152,7 +170,7 @@ irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 链路追踪的 span 中可以看到 model, input_token, output_token 三个额外的 attribute
 
 ### 配合认证鉴权记录consumer
-举例如下： 
+举例如下：
 ```yaml
 attributes:
   - key: consumer # 配合认证鉴权记录consumer

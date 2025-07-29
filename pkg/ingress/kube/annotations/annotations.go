@@ -21,6 +21,8 @@ import (
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
+
+	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 )
 
 type GlobalContext struct {
@@ -30,6 +32,8 @@ type GlobalContext struct {
 	ClusterSecretLister map[cluster.ID]listersv1.SecretLister
 
 	ClusterServiceList map[cluster.ID]listersv1.ServiceLister
+
+	McpServers []*mcpserver.McpServer
 }
 
 type Meta struct {
@@ -169,6 +173,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			match{},
 			headerControl{},
 			http2rpc{},
+			mcpServer{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},

@@ -23,8 +23,8 @@ import (
 
 	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/mcp/server"
+	"github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 var _ server.Tool = GeoRequest{}
@@ -35,7 +35,7 @@ type GeoRequest struct {
 }
 
 func (t GeoRequest) Description() string {
-	return "将详细的结构化地址转换为经纬度坐标。支持对地标性名胜景区、建筑物名称解析为经纬度坐标"
+	return "将详细的结构化地址转换为经纬度坐标。支持对地标性名胜景区、建筑物名称解析为经纬度坐标, 城市名称可以通过基于ip定位位置的mcp工具获取"
 }
 
 func (t GeoRequest) InputSchema() map[string]any {
@@ -58,7 +58,7 @@ func (t GeoRequest) Call(ctx server.HttpContext, s server.Server) error {
 	apiKey := serverConfig.ApiKey
 	url := fmt.Sprintf("https://restapi.amap.com/v3/geocode/geo?key=%s&address=%s&city=%s&source=ts_mcp", apiKey, url.QueryEscape(t.Address), url.QueryEscape(t.City))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("geo call failed, status: %d", statusCode))
 				return

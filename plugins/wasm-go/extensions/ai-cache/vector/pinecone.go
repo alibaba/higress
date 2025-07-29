@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/google/uuid"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -67,8 +68,8 @@ func (d *pineconeProvider) UploadAnswerAndEmbedding(
 	queryEmb []float64,
 	queryAnswer string,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 vector 和 question
 	// 下面是一个例子
 	// {
@@ -122,8 +123,8 @@ type pineconeQueryRequest struct {
 func (d *pineconeProvider) QueryEmbedding(
 	emb []float64,
 	ctx wrapper.HttpContext,
-	log wrapper.Log,
-	callback func(results []QueryResult, ctx wrapper.HttpContext, log wrapper.Log, err error)) error {
+	log log.Log,
+	callback func(results []QueryResult, ctx wrapper.HttpContext, log log.Log, err error)) error {
 	// 最少需要填写的参数为 vector
 	// 下面是一个例子
 	// {
@@ -163,7 +164,7 @@ func (d *pineconeProvider) QueryEmbedding(
 	)
 }
 
-func (d *pineconeProvider) parseQueryResponse(responseBody []byte, log wrapper.Log) ([]QueryResult, error) {
+func (d *pineconeProvider) parseQueryResponse(responseBody []byte, log log.Log) ([]QueryResult, error) {
 	if !gjson.GetBytes(responseBody, "matches.0.score").Exists() {
 		log.Errorf("[Pinecone] No distance found in response body: %s", responseBody)
 		return nil, errors.New("[Pinecone] No distance found in response body")

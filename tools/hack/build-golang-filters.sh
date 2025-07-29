@@ -16,24 +16,16 @@
 
 set -euo pipefail
 
-INNER_GO_FILTER_NAME=${GO_FILTER_NAME-""}
 OUTPUT_PACKAGE_DIR=${OUTPUT_PACKAGE_DIR:-"../../external/package/"}
 
-cd ./plugins/golang-filter
-if [ ! -n "$INNER_GO_FILTER_NAME" ]; then
-    GO_FILTERS_DIR=$(pwd)
-    echo "🚀 Build all Go Filters under folder of $GO_FILTERS_DIR"
-    for file in `ls $GO_FILTERS_DIR`
-        do
-        if [ -d $GO_FILTERS_DIR/$file ]; then
-            name=${file##*/}
-            echo "🚀 Build Go Filter: $name"
-            GO_FILTER_NAME=${name} GOARCH=${TARGET_ARCH} make build
-            cp ${GO_FILTERS_DIR}/${file}/${name}_${TARGET_ARCH}.so ${OUTPUT_PACKAGE_DIR}
-        fi
-    done
-else
-    echo "🚀 Build Go Filter: $INNER_GO_FILTER_NAME"
-    GO_FILTER_NAME=${INNER_GO_FILTER_NAME} make build
-fi
+cd plugins/golang-filter
+
+GO_FILTERS_DIR=$(pwd)
+
+echo "🚀 Build Go Filter"
+
+GOARCH=${TARGET_ARCH} make build
+
+cp ${GO_FILTERS_DIR}/golang-filter_${TARGET_ARCH}.so ${OUTPUT_PACKAGE_DIR}
+
 

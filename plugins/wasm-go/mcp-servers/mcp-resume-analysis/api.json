@@ -1,0 +1,1090 @@
+{
+  "info": {
+    "description": "锐石智能简历解析深度优化简历文件文本提取，提取文本更符合阅读习惯；使用前沿的预训练语言模型进行实体识别，同时使用大规模的实体字典进行实体校验和扩展；使用自研的深度学习模型进行字段关系抽取。解析准确率高，速度快，解析字段全。",
+    "title": "锐石智能简历解析",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/resume/parse": {
+      "post": {
+        "operationId": "简历解析",
+        "summary": "锐石引擎简历解析接口",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file_name": {
+                    "type": "string",
+                    "description": "文件名"
+                  },
+                  "file_content": {
+                    "type": "string",
+                    "description": "Base64编码后的文件内容"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "description": "解析模式",
+                    "example": "standard"
+                  },
+                  "parse_avatar": {
+                    "type": "integer",
+                    "description": "是否需要解析头像"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "integer"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "parser_info": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "parse_time": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "basic_info": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "gender": {
+                              "type": "string"
+                            },
+                            "age": {
+                              "type": "integer"
+                            },
+                            "age_inf": {
+                              "type": "integer"
+                            },
+                            "birthday": {
+                              "type": "string"
+                            },
+                            "ethnic": {
+                              "type": "string"
+                            },
+                            "political_status": {
+                              "type": "string"
+                            },
+                            "marital_status": {
+                              "type": "string"
+                            },
+                            "height": {
+                              "type": "integer"
+                            },
+                            "weight": {
+                              "type": "integer"
+                            },
+                            "nationality": {
+                              "type": "string"
+                            },
+                            "id_card": {
+                              "type": "string"
+                            },
+                            "native_place": {
+                              "type": "string"
+                            },
+                            "native_place_norm": {
+                              "type": "string"
+                            },
+                            "hukou_addr": {
+                              "type": "string"
+                            },
+                            "hukou_addr_norm": {
+                              "type": "string"
+                            },
+                            "addr": {
+                              "type": "string"
+                            },
+                            "addr_norm": {
+                              "type": "string"
+                            },
+                            "city": {
+                              "type": "string"
+                            },
+                            "city_norm": {
+                              "type": "string"
+                            },
+                            "postal_code": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "avatar_info": {
+                          "type": "object",
+                          "properties": {
+                            "data": {
+                              "type": "string"
+                            },
+                            "url": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "contact_info": {
+                          "type": "object",
+                          "properties": {
+                            "email_list": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "phone_list": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "fixed_line_phone": {
+                              "type": "string"
+                            },
+                            "fixed_line_phone_detail": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "number": {
+                                  "type": "string"
+                                },
+                                "fixed_line_phone": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "inter_phone": {
+                              "type": "string"
+                            },
+                            "inter_phone_detail": {
+                              "type": "object",
+                              "properties": {
+                                "code": {
+                                  "type": "string"
+                                },
+                                "number": {
+                                  "type": "string"
+                                },
+                                "inter_phone": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "virtual_phone": {
+                              "type": "object",
+                              "properties": {
+                                "phone": {
+                                  "type": "string"
+                                },
+                                "ext_number": {
+                                  "type": "string"
+                                },
+                                "expire_time": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "qq": {
+                              "type": "string"
+                            },
+                            "wechat": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "highest_edu_info": {
+                          "type": "object",
+                          "properties": {
+                            "school": {
+                              "type": "string"
+                            },
+                            "date": {
+                              "type": "string"
+                            },
+                            "dept": {
+                              "type": "string"
+                            },
+                            "major": {
+                              "type": "string"
+                            },
+                            "degree": {
+                              "type": "string"
+                            },
+                            "tags": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "work_info": {
+                          "type": "object",
+                          "properties": {
+                            "work_year": {
+                              "type": "number"
+                            },
+                            "work_year_detail": {
+                              "type": "object",
+                              "properties": {
+                                "mention": {
+                                  "type": "string"
+                                },
+                                "years": {
+                                  "type": "integer"
+                                },
+                                "months": {
+                                  "type": "integer"
+                                },
+                                "work_year": {
+                                  "type": "number"
+                                }
+                              }
+                            },
+                            "domains_year": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "domains_year_detail": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "domain": {
+                                    "type": "string"
+                                  },
+                                  "time_mention": {
+                                    "type": "string"
+                                  },
+                                  "years": {
+                                    "type": "integer"
+                                  },
+                                  "months": {
+                                    "type": "integer"
+                                  },
+                                  "year_norm": {
+                                    "type": "number"
+                                  },
+                                  "domain_year": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "start_work_time": {
+                              "type": "string"
+                            },
+                            "company": {
+                              "type": "string"
+                            },
+                            "position": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "nature": {
+                              "type": "string"
+                            },
+                            "loc": {
+                              "type": "string"
+                            },
+                            "loc_norm": {
+                              "type": "string"
+                            },
+                            "industry": {
+                              "type": "string"
+                            },
+                            "salary": {
+                              "type": "string"
+                            },
+                            "salary_detail": {
+                              "type": "object",
+                              "properties": {
+                                "mention": {
+                                  "type": "string"
+                                },
+                                "span_type": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "salary_val_min": {
+                                  "type": "integer"
+                                },
+                                "salary_val_max": {
+                                  "type": "integer"
+                                },
+                                "salary": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "apply_job_info": {
+                          "type": "object",
+                          "properties": {
+                            "company": {
+                              "type": "string"
+                            },
+                            "job": {
+                              "type": "string"
+                            },
+                            "loc": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "expect_job_list": {
+                          "type": "object",
+                          "properties": {
+                            "job_mention": {
+                              "type": "string"
+                            },
+                            "jobs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "job_type": {
+                              "type": "string"
+                            },
+                            "nature": {
+                              "type": "string"
+                            },
+                            "recruitment": {
+                              "type": "string"
+                            },
+                            "loc_mention": {
+                              "type": "string"
+                            },
+                            "locs": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "locs_norm": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "locs_detail": {
+                              "type": "object",
+                              "properties": {
+                                "mention": {
+                                  "type": "string"
+                                },
+                                "unlimited": {
+                                  "type": "integer"
+                                },
+                                "locs": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "locs_norm": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "salary": {
+                              "type": "string"
+                            },
+                            "salary_detail": {
+                              "type": "object",
+                              "properties": {
+                                "mention": {
+                                  "type": "string"
+                                },
+                                "span_type": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "salary_val_min": {
+                                  "type": "integer"
+                                },
+                                "salary_val_max": {
+                                  "type": "integer"
+                                },
+                                "salary": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "industry_mention": {
+                              "type": "string"
+                            },
+                            "industry": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "industry_detail": {
+                              "type": "object",
+                              "properties": {
+                                "mention": {
+                                  "type": "string"
+                                },
+                                "unlimited": {
+                                  "type": "integer"
+                                },
+                                "industry": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            },
+                            "onboard_time": {
+                              "type": "string"
+                            },
+                            "onboard_time_detail": {
+                              "type": "object",
+                              "properties": {
+                                "mention": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "day": {
+                                  "type": "integer"
+                                },
+                                "onboard_time": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "edu_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "school": {
+                                "type": "string"
+                              },
+                              "school_info": {
+                                "type": "object",
+                                "properties": {
+                                  "country": {
+                                    "type": "string"
+                                  },
+                                  "tags": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "rank": {
+                                    "type": "integer"
+                                  },
+                                  "qs_rank": {
+                                    "type": "integer"
+                                  }
+                                }
+                              },
+                              "major": {
+                                "type": "string"
+                              },
+                              "minor": {
+                                "type": "string"
+                              },
+                              "degree": {
+                                "type": "string"
+                              },
+                              "dept": {
+                                "type": "string"
+                              },
+                              "start_date": {
+                                "type": "string"
+                              },
+                              "end_date": {
+                                "type": "string"
+                              },
+                              "loc": {
+                                "type": "string"
+                              },
+                              "loc_norm": {
+                                "type": "string"
+                              },
+                              "courses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "gpa": {
+                                "type": "string"
+                              },
+                              "gpa_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "gpa_val": {
+                                    "type": "number"
+                                  },
+                                  "total": {
+                                    "type": "integer"
+                                  },
+                                  "gpa": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "relative_rank": {
+                                "type": "string"
+                              },
+                              "relative_rank_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "rank_val_min": {
+                                    "type": "integer"
+                                  },
+                                  "rank_val_max": {
+                                    "type": "integer"
+                                  },
+                                  "relative_rank": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "abs_rank": {
+                                "type": "string"
+                              },
+                              "abs_rank_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "rank_val": {
+                                    "type": "integer"
+                                  },
+                                  "total": {
+                                    "type": "integer"
+                                  },
+                                  "abs_rank": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "desc": {
+                                "type": "string"
+                              },
+                              "tags": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "career_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "company": {
+                                "type": "string"
+                              },
+                              "position": {
+                                "type": "string"
+                              },
+                              "position_type": {
+                                "type": "string"
+                              },
+                              "nature": {
+                                "type": "string"
+                              },
+                              "dept": {
+                                "type": "string"
+                              },
+                              "start_date": {
+                                "type": "string"
+                              },
+                              "end_date": {
+                                "type": "string"
+                              },
+                              "salary": {
+                                "type": "string"
+                              },
+                              "salary_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "span_type": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "salary_val_min": {
+                                    "type": "integer"
+                                  },
+                                  "salary_val_max": {
+                                    "type": "integer"
+                                  },
+                                  "salary": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "why_leave": {
+                                "type": "string"
+                              },
+                              "report_to": {
+                                "type": "string"
+                              },
+                              "loc": {
+                                "type": "string"
+                              },
+                              "loc_norm": {
+                                "type": "string"
+                              },
+                              "duration": {
+                                "type": "string"
+                              },
+                              "duration_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "years": {
+                                    "type": "integer"
+                                  },
+                                  "months": {
+                                    "type": "integer"
+                                  },
+                                  "duration": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "company_desc": {
+                                "type": "string"
+                              },
+                              "company_nature": {
+                                "type": "string"
+                              },
+                              "industry": {
+                                "type": "string"
+                              },
+                              "stuff_size": {
+                                "type": "string"
+                              },
+                              "stuff_size_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "size_val_min": {
+                                    "type": "integer"
+                                  },
+                                  "size_val_max": {
+                                    "type": "integer"
+                                  },
+                                  "stuff_size": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "subordinate": {
+                                "type": "string"
+                              },
+                              "subordinate_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "size_val_min": {
+                                    "type": "integer"
+                                  },
+                                  "size_val_max": {
+                                    "type": "integer"
+                                  },
+                                  "subordinate": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "desc": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "project_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "position": {
+                                "type": "string"
+                              },
+                              "start_date": {
+                                "type": "string"
+                              },
+                              "end_date": {
+                                "type": "string"
+                              },
+                              "company": {
+                                "type": "string"
+                              },
+                              "desc": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "training_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "org": {
+                                "type": "string"
+                              },
+                              "subject": {
+                                "type": "string"
+                              },
+                              "start_date": {
+                                "type": "string"
+                              },
+                              "end_date": {
+                                "type": "string"
+                              },
+                              "loc": {
+                                "type": "string"
+                              },
+                              "cert": {
+                                "type": "string"
+                              },
+                              "desc": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "practice_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "role": {
+                                "type": "string"
+                              },
+                              "start_date": {
+                                "type": "string"
+                              },
+                              "end_date": {
+                                "type": "string"
+                              },
+                              "desc": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "lang_cert_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "lang": {
+                                "type": "string"
+                              },
+                              "cert": {
+                                "type": "string"
+                              },
+                              "score": {
+                                "type": "integer"
+                              },
+                              "date": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "lang_ability_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "lang": {
+                                "type": "string"
+                              },
+                              "ability": {
+                                "type": "string"
+                              },
+                              "listen": {
+                                "type": "string"
+                              },
+                              "speak": {
+                                "type": "string"
+                              },
+                              "read": {
+                                "type": "string"
+                              },
+                              "write": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "computer_cert_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "cert_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "date": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "skill_list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "skill": {
+                                "type": "string"
+                              },
+                              "level": {
+                                "type": "string"
+                              },
+                              "time": {
+                                "type": "string"
+                              },
+                              "time_detail": {
+                                "type": "object",
+                                "properties": {
+                                  "mention": {
+                                    "type": "string"
+                                  },
+                                  "years": {
+                                    "type": "number"
+                                  },
+                                  "time": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "resume_info": {
+                          "type": "object",
+                          "properties": {
+                            "file_name": {
+                              "type": "string"
+                            },
+                            "lang_type": {
+                              "type": "string"
+                            },
+                            "source": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "update_time": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "resume_content": {
+                          "type": "object",
+                          "properties": {
+                            "text": {
+                              "type": "string"
+                            },
+                            "basic_info": {
+                              "type": "string"
+                            },
+                            "job_intention": {
+                              "type": "string"
+                            },
+                            "career_profile": {
+                              "type": "string"
+                            },
+                            "contact": {
+                              "type": "string"
+                            },
+                            "education": {
+                              "type": "string"
+                            },
+                            "course": {
+                              "type": "string"
+                            },
+                            "highest_degree": {
+                              "type": "string"
+                            },
+                            "career": {
+                              "type": "string"
+                            },
+                            "internship": {
+                              "type": "string"
+                            },
+                            "project": {
+                              "type": "string"
+                            },
+                            "skill": {
+                              "type": "string"
+                            },
+                            "campus": {
+                              "type": "string"
+                            },
+                            "activity": {
+                              "type": "string"
+                            },
+                            "practice": {
+                              "type": "string"
+                            },
+                            "self_evaluation": {
+                              "type": "string"
+                            },
+                            "award": {
+                              "type": "string"
+                            },
+                            "language": {
+                              "type": "string"
+                            },
+                            "contest": {
+                              "type": "string"
+                            },
+                            "certification": {
+                              "type": "string"
+                            },
+                            "training": {
+                              "type": "string"
+                            },
+                            "hobby": {
+                              "type": "string"
+                            },
+                            "academic": {
+                              "type": "string"
+                            },
+                            "works": {
+                              "type": "string"
+                            },
+                            "papers": {
+                              "type": "string"
+                            },
+                            "social": {
+                              "type": "string"
+                            },
+                            "cover_letter": {
+                              "type": "string"
+                            },
+                            "extra_info": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://qingsongai.market.alicloudapi.com"
+    }
+  ]
+}

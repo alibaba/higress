@@ -23,8 +23,8 @@ import (
 
 	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/mcp/server"
+	"github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 var _ server.Tool = DrivingRequest{}
@@ -57,7 +57,7 @@ func (t DrivingRequest) Call(ctx server.HttpContext, s server.Server) error {
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/direction/driving?key=%s&origin=%s&destination=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Origin), url.QueryEscape(t.Destination))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("driving call failed, status: %d", statusCode))
 				return

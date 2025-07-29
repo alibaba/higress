@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -26,10 +25,10 @@ import (
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/arxiv"
@@ -80,19 +79,21 @@ var privateSearchPrompts string
 //go:embed prompts/chinese-internet.md
 var chineseInternetSearchPrompts string
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-search",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
+		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
+		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
 }
 
-func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *Config) error {
 	config.defaultEnable = true // Default to true if not specified
 	if json.Get("defaultEnable").Exists() {
 		config.defaultEnable = json.Get("defaultEnable").Bool()
@@ -185,7 +186,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			arxivExists = true
 			onlyQuark = false
 		case "elasticsearch":
-			searchEngine, err := elasticsearch.NewElasticsearchSearch(&e)
+			searchEngine, err := elasticsearch.NewElasticsearchSearch(&e, config.needReference)
 			if err != nil {
 				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
 			}
@@ -276,7 +277,8 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
+	ctx.DisableReroute()
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	// The request does not have a body.
 	if contentType == "" {
@@ -289,10 +291,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 	}
 	ctx.SetRequestBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	// Check if plugin should be enabled based on config and request
 	webSearchOptions := gjson.GetBytes(body, "web_search_options")
 	if !config.defaultEnable {
@@ -362,7 +365,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 			}, rewriteBody,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				if statusCode != http.StatusOK {
-					log.Errorf("search rewrite failed, status: %d", statusCode)
+					log.Errorf("search rewrite failed, status: %d, request url: %s, request cluster: %s, search rewrite model: %s",
+						statusCode, searchRewrite.url, searchRewrite.client.ClusterName(), searchRewrite.modelName)
 					// After a rewrite failure, no further search is performed, thus quickly identifying the failure.
 					proxywasm.ResumeHttpRequest()
 					return
@@ -432,7 +436,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 					proxywasm.ResumeHttpRequest()
 					return
 				}
-				if types.ActionContinue == executeSearch(ctx, config, queryIndex, body, searchContexts, log) {
+				if types.ActionContinue == executeSearch(ctx, config, queryIndex, body, searchContexts) {
 					proxywasm.ResumeHttpRequest()
 				}
 			}, searchRewrite.timeoutMillisecond)
@@ -448,10 +452,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	return executeSearch(ctx, config, queryIndex, body, []engine.SearchContext{{
 		Querys:   []string{query},
 		Language: config.defaultLanguage,
-	}}, log)
+	}})
 }
 
-func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []engine.SearchContext, log wrapper.Log) types.Action {
+func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []engine.SearchContext) types.Action {
 	searchResultGroups := make([][]engine.SearchResult, len(config.engine))
 	var finished int
 	var searching int
@@ -554,7 +558,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	if !config.needReference {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
@@ -571,7 +575,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log wrapper.L
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	references := ctx.GetStringContext("References", "")
 	if references == "" {
 		return types.ActionContinue
@@ -613,19 +617,13 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte, log
 	return types.ActionContinue
 }
 
-func unifySSEChunk(data []byte) []byte {
-	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
-	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
-	return data
-}
-
 const (
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	BUFFER_CONTENT_CONTEXT_KEY  = "bufferContent"
 	BUFFER_SIZE                 = 30
 )
 
-func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool) []byte {
 	if ctx.GetBoolContext("ReferenceAppended", false) {
 		return chunk
 	}
@@ -633,7 +631,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	if references == "" {
 		return chunk
 	}
-	chunk = unifySSEChunk(chunk)
+	chunk = wrapper.UnifySSEChunk(chunk)
 	var partialMessage []byte
 	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
 	log.Debugf("[handleStreamChunk] buffer content: %v", ctx.GetContext(BUFFER_CONTENT_CONTEXT_KEY))
@@ -646,7 +644,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	var newMessages []string
 	for i, msg := range messages {
 		if i < len(messages)-1 {
-			newMsg := processSSEMessage(ctx, msg, fmt.Sprintf(config.referenceFormat, references), config.referenceLocation == "tail", log)
+			newMsg := processSSEMessage(ctx, msg, fmt.Sprintf(config.referenceFormat, references), config.referenceLocation == "tail")
 			if newMsg != "" {
 				newMessages = append(newMessages, newMsg)
 			}
@@ -664,7 +662,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	}
 }
 
-func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references string, tailReference bool, log wrapper.Log) string {
+func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references string, tailReference bool) string {
 	log.Debugf("single sse message: %s", sseMessage)
 	subMessages := strings.Split(sseMessage, "\n")
 	var message string

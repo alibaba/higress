@@ -19,9 +19,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/santhosh-tekuri/jsonschema"
 	"github.com/tidwall/gjson"
 )
@@ -32,7 +33,9 @@ const (
 	defaultRejectedCode = 403
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"request-validation",
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
@@ -57,7 +60,7 @@ type Config struct {
 	enableHeaderSchema bool
 }
 
-func parseConfig(result gjson.Result, config *Config, log wrapper.Log) error {
+func parseConfig(result gjson.Result, config *Config, log log.Log) error {
 	headerSchema := result.Get("header_schema").String()
 	bodySchema := result.Get("body_schema").String()
 	enableSwagger := result.Get("enable_swagger").Bool()
@@ -119,7 +122,7 @@ func parseConfig(result gjson.Result, config *Config, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log log.Log) types.Action {
 	if !config.enableHeaderSchema {
 		return types.ActionContinue
 	}
@@ -161,7 +164,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log log.Log) types.Action {
 	if !config.enableBodySchema {
 		return types.ActionContinue
 	}

@@ -23,8 +23,8 @@ import (
 
 	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/mcp/server"
+	"github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 var _ server.Tool = TextSearchRequest{}
@@ -36,7 +36,7 @@ type TextSearchRequest struct {
 }
 
 func (t TextSearchRequest) Description() string {
-	return "关键词搜，根据用户传入关键词，搜索出相关的POI"
+	return "关键词搜，根据用户传入关键词，搜索出相关的POI，城市名称可以通过基于ip定位位置的mcp工具获取"
 }
 
 func (t TextSearchRequest) InputSchema() map[string]any {
@@ -58,7 +58,7 @@ func (t TextSearchRequest) Call(ctx server.HttpContext, s server.Server) error {
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/place/text?key=%s&keywords=%s&city=%s&citylimit=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Keywords), url.QueryEscape(t.City), url.QueryEscape(t.Citylimit))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
 				utils.OnMCPToolCallError(ctx, fmt.Errorf("text search call failed, status: %d", statusCode))
 				return

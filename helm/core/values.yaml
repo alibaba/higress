@@ -11,6 +11,7 @@ global:
   enableSRDS: true
   # -- Whether to enable Redis(redis-stack-server) for Higress, default is false.
   enableRedis: false
+  enablePluginServer: false
   onDemandRDS: false
   hostRDSMergeSubset: false
   onlyPushRouteCluster: true
@@ -580,8 +581,7 @@ controller:
   # -- Labels to apply to the pod
   podLabels: {}
 
-  podSecurityContext:
-    {}
+  podSecurityContext: {}
   # fsGroup: 2000
 
   ports:
@@ -708,13 +708,13 @@ tracing:
   enable: false
   sampling: 100
   timeout: 500
-  skywalking:
-    # access_token: ""
-    service: ""
-    port: 11800
+  # skywalking:
+  #   access_token: ""
+  #   service: ""
+  #   port: 11800
   # zipkin:
-  # service: ""
-  # port: 9411
+  #   service: ""
+  #   port: 9411
 
 # -- Downstream config settings
 downstream:
@@ -768,3 +768,30 @@ redis:
         - ReadWriteOnce
       # -- Persistent Volume size
       size: 1Gi
+
+pluginServer:
+  name: "higress-plugin-server"
+  # -- Number of Higress Plugin Server pods, 2 recommended for high availability
+  replicas: 2
+  image: plugin-server
+
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  tag: ""
+
+  imagePullSecrets: []
+
+  labels: {}
+  # -- Labels to apply to the pod
+  podLabels: {}
+
+  #  Plugin-server Service configuration
+  service:
+    port: 80 # Container target port (usually fixed)
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

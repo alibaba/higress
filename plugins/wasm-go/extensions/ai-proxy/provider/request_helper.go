@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
@@ -19,6 +19,13 @@ func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) er
 }
 
 func decodeEmbeddingsRequest(body []byte, request *embeddingsRequest) error {
+	if err := json.Unmarshal(body, request); err != nil {
+		return fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+	return nil
+}
+
+func decodeImageGenerationRequest(body []byte, request *imageGenerationRequest) error {
 	if err := json.Unmarshal(body, request); err != nil {
 		return fmt.Errorf("unable to unmarshal request: %v", err)
 	}

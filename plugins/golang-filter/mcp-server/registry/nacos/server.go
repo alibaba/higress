@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/internal"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	internal.GlobalRegistry.RegisterServer("nacos-mcp-registry", &NacosConfig{})
+	common.GlobalRegistry.RegisterServer("nacos-mcp-registry", &NacosConfig{})
 }
 
 type NacosConfig struct {
@@ -28,14 +28,14 @@ type NacosConfig struct {
 }
 
 type McpServerToolsChangeListener struct {
-	mcpServer *internal.MCPServer
+	mcpServer *common.MCPServer
 }
 
 func (l *McpServerToolsChangeListener) OnToolChanged(reg registry.McpServerRegistry) {
 	resetToolsToMcpServer(l.mcpServer, reg)
 }
 
-func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
+func CreateNacosMcpRegistry(config *NacosConfig) (*NacosMcpRegistry, error) {
 	sc := []constant.ServerConfig{
 		*constant.NewServerConfig(*config.ServerAddr, 8848, constant.WithContextPath("/nacos")),
 	}
@@ -90,7 +90,7 @@ func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
 		return nil, fmt.Errorf("failed to initial naming config client: %w", err)
 	}
 
-	return &NacosMcpRegsitry{
+	return &NacosMcpRegistry{
 		configClient:             configClient,
 		namingClient:             namingClient,
 		serviceMatcher:           *config.ServiceMatcher,
@@ -110,6 +110,10 @@ func (c *NacosConfig) ParseConfig(config map[string]any) error {
 	serviceMatcher, ok := config["serviceMatcher"].(map[string]any)
 	if !ok {
 		return errors.New("missing serviceMatcher")
+	}
+
+	if namespace, ok := config["namespace"].(string); ok {
+		c.Namespace = &namespace
 	}
 
 	matchers := map[string]string{}
@@ -133,13 +137,13 @@ func (c *NacosConfig) ParseConfig(config map[string]any) error {
 	return nil
 }
 
-func (c *NacosConfig) NewServer(serverName string) (*internal.MCPServer, error) {
-	mcpServer := internal.NewMCPServer(
+func (c *NacosConfig) NewServer(serverName string) (*common.MCPServer, error) {
+	mcpServer := common.NewMCPServer(
 		serverName,
 		"1.0.0",
 	)
 
-	nacosRegistry, err := CreateNacosMcpRegsitry(c)
+	nacosRegistry, err := CreateNacosMcpRegistry(c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize NacosMcpRegistry: %w", err)
 	}
@@ -150,6 +154,12 @@ func (c *NacosConfig) NewServer(serverName string) (*internal.MCPServer, error) 
 	nacosRegistry.RegisterToolChangeEventListener(&listener)
 
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				api.LogErrorf("NacosToolsListRefresh recovered from panic: %v", r)
+			}
+		}()
+
 		for {
 			if nacosRegistry.refreshToolsList() {
 				resetToolsToMcpServer(mcpServer, nacosRegistry)
@@ -160,11 +170,11 @@ func (c *NacosConfig) NewServer(serverName string) (*internal.MCPServer, error) 
 	return mcpServer, nil
 }
 
-func resetToolsToMcpServer(mcpServer *internal.MCPServer, reg registry.McpServerRegistry) {
-	wrappedTools := []internal.ServerTool{}
-	tools := reg.ListToolsDesciption()
+func resetToolsToMcpServer(mcpServer *common.MCPServer, reg registry.McpServerRegistry) {
+	wrappedTools := []common.ServerTool{}
+	tools := reg.ListToolsDescription()
 	for _, tool := range tools {
-		wrappedTools = append(wrappedTools, internal.ServerTool{
+		wrappedTools = append(wrappedTools, common.ServerTool{
 			Tool:    mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema),
 			Handler: registry.HandleRegistryToolsCall(reg),
 		})

@@ -14,7 +14,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 )
 
-type NacosMcpRegsitry struct {
+type NacosMcpRegistry struct {
 	serviceMatcher           map[string]string
 	configClient             config_client.IConfigClient
 	namingClient             naming_client.INamingClient
@@ -27,7 +27,7 @@ type NacosMcpRegsitry struct {
 const DEFAULT_SERVICE_LIST_MAX_PGSIZXE = 10000
 const MCP_TOOL_SUBFIX = "-mcp-tools.json"
 
-func (n *NacosMcpRegsitry) ListToolsDesciption() []*registry.ToolDescription {
+func (n *NacosMcpRegistry) ListToolsDescription() []*registry.ToolDescription {
 	if n.toolsDescription == nil {
 		n.refreshToolsList()
 	}
@@ -39,16 +39,19 @@ func (n *NacosMcpRegsitry) ListToolsDesciption() []*registry.ToolDescription {
 	return result
 }
 
-func (n *NacosMcpRegsitry) GetToolRpcContext(toolName string) (*registry.RpcContext, bool) {
+func (n *NacosMcpRegistry) GetToolRpcContext(toolName string) (*registry.RpcContext, bool) {
+	if n.toolsRpcContext == nil {
+		n.refreshToolsList()
+	}
 	tool, ok := n.toolsRpcContext[toolName]
 	return tool, ok
 }
 
-func (n *NacosMcpRegsitry) RegisterToolChangeEventListener(listener registry.ToolChangeEventListener) {
+func (n *NacosMcpRegistry) RegisterToolChangeEventListener(listener registry.ToolChangeEventListener) {
 	n.toolChangeEventListeners = append(n.toolChangeEventListeners, listener)
 }
 
-func (n *NacosMcpRegsitry) refreshToolsList() bool {
+func (n *NacosMcpRegistry) refreshToolsList() bool {
 	changed := false
 	for group, serviceMatcher := range n.serviceMatcher {
 		if n.refreshToolsListForGroup(group, serviceMatcher) {
@@ -58,7 +61,7 @@ func (n *NacosMcpRegsitry) refreshToolsList() bool {
 	return changed
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher string) bool {
+func (n *NacosMcpRegistry) refreshToolsListForGroup(group string, serviceMatcher string) bool {
 	services, err := n.namingClient.GetAllServicesInfo(vo.GetAllServiceInfoParam{
 		GroupName: group,
 		PageNo:    1,
@@ -87,9 +90,11 @@ func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher
 
 		formatServiceName := getFormatServiceName(group, service)
 		if _, ok := n.currentServiceSet[formatServiceName]; !ok {
-			changed = true
-			n.refreshToolsListForService(group, service)
+			refreshed := n.refreshToolsListForService(group, service)
 			n.listenToService(group, service)
+			if refreshed {
+				changed = true
+			}
 		}
 
 		currentServiceList[formatServiceName] = true
@@ -129,7 +134,23 @@ func getFormatServiceName(group string, service string) string {
 	return fmt.Sprintf("%s_%s", group, service)
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) {
+func (n *NacosMcpRegistry) deleteToolForService(group string, service string) {
+	toolsNeedReset := []string{}
+
+	formatServiceName := getFormatServiceName(group, service)
+	for tool, _ := range n.toolsDescription {
+		if strings.HasPrefix(tool, formatServiceName) {
+			toolsNeedReset = append(toolsNeedReset, tool)
+		}
+	}
+
+	for _, tool := range toolsNeedReset {
+		delete(n.toolsDescription, tool)
+		delete(n.toolsRpcContext, tool)
+	}
+}
+
+func (n *NacosMcpRegistry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) bool {
 
 	if newConfig == nil {
 		dataId := makeToolsConfigId(service)
@@ -140,7 +161,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 
 		if err != nil {
 			api.LogError(fmt.Sprintf("Get tools config for sercice %s:%s error %s", group, service, err))
-			return
+			return false
 		}
 
 		newConfig = &content
@@ -155,17 +176,27 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 
 		if err != nil {
 			api.LogError(fmt.Sprintf("List instance for sercice %s:%s error %s", group, service, err))
-			return
+			return false
 		}
 
 		instances = &instancesFromNacos
 	}
 
 	var applicationDescription registry.McpApplicationDescription
+	if newConfig == nil {
+		return false
+	}
+
+	// config deleted, tools should be removed
+	if len(*newConfig) == 0 {
+		n.deleteToolForService(group, service)
+		return true
+	}
+
 	err := json.Unmarshal([]byte(*newConfig), &applicationDescription)
 	if err != nil {
 		api.LogError(fmt.Sprintf("Parse tools config for sercice %s:%s error, config is %s, error is %s", group, service, *newConfig, err))
-		return
+		return false
 	}
 
 	wrappedInstances := []registry.Instance{}
@@ -185,6 +216,8 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 	if n.toolsRpcContext == nil {
 		n.toolsRpcContext = map[string]*registry.RpcContext{}
 	}
+
+	n.deleteToolForService(group, service)
 
 	for _, tool := range applicationDescription.ToolsDescription {
 		meta := applicationDescription.ToolsMeta[tool.Name]
@@ -207,9 +240,10 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 		n.toolsRpcContext[tool.Name] = &context
 	}
 	n.currentServiceSet[getFormatServiceName(group, service)] = true
+	return true
 }
 
-func (n *NacosMcpRegsitry) GetCredential(name string, group string) *registry.CredentialInfo {
+func (n *NacosMcpRegistry) GetCredential(name string, group string) *registry.CredentialInfo {
 	dataId := makeCredentialDataId(name)
 	content, err := n.configClient.GetConfig(vo.ConfigParam{
 		DataId: dataId,
@@ -231,11 +265,11 @@ func (n *NacosMcpRegsitry) GetCredential(name string, group string) *registry.Cr
 	return &credential
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForService(group string, service string) {
-	n.refreshToolsListForServiceWithContent(group, service, nil, nil)
+func (n *NacosMcpRegistry) refreshToolsListForService(group string, service string) bool {
+	return n.refreshToolsListForServiceWithContent(group, service, nil, nil)
 }
 
-func (n *NacosMcpRegsitry) listenToService(group string, service string) {
+func (n *NacosMcpRegistry) listenToService(group string, service string) {
 
 	// config changed, tools description may be changed
 	err := n.configClient.ListenConfig(vo.ConfigParam{

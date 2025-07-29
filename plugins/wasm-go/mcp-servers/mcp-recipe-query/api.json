@@ -1,0 +1,498 @@
+{
+  "info": {
+    "description": "万种菜谱，包含主料、辅料，制作流程。可按分类、关键词检索",
+    "title": "【极速数据】菜谱大全_菜谱查询_菜谱API_菜谱数据",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/recipe/search": {
+      "get": {
+        "operationId": "菜谱搜索",
+        "summary": "菜谱搜索",
+        "parameters": [
+          {
+            "description": "关键词",
+            "example": "白菜",
+            "in": "query",
+            "name": "keyword",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "获取数量",
+            "example": "10",
+            "in": "query",
+            "name": "num",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "起始条数，默认0",
+            "example": "1",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "消息"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "num": {
+                          "type": "string",
+                          "description": "数量"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "ID"
+                              },
+                              "classid": {
+                                "type": "string",
+                                "description": "分类ID"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "名称"
+                              },
+                              "peoplenum": {
+                                "type": "string",
+                                "description": "人数"
+                              },
+                              "preparetime": {
+                                "type": "string",
+                                "description": "准备时间"
+                              },
+                              "cookingtime": {
+                                "type": "string",
+                                "description": "烹饪时间"
+                              },
+                              "content": {
+                                "type": "string",
+                                "description": "内容"
+                              },
+                              "pic": {
+                                "type": "string",
+                                "description": "图片URL"
+                              },
+                              "tag": {
+                                "type": "string",
+                                "description": "标签"
+                              },
+                              "material": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "mname": {
+                                      "type": "string",
+                                      "description": "材料名称"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "description": "类型"
+                                    },
+                                    "amount": {
+                                      "type": "string",
+                                      "description": "数量"
+                                    }
+                                  }
+                                }
+                              },
+                              "process": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "pcontent": {
+                                      "type": "string",
+                                      "description": "步骤内容"
+                                    },
+                                    "pic": {
+                                      "type": "string",
+                                      "description": "步骤图片URL"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/recipe/byclass": {
+      "get": {
+        "operationId": "按分类检索",
+        "summary": "万种菜谱，包含主料、辅料，制作流程。可按分类、关键词检索。",
+        "parameters": [
+          {
+            "description": "分类ID",
+            "example": "2",
+            "in": "query",
+            "name": "classid",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "起始条数，默认0",
+            "example": "0",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "获取数量",
+            "example": "10",
+            "in": "query",
+            "name": "num",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "num": {
+                          "type": "string",
+                          "description": "结果数量"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "ID"
+                              },
+                              "classid": {
+                                "type": "string",
+                                "description": "分类ID"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "菜名"
+                              },
+                              "peoplenum": {
+                                "type": "string",
+                                "description": "适合人数"
+                              },
+                              "preparetime": {
+                                "type": "string",
+                                "description": "准备时间"
+                              },
+                              "cookingtime": {
+                                "type": "string",
+                                "description": "烹饪时间"
+                              },
+                              "content": {
+                                "type": "string",
+                                "description": "菜品描述"
+                              },
+                              "pic": {
+                                "type": "string",
+                                "description": "图片URL"
+                              },
+                              "tag": {
+                                "type": "string",
+                                "description": "标签"
+                              },
+                              "material": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "mname": {
+                                      "type": "string",
+                                      "description": "材料名称"
+                                    },
+                                    "type": {
+                                      "type": "string",
+                                      "description": "材料类型"
+                                    },
+                                    "amount": {
+                                      "type": "string",
+                                      "description": "材料用量"
+                                    }
+                                  }
+                                }
+                              },
+                              "process": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "pcontent": {
+                                      "type": "string",
+                                      "description": "步骤内容"
+                                    },
+                                    "pic": {
+                                      "type": "string",
+                                      "description": "步骤图片URL"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/recipe/detail": {
+      "get": {
+        "operationId": "根据ID查询详情",
+        "summary": "根据ID查询详情",
+        "parameters": [
+          {
+            "description": "菜谱ID",
+            "example": "5",
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "消息"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "菜谱ID"
+                        },
+                        "classid": {
+                          "type": "string",
+                          "description": "分类ID"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "菜名"
+                        },
+                        "peoplenum": {
+                          "type": "string",
+                          "description": "适合人数"
+                        },
+                        "preparetime": {
+                          "type": "string",
+                          "description": "准备时间"
+                        },
+                        "cookingtime": {
+                          "type": "string",
+                          "description": "烹饪时间"
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "菜品描述"
+                        },
+                        "pic": {
+                          "type": "string",
+                          "description": "菜品图片URL"
+                        },
+                        "tag": {
+                          "type": "string",
+                          "description": "标签"
+                        },
+                        "material": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "mname": {
+                                "type": "string",
+                                "description": "材料名称"
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "材料类型"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "description": "材料数量"
+                              }
+                            }
+                          }
+                        },
+                        "process": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "pcontent": {
+                                "type": "string",
+                                "description": "步骤内容"
+                              },
+                              "pic": {
+                                "type": "string",
+                                "description": "步骤图片URL"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/recipe/class": {
+      "get": {
+        "operationId": "菜谱分类",
+        "summary": "菜谱分类",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "状态码，0表示成功"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "result": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "classid": {
+                            "type": "string",
+                            "description": "分类ID"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "分类名称"
+                          },
+                          "parentid": {
+                            "type": "string",
+                            "description": "父分类ID"
+                          },
+                          "list": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "classid": {
+                                  "type": "string",
+                                  "description": "子分类ID"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "description": "子分类名称"
+                                },
+                                "parentid": {
+                                  "type": "string",
+                                  "description": "父分类ID"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://jsucpdq.market.alicloudapi.com"
+    }
+  ]
+}

@@ -1,5 +1,9 @@
 # MCP Server Implementation Guide
 
+> **🌟 Try it now!** Experience Higress-hosted Remote MCP Servers at [https://mcp.higress.ai/](https://mcp.higress.ai/). This platform allows you to see firsthand how Higress can host and manage Remote MCP Servers.
+> 
+> ![Higress MCP Server Platform](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
+
 ## Background
 
   Higress, as an Envoy-based API gateway, supports hosting MCP Servers through its plugin mechanism. MCP (Model Context Protocol) is essentially an AI-friendly API that enables AI Agents to more easily call various tools and services. Higress provides unified capabilities for authentication, authorization, rate limiting, and observability for tool calls, simplifying the development and deployment of AI applications.
@@ -76,8 +80,8 @@ import (
     "net/http"
     
     "my-mcp-server/config"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+    "github.com/higress-group/wasm-go/pkg/mcp/server"
+    "github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 // Define your tool structure with input parameters
@@ -141,8 +145,8 @@ For better organization, you can create a separate file to load all your tools:
 package tools
 
 import (
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+    "github.com/higress-group/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp/server"
 )
 
 func LoadTools(server *mcp.MCPServer) server.Server {
@@ -166,7 +170,7 @@ import (
     amap "amap-tools/tools"
     quark "quark-search/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp"
 )
 
 func main() {}
@@ -371,7 +375,7 @@ package main
 import (
     "my-mcp-server/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp"
 )
 
 func main() {}
@@ -395,9 +399,9 @@ server:
   config:
     apiKey: your-api-key-here
   # Optional: If configured, acts as a whitelist - only tools listed here can be called
-  allowTools:
-  - my_tool
-  - another_tool
+allowTools:
+- my_tool
+- another_tool
 ```
 
 > **Important**: The `name` field in the server configuration must exactly match the server name used in the `mcp.AddMCPServer()` call in your code. This is how the system identifies which MCP server should handle the request.
