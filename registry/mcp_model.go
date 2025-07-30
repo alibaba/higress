@@ -52,11 +52,12 @@ type ServerConfig struct {
 }
 
 type McpTool struct {
-	Name             string            `json:"name,omitempty"`
-	Description      string            `json:"description,omitempty"`
-	Args             []*ToolArgs       `json:"args,omitempty"`
-	RequestTemplate  *RequestTemplate  `json:"requestTemplate"`
-	ResponseTemplate *ResponseTemplate `json:"responseTemplate"`
+	Name             		string            `json:"name,omitempty"`
+	Description      		string            `json:"description,omitempty"`
+	Args             		[]*ToolArgs       `json:"args,omitempty"`
+	RequestTemplate  		*RequestTemplate  `json:"requestTemplate"`
+	ResponseTemplate 		*ResponseTemplate `json:"responseTemplate"`
+	ErrorResponseTemplate 	string			  `json:"errorResponseTemplate,omitempty"`
 }
 
 type ToolArgs struct {
@@ -147,7 +148,8 @@ type ToolsMeta struct {
 }
 
 type JsonGoTemplate struct {
-	RequestTemplate  RequestTemplate   `json:"requestTemplate,omitempty"`
-	ResponseTemplate ResponseTemplate  `json:"responseTemplate,omitempty"`
-	ArgsPosition     map[string]string `json:"argsPosition,omitempty"`
+	RequestTemplate  		RequestTemplate   `json:"requestTemplate,omitempty"`
+	ResponseTemplate 		ResponseTemplate  `json:"responseTemplate,omitempty"`
+	ArgsPosition     		map[string]string `json:"argsPosition,omitempty"`
+	ErrorResponseTemplate 	string 			  `json:"errorResponseTemplate,omitempty"`
 }
