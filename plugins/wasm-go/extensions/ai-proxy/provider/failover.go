@@ -579,7 +579,7 @@ func (c *ProviderConfig) OnRequestFailed(activeProvider Provider, ctx wrapper.Ht
 		c.handleUnavailableApiToken(ctx, apiTokenInUse)
 	}
 	if c.IsRetryOnFailureEnabled() && util.MatchStatus(status, c.retryOnFailure.retryOnStatus) {
-		log.Warnf("need retry, notice that retry response will be bufferd, error status:%s", status)
+		log.Warnf("need retry, notice that retry response will be buffered, error status:%s", status)
 		err := c.retryFailedRequest(activeProvider, ctx, apiTokenInUse, apiTokens)
 		if err != nil {
 			log.Errorf("retryFailedRequest failed, err:%v", err)

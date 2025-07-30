@@ -637,7 +637,7 @@ func (b *bedrockProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName
 func (b *bedrockProvider) onImageGenerationResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	bedrockResponse := &bedrockImageGenerationResponse{}
 	if err := json.Unmarshal(body, bedrockResponse); err != nil {
-		log.Errorf("unable to unmarshal bedrock image gerneration response: %v", err)
+		log.Errorf("unable to unmarshal bedrock image generation response: %v", err)
 		return nil, fmt.Errorf("unable to unmarshal bedrock image generation response: %v", err)
 	}
 	response := b.buildBedrockImageGenerationResponse(ctx, bedrockResponse)
