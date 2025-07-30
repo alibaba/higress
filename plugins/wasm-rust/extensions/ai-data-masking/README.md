@@ -147,5 +147,5 @@ curl -X POST \
  - 流模式中如果脱敏后的词被多个chunk拆分，可能无法进行还原
  - 流模式中，如果敏感词语被多个chunk拆分，可能会有敏感词的一部分返回给用户的情况
  - grok 内置规则列表 https://help.aliyun.com/zh/sls/user-guide/grok-patterns
- - 内置敏感词库数据来源 https://github.com/houbb/sensitive-word/tree/master/src/main/resources
+ - 内置敏感词库数据来源 https://github.com/houbb/sensitive-word-data/tree/main/src/main/resources
  - 由于敏感词列表是在文本分词后进行匹配的，所以请将 `deny_words` 设置为单个单词，英文多单词情况如 `hello word` 可能无法匹配
