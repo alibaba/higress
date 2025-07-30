@@ -1,6 +1,6 @@
 # Higress API MCP Server
 
-Higress API MCP Server provides MCP tools to manage Higress routes, service sources, plugins and other resources.
+Higress API MCP Server provides MCP tools to manage Higress routes, service sources, AI routes, AI providers, MCP servers, plugins and other resources.
 
 ## Features
 
@@ -9,12 +9,38 @@ Higress API MCP Server provides MCP tools to manage Higress routes, service sour
 - `get-route`: Get route
 - `add-route`: Add route
 - `update-route`: Update route
+- `delete-route`: Delete route
+
+### AI Route Management
+- `list-ai-routes`: List AI routes
+- `get-ai-route`: Get AI route
+- `add-ai-route`: Add AI route
+- `update-ai-route`: Update AI route
+- `delete-ai-route`: Delete AI route
 
 ### Service Source Management
 - `list-service-sources`: List service sources
 - `get-service-source`: Get service source
 - `add-service-source`: Add service source
 - `update-service-source`: Update service source
+- `delete-service-source`: Delete service source
+
+### AI Provider Management
+- `list-ai-providers`: List LLM providers
+- `get-ai-provider`: Get LLM provider
+- `add-ai-provider`: Add LLM provider
+- `update-ai-provider`: Update LLM provider
+- `delete-ai-provider`: Delete LLM provider
+
+### MCP Server Management
+- `list-mcp-servers`: List MCP servers
+- `get-mcp-server`: Get MCP server details
+- `add-or-update-mcp-server`: Add or update MCP server
+- `delete-mcp-server`: Delete MCP server
+- `list-mcp-server-consumers`: List MCP server allowed consumers
+- `add-mcp-server-consumers`: Add MCP server allowed consumers
+- `delete-mcp-server-consumers`: Delete MCP server allowed consumers
+- `swagger-to-mcp-config`: Convert Swagger content to MCP configuration
 
 ### Plugin Management
 - `get-plugin`: Get plugin configuration

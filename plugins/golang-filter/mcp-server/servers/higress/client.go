@@ -50,6 +50,12 @@ func (c *HigressClient) Put(path string, data interface{}) ([]byte, error) {
 func (c *HigressClient) Delete(path string) ([]byte, error) {
 	return c.request("DELETE", path, nil)
 }
+
+// DeleteWithBody performs a DELETE request with a request body
+func (c *HigressClient) DeleteWithBody(path string, data interface{}) ([]byte, error) {
+	return c.request("DELETE", path, data)
+}
+
 func (c *HigressClient) request(method, path string, data interface{}) ([]byte, error) {
 	url := c.baseURL + path
 
