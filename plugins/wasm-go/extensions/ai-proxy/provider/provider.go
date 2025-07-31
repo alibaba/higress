@@ -878,7 +878,7 @@ func (c *ProviderConfig) handleRequestBody(
 }
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
-	headers := util.GetOriginalRequestHeaders()
+	headers := util.GetRequestHeaders()
 	// Clean up the externally provided original path&host
 	headers.Del("X-ENVOY-ORIGINAL-PATH")
 	headers.Del("X-ENVOY-ORIGINAL-HOST")
