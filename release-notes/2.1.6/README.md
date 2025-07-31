@@ -99,7 +99,7 @@ This PR mainly implements the following features: 1) Updated the workflow files 
 
 **Usage Instructions**
 
-To enable and configure this feature, first ensure that your development environment has Go 1.24 installed. Then, you can specify the new build parameters by modifying the project's Makefile and Dockerfile. For example, set `GO_VERSION ?= 1.24.0` in the Makefile and use `ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.24.0-oras1.0.0` in the Dockerfile. A typical use case is when you need to deploy new WASM plugins in Higress. Best practices include regularly updating dependencies to the latest versions and ensuring that all related code is adapted to the new version.
+To enable and configure this feature, first ensure that your development environment has Go 1.24 installed. Then, you can specify the new build parameters by modifying the project's Makefile and Dockerfile. For example, set `GO_VERSION ?= 1.24.4` in the Makefile and use `ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.24.4-oras1.0.0` in the Dockerfile. A typical use case is when you need to deploy new WASM plugins in Higress. Best practices include regularly updating dependencies to the latest versions and ensuring that all related code is adapted to the new version.
 
 **Feature Value**
 
