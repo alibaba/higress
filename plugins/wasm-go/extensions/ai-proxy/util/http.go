@@ -59,37 +59,19 @@ func OverwriteRequestPath(path string) error {
 }
 
 func OverwriteRequestAuthorization(credential string) error {
-	if exist, _ := proxywasm.GetHttpRequestHeader(HeaderOriginalAuth); exist == "" {
-		if originAuth, err := proxywasm.GetHttpRequestHeader(HeaderAuthorization); err == nil {
-			_ = proxywasm.AddHttpRequestHeader(HeaderOriginalPath, originAuth)
-		}
-	}
 	return proxywasm.ReplaceHttpRequestHeader(HeaderAuthorization, credential)
 }
 
 func OverwriteRequestHostHeader(headers http.Header, host string) {
-	if exist := headers.Get(HeaderOriginalHost); exist == "" {
-		if originHost := headers.Get(HeaderAuthority); originHost != "" {
-			headers.Set(HeaderOriginalHost, originHost)
-		}
-	}
 	headers.Set(HeaderAuthority, host)
 }
 
 func OverwriteRequestPathHeader(headers http.Header, path string) {
-	if exist := headers.Get(HeaderOriginalPath); exist == "" {
-		if originPath := headers.Get(HeaderPath); originPath != "" {
-			headers.Set(HeaderOriginalPath, originPath)
-		}
-	}
 	headers.Set(HeaderPath, path)
 }
 
 func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string, mapping map[string]string) {
 	originPath := headers.Get(HeaderPath)
-	if exist := headers.Get(HeaderOriginalPath); exist == "" {
-		headers.Set(HeaderOriginalPath, originPath)
-	}
 	mappedPath := MapRequestPathByCapability(apiName, originPath, mapping)
 	if mappedPath == "" {
 		return
