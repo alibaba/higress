@@ -17,7 +17,7 @@
 
 本次发布包含 **2** 项重要更新，建议重点关注：
 
-- **feat: Add Higress API MCP server** ([#2517](https://github.com/alibaba/higress/pull/2517)): 新增的Higress API MCP服务器功能增强了用户对Higress资源的管理能力，支持通过API进行路由和服务的增删改查操作，提升了系统的灵活性和可维护性。
+- **feat: Add Higress API MCP server** ([#2517](https://github.com/alibaba/higress/pull/2517)): 新增的Higress API MCP服务器功能增强了AI Agent对Higress资源的管理能力，支持通过MCP进行路由和服务的增删改查操作，提升了系统的灵活性和可维护性。
 - **Migrate WASM Go Plugins to New SDK and Go 1.24** ([#2532](https://github.com/alibaba/higress/pull/2532)): 通过迁移至新SDK和最新Go版本，提高了插件的兼容性和性能，确保了与最新技术栈的一致性，为用户提供更稳定和高效的插件支持。
 
 详细信息请查看下方重要功能详述部分。
