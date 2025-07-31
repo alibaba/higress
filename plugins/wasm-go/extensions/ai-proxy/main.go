@@ -97,6 +97,9 @@ func initContext(ctx wrapper.HttpContext) {
 		value, _ := proxywasm.GetHttpRequestHeader(header)
 		ctx.SetContext(ctxKey, value)
 	}
+	for _, originHeader := range headerToOriginalHeaderMapping {
+		proxywasm.RemoveHttpRequestHeader(originHeader)
+	}
 }
 
 func saveContextsToHeaders(ctx wrapper.HttpContext) {

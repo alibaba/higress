@@ -71,7 +71,7 @@ func OverwriteRequestPathHeader(headers http.Header, path string) {
 }
 
 func OverwriteRequestPathHeaderByCapability(headers http.Header, apiName string, mapping map[string]string) {
-	originPath := headers.Get(HeaderPath)
+	originPath := GetOriginalRequestPath()
 	mappedPath := MapRequestPathByCapability(apiName, originPath, mapping)
 	if mappedPath == "" {
 		return
