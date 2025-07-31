@@ -10,8 +10,7 @@
 - **新功能**: 13项
 - **Bug修复**: 5项
 - **重构优化**: 7项
-- **文档更新**: 5项
-- **测试改进**: 1项
+- **文档更新**: 6项
 
 ### ⭐ 重点关注
 
@@ -256,8 +255,6 @@ Higress API MCP Server为用户带来了以下具体好处：
   **Contributor**: @erasernoob \
   **Change Log**: 更新了wasm-go插件的README文件，移除了TinyGo相关配置，并调整了Go版本要求至1.24以上以支持wasm构建特性，同时清理了不再使用的代码路径。 \
   **Feature Value**: 通过更新文档和环境配置要求，确保开发者能够正确设置其开发环境来编译wasm-go插件，这有助于避免因使用不兼容的语言版本或依赖项而导致的问题。
-
-### 🧪 测试改进 (Testing)
 
 - **Related PR**: [#2596](https://github.com/alibaba/higress/pull/2596) \
   **Contributor**: @Guo-Chenxu \
