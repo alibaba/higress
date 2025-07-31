@@ -472,9 +472,14 @@ func (g *geminiProvider) downloadAndEncodeImage(url string) (string, string, err
 		return "", "", fmt.Errorf("get image url status: %d", resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	// gemini support maxSize 100MB
+	const maxSize = 100 << 20
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSize+1))
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read image data: %s", err)
+	}
+	if len(data) > maxSize {
+		return "", "", fmt.Errorf("image data exceeds 100MB limit")
 	}
 
 	mimeType := http.DetectContentType(data)
