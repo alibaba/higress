@@ -130,6 +130,9 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	log.Debugf("[onHttpRequestHeader] provider=%s", activeProvider.GetProviderType())
 
+	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+	ctx.DisableReroute()
+
 	initContext(ctx)
 
 	rawPath := ctx.Path()
@@ -159,8 +162,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	}
 
 	ctx.SetContext(provider.CtxKeyApiName, apiName)
-	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
-	ctx.DisableReroute()
 
 	// Always remove the Accept-Encoding header to prevent the LLM from sending compressed responses,
 	// allowing plugins to inspect or modify the response correctly
