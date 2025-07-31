@@ -78,7 +78,7 @@ Notes:
 **Feature Value**
 
 The Higress API MCP Server brings the following specific benefits to users:
-1. **Improved Operational Efficiency**: Through a unified API interface, users can more easily manage and configure Higress resources, reducing the complexity and error rate of manual operations.
+1. **Improved Operational Efficiency**: Through a unified MCP interface, users can more conveniently manage and configure Higress resources via AI Agent, reducing the complexity and error rate of manual operations.
 2. **Enhanced System Flexibility**: Support for dynamic management and updating of routes, service origins, and plugins makes the system more flexible and able to quickly respond to changes in business requirements.
 3. **Increased System Stability**: Automated configuration management reduces the possibility of human errors, thereby enhancing the stability and reliability of the system.
 4. **Easy Integration**: The design of the Higress API MCP Server makes it easy to integrate with other systems and tools, facilitating the construction of a complete automated operations system.
