@@ -1,10 +1,13 @@
 package provider
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -407,12 +410,29 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 	// shouldAddDummyModelMessage := false
 	for _, message := range request.Messages {
 		content := geminiChatContent{
-			Role: message.Role,
-			Parts: []geminiPart{
-				{
-					Text: message.StringContent(),
-				},
-			},
+			Role:  message.Role,
+			Parts: []geminiPart{},
+		}
+
+		if message.IsStringContent() {
+			content.Parts = append(content.Parts, geminiPart{
+				Text: message.StringContent(),
+			})
+		} else {
+			for _, c := range message.ParseContent() {
+				switch c.Type {
+				case contentTypeText:
+					content.Parts = append(content.Parts, geminiPart{
+						Text: c.Text,
+					})
+				case contentTypeImageUrl:
+					content.Parts = append(content.Parts, geminiPart{
+						InlineData: g.convertImage2InlineData(c.ImageUrl),
+					})
+				default:
+					log.Debugf("currently gemini did not support this type: %s", c.Type)
+				}
+			}
 		}
 
 		// there's no assistant role in gemini and API shall vomit if role is not user or model
@@ -429,6 +449,69 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 	}
 
 	return &geminiRequest
+}
+
+func (g *geminiProvider) isUrl(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https")
+}
+
+func (g *geminiProvider) downloadAndEncodeImage(url string) (string, string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", "", err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("get image url status: %s", resp.StatusCode)
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read image data: %s", err)
+	}
+
+	mimeType := http.DetectContentType(data)
+
+	base64Data := base64.StdEncoding.EncodeToString([]byte(data))
+
+	return mimeType, base64Data, nil
+}
+
+func (g *geminiProvider) convertImage2InlineData(url *chatMessageContentImageUrl) *geminiInlineData {
+	baseStr := url.Url
+
+	if g.isUrl(baseStr) {
+		var err error
+		mime, baseData, err := g.downloadAndEncodeImage(baseStr)
+		if err != nil {
+			log.Errorf("Failed to process image url: %s", err)
+			return nil
+		}
+		return &geminiInlineData{
+			MimeType: mime,
+			Data:     baseData,
+		}
+	}
+
+	if strings.HasPrefix(baseStr, "data:") {
+		p := strings.SplitN(baseStr, ";", 2)
+		if len(p) != 2 {
+			log.Errorf("invalid base64 string")
+			return nil
+		}
+
+		mime := strings.TrimPrefix(p[0], "data:")
+		baseData := strings.TrimPrefix(p[1], "base64,")
+		return &geminiInlineData{
+			MimeType: mime,
+			Data:     baseData,
+		}
+	}
+
+	log.Errorf("unsupported image format: %s", url.Url)
+	return nil
 }
 
 func (g *geminiProvider) setSystemContent(request *geminiGenerationContentRequest, content string) {
