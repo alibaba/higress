@@ -457,14 +457,19 @@ func (g *geminiProvider) isUrl(raw string) bool {
 }
 
 func (g *geminiProvider) downloadAndEncodeImage(url string) (string, string, error) {
-	resp, err := http.Get(url)
+
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+	resp, err := client.Get(url)
+
 	if err != nil {
 		return "", "", err
 	}
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("get image url status: %s", resp.StatusCode)
+		return "", "", fmt.Errorf("get image url status: %d", resp.StatusCode)
 	}
 
 	data, err := io.ReadAll(resp.Body)
