@@ -99,7 +99,7 @@ Higress API MCP Server为用户带来了以下具体好处：
 
 **使用方式**
 
-要启用和配置这个功能，首先需要确保你的开发环境已经安装了Go 1.24。然后，你可以通过修改项目的Makefile和Dockerfile来指定新的构建参数。例如，在Makefile中设置`GO_VERSION ?= 1.24.0`，在Dockerfile中使用`ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.24.0-oras1.0.0`。典型的使用场景是当你需要在Higress中部署新的WASM插件时。最佳实践包括定期更新依赖库至最新版本，并确保所有相关代码都已适配新版本。
+要启用和配置这个功能，首先需要确保你的开发环境已经安装了Go 1.24。然后，你可以通过修改项目的Makefile和Dockerfile来指定新的构建参数。例如，在Makefile中设置`GO_VERSION ?= 1.24.4`，在Dockerfile中使用`ARG BUILDER=higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/wasm-go-builder:go1.24.4-oras1.0.0`。典型的使用场景是当你需要在Higress中部署新的WASM插件时。最佳实践包括定期更新依赖库至最新版本，并确保所有相关代码都已适配新版本。
 
 **功能价值**
 
