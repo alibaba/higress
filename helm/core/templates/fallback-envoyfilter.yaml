@@ -1,3 +1,4 @@
+{{- if .Values.global.enableIstioAPI }}
 apiVersion: networking.istio.io/v1alpha3
 kind: EnvoyFilter
 metadata:
@@ -20,3 +21,7 @@ spec:
           name: envoy.filters.http.custom_response
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.custom_response.v3.CustomResponse
+  workloadSelector:
+    labels:
+      {{- include "gateway.selectorLabels" . | nindent 6 }}
+{{- end }}
