@@ -22,12 +22,12 @@ description: AI可观测配置参考
 
 用户还可以通过配置的方式对可观测的值进行扩展：
 
-| 名称                   | 数据类型    | 填写要求 | 默认值                                                                                                               | 描述                                                                                             |
-| ---------------------- | ----------- | -------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `attributes`           | []Attribute | 非必填   | -                                                                                                                    | 用户希望记录在 log/span 中的信息                                                                 |
-| `disable_openai_usage` | bool        | 非必填   | false                                                                                                                | 非 openai 兼容协议时，model、token 的支持非标，配置为 true 时可以避免报错                        |
-| `enable_path_suffix`   | []string    | 非必填   | ["/v1/chat/completions","/v1/completions","/v1/embeddings","/v1/models","/generateContent","/streamGenerateContent"] | 只对这些特定路径后缀的请求生效，可以配置为 "\*" 以匹配所有路径（通配符检查会优先进行以提高性能） |
-| `enable_content_type`  | []string    | 非必填   | ["text/event-stream","application/json"]                                                                             | 只对这些内容类型的响应进行缓冲处理                                                               |
+| 名称                   | 数据类型    | 填写要求 | 默认值 | 描述                                                                                                                             |
+| ---------------------- | ----------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `attributes`           | []Attribute | 非必填   | -      | 用户希望记录在 log/span 中的信息                                                                                                 |
+| `disable_openai_usage` | bool        | 非必填   | false  | 非 openai 兼容协议时，model、token 的支持非标，配置为 true 时可以避免报错                                                        |
+| `enable_path_suffixes` | []string    | 非必填   | []     | 只对这些特定路径后缀的请求生效，可以配置为 "\*" 以匹配所有路径（通配符检查会优先进行以提高性能）。如果为空数组，则对所有路径生效 |
+| `enable_content_types` | []string    | 非必填   | []     | 只对这些内容类型的响应进行缓冲处理。如果为空数组，则对所有内容类型生效                                                           |
 
 Attribute 配置说明:
 
@@ -251,7 +251,7 @@ print(result)
 #### 只处理特定 AI 路径
 
 ```yaml
-enable_path_suffix:
+enable_path_suffixes:
   - "/v1/chat/completions"
   - "/v1/embeddings"
   - "/generateContent"
@@ -260,7 +260,7 @@ enable_path_suffix:
 #### 只处理特定内容类型
 
 ```yaml
-enable_content_type:
+enable_content_types:
   - "text/event-stream"
   - "application/json"
 ```
@@ -268,18 +268,24 @@ enable_content_type:
 #### 处理所有路径（通配符）
 
 ```yaml
-enable_path_suffix:
+enable_path_suffixes:
   - "*"
+```
+
+#### 处理所有内容类型（空数组）
+
+```yaml
+enable_content_types: []
 ```
 
 #### 完整配置示例
 
 ```yaml
-enable_path_suffix:
+enable_path_suffixes:
   - "/v1/chat/completions"
   - "/v1/embeddings"
   - "/generateContent"
-enable_content_type:
+enable_content_types:
   - "text/event-stream"
   - "application/json"
 attributes:

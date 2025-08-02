@@ -160,6 +160,9 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 
 // isPathEnabled checks if the request path matches any of the enabled path suffixes
 func isPathEnabled(requestPath string, enabledSuffixes []string) bool {
+	if len(enabledSuffixes) == 0 {
+		return true // If no path suffixes configured, enable for all
+	}
 	// Check for * first - if present, enable for all paths
 	for _, suffix := range enabledSuffixes {
 		if suffix == "*" {
@@ -173,6 +176,7 @@ func isPathEnabled(requestPath string, enabledSuffixes []string) bool {
 		pathWithoutQuery = requestPath[:queryPos]
 	}
 
+	// Check if path ends with any enabled suffix
 	for _, suffix := range enabledSuffixes {
 		if strings.HasSuffix(pathWithoutQuery, suffix) {
 			return true
@@ -221,32 +225,17 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	config.disableOpenaiUsage = configJson.Get("disable_openai_usage").Bool()
 
 	// Parse path suffix configuration
-	pathSuffixes := configJson.Get("enable_path_suffix").Array()
+	pathSuffixes := configJson.Get("enable_path_suffixes").Array()
 	config.enablePathSuffixes = make([]string, len(pathSuffixes))
 	for i, suffix := range pathSuffixes {
 		config.enablePathSuffixes[i] = suffix.String()
 	}
 
 	// Parse content type configuration
-	contentTypes := configJson.Get("enable_content_type").Array()
+	contentTypes := configJson.Get("enable_content_types").Array()
 	config.enableContentTypes = make([]string, len(contentTypes))
 	for i, contentType := range contentTypes {
 		config.enableContentTypes[i] = contentType.String()
-	}
-
-	// Set default values
-	config.enablePathSuffixes = []string{
-		PathOpenAIChatCompletions,
-		PathOpenAICompletions,
-		PathOpenAIEmbeddings,
-		PathOpenAIModels,
-		PathGeminiGenerateContent,
-		PathGeminiStreamGenerateContent,
-	}
-
-	config.enableContentTypes = []string{
-		"text/event-stream",
-		"application/json",
 	}
 
 	return nil
