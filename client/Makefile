@@ -95,6 +95,6 @@ generate-k8s-client:
 
 
 .PHONY: clean-k8s-client
-clean-k8s-cliennt:
+clean-k8s-client:
     # remove generated code
 	@rm -rf pkg/

@@ -69,7 +69,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/registry/memory"
+	"github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/reconcile"
 )
 
@@ -340,10 +340,6 @@ func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, 
 			}
 			IngressLog.Infof("Append %d configmap EnvoyFilters", len(configmapEnvoyFilters))
 		}
-		if len(envoyFilters) == 0 {
-			IngressLog.Infof("resource type %s, configs number %d", typ, len(m.cachedEnvoyFilters))
-			return m.cachedEnvoyFilters
-		}
 		envoyFilters = append(envoyFilters, m.cachedEnvoyFilters...)
 		IngressLog.Infof("resource type %s, configs number %d", typ, len(envoyFilters))
 		return envoyFilters
@@ -490,6 +486,22 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		VirtualServices:   map[string]*common.WrapperVirtualService{},
 		HTTPRoutes:        map[string][]*common.WrapperHTTPRoute{},
 		Route2Ingress:     map[string]*common.WrapperConfigWithRuleKey{},
+		ServiceWrappers:   make(map[string]*common.ServiceWrapper),
+		ProxyWrappers:     make(map[string]*common.ProxyWrapper),
+	}
+	if m.RegistryReconciler != nil {
+		for _, sew := range m.RegistryReconciler.GetAllServiceWrapper() {
+			hosts := sew.ServiceEntry.Hosts
+			if len(hosts) == 0 {
+				continue
+			}
+			for _, host := range hosts {
+				convertOptions.ServiceWrappers[host] = sew
+			}
+		}
+		for _, pw := range m.RegistryReconciler.GetAllProxyWrapper() {
+			convertOptions.ProxyWrappers[pw.ProxyName] = pw
+		}
 	}
 
 	// convert http route
@@ -606,6 +618,8 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		}
 	}
 
+	m.adjustRouteClusterForProxy(&convertOptions, out)
+
 	// We generate some specific envoy filter here to avoid duplicated computation.
 	m.convertEnvoyFilter(&convertOptions)
 	return out
@@ -669,11 +683,18 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 		}
 	}
 
+	if proxyEnvoyFilters := constructProxyEnvoyFilters(convertOptions.ProxyWrappers, convertOptions.ServiceWrappers, m.namespace); len(proxyEnvoyFilters) != 0 {
+		for _, ef := range proxyEnvoyFilters {
+			envoyFilters = append(envoyFilters, *ef)
+		}
+	}
+
 	// TODO Support other envoy filters
 
 	IngressLog.Infof("Found %d number of envoyFilters", len(envoyFilters))
 	m.mutex.Lock()
 	m.cachedEnvoyFilters = envoyFilters
+	// TODO (by CH3CHO): Make sure pilot can get the latest envoy filters.
 	m.mutex.Unlock()
 }
 
@@ -698,6 +719,7 @@ func (m *IngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Confi
 			out = append(out, *cfg)
 		}
 	}
+	m.adjustWasmPluginForProxy(out)
 	return out
 }
 
@@ -1091,6 +1113,132 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 	return result, nil
 }
 
+func (m *IngressConfig) adjustWasmPluginForProxy(out []config.Config) {
+	if m.RegistryReconciler == nil {
+		return
+	}
+
+	proxyWrappers := make(map[string]*common.ProxyWrapper)
+	service2ProxyServiceMapping := make(map[string]string)
+	for _, pw := range m.RegistryReconciler.GetAllProxyWrapper() {
+		proxyWrappers[pw.ProxyName] = pw
+	}
+	for _, sew := range m.RegistryReconciler.GetAllServiceWrapper() {
+		if sew == nil || sew.ProxyConfig == nil || sew.ProxyConfig.ProxyName == "" {
+			continue
+		}
+		proxyWrapper := proxyWrappers[sew.ProxyConfig.ProxyName]
+		if proxyWrapper == nil || proxyWrapper.EnvoyFilter == nil {
+			// Invalid proxy config
+			continue
+		}
+		hosts := sew.ServiceEntry.Hosts
+		if len(hosts) == 0 {
+			continue
+		}
+		for _, host := range hosts {
+			service2ProxyServiceMapping[host] = constructProxyServiceFqdn(sew.ProxyConfig.ProxyName, host)
+		}
+	}
+
+	if len(service2ProxyServiceMapping) == 0 {
+		return
+	}
+
+	for _, config := range out {
+		wasmPlugin, ok := config.Spec.(*extensions.WasmPlugin)
+		if !ok {
+			continue
+		}
+		if wasmPlugin == nil || wasmPlugin.PluginConfig == nil || len(wasmPlugin.PluginConfig.Fields) == 0 {
+			continue
+		}
+		for key, value := range wasmPlugin.PluginConfig.Fields {
+			if key != "_rules_" {
+				continue
+			}
+			rulesValue, ok := value.Kind.(*_struct.Value_ListValue)
+			if !ok || rulesValue.ListValue == nil || len(rulesValue.ListValue.Values) == 0 {
+				continue
+			}
+			for _, ruleValue := range rulesValue.ListValue.Values {
+				rule, ok := ruleValue.Kind.(*_struct.Value_StructValue)
+				if !ok || rule == nil || rule.StructValue == nil || len(rule.StructValue.Fields) == 0 {
+					continue
+				}
+				for key, value := range rule.StructValue.Fields {
+					if key != "_match_service_" {
+						continue
+					}
+					listValue, ok := value.Kind.(*_struct.Value_ListValue)
+					if !ok || listValue.ListValue == nil || len(listValue.ListValue.Values) == 0 {
+						continue
+					}
+					ruleService2ProxyServiceMapping := make(map[string]string)
+					existedServices := make(map[string]bool)
+					for _, item := range listValue.ListValue.Values {
+						itemValue, ok := item.Kind.(*_struct.Value_StringValue)
+						if !ok || itemValue == nil {
+							continue
+						}
+						host := itemValue.StringValue
+						existedServices[host] = true
+						if proxyService, exist := service2ProxyServiceMapping[itemValue.StringValue]; exist {
+							ruleService2ProxyServiceMapping[host] = proxyService
+						}
+					}
+					for _, proxyService := range ruleService2ProxyServiceMapping {
+						if _, exist := existedServices[proxyService]; !exist {
+							// If the proxy service is not in the existed services, we add it.
+							listValue.ListValue.Values = append(listValue.ListValue.Values, &_struct.Value{
+								Kind: &_struct.Value_StringValue{
+									StringValue: proxyService,
+								},
+							})
+							existedServices[proxyService] = true
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func (m *IngressConfig) adjustRouteClusterForProxy(convertOptions *common.ConvertOptions, out []config.Config) {
+	if len(convertOptions.ProxyWrappers) == 0 {
+		// No proxy wrappers, nothing to adjust
+		return
+	}
+
+	for _, config := range out {
+		vs, ok := config.Spec.(*networking.VirtualService)
+		if !ok {
+			continue
+		}
+		for _, httpRoute := range vs.Http {
+			if httpRoute == nil || len(httpRoute.Route) == 0 {
+				continue
+			}
+			for _, destination := range httpRoute.Route {
+				if destination == nil || destination.Destination == nil {
+					continue
+				}
+				host := destination.Destination.Host
+				serviceWrapper := convertOptions.ServiceWrappers[host]
+				if serviceWrapper == nil || serviceWrapper.ProxyConfig == nil || serviceWrapper.ProxyConfig.ProxyName == "" {
+					continue
+				}
+				proxyWrapper := convertOptions.ProxyWrappers[serviceWrapper.ProxyConfig.ProxyName]
+				if proxyWrapper == nil || proxyWrapper.EnvoyFilter == nil {
+					// Invalid proxy config
+					continue
+				}
+				destination.Destination.Host = constructProxyServiceFqdn(serviceWrapper.ProxyConfig.ProxyName, host)
+			}
+		}
+	}
+}
+
 func isBoolValueTrue(b *wrappers.BoolValue) bool {
 	return b != nil && b.Value
 }
@@ -1113,7 +1261,7 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 		Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 	}
 	for _, f := range m.wasmPluginHandlers {
-		IngressLog.Debug("WasmPlugin triggerd update")
+		IngressLog.Debug("WasmPlugin triggered update")
 		f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, istiomodel.EventUpdate)
 	}
 	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
@@ -1155,7 +1303,7 @@ func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNames
 			Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 		}
 		for _, f := range m.wasmPluginHandlers {
-			IngressLog.Debug("WasmPlugin triggerd update")
+			IngressLog.Debug("WasmPlugin triggered update")
 			f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, istiomodel.EventDelete)
 		}
 	}
@@ -1211,23 +1359,23 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 			}
 
 			for _, f := range m.serviceEntryHandlers {
-				IngressLog.Debug("McpBridge triggerd serviceEntry update")
+				IngressLog.Debug("McpBridge triggered serviceEntry update")
 				f(config.Config{Meta: seMetadata}, config.Config{Meta: seMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.destinationRuleHandlers {
-				IngressLog.Debug("McpBridge triggerd destinationRule update")
+				IngressLog.Debug("McpBridge triggered destinationRule update")
 				f(config.Config{Meta: drMetadata}, config.Config{Meta: drMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.virtualServiceHandlers {
-				IngressLog.Debug("McpBridge triggerd virtualservice update")
+				IngressLog.Debug("McpBridge triggered virtualservice update")
 				f(config.Config{Meta: vsMetadata}, config.Config{Meta: vsMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.wasmPluginHandlers {
-				IngressLog.Debug("McpBridge triggerd wasmplugin update")
+				IngressLog.Debug("McpBridge triggered wasmplugin update")
 				f(config.Config{Meta: wasmMetadata}, config.Config{Meta: wasmMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.envoyFilterHandlers {
-				IngressLog.Debug("McpBridge triggerd envoyfilter update")
+				IngressLog.Debug("McpBridge triggered envoyfilter update")
 				f(config.Config{Meta: efMetadata}, config.Config{Meta: efMetadata}, istiomodel.EventUpdate)
 			}
 		}, m.localKubeClient, m.namespace, m.clusterId.String())
@@ -1295,7 +1443,7 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	}
 	m.mutex.Unlock()
 	if hit {
-		IngressLog.Infof("Http2Rpc triggerd deleted event executed %s", clusterNamespacedName.Name)
+		IngressLog.Infof("Http2Rpc triggered deleted event executed %s", clusterNamespacedName.Name)
 		push := func(gvk config.GroupVersionKind) {
 			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,
@@ -1493,7 +1641,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	return &config.Config{
 		Meta: config.Meta{
 			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, http2rpcConfig.Name),
+			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "http2rpc", http2rpcConfig.Name, "route", httpRoute.Name),
 			Namespace:        namespace,
 		},
 		Spec: &networking.EnvoyFilter{
@@ -1675,28 +1823,117 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 	}, nil
 }
 
-func QueryByName(serviceEntries []*memory.ServiceWrapper, serviceName string) (*memory.ServiceWrapper, error) {
-	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
-	for _, se := range serviceEntries {
-		if se.ServiceName == serviceName {
-			return se, nil
-		}
+func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, serviceWrappers map[string]*common.ServiceWrapper, namespace string) []*config.Config {
+	var envoyFilters []*config.Config
+	for _, proxyWrapper := range proxyWrappers {
+		envoyFilters = append(envoyFilters, &config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.EnvoyFilter,
+				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "proxy", proxyWrapper.ProxyName),
+				Namespace:        namespace,
+			},
+			Spec: proxyWrapper.EnvoyFilter,
+		})
 	}
-	return nil, fmt.Errorf("can't find ServiceEntry by serviceName:%v", serviceName)
+
+	// Create a cluster for each service that uses a proxy.
+	var serviceProxyPatches []*networking.EnvoyFilter_EnvoyConfigObjectPatch
+	for _, serviceWrapper := range serviceWrappers {
+		proxyConfig := serviceWrapper.ProxyConfig
+		if proxyConfig == nil || proxyConfig.ProxyName == "" {
+			continue
+		}
+		IngressLog.Debugf("Found service %s using proxy %s", serviceWrapper.ServiceName, proxyConfig.ProxyName)
+		registryType := registry.ServiceRegistryType(serviceWrapper.RegistryType)
+		if registryType != registry.Static && registryType != registry.DNS {
+			IngressLog.Warnf("Service %s has proxy config %s, but registry type %s is not supported for proxying", serviceWrapper.ServiceName, proxyConfig.ProxyName, registryType)
+			continue
+		}
+		if len(serviceWrapper.ServiceEntry.Endpoints) > 1 {
+			IngressLog.Warnf("Service %s has multiple endpoints, which is not supported for proxying with EnvoyFilter. Skipping EnvoyFilter construction.", serviceWrapper.ServiceName)
+			continue
+		}
+		proxyWrapper := proxyWrappers[proxyConfig.ProxyName]
+		if proxyWrapper == nil {
+			IngressLog.Warnf("Service %s has proxy config %s, but no corresponding proxy wrapper found", serviceWrapper.ServiceName, proxyConfig.ProxyName)
+			continue
+		}
+		if !proxyConfig.UpstreamProtocol.IsSupportedByProxy() {
+			IngressLog.Warnf("Proxy %s does not support upstream protocol %s, skipping EnvoyFilter construction for service %s")
+			continue
+		}
+		if proxyWrapper.EnvoyFilter == nil {
+			IngressLog.Warnf("Proxy %s has no EnvoyFilter generated, meaning not ready for use.", proxyConfig.ProxyName)
+			continue
+		}
+		IngressLog.Debugf("Constructing EnvoyFilter for service %s using proxy %s", serviceWrapper.ServiceName, proxyConfig.ProxyName)
+		clusterName := fmt.Sprintf("outbound|%d||%s", proxyWrapper.ListenerPort, constructProxyServiceFqdn(proxyWrapper.ProxyName, serviceWrapper.ServiceName))
+		patchObj := map[string]interface{}{
+			"name":            clusterName,
+			"type":            "STATIC",
+			"connect_timeout": "0.250s",
+			"load_assignment": map[string]interface{}{
+				"cluster_name": clusterName,
+				"endpoints": []map[string]interface{}{
+					{
+						"lb_endpoints": []map[string]interface{}{
+							{
+								"endpoint": map[string]interface{}{
+									"address": map[string]interface{}{
+										"socket_address": map[string]interface{}{
+											"address":    "127.0.0.1",
+											"port_value": proxyWrapper.ListenerPort,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		if proxyConfig.UpstreamProtocol.IsHTTPS() {
+			tlsTypedConfig := map[string]interface{}{
+				"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+			}
+			if proxyConfig.UpstreamSni != "" {
+				tlsTypedConfig["sni"] = proxyConfig.UpstreamSni
+			}
+			patchObj["transport_socket"] = map[string]interface{}{
+				"name":         "envoy.transport_sockets.tls",
+				"typed_config": tlsTypedConfig,
+			}
+		}
+		patchJson, _ := json.Marshal(patchObj)
+		serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+			ApplyTo: networking.EnvoyFilter_CLUSTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_ADD,
+				Value:     util.BuildPatchStruct(string(patchJson)),
+			},
+		})
+	}
+	if len(serviceProxyPatches) != 0 {
+		envoyFilters = append(envoyFilters, &config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.EnvoyFilter,
+				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "service-proxy"),
+				Namespace:        namespace,
+			},
+			Spec: &networking.EnvoyFilter{
+				ConfigPatches: serviceProxyPatches,
+			},
+		})
+	}
+
+	return envoyFilters
 }
 
-func QueryRpcServiceVersion(serviceEntry *memory.ServiceWrapper, serviceName string) (string, error) {
-	IngressLog.Infof("Found http2rpc serviceEntry %s", serviceEntry)
-	IngressLog.Infof("Found http2rpc ServiceEntry %s", serviceEntry.ServiceEntry)
-	IngressLog.Infof("Found http2rpc WorkloadSelector %s", serviceEntry.ServiceEntry.WorkloadSelector)
-	IngressLog.Infof("Found http2rpc Labels %s", serviceEntry.ServiceEntry.WorkloadSelector.Labels)
-	labels := (*serviceEntry).ServiceEntry.WorkloadSelector.Labels
-	for key, value := range labels {
-		if key == "version" {
-			return value, nil
-		}
-	}
-	return "", fmt.Errorf("can't get RpcServiceVersion for serviceName:%v", serviceName)
+func constructProxyServiceFqdn(proxyName, serviceName string) string {
+	return fmt.Sprintf("proxy-%s-for-svc-%s", proxyName, serviceName)
 }
 
 func (m *IngressConfig) Run(stop <-chan struct{}) {
