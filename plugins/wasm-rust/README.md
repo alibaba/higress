@@ -101,6 +101,7 @@ make lint PLUGIN_NAME=say-hello
 当前 Makefile 包含以下可用目标：
 
 - `build` - 构建插件（默认插件为 say-hello）
+- `build-image` - 构建插件对应镜像（默认插件为 say-hello）
 - `lint-base` - 对所有代码进行 lint 检查
 - `lint` - 对指定插件进行 lint 检查
 - `test-base` - 运行所有测试
@@ -384,7 +385,7 @@ docker build -t my-custom-plugin:latest --build-arg PLUGIN_NAME=my-custom-plugin
 # 进入项目目录
 cd plugins/wasm-rust/
 
-# 构建插件（会自动推送到官方仓库）
+# 构建插件
 make build PLUGIN_NAME=my-plugin PLUGIN_VERSION=1.0.0
 
 # 构建构建器镜像
@@ -414,7 +415,7 @@ spec:
 
 不同命令需要在不同的目录下执行：
 
-- **Makefile 命令**（如 `make build`、`make test`、`make lint`）：在 `plugins/wasm-rust/` 目录下执行
+- **Makefile 命令**（如 `make build`、`make build-image`、`make test`、`make lint`）：在 `plugins/wasm-rust/` 目录下执行
 - **Cargo 命令**（如 `cargo build`、`cargo test`）：在具体的插件目录下执行（如 `plugins/wasm-rust/extensions/my-plugin/`）
 - **Docker 命令**：在 `plugins/wasm-rust/` 目录下执行，需要指定 `PLUGIN_NAME` 参数
 
