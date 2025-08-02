@@ -25,17 +25,17 @@ const PLUGIN_NAME: &str = "demo-wasm";
 
 #[derive(Debug, Deserialize, Clone)]
 struct RedisConfig {
-    service_name: String, // 必填字段（默认空字符串，需在使用前验证）
+    service_name: String,
     #[serde(default)]
-    service_port: Option<u16>, // 可选（默认None）
+    service_port: Option<u16>,
     #[serde(default)]
-    username: Option<String>, // 可选（默认None）
+    username: Option<String>,
     #[serde(default)]
-    password: Option<String>, // 可选（默认None）
+    password: Option<String>,
     #[serde(default = "default_redis_timeout")]
     timeout: u64, // 超时（默认1000ms）
     #[serde(default)]
-    database: Option<u32>, // 数据库编号（默认None）
+    database: Option<u32>,
 }
 
 impl Default for RedisConfig {
@@ -284,12 +284,17 @@ impl DemoWasm {
 
         let cluster = FQDNCluster::new(&redis_cfg.service_name, "", service_port);
         let timeout = Duration::from_millis(redis_cfg.timeout);
-        let redis_client = RedisClient::new(
-            RedisClientConfig::new(&cluster, timeout)
-                .username(redis_cfg.username.as_ref())
-                .password(redis_cfg.password.as_ref())
-                .database(redis_cfg.database),
-        );
+        let mut client_config = RedisClientConfig::new(&cluster, timeout);
+        if let Some(username) = &redis_cfg.username {
+            client_config.username(Some(username));
+        }
+        if let Some(password) = &redis_cfg.password {
+            client_config.password(Some(password));
+        }
+        if let Some(database) = redis_cfg.database {
+            client_config.database(Some(database));
+        }
+        let redis_client = RedisClient::new(&client_config);
 
         // 初始化redis client
         match redis_client.init() {
