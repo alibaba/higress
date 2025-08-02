@@ -45,6 +45,14 @@ const (
 	ConsumerKey                = "x-mse-consumer"
 	RequestPath                = "request_path"
 
+	// AI API Paths
+	PathOpenAIChatCompletions       = "/v1/chat/completions"
+	PathOpenAICompletions           = "/v1/completions"
+	PathOpenAIEmbeddings            = "/v1/embeddings"
+	PathOpenAIModels                = "/v1/models"
+	PathGeminiGenerateContent       = "/generateContent"
+	PathGeminiStreamGenerateContent = "/streamGenerateContent"
+
 	// Source Type
 	FixedValue            = "fixed_value"
 	RequestHeader         = "request_header"
@@ -99,6 +107,10 @@ type AIStatisticsConfig struct {
 	shouldBufferStreamingBody bool
 	// If disableOpenaiUsage is true, model/input_token/output_token logs will be skipped
 	disableOpenaiUsage bool
+	// Path suffixes to enable the plugin on
+	enablePathSuffixes []string
+	// Content types to enable response body buffering
+	enableContentTypes []string
 }
 
 func generateMetricName(route, cluster, model, consumer, metricName string) string {
@@ -146,6 +158,47 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 	counter.Increment(inc)
 }
 
+// isPathEnabled checks if the request path matches any of the enabled path suffixes
+func isPathEnabled(requestPath string, enabledSuffixes []string) bool {
+	if len(enabledSuffixes) == 0 {
+		return true // If no path suffixes configured, enable for all
+	}
+	// Check for * first - if present, enable for all paths
+	for _, suffix := range enabledSuffixes {
+		if suffix == "*" {
+			return true
+		}
+	}
+
+	// Remove query parameters from path
+	pathWithoutQuery := requestPath
+	if queryPos := strings.Index(requestPath, "?"); queryPos != -1 {
+		pathWithoutQuery = requestPath[:queryPos]
+	}
+
+	// Check if path ends with any enabled suffix
+	for _, suffix := range enabledSuffixes {
+		if strings.HasSuffix(pathWithoutQuery, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// isContentTypeEnabled checks if the content type matches any of the enabled content types
+func isContentTypeEnabled(contentType string, enabledContentTypes []string) bool {
+	if len(enabledContentTypes) == 0 {
+		return true // If no content types configured, enable for all
+	}
+
+	for _, enabledType := range enabledContentTypes {
+		if strings.Contains(contentType, enabledType) {
+			return true
+		}
+	}
+	return false
+}
+
 func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	// Parse tracing span attributes setting.
 	attributeConfigs := configJson.Get("attributes").Array()
@@ -171,10 +224,31 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	// Parse openai usage config setting.
 	config.disableOpenaiUsage = configJson.Get("disable_openai_usage").Bool()
 
+	// Parse path suffix configuration
+	pathSuffixes := configJson.Get("enable_path_suffixes").Array()
+	config.enablePathSuffixes = make([]string, len(pathSuffixes))
+	for i, suffix := range pathSuffixes {
+		config.enablePathSuffixes[i] = suffix.String()
+	}
+
+	// Parse content type configuration
+	contentTypes := configJson.Get("enable_content_types").Array()
+	config.enableContentTypes = make([]string, len(contentTypes))
+	for i, contentType := range contentTypes {
+		config.enableContentTypes[i] = contentType.String()
+	}
+
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
+	// Check if request path matches enabled suffixes
+	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
+	if !isPathEnabled(requestPath, config.enablePathSuffixes) {
+		log.Debugf("ai-statistics: skipping request for path %s (not in enabled suffixes)", requestPath)
+		return types.ActionContinue
+	}
+
 	ctx.DisableReroute()
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
@@ -248,8 +322,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
-	if !strings.Contains(contentType, "text/event-stream") {
+
+	// Only buffer response body for enabled content types
+	if isContentTypeEnabled(contentType, config.enableContentTypes) {
 		ctx.BufferResponseBody()
+		log.Debugf("ai-statistics: buffering response body for content-type %s", contentType)
+	} else {
+		log.Debugf("ai-statistics: skipping response body buffering for content-type %s", contentType)
 	}
 
 	// Set user defined log & span attributes.
