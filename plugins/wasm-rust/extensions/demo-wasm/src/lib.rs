@@ -41,7 +41,7 @@ struct RedisConfig {
 impl Default for RedisConfig {
     fn default() -> Self {
         Self {
-            service_name: String::new(), // 默认空字符串（使用前需验证）
+            service_name: String::new(),
             service_port: None,
             username: None,
             password: None,
