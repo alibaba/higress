@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <functional>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -25,6 +26,8 @@
 
 #include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_split.h"
 #include "common/json_util.h"
 #include "http_util.h"
 
@@ -58,12 +61,15 @@ using ::Wasm::Common::JsonValueAs;
 template <typename PluginConfig>
 class RouteRuleMatcher {
  public:
-  enum CATEGORY { Route, Host };
+  enum CATEGORY { Route, RoutePrefix, Host, Service, RouteAndService };
   enum MATCH_TYPE { Prefix, Exact, Suffix };
   struct RuleConfig {
     CATEGORY category;
     std::unordered_set<std::string> routes;
+    std::vector<std::string> route_prefixs;
     std::vector<std::pair<MATCH_TYPE, std::string>> hosts;
+    std::unordered_set<std::string> services;
+    bool disable = false;
     PluginConfig config;
   };
   struct AuthRuleConfig {
@@ -87,6 +93,8 @@ class RouteRuleMatcher {
     }
     return rules;
   }
+
+  bool globalAuthDisable() { return global_auth_ && !global_auth_.value(); }
 
   FilterHeadersStatus onHeaders(
       const std::function<FilterHeadersStatus(const PluginConfig&)> process) {
@@ -126,10 +134,10 @@ class RouteRuleMatcher {
       LOG_DEBUG("no match config");
       return true;
     }
-    if (!config.second && global_auth_ && !global_auth_.value()) {
-      // No allow set, means no need to check auth if global_auth is false
+    if (!config.second && globalAuthDisable()) {
+      // No allow set, means no need to check auth if global auth is disable
       LOG_DEBUG(
-          "no allow set found, and global auth is false, no need to auth");
+          "no allow set found, and global auth is disable, no need to auth");
       return true;
     }
     return checkPlugin(config.first.value(), config.second);
@@ -154,27 +162,71 @@ class RouteRuleMatcher {
     auto request_host = request_host_header->view();
     std::string route_name;
     getValue({"route_name"}, &route_name);
+    std::string service_name;
+    getValue({"cluster_name"}, &service_name);
     std::optional<std::reference_wrapper<PluginConfig>> match_config;
     int rule_id;
     if (global_config_) {
       rule_id = 0;
       match_config = global_config_.value();
     }
+    bool disable_rule = false;
     for (int i = 0; i < rule_config_.size(); ++i) {
       auto& rule = rule_config_[i];
       if (rule.category == CATEGORY::Host) {
         if (hostMatch(rule, request_host)) {
           rule_id = i + 1;
           match_config = rule.config;
+          disable_rule = rule.disable;
+          break;
+        }
+      } else if (rule.category == CATEGORY::Route) {
+        // category == Route
+        if (rule.routes.find(route_name) != rule.routes.end()) {
+          rule_id = i + 1;
+          match_config = rule.config;
+          disable_rule = rule.disable;
+          break;
+        }
+      } else if (rule.category == CATEGORY::RouteAndService) {
+        // category == RouteAndService
+        if (rule.routes.find(route_name) != rule.routes.end()) {
+          if (serviceMatch(rule, service_name)) {
+            rule_id = i + 1;
+            match_config = rule.config;
+            disable_rule = rule.disable;
+            break;
+          }
+        }
+      } else if (rule.category == CATEGORY::Service) {
+        // category == Service
+        if (serviceMatch(rule, service_name)) {
+          rule_id = i + 1;
+          match_config = rule.config;
+          disable_rule = rule.disable;
+          break;
+        }
+      } else {
+        // category == RoutePrefix
+        bool is_matched = false;
+        for (auto& route_prefix : rule.route_prefixs) {
+          if (route_name.length() < route_prefix.length() ||
+              route_name.compare(0, route_prefix.length(), route_prefix) != 0) {
+            continue;
+          }
+          is_matched = true;
+          rule_id = i + 1;
+          match_config = rule.config;
+          disable_rule = rule.disable;
+          break;
+        }
+        if (is_matched) {
           break;
         }
       }
-      // category == Route
-      if (rule.routes.find(route_name) != rule.routes.end()) {
-        rule_id = i + 1;
-        match_config = rule.config;
-        break;
-      }
+    }
+    if (disable_rule) {
+      return std::make_pair(-1, std::nullopt);
     }
     if (match_config) {
       return std::make_pair(rule_id, match_config);
@@ -190,6 +242,8 @@ class RouteRuleMatcher {
     auto request_host = request_host_header->view();
     std::string route_name;
     getValue({"route_name"}, &route_name);
+    std::string service_name;
+    getValue({"service_name"}, &service_name);
     std::optional<std::reference_wrapper<PluginConfig>> match_config;
     std::optional<std::reference_wrapper<std::unordered_set<std::string>>>
         allow_set;
@@ -200,33 +254,99 @@ class RouteRuleMatcher {
       return std::make_pair(match_config, std::nullopt);
     }
     bool is_matched = false;
+    bool disable_rule = false;
     for (auto& auth_rule : auth_rule_config_) {
       if (auth_rule.rule_config.category == CATEGORY::Host) {
         if (hostMatch(auth_rule.rule_config, request_host)) {
+          LOG_DEBUG(absl::StrFormat("host %s is matched for this request",
+                                    request_host));
           is_matched = true;
-          if (auth_rule.has_local_config) {
-            LOG_DEBUG("has local config");
+          if (auth_rule.rule_config.disable) {
+            disable_rule = true;
+          } else if (auth_rule.has_local_config) {
             match_config = auth_rule.rule_config.config;
           } else {
-            LOG_DEBUG("has not local config");
             allow_set = auth_rule.allow_set;
           }
           break;
         }
-      }
-      // category == Route
-      if (auth_rule.rule_config.routes.find(route_name) !=
-          auth_rule.rule_config.routes.end()) {
-        is_matched = true;
-        if (auth_rule.has_local_config) {
-          match_config = auth_rule.rule_config.config;
-        } else {
-          allow_set = auth_rule.allow_set;
+      } else if (auth_rule.rule_config.category == CATEGORY::Route) {
+        // category == Route
+        if (auth_rule.rule_config.routes.find(route_name) !=
+            auth_rule.rule_config.routes.end()) {
+          LOG_DEBUG(absl::StrFormat("route %s is matched for this request",
+                                    route_name));
+          is_matched = true;
+          if (auth_rule.rule_config.disable) {
+            disable_rule = true;
+          } else if (auth_rule.has_local_config) {
+            match_config = auth_rule.rule_config.config;
+          } else {
+            allow_set = auth_rule.allow_set;
+          }
+          break;
         }
-        break;
+      } else if (auth_rule.rule_config.category == CATEGORY::RouteAndService) {
+        // category == RouteAndService
+        if (auth_rule.rule_config.routes.find(route_name) !=
+            auth_rule.rule_config.routes.end()) {
+          LOG_DEBUG(absl::StrFormat("route %s is matched for this request",
+                                    route_name));
+          if (serviceMatch(auth_rule.rule_config, service_name)) {
+            LOG_DEBUG(absl::StrFormat("service %s is matched for this request",
+                                      service_name));
+            is_matched = true;
+            if (auth_rule.rule_config.disable) {
+              disable_rule = true;
+            } else if (auth_rule.has_local_config) {
+              match_config = auth_rule.rule_config.config;
+            } else {
+              allow_set = auth_rule.allow_set;
+            }
+            break;
+          }
+        }
+      } else if (auth_rule.rule_config.category == CATEGORY::Service) {
+        // category == Service
+        if (serviceMatch(auth_rule.rule_config, service_name)) {
+          LOG_DEBUG(absl::StrFormat("service %s is matched for this request",
+                                    service_name));
+          is_matched = true;
+          if (auth_rule.rule_config.disable) {
+            disable_rule = true;
+          } else if (auth_rule.has_local_config) {
+            match_config = auth_rule.rule_config.config;
+          } else {
+            allow_set = auth_rule.allow_set;
+          }
+          break;
+        }
+      } else {
+        // category == RoutePrefix
+        for (auto& route_prefix : auth_rule.rule_config.route_prefixs) {
+          if (route_name.length() < route_prefix.length() ||
+              route_name.compare(0, route_prefix.length(), route_prefix) != 0) {
+            continue;
+          }
+          LOG_DEBUG(absl::StrFormat(
+              "route_prefix %s is matched for this request", route_prefix));
+          is_matched = true;
+          if (auth_rule.rule_config.disable) {
+            disable_rule = true;
+          } else if (auth_rule.has_local_config) {
+            match_config = auth_rule.rule_config.config;
+          } else {
+            allow_set = auth_rule.allow_set;
+          }
+          break;
+        }
+        if (is_matched) {
+          break;
+        }
       }
     }
-    return is_matched || (global_auth_ && global_auth_.value())
+    return !disable_rule &&
+                   (is_matched || (global_auth_ && global_auth_.value()))
                ? std::make_pair(match_config, allow_set)
                : std::make_pair(std::nullopt, std::nullopt);
   }
@@ -265,22 +385,47 @@ class RouteRuleMatcher {
         LOG_WARN("failed to parse configuration for _match_route_");
         return false;
       }
+      if (!parseRoutePrefixMatchConfig(config, rule.route_prefixs)) {
+        LOG_WARN("failed to parse configuration for _match_route_prefix_");
+        return false;
+      }
       if (!parseDomainMatchConfig(config, rule.hosts)) {
         LOG_WARN("failed to parse configuration for _match_domain_");
         return false;
       }
-      auto no_route = rule.routes.empty();
-      auto no_host = rule.hosts.empty();
-      if ((no_route && no_host) || (!no_route && !no_host)) {
+      if (!parseServiceMatchConfig(config, rule.services)) {
+        LOG_WARN("failed to parse configuration for _match_service_");
+        return false;
+      }
+      auto has_route = !rule.routes.empty();
+      auto has_route_prefix = !rule.route_prefixs.empty();
+      auto has_service = !rule.services.empty();
+      auto has_host = !rule.hosts.empty();
+      if (has_route + has_route_prefix + has_host + has_service == 0) {
         LOG_WARN(
-            "there is only one of  '_match_route_' and '_match_domain_' can "
+            "there is at least one of  '_match_route_', '_match_domain_', "
+            "'_match_route_prefix_' and '_match_service_' can "
             "present in configuration.");
         return false;
       }
-      if (!no_route) {
+      if (has_route) {
         rule.category = CATEGORY::Route;
+        if (has_service) {
+          rule.category = CATEGORY::RouteAndService;
+        }
+      } else if (has_route_prefix) {
+        rule.category = CATEGORY::RoutePrefix;
+      } else if (has_service) {
+        rule.category = CATEGORY::Service;
       } else {
         rule.category = CATEGORY::Host;
+      }
+      auto has_disable = config.find("_disable_");
+      if (has_disable != config.end()) {
+        auto disable = JsonValueAs<bool>(has_disable.value());
+        if (disable.second == Wasm::Common::JsonParserResultDetail::OK) {
+          rule.disable = disable.first.value();
+        }
       }
       rule_config_.push_back(std::move(rule));
     }
@@ -323,8 +468,11 @@ class RouteRuleMatcher {
     for (const auto& item : rules.items()) {
       AuthRuleConfig auth_rule;
       auto config = item.value();
+      // ignore the '_match_route_' or '_match_domain_' field
+      auto local_config_size = config.size() - 1;
       auto has_allow = config.find("allow");
       if (has_allow != config.end()) {
+        local_config_size -= 1;
         LOG_DEBUG("has allow filed");
         if (!JsonArrayIterate(config, "allow", [&](const json& allow) -> bool {
               auto parse_result = JsonValueAs<std::string>(allow);
@@ -332,10 +480,10 @@ class RouteRuleMatcher {
                       Wasm::Common::JsonParserResultDetail::OK ||
                   !parse_result.first) {
                 LOG_WARN(
-                    "failed to parse 'allow' field in filter configuration.");
+                    "failed to parse 'allow' field in filter "
+                    "configuration.");
                 return false;
               }
-              LOG_DEBUG(parse_result.first.value());
               auth_rule.allow_set.insert(parse_result.first.value());
               return true;
             })) {
@@ -343,32 +491,61 @@ class RouteRuleMatcher {
           return false;
         }
       }
-      if (!parsePluginConfig(config, auth_rule.rule_config.config)) {
-        if (has_allow == config.end()) {
-          LOG_WARN("parse rule's config failed");
-          return false;
+      auto has_disable = config.find("_disable_");
+      if (has_disable != config.end()) {
+        local_config_size -= 1;
+        auto disable = JsonValueAs<bool>(has_disable.value());
+        if (disable.second == Wasm::Common::JsonParserResultDetail::OK) {
+          auth_rule.rule_config.disable = disable.first.value();
         }
-      } else {
-        auth_rule.has_local_config = true;
+      }
+      if (local_config_size > 0) {
+        if (!parsePluginConfig(config, auth_rule.rule_config.config)) {
+          if (has_allow == config.end()) {
+            LOG_WARN("parse rule's config failed");
+            return false;
+          }
+        } else {
+          auth_rule.has_local_config = true;
+        }
       }
       if (!parseRouteMatchConfig(config, auth_rule.rule_config.routes)) {
         LOG_WARN("failed to parse configuration for _match_route_");
+        return false;
+      }
+      if (!parseRoutePrefixMatchConfig(config,
+                                       auth_rule.rule_config.route_prefixs)) {
+        LOG_WARN("failed to parse configuration for _match_route_prefix_");
+        return false;
+      }
+      if (!parseServiceMatchConfig(config, auth_rule.rule_config.services)) {
+        LOG_WARN("failed to parse configuration for _match_service_");
         return false;
       }
       if (!parseDomainMatchConfig(config, auth_rule.rule_config.hosts)) {
         LOG_WARN("failed to parse configuration for _match_domain_");
         return false;
       }
-      auto no_route = auth_rule.rule_config.routes.empty();
-      auto no_host = auth_rule.rule_config.hosts.empty();
-      if ((no_route && no_host) || (!no_route && !no_host)) {
+      auto has_route = !auth_rule.rule_config.routes.empty();
+      auto has_route_prefix = !auth_rule.rule_config.route_prefixs.empty();
+      auto has_host = !auth_rule.rule_config.hosts.empty();
+      auto has_service = !auth_rule.rule_config.services.empty();
+      if (has_route + has_route_prefix + has_host + has_service == 0) {
         LOG_WARN(
-            "there is only one of  '_match_route_' and '_match_domain_' can "
+            "there is at least one of  '_match_route_', '_match_domain_', "
+            "'_match_route_prefix_' and '_match_service_' can "
             "present in configuration.");
         return false;
       }
-      if (!no_route) {
+      if (has_route) {
         auth_rule.rule_config.category = CATEGORY::Route;
+        if (has_service) {
+          auth_rule.rule_config.category = CATEGORY::RouteAndService;
+        }
+      } else if (has_route_prefix) {
+        auth_rule.rule_config.category = CATEGORY::RoutePrefix;
+      } else if (has_service) {
+        auth_rule.rule_config.category = CATEGORY::Service;
       } else {
         auth_rule.rule_config.category = CATEGORY::Host;
       }
@@ -419,6 +596,27 @@ class RouteRuleMatcher {
     return false;
   }
 
+  bool serviceMatch(const RuleConfig& rule, std::string_view request_service) {
+    if (rule.services.empty()) {
+      // If no services specified, consider this rule applies to all host.
+      return true;
+    }
+    std::vector<std::string> result = absl::StrSplit(request_service, '|');
+    if (result.size() != 4) {
+      return false;
+    }
+
+    std::string port = result[1];
+    std::string fqdn = result[3];
+
+    for (const std::string& service_match : rule.services) {
+      if (service_match == fqdn || service_match == fqdn + ":" + port) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool parseRouteMatchConfig(const json& config,
                              std::unordered_set<std::string>& routes) {
     return JsonArrayIterate(
@@ -432,6 +630,23 @@ class RouteRuleMatcher {
             return false;
           }
           routes.insert(parse_result.first.value());
+          return true;
+        });
+  }
+
+  bool parseRoutePrefixMatchConfig(const json& config,
+                                   std::vector<std::string>& route_prefixs) {
+    return JsonArrayIterate(
+        config, "_match_route_prefix_", [&](const json& route) -> bool {
+          auto parse_result = JsonValueAs<std::string>(route);
+          if (parse_result.second != Wasm::Common::JsonParserResultDetail::OK ||
+              !parse_result.first) {
+            LOG_WARN(
+                "failed to parse '_match_route_prefix_' field in filter "
+                "configuration.");
+            return false;
+          }
+          route_prefixs.emplace_back(parse_result.first.value());
           return true;
         });
   }
@@ -471,6 +686,23 @@ class RouteRuleMatcher {
             host_match.second = host_str;
           }
           hosts.push_back(host_match);
+          return true;
+        });
+  }
+
+  bool parseServiceMatchConfig(const json& config,
+                               std::unordered_set<std::string>& services) {
+    return JsonArrayIterate(
+        config, "_match_service_", [&](const json& service) -> bool {
+          auto parse_result = JsonValueAs<std::string>(service);
+          if (parse_result.second != Wasm::Common::JsonParserResultDetail::OK ||
+              !parse_result.first) {
+            LOG_WARN(
+                "failed to parse '_match_service_' field in filter "
+                "configuration.");
+            return false;
+          }
+          services.insert(parse_result.first.value());
           return true;
         });
   }

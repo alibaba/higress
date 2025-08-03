@@ -3,7 +3,8 @@ package cache
 import (
 	"errors"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 type redisProviderInitializer struct {
@@ -16,13 +17,14 @@ func (r *redisProviderInitializer) ValidateConfig(cf ProviderConfig) error {
 	return nil
 }
 
-func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig) (Provider, error) {
+func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig, log log.Log) (Provider, error) {
 	rp := redisProvider{
 		config: cf,
 		client: wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
 			FQDN: cf.serviceName,
 			Host: cf.serviceHost,
 			Port: int64(cf.servicePort)}),
+		log: log,
 	}
 	err := rp.Init(cf.username, cf.password, cf.timeout)
 	return &rp, err
@@ -31,6 +33,7 @@ func (r *redisProviderInitializer) CreateProvider(cf ProviderConfig) (Provider, 
 type redisProvider struct {
 	config ProviderConfig
 	client wrapper.RedisClient
+	log    log.Log
 }
 
 func (rp *redisProvider) GetProviderType() string {
@@ -38,7 +41,13 @@ func (rp *redisProvider) GetProviderType() string {
 }
 
 func (rp *redisProvider) Init(username string, password string, timeout uint32) error {
-	return rp.client.Init(rp.config.username, rp.config.password, int64(rp.config.timeout), wrapper.WithDataBase(rp.config.database))
+	err := rp.client.Init(rp.config.username, rp.config.password, int64(rp.config.timeout), wrapper.WithDataBase(rp.config.database))
+	if rp.client.Ready() {
+		rp.log.Info("redis init successfully")
+	} else {
+		rp.log.Error("redis init failed, will try later")
+	}
+	return err
 }
 
 func (rp *redisProvider) Get(key string, cb wrapper.RedisResponseCallback) error {

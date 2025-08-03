@@ -15,7 +15,6 @@
 package main
 
 import (
-	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -26,10 +25,10 @@ import (
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-search/engine/arxiv"
@@ -46,15 +45,19 @@ type SearchRewrite struct {
 	modelName          string
 	timeoutMillisecond uint32
 	prompt             string
+	promptTemplate     string // Original prompt template before replacing placeholders
+	maxCount           int
 }
 
 type Config struct {
-	engine          []engine.SearchEngine
-	promptTemplate  string
-	referenceFormat string
-	defaultLanguage string
-	needReference   bool
-	searchRewrite   *SearchRewrite
+	engine            []engine.SearchEngine
+	promptTemplate    string
+	referenceFormat   string
+	defaultLanguage   string
+	needReference     bool
+	referenceLocation string // "head" or "tail"
+	searchRewrite     *SearchRewrite
+	defaultEnable     bool
 }
 
 const (
@@ -73,19 +76,28 @@ var internetSearchPrompts string
 //go:embed prompts/private.md
 var privateSearchPrompts string
 
-func main() {
+//go:embed prompts/chinese-internet.md
+var chineseInternetSearchPrompts string
+
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-search",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessStreamingResponseBodyBy(onStreamingResponseBody),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
+		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
+		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
 }
 
-func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *Config) error {
+	config.defaultEnable = true // Default to true if not specified
+	if json.Get("defaultEnable").Exists() {
+		config.defaultEnable = json.Get("defaultEnable").Bool()
+	}
 	config.needReference = json.Get("needReference").Bool()
 	if config.needReference {
 		config.referenceFormat = json.Get("referenceFormat").String()
@@ -93,6 +105,13 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			config.referenceFormat = "**References:**\n%s"
 		} else if !strings.Contains(config.referenceFormat, "%s") {
 			return fmt.Errorf("invalid referenceFormat:%s", config.referenceFormat)
+		}
+
+		config.referenceLocation = json.Get("referenceLocation").String()
+		if config.referenceLocation == "" {
+			config.referenceLocation = "head" // Default to head if not specified
+		} else if config.referenceLocation != "head" && config.referenceLocation != "tail" {
+			return fmt.Errorf("invalid referenceLocation:%s, must be 'head' or 'tail'", config.referenceLocation)
 		}
 	}
 	config.defaultLanguage = json.Get("defaultLang").String()
@@ -139,6 +158,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 		return fmt.Errorf("invalid promptTemplate, must contains {search_results} and {question}:%s", config.promptTemplate)
 	}
 	var internetExists, privateExists, arxivExists bool
+	var onlyQuark bool = true
 	for _, e := range json.Get("searchFrom").Array() {
 		switch e.Get("type").String() {
 		case "bing":
@@ -148,6 +168,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			}
 			config.engine = append(config.engine, searchEngine)
 			internetExists = true
+			onlyQuark = false
 		case "google":
 			searchEngine, err := google.NewGoogleSearch(&e)
 			if err != nil {
@@ -155,6 +176,7 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			}
 			config.engine = append(config.engine, searchEngine)
 			internetExists = true
+			onlyQuark = false
 		case "arxiv":
 			searchEngine, err := arxiv.NewArxivSearch(&e)
 			if err != nil {
@@ -162,17 +184,19 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			}
 			config.engine = append(config.engine, searchEngine)
 			arxivExists = true
+			onlyQuark = false
 		case "elasticsearch":
-			searchEngine, err := elasticsearch.NewElasticsearchSearch(&e)
+			searchEngine, err := elasticsearch.NewElasticsearchSearch(&e, config.needReference)
 			if err != nil {
 				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			privateExists = true
+			onlyQuark = false
 		case "quark":
 			searchEngine, err := quark.NewQuarkSearch(&e)
 			if err != nil {
-				return fmt.Errorf("elasticsearch search engine init failed:%s", err)
+				return fmt.Errorf("quark search engine init failed:%s", err)
 			}
 			config.engine = append(config.engine, searchEngine)
 			internetExists = true
@@ -212,6 +236,12 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			llmTimeout = 30000
 		}
 		searchRewrite.timeoutMillisecond = uint32(llmTimeout)
+
+		maxCount := searchRewriteJson.Get("maxCount").Int()
+		if maxCount == 0 {
+			maxCount = 3 // Default value
+		}
+		searchRewrite.maxCount = int(maxCount)
 		// The consideration here is that internet searches are generally available, but arxiv and private sources may not be.
 		if arxivExists {
 			if privateExists {
@@ -226,8 +256,18 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 			searchRewrite.prompt = privateSearchPrompts
 		} else if internetExists {
 			// only internet
-			searchRewrite.prompt = internetSearchPrompts
+			if onlyQuark {
+				// When only quark is used, use chinese-internet.md
+				searchRewrite.prompt = chineseInternetSearchPrompts
+			} else {
+				searchRewrite.prompt = internetSearchPrompts
+			}
 		}
+
+		// Store the original prompt template before replacing placeholders
+		searchRewrite.promptTemplate = searchRewrite.prompt
+		// Replace {max_count} placeholder in the prompt with the configured value
+		searchRewrite.prompt = strings.Replace(searchRewrite.prompt, "{max_count}", fmt.Sprintf("%d", searchRewrite.maxCount), -1)
 		config.searchRewrite = searchRewrite
 	}
 	if len(config.engine) == 0 {
@@ -237,7 +277,8 @@ func parseConfig(json gjson.Result, config *Config, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
+	ctx.DisableReroute()
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	// The request does not have a body.
 	if contentType == "" {
@@ -250,10 +291,22 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Lo
 	}
 	ctx.SetRequestBodyBufferLimit(DEFAULT_MAX_BODY_BYTES)
 	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
+	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
+	// Check if plugin should be enabled based on config and request
+	webSearchOptions := gjson.GetBytes(body, "web_search_options")
+	if !config.defaultEnable {
+		// When defaultEnable is false, we need to check if web_search_options exists in the request
+		if !webSearchOptions.Exists() {
+			log.Debugf("Plugin disabled by config and no web_search_options in request")
+			return types.ActionContinue
+		}
+		log.Debugf("Plugin enabled by web_search_options in request")
+	}
+
 	var queryIndex int
 	var query string
 	messages := gjson.GetBytes(body, "messages").Array()
@@ -270,6 +323,36 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	}
 	searchRewrite := config.searchRewrite
 	if searchRewrite != nil {
+		// Check if web_search_options.search_context_size exists and adjust maxCount accordingly
+		if webSearchOptions.Exists() {
+			searchContextSize := webSearchOptions.Get("search_context_size").String()
+			if searchContextSize != "" {
+				originalMaxCount := searchRewrite.maxCount
+				switch searchContextSize {
+				case "low":
+					searchRewrite.maxCount = 1
+					log.Debugf("Setting maxCount to 1 based on search_context_size=low")
+				case "medium":
+					searchRewrite.maxCount = 3
+					log.Debugf("Setting maxCount to 3 based on search_context_size=medium")
+				case "high":
+					searchRewrite.maxCount = 5
+					log.Debugf("Setting maxCount to 5 based on search_context_size=high")
+				default:
+					log.Warnf("Unknown search_context_size value: %s, using configured maxCount: %d",
+						searchContextSize, searchRewrite.maxCount)
+				}
+
+				// If maxCount changed, regenerate the prompt from the template
+				if originalMaxCount != searchRewrite.maxCount && searchRewrite.promptTemplate != "" {
+					searchRewrite.prompt = strings.Replace(
+						searchRewrite.promptTemplate,
+						"{max_count}",
+						fmt.Sprintf("%d", searchRewrite.maxCount),
+						-1)
+				}
+			}
+		}
 		startTime := time.Now()
 		rewritePrompt := strings.Replace(searchRewrite.prompt, "{question}", query, 1)
 		rewriteBody, _ := sjson.SetBytes([]byte(fmt.Sprintf(
@@ -282,7 +365,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 			}, rewriteBody,
 			func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 				if statusCode != http.StatusOK {
-					log.Errorf("search rewrite failed, status: %d", statusCode)
+					log.Errorf("search rewrite failed, status: %d, request url: %s, request cluster: %s, search rewrite model: %s",
+						statusCode, searchRewrite.url, searchRewrite.client.ClusterName(), searchRewrite.modelName)
 					// After a rewrite failure, no further search is performed, thus quickly identifying the failure.
 					proxywasm.ResumeHttpRequest()
 					return
@@ -352,7 +436,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 					proxywasm.ResumeHttpRequest()
 					return
 				}
-				if types.ActionContinue == executeSearch(ctx, config, queryIndex, body, searchContexts, log) {
+				if types.ActionContinue == executeSearch(ctx, config, queryIndex, body, searchContexts) {
 					proxywasm.ResumeHttpRequest()
 				}
 			}, searchRewrite.timeoutMillisecond)
@@ -368,10 +452,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte, log 
 	return executeSearch(ctx, config, queryIndex, body, []engine.SearchContext{{
 		Querys:   []string{query},
 		Language: config.defaultLanguage,
-	}}, log)
+	}})
 }
 
-func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []engine.SearchContext, log wrapper.Log) types.Action {
+func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body []byte, searchContexts []engine.SearchContext) types.Action {
 	searchResultGroups := make([][]engine.SearchResult, len(config.engine))
 	var finished int
 	var searching int
@@ -412,6 +496,11 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 										mergedResults = append(mergedResults, result)
 									}
 								}
+							}
+							if len(mergedResults) == 0 {
+								log.Warnf("no search result found, searchContexts:%#v", searchContexts)
+								proxywasm.ResumeHttpRequest()
+								return
 							}
 							// Format search results for prompt template
 							var formattedResults []string
@@ -469,7 +558,7 @@ func executeSearch(ctx wrapper.HttpContext, config Config, queryIndex int, body 
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	if !config.needReference {
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
@@ -486,23 +575,39 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config, log wrapper.L
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	references := ctx.GetStringContext("References", "")
 	if references == "" {
 		return types.ActionContinue
 	}
 	content := gjson.GetBytes(body, "choices.0.message.content").String()
 	var modifiedContent string
+	formattedReferences := fmt.Sprintf(config.referenceFormat, references)
+
 	if strings.HasPrefix(strings.TrimLeftFunc(content, unicode.IsSpace), "<think>") {
 		thinkEnd := strings.Index(content, "</think>")
 		if thinkEnd != -1 {
-			modifiedContent = content[:thinkEnd+8] +
-				fmt.Sprintf("\n%s\n\n%s", fmt.Sprintf(config.referenceFormat, references), content[thinkEnd+8:])
+			if config.referenceLocation == "tail" {
+				// Add references at the end
+				modifiedContent = content + fmt.Sprintf("\n\n%s", formattedReferences)
+			} else {
+				// Default: add references after </think> tag
+				modifiedContent = content[:thinkEnd+8] +
+					fmt.Sprintf("\n%s\n\n%s", formattedReferences, content[thinkEnd+8:])
+			}
 		}
 	}
+
 	if modifiedContent == "" {
-		modifiedContent = fmt.Sprintf("%s\n\n%s", fmt.Sprintf(config.referenceFormat, references), content)
+		if config.referenceLocation == "tail" {
+			// Add references at the end
+			modifiedContent = fmt.Sprintf("%s\n\n%s", content, formattedReferences)
+		} else {
+			// Default: add references at the beginning
+			modifiedContent = fmt.Sprintf("%s\n\n%s", formattedReferences, content)
+		}
 	}
+
 	body, err := sjson.SetBytes(body, "choices.0.message.content", modifiedContent)
 	if err != nil {
 		log.Errorf("modify response message content failed, err:%v, body:%s", err, body)
@@ -512,19 +617,13 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte, log
 	return types.ActionContinue
 }
 
-func unifySSEChunk(data []byte) []byte {
-	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
-	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
-	return data
-}
-
 const (
 	PARTIAL_MESSAGE_CONTEXT_KEY = "partialMessage"
 	BUFFER_CONTENT_CONTEXT_KEY  = "bufferContent"
 	BUFFER_SIZE                 = 30
 )
 
-func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool) []byte {
 	if ctx.GetBoolContext("ReferenceAppended", false) {
 		return chunk
 	}
@@ -532,7 +631,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	if references == "" {
 		return chunk
 	}
-	chunk = unifySSEChunk(chunk)
+	chunk = wrapper.UnifySSEChunk(chunk)
 	var partialMessage []byte
 	partialMessageI := ctx.GetContext(PARTIAL_MESSAGE_CONTEXT_KEY)
 	log.Debugf("[handleStreamChunk] buffer content: %v", ctx.GetContext(BUFFER_CONTENT_CONTEXT_KEY))
@@ -545,7 +644,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	var newMessages []string
 	for i, msg := range messages {
 		if i < len(messages)-1 {
-			newMsg := processSSEMessage(ctx, msg, fmt.Sprintf(config.referenceFormat, references), log)
+			newMsg := processSSEMessage(ctx, msg, fmt.Sprintf(config.referenceFormat, references), config.referenceLocation == "tail")
 			if newMsg != "" {
 				newMessages = append(newMessages, newMsg)
 			}
@@ -556,16 +655,14 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byt
 	} else {
 		ctx.SetContext(PARTIAL_MESSAGE_CONTEXT_KEY, nil)
 	}
-	if len(newMessages) == 1 {
-		return []byte(fmt.Sprintf("%s\n\n", newMessages[0]))
-	} else if len(newMessages) > 1 {
-		return []byte(strings.Join(newMessages, "\n\n"))
+	if len(newMessages) > 0 {
+		return []byte(fmt.Sprintf("%s\n\n", strings.Join(newMessages, "\n\n")))
 	} else {
 		return []byte("")
 	}
 }
 
-func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references string, log wrapper.Log) string {
+func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references string, tailReference bool) string {
 	log.Debugf("single sse message: %s", sseMessage)
 	subMessages := strings.Split(sseMessage, "\n")
 	var message string
@@ -586,6 +683,26 @@ func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references st
 	}
 	bodyJson = strings.TrimPrefix(bodyJson, " ")
 	bodyJson = strings.TrimSuffix(bodyJson, "\n")
+
+	// If tailReference is true, only check if this is the last message
+	if tailReference {
+		// Check if this is the last message in the stream (finish_reason is "stop")
+		finishReason := gjson.Get(bodyJson, "choices.0.finish_reason").String()
+		if finishReason == "stop" {
+			// This is the last message, append references at the end
+			deltaContent := gjson.Get(bodyJson, "choices.0.delta.content").String()
+			modifiedMessage, err := sjson.Set(bodyJson, "choices.0.delta.content", deltaContent+fmt.Sprintf("\n\n%s", references))
+			if err != nil {
+				log.Errorf("update message failed:%s", err)
+			}
+			ctx.SetContext("ReferenceAppended", true)
+			return fmt.Sprintf("data: %s", modifiedMessage)
+		}
+		// Not the last message, return original message
+		return sseMessage
+	}
+
+	// Original head reference logic
 	deltaContent := gjson.Get(bodyJson, "choices.0.delta.content").String()
 	// Skip the preceding content that might be empty due to the presence of a separate reasoning_content field.
 	if deltaContent == "" {
@@ -601,7 +718,7 @@ func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references st
 		if !strings.Contains(strings.TrimLeftFunc(bufferContent, unicode.IsSpace), "<think>") {
 			modifiedMessage, err := sjson.Set(bodyJson, "choices.0.delta.content", fmt.Sprintf("%s\n\n%s", references, bufferContent))
 			if err != nil {
-				log.Errorf("update messsage failed:%s", err)
+				log.Errorf("update message failed:%s", err)
 			}
 			ctx.SetContext("ReferenceAppended", true)
 			return fmt.Sprintf("data: %s", modifiedMessage)
@@ -615,7 +732,7 @@ func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references st
 			fmt.Sprintf("\n%s\n\n%s", references, bufferContent[thinkEnd+8:])
 		modifiedMessage, err := sjson.Set(bodyJson, "choices.0.delta.content", modifiedContent)
 		if err != nil {
-			log.Errorf("update messsage failed:%s", err)
+			log.Errorf("update message failed:%s", err)
 		}
 		ctx.SetContext("ReferenceAppended", true)
 		return fmt.Sprintf("data: %s", modifiedMessage)
@@ -630,7 +747,7 @@ func processSSEMessage(ctx wrapper.HttpContext, sseMessage string, references st
 			// Return the content before the partial match
 			modifiedMessage, err := sjson.Set(bodyJson, "choices.0.delta.content", bufferContent[:len(bufferContent)-i])
 			if err != nil {
-				log.Errorf("update messsage failed:%s", err)
+				log.Errorf("update message failed:%s", err)
 			}
 			return fmt.Sprintf("data: %s", modifiedMessage)
 		}

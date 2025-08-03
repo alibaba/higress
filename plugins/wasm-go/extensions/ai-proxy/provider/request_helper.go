@@ -3,7 +3,8 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
@@ -24,7 +25,14 @@ func decodeEmbeddingsRequest(body []byte, request *embeddingsRequest) error {
 	return nil
 }
 
-func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
+func decodeImageGenerationRequest(body []byte, request *imageGenerationRequest) error {
+	if err := json.Unmarshal(body, request); err != nil {
+		return fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+	return nil
+}
+
+func replaceJsonRequestBody(request interface{}) error {
 	body, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("unable to marshal request: %v", err)
@@ -37,7 +45,7 @@ func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
 	return err
 }
 
-func replaceRequestBody(body []byte, log wrapper.Log) error {
+func replaceRequestBody(body []byte) error {
 	log.Debugf("request body: %s", string(body))
 	err := proxywasm.ReplaceHttpRequestBody(body)
 	if err != nil {
@@ -65,7 +73,7 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 	}
 }
 
-func ReplaceResponseBody(body []byte, log wrapper.Log) error {
+func ReplaceResponseBody(body []byte) error {
 	log.Debugf("response body: %s", string(body))
 	err := proxywasm.ReplaceHttpResponseBody(body)
 	if err != nil {

@@ -38,6 +38,7 @@ type HttpClient interface {
 	Connect(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
 	Trace(rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
 	Call(method, rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error
+	ClusterName() string
 }
 
 type ClusterClient[C Cluster] struct {
@@ -79,6 +80,8 @@ func (c ClusterClient[C]) Trace(rawURL string, headers [][2]string, body []byte,
 func (c ClusterClient[C]) Call(method, rawURL string, headers [][2]string, body []byte, cb ResponseCallback, timeoutMillisecond ...uint32) error {
 	return HttpCall(c.cluster, method, rawURL, headers, body, cb, timeoutMillisecond...)
 }
+
+func (c ClusterClient[C]) ClusterName() string { return c.cluster.ClusterName() }
 
 func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body []byte,
 	callback ResponseCallback, timeoutMillisecond ...uint32) error {
@@ -136,7 +139,7 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 			requestID, code, normalResponse, respBody)
 		callback(code, headers, respBody)
 	})
-	proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, url: %s, body: %s, timeout: %d",
-		requestID, cluster.ClusterName(), method, rawURL, body, timeout)
+	proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, url: %s, headers: %#v, body: %s, timeout: %d",
+		requestID, cluster.ClusterName(), method, rawURL, headers, body, timeout)
 	return err
 }

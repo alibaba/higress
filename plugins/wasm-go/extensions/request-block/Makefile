@@ -1,4 +1,4 @@
 .DEFAULT:
 build:
-	tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags='custommalloc nottinygc_finalizer' ./main.go
+ 	GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o ./main.wasm .
 	mv main.wasm ../../../../docker-compose-test/

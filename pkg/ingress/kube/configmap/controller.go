@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/controller"
+	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 )
@@ -89,6 +90,9 @@ func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfi
 	globalOptionController := NewGlobalOptionController(namespace)
 	configmapMgr.AddItemControllers(globalOptionController)
 
+	mcpServerController := NewMcpServerController(namespace)
+	configmapMgr.AddItemControllers(mcpServerController)
+
 	configmapMgr.initEventHandlers()
 
 	return configmapMgr
@@ -106,6 +110,14 @@ func (c *ConfigmapMgr) GetHigressConfig() *HigressConfig {
 		}
 	}
 	return nil
+}
+
+func (c *ConfigmapMgr) RegisterMcpServerProvider(provider mcpserver.McpServerProvider) {
+	for _, itemController := range c.ItemControllers {
+		if mcpRouteProviderAware, ok := itemController.(mcpserver.McpRouteProviderAware); ok {
+			mcpRouteProviderAware.RegisterMcpServerProvider(provider)
+		}
+	}
 }
 
 func (c *ConfigmapMgr) AddItemControllers(controllers ...ItemController) {

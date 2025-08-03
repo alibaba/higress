@@ -1,0 +1,57 @@
+server:
+  name: jr-ohris-bid-mcp
+  config:
+    apikey: ""
+tools:
+  - name: getBidList
+    description: |+
+      根据关键字查询标讯列表。
+      - 输入关键字、开始时间、结束时间等信息。
+      - 支持可选的地区编码和当前页参数。
+      - 返回标讯列表。
+    args:
+      - name: keywords
+        description: 关键字
+        type: string
+        required: true
+      - name: cr_start_time
+        description: 开始时间，格式为 yyyy-MM-dd HH:mm:ss
+        type: string
+        required: true
+      - name: cr_end_time
+        description: 结束时间，格式为 yyyy-MM-dd HH:mm:ss
+        type: string
+        required: true
+      - name: areas
+        description: 地区编码
+        type: string
+        required: false
+      - name: page
+        description: 当前页
+        type: string
+        required: false
+    requestTemplate:
+      argsToUrlParam: false
+      url: https://agent-bid.junrunrenli.com/agent/tools/getBidList?jr-api-key={{.config.apikey}}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
+
+  - name: getBidInfo
+    description: |+
+      根据关键字标讯ID查询详情。
+      - 输入标讯ID。
+      - 返回标讯详情。
+    args:
+      - name: id
+        description: 标讯ID
+        type: string
+        required: true
+    requestTemplate:
+      argsToUrlParam: false
+      url: https://agent-bid.junrunrenli.com/agent/tools/getBidInfo?jr-api-key={{.config.apikey}}
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/json
