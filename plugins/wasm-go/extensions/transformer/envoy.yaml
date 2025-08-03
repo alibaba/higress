@@ -55,19 +55,13 @@ static_resources:
                                         "key": "hello",
                                         "newValue": "higress"
                                       }
-                                    ]
-                                  },
-                                  {
-                                    "operate": "replace",
+                                    ],
                                     "querys": [
                                       {
                                         "key": "k1",
                                         "newValue": "newQueryV1"
                                       }
-                                    ]
-                                  },
-                                  {
-                                    "operate": "replace",
+                                    ],
                                     "body": [
                                       {
                                         "key": "k2",
