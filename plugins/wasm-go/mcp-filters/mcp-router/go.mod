@@ -4,7 +4,7 @@ go 1.24.1
 
 require (
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
-	github.com/higress-group/wasm-go v1.0.0
+	github.com/higress-group/wasm-go v1.0.2-0.20250804091745-dbabcf425bb2
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/sjson v1.2.5
 )
