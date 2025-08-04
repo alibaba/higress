@@ -1,9 +1,8 @@
 use std::{collections::HashMap, time::Duration};
 
+use crate::{cluster_wrapper::Cluster, internal};
 use proxy_wasm::{hostcalls::RedisCallbackFn, types::Status};
 use redis::{Cmd, ToRedisArgs, Value};
-
-use crate::{cluster_wrapper::Cluster, internal};
 
 pub type RedisValueCallbackFn = dyn FnOnce(&Result<Value, String>, usize, u32);
 
@@ -25,6 +24,7 @@ pub struct RedisClientBuilder {
     username: Option<String>,
     password: Option<String>,
     timeout: Duration,
+    database: Option<u32>,
 }
 
 impl RedisClientBuilder {
@@ -34,6 +34,7 @@ impl RedisClientBuilder {
             username: None,
             password: None,
             timeout,
+            database: None,
         }
     }
 
@@ -47,9 +48,24 @@ impl RedisClientBuilder {
         self
     }
 
+    pub fn database(mut self, database: Option<u32>) -> Self {
+        self.database = database;
+        self
+    }
+
     pub fn build(self) -> RedisClient {
+        let upstream = if let Some(db) = self.database {
+            if db != 0 {
+                format!("{}?db={}", self.upstream, db)
+            } else {
+                self.upstream
+            }
+        } else {
+            self.upstream
+        };
+
         RedisClient {
-            upstream: self.upstream,
+            upstream,
             username: self.username,
             password: self.password,
             timeout: self.timeout,
@@ -62,6 +78,7 @@ pub struct RedisClientConfig {
     username: Option<String>,
     password: Option<String>,
     timeout: Duration,
+    database: Option<u32>,
 }
 
 impl RedisClientConfig {
@@ -71,6 +88,7 @@ impl RedisClientConfig {
             username: None,
             password: None,
             timeout,
+            database: None,
         }
     }
 
@@ -81,6 +99,11 @@ impl RedisClientConfig {
 
     pub fn password<T: AsRef<str>>(&mut self, password: Option<T>) -> &Self {
         self.password = password.map(|p| p.as_ref().to_string());
+        self
+    }
+
+    pub fn database(&mut self, database: Option<u32>) -> &Self {
+        self.database = database;
         self
     }
 }
@@ -95,8 +118,18 @@ pub struct RedisClient {
 
 impl RedisClient {
     pub fn new(config: &RedisClientConfig) -> Self {
+        let upstream = if let Some(db) = config.database {
+            if db != 0 {
+                format!("{}?db={}", config.upstream, db)
+            } else {
+                config.upstream.clone()
+            }
+        } else {
+            config.upstream.clone()
+        };
+
         RedisClient {
-            upstream: config.upstream.clone(),
+            upstream,
             username: config.username.clone(),
             password: config.password.clone(),
             timeout: config.timeout,
