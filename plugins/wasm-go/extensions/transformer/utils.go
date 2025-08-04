@@ -141,18 +141,12 @@ func parseBody(contentType string, body []byte) (interface{}, error) {
 			fileName := p.FileName()
 			contentType := p.Header.Get("Content-Type") // 获取文件的 MIME 类型
 
-			// log.Debugf("\n===================\nformName: %s, fileName: %s, contentType: %s", formName, fileName, contentType)
-
 			if formName == "" {
 				continue
 			}
 			formValue, err := io.ReadAll(p)
 			if err != nil {
-				// log.Debugf("\n===================\nerr: %s, formValue: %s", err, formValue)
-
 				return nil, err
-			} else {
-				// log.Debugf("\n===================\nerr: %s, formValue: %s", err, formValue)
 			}
 
 			if fileName == "" {
@@ -175,7 +169,6 @@ func parseBody(contentType string, body []byte) (interface{}, error) {
 }
 
 func constructBody(contentType string, body interface{}) ([]byte, error) {
-	// log.Debugf("\n===================\nbody: %s", body)
 
 	typ, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
@@ -224,8 +217,6 @@ func constructBody(contentType string, body interface{}) ([]byte, error) {
 			// 判断是否是文件字段
 			filenames, hasFilename := bd[k+".filename"]
 			contents, hasContent := bd[k+".content"]
-
-			// log.Debugf("filenames %s,contents $s", filenames, contents)
 
 			if hasFilename && hasContent {
 				// 是文件字段
