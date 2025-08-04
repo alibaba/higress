@@ -9,13 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 )
 
 type failover struct {
@@ -73,9 +74,7 @@ const (
 	CtxRequestBody                     = "requestBody"
 )
 
-var (
-	healthCheckClient wrapper.HttpClient
-)
+var healthCheckClient wrapper.HttpClient
 
 func (f *failover) FromJson(json gjson.Result) {
 	f.enabled = json.Get("enabled").Bool()
@@ -141,7 +140,6 @@ func (c *ProviderConfig) SetApiTokensFailover(activeProvider Provider) error {
 
 		vmID := generateVMID()
 		err := c.initApiTokens()
-
 		if err != nil {
 			return fmt.Errorf("failed to init apiTokens: %v", err)
 		}
@@ -605,7 +603,12 @@ func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext) {
 	if c.isFailoverEnabled() {
 		apiToken = c.GetGlobalRandomToken()
 	} else {
-		apiToken = c.GetRandomToken()
+		consumer, _ := proxywasm.GetHttpRequestHeader(consumerKey)
+		if consumer != "" {
+			apiToken = c.GetApiTokenByConsumer(consumer)
+		} else {
+			apiToken = c.GetRandomToken()
+		}
 	}
 	log.Debugf("Use apiToken %s to send request", apiToken)
 	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
@@ -633,7 +636,6 @@ func (c *ProviderConfig) setHealthCheckEndpoint(ctx wrapper.HttpContext) {
 	healthCheckEndpointByte, err := json.Marshal(healthCheckEndpoint)
 	if err != nil {
 		log.Errorf("Failed to marshal request host and path: %v", err)
-
 	}
 	err = proxywasm.SetSharedData(c.failover.ctxHealthCheckEndpoint, healthCheckEndpointByte, 0)
 	if err != nil {
