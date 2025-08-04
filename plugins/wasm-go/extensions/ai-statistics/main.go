@@ -44,6 +44,7 @@ const (
 	APIName                    = "api"
 	ConsumerKey                = "x-mse-consumer"
 	RequestPath                = "request_path"
+	SkipProcessing             = "skip_processing"
 
 	// AI API Paths
 	PathOpenAIChatCompletions       = "/v1/chat/completions"
@@ -254,6 +255,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
 	if !isPathEnabled(requestPath, config.enablePathSuffixes) {
 		log.Debugf("ai-statistics: skipping request for path %s (not in enabled suffixes)", requestPath)
+		// Set skip processing flag and avoid reading request/response body
+		ctx.SetContext(SkipProcessing, true)
+		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 
@@ -288,6 +293,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte) types.Action {
+	// Check if processing should be skipped
+	if ctx.GetBoolContext(SkipProcessing, false) {
+		return types.ActionContinue
+	}
+
 	// Set user defined log & span attributes.
 	setAttributeBySource(ctx, config, RequestBody, body)
 	// Set span attributes for ARMS.
@@ -329,6 +339,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
+	// Check if processing should be skipped
+	if ctx.GetBoolContext(SkipProcessing, false) {
+		return types.ActionContinue
+	}
+
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 
 	// Only buffer response body for enabled content types
@@ -346,6 +361,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) t
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool) []byte {
+	// Check if processing should be skipped
+	if ctx.GetBoolContext(SkipProcessing, false) {
+		return data
+	}
+
 	// Buffer stream body for record log & span attributes
 	if config.shouldBufferStreamingBody {
 		streamingBodyBuffer, ok := ctx.GetContext(CtxStreamingBodyBuffer).([]byte)
@@ -415,6 +435,11 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte) types.Action {
+	// Check if processing should be skipped
+	if ctx.GetBoolContext(SkipProcessing, false) {
+		return types.ActionContinue
+	}
+
 	// Get requestStartTime from http context
 	requestStartTime, _ := ctx.GetContext(StatisticsRequestStartTime).(int64)
 
