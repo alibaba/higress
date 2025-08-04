@@ -163,12 +163,6 @@ func isPathEnabled(requestPath string, enabledSuffixes []string) bool {
 	if len(enabledSuffixes) == 0 {
 		return true // If no path suffixes configured, enable for all
 	}
-	// Check for * first - if present, enable for all paths
-	for _, suffix := range enabledSuffixes {
-		if suffix == "*" {
-			return true
-		}
-	}
 
 	// Remove query parameters from path
 	pathWithoutQuery := requestPath
@@ -226,16 +220,30 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 
 	// Parse path suffix configuration
 	pathSuffixes := configJson.Get("enable_path_suffixes").Array()
-	config.enablePathSuffixes = make([]string, len(pathSuffixes))
-	for i, suffix := range pathSuffixes {
-		config.enablePathSuffixes[i] = suffix.String()
+	config.enablePathSuffixes = make([]string, 0, len(pathSuffixes))
+
+	for _, suffix := range pathSuffixes {
+		suffixStr := suffix.String()
+		if suffixStr == "*" {
+			// Clear the suffixes list since * means all paths are enabled
+			config.enablePathSuffixes = make([]string, 0)
+			break
+		}
+		config.enablePathSuffixes = append(config.enablePathSuffixes, suffixStr)
 	}
 
 	// Parse content type configuration
 	contentTypes := configJson.Get("enable_content_types").Array()
-	config.enableContentTypes = make([]string, len(contentTypes))
-	for i, contentType := range contentTypes {
-		config.enableContentTypes[i] = contentType.String()
+	config.enableContentTypes = make([]string, 0, len(contentTypes))
+
+	for _, contentType := range contentTypes {
+		contentTypeStr := contentType.String()
+		if contentTypeStr == "*" {
+			// Clear the content types list since * means all content types are enabled
+			config.enableContentTypes = make([]string, 0)
+			break
+		}
+		config.enableContentTypes = append(config.enableContentTypes, contentTypeStr)
 	}
 
 	return nil
