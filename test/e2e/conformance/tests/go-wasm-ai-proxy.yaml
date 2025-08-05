@@ -472,8 +472,8 @@ spec:
             - fake_token
           modelMapping:
             'gpt-3': qwen-turbo
-            "gpt-35-turbo": qwen-plus
-            "gpt-4-*": qwen-max
+            'gpt-35-turbo': qwen-plus
+            'gpt-4-*': qwen-max
             '*': qwen-turbo
           type: qwen
           qwenEnableCompatible: true
@@ -485,8 +485,8 @@ spec:
             - fake_token
           modelMapping:
             'gpt-3': qwen-turbo
-            "gpt-35-turbo": qwen-plus
-            "gpt-4-*": qwen-max
+            'gpt-35-turbo': qwen-plus
+            'gpt-4-*': qwen-max
             '*': qwen-turbo
           type: qwen
       ingress:
