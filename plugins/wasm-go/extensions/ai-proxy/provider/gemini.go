@@ -26,6 +26,9 @@ const (
 	geminiEmbeddingPath            = "batchEmbedContents"
 	geminiModelsPath               = "models"
 	geminiImageGenerationPath      = "predict"
+	geminiPro                      = "gemini-2.5-pro"
+	geminiFlash                    = "gemini-2.5-flash"
+	geminiFlashLite                = "gemini-2.5-flash-lite"
 )
 
 type geminiProviderInitializer struct{}
@@ -426,18 +429,12 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 }
 
 func (g *geminiProvider) supportsThinking(model string) bool {
-	supportedModels := []string{
-		"gemini-2.5-pro",
-		"gemini-2.5-flash",
-		"gemini-2.5-flash-lite",
+	var thinkingModels = map[string]bool{
+		geminiPro:       true,
+		geminiFlash:     true,
+		geminiFlashLite: true,
 	}
-
-	for _, supportedModel := range supportedModels {
-		if strings.Contains(model, supportedModel) {
-			return true
-		}
-	}
-	return false
+	return thinkingModels[model]
 }
 
 func (g *geminiProvider) setSystemContent(request *geminiGenerationContentRequest, content string) {
