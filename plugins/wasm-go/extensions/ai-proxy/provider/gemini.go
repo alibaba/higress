@@ -365,6 +365,7 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			Threshold: threshold,
 		})
 	}
+
 	geminiRequest := geminiGenerationContentRequest{
 		Contents:       make([]geminiChatContent, 0, len(request.Messages)),
 		SafetySettings: safetySettings,
@@ -376,11 +377,18 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			FrequencyPenalty:   int64(request.FrequencyPenalty),
 			Logprobs:           request.Logprobs,
 			ResponseModalities: request.Modalities,
-			ThinkingConfig: &geminiThinkingConfig{
-				IncludeThoughts: true,
-				ThinkingBudget:  g.config.geminiThinkingBudget,
-			},
+			//ThinkingConfig: &geminiThinkingConfig{
+			//	IncludeThoughts: true,
+			//	ThinkingBudget:  g.config.geminiThinkingBudget,
+			//},
 		},
+	}
+
+	if g.supportsThinking(request.Model) {
+		geminiRequest.GenerationConfig.ThinkingConfig = &geminiThinkingConfig{
+			IncludeThoughts: true,
+			ThinkingBudget:  g.config.geminiThinkingBudget,
+		}
 	}
 
 	if request.Tools != nil {
@@ -419,6 +427,21 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 	}
 
 	return &geminiRequest
+}
+
+func (g *geminiProvider) supportsThinking(model string) bool {
+	supportedModels := []string{
+		"gemini-2.5-pro",
+		"gemini-2.5-flash",
+		"gemini-2.5-flash-lite",
+	}
+
+	for _, supportedModel := range supportedModels {
+		if strings.Contains(model, supportedModel) {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *geminiProvider) setSystemContent(request *geminiGenerationContentRequest, content string) {
