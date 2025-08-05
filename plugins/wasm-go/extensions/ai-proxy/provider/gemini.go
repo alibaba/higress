@@ -26,9 +26,6 @@ const (
 	geminiEmbeddingPath            = "batchEmbedContents"
 	geminiModelsPath               = "models"
 	geminiImageGenerationPath      = "predict"
-	geminiPro                      = "gemini-2.5-pro"
-	geminiFlash                    = "gemini-2.5-flash"
-	geminiFlashLite                = "gemini-2.5-flash-lite"
 )
 
 var geminiThinkingModels = map[string]bool{
