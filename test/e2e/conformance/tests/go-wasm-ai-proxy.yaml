@@ -334,6 +334,25 @@ spec:
                 port:
                   number: 3000
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-azure
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.openai.azure.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -349,8 +368,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': 360gpt-turbo
-            '*': 360gpt-pro
+            "gpt-3": 360gpt-turbo
+            "*": 360gpt-pro
           type: ai360
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-ai360
@@ -359,8 +378,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': baichuan2-13b-chat-v1
-            '*': baichuan-7b-v1
+            "gpt-3": baichuan2-13b-chat-v1
+            "*": baichuan-7b-v1
           type: baichuan
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-baichuan
@@ -369,8 +388,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': ernie-3.5-8k
-            '*': ernie-3.5-8k
+            "gpt-3": ernie-3.5-8k
+            "*": ernie-3.5-8k
           type: baidu
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-baidu
@@ -379,8 +398,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': deepseek-reasoner
-            '*': deepseek-chat
+            "gpt-3": deepseek-reasoner
+            "*": deepseek-chat
           type: deepseek
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-deepseek
@@ -389,7 +408,7 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            '*': fake_doubao_endpoint
+            "*": fake_doubao_endpoint
           type: doubao
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-doubao
@@ -398,8 +417,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': cohere-command-r-08-2024
-            '*': Phi-3.5-MoE-instruct
+            "gpt-3": cohere-command-r-08-2024
+            "*": Phi-3.5-MoE-instruct
           type: github
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-github
@@ -408,8 +427,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': llama3-8b-8192
-            '*': llama-3.1-8b-instant
+            "gpt-3": llama3-8b-8192
+            "*": llama-3.1-8b-instant
           type: groq
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-groq
@@ -418,9 +437,9 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': abab6.5s-chat
-            'gpt-4': abab6.5g-chat
-            '*': abab6.5t-chat
+            "gpt-3": abab6.5s-chat
+            "gpt-4": abab6.5g-chat
+            "*": abab6.5t-chat
           type: minimax
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-minimax-v2-api
@@ -429,9 +448,9 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': abab6.5s-chat
-            'gpt-4': abab6.5g-chat
-            '*': abab6.5t-chat
+            "gpt-3": abab6.5s-chat
+            "gpt-4": abab6.5g-chat
+            "*": abab6.5t-chat
           type: minimax
           minimaxApiType: pro
           minimaxGroupId: 1
@@ -442,8 +461,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': mistral-tiny
-            '*': mistral-large-latest
+            "gpt-3": mistral-tiny
+            "*": mistral-large-latest
           type: mistral
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-mistral
@@ -452,10 +471,10 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': qwen-turbo
-            'gpt-35-turbo': qwen-plus
-            'gpt-4-*': qwen-max
-            '*': qwen-turbo
+            "gpt-3": qwen-turbo
+            "gpt-35-turbo": qwen-plus
+            "gpt-4-*": qwen-max
+            "*": qwen-turbo
           type: qwen
           qwenEnableCompatible: true
       ingress:
@@ -465,10 +484,10 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': qwen-turbo
-            'gpt-35-turbo': qwen-plus
-            'gpt-4-*': qwen-max
-            '*': qwen-turbo
+            "gpt-3": qwen-turbo
+            "gpt-35-turbo": qwen-plus
+            "gpt-4-*": qwen-max
+            "*": qwen-turbo
           type: qwen
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen
@@ -477,8 +496,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': step-1-8k
-            '*': step-1-32k
+            "gpt-3": step-1-8k
+            "*": step-1-32k
           type: stepfun
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-stepfun
@@ -487,8 +506,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': meta-llama/Meta-Llama-3-8B-Instruct-Turbo
-            '*': meta-llama/Llama-3-8b-chat-hf
+            "gpt-3": meta-llama/Meta-Llama-3-8B-Instruct-Turbo
+            "*": meta-llama/Llama-3-8b-chat-hf
           type: together-ai
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-together-ai
@@ -497,8 +516,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': Yi-Medium
-            '*': Yi-Large
+            "gpt-3": Yi-Medium
+            "*": Yi-Large
           type: yi
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-yi
@@ -507,8 +526,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            'gpt-3': glm-4-plus
-            '*': glm-4-long
+            "gpt-3": glm-4-plus
+            "*": glm-4-long
           type: zhipuai
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-zhipuai
@@ -517,9 +536,20 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            '*': dify
+            "*": dify
           type: dify
           botType: Completion
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-dify
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": gpt-35-turbo
+            "gpt-4": gpt-4
+            "*": gpt-35-turbo
+          type: azure
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-azure
   url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
