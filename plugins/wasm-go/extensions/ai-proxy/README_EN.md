@@ -129,6 +129,10 @@ For DeepSeek, the corresponding `type` is `deepseek`. It has no unique configura
 
 For Groq, the corresponding `type` is `groq`. It has no unique configuration fields.
 
+#### Grok
+
+For Grok, the corresponding `type` is `grok`. It has no unique configuration fields.
+
 #### ERNIE Bot
 
 For ERNIE Bot, the corresponding `type` is `baidu`. It has no unique configuration fields.
@@ -804,6 +808,76 @@ provider:
   "x_groq": {
     "id": "req_01hy2awmcxfpwbq56qh6svm7qz"
   }
+}
+```
+
+### Using OpenAI Protocol Proxy for Grok Service
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: grok
+  apiTokens:
+    - "YOUR_GROK_API_TOKEN"
+```
+
+**Example Request**
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that can answer questions and help with tasks."
+    },
+    {
+      "role": "user",
+      "content": "What is 101*3?"
+    }
+  ],
+  "model": "grok-4"
+}
+```
+
+**Example Response**
+
+```json
+{
+  "id": "a3d1008e-4544-40d4-d075-11527e794e4a",
+  "object": "chat.completion",
+  "created": 1752854522,
+  "model": "grok-4",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "101 multiplied by 3 is 303.",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 32,
+    "completion_tokens": 9,
+    "total_tokens": 135,
+    "prompt_tokens_details": {
+      "text_tokens": 32,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 6
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 94,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "num_sources_used": 0
+  },
+  "system_fingerprint": "fp_3a7881249c"
 }
 ```
 
