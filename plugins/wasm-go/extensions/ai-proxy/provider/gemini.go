@@ -31,6 +31,12 @@ const (
 	geminiFlashLite                = "gemini-2.5-flash-lite"
 )
 
+var geminiThinkingModels = map[string]bool{
+	geminiPro:       true,
+	geminiFlash:     true,
+	geminiFlashLite: true,
+}
+
 type geminiProviderInitializer struct{}
 
 func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
@@ -383,7 +389,7 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 		},
 	}
 
-	if g.supportsThinking(request.Model) {
+	if geminiThinkingModels[request.Model] {
 		geminiRequest.GenerationConfig.ThinkingConfig = &geminiThinkingConfig{
 			IncludeThoughts: true,
 			ThinkingBudget:  g.config.geminiThinkingBudget,
@@ -426,15 +432,6 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 	}
 
 	return &geminiRequest
-}
-
-func (g *geminiProvider) supportsThinking(model string) bool {
-	var thinkingModels = map[string]bool{
-		geminiPro:       true,
-		geminiFlash:     true,
-		geminiFlashLite: true,
-	}
-	return thinkingModels[model]
 }
 
 func (g *geminiProvider) setSystemContent(request *geminiGenerationContentRequest, content string) {
