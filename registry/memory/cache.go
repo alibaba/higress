@@ -16,8 +16,11 @@ package memory
 
 import (
 	"encoding/json"
+	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -51,26 +54,28 @@ type Cache interface {
 	RemoveEndpointByIp(ip string)
 }
 
-func NewCache() Cache {
+func NewCache(mcpBridgeProvider func() *v1.McpBridge) Cache {
 	return &store{
-		mux:           &sync.RWMutex{},
-		sew:           make(map[string]*ServiceWrapper),
-		configs:       make(map[string]map[string]*config.Config),
-		toBeUpdated:   make([]*ServiceWrapper, 0),
-		toBeDeleted:   make([]*ServiceWrapper, 0),
-		ip2services:   make(map[string]map[string]bool),
-		deferedDelete: make(map[string]struct{}),
+		mux:               &sync.RWMutex{},
+		sew:               make(map[string]*ServiceWrapper),
+		configs:           make(map[string]map[string]*config.Config),
+		toBeUpdated:       make([]*ServiceWrapper, 0),
+		toBeDeleted:       make([]*ServiceWrapper, 0),
+		ip2services:       make(map[string]map[string]bool),
+		deferedDelete:     make(map[string]struct{}),
+		mcpBridgeProvider: mcpBridgeProvider,
 	}
 }
 
 type store struct {
-	mux           *sync.RWMutex
-	sew           map[string]*ServiceWrapper
-	configs       map[string]map[string]*config.Config
-	toBeUpdated   []*ServiceWrapper
-	toBeDeleted   []*ServiceWrapper
-	ip2services   map[string]map[string]bool
-	deferedDelete map[string]struct{}
+	mux               *sync.RWMutex
+	sew               map[string]*ServiceWrapper
+	configs           map[string]map[string]*config.Config
+	toBeUpdated       []*ServiceWrapper
+	toBeDeleted       []*ServiceWrapper
+	ip2services       map[string]map[string]bool
+	deferedDelete     map[string]struct{}
+	mcpBridgeProvider func() *v1.McpBridge
 }
 
 func (s *store) GetAllConfigs(kind config.GroupVersionKind) map[string]*config.Config {
@@ -196,6 +201,9 @@ func (s *store) UpdateServiceWrapper(service string, data *ServiceWrapper) {
 		data.SetCreateTime(time.Now())
 	}
 
+	if data != nil && data.ServiceEntry != nil {
+		s.normalizeSePort(service, data)
+	}
 	log.Debugf("mcp service entry update, name:%s, data:%v", service, data)
 
 	s.toBeUpdated = append(s.toBeUpdated, data)
@@ -206,6 +214,40 @@ func (s *store) UpdateServiceWrapper(service string, data *ServiceWrapper) {
 		log.Debugf("service in deferedDelete updated, host:%s", service)
 	}
 	log.Infof("ServiceEntry updated, host:%s", service)
+}
+
+func (s *store) normalizeSePort(host string, data *ServiceWrapper) {
+	mcpBridge := s.mcpBridgeProvider()
+	registries := mcpBridge.Spec.Registries
+	for _, registry := range registries {
+		if registry.Type != data.RegistryType || registry.Name != data.RegistryName {
+			continue
+		}
+		if vport, ok := getServiceVport(host, registry.Vport); ok {
+			log.Infof("the vport of %s is : %d, will update", host, vport)
+			data.ServiceEntry.Ports[0].Number = vport
+		}
+		break
+	}
+}
+
+func getServiceVport(host string, vport *apiv1.RegistryConfig_VPort) (uint32, bool) {
+	if vport == nil {
+		return 0, false
+	}
+	for _, service := range vport.Services {
+		if strings.EqualFold(service.Name, host) && isValidPort(service.Value) {
+			return service.Value, true
+		}
+	}
+	if isValidPort(vport.Default) {
+		return vport.Default, true
+	}
+	return 0, false
+}
+
+func isValidPort(port uint32) bool {
+	return port > 0 && port <= 65535
 }
 
 func (s *store) DeleteServiceWrapper(service string) {
