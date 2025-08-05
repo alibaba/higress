@@ -376,6 +376,10 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			FrequencyPenalty:   int64(request.FrequencyPenalty),
 			Logprobs:           request.Logprobs,
 			ResponseModalities: request.Modalities,
+			ThinkingConfig: &geminiThinkingConfig{
+				IncludeThoughts: true,
+				ThinkingBudget:  g.config.geminiThinkingBudget,
+			},
 		},
 	}
 
