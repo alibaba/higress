@@ -32,9 +32,9 @@ const (
 )
 
 var geminiThinkingModels = map[string]bool{
-	geminiPro:       true,
-	geminiFlash:     true,
-	geminiFlashLite: true,
+	"gemini-2.5-pro":        true,
+	"gemini-2.5-flash":      true,
+	"gemini-2.5-flash-lite": true,
 }
 
 type geminiProviderInitializer struct{}
