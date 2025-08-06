@@ -60,6 +60,7 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterI
 	return &Reconciler{
 		Cache:         memory.NewCache(),
 		registries:    make(map[string]*apiv1.RegistryConfig),
+		proxies:       make(map[string]*apiv1.ProxyConfig),
 		watchers:      make(map[string]Watcher),
 		serviceUpdate: serviceUpdate,
 		client:        client,
@@ -335,7 +336,7 @@ func (r *Reconciler) reconcileProxies(proxies []*apiv1.ProxyConfig) error {
 	toBeDeleted := make(map[string]*apiv1.ProxyConfig)
 
 	for key, newProxy := range newProxies {
-		if oldProxy, ok := r.registries[key]; !ok || !reflect.DeepEqual(newProxy, oldProxy) {
+		if oldProxy, ok := r.proxies[key]; !ok || !reflect.DeepEqual(newProxy, oldProxy) {
 			toBeUpdated[key] = newProxy
 		}
 	}
@@ -353,6 +354,7 @@ func (r *Reconciler) reconcileProxies(proxies []*apiv1.ProxyConfig) error {
 
 	for k := range toBeDeleted {
 		r.Cache.DeleteProxyWrapper(k)
+		delete(r.proxies, k)
 		needNotify = true
 	}
 	for k, v := range toBeUpdated {
@@ -361,6 +363,7 @@ func (r *Reconciler) reconcileProxies(proxies []*apiv1.ProxyConfig) error {
 			continue
 		}
 		r.Cache.UpdateProxyWrapper(k, proxyWrapper)
+		r.proxies[k] = v
 		needNotify = true
 	}
 
