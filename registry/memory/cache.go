@@ -252,7 +252,7 @@ func (s *store) DeleteProxyWrapper(name string) {
 	defer s.mux.Unlock()
 
 	if _, exist := s.pw[name]; exist {
-		s.deferredDeleteServices[name] = struct{}{}
+		s.deferredDeleteProxies[name] = struct{}{}
 	}
 }
 
@@ -272,8 +272,8 @@ func (s *store) PurgeStaleItems() bool {
 	}
 
 	for proxy := range s.deferredDeleteProxies {
-		delete(s.sew, proxy)
-		delete(s.deferredDeleteServices, proxy)
+		delete(s.pw, proxy)
+		delete(s.deferredDeleteProxies, proxy)
 		log.Infof("ProxyWrapper deleted, name: %s", proxy)
 
 		deleted = true

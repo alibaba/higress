@@ -199,7 +199,6 @@ func buildConfigPatchesForHttpProxy(config *apiv1.ProxyConfig) []*v1alpha3.Envoy
 		}
 		proxyClusterPatchJson = strings.ReplaceAll(proxyClusterPatchJson, "{{name}}", clusterName)
 		proxyClusterPatchJson = strings.ReplaceAll(proxyClusterPatchJson, "{{type}}", clusterType)
-		proxyClusterPatchJson = strings.ReplaceAll(proxyClusterPatchJson, "{{name}}", clusterName)
 		proxyClusterPatchJson = strings.ReplaceAll(proxyClusterPatchJson, "{{connect_timeout}}", fmt.Sprintf("%d", connectTimeout))
 		proxyClusterPatchJson = strings.ReplaceAll(proxyClusterPatchJson, "{{address}}", config.ServerAddress)
 		proxyClusterPatchJson = strings.ReplaceAll(proxyClusterPatchJson, "{{port}}", fmt.Sprintf("%d", config.ServerPort))

@@ -1132,6 +1132,10 @@ func (m *IngressConfig) adjustWasmPluginForProxy(out []config.Config) {
 			// Invalid proxy config
 			continue
 		}
+		if validateServiceWrapperForProxy(sew) != nil {
+			// The service wrapper is not valid for proxy, skip it.
+			continue
+		}
 		hosts := sew.ServiceEntry.Hosts
 		if len(hosts) == 0 {
 			continue
@@ -1228,12 +1232,19 @@ func (m *IngressConfig) adjustRouteClusterForProxy(convertOptions *common.Conver
 				if serviceWrapper == nil || serviceWrapper.ProxyConfig == nil || serviceWrapper.ProxyConfig.ProxyName == "" {
 					continue
 				}
+				if validateServiceWrapperForProxy(serviceWrapper) != nil {
+					// The service wrapper is not valid for proxy, skip it.
+					continue
+				}
 				proxyWrapper := convertOptions.ProxyWrappers[serviceWrapper.ProxyConfig.ProxyName]
 				if proxyWrapper == nil || proxyWrapper.EnvoyFilter == nil {
 					// Invalid proxy config
 					continue
 				}
-				destination.Destination.Host = constructProxyServiceFqdn(serviceWrapper.ProxyConfig.ProxyName, host)
+				destination.Destination.Host = constructProxyServiceFqdn(proxyWrapper.ProxyName, host)
+				destination.Destination.Port = &networking.PortSelector{
+					Number: proxyWrapper.ListenerPort,
+				}
 			}
 		}
 	}
@@ -1844,13 +1855,8 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 			continue
 		}
 		IngressLog.Debugf("Found service %s using proxy %s", serviceWrapper.ServiceName, proxyConfig.ProxyName)
-		registryType := registry.ServiceRegistryType(serviceWrapper.RegistryType)
-		if registryType != registry.Static && registryType != registry.DNS {
-			IngressLog.Warnf("Service %s has proxy config %s, but registry type %s is not supported for proxying", serviceWrapper.ServiceName, proxyConfig.ProxyName, registryType)
-			continue
-		}
-		if len(serviceWrapper.ServiceEntry.Endpoints) > 1 {
-			IngressLog.Warnf("Service %s has multiple endpoints, which is not supported for proxying with EnvoyFilter. Skipping EnvoyFilter construction.", serviceWrapper.ServiceName)
+		if err := validateServiceWrapperForProxy(serviceWrapper); err != nil {
+			IngressLog.Warnf("Service wrapper validation failed for proxy: %v", err)
 			continue
 		}
 		proxyWrapper := proxyWrappers[proxyConfig.ProxyName]
@@ -1866,23 +1872,25 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 			IngressLog.Warnf("Proxy %s has no EnvoyFilter generated, meaning not ready for use.", proxyConfig.ProxyName)
 			continue
 		}
-		IngressLog.Debugf("Constructing EnvoyFilter for service %s using proxy %s", serviceWrapper.ServiceName, proxyConfig.ProxyName)
-		clusterName := fmt.Sprintf("outbound|%d||%s", proxyWrapper.ListenerPort, constructProxyServiceFqdn(proxyWrapper.ProxyName, serviceWrapper.ServiceName))
-		patchObj := map[string]interface{}{
-			"name":            clusterName,
-			"type":            "STATIC",
-			"connect_timeout": "0.250s",
-			"load_assignment": map[string]interface{}{
-				"cluster_name": clusterName,
-				"endpoints": []map[string]interface{}{
-					{
-						"lb_endpoints": []map[string]interface{}{
-							{
-								"endpoint": map[string]interface{}{
-									"address": map[string]interface{}{
-										"socket_address": map[string]interface{}{
-											"address":    "127.0.0.1",
-											"port_value": proxyWrapper.ListenerPort,
+		for _, host := range serviceWrapper.ServiceEntry.Hosts {
+			IngressLog.Debugf("Constructing EnvoyFilter for service %s using proxy %s", host, proxyConfig.ProxyName)
+			clusterName := fmt.Sprintf("outbound|%d||%s", proxyWrapper.ListenerPort, constructProxyServiceFqdn(proxyWrapper.ProxyName, host))
+			patchObj := map[string]interface{}{
+				"name":            clusterName,
+				"type":            "STATIC",
+				"connect_timeout": "10s",
+				"load_assignment": map[string]interface{}{
+					"cluster_name": clusterName,
+					"endpoints": []map[string]interface{}{
+						{
+							"lb_endpoints": []map[string]interface{}{
+								{
+									"endpoint": map[string]interface{}{
+										"address": map[string]interface{}{
+											"socket_address": map[string]interface{}{
+												"address":    "127.0.0.1",
+												"port_value": proxyWrapper.ListenerPort,
+											},
 										},
 									},
 								},
@@ -1890,31 +1898,31 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 						},
 					},
 				},
-			},
+			}
+			if proxyConfig.UpstreamProtocol.IsHTTPS() {
+				tlsTypedConfig := map[string]interface{}{
+					"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+				}
+				if proxyConfig.UpstreamSni != "" {
+					tlsTypedConfig["sni"] = proxyConfig.UpstreamSni
+				}
+				patchObj["transport_socket"] = map[string]interface{}{
+					"name":         "envoy.transport_sockets.tls",
+					"typed_config": tlsTypedConfig,
+				}
+			}
+			patchJson, _ := json.Marshal(patchObj)
+			serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+				ApplyTo: networking.EnvoyFilter_CLUSTER,
+				Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+					Context: networking.EnvoyFilter_GATEWAY,
+				},
+				Patch: &networking.EnvoyFilter_Patch{
+					Operation: networking.EnvoyFilter_Patch_ADD,
+					Value:     util.BuildPatchStruct(string(patchJson)),
+				},
+			})
 		}
-		if proxyConfig.UpstreamProtocol.IsHTTPS() {
-			tlsTypedConfig := map[string]interface{}{
-				"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
-			}
-			if proxyConfig.UpstreamSni != "" {
-				tlsTypedConfig["sni"] = proxyConfig.UpstreamSni
-			}
-			patchObj["transport_socket"] = map[string]interface{}{
-				"name":         "envoy.transport_sockets.tls",
-				"typed_config": tlsTypedConfig,
-			}
-		}
-		patchJson, _ := json.Marshal(patchObj)
-		serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
-			ApplyTo: networking.EnvoyFilter_CLUSTER,
-			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-				Context: networking.EnvoyFilter_GATEWAY,
-			},
-			Patch: &networking.EnvoyFilter_Patch{
-				Operation: networking.EnvoyFilter_Patch_ADD,
-				Value:     util.BuildPatchStruct(string(patchJson)),
-			},
-		})
 	}
 	if len(serviceProxyPatches) != 0 {
 		envoyFilters = append(envoyFilters, &config.Config{
@@ -1930,6 +1938,20 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 	}
 
 	return envoyFilters
+}
+
+func validateServiceWrapperForProxy(serviceWrapper *common.ServiceWrapper) error {
+	registryType := registry.ServiceRegistryType(serviceWrapper.RegistryType)
+	switch registryType {
+	case registry.DNS:
+		break
+	default:
+		return fmt.Errorf("service %s has proxy config %s, but registry type %s is not supported for proxying", serviceWrapper.ServiceName, serviceWrapper.ProxyConfig.ProxyName, registryType)
+	}
+	if len(serviceWrapper.ServiceEntry.Endpoints) > 1 {
+		return fmt.Errorf("service %s has multiple endpoints, which is not supported for proxying with EnvoyFilter. Skipping EnvoyFilter construction", serviceWrapper.ServiceName)
+	}
+	return nil
 }
 
 func constructProxyServiceFqdn(proxyName, serviceName string) string {

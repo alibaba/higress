@@ -173,6 +173,7 @@ func (pw *ProxyWrapper) DeepCopy() *ProxyWrapper {
 	res = pw
 	res.ProxyName = pw.ProxyName
 	res.ListenerPort = pw.ListenerPort
+	res.createTime = pw.GetCreateTime()
 
 	if pw.EnvoyFilter != nil {
 		res.EnvoyFilter = pw.EnvoyFilter.DeepCopy()
