@@ -28,6 +28,12 @@ const (
 	geminiImageGenerationPath      = "predict"
 )
 
+var geminiThinkingModels = map[string]bool{
+	"gemini-2.5-pro":        true,
+	"gemini-2.5-flash":      true,
+	"gemini-2.5-flash-lite": true,
+}
+
 type geminiProviderInitializer struct{}
 
 func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
@@ -365,6 +371,7 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			Threshold: threshold,
 		})
 	}
+
 	geminiRequest := geminiGenerationContentRequest{
 		Contents:       make([]geminiChatContent, 0, len(request.Messages)),
 		SafetySettings: safetySettings,
@@ -377,6 +384,13 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			Logprobs:           request.Logprobs,
 			ResponseModalities: request.Modalities,
 		},
+	}
+
+	if geminiThinkingModels[request.Model] {
+		geminiRequest.GenerationConfig.ThinkingConfig = &geminiThinkingConfig{
+			IncludeThoughts: true,
+			ThinkingBudget:  g.config.geminiThinkingBudget,
+		}
 	}
 
 	if request.Tools != nil {
