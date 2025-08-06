@@ -1035,7 +1035,7 @@ data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:        "api.openai.azure.com",
-						Path:        "/v1/chat/completions",
+						Path:        "/chat/completions?api-version=2024-10-21",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
 						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
@@ -1057,7 +1057,7 @@ data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:        "api.openai.azure.com",
-						Path:        "/v1/chat/completions",
+						Path:        "/chat/completions?api-version=2024-10-21",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
 						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
