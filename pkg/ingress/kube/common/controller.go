@@ -142,9 +142,8 @@ type ServiceWrapper struct {
 
 func (sew *ServiceWrapper) DeepCopy() *ServiceWrapper {
 	res := &ServiceWrapper{}
-	res = sew
+	*res = *sew
 	res.ServiceEntry = sew.ServiceEntry.DeepCopy()
-	res.createTime = sew.GetCreateTime()
 
 	if sew.DestinationRuleWrapper != nil {
 		res.DestinationRuleWrapper = sew.DestinationRuleWrapper
@@ -170,10 +169,7 @@ type ProxyWrapper struct {
 
 func (pw *ProxyWrapper) DeepCopy() *ProxyWrapper {
 	res := &ProxyWrapper{}
-	res = pw
-	res.ProxyName = pw.ProxyName
-	res.ListenerPort = pw.ListenerPort
-	res.createTime = pw.GetCreateTime()
+	*res = *pw
 
 	if pw.EnvoyFilter != nil {
 		res.EnvoyFilter = pw.EnvoyFilter.DeepCopy()
