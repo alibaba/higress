@@ -204,6 +204,8 @@ For Gemini, the corresponding `type` is `gemini`. Its unique configuration field
 | Name                  | Data Type | Filling Requirements | Default Value | Description                                                                                              |
 |---------------------|----------|----------------------|---------------|---------------------------------------------------------------------------------------------------------|
 | `geminiSafetySetting` | map of string   | Optional             | -             | Gemini AI content filtering and safety level settings. Refer to [Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings). |
+| `apiVersion` | string | 非必填 | `v1beta` | To specify the version of the API, you can choose either 'v1' or 'v1beta'. Version differences refer to https://ai.google.dev/gemini-api/docs/api-versions |
+| `geminiThinkingBudget` | number | 非必填 | - | The parameters of the gemini2.5 series: 0 indicates no thinking mode, -1 represents dynamic adjustment. For specific parameter references, please refer to the official website |
 
 ### DeepL
 
