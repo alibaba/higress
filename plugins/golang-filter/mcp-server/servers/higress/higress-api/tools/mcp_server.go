@@ -449,7 +449,7 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"name": {"type": "string", "description": "Service name + Service type, such as:daxt-mcp.static".which must be real exist service},
+								"name": {"type": "string", "description": "Service name + Service type, such as:daxt-mcp.static .which must be real exist service"},
 								"port": {"type": "integer", "description": "Service port"},
 								"version": {"type": "string", "description": "Service version"},
 								"weight": {"type": "integer", "description": "Service weight"}
@@ -494,7 +494,7 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 						"description": "The upstream MCP server will redirect requests based on the path prefix"
 					}
 				},
-				"required": ["name", "type", "dsn", "services", dbType],
+				"required": ["name", "type", "dsn", "services", "dbType"],
 				"additionalProperties": false
 			}
 		},
