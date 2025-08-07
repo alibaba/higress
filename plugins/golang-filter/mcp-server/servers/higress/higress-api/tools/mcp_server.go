@@ -449,7 +449,7 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"name": {"type": "string", "description": "Service name"},
+								"name": {"type": "string", "description": "Service name + Service type, such as:daxt-mcp.static".which must be real exist service},
 								"port": {"type": "integer", "description": "Service port"},
 								"version": {"type": "string", "description": "Service version"},
 								"weight": {"type": "integer", "description": "Service weight"}
@@ -482,11 +482,11 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 					},
 					"dsn": {
 						"type": "string",
-						"description": "Data Source Name. For DB type server, it is required"
+						"description": "Data Source Name. For DB type server, it is required such as username:passwd@tcp(ip:port)/Database .For other, it can be empty."
 					},
 					"dbType": {
 						"type": "string",
-						"enum": ["MYSQL", "POSTGRESQL", "SQLITE", "CLICKHOUSE"],
+						"enum": ["MYSQL", "POSTGRESQL", "SQLITE", "CLICKHOUSE", ""],
 						"description": "Mcp Server DB Type"
 					},
 					"upstreamPathPrefix": {
@@ -494,7 +494,7 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 						"description": "The upstream MCP server will redirect requests based on the path prefix"
 					}
 				},
-				"required": ["name", "type"],
+				"required": ["name", "type", "dsn", "services", dbType],
 				"additionalProperties": false
 			}
 		},
