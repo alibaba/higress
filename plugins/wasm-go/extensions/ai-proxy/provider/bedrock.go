@@ -729,22 +729,25 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		},
 	}
 
-	if origRequest.ToolChoice != nil && origRequest.Tools != nil {
-		if choice_type, ok := origRequest.ToolChoice.(string); ok {
+	if origRequest.Tools != nil {
+		request.ToolConfig = &bedrockToolConfig{}
+		if origRequest.ToolChoice == nil {
+			request.ToolConfig.ToolChoice.Auto = &struct{}{}
+		} else if choice_type, ok := origRequest.ToolChoice.(string); ok {
 			switch choice_type {
 			case "none":
-				request.ToolChoice.Any = &struct{}{}
+				request.ToolConfig.ToolChoice.Any = &struct{}{}
 			case "auto":
-				request.ToolChoice.Auto = &struct{}{}
+				request.ToolConfig.ToolChoice.Auto = &struct{}{}
 			}
 		} else if choice, ok := origRequest.ToolChoice.(toolChoice); ok {
-			request.ToolChoice.Tool = &bedrockToolSpecification{
+			request.ToolConfig.ToolChoice.Tool = &bedrockToolSpecification{
 				Name: choice.Function.Name,
 			}
 		}
-		request.Tools = []bedrockTool{}
+		request.ToolConfig.Tools = []bedrockTool{}
 		for _, tool := range origRequest.Tools {
-			request.Tools = append(request.Tools, bedrockTool{
+			request.ToolConfig.Tools = append(request.ToolConfig.Tools, bedrockTool{
 				ToolSpec: bedrockToolSpecification{
 					InputSchema: bedrockToolInputSchemaJson{Json: tool.Function.Parameters},
 					Name:        tool.Function.Name,
@@ -759,12 +762,15 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 	}
 
 	requestBytes, err := json.Marshal(request)
+	// log.Infof("Bedrock request: %s", string(requestBytes))
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err
 }
 
 func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseResponse) *chatCompletionResponse {
 	var outputContent string
+	// responseRaw, _ := json.Marshal(bedrockResponse)
+	// log.Infof("Bedrock response: %s", string(responseRaw))
 	if len(bedrockResponse.Output.Message.Content) > 0 {
 		outputContent = bedrockResponse.Output.Message.Content[0].Text
 	}
@@ -829,8 +835,12 @@ type bedrockTextGenRequest struct {
 	InferenceConfig              bedrockInferenceConfig   `json:"inferenceConfig,omitempty"`
 	AdditionalModelRequestFields map[string]interface{}   `json:"additionalModelRequestFields,omitempty"`
 	PerformanceConfig            PerformanceConfiguration `json:"performanceConfig,omitempty"`
-	Tools                        []bedrockTool            `json:"tools,omitempty"`
-	ToolChoice                   bedrockToolChoice        `json:"toolChoice,omitempty"`
+	ToolConfig                   *bedrockToolConfig       `json:"toolConfig,omitempty"`
+}
+
+type bedrockToolConfig struct {
+	Tools      []bedrockTool     `json:"tools,omitempty"`
+	ToolChoice bedrockToolChoice `json:"toolChoice,omitempty"`
 }
 
 type PerformanceConfiguration struct {
