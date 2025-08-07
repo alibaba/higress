@@ -8,11 +8,11 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func TestParseClusterKeyRateLimitConfig(t *testing.T) {
+func TestParseAiTokenRateLimitConfig(t *testing.T) {
 	tests := []struct {
 		name        string
 		json        string
-		expected    ClusterKeyRateLimitConfig
+		expected    AiTokenRateLimitConfig
 		expectedErr error
 	}{
 		{
@@ -25,20 +25,20 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 			json: `{
 				"rule_name": "invalid-threshold",
 				"global_threshold": {
-					"query_per_minute": -100
+					"token_per_minute": -100
 				}
 			}`,
-			expectedErr: errors.New("failed to parse global_threshold: 'query_per_minute' must be a positive integer, got -100"),
+			expectedErr: errors.New("failed to parse global_threshold: 'token_per_minute' must be a positive integer, got -100"),
 		},
 		{
 			name: "GlobalThreshold_QueryPerSecond",
 			json: `{
 				"rule_name": "global-route-limit",
 				"global_threshold": {
-					"query_per_second": 100
+					"token_per_second": 100
 				}
 			}`,
-			expected: ClusterKeyRateLimitConfig{
+			expected: AiTokenRateLimitConfig{
 				RuleName: "global-route-limit",
 				GlobalThreshold: &GlobalThreshold{
 					Count:      100,
@@ -53,10 +53,10 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 			json: `{
 				"rule_name": "global-route-limit",
 				"global_threshold": {
-					"query_per_minute": 1000
+					"token_per_minute": 1000
 				}
 			}`,
-			expected: ClusterKeyRateLimitConfig{
+			expected: AiTokenRateLimitConfig{
 				RuleName: "global-route-limit",
 				GlobalThreshold: &GlobalThreshold{
 					Count:      1000,
@@ -74,12 +74,12 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 					{
 						"limit_by_header": "x-test",
 						"limit_keys": [
-							{"key": "key1", "query_per_minute": -100}
+							{"key": "key1", "token_per_minute": -100}
 						]
 					}
 				]
 			}`,
-			expectedErr: errors.New("failed to parse rule_item in rule_items: 'query_per_minute' must be a positive integer for key 'key1', got -100"),
+			expectedErr: errors.New("failed to parse rule_item in rule_items: 'token_per_minute' must be a positive integer for key 'key1', got -100"),
 		},
 		{
 			name: "RuleItems_SingleRule",
@@ -89,12 +89,12 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 					{
 						"limit_by_header": "x-test",
 						"limit_keys": [
-							{"key": "key1", "query_per_second": 10}
+							{"key": "key1", "token_per_second": 10}
 						]
 					}
 				]
 			}`,
-			expected: ClusterKeyRateLimitConfig{
+			expected: AiTokenRateLimitConfig{
 				RuleName: "rule-based-limit",
 				RuleItems: []LimitRuleItem{
 					{
@@ -122,18 +122,18 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 					{
 						"limit_by_param": "user_id",
 						"limit_keys": [
-							{"key": "123", "query_per_hour": 50}
+							{"key": "123", "token_per_hour": 50}
 						]
 					},
 					{
 						"limit_by_per_cookie": "session_id",
 						"limit_keys": [
-							{"key": "*", "query_per_day": 100}
+							{"key": "*", "token_per_day": 100}
 						]
 					}
 				]
 			}`,
-			expected: ClusterKeyRateLimitConfig{
+			expected: AiTokenRateLimitConfig{
 				RuleName: "multi-rule-limit",
 				RuleItems: []LimitRuleItem{
 					{
@@ -169,7 +169,7 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 			name: "Conflict_GlobalThresholdAndRuleItems",
 			json: `{
 				"rule_name": "test-conflict",
-				"global_threshold": {"query_per_second": 100},
+				"global_threshold": {"token_per_second": 100},
 				"rule_items": [{"limit_by_header": "x-test"}]
 			}`,
 			expectedErr: errors.New("'global_threshold' and 'rule_items' cannot be set at the same time"),
@@ -187,9 +187,9 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 				"rule_name": "custom-reject",
 				"rejected_code": 403,
 				"rejected_msg": "Forbidden",
-				"global_threshold": {"query_per_second": 100}
+				"global_threshold": {"token_per_second": 100}
 			}`,
-			expected: ClusterKeyRateLimitConfig{
+			expected: AiTokenRateLimitConfig{
 				RuleName: "custom-reject",
 				GlobalThreshold: &GlobalThreshold{
 					Count:      100,
@@ -199,31 +199,13 @@ func TestParseClusterKeyRateLimitConfig(t *testing.T) {
 				RejectedMsg:  "Forbidden",
 			},
 		},
-		{
-			name: "ShowLimitQuotaHeader_Enabled",
-			json: `{
-				"rule_name": "show-header",
-				"show_limit_quota_header": true,
-				"global_threshold": {"query_per_second": 100}
-			}`,
-			expected: ClusterKeyRateLimitConfig{
-				RuleName: "show-header",
-				GlobalThreshold: &GlobalThreshold{
-					Count:      100,
-					TimeWindow: Second,
-				},
-				ShowLimitQuotaHeader: true,
-				RejectedCode:         DefaultRejectedCode,
-				RejectedMsg:          DefaultRejectedMsg,
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var config ClusterKeyRateLimitConfig
+			var config AiTokenRateLimitConfig
 			result := gjson.Parse(tt.json)
-			err := ParseClusterKeyRateLimitConfig(result, &config)
+			err := ParseAiTokenRateLimitConfig(result, &config)
 
 			if tt.expectedErr != nil {
 				assert.EqualError(t, err, tt.expectedErr.Error())

@@ -293,7 +293,7 @@ apis:
 本示例配置了三个服务，演示了get与post两种类型的工具。其中get类型的工具包括高德地图与心知天气，post类型的工具是deepl翻译。三个服务都需要现在Higress的服务中以DNS域名的方式配置好，并确保健康。
 高德地图提供了两个工具，分别是获取指定地点的坐标，以及搜索坐标附近的感兴趣的地点。文档：https://lbs.amap.com/api/webservice/guide/api-advanced/newpoisearch
 心知天气提供了一个工具，用于获取指定城市的实时天气情况，支持中文，英文，日语返回，以及摄氏度和华氏度的表示。文档：https://seniverse.yuque.com/hyper_data/api_v3/nyiu3t
-deepl提供了一个工具，用于翻译给定的句子，支持多语言。。文档：https://developers.deepl.com/docs/v/zh/api-reference/translate?fallback=true
+deepl提供了一个工具，用于翻译给定的句子，支持多语言。文档：https://developers.deepl.com/api-reference/translate/request-translation
 
 
 以下为测试用例，为了效果的稳定性，建议保持大模型版本的稳定，本例子中使用的qwen-max-0403：

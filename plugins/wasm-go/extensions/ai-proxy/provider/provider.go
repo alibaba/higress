@@ -67,6 +67,7 @@ const (
 	ApiNameAnthropicComplete           ApiName = "anthropic/v1/complete"
 
 	// OpenAI
+	PathOpenAIPrefix                               = "/v1"
 	PathOpenAICompletions                          = "/v1/completions"
 	PathOpenAIChatCompletions                      = "/v1/chat/completions"
 	PathOpenAIEmbeddings                           = "/v1/embeddings"
@@ -343,6 +344,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN Gemini Thinking Budget 配置
+	// @Description zh-CN 仅适用于 Gemini AI 服务，用于控制思考预算
+	geminiThinkingBudget int64 `required:"false" yaml:"geminiThinkingBudget" json:"geminiThinkingBudget"`
 	// @Title zh-CN Vertex AI访问区域
 	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
 	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
@@ -471,6 +475,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.geminiSafetySetting[k] = v.String()
 		}
 	}
+	c.geminiThinkingBudget = json.Get("geminiThinkingBudget").Int()
 	c.vertexRegion = json.Get("vertexRegion").String()
 	c.vertexProjectId = json.Get("vertexProjectId").String()
 	c.vertexAuthKey = json.Get("vertexAuthKey").String()
@@ -851,7 +856,7 @@ func (c *ProviderConfig) handleRequestBody(
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body)
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
-		headers := util.GetOriginalRequestHeaders()
+		headers := util.GetRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 		util.ReplaceRequestHeaders(headers)
 	} else {
@@ -877,7 +882,7 @@ func (c *ProviderConfig) handleRequestBody(
 }
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
-	headers := util.GetOriginalRequestHeaders()
+	headers := util.GetRequestHeaders()
 	originPath := headers.Get(":path")
 	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
 		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
@@ -887,9 +892,6 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 	}
 	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
 		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
-	}
-	if headers.Get(":path") != originPath {
-		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
 	}
 	util.ReplaceRequestHeaders(headers)
 }
@@ -908,7 +910,9 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 	}
 	model := gjson.GetBytes(body, "model").String()
 	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	return sjson.SetBytes(body, "model", getMappedModel(model, c.modelMapping))
+	mappedModel := getMappedModel(model, c.modelMapping)
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+	return sjson.SetBytes(body, "model", mappedModel)
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {

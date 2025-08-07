@@ -24,10 +24,10 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: consul-standlone
+  name: consul-standalone
   namespace: higress-conformance-app-backend
   labels:
-    name: consul-standlone
+    name: consul-standalone
 spec:
   containers:
     - name: consul
@@ -46,7 +46,7 @@ metadata:
   name: consul-service
   namespace: higress-conformance-app-backend
   labels:
-    name: consul-standlone
+    name: consul-standalone
 spec:
   clusterIP: None
   ports:
@@ -55,7 +55,7 @@ spec:
       protocol: TCP
       targetPort: 8500
   selector:
-    name: consul-standlone
+    name: consul-standalone
 ---
 apiVersion: v1
 kind: Pod
