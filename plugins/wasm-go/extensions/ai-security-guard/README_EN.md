@@ -31,6 +31,9 @@ Plugin Priority: `300`
 | `denyCode` | int | optional | 200 | Response status code when the specified content is illegal |
 | `denyMessage` | string | optional | Drainage/non-streaming response in openai format, the answer content is the suggested answer from Alibaba Cloud content security | Response content when the specified content is illegal |
 | `protocol` | string | optional | openai | protocol format, `openai` or `original` |
+| `riskLevelBar` | string | optional | high | risk level threshold, `max`, `high`, `medium` or `low` |
+| `timeout` | int | optional | 2000 | timeout for lvwang service |
+| `bufferLimit` | int | optional | 1000 | Limit the length of each text when calling the lvwang service |
 
 
 ## Examples of configuration
