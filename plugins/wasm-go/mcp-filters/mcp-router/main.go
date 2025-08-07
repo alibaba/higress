@@ -74,6 +74,13 @@ func ParseGlobalConfig(configBytes []byte, globalConfig *any) error {
 
 func ParseOverrideConfig(configBytes []byte, globalConfig any, ruleConfig *any) error {
 	var config McpRouterConfig
+	if globalConfig == nil {
+		config.global = &McpRouterGlobalConfig{}
+		config.enable = false
+		*ruleConfig = config
+		log.Error("globalConfig not found, mcp router will not work")
+		return nil
+	}
 	parent, ok := globalConfig.(McpRouterGlobalConfig)
 	if !ok {
 		return fmt.Errorf("invalid globalConfig: %v", globalConfig)
