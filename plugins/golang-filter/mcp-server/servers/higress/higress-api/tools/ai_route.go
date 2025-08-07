@@ -316,7 +316,7 @@ func getAddAiRouteSchema() json.RawMessage {
 					"pathPredicate": {
 						"type": "object",
 						"properties": {
-							"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+							"matchType": {"type": "string", "enum": ["PRE"], "description": "Match type"},
 							"matchValue": {"type": "string", "description": "The value to match against"},
 							"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 						},
@@ -329,7 +329,7 @@ func getAddAiRouteSchema() json.RawMessage {
 							"type": "object",
 							"properties": {
 								"key": {"type": "string", "description": "Header key"},
-								"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+								"matchType": {"type": "string", "enum": ["EQUAL", "PRE", "REGULAR"], "description": "Match type"},
 								"matchValue": {"type": "string", "description": "The value to match against"},
 								"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 							},
@@ -343,7 +343,7 @@ func getAddAiRouteSchema() json.RawMessage {
 							"type": "object",
 							"properties": {
 								"key": {"type": "string", "description": "URL parameter key"},
-								"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+								"matchType": {"type": "string", "enum": ["EQUAL", "PRE", "REGULAR"], "description": "Match type"},
 								"matchValue": {"type": "string", "description": "The value to match against"},
 								"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 							},
@@ -373,7 +373,7 @@ func getAddAiRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+								"matchType": {"type": "string", "enum": ["EQUAL", "PRE"], "description": "Match type"},
 								"matchValue": {"type": "string", "description": "The value to match against"},
 								"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 							},
@@ -452,7 +452,7 @@ func getUpdateAiRouteSchema() json.RawMessage {
 					"pathPredicate": {
 						"type": "object",
 						"properties": {
-							"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+							"matchType": {"type": "string", "enum": ["EQUAL", "PRE", "REGULAR"], "description": "Match type"},
 							"matchValue": {"type": "string", "description": "The value to match against"},
 							"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 						},
@@ -465,7 +465,7 @@ func getUpdateAiRouteSchema() json.RawMessage {
 							"type": "object",
 							"properties": {
 								"key": {"type": "string", "description": "Header key"},
-								"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+								"matchType": {"type": "string", "enum": ["EQUAL", "PRE", "REGULAR"], "description": "Match type"},
 								"matchValue": {"type": "string", "description": "The value to match against"},
 								"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 							},
@@ -479,7 +479,7 @@ func getUpdateAiRouteSchema() json.RawMessage {
 							"type": "object",
 							"properties": {
 								"key": {"type": "string", "description": "URL parameter key"},
-								"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+								"matchType": {"type": "string", "enum": ["EQUAL", "PRE", "REGULAR"], "description": "Match type"},
 								"matchValue": {"type": "string", "description": "The value to match against"},
 								"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 							},
@@ -509,7 +509,7 @@ func getUpdateAiRouteSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"matchType": {"type": "string", "enum": ["EXACT", "PRE", "REGEX"], "description": "Match type"},
+								"matchType": {"type": "string", "enum": ["EQUAL", "PRE", "REGULAR"], "description": "Match type"},
 								"matchValue": {"type": "string", "description": "The value to match against"},
 								"caseSensitive": {"type": "boolean", "description": "Whether to match the value case-sensitively"}
 							},
