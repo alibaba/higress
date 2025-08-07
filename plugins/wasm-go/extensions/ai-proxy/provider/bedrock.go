@@ -785,15 +785,17 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 	if stopReasonBedrock2OpenAI(bedrockResponse.StopReason) == finishReasonToolCall {
 		choice.Message.ToolCalls = []toolCall{}
 		for _, content := range bedrockResponse.Output.Message.Content {
-			args, _ := json.Marshal(content.ToolUse.Input)
-			choice.Message.ToolCalls = append(choice.Message.ToolCalls, toolCall{
-				Id:   content.ToolUse.ToolUseId,
-				Type: "function",
-				Function: functionCall{
-					Name:      content.ToolUse.Name,
-					Arguments: string(args),
-				},
-			})
+			if content.ToolUse != nil {
+				args, _ := json.Marshal(content.ToolUse.Input)
+				choice.Message.ToolCalls = append(choice.Message.ToolCalls, toolCall{
+					Id:   content.ToolUse.ToolUseId,
+					Type: "function",
+					Function: functionCall{
+						Name:      content.ToolUse.Name,
+						Arguments: string(args),
+					},
+				})
+			}
 		}
 	}
 	choices := []chatCompletionChoice{choice}
@@ -918,8 +920,8 @@ type message struct {
 }
 
 type contentBlock struct {
-	Text    string         `json:"text,omitempty"`
-	ToolUse bedrockToolUse `json:"toolUse,omitempty"`
+	Text    string          `json:"text,omitempty"`
+	ToolUse *bedrockToolUse `json:"toolUse,omitempty"`
 }
 
 type bedrockToolUse struct {
