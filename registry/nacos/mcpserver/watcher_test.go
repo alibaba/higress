@@ -86,7 +86,7 @@ func testCallback(msc *McpServerConfig) memory.Cache {
 			},
 		},
 	}
-	localCache := memory.NewCache()
+	localCache := memory.NewCache(nil)
 
 	testWatcher := newTestWatcher(localCache,
 		WithType(registryConfig.Type),
