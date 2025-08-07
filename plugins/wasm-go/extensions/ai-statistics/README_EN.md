@@ -24,6 +24,8 @@ Users can also expand observable values ​​through configuration:
 |----------------|-------|------|-----|------------------------|
 | `attributes` | []Attribute | optional  | -   | Information that the user wants to record in log/span |
 | `disable_openai_usage` | bool | optional  | false   | When using a non-OpenAI-compatible protocol, the support for model and token is non-standard. Setting the configuration to true can prevent errors. |
+| `value_length_limit` | int | optional  | 4000   | length limit for each value |
+
 
 Attribute Configuration instructions:
 
