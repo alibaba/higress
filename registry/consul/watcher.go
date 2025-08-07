@@ -20,14 +20,16 @@ import (
 	"sync"
 	"time"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/api/watch"
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
+
+	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	"github.com/alibaba/higress/pkg/common"
+	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
+	provider "github.com/alibaba/higress/registry"
+	"github.com/alibaba/higress/registry/memory"
 )
 
 const (
@@ -295,7 +297,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 			serviceEntry := w.generateServiceEntry(host, services)
 			if serviceEntry != nil {
 				log.Infof("consul update serviceEntry %s cache", host)
-				w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+				w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 					ServiceEntry: serviceEntry,
 					ServiceName:  serviceName,
 					Suffix:       suffix,
