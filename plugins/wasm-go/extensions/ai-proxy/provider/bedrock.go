@@ -729,6 +729,31 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		},
 	}
 
+	if origRequest.ToolChoice != nil && origRequest.Tools != nil {
+		if choice_type, ok := origRequest.ToolChoice.(string); ok {
+			switch choice_type {
+			case "none":
+				request.ToolChoice.Any = &struct{}{}
+			case "auto":
+				request.ToolChoice.Auto = &struct{}{}
+			}
+		} else if choice, ok := origRequest.ToolChoice.(toolChoice); ok {
+			request.ToolChoice.Tool = &bedrockToolSpecification{
+				Name: choice.Function.Name,
+			}
+		}
+		request.Tools = []bedrockTool{}
+		for _, tool := range origRequest.Tools {
+			request.Tools = append(request.Tools, bedrockTool{
+				ToolSpec: bedrockToolSpecification{
+					InputSchema: bedrockToolInputSchemaJson{Json: tool.Function.Parameters},
+					Name:        tool.Function.Name,
+					Description: tool.Function.Description,
+				},
+			})
+		}
+	}
+
 	for key, value := range b.config.bedrockAdditionalFields {
 		request.AdditionalModelRequestFields[key] = value
 	}
@@ -743,16 +768,29 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 	if len(bedrockResponse.Output.Message.Content) > 0 {
 		outputContent = bedrockResponse.Output.Message.Content[0].Text
 	}
-	choices := []chatCompletionChoice{
-		{
-			Index: 0,
-			Message: &chatMessage{
-				Role:    bedrockResponse.Output.Message.Role,
-				Content: outputContent,
-			},
-			FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
+	choice := chatCompletionChoice{
+		Index: 0,
+		Message: &chatMessage{
+			Role:    bedrockResponse.Output.Message.Role,
+			Content: outputContent,
 		},
+		FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 	}
+	if stopReasonBedrock2OpenAI(bedrockResponse.StopReason) == finishReasonToolCall {
+		choice.Message.ToolCalls = []toolCall{}
+		for _, content := range bedrockResponse.Output.Message.Content {
+			args, _ := json.Marshal(content.ToolUse.Input)
+			choice.Message.ToolCalls = append(choice.Message.ToolCalls, toolCall{
+				Id:   content.ToolUse.ToolUseId,
+				Type: "function",
+				Function: functionCall{
+					Name:      content.ToolUse.Name,
+					Arguments: string(args),
+				},
+			})
+		}
+	}
+	choices := []chatCompletionChoice{choice}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
 	modelId, _ := url.QueryUnescape(ctx.GetStringContext(ctxKeyFinalRequestModel, ""))
 	return &chatCompletionResponse{
@@ -778,6 +816,8 @@ func stopReasonBedrock2OpenAI(reason string) string {
 		return finishReasonStop
 	case "max_tokens":
 		return finishReasonLength
+	case "tool_use":
+		return finishReasonToolCall
 	default:
 		return reason
 	}
@@ -789,10 +829,32 @@ type bedrockTextGenRequest struct {
 	InferenceConfig              bedrockInferenceConfig   `json:"inferenceConfig,omitempty"`
 	AdditionalModelRequestFields map[string]interface{}   `json:"additionalModelRequestFields,omitempty"`
 	PerformanceConfig            PerformanceConfiguration `json:"performanceConfig,omitempty"`
+	Tools                        []bedrockTool            `json:"tools,omitempty"`
+	ToolChoice                   bedrockToolChoice        `json:"toolChoice,omitempty"`
 }
 
 type PerformanceConfiguration struct {
 	Latency string `json:"latency,omitempty"`
+}
+
+type bedrockTool struct {
+	ToolSpec bedrockToolSpecification `json:"toolSpec,omitempty"`
+}
+
+type bedrockToolChoice struct {
+	Any  *struct{}                 `json:"any,omitempty"`
+	Auto *struct{}                 `json:"auto,omitempty"`
+	Tool *bedrockToolSpecification `json:"tool,omitempty"`
+}
+
+type bedrockToolSpecification struct {
+	InputSchema bedrockToolInputSchemaJson `json:"inputSchema,omitempty"`
+	Name        string                     `json:"name"`
+	Description string                     `json:"description,omitempty"`
+}
+
+type bedrockToolInputSchemaJson struct {
+	Json map[string]interface{} `json:"json,omitempty"`
 }
 
 type bedrockMessage struct {
@@ -841,13 +903,19 @@ type converseOutputMemberMessage struct {
 }
 
 type message struct {
-	Content []contentBlockMemberText `json:"content"`
-
-	Role string `json:"role"`
+	Content []contentBlock `json:"content"`
+	Role    string         `json:"role"`
 }
 
-type contentBlockMemberText struct {
-	Text string `json:"text"`
+type contentBlock struct {
+	Text    string         `json:"text,omitempty"`
+	ToolUse bedrockToolUse `json:"toolUse,omitempty"`
+}
+
+type bedrockToolUse struct {
+	Name      string                 `json:"name"`
+	ToolUseId string                 `json:"toolUseId"`
+	Input     map[string]interface{} `json:"input"`
 }
 
 type tokenUsage struct {
