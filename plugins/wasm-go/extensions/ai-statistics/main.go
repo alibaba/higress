@@ -339,15 +339,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
-  contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+
+	if !isContentTypeEnabled(contentType, config.enableContentTypes) {
+		log.Debugf("ai-statistics: skipping response for content type %s (not in enabled content types)", contentType)
+		// Set skip processing flag and avoid reading response body
+		ctx.SetContext(SkipProcessing, true)
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 
 	if !strings.Contains(contentType, "text/event-stream") {
-    		ctx.BufferResponseBody()
-    	}
-
-	// Check if processing should be skipped
-	if ctx.GetBoolContext(SkipProcessing, false) {
-		return types.ActionContinue
+		ctx.BufferResponseBody()
 	}
 
 	// Set user defined log & span attributes.
