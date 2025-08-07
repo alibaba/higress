@@ -129,6 +129,8 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 		}
 	}
 
+	proxywasm.ReplaceHttpRequestHeader("x-envoy-internal-route", "true")
+
 	// Modify the :path header
 	if err := proxywasm.ReplaceHttpRequestHeader(":path", targetServer.Path); err != nil {
 		log.Errorf("Failed to set :path header to '%s': %v", targetServer.Path, err)
