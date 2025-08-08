@@ -122,14 +122,13 @@ func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	util.ReplaceRequestHeaders(headers)
 
 	if apiName == ApiNameChatCompletion {
-		// if g.config.context == nil {
-		// 	return types.ActionContinue, replaceRequestBody(body)
-		// }
-		// err = g.contextCache.GetContextFromFile(ctx, g, body)
+		if g.config.context != nil {
+			err = g.contextCache.GetContextFromFile(ctx, g, body)
+			if err == nil {
+				return types.ActionPause, nil
+			}
+		}
 
-		// if err == nil {
-		// 	return types.ActionPause, nil
-		// }
 		if action, err := g.processImageURL(ctx, request); err != nil {
 			return action, err
 		} else {
@@ -652,22 +651,17 @@ func (g *geminiProvider) getImageInlineDataWithCallback(raw string, callback fun
 	}
 
 	timeout := (time.Second * 30).Milliseconds()
-	// userAgent, _ := proxywasm.GetHttpRequestHeader("User-Agent")
 
-	u, _ := url.Parse(raw)
-	log.Infof("url host: ", u.Host)
-	// header := util.CreateHeaders(
-	// 	"Accept", "image/*",
-	// 	"Host", u.Host,
-	// 	"User-Agent", userAgent,
-	// 	":path", u.Path,
-	// )
-	header := util.CreateHeaders("Accept", "image/*", "Host", u.Host)
+	headers := [][2]string{
+		{"Accept", "image/*"},
+		{"User-Agent", "Mozilla/5.0 (compatible; AI-Proxy/1.0)"},
+		{"Referer", "https://www.google.com/"},
+	}
 	if g.client == nil {
 		log.Error("client is nil")
 		return
 	}
-	err := g.client.Get(raw, header, responseCallback, uint32(timeout))
+	err := g.client.Get(raw, headers, responseCallback, uint32(timeout))
 	if err != nil {
 		log.Errorf("failed to get image %s data", raw)
 		callback(nil, fmt.Errorf("failed to get image %s", raw))
