@@ -171,6 +171,7 @@ type chatMessage struct {
 	ReasoningContent string                 `json:"reasoning_content,omitempty"`
 	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
 	Refusal          string                 `json:"refusal,omitempty"`
+	ToolCallId       string                 `json:"tool_call_id,omitempty"`
 }
 
 func (m *chatMessage) handleNonStreamingReasoningContent(reasoningContentMode string) {

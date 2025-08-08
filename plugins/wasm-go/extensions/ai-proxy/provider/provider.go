@@ -136,6 +136,7 @@ const (
 	roleSystem    = "system"
 	roleAssistant = "assistant"
 	roleUser      = "user"
+	roleTool      = "tool"
 
 	finishReasonStop     = "stop"
 	finishReasonLength   = "length"

@@ -708,9 +708,12 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 	systemMessages := make([]systemContentBlock, 0)
 
 	for _, msg := range origRequest.Messages {
-		if msg.Role == roleSystem {
+		switch msg.Role {
+		case roleSystem:
 			systemMessages = append(systemMessages, systemContentBlock{Text: msg.StringContent()})
-		} else {
+		case roleTool:
+			messages = append(messages, chatToolMessage2BedrockMessage(msg))
+		default:
 			messages = append(messages, chatMessage2BedrockMessage(msg))
 		}
 	}
@@ -768,17 +771,12 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 }
 
 func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseResponse) *chatCompletionResponse {
-	var outputContent string
 	// responseRaw, _ := json.Marshal(bedrockResponse)
 	// log.Infof("Bedrock response: %s", string(responseRaw))
-	if len(bedrockResponse.Output.Message.Content) > 0 {
-		outputContent = bedrockResponse.Output.Message.Content[0].Text
-	}
 	choice := chatCompletionChoice{
 		Index: 0,
 		Message: &chatMessage{
-			Role:    bedrockResponse.Output.Message.Role,
-			Content: outputContent,
+			Role: bedrockResponse.Output.Message.Role,
 		},
 		FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 	}
@@ -797,6 +795,9 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 				})
 			}
 		}
+	} else if len(bedrockResponse.Output.Message.Content) > 0 {
+		outputContent := bedrockResponse.Output.Message.Content[0].Text
+		choice.Message.Content = outputContent
 	}
 	choices := []chatCompletionChoice{choice}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
@@ -875,8 +876,10 @@ type bedrockMessage struct {
 }
 
 type bedrockMessageContent struct {
-	Text  string      `json:"text,omitempty"`
-	Image *imageBlock `json:"image,omitempty"`
+	Text       string           `json:"text,omitempty"`
+	Image      *imageBlock      `json:"image,omitempty"`
+	ToolResult *toolResultBlock `json:"toolResult,omitempty"`
+	ToolUse    *toolUseBlock    `json:"toolUse,omitempty"`
 }
 
 type systemContentBlock struct {
@@ -890,6 +893,22 @@ type imageBlock struct {
 
 type imageSource struct {
 	Bytes string `json:"bytes,omitempty"`
+}
+
+type toolResultBlock struct {
+	ToolUseId string                   `json:"toolUseId"`
+	Content   []toolResultContentBlock `json:"content"`
+	Status    string                   `json:"status,omitempty"`
+}
+
+type toolResultContentBlock struct {
+	Text string `json:"text"`
+}
+
+type toolUseBlock struct {
+	Input     map[string]interface{} `json:"input"`
+	Name      string                 `json:"name"`
+	ToolUseId string                 `json:"toolUseId"`
 }
 
 type bedrockInferenceConfig struct {
@@ -938,9 +957,54 @@ type tokenUsage struct {
 	TotalTokens int `json:"totalTokens"`
 }
 
+func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
+	toolResultContent := &toolResultBlock{}
+	toolResultContent.ToolUseId = chatMessage.ToolCallId
+	if text, ok := chatMessage.Content.(string); ok {
+		toolResultContent.Content = []toolResultContentBlock{
+			{
+				Text: text,
+			},
+		}
+		openaiContent := chatMessage.ParseContent()
+		for _, part := range openaiContent {
+			var content bedrockMessageContent
+			if part.Type == contentTypeText {
+				content.Text = part.Text
+			} else {
+
+				continue
+			}
+		}
+	} else {
+		log.Warnf("only text content is supported, current content is %v", chatMessage.Content)
+	}
+	return bedrockMessage{
+		Role: roleUser,
+		Content: []bedrockMessageContent{
+			{
+				ToolResult: toolResultContent,
+			},
+		},
+	}
+}
+
 func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
-	if chatMessage.IsStringContent() {
-		return bedrockMessage{
+	var result bedrockMessage
+	if len(chatMessage.ToolCalls) > 0 {
+		result = bedrockMessage{
+			Role:    chatMessage.Role,
+			Content: []bedrockMessageContent{{}},
+		}
+		var params map[string]interface{}
+		json.Unmarshal([]byte(chatMessage.ToolCalls[0].Function.Arguments), &params)
+		result.Content[0].ToolUse = &toolUseBlock{
+			Input:     params,
+			Name:      chatMessage.ToolCalls[0].Function.Name,
+			ToolUseId: chatMessage.ToolCalls[0].Id,
+		}
+	} else if chatMessage.IsStringContent() {
+		result = bedrockMessage{
 			Role:    chatMessage.Role,
 			Content: []bedrockMessageContent{{Text: chatMessage.StringContent()}},
 		}
@@ -957,11 +1021,12 @@ func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 			}
 			contents = append(contents, content)
 		}
-		return bedrockMessage{
+		result = bedrockMessage{
 			Role:    chatMessage.Role,
 			Content: contents,
 		}
 	}
+	return result
 }
 
 func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
