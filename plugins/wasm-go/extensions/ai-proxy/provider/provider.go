@@ -137,9 +137,11 @@ const (
 	roleSystem    = "system"
 	roleAssistant = "assistant"
 	roleUser      = "user"
+	roleTool      = "tool"
 
-	finishReasonStop   = "stop"
-	finishReasonLength = "length"
+	finishReasonStop     = "stop"
+	finishReasonLength   = "length"
+	finishReasonToolCall = "tool_calls"
 
 	ctxKeyIncrementalStreaming   = "incrementalStreaming"
 	ctxKeyApiKey                 = "apiKey"
