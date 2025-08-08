@@ -26,8 +26,8 @@ Users can also expand observable values ​​through configuration:
 | ------------------------- | ----------- | -------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `attributes`              | []Attribute | optional | -                                                                                                                    | Information that the user wants to record in log/span                                                                                               |
 | `disable_openai_usage`    | bool        | optional | false                                                                                                                | When using a non-OpenAI-compatible protocol, the support for model and token is non-standard. Setting the configuration to true can prevent errors. |
-| `enable_on_path_suffix`   | []string    | optional | ["/v1/chat/completions","/v1/completions","/v1/embeddings","/v1/models","/generateContent","/streamGenerateContent"] | Only effective for requests with these specific path suffixes, can be configured as "\*" to match all paths                                         |
-| `enable_on_content_types` | []string    | optional | ["text/event-stream","application/json"]                                                                             | Only buffer response body for these content types                                                                                                   |
+| `enable_path_suffixes`   | []string    | optional | ["/v1/chat/completions","/v1/completions","/v1/embeddings","/v1/models","/generateContent","/streamGenerateContent"] | Only effective for requests with these specific path suffixes, can be configured as "\*" to match all paths                                         |
+| `enable_content_types` | []string    | optional | ["text/event-stream","application/json"]                                                                             | Only buffer response body for these content types                                                                                                   |
 
 Attribute Configuration instructions:
 
@@ -215,7 +215,7 @@ attributes:
 #### Process Only Specific AI Paths
 
 ```yaml
-enable_on_path_suffix:
+enable_path_suffixes:
   - "/v1/chat/completions"
   - "/v1/embeddings"
   - "/generateContent"
@@ -224,7 +224,7 @@ enable_on_path_suffix:
 #### Process Only Specific Content Types
 
 ```yaml
-enable_on_content_types:
+enable_content_types:
   - "text/event-stream"
   - "application/json"
 ```
@@ -232,18 +232,18 @@ enable_on_content_types:
 #### Process All Paths (Wildcard)
 
 ```yaml
-enable_on_path_suffix:
+enable_path_suffixes:
   - "*"
 ```
 
 #### Complete Configuration Example
 
 ```yaml
-enable_on_path_suffix:
+enable_path_suffixes:
   - "/v1/chat/completions"
   - "/v1/embeddings"
   - "/generateContent"
-enable_on_content_types:
+enable_content_types:
   - "text/event-stream"
   - "application/json"
 attributes:
