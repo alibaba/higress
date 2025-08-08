@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -8,11 +9,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/google/uuid"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -62,12 +67,17 @@ func (g *geminiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	return &geminiProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
+		client: wrapper.NewClusterClient(wrapper.RouteCluster{
+			Host: geminiDomain,
+		}),
 	}, nil
 }
 
 type geminiProvider struct {
 	config       ProviderConfig
 	contextCache *contextCache
+
+	client wrapper.HttpClient
 }
 
 func (g *geminiProvider) GetProviderType() string {
@@ -86,11 +96,48 @@ func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 	util.OverwriteRequestAuthorizationHeader(headers, "")
 }
 
+// to support the multimodal for gemini, we can't reuse the config's handleRequestBody
 func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !g.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	return g.config.handleRequestBody(g, g.contextCache, ctx, apiName, body)
+
+	if g.config.firstByteTimeout != 0 && g.config.isStreamingAPI(apiName, body) {
+		err := proxywasm.ReplaceHttpRequestHeader("x-envoy-upstream-rq-first-byte-timeout-ms",
+			strconv.FormatUint(uint64(g.config.firstByteTimeout), 10))
+		if err != nil {
+			log.Errorf("failed to set timeout header: %v", err)
+		}
+	}
+
+	if g.config.IsOriginal() {
+		return types.ActionContinue, nil
+	}
+
+	headers := util.GetRequestHeaders()
+	request, err := g.TransformRequestBodyHeaders(ctx, apiName, body, headers)
+	if err != nil {
+		return types.ActionContinue, err
+	}
+	util.ReplaceRequestHeaders(headers)
+
+	if apiName == ApiNameChatCompletion {
+		// if g.config.context == nil {
+		// 	return types.ActionContinue, replaceRequestBody(body)
+		// }
+		// err = g.contextCache.GetContextFromFile(ctx, g, body)
+
+		// if err == nil {
+		// 	return types.ActionPause, nil
+		// }
+		if action, err := g.processImageURL(ctx, request); err != nil {
+			return action, err
+		} else {
+			return action, replaceRequestBody(request)
+		}
+
+	}
+	return types.ActionContinue, replaceRequestBody(request)
 }
 
 func (g *geminiProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
@@ -426,9 +473,7 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 						Text: c.Text,
 					})
 				case contentTypeImageUrl:
-					content.Parts = append(content.Parts, geminiPart{
-						InlineData: g.convertImage2InlineData(c.ImageUrl),
-					})
+					content.Parts = append(content.Parts, g.handleContentTypeImageUrl(c.ImageUrl))
 				default:
 					log.Debugf("currently gemini did not support this type: %s", c.Type)
 				}
@@ -451,64 +496,116 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 	return &geminiRequest
 }
 
+func (g *geminiProvider) countImageUrl(request *geminiGenerationContentRequest) int {
+	totalImages := 0
+	for _, c := range request.Contents {
+		for _, p := range c.Parts {
+			if p.InlineData != nil && g.isUrl(p.InlineData.Data) {
+				totalImages += 1
+			}
+		}
+	}
+	return totalImages
+}
+
+func (g *geminiProvider) processImageURL(ctx wrapper.HttpContext, body []byte) (types.Action, error) {
+	request := &geminiGenerationContentRequest{}
+	err := json.Unmarshal(body, request)
+	if err != nil {
+		log.Errorf("failed to unmarshal geminiGenerationRequest while handle multi modal")
+		return types.ActionContinue, err
+	}
+	var totalImages int
+	if totalImages = g.countImageUrl(request); totalImages == 0 {
+		// there are no images return directly
+		return types.ActionContinue, replaceRequestBody(body)
+	}
+
+	if err := g.processImageURLWithCallback(ctx, body, totalImages, func(body []byte, err error) {
+		defer func() {
+			_ = proxywasm.ResumeHttpRequest()
+		}()
+
+		if err != nil {
+			log.Errorf("failed to get image while handle multi modal: %v", err)
+			util.ErrorHandler("ai-proxy.gemini.fetch_image_failed", err)
+			return
+		}
+		// replace the request
+		if err := replaceRequestBody(body); err != nil {
+			util.ErrorHandler("ai-proxy.gemini.replace_request_body_failed", err)
+		}
+	}); err != nil {
+		return types.ActionContinue, err
+	}
+
+	return types.ActionPause, nil
+}
+
+func (g *geminiProvider) processImageURLWithCallback(ctx wrapper.HttpContext, body []byte, totalImages int, callback func([]byte, error)) error {
+	request := &geminiGenerationContentRequest{}
+	err := json.Unmarshal(body, request)
+	if err != nil {
+		log.Errorf("failed to unmarshal geminiGenerationRequest while handle multi modal")
+		return err
+	}
+
+	var pending int32
+	var callbackOnce sync.Once
+	var callbackErr error
+
+	// record the image's number
+	atomic.StoreInt32(&pending, int32(totalImages))
+
+	for ci, c := range request.Contents {
+		for pi := range c.Parts {
+			p := &request.Contents[ci].Parts[pi]
+			if p.InlineData != nil && g.isUrl(p.InlineData.Data) {
+				g.getImageInlineDataWithCallback(p.InlineData.Data, func(gid *geminiInlineData, err error) {
+					if err != nil {
+						log.Errorf("image fetch failed: %v", err)
+						callbackErr = err
+					} else {
+						*p.InlineData = *gid
+					}
+
+					if atomic.AddInt32(&pending, -1) == 0 {
+						callbackOnce.Do(func() {
+							body, err := json.Marshal(request)
+							if err != nil {
+								log.Errorf("failed to marshal request while processImageURL: %v", err)
+							}
+							callback(body, callbackErr)
+						})
+					}
+				})
+			}
+		}
+	}
+	return nil
+}
+
+func (g *geminiProvider) handleContentTypeImageUrl(c *chatMessageContentImageUrl) (part geminiPart) {
+	if g.isUrl(c.Url) {
+		part.InlineData = &geminiInlineData{
+			Data: c.Url,
+		}
+		return
+	}
+	part.InlineData = g.baseStr2InlineData(c.Url)
+	return
+}
+
 func (g *geminiProvider) isUrl(raw string) bool {
 	u, err := url.Parse(raw)
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https")
 }
 
-func (g *geminiProvider) downloadAndEncodeImage(url string) (string, string, error) {
-
-	client := http.Client{
-		Timeout: 30 * time.Second,
-	}
-	resp, err := client.Get(url)
-
-	if err != nil {
-		return "", "", err
-	}
-
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("get image url status: %d", resp.StatusCode)
-	}
-
-	// gemini support maxSize 100MB
-	const maxSize = 100 << 20
-	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSize+1))
-	if err != nil {
-		return "", "", fmt.Errorf("failed to read image data: %s", err)
-	}
-	if len(data) > maxSize {
-		return "", "", fmt.Errorf("image data exceeds 100MB limit")
-	}
-
-	mimeType := http.DetectContentType(data)
-
-	base64Data := base64.StdEncoding.EncodeToString([]byte(data))
-
-	return mimeType, base64Data, nil
-}
-
-func (g *geminiProvider) convertImage2InlineData(url *chatMessageContentImageUrl) *geminiInlineData {
-	baseStr := url.Url
-
-	if g.isUrl(baseStr) {
-		var err error
-		mime, baseData, err := g.downloadAndEncodeImage(baseStr)
-		if err != nil {
-			log.Errorf("Failed to process image url: %s", err)
-			return nil
-		}
-		return &geminiInlineData{
-			MimeType: mime,
-			Data:     baseData,
-		}
-	}
-
+func (g *geminiProvider) baseStr2InlineData(baseStr string) *geminiInlineData {
 	if strings.HasPrefix(baseStr, "data:") {
 		p := strings.SplitN(baseStr, ";", 2)
 		if len(p) != 2 {
-			log.Errorf("invalid base64 string")
+			log.Errorf("invalid base64 string: %s", p)
 			return nil
 		}
 
@@ -519,9 +616,63 @@ func (g *geminiProvider) convertImage2InlineData(url *chatMessageContentImageUrl
 			Data:     baseData,
 		}
 	}
+	log.Errorf("invalid base64 string: %s", baseStr)
+	return &geminiInlineData{
+		MimeType: "",
+		Data:     "",
+	}
+}
 
-	log.Errorf("unsupported image format: %s", url.Url)
-	return nil
+func (g *geminiProvider) getImageInlineDataWithCallback(raw string, callback func(*geminiInlineData, error)) {
+
+	responseCallback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		if statusCode != http.StatusOK {
+			callback(nil, fmt.Errorf("get %s failed, status: %v", raw, statusCode))
+			return
+		}
+		resReader := bytes.NewReader(responseBody)
+		const maxSize = 100 << 20
+		data, err := io.ReadAll(io.LimitReader(resReader, maxSize+1))
+		if err != nil {
+			callback(nil, fmt.Errorf("read %v response data failed: %v", raw, err))
+			return
+		}
+		if len(data) > maxSize {
+			callback(nil, fmt.Errorf("%v exceed max image size 100MB", raw))
+			return
+		}
+
+		mimeType := http.DetectContentType(data)
+		base64Data := base64.StdEncoding.EncodeToString(data)
+
+		callback(&geminiInlineData{
+			MimeType: mimeType,
+			Data:     base64Data,
+		}, nil)
+	}
+
+	timeout := (time.Second * 30).Milliseconds()
+	// userAgent, _ := proxywasm.GetHttpRequestHeader("User-Agent")
+
+	u, _ := url.Parse(raw)
+	log.Infof("url host: ", u.Host)
+	// header := util.CreateHeaders(
+	// 	"Accept", "image/*",
+	// 	"Host", u.Host,
+	// 	"User-Agent", userAgent,
+	// 	":path", u.Path,
+	// )
+	header := util.CreateHeaders("Accept", "image/*", "Host", u.Host)
+	if g.client == nil {
+		log.Error("client is nil")
+		return
+	}
+	err := g.client.Get(raw, header, responseCallback, uint32(timeout))
+	if err != nil {
+		log.Errorf("failed to get image %s data", raw)
+		callback(nil, fmt.Errorf("failed to get image %s", raw))
+		return
+	}
 }
 
 func (g *geminiProvider) setSystemContent(request *geminiGenerationContentRequest, content string) {
