@@ -158,6 +158,10 @@ DeepSeek 所对应的 `type` 为 `deepseek`。它并无特有的配置字段。
 
 Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
+#### Grok
+
+Grok 所对应的 `type` 为 `grok`。它并无特有的配置字段。
+
 #### 文心一言（Baidu）
 
 文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
@@ -231,10 +235,11 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 
 Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 
-| 名称                  | 数据类型      | 填写要求 | 默认值   | 描述                                                                                                                                       |
-| --------------------- | ------------- | -------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `geminiSafetySetting` | map of string | 非必填   | -        | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
-| `apiVersion`          | string        | 非必填   | `v1beta` | 用于指定 API 的版本, 可选择 `v1` 或 `v1beta` 。 版本差异请参考[API versions explained](https://ai.google.dev/gemini-api/docs/api-versions)。 |
+| 名称                   | 数据类型      | 填写要求 | 默认值   | 描述                                                         |
+| ---------------------- | ------------- | -------- | -------- | ------------------------------------------------------------ |
+| `geminiSafetySetting`  | map of string | 非必填   | -        | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
+| `apiVersion`           | string        | 非必填   | `v1beta` | 用于指定 API 的版本, 可选择 `v1` 或 `v1beta` 。 版本差异请参考[API versions explained](https://ai.google.dev/gemini-api/docs/api-versions)。 |
+| `geminiThinkingBudget` | number        | 非必填   | -        | gemini2.5系列的参数，0是不开启思考，-1动态调整，具体参数指可参考官网 |
 
 #### DeepL
 
@@ -859,6 +864,76 @@ provider:
   "x_groq": {
     "id": "req_01hy2awmcxfpwbq56qh6svm7qz"
   }
+}
+```
+
+### 使用 OpenAI 协议代理 Grok 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: grok
+  apiTokens:
+    - 'YOUR_GROK_API_TOKEN'
+```
+
+**请求示例**
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that can answer questions and help with tasks."
+    },
+    {
+      "role": "user",
+      "content": "What is 101*3?"
+    }
+  ],
+  "model": "grok-4"
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "a3d1008e-4544-40d4-d075-11527e794e4a",
+  "object": "chat.completion",
+  "created": 1752854522,
+  "model": "grok-4",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "101 multiplied by 3 is 303.",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 32,
+    "completion_tokens": 9,
+    "total_tokens": 135,
+    "prompt_tokens_details": {
+      "text_tokens": 32,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 6
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 94,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "num_sources_used": 0
+  },
+  "system_fingerprint": "fp_3a7881249c"
 }
 ```
 
