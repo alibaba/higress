@@ -29,7 +29,7 @@ jobs:
           echo "Version=$VERSION"
       # Step 3
       - name: Upload to OSS
-        uses: doggycool/ossutil-github-action@master
+        uses: go-choppy/ossutil-github-action@master
         with:
           ossArgs: 'cp -r -u ./artifact/ oss://higress-website-cn-hongkong/standalone/'
           accessKey: ${{ secrets.ACCESS_KEYID }}

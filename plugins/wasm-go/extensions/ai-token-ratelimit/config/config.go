@@ -6,7 +6,8 @@ import (
 	re "regexp"
 	"strings"
 
-	"cluster-key-rate-limit/util"
+	"ai-token-ratelimit/util"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
@@ -35,8 +36,6 @@ const (
 	AllType    LimitConfigItemType = "*"      // 匹配所有情况
 	IpNetType  LimitConfigItemType = "ipNet"  // ip段
 
-	ConsumerHeader = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
-
 	RemoteAddrSourceType = "remote-addr"
 	HeaderSourceType     = "header"
 
@@ -50,24 +49,24 @@ const (
 )
 
 var timeWindows = map[string]int64{
-	"query_per_second": Second,
-	"query_per_minute": SecondsPerMinute,
-	"query_per_hour":   SecondsPerHour,
-	"query_per_day":    SecondsPerDay,
+	"token_per_second": Second,
+	"token_per_minute": SecondsPerMinute,
+	"token_per_hour":   SecondsPerHour,
+	"token_per_day":    SecondsPerDay,
 }
 
-type ClusterKeyRateLimitConfig struct {
-	RuleName             string           // 限流规则名称
-	GlobalThreshold      *GlobalThreshold // 全局限流配置
-	RuleItems            []LimitRuleItem  // 限流规则项
-	ShowLimitQuotaHeader bool             // 响应头中是否显示X-RateLimit-Limit和X-RateLimit-Remaining
-	RejectedCode         uint32           // 当请求超过阈值被拒绝时,返回的HTTP状态码
-	RejectedMsg          string           // 当请求超过阈值被拒绝时,返回的响应体
-	RedisClient          wrapper.RedisClient
+type AiTokenRateLimitConfig struct {
+	RuleName        string           // 限流规则名称
+	GlobalThreshold *GlobalThreshold // 全局限流配置
+	RuleItems       []LimitRuleItem  // 限流规则项
+	RejectedCode    uint32           // 当请求超过阈值被拒绝时,返回的HTTP状态码
+	RejectedMsg     string           // 当请求超过阈值被拒绝时,返回的响应体
+	RedisClient     wrapper.RedisClient
+	CounterMetrics  map[string]proxywasm.MetricCounter // Metrics
 }
 
 type GlobalThreshold struct {
-	Count      int64 // 时间窗口内请求数
+	Count      int64 // 时间窗口内的token数
 	TimeWindow int64 // 时间窗口大小(秒)
 }
 
@@ -88,11 +87,23 @@ type LimitConfigItem struct {
 	Key        string              // 限流key
 	IpNet      *iptree.IPTree      // 限流key转换的ip地址或者ip段,仅用于itemType为ipNetType
 	Regexp     *re.Regexp          // 正则表达式,仅用于itemType为regexpType
-	Count      int64               // 指定时间窗口内的总请求数量阈值
+	Count      int64               // 指定时间窗口内的token数
 	TimeWindow int64               // 时间窗口大小
 }
 
-func InitRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
+func (cfg *AiTokenRateLimitConfig) IncrementCounter(metricName string, inc uint64) {
+	if inc == 0 {
+		return
+	}
+	counter, ok := cfg.CounterMetrics[metricName]
+	if !ok {
+		counter = proxywasm.DefineCounterMetric(metricName)
+		cfg.CounterMetrics[metricName] = counter
+	}
+	counter.Increment(inc)
+}
+
+func InitRedisClusterClient(json gjson.Result, config *AiTokenRateLimitConfig) error {
 	redisConfig := json.Get("redis")
 	if !redisConfig.Exists() {
 		return errors.New("missing redis in config")
@@ -125,10 +136,16 @@ func InitRedisClusterClient(json gjson.Result, config *ClusterKeyRateLimitConfig
 		Port: int64(servicePort),
 	})
 	database := int(redisConfig.Get("database").Int())
-	return config.RedisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
+	err := config.RedisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
+	if config.RedisClient.Ready() {
+		log.Info("redis init successfully")
+	} else {
+		log.Error("redis init failed, will try later")
+	}
+	return err
 }
 
-func ParseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
+func ParseAiTokenRateLimitConfig(json gjson.Result, config *AiTokenRateLimitConfig) error {
 	ruleName := json.Get("rule_name")
 	if !ruleName.Exists() {
 		return errors.New("missing rule_name in config")
@@ -136,13 +153,9 @@ func ParseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	config.RuleName = ruleName.String()
 
 	// 初始化限流规则
-	if err := initLimitRule(json, config); err != nil {
+	err := initLimitRule(json, config)
+	if err != nil {
 		return err
-	}
-
-	showLimitQuotaHeader := json.Get("show_limit_quota_header")
-	if showLimitQuotaHeader.Exists() {
-		config.ShowLimitQuotaHeader = showLimitQuotaHeader.Bool()
 	}
 
 	rejectedCode := json.Get("rejected_code")
@@ -151,7 +164,6 @@ func ParseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	} else {
 		config.RejectedCode = DefaultRejectedCode
 	}
-
 	rejectedMsg := json.Get("rejected_msg")
 	if rejectedMsg.Exists() {
 		config.RejectedMsg = rejectedMsg.String()
@@ -161,7 +173,7 @@ func ParseClusterKeyRateLimitConfig(json gjson.Result, config *ClusterKeyRateLim
 	return nil
 }
 
-func initLimitRule(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
+func initLimitRule(json gjson.Result, config *AiTokenRateLimitConfig) error {
 	globalThresholdResult := json.Get("global_threshold")
 	ruleItemsResult := json.Get("rule_items")
 
@@ -229,35 +241,35 @@ func parseGlobalThreshold(item gjson.Result) (*GlobalThreshold, error) {
 			}, nil
 		}
 	}
-	return nil, errors.New("one of 'query_per_second', 'query_per_minute', 'query_per_hour', or 'query_per_day' must be set for global_threshold")
+	return nil, errors.New("one of 'token_per_second', 'token_per_minute', 'token_per_hour', or 'token_per_day' must be set for global_threshold")
 }
 
 func parseLimitRuleItem(item gjson.Result) (*LimitRuleItem, error) {
 	var ruleItem LimitRuleItem
+
 	// 根据配置区分限流类型
 	var limitType LimitRuleItemType
-
-	trySetLimitType := func(field gjson.Result, limitTypeStr LimitRuleItemType) {
+	setLimitByKeyIfExists := func(field gjson.Result, limitTypeStr LimitRuleItemType) {
 		if field.Exists() && field.String() != "" {
 			ruleItem.Key = field.String()
 			limitType = limitTypeStr
 		}
 	}
-	trySetLimitType(item.Get("limit_by_header"), LimitByHeaderType)
-	trySetLimitType(item.Get("limit_by_param"), LimitByParamType)
-	trySetLimitType(item.Get("limit_by_cookie"), LimitByCookieType)
-	trySetLimitType(item.Get("limit_by_per_header"), LimitByPerHeaderType)
-	trySetLimitType(item.Get("limit_by_per_param"), LimitByPerParamType)
-	trySetLimitType(item.Get("limit_by_per_cookie"), LimitByPerCookieType)
+	setLimitByKeyIfExists(item.Get("limit_by_header"), LimitByHeaderType)
+	setLimitByKeyIfExists(item.Get("limit_by_param"), LimitByParamType)
+	setLimitByKeyIfExists(item.Get("limit_by_cookie"), LimitByCookieType)
+	setLimitByKeyIfExists(item.Get("limit_by_per_header"), LimitByPerHeaderType)
+	setLimitByKeyIfExists(item.Get("limit_by_per_param"), LimitByPerParamType)
+	setLimitByKeyIfExists(item.Get("limit_by_per_cookie"), LimitByPerCookieType)
 
 	limitByConsumer := item.Get("limit_by_consumer")
 	if limitByConsumer.Exists() {
-		ruleItem.Key = ConsumerHeader
+		ruleItem.Key = util.ConsumerHeader
 		limitType = LimitByConsumerType
 	}
 	limitByPerConsumer := item.Get("limit_by_per_consumer")
 	if limitByPerConsumer.Exists() {
-		ruleItem.Key = ConsumerHeader
+		ruleItem.Key = util.ConsumerHeader
 		limitType = LimitByPerConsumerType
 	}
 
@@ -376,5 +388,5 @@ func createConfigItemFromRate(item gjson.Result, itemType LimitConfigItemType, k
 			}, nil
 		}
 	}
-	return nil, errors.New("one of 'query_per_second', 'query_per_minute', 'query_per_hour', or 'query_per_day' must be set for key: " + key)
+	return nil, errors.New("one of 'token_per_second', 'token_per_minute', 'token_per_hour', or 'token_per_day' must be set for key: " + key)
 }

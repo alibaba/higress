@@ -59,18 +59,10 @@ func OverwriteRequestPath(path string) error {
 }
 
 func OverwriteRequestAuthorization(credential string) error {
-	if exist, _ := proxywasm.GetHttpRequestHeader(HeaderOriginalAuth); exist == "" {
-		if originAuth, err := proxywasm.GetHttpRequestHeader(HeaderAuthorization); err == nil {
-			_ = proxywasm.AddHttpRequestHeader(HeaderOriginalPath, originAuth)
-		}
-	}
 	return proxywasm.ReplaceHttpRequestHeader(HeaderAuthorization, credential)
 }
 
 func OverwriteRequestHostHeader(headers http.Header, host string) {
-	if originHost, err := proxywasm.GetHttpRequestHeader(HeaderAuthority); err == nil {
-		headers.Set(HeaderOriginalHost, originHost)
-	}
 	headers.Set(HeaderAuthority, host)
 }
 

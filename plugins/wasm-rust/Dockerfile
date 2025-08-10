@@ -11,5 +11,5 @@ RUN cargo build --target wasm32-wasip1 $BUILD_OPTS \
     && cp target/wasm32-wasip1/release/*.wasm /main.wasm \
     && cargo clean
 
-FROM scratch
+FROM scratch AS output
 COPY --from=builder /main.wasm plugin.wasm
