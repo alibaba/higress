@@ -312,6 +312,94 @@ spec:
                 port:
                   number: 8080
 ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-transform-request-reroute-root
+  namespace: higress-conformance-infra
+  annotations:
+    higress.io/exact-match-header-reroute: "false"
+    higress.io/upstream-vhost: "foo16.non-reroute.com"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo16.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-transform-request-reroute
+  namespace: higress-conformance-infra
+  annotations:
+    higress.io/exact-match-header-reroute: "true"
+    higress.io/upstream-vhost: "foo16.reroute.com"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo16.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-transform-request-non-reroute-root
+  namespace: higress-conformance-infra
+  annotations:
+    higress.io/exact-match-header-reroute: "false"
+    higress.io/upstream-vhost: "foo17.non-reroute.com"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo17.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-transform-request-non-reroute
+  namespace: higress-conformance-infra
+  annotations:
+    higress.io/exact-match-header-reroute: "true"
+    higress.io/upstream-vhost: "foo17.reroute.com"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "foo17.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
 metadata:
@@ -751,4 +839,25 @@ spec:
             body:
               - key: X-replace-body
                 newValue: exist-body
+
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-request-reroute-root
+      configDisable: false
+      config:
+        reqRules:
+          - operate: replace
+            headers:
+              - key: reroute
+                newValue: true
+
+    - ingress:
+        - higress-conformance-infra/wasmplugin-transform-request-non-reroute-root
+      configDisable: false
+      config:
+        reroute: false
+        reqRules:
+          - operate: replace
+            headers:
+              - key: reroute
+                newValue: true
   url: file:///opt/plugins/wasm-go/extensions/transformer/plugin.wasm
