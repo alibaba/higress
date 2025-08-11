@@ -99,6 +99,7 @@ type AIStatisticsConfig struct {
 	shouldBufferStreamingBody bool
 	// If disableOpenaiUsage is true, model/input_token/output_token logs will be skipped
 	disableOpenaiUsage bool
+	valueLengthLimit   int
 }
 
 func generateMetricName(route, cluster, model, consumer, metricName string) string {
@@ -149,6 +150,11 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	// Parse tracing span attributes setting.
 	attributeConfigs := configJson.Get("attributes").Array()
+	if configJson.Get("value_length_limit").Exists() {
+		config.valueLengthLimit = int(configJson.Get("value_length_limit").Int())
+	} else {
+		config.valueLengthLimit = 4000
+	}
 	config.attributes = make([]Attribute, len(attributeConfigs))
 	for i, attributeConfig := range attributeConfigs {
 		attribute := Attribute{}
@@ -195,12 +201,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 
 	ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 
+	// Set span attributes for ARMS.
+	setSpanAttribute(ArmsSpanKind, "LLM")
 	// Set user defined log & span attributes which type is fixed_value
 	setAttributeBySource(ctx, config, FixedValue, nil)
 	// Set user defined log & span attributes which type is request_header
 	setAttributeBySource(ctx, config, RequestHeader, nil)
-	// Set span attributes for ARMS.
-	setSpanAttribute(ArmsSpanKind, "LLM")
 
 	return types.ActionContinue
 }
@@ -392,6 +398,9 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 			if (value == nil || value == "") && attribute.DefaultValue != "" {
 				value = attribute.DefaultValue
+			}
+			if len(fmt.Sprint(value)) > config.valueLengthLimit {
+				value = fmt.Sprint(value)[:config.valueLengthLimit/2] + " [truncated] " + fmt.Sprint(value)[len(fmt.Sprint(value))-config.valueLengthLimit/2:]
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
