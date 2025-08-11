@@ -24,6 +24,7 @@ description: AI可观测配置参考
 |----------------|-------|------|-----|------------------------|
 | `attributes` | []Attribute | 非必填  | -   | 用户希望记录在log/span中的信息 |
 | `disable_openai_usage` | bool | 非必填  | false   | 非openai兼容协议时，model、token的支持非标，配置为true时可以避免报错 |
+| `value_length_limit` | int | 非必填  | 4000   | 记录的单个value的长度限制 |
 
 Attribute 配置说明:
 
