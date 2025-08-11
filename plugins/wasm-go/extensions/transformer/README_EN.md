@@ -11,8 +11,9 @@ Plugin execution phase: `authentication phase`
 Plugin execution priority: `410`
 
 ## Configuration Fields
-| Name | Data Type | Fill Requirement | Default Value | Description |
-| :----: | :----: | :----: | :----: | -------- |
+| Name | Data Type |                        Fill Requirement                        | Default Value | Description |
+| :----: | :----: |:--------------------------------------------------------------:| :----: | -------- |
+| reroute | boolean |                            Optional                            | true | Whether to reselect the routing target during request transformation |
 | reqRules | string | Optional, at least one of reqRules or respRules must be filled | - | Request transformer configuration, specifying the transformation operation type and rules for transforming request headers, request query parameters, and request body |
 | respRules | string | Optional, at least one of reqRules or respRules must be filled | - | Response transformer configuration, specifying the transformation operation type and rules for transforming response headers and response body |
 
@@ -61,7 +62,7 @@ Note:
 | :----: | :----: | :----: | ------------------------------------------------------------ |
 | Remove remove | Target key | Not required | If the specified `key` exists, delete it; otherwise, no operation |
 | Rename rename | Target oldKey | New key name newKey | If the specified `oldKey:value` exists, rename its key to `newKey`, resulting in `newKey:value`; otherwise, no operation |
-| Replace replace | Target key | New value newValue | If the specified `key:value` exists, update its value to `newValue`, resulting in `key:newValue`; otherwise, no operation |
+| Replace replace | Target key | New value newValue | If the specified `key:value` exists, update its value to `newValue`, resulting in `key:newValue`; otherwise, it is equivalent to performing add operation |
 | Add add | Added key | Added value | If the specified `key:value` does not exist, add it; otherwise, no operation |
 | Append append | Target key | Appending value appendValue | If the specified `key:value` exists, append appendValue to get `key:[value..., appendValue]`; otherwise, it is equivalent to performing add operation, resulting in `key:appendValue`. |
 | Map map | Mapping source fromKey | Mapping target toKey | If the specified `fromKey:fromValue` exists, map its value fromValue to the value of toKey, resulting in `toKey:fromValue`, while retaining `fromKey:fromValue` (note: if toKey already exists, its value will be overwritten); otherwise, no operation. |
@@ -361,6 +362,39 @@ $ curl -v -X POST console.higress.io/post -H 'host: foo.bar.com' \
   ...
 }
 ```
+
+#### Prohibit rerouting of the target  By default, the target is rerouted during the request transformation process. If you do not want to reroute the target, you can set `reroute` to `false`:
+
+```yaml
+reroute: false
+reqRules:
+  - operate: replace
+    headers:
+      - key: reroute
+        newValue: true
+```
+
+Assuming the routing configuration is:
+
+- Path prefix matches /, header exactly matches reroute: false, the target service responds with 200 “no rerouting”
+- Path prefix matches /, header exactly matches reroute: true, the target service responds with 200 “rerouting”
+
+Then, based on the above configuration, the request results are:
+
+```bash
+# The plugin replaces the header from reroute: false to reroute: true, but prohibits re-selecting the route target
+$ curl console.higress.io/get -H ‘host: foo.bar.com’ -H ‘reroute: false’
+no rerouting%
+
+# Remove the reroute configuration from the plugin or set it to true, then
+# the plugin will replace the header from reroute: false to reroute: true and re-select the routing target
+$ curl console.higress.io/get -H ‘host: foo.bar.com’ -H ‘reroute: false’
+rerouting% 
+```
+
+Translated with DeepL.com (free version)
+
+
 ### Response Transformer
 Similar to Request Transformer, this only describes the precautions for transforming JSON-formatted request/response bodies:
 
