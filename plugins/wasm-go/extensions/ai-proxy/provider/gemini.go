@@ -11,8 +11,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -460,22 +458,16 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 			Parts: []geminiPart{},
 		}
 
-		if message.IsStringContent() {
-			content.Parts = append(content.Parts, geminiPart{
-				Text: message.StringContent(),
-			})
-		} else {
-			for _, c := range message.ParseContent() {
-				switch c.Type {
-				case contentTypeText:
-					content.Parts = append(content.Parts, geminiPart{
-						Text: c.Text,
-					})
-				case contentTypeImageUrl:
-					content.Parts = append(content.Parts, g.handleContentTypeImageUrl(c.ImageUrl))
-				default:
-					log.Debugf("currently gemini did not support this type: %s", c.Type)
-				}
+		for _, c := range message.ParseContent() {
+			switch c.Type {
+			case contentTypeText:
+				content.Parts = append(content.Parts, geminiPart{
+					Text: c.Text,
+				})
+			case contentTypeImageUrl:
+				content.Parts = append(content.Parts, g.handleContentTypeImageUrl(c.ImageUrl))
+			default:
+				log.Debugf("currently gemini did not support this type: %s", c.Type)
 			}
 		}
 
@@ -545,16 +537,12 @@ func (g *geminiProvider) processImageURLWithCallback(ctx wrapper.HttpContext, bo
 	request := &geminiGenerationContentRequest{}
 	err := json.Unmarshal(body, request)
 	if err != nil {
-		log.Errorf("failed to unmarshal geminiGenerationRequest while handle multi modal")
+		log.Errorf("failed to unmarshal geminiGenerationRequest while handle multi modal: %v", err)
 		return err
 	}
 
-	var pending int32
-	var callbackOnce sync.Once
-	var callbackErr error
-
-	// record the image's number
-	atomic.StoreInt32(&pending, int32(totalImages))
+	pending := totalImages
+	var callbackErr []error
 
 	for ci, c := range request.Contents {
 		for pi := range c.Parts {
@@ -562,20 +550,20 @@ func (g *geminiProvider) processImageURLWithCallback(ctx wrapper.HttpContext, bo
 			if p.InlineData != nil && g.isUrl(p.InlineData.Data) {
 				g.getImageInlineDataWithCallback(p.InlineData.Data, func(gid *geminiInlineData, err error) {
 					if err != nil {
-						log.Errorf("image fetch failed: %v", err)
-						callbackErr = err
+						log.Errorf("image %s fetch failed: %v", p.InlineData.Data, err)
+						callbackErr = append(callbackErr, err)
 					} else {
 						*p.InlineData = *gid
 					}
 
-					if atomic.AddInt32(&pending, -1) == 0 {
-						callbackOnce.Do(func() {
-							body, err := json.Marshal(request)
-							if err != nil {
-								log.Errorf("failed to marshal request while processImageURL: %v", err)
-							}
-							callback(body, callbackErr)
-						})
+					pending -= 1
+					if pending == 0 {
+						body, err := json.Marshal(request)
+						if err != nil {
+							log.Errorf("failed to marshal request while processImageURL: %v", err)
+							callbackErr = append(callbackErr, err)
+						}
+						callback(body, errors.Join(callbackErr...))
 					}
 				})
 			}
