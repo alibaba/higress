@@ -340,7 +340,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	ctx.SetUserAttribute(ChatRound, userPromptCount)
 
 	// Write log
-	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	return types.ActionContinue
 }
 
@@ -431,7 +431,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		}
 
 		// Write log
-		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+		_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 		// Write metrics
 		writeMetric(ctx, config)
@@ -476,7 +476,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	setAttributeBySource(ctx, config, ResponseBody, body)
 
 	// Write log
-	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 	// Write metrics
 	writeMetric(ctx, config)
@@ -580,7 +580,7 @@ func setSpanAttribute(key string, value interface{}) {
 			log.Warnf("failed to set %s in filter state: %v", traceSpanTag, e)
 		}
 	} else {
-		log.Debugf("failed to write span attribute [%s], because it's value is empty")
+		log.Debugf("failed to write span attribute [%s], because it's value is empty", key)
 	}
 }
 
@@ -591,12 +591,12 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	consumer := ctx.GetStringContext(ConsumerKey, "none")
 	route, ok = ctx.GetContext(RouteName).(string)
 	if !ok {
-		log.Warnf("RouteName typd assert failed, skip metric record")
+		log.Info("RouteName type assert failed, skip metric record")
 		return
 	}
 	cluster, ok = ctx.GetContext(ClusterName).(string)
 	if !ok {
-		log.Warnf("ClusterName typd assert failed, skip metric record")
+		log.Info("ClusterName type assert failed, skip metric record")
 		return
 	}
 
@@ -605,28 +605,28 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	}
 
 	if ctx.GetUserAttribute(tokenusage.CtxKeyModel) == nil || ctx.GetUserAttribute(tokenusage.CtxKeyInputToken) == nil || ctx.GetUserAttribute(tokenusage.CtxKeyOutputToken) == nil || ctx.GetUserAttribute(tokenusage.CtxKeyTotalToken) == nil {
-		log.Warnf("get usage information failed, skip metric record")
+		log.Info("get usage information failed, skip metric record")
 		return
 	}
 	model, ok = ctx.GetUserAttribute(tokenusage.CtxKeyModel).(string)
 	if !ok {
-		log.Warnf("Model typd assert failed, skip metric record")
+		log.Info("Model type assert failed, skip metric record")
 		return
 	}
 	if inputToken, ok := convertToUInt(ctx.GetUserAttribute(tokenusage.CtxKeyInputToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, tokenusage.CtxKeyInputToken), inputToken)
 	} else {
-		log.Warnf("InputToken typd assert failed, skip metric record")
+		log.Info("InputToken type assert failed, skip metric record")
 	}
 	if outputToken, ok := convertToUInt(ctx.GetUserAttribute(tokenusage.CtxKeyOutputToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, tokenusage.CtxKeyOutputToken), outputToken)
 	} else {
-		log.Warnf("OutputToken typd assert failed, skip metric record")
+		log.Info("OutputToken type assert failed, skip metric record")
 	}
 	if totalToken, ok := convertToUInt(ctx.GetUserAttribute(tokenusage.CtxKeyTotalToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, tokenusage.CtxKeyTotalToken), totalToken)
 	} else {
-		log.Warnf("TotalToken typd assert failed, skip metric record")
+		log.Info("TotalToken type assert failed, skip metric record")
 	}
 
 	// Generate duration metrics
@@ -635,7 +635,7 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	if ctx.GetUserAttribute(LLMFirstTokenDuration) != nil {
 		llmFirstTokenDuration, ok = convertToUInt(ctx.GetUserAttribute(LLMFirstTokenDuration))
 		if !ok {
-			log.Warnf("LLMFirstTokenDuration typd assert failed")
+			log.Info("LLMFirstTokenDuration type assert failed")
 			return
 		}
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMFirstTokenDuration), llmFirstTokenDuration)
@@ -644,7 +644,7 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	if ctx.GetUserAttribute(LLMServiceDuration) != nil {
 		llmServiceDuration, ok = convertToUInt(ctx.GetUserAttribute(LLMServiceDuration))
 		if !ok {
-			log.Warnf("LLMServiceDuration typd assert failed")
+			log.Warnf("LLMServiceDuration type assert failed")
 			return
 		}
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMServiceDuration), llmServiceDuration)
