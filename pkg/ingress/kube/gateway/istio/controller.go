@@ -47,6 +47,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klabels "k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/alibaba/higress/pkg/tenancy"
 )
 
 var log = istiolog.RegisterScope("gateway", "gateway-api controller")
@@ -157,11 +159,41 @@ func (c *Controller) List(typ config.GroupVersionKind, namespace string) []confi
 
 	c.stateMu.RLock()
 	defer c.stateMu.RUnlock()
+	// Tenant namespace filtering
+	allowed := []string{}
+	if c.client != nil && c.client.RESTConfig() != nil { // placeholder: plumb allowed list from options or env
+		// For now, allow the requested namespace only when specified
+		if namespace != "" {
+			allowed = []string{namespace}
+		}
+	}
+	tenantMgr := &tenancy.TenantManager{}
+
 	switch typ {
 	case gvk.Gateway:
-		return filterNamespace(c.state.Gateway, namespace)
+		items := filterNamespace(c.state.Gateway, namespace)
+		if len(allowed) == 0 {
+			return items
+		}
+		var res []config.Config
+		for _, it := range items {
+			if tenantMgr.AllowedNamespace(it.Namespace, allowed) {
+				res = append(res, it)
+			}
+		}
+		return res
 	case gvk.VirtualService:
-		return filterNamespace(c.state.VirtualService, namespace)
+		items := filterNamespace(c.state.VirtualService, namespace)
+		if len(allowed) == 0 {
+			return items
+		}
+		var res []config.Config
+		for _, it := range items {
+			if tenantMgr.AllowedNamespace(it.Namespace, allowed) {
+				res = append(res, it)
+			}
+		}
+		return res
 	default:
 		return nil
 	}

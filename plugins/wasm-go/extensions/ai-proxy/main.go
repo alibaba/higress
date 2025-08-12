@@ -93,6 +93,7 @@ func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, plug
 }
 
 func initContext(ctx wrapper.HttpContext) {
+	metricsOnRequestStart(ctx)
 	for header, ctxKey := range headersCtxKeyMapping {
 		value, _ := proxywasm.GetHttpRequestHeader(header)
 		ctx.SetContext(ctxKey, value)
@@ -350,11 +351,28 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte) types.Action {
+	defer metricsOnResponse(ctx)
 	activeProvider := pluginConfig.GetProvider()
 
 	if activeProvider == nil {
 		log.Debugf("[onHttpResponseBody] no active provider, skip processing")
 		return types.ActionContinue
+	}
+
+	apiName := ctx.GetStringContext(provider.CtxKeyApiName, "")
+	if apiName == "" {
+		return types.ActionContinue
+	}
+
+	// try to extract token usage from standard fields if present
+	if len(body) > 0 {
+		if tk := gjson.GetBytes(body, "usage.total_tokens"); tk.Exists() {
+			metricsAddTokens(int(tk.Int()))
+		} else if tk := gjson.GetBytes(body, "usage.totalTokenCount"); tk.Exists() {
+			metricsAddTokens(int(tk.Int()))
+		} else if tk := gjson.GetBytes(body, "usageMetadata.totalTokenCount"); tk.Exists() { // gemini
+			metricsAddTokens(int(tk.Int()))
+		}
 	}
 
 	log.Debugf("[onHttpResponseBody] provider=%s", activeProvider.GetProviderType())
