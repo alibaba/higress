@@ -575,6 +575,63 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 16: request reroute",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo16.com",
+						Path: "/get",
+						Headers: map[string]string{
+							"reroute": "false",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo16.reroute.com",
+							Path:    "/get",
+							Headers: map[string]string{"reroute": "true"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 17: request non reroute",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo17.com",
+						Path: "/get",
+						Headers: map[string]string{
+							"reroute": "false",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo17.non-reroute.com",
+							Path: "/get",
+							// although the header was replaced, it was not rerouted
+							Headers: map[string]string{"reroute": "true"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugin transformer", func(t *testing.T) {
 			for _, testcase := range testcases {
