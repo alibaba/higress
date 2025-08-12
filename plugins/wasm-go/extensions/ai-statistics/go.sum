@@ -6,6 +6,8 @@ github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80 h1
 github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80/go.mod h1:tRI2LfMudSkKHhyv1uex3BWzcice2s/l8Ah8axporfA=
 github.com/higress-group/wasm-go v1.0.2-0.20250729071413-2478fd585950 h1:X4a+wzGEuLkCcAX2XiDf/vcVOIdZWxtEo0YkT+F/mcM=
 github.com/higress-group/wasm-go v1.0.2-0.20250729071413-2478fd585950/go.mod h1:9k7L730huS/q4V5iH9WLDgf5ZUHEtfhM/uXcegKDG/M=
+github.com/higress-group/wasm-go v1.0.2-0.20250804091745-dbabcf425bb2 h1:qYUeTPlWhVlpDrfISm0EArwZQC1Jl/uiD3l1h9PFjuA=
+github.com/higress-group/wasm-go v1.0.2-0.20250804091745-dbabcf425bb2/go.mod h1:9k7L730huS/q4V5iH9WLDgf5ZUHEtfhM/uXcegKDG/M=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
