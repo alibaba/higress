@@ -65,7 +65,7 @@ func (o *K8sInstaller) Install() error {
 		return err1
 	}
 	fmt.Fprintf(o.writer, "\n✔️ Wrote Profile in kubernetes configmap: \"%s\" \n", profileName)
-	fmt.Fprintf(o.writer, "\n   Use bellow kubectl command to edit profile for upgrade. \n")
+	fmt.Fprintf(o.writer, "\n   Use below kubectl command to edit profile for upgrade. \n")
 	fmt.Fprintf(o.writer, "   ================================================================================== \n")
 	names := strings.Split(profileName, "/")
 	fmt.Fprintf(o.writer, "   kubectl edit configmap %s -n %s \n", names[1], names[0])

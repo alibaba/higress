@@ -158,7 +158,7 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 	IngressLog.Infof("configmapMgr oldHigressConfig: %s", GetHigressConfigString(oldHigressConfig))
 	IngressLog.Infof("configmapMgr newHigressConfig: %s", GetHigressConfigString(newHigressConfig))
 	result, _ := c.CompareHigressConfig(oldHigressConfig, newHigressConfig)
-	IngressLog.Infof("configmapMgr CompareHigressConfig reuslt is %d", result)
+	IngressLog.Infof("configmapMgr CompareHigressConfig result is %d", result)
 
 	if result == ResultNothing {
 		return
@@ -177,7 +177,7 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 			}
 		}
 		c.SetHigressConfig(newHigressConfig)
-		IngressLog.Infof("configmapMgr higress config AddOrUpdate success, reuslt is %d", result)
+		IngressLog.Infof("configmapMgr higress config AddOrUpdate success, result is %d", result)
 		// Call updateConfig
 	}
 
