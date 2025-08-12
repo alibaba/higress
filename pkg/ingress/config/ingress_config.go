@@ -618,8 +618,6 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		}
 	}
 
-	m.adjustRouteClusterForProxy(&convertOptions, out)
-
 	// We generate some specific envoy filter here to avoid duplicated computation.
 	m.convertEnvoyFilter(&convertOptions)
 	return out
@@ -719,7 +717,6 @@ func (m *IngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Confi
 			out = append(out, *cfg)
 		}
 	}
-	m.adjustWasmPluginForProxy(out)
 	return out
 }
 
@@ -1111,143 +1108,6 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		return nil, nil
 	}
 	return result, nil
-}
-
-func (m *IngressConfig) adjustWasmPluginForProxy(out []config.Config) {
-	if m.RegistryReconciler == nil {
-		return
-	}
-
-	proxyWrappers := make(map[string]*common.ProxyWrapper)
-	service2ProxyServiceMapping := make(map[string]string)
-	for _, pw := range m.RegistryReconciler.GetAllProxyWrapper() {
-		proxyWrappers[pw.ProxyName] = pw
-	}
-	for _, sew := range m.RegistryReconciler.GetAllServiceWrapper() {
-		if sew == nil || sew.ProxyConfig == nil || sew.ProxyConfig.ProxyName == "" {
-			continue
-		}
-		proxyWrapper := proxyWrappers[sew.ProxyConfig.ProxyName]
-		if proxyWrapper == nil || proxyWrapper.EnvoyFilter == nil {
-			// Invalid proxy config
-			continue
-		}
-		if validateServiceWrapperForProxy(sew) != nil {
-			// The service wrapper is not valid for proxy, skip it.
-			continue
-		}
-		hosts := sew.ServiceEntry.Hosts
-		if len(hosts) == 0 {
-			continue
-		}
-		for _, host := range hosts {
-			service2ProxyServiceMapping[host] = constructProxyServiceFqdn(sew.ProxyConfig.ProxyName, host)
-		}
-	}
-
-	if len(service2ProxyServiceMapping) == 0 {
-		return
-	}
-
-	for _, config := range out {
-		wasmPlugin, ok := config.Spec.(*extensions.WasmPlugin)
-		if !ok {
-			continue
-		}
-		if wasmPlugin == nil || wasmPlugin.PluginConfig == nil || len(wasmPlugin.PluginConfig.Fields) == 0 {
-			continue
-		}
-		for key, value := range wasmPlugin.PluginConfig.Fields {
-			if key != "_rules_" {
-				continue
-			}
-			rulesValue, ok := value.Kind.(*_struct.Value_ListValue)
-			if !ok || rulesValue.ListValue == nil || len(rulesValue.ListValue.Values) == 0 {
-				continue
-			}
-			for _, ruleValue := range rulesValue.ListValue.Values {
-				rule, ok := ruleValue.Kind.(*_struct.Value_StructValue)
-				if !ok || rule == nil || rule.StructValue == nil || len(rule.StructValue.Fields) == 0 {
-					continue
-				}
-				for key, value := range rule.StructValue.Fields {
-					if key != "_match_service_" {
-						continue
-					}
-					listValue, ok := value.Kind.(*_struct.Value_ListValue)
-					if !ok || listValue.ListValue == nil || len(listValue.ListValue.Values) == 0 {
-						continue
-					}
-					ruleService2ProxyServiceMapping := make(map[string]string)
-					existedServices := make(map[string]bool)
-					for _, item := range listValue.ListValue.Values {
-						itemValue, ok := item.Kind.(*_struct.Value_StringValue)
-						if !ok || itemValue == nil {
-							continue
-						}
-						host := itemValue.StringValue
-						existedServices[host] = true
-						if proxyService, exist := service2ProxyServiceMapping[itemValue.StringValue]; exist {
-							ruleService2ProxyServiceMapping[host] = proxyService
-						}
-					}
-					for _, proxyService := range ruleService2ProxyServiceMapping {
-						if _, exist := existedServices[proxyService]; !exist {
-							// If the proxy service is not in the existed services, we add it.
-							listValue.ListValue.Values = append(listValue.ListValue.Values, &_struct.Value{
-								Kind: &_struct.Value_StringValue{
-									StringValue: proxyService,
-								},
-							})
-							existedServices[proxyService] = true
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-func (m *IngressConfig) adjustRouteClusterForProxy(convertOptions *common.ConvertOptions, out []config.Config) {
-	if len(convertOptions.ProxyWrappers) == 0 {
-		// No proxy wrappers, nothing to adjust
-		return
-	}
-
-	for _, config := range out {
-		vs, ok := config.Spec.(*networking.VirtualService)
-		if !ok {
-			continue
-		}
-		for _, httpRoute := range vs.Http {
-			if httpRoute == nil || len(httpRoute.Route) == 0 {
-				continue
-			}
-			for _, destination := range httpRoute.Route {
-				if destination == nil || destination.Destination == nil {
-					continue
-				}
-				host := destination.Destination.Host
-				serviceWrapper := convertOptions.ServiceWrappers[host]
-				if serviceWrapper == nil || serviceWrapper.ProxyConfig == nil || serviceWrapper.ProxyConfig.ProxyName == "" {
-					continue
-				}
-				if validateServiceWrapperForProxy(serviceWrapper) != nil {
-					// The service wrapper is not valid for proxy, skip it.
-					continue
-				}
-				proxyWrapper := convertOptions.ProxyWrappers[serviceWrapper.ProxyConfig.ProxyName]
-				if proxyWrapper == nil || proxyWrapper.EnvoyFilter == nil {
-					// Invalid proxy config
-					continue
-				}
-				destination.Destination.Host = constructProxyServiceFqdn(proxyWrapper.ProxyName, host)
-				destination.Destination.Port = &networking.PortSelector{
-					Number: proxyWrapper.ListenerPort,
-				}
-			}
-		}
-	}
 }
 
 func isBoolValueTrue(b *wrappers.BoolValue) bool {
@@ -1872,24 +1732,50 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 			IngressLog.Warnf("Proxy %s has no EnvoyFilter generated, meaning not ready for use.", proxyConfig.ProxyName)
 			continue
 		}
-		for _, host := range serviceWrapper.ServiceEntry.Hosts {
+		se := serviceWrapper.ServiceEntry
+		if se == nil || len(se.Hosts) == 0 || len(se.Ports) == 0 {
+			continue
+		}
+		for _, host := range se.Hosts {
 			IngressLog.Debugf("Constructing EnvoyFilter for service %s using proxy %s", host, proxyConfig.ProxyName)
-			clusterName := fmt.Sprintf("outbound|%d||%s", proxyWrapper.ListenerPort, constructProxyServiceFqdn(proxyWrapper.ProxyName, host))
-			patchObj := map[string]interface{}{
-				"name":            clusterName,
-				"type":            "STATIC",
-				"connect_timeout": "10s",
-				"load_assignment": map[string]interface{}{
-					"cluster_name": clusterName,
-					"endpoints": []map[string]interface{}{
-						{
-							"lb_endpoints": []map[string]interface{}{
-								{
-									"endpoint": map[string]interface{}{
-										"address": map[string]interface{}{
-											"socket_address": map[string]interface{}{
-												"address":    "127.0.0.1",
-												"port_value": proxyWrapper.ListenerPort,
+			for _, port := range se.Ports {
+				if port == nil || port.Number <= 0 {
+					continue
+				}
+				clusterName := fmt.Sprintf("outbound|%d||%s", port.Number, host)
+
+				// We need to delete the original cluster and add a new one pointing to the local proxy listener.
+				serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+					ApplyTo: networking.EnvoyFilter_CLUSTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
+							Cluster: &networking.EnvoyFilter_ClusterMatch{
+								Name: clusterName,
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_REMOVE,
+					},
+				})
+
+				patchObj := map[string]interface{}{
+					"name":            clusterName,
+					"type":            "STATIC",
+					"connect_timeout": "10s",
+					"load_assignment": map[string]interface{}{
+						"cluster_name": clusterName,
+						"endpoints": []map[string]interface{}{
+							{
+								"lb_endpoints": []map[string]interface{}{
+									{
+										"endpoint": map[string]interface{}{
+											"address": map[string]interface{}{
+												"socket_address": map[string]interface{}{
+													"address":    "127.0.0.1",
+													"port_value": proxyWrapper.ListenerPort,
+												},
 											},
 										},
 									},
@@ -1897,31 +1783,31 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 							},
 						},
 					},
-				},
+				}
+				if proxyConfig.UpstreamProtocol.IsHTTPS() {
+					tlsTypedConfig := map[string]interface{}{
+						"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+					}
+					if proxyConfig.UpstreamSni != "" {
+						tlsTypedConfig["sni"] = proxyConfig.UpstreamSni
+					}
+					patchObj["transport_socket"] = map[string]interface{}{
+						"name":         "envoy.transport_sockets.tls",
+						"typed_config": tlsTypedConfig,
+					}
+				}
+				patchJson, _ := json.Marshal(patchObj)
+				serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+					ApplyTo: networking.EnvoyFilter_CLUSTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_ADD,
+						Value:     util.BuildPatchStruct(string(patchJson)),
+					},
+				})
 			}
-			if proxyConfig.UpstreamProtocol.IsHTTPS() {
-				tlsTypedConfig := map[string]interface{}{
-					"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
-				}
-				if proxyConfig.UpstreamSni != "" {
-					tlsTypedConfig["sni"] = proxyConfig.UpstreamSni
-				}
-				patchObj["transport_socket"] = map[string]interface{}{
-					"name":         "envoy.transport_sockets.tls",
-					"typed_config": tlsTypedConfig,
-				}
-			}
-			patchJson, _ := json.Marshal(patchObj)
-			serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
-				ApplyTo: networking.EnvoyFilter_CLUSTER,
-				Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
-					Context: networking.EnvoyFilter_GATEWAY,
-				},
-				Patch: &networking.EnvoyFilter_Patch{
-					Operation: networking.EnvoyFilter_Patch_ADD,
-					Value:     util.BuildPatchStruct(string(patchJson)),
-				},
-			})
 		}
 	}
 	if len(serviceProxyPatches) != 0 {
@@ -1952,10 +1838,6 @@ func validateServiceWrapperForProxy(serviceWrapper *common.ServiceWrapper) error
 		return fmt.Errorf("service %s has multiple endpoints, which is not supported for proxying with EnvoyFilter. Skipping EnvoyFilter construction", serviceWrapper.ServiceName)
 	}
 	return nil
-}
-
-func constructProxyServiceFqdn(proxyName, serviceName string) string {
-	return fmt.Sprintf("proxy-%s-for-svc-%s", proxyName, serviceName)
 }
 
 func (m *IngressConfig) Run(stop <-chan struct{}) {
