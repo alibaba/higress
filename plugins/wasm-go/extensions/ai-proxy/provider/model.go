@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 const (
@@ -138,15 +138,15 @@ type chatCompletionResponse struct {
 	ServiceTier       string                 `json:"service_tier,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
 	Object            string                 `json:"object,omitempty"`
-	Usage             usage                  `json:"usage,omitempty"`
+	Usage             *usage                 `json:"usage"`
 }
 
 type chatCompletionChoice struct {
 	Index        int                    `json:"index"`
 	Message      *chatMessage           `json:"message,omitempty"`
 	Delta        *chatMessage           `json:"delta,omitempty"`
-	FinishReason string                 `json:"finish_reason,omitempty"`
-	Logprobs     map[string]interface{} `json:"logprobs,omitempty"`
+	FinishReason *string                `json:"finish_reason"`
+	Logprobs     map[string]interface{} `json:"logprobs"`
 }
 
 type usage struct {

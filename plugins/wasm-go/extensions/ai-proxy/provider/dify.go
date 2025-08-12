@@ -11,8 +11,8 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 const (
@@ -116,23 +116,23 @@ func (d *difyProvider) responseDify2OpenAI(ctx wrapper.HttpContext, response *Di
 		choice = chatCompletionChoice{
 			Index:        0,
 			Message:      &chatMessage{Role: roleAssistant, Content: response.Answer},
-			FinishReason: finishReasonStop,
+			FinishReason: util.Ptr(finishReasonStop),
 		}
-		//response header中增加conversationId字段
+		// response header中增加conversationId字段
 		_ = proxywasm.ReplaceHttpResponseHeader("ConversationId", response.ConversationId)
 		id = response.ConversationId
 	case BotTypeCompletion:
 		choice = chatCompletionChoice{
 			Index:        0,
 			Message:      &chatMessage{Role: roleAssistant, Content: response.Answer},
-			FinishReason: finishReasonStop,
+			FinishReason: util.Ptr(finishReasonStop),
 		}
 		id = response.MessageId
 	case BotTypeWorkflow:
 		choice = chatCompletionChoice{
 			Index:        0,
 			Message:      &chatMessage{Role: roleAssistant, Content: response.Data.Outputs[d.config.outputVariable]},
-			FinishReason: finishReasonStop,
+			FinishReason: util.Ptr(finishReasonStop),
 		}
 		id = response.Data.WorkflowId
 	}
@@ -143,7 +143,7 @@ func (d *difyProvider) responseDify2OpenAI(ctx wrapper.HttpContext, response *Di
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           []chatCompletionChoice{choice},
-		Usage:             response.MetaData.Usage,
+		Usage:             &response.MetaData.Usage,
 	}
 }
 
@@ -188,7 +188,7 @@ func (d *difyProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name Api
 func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, response *DifyChunkChatResponse) *chatCompletionResponse {
 	var choice chatCompletionChoice
 	var id string
-	var responseUsage usage
+	var responseUsage *usage
 	switch d.config.botType {
 	case BotTypeChat, BotTypeAgent:
 		choice = chatCompletionChoice{
@@ -211,9 +211,9 @@ func (d *difyProvider) streamResponseDify2OpenAI(ctx wrapper.HttpContext, respon
 		id = response.Data.WorkflowId
 	}
 	if response.Event == "message_end" || response.Event == "workflow_finished" {
-		choice.FinishReason = finishReasonStop
+		choice.FinishReason = util.Ptr(finishReasonStop)
 		if response.Event == "message_end" {
-			responseUsage = usage{
+			responseUsage = &usage{
 				PromptTokens:     response.MetaData.Usage.PromptTokens,
 				CompletionTokens: response.MetaData.Usage.CompletionTokens,
 				TotalTokens:      response.MetaData.Usage.TotalTokens,

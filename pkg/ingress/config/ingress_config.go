@@ -817,19 +817,23 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 					destinationRuleWrapper.DestinationRule.TrafficPolicy.Tls != nil {
 					dr.DestinationRule.TrafficPolicy.Tls = destinationRuleWrapper.DestinationRule.TrafficPolicy.Tls
 				}
-				portTrafficPolicy := destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings[0]
-				portUpdated := false
-				for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
-					if policy.Port.Number == portTrafficPolicy.Port.Number {
-						policy.Tls = portTrafficPolicy.Tls
-						portUpdated = true
-						break
+				// Directly inherit or override the port policy (if it exists)
+				if len(destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings) > 0 {
+					portTrafficPolicy := destinationRuleWrapper.DestinationRule.TrafficPolicy.PortLevelSettings[0]
+					portUpdated := false
+					for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
+						if policy.Port.Number == portTrafficPolicy.Port.Number {
+							policy.Tls = portTrafficPolicy.Tls
+							policy.LoadBalancer = portTrafficPolicy.LoadBalancer
+							portUpdated = true
+							break
+						}
 					}
+					if portUpdated {
+						continue
+					}
+					dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, portTrafficPolicy)
 				}
-				if portUpdated {
-					continue
-				}
-				dr.DestinationRule.TrafficPolicy.PortLevelSettings = append(dr.DestinationRule.TrafficPolicy.PortLevelSettings, portTrafficPolicy)
 			}
 		}
 	}
@@ -1109,7 +1113,7 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 		Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 	}
 	for _, f := range m.wasmPluginHandlers {
-		IngressLog.Debug("WasmPlugin triggerd update")
+		IngressLog.Debug("WasmPlugin triggered update")
 		f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, istiomodel.EventUpdate)
 	}
 	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
@@ -1151,7 +1155,7 @@ func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNames
 			Labels: map[string]string{constants.AlwaysPushLabel: "true"},
 		}
 		for _, f := range m.wasmPluginHandlers {
-			IngressLog.Debug("WasmPlugin triggerd update")
+			IngressLog.Debug("WasmPlugin triggered update")
 			f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, istiomodel.EventDelete)
 		}
 	}
@@ -1207,23 +1211,23 @@ func (m *IngressConfig) AddOrUpdateMcpBridge(clusterNamespacedName util.ClusterN
 			}
 
 			for _, f := range m.serviceEntryHandlers {
-				IngressLog.Debug("McpBridge triggerd serviceEntry update")
+				IngressLog.Debug("McpBridge triggered serviceEntry update")
 				f(config.Config{Meta: seMetadata}, config.Config{Meta: seMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.destinationRuleHandlers {
-				IngressLog.Debug("McpBridge triggerd destinationRule update")
+				IngressLog.Debug("McpBridge triggered destinationRule update")
 				f(config.Config{Meta: drMetadata}, config.Config{Meta: drMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.virtualServiceHandlers {
-				IngressLog.Debug("McpBridge triggerd virtualservice update")
+				IngressLog.Debug("McpBridge triggered virtualservice update")
 				f(config.Config{Meta: vsMetadata}, config.Config{Meta: vsMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.wasmPluginHandlers {
-				IngressLog.Debug("McpBridge triggerd wasmplugin update")
+				IngressLog.Debug("McpBridge triggered wasmplugin update")
 				f(config.Config{Meta: wasmMetadata}, config.Config{Meta: wasmMetadata}, istiomodel.EventUpdate)
 			}
 			for _, f := range m.envoyFilterHandlers {
-				IngressLog.Debug("McpBridge triggerd envoyfilter update")
+				IngressLog.Debug("McpBridge triggered envoyfilter update")
 				f(config.Config{Meta: efMetadata}, config.Config{Meta: efMetadata}, istiomodel.EventUpdate)
 			}
 		}, m.localKubeClient, m.namespace, m.clusterId.String())
@@ -1291,7 +1295,7 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	}
 	m.mutex.Unlock()
 	if hit {
-		IngressLog.Infof("Http2Rpc triggerd deleted event executed %s", clusterNamespacedName.Name)
+		IngressLog.Infof("Http2Rpc triggered deleted event executed %s", clusterNamespacedName.Name)
 		push := func(gvk config.GroupVersionKind) {
 			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,

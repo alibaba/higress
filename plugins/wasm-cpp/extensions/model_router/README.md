@@ -8,7 +8,7 @@
 | `modelKey`           | string          | 选填                    | model                    | 请求body中model参数的位置                             |
 | `addProviderHeader`  | string          | 选填                    | -                        | 从model参数中解析出的provider名字放到哪个请求header中 |
 | `modelToHeader`      | string          | 选填                    | -                        | 直接将model参数放到哪个请求header中                   |
-| `enableOnPathSuffix` | array of string | 选填                    | ["/completions","/embeddings","/images/generations","/audio/speech","/fine_tuning/jobs","/moderations"] | 只对这些特定路径后缀的请求生效，可以配置为 "*" 以匹配所有路径 |
+| `enableOnPathSuffix` | array of string | 选填                    | ["/completions","/embeddings","/images/generations","/audio/speech","/fine_tuning/jobs","/moderations","/image-synthesis","/video-synthesis"] | 只对这些特定路径后缀的请求生效，可以配置为 "*" 以匹配所有路径 |
 
 ## 运行属性
 

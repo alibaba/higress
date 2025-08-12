@@ -20,14 +20,17 @@ import (
 
 	"ext-auth/config"
 	"ext-auth/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ext-auth",
 		wrapper.ParseConfig(config.ParseConfig),

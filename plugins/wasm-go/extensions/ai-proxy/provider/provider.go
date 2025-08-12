@@ -5,21 +5,25 @@ import (
 	"errors"
 	"math/rand"
 	"net/http"
+	"path"
 	"regexp"
+	"strconv"
+
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
 type (
-	ApiName  string
-	Pointcut string
+	ApiName          string
+	Pointcut         string
+	basePathHandling string
 )
 
 const (
@@ -27,40 +31,74 @@ const (
 	// ApiName 格式 {vendor}/{version}/{apitype}
 	// 表示遵循 厂商/版本/接口类型 的格式
 	// 目前openai是事实意义上的标准，但是也有其他厂商存在其他任务的一些可能的标准，比如cohere的rerank
-	ApiNameCompletion          ApiName = "openai/v1/completions"
-	ApiNameChatCompletion      ApiName = "openai/v1/chatcompletions"
-	ApiNameEmbeddings          ApiName = "openai/v1/embeddings"
-	ApiNameImageGeneration     ApiName = "openai/v1/imagegeneration"
-	ApiNameImageEdit           ApiName = "openai/v1/imageedit"
-	ApiNameImageVariation      ApiName = "openai/v1/imagevariation"
-	ApiNameAudioSpeech         ApiName = "openai/v1/audiospeech"
-	ApiNameFiles               ApiName = "openai/v1/files"
-	ApiNameRetrieveFile        ApiName = "openai/v1/retrievefile"
-	ApiNameRetrieveFileContent ApiName = "openai/v1/retrievefilecontent"
-	ApiNameBatches             ApiName = "openai/v1/batches"
-	ApiNameRetrieveBatch       ApiName = "openai/v1/retrievebatch"
-	ApiNameCancelBatch         ApiName = "openai/v1/cancelbatch"
-	ApiNameModels              ApiName = "openai/v1/models"
-	ApiNameResponses           ApiName = "openai/v1/responses"
-
-	PathOpenAICompletions         = "/v1/completions"
-	PathOpenAIChatCompletions     = "/v1/chat/completions"
-	PathOpenAIEmbeddings          = "/v1/embeddings"
-	PathOpenAIFiles               = "/v1/files"
-	PathOpenAIRetrieveFile        = "/v1/files/{file_id}"
-	PathOpenAIRetrieveFileContent = "/v1/files/{file_id}/content"
-	PathOpenAIBatches             = "/v1/batches"
-	PathOpenAIRetrieveBatch       = "/v1/batches/{batch_id}"
-	PathOpenAICancelBatch         = "/v1/batches/{batch_id}/cancel"
-	PathOpenAIModels              = "/v1/models"
-	PathOpenAIImageGeneration     = "/v1/images/generations"
-	PathOpenAIImageEdit           = "/v1/images/edits"
-	PathOpenAIImageVariation      = "/v1/images/variations"
-	PathOpenAIAudioSpeech         = "/v1/audio/speech"
-	PathOpenAIResponses           = "/v1/responses"
+	ApiNameCompletion                           ApiName = "openai/v1/completions"
+	ApiNameChatCompletion                       ApiName = "openai/v1/chatcompletions"
+	ApiNameEmbeddings                           ApiName = "openai/v1/embeddings"
+	ApiNameImageGeneration                      ApiName = "openai/v1/imagegeneration"
+	ApiNameImageEdit                            ApiName = "openai/v1/imageedit"
+	ApiNameImageVariation                       ApiName = "openai/v1/imagevariation"
+	ApiNameAudioSpeech                          ApiName = "openai/v1/audiospeech"
+	ApiNameFiles                                ApiName = "openai/v1/files"
+	ApiNameRetrieveFile                         ApiName = "openai/v1/retrievefile"
+	ApiNameRetrieveFileContent                  ApiName = "openai/v1/retrievefilecontent"
+	ApiNameBatches                              ApiName = "openai/v1/batches"
+	ApiNameRetrieveBatch                        ApiName = "openai/v1/retrievebatch"
+	ApiNameCancelBatch                          ApiName = "openai/v1/cancelbatch"
+	ApiNameModels                               ApiName = "openai/v1/models"
+	ApiNameResponses                            ApiName = "openai/v1/responses"
+	ApiNameFineTuningJobs                       ApiName = "openai/v1/fine-tuningjobs"
+	ApiNameRetrieveFineTuningJob                ApiName = "openai/v1/retrievefine-tuningjob"
+	ApiNameFineTuningJobEvents                  ApiName = "openai/v1/fine-tuningjobsevents"
+	ApiNameFineTuningJobCheckpoints             ApiName = "openai/v1/fine-tuningjobcheckpoints"
+	ApiNameCancelFineTuningJob                  ApiName = "openai/v1/cancelfine-tuningjob"
+	ApiNameResumeFineTuningJob                  ApiName = "openai/v1/resumefine-tuningjob"
+	ApiNamePauseFineTuningJob                   ApiName = "openai/v1/pausefine-tuningjob"
+	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
+	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
-	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
+	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
+	ApiNameQwenAsyncAIGC               ApiName = "qwen/v1/services/aigc"
+	ApiNameQwenAsyncTask               ApiName = "qwen/v1/tasks"
+	ApiNameQwenV1Rerank                ApiName = "qwen/v1/rerank"
+	ApiNameGeminiGenerateContent       ApiName = "gemini/v1beta/generatecontent"
+	ApiNameGeminiStreamGenerateContent ApiName = "gemini/v1beta/streamgeneratecontent"
+	ApiNameAnthropicMessages           ApiName = "anthropic/v1/messages"
+	ApiNameAnthropicComplete           ApiName = "anthropic/v1/complete"
+
+	// OpenAI
+	PathOpenAIPrefix                               = "/v1"
+	PathOpenAICompletions                          = "/v1/completions"
+	PathOpenAIChatCompletions                      = "/v1/chat/completions"
+	PathOpenAIEmbeddings                           = "/v1/embeddings"
+	PathOpenAIFiles                                = "/v1/files"
+	PathOpenAIRetrieveFile                         = "/v1/files/{file_id}"
+	PathOpenAIRetrieveFileContent                  = "/v1/files/{file_id}/content"
+	PathOpenAIBatches                              = "/v1/batches"
+	PathOpenAIRetrieveBatch                        = "/v1/batches/{batch_id}"
+	PathOpenAICancelBatch                          = "/v1/batches/{batch_id}/cancel"
+	PathOpenAIModels                               = "/v1/models"
+	PathOpenAIImageGeneration                      = "/v1/images/generations"
+	PathOpenAIImageEdit                            = "/v1/images/edits"
+	PathOpenAIImageVariation                       = "/v1/images/variations"
+	PathOpenAIAudioSpeech                          = "/v1/audio/speech"
+	PathOpenAIResponses                            = "/v1/responses"
+	PathOpenAIFineTuningJobs                       = "/v1/fine_tuning/jobs"
+	PathOpenAIRetrieveFineTuningJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
+	PathOpenAIFineTuningJobEvents                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/events"
+	PathOpenAIFineTuningJobCheckpoints             = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/checkpoints"
+	PathOpenAICancelFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/cancel"
+	PathOpenAIResumeFineTuningJob                  = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/resume"
+	PathOpenAIPauseFineTuningJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
+	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
+	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
+
+	// Anthropic
+	PathAnthropicMessages = "/v1/messages"
+	PathAnthropicComplete = "/v1/complete"
+
+	// Cohere
+	PathCohereV1Rerank = "/v1/rerank"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -69,6 +107,7 @@ const (
 	providerTypeQwen       = "qwen"
 	providerTypeOpenAI     = "openai"
 	providerTypeGroq       = "groq"
+	providerTypeGrok       = "grok"
 	providerTypeBaichuan   = "baichuan"
 	providerTypeYi         = "yi"
 	providerTypeDeepSeek   = "deepseek"
@@ -123,6 +162,9 @@ const (
 	wildcard = "*"
 
 	defaultTimeout = 2 * 60 * 1000 // ms
+
+	basePathHandlingRemovePrefix basePathHandling = "removePrefix"
+	basePathHandlingPrepend      basePathHandling = "prepend"
 )
 
 type providerInitializer interface {
@@ -141,6 +183,7 @@ var (
 		providerTypeQwen:       &qwenProviderInitializer{},
 		providerTypeOpenAI:     &openaiProviderInitializer{},
 		providerTypeGroq:       &groqProviderInitializer{},
+		providerTypeGrok:       &grokProviderInitializer{},
 		providerTypeBaichuan:   &baichuanProviderInitializer{},
 		providerTypeYi:         &yiProviderInitializer{},
 		providerTypeDeepSeek:   &deepseekProviderInitializer{},
@@ -276,6 +319,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock Region
 	// @Description zh-CN 仅适用于Amazon Bedrock服务访问
 	awsRegion string `required:"false" yaml:"awsRegion" json:"awsRegion"`
+	// @Title zh-CN Amazon Bedrock 额外模型请求参数
+	// @Description zh-CN 仅适用于Amazon Bedrock服务，用于设置模型特定的推理参数
+	bedrockAdditionalFields map[string]interface{} `required:"false" yaml:"bedrockAdditionalFields" json:"bedrockAdditionalFields"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -300,6 +346,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN Gemini Thinking Budget 配置
+	// @Description zh-CN 仅适用于 Gemini AI 服务，用于控制思考预算
+	geminiThinkingBudget int64 `required:"false" yaml:"geminiThinkingBudget" json:"geminiThinkingBudget"`
 	// @Title zh-CN Vertex AI访问区域
 	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
 	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
@@ -335,6 +384,13 @@ type ProviderConfig struct {
 	// @Title zh-CN 额外支持的ai能力
 	// @Description zh-CN 开放的ai能力和urlpath映射，例如： {"openai/v1/chatcompletions": "/v1/chat/completions"}
 	capabilities map[string]string
+	// @Title zh-CN 如果配置了basePath，可用于在请求path中移除该前缀，或添加至请求path中，默认为进行移除
+	basePath string `required:"false" yaml:"basePath" json:"basePath"`
+	// @Title zh-CN basePathHandling用于指定basePath的处理方式，可选值：removePrefix、prepend
+	basePathHandling basePathHandling `required:"false" yaml:"basePathHandling" json:"basePathHandling"`
+	// @Title zh-CN 首包超时
+	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
+	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -364,6 +420,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = defaultTimeout
 	}
+	// first byte timeout
+	c.firstByteTimeout = uint32(json.Get("firstByteTimeout").Uint())
 	c.openaiCustomUrl = json.Get("openaiCustomUrl").String()
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
@@ -404,6 +462,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.awsAccessKey = json.Get("awsAccessKey").String()
 	c.awsSecretKey = json.Get("awsSecretKey").String()
 	c.awsRegion = json.Get("awsRegion").String()
+	if c.typ == providerTypeBedrock {
+		c.bedrockAdditionalFields = make(map[string]interface{})
+		for k, v := range json.Get("bedrockAdditionalFields").Map() {
+			c.bedrockAdditionalFields[k] = v.Value()
+		}
+	}
 	c.minimaxApiType = json.Get("minimaxApiType").String()
 	c.minimaxGroupId = json.Get("minimaxGroupId").String()
 	c.cloudflareAccountId = json.Get("cloudflareAccountId").String()
@@ -413,6 +477,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.geminiSafetySetting[k] = v.String()
 		}
 	}
+	c.geminiThinkingBudget = json.Get("geminiThinkingBudget").Int()
 	c.vertexRegion = json.Get("vertexRegion").String()
 	c.vertexProjectId = json.Get("vertexProjectId").String()
 	c.vertexAuthKey = json.Get("vertexAuthKey").String()
@@ -495,6 +560,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			string(ApiNameCohereV1Rerank):
 			c.capabilities[capability] = pathJson.String()
 		}
+	}
+	c.basePath = json.Get("basePath").String()
+	c.basePathHandling = basePathHandling(json.Get("basePathHandling").String())
+	if c.basePath != "" && c.basePathHandling == "" {
+		c.basePathHandling = basePathHandlingRemovePrefix
 	}
 }
 
@@ -769,6 +839,15 @@ func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) 
 func (c *ProviderConfig) handleRequestBody(
 	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte,
 ) (types.Action, error) {
+	// add the first byte timeout header to the request
+	if c.firstByteTimeout != 0 && c.isStreamingAPI(apiName, body) {
+		err := proxywasm.ReplaceHttpRequestHeader("x-envoy-upstream-rq-first-byte-timeout-ms", strconv.FormatUint(uint64(c.firstByteTimeout), 10))
+		if err != nil {
+			log.Errorf("failed to set x-envoy-upstream-rq-first-byte-timeout-ms header: %v", err)
+		}
+		log.Debugf("[firstByteTimeout] %d", c.firstByteTimeout)
+	}
+
 	// use original protocol
 	if c.IsOriginal() {
 		return types.ActionContinue, nil
@@ -779,7 +858,7 @@ func (c *ProviderConfig) handleRequestBody(
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body)
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
-		headers := util.GetOriginalRequestHeaders()
+		headers := util.GetRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 		util.ReplaceRequestHeaders(headers)
 	} else {
@@ -805,11 +884,18 @@ func (c *ProviderConfig) handleRequestBody(
 }
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
-	headers := util.GetOriginalRequestHeaders()
+	headers := util.GetRequestHeaders()
+	originPath := headers.Get(":path")
+	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
+		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
+	}
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
 		handler.TransformRequestHeaders(ctx, apiName, headers)
-		util.ReplaceRequestHeaders(headers)
 	}
+	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
+		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
+	}
+	util.ReplaceRequestHeaders(headers)
 }
 
 // defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
@@ -826,7 +912,9 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 	}
 	model := gjson.GetBytes(body, "model").String()
 	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	return sjson.SetBytes(body, "model", getMappedModel(model, c.modelMapping))
+	mappedModel := getMappedModel(model, c.modelMapping)
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+	return sjson.SetBytes(body, "model", mappedModel)
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {
@@ -837,14 +925,38 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 	}
 }
 
+func (c *ProviderConfig) isStreamingAPI(apiName ApiName, body []byte) bool {
+	stream := false
+	switch apiName {
+	case ApiNameCompletion,
+		ApiNameChatCompletion,
+		ApiNameImageGeneration,
+		ApiNameImageEdit,
+		ApiNameResponses,
+		ApiNameQwenAsyncAIGC,
+		ApiNameAnthropicMessages,
+		ApiNameAnthropicComplete:
+		stream = gjson.GetBytes(body, "stream").Bool()
+	case ApiNameGeminiStreamGenerateContent:
+		stream = true
+	}
+	return stream
+}
+
 func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 	switch apiName {
 	case ApiNameChatCompletion,
+		ApiNameCompletion,
 		ApiNameEmbeddings,
 		ApiNameImageGeneration,
 		ApiNameImageEdit,
 		ApiNameImageVariation,
-		ApiNameAudioSpeech:
+		ApiNameAudioSpeech,
+		ApiNameFineTuningJobs,
+		ApiNameResponses,
+		ApiNameGeminiGenerateContent,
+		ApiNameGeminiStreamGenerateContent,
+		ApiNameAnthropicMessages:
 		return true
 	}
 	return false

@@ -116,7 +116,7 @@ type TickFuncEntry struct {
 
 var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 
-// Registe multiple onTick functions. Parameters include:
+// Register multiple onTick functions. Parameters include:
 // 1) tickPeriod: the execution period of tickFunc, this value should be a multiple of 100
 // 2) tickFunc: the function to be executed
 //
@@ -566,7 +566,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) WriteUserAttributeToLogWithKey(key strin
 	newAttributeMap := map[string]interface{}{}
 	if string(preMarshalledJsonLogStr) != "" {
 		// e.g. {"field1":"value1","field2":"value2"}
-		preJsonLogStr := unmarshalStr(fmt.Sprintf(`"%s"`, string(preMarshalledJsonLogStr)))
+		preJsonLogStr := UnmarshalStr(fmt.Sprintf(`"%s"`, string(preMarshalledJsonLogStr)))
 		err := json.Unmarshal([]byte(preJsonLogStr), &newAttributeMap)
 		if err != nil {
 			ctx.plugin.vm.log.Warnf("Unmarshal failed, will overwrite %s, pre value is: %s", key, string(preMarshalledJsonLogStr))
@@ -580,7 +580,7 @@ func (ctx *CommonHttpCtx[PluginConfig]) WriteUserAttributeToLogWithKey(key strin
 	// e.g. {"field1":"value1","field2":2,"field3":"value3"}
 	jsonStr, _ := json.Marshal(newAttributeMap)
 	// e.g. {\"field1\":\"value1\",\"field2\":2,\"field3\":\"value3\"}
-	marshalledJsonStr := marshalStr(string(jsonStr))
+	marshalledJsonStr := MarshalStr(string(jsonStr))
 	if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
 		ctx.plugin.vm.log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
 		return err

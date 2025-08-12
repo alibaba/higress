@@ -29,15 +29,16 @@ Plugin execution priority: `100`
 
 **Details for the `provider` configuration fields:**
 
-| Name           | Data Type        | Requirement | Default | Description                                                                                                                                                                                                                                                           |
-| -------------- | --------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                  |
-| `type`         | string          | Required     | -      | Name of the AI service provider                                                                                                                                                                                                                                              |
-| `apiTokens`    | array of string | Optional   | -      | Tokens used for authentication when accessing AI services. If multiple tokens are configured, the plugin randomly selects one for each request. Some service providers only support configuring a single token.                                                                                                                                     |
-| `timeout`      | number          | Optional   | -      | Timeout for accessing AI services, in milliseconds. The default value is 120000, which equals 2 minutes. Only used when retrieving context data. Won't affect the request forwarded to the LLM upstream.                                                                                                                                                                              |
-| `modelMapping` | map of string   | Optional   | -      | Mapping table for AI models, used to map model names in requests to names supported by the service provider.<br/>1. Supports prefix matching. For example, "gpt-3-\*" matches all model names starting with “gpt-3-”;<br/>2. Supports using "\*" as a key for a general fallback mapping;<br/>3. If the mapped target name is an empty string "", the original model name is preserved. |
-| `protocol`     | string          | Optional   | -      | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider)                                                                                                                          |
-| `context`      | object          | Optional   | -      | Configuration for AI conversation context information                                                                                                                                                                                                                                         |
-| `customSettings` | array of customSetting | Optional   | -      | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                 |
+| Name             | Data Type              | Requirement | Default | Description                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------   | ---------------        | --------    | ------  | -------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                                                                                                                                             |
+| `type`           | string                 | Required    | -       | Name of the AI service provider                                                                                                                                                                                                                                                                                                                                                           |
+| `apiTokens`      | array of string        | Optional    | -       | Tokens used for authentication when accessing AI services. If multiple tokens are configured, the plugin randomly selects one for each request. Some service providers only support configuring a single token.                                                                                                                                                                           |
+| `timeout`        | number                 | Optional    | -       | Timeout for accessing AI services, in milliseconds. The default value is 120000, which equals 2 minutes. Only used when retrieving context data. Won't affect the request forwarded to the LLM upstream.                                                                                                                                                                                  |
+| `modelMapping`   | map of string          | Optional    | -       | Mapping table for AI models, used to map model names in requests to names supported by the service provider.<br/>1. Supports prefix matching. For example, "gpt-3-\*" matches all model names starting with “gpt-3-”;<br/>2. Supports using "\*" as a key for a general fallback mapping;<br/>3. If the mapped target name is an empty string "", the original model name is preserved. |
+| `protocol`       | string                 | Optional    | -       | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider)                                                                                                                                                                               |
+| `context`        | object                 | Optional    | -       | Configuration for AI conversation context information                                                                                                                                                                                                                                                                                                                                     |
+| `customSettings` | array of customSetting | Optional    | -       | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                                                                                                                   |
+| `subPath`        | string                 | Optional    | -       | If subPath is configured, the prefix will be removed from the request path before further processing.                                                                                                                                                                                                                                                                                     |
 
 **Details for the `context` configuration fields:**
 
@@ -128,6 +129,10 @@ For DeepSeek, the corresponding `type` is `deepseek`. It has no unique configura
 
 For Groq, the corresponding `type` is `groq`. It has no unique configuration fields.
 
+#### Grok
+
+For Grok, the corresponding `type` is `grok`. It has no unique configuration fields.
+
 #### ERNIE Bot
 
 For ERNIE Bot, the corresponding `type` is `baidu`. It has no unique configuration fields.
@@ -199,6 +204,8 @@ For Gemini, the corresponding `type` is `gemini`. Its unique configuration field
 | Name                  | Data Type | Filling Requirements | Default Value | Description                                                                                              |
 |---------------------|----------|----------------------|---------------|---------------------------------------------------------------------------------------------------------|
 | `geminiSafetySetting` | map of string   | Optional             | -             | Gemini AI content filtering and safety level settings. Refer to [Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings). |
+| `apiVersion` | string | 非必填 | `v1beta` | To specify the version of the API, you can choose either 'v1' or 'v1beta'. Version differences refer to https://ai.google.dev/gemini-api/docs/api-versions |
+| `geminiThinkingBudget` | number | 非必填 | - | The parameters of the gemini2.5 series: 0 indicates no thinking mode, -1 represents dynamic adjustment. For specific parameter references, please refer to the official website |
 
 ### DeepL
 
@@ -224,11 +231,12 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 
 For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
 
-| Name           | Data Type | Requirement | Default | Description                                   |
-|----------------|-----------|-------------|---------|-----------------------------------------------|
-| `awsAccessKey` | string    | Required    | -       | AWS Access Key used for authentication        |
-| `awsSecretKey` | string    | Required    | -       | AWS Secret Access Key used for authentication |
-| `awsRegion`    | string    | Required    | -       | AWS region, e.g., us-east-1                   |
+| Name                      | Data Type | Requirement | Default | Description                                             |
+|---------------------------|-----------|-------------|---------|---------------------------------------------------------|
+| `awsAccessKey`            | string    | Required    | -       | AWS Access Key used for authentication                  |
+| `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
+| `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
+| `bedrockAdditionalFields` | map       | Optional    | -       | Additional inference parameters that the model supports |
 
 ## Usage Examples
 
@@ -802,6 +810,76 @@ provider:
   "x_groq": {
     "id": "req_01hy2awmcxfpwbq56qh6svm7qz"
   }
+}
+```
+
+### Using OpenAI Protocol Proxy for Grok Service
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: grok
+  apiTokens:
+    - "YOUR_GROK_API_TOKEN"
+```
+
+**Example Request**
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that can answer questions and help with tasks."
+    },
+    {
+      "role": "user",
+      "content": "What is 101*3?"
+    }
+  ],
+  "model": "grok-4"
+}
+```
+
+**Example Response**
+
+```json
+{
+  "id": "a3d1008e-4544-40d4-d075-11527e794e4a",
+  "object": "chat.completion",
+  "created": 1752854522,
+  "model": "grok-4",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "101 multiplied by 3 is 303.",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 32,
+    "completion_tokens": 9,
+    "total_tokens": 135,
+    "prompt_tokens_details": {
+      "text_tokens": 32,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 6
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 94,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "num_sources_used": 0
+  },
+  "system_fingerprint": "fp_3a7881249c"
 }
 ```
 
@@ -1499,6 +1577,8 @@ provider:
   awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
   awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
   awsRegion: "YOUR_AWS_REGION"
+  bedrockAdditionalFields:
+    top_k: 200
 ```
 
 **Request Example**

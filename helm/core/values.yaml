@@ -581,8 +581,7 @@ controller:
   # -- Labels to apply to the pod
   podLabels: {}
 
-  podSecurityContext:
-    {}
+  podSecurityContext: {}
   # fsGroup: 2000
 
   ports:
@@ -709,13 +708,13 @@ tracing:
   enable: false
   sampling: 100
   timeout: 500
-  skywalking:
-    # access_token: ""
-    service: ""
-    port: 11800
+  # skywalking:
+  #   access_token: ""
+  #   service: ""
+  #   port: 11800
   # zipkin:
-  # service: ""
-  # port: 9411
+  #   service: ""
+  #   port: 9411
 
 # -- Downstream config settings
 downstream:
@@ -787,7 +786,7 @@ pluginServer:
 
   #  Plugin-server Service configuration
   service:
-    port: 80                    # Container target port (usually fixed)
+    port: 80 # Container target port (usually fixed)
 
   resources:
     requests:

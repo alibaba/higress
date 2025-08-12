@@ -20,16 +20,16 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-  - host: "foo.com"
-    http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: infra-backend-v1
-            port:
-              number: 8080
+    - host: "foo.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -40,4 +40,4 @@ spec:
   defaultConfig:
     token_headers: token
     token_secret_key: Dav7kfq3iA8S!JUj8&CUkdnQe72E@Cw6
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/simple-jwt-auth:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/simple-jwt-auth:2.0.0

@@ -139,4 +139,4 @@ spec:
       configDisable: false
       ingress:
         - higress-conformance-infra/wasmplugin-jwt-auth
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-jwt-auth:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-jwt-auth:2.0.0

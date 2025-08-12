@@ -19,10 +19,9 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -42,8 +41,7 @@ const (
 	requestIdHeader        = "X-Amzn-Requestid"
 )
 
-type bedrockProviderInitializer struct {
-}
+type bedrockProviderInitializer struct{}
 
 func (b *bedrockProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if len(config.awsAccessKey) == 0 || len(config.awsSecretKey) == 0 {
@@ -104,7 +102,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
 	}
 	if bedrockEvent.StopReason != nil {
-		chatChoice.FinishReason = stopReasonBedrock2OpenAI(*bedrockEvent.StopReason)
+		chatChoice.FinishReason = util.Ptr(stopReasonBedrock2OpenAI(*bedrockEvent.StopReason))
 	}
 	choices = append(choices, chatChoice)
 	requestId := ctx.GetStringContext(requestIdHeader, "")
@@ -118,7 +116,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 	}
 	if bedrockEvent.Usage != nil {
 		openAIFormattedChunk.Choices = choices[:0]
-		openAIFormattedChunk.Usage = usage{
+		openAIFormattedChunk.Usage = &usage{
 			CompletionTokens: bedrockEvent.Usage.OutputTokens,
 			PromptTokens:     bedrockEvent.Usage.InputTokens,
 			TotalTokens:      bedrockEvent.Usage.TotalTokens,
@@ -592,23 +590,6 @@ func (b *bedrockProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 	return b.config.handleRequestBody(b, b.contextCache, ctx, apiName, body)
 }
 
-func (b *bedrockProvider) insertHttpContextMessage(body []byte, content string, onlyOneSystemBeforeFile bool) ([]byte, error) {
-	request := &bedrockTextGenRequest{}
-	if err := json.Unmarshal(body, request); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal request: %v", err)
-	}
-
-	if len(request.System) > 0 {
-		request.System = append(request.System, systemContentBlock{Text: content})
-	} else {
-		request.System = []systemContentBlock{{Text: content}}
-	}
-
-	requestBytes, err := json.Marshal(request)
-	b.setAuthHeaders(requestBytes, nil)
-	return requestBytes, err
-}
-
 func (b *bedrockProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
 	if gjson.GetBytes(body, "model").Exists() {
 		rawModel := gjson.GetBytes(body, "model").String()
@@ -724,21 +705,34 @@ func (b *bedrockProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, b
 
 func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCompletionRequest, headers http.Header) ([]byte, error) {
 	messages := make([]bedrockMessage, 0, len(origRequest.Messages))
-	for i := range origRequest.Messages {
-		messages = append(messages, chatMessage2BedrockMessage(origRequest.Messages[i]))
+	systemMessages := make([]systemContentBlock, 0)
+
+	for _, msg := range origRequest.Messages {
+		if msg.Role == roleSystem {
+			systemMessages = append(systemMessages, systemContentBlock{Text: msg.StringContent()})
+		} else {
+			messages = append(messages, chatMessage2BedrockMessage(msg))
+		}
 	}
+
 	request := &bedrockTextGenRequest{
+		System:   systemMessages,
 		Messages: messages,
 		InferenceConfig: bedrockInferenceConfig{
 			MaxTokens:   origRequest.MaxTokens,
 			Temperature: origRequest.Temperature,
 			TopP:        origRequest.TopP,
 		},
-		AdditionalModelRequestFields: map[string]interface{}{},
+		AdditionalModelRequestFields: make(map[string]interface{}),
 		PerformanceConfig: PerformanceConfiguration{
 			Latency: "standard",
 		},
 	}
+
+	for key, value := range b.config.bedrockAdditionalFields {
+		request.AdditionalModelRequestFields[key] = value
+	}
+
 	requestBytes, err := json.Marshal(request)
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err
@@ -756,7 +750,7 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 				Role:    bedrockResponse.Output.Message.Role,
 				Content: outputContent,
 			},
-			FinishReason: stopReasonBedrock2OpenAI(bedrockResponse.StopReason),
+			FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 		},
 	}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
@@ -768,7 +762,7 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     bedrockResponse.Usage.InputTokens,
 			CompletionTokens: bedrockResponse.Usage.OutputTokens,
 			TotalTokens:      bedrockResponse.Usage.TotalTokens,
@@ -894,18 +888,10 @@ func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 	t := time.Now().UTC()
 	amzDate := t.Format("20060102T150405Z")
 	dateStamp := t.Format("20060102")
-	path, _ := proxywasm.GetHttpRequestHeader(":path")
-	if headers != nil {
-		path = headers.Get(":path")
-	}
+	path := headers.Get(":path")
 	signature := b.generateSignature(path, amzDate, dateStamp, body)
-	if headers != nil {
-		headers.Set("X-Amz-Date", amzDate)
-		headers.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
-	} else {
-		_ = proxywasm.ReplaceHttpRequestHeader("X-Amz-Date", amzDate)
-		_ = proxywasm.ReplaceHttpRequestHeader("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
-	}
+	headers.Set("X-Amz-Date", amzDate)
+	util.OverwriteRequestAuthorizationHeader(headers, fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
 }
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {

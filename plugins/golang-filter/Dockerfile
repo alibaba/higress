@@ -17,7 +17,7 @@ RUN if [ "$GOARCH" = "arm64" ]; then \
     else \
         echo "Installing AMD64 toolchain" && \
         apt-get update && \
-        apt-get install -y gcc binutils; \
+        apt-get install -y gcc-x86-64-linux-gnu binutils-x86-64-linux-gnu; \
     fi
 
 WORKDIR /workspace
@@ -30,7 +30,7 @@ RUN go mod tidy
 RUN if [ "$GOARCH" = "arm64" ]; then \
         CC=aarch64-linux-gnu-gcc AS=aarch64-linux-gnu-as go build -o /$GO_FILTER_NAME.so -buildmode=c-shared .; \
     else \
-        go build -o /$GO_FILTER_NAME.so -buildmode=c-shared .; \
+        CC=x86_64-linux-gnu-gcc AS=x86_64-linux-gnu-as go build -o /$GO_FILTER_NAME.so -buildmode=c-shared .; \
     fi
 
 FROM scratch AS output

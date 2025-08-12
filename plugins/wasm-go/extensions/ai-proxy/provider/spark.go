@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
@@ -150,7 +150,7 @@ func (p *sparkProvider) responseSpark2OpenAI(ctx wrapper.HttpContext, response *
 		Object:  objectChatCompletion,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: choices,
-		Usage:   response.Usage,
+		Usage:   &response.Usage,
 	}
 }
 
@@ -168,7 +168,7 @@ func (p *sparkProvider) streamResponseSpark2OpenAI(ctx wrapper.HttpContext, resp
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Object:  objectChatCompletion,
 		Choices: choices,
-		Usage:   response.Usage,
+		Usage:   &response.Usage,
 	}
 }
 

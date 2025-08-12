@@ -15,32 +15,41 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"net/url"
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"ai-token-ratelimit/config"
+	"ai-token-ratelimit/util"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/tokenusage"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/resp"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-token-ratelimit",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessStreamingResponseBodyBy(onHttpStreamingBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessStreamingResponseBody(onHttpStreamingBody),
 	)
 }
 
 const (
-	ClusterRateLimitFormat        string = "higress-token-ratelimit:%s:%s:%d:%d:%s:%s" // ruleName, limitType, timewindow, windowsize, key, val
-	RequestPhaseFixedWindowScript string = `
+	RedisKeyPrefix string = "higress-token-ratelimit"
+	// AiTokenGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
+	AiTokenGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d:%d"
+	// AiTokenRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
+	AiTokenRateLimitFormat        = RedisKeyPrefix + ":%s:%s:%d:%d:%s:%s"
+	RequestPhaseFixedWindowScript = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
 	redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2])
@@ -48,7 +57,7 @@ const (
 	end
 	return {ARGV[1], redis.call('get', KEYS[1]), ttl}
 	`
-	ResponsePhaseFixedWindowScript string = `
+	ResponsePhaseFixedWindowScript = `
 	local ttl = redis.call('ttl', KEYS[1])
 	if ttl < 0 then
 	redis.call('set', KEYS[1], ARGV[1]-ARGV[3], 'EX', ARGV[2])
@@ -57,14 +66,11 @@ const (
 	return {ARGV[1], redis.call('decrby', KEYS[1], ARGV[3]), ttl}
 	`
 
-	LimitRedisContextKey string = "LimitRedisContext"
+	LimitRedisContextKey = "LimitRedisContext"
 
-	ConsumerHeader string = "x-mse-consumer" // LimitByConsumer从该request header获取consumer的名字
-	CookieHeader   string = "cookie"
+	CookieHeader = "cookie"
 
-	RateLimitLimitHeader     string = "X-TokenRateLimit-Limit"     // 限制的总请求数
-	RateLimitRemainingHeader string = "X-TokenRateLimit-Remaining" // 剩余还可以发送的请求数
-	RateLimitResetHeader     string = "X-TokenRateLimit-Reset"     // 限流重置时间（触发限流时返回）
+	RateLimitResetHeader = "X-TokenRateLimit-Reset" // 限流重置时间（触发限流时返回）
 
 	TokenRateLimitCount = "token_ratelimit_count" // metric name
 )
@@ -81,41 +87,52 @@ type LimitRedisContext struct {
 	window int64
 }
 
-func parseConfig(json gjson.Result, config *ClusterKeyRateLimitConfig, log wrapper.Log) error {
-	err := initRedisClusterClient(json, config, log)
+func parseConfig(json gjson.Result, cfg *config.AiTokenRateLimitConfig) error {
+	err := config.InitRedisClusterClient(json, cfg)
 	if err != nil {
 		return err
 	}
-	err = parseClusterKeyRateLimitConfig(json, config)
+	err = config.ParseAiTokenRateLimitConfig(json, cfg)
 	if err != nil {
 		return err
 	}
 	// Metric settings
-	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
+	cfg.CounterMetrics = make(map[string]proxywasm.MetricCounter)
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, log wrapper.Log) types.Action {
-	// 判断是否命中限流规则
-	val, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, config.ruleItems, log)
-	if ruleItem == nil || configItem == nil {
-		return types.ActionContinue
+func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitConfig) types.Action {
+	ctx.DisableReroute()
+	limitKey, count, timeWindow := "", int64(0), int64(0)
+
+	if cfg.GlobalThreshold != nil {
+		// 全局限流模式
+		limitKey = fmt.Sprintf(AiTokenGlobalRateLimitFormat, cfg.RuleName, cfg.GlobalThreshold.TimeWindow, cfg.GlobalThreshold.Count)
+		count = cfg.GlobalThreshold.Count
+		timeWindow = cfg.GlobalThreshold.TimeWindow
+	} else {
+		// 规则限流模式
+		val, ruleItem, configItem := checkRequestAgainstLimitRule(ctx, cfg.RuleItems)
+		if ruleItem == nil || configItem == nil {
+			// 没有匹配到限流规则直接返回
+			return types.ActionContinue
+		}
+
+		limitKey = fmt.Sprintf(AiTokenRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, configItem.Count, ruleItem.Key, val)
+		count = configItem.Count
+		timeWindow = configItem.TimeWindow
 	}
 
-	// 构建redis限流key和参数
-	limitKey := fmt.Sprintf(ClusterRateLimitFormat, config.ruleName, ruleItem.limitType, configItem.timeWindow, configItem.count, ruleItem.key, val)
-	keys := []interface{}{limitKey}
-	args := []interface{}{configItem.count, configItem.timeWindow}
-
-	limitRedisContext := LimitRedisContext{
+	ctx.SetContext(LimitRedisContextKey, LimitRedisContext{
 		key:    limitKey,
-		count:  configItem.count,
-		window: configItem.timeWindow,
-	}
-	ctx.SetContext(LimitRedisContextKey, limitRedisContext)
+		count:  count,
+		window: timeWindow,
+	})
 
 	// 执行限流逻辑
-	err := config.redisClient.Eval(RequestPhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
+	keys := []interface{}{limitKey}
+	args := []interface{}{count, timeWindow}
+	err := cfg.RedisClient.Eval(RequestPhaseFixedWindowScript, 1, keys, args, func(response resp.Value) {
 		resultArray := response.Array()
 		if len(resultArray) != 3 {
 			log.Errorf("redis response parse error, response: %v", response)
@@ -131,7 +148,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 			// 触发限流
 			ctx.SetUserAttribute("token_ratelimit_status", "limited")
 			ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-			rejected(config, context)
+			rejected(cfg, context)
 		} else {
 			proxywasm.ResumeHttpRequest()
 		}
@@ -140,28 +157,27 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ClusterKeyRateLimitCon
 		log.Errorf("redis call failed: %v", err)
 		return types.ActionContinue
 	}
-	return types.ActionPause
+	return types.HeaderStopAllIterationAndWatermark
 }
 
-func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConfig, data []byte, endOfStream bool, log wrapper.Log) []byte {
-	var inputToken, outputToken int64
-	if inputToken, outputToken, ok := getUsage(data); ok {
-		ctx.SetContext("input_token", inputToken)
-		ctx.SetContext("output_token", outputToken)
+func onHttpStreamingBody(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitConfig, data []byte, endOfStream bool) []byte {
+	if usage := tokenusage.GetTokenUsage(ctx, data); usage.TotalToken > 0 {
+		ctx.SetContext(tokenusage.CtxKeyInputToken, usage.InputToken)
+		ctx.SetContext(tokenusage.CtxKeyOutputToken, usage.OutputToken)
 	}
 	if endOfStream {
-		if ctx.GetContext("input_token") == nil || ctx.GetContext("output_token") == nil {
+		if ctx.GetContext(tokenusage.CtxKeyInputToken) == nil || ctx.GetContext(tokenusage.CtxKeyOutputToken) == nil {
 			return data
 		}
-		inputToken = ctx.GetContext("input_token").(int64)
-		outputToken = ctx.GetContext("output_token").(int64)
+		inputToken := ctx.GetContext(tokenusage.CtxKeyInputToken).(int64)
+		outputToken := ctx.GetContext(tokenusage.CtxKeyOutputToken).(int64)
 		limitRedisContext, ok := ctx.GetContext(LimitRedisContextKey).(LimitRedisContext)
 		if !ok {
 			return data
 		}
 		keys := []interface{}{limitRedisContext.key}
 		args := []interface{}{limitRedisContext.count, limitRedisContext.window, inputToken + outputToken}
-		err := config.redisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, nil)
+		err := cfg.RedisClient.Eval(ResponsePhaseFixedWindowScript, 1, keys, args, nil)
 		if err != nil {
 			log.Errorf("redis call failed: %v", err)
 		}
@@ -169,87 +185,69 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config ClusterKeyRateLimitConf
 	return data
 }
 
-func getUsage(data []byte) (inputTokenUsage int64, outputTokenUsage int64, ok bool) {
-	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
-	for _, chunk := range chunks {
-		// the feature strings are used to identify the usage data, like:
-		// {"model":"gpt2","usage":{"prompt_tokens":1,"completion_tokens":1}}
-		if !bytes.Contains(chunk, []byte("prompt_tokens")) || !bytes.Contains(chunk, []byte("completion_tokens")) {
-			continue
-		}
-		inputTokenObj := gjson.GetBytes(chunk, "usage.prompt_tokens")
-		outputTokenObj := gjson.GetBytes(chunk, "usage.completion_tokens")
-		if inputTokenObj.Exists() && outputTokenObj.Exists() {
-			inputTokenUsage = inputTokenObj.Int()
-			outputTokenUsage = outputTokenObj.Int()
-			ok = true
-			return
-		}
-	}
-	return
-}
-
-func checkRequestAgainstLimitRule(ctx wrapper.HttpContext, ruleItems []LimitRuleItem, log wrapper.Log) (string, *LimitRuleItem, *LimitConfigItem) {
-	for _, rule := range ruleItems {
-		val, ruleItem, configItem := hitRateRuleItem(ctx, rule, log)
-		if ruleItem != nil && configItem != nil {
-			return val, ruleItem, configItem
+func checkRequestAgainstLimitRule(ctx wrapper.HttpContext, ruleItems []config.LimitRuleItem) (string, *config.LimitRuleItem, *config.LimitConfigItem) {
+	if len(ruleItems) > 0 {
+		for _, rule := range ruleItems {
+			val, ruleItem, configItem := hitRateRuleItem(ctx, rule)
+			if ruleItem != nil && configItem != nil {
+				return val, ruleItem, configItem
+			}
 		}
 	}
 	return "", nil, nil
 }
 
-func hitRateRuleItem(ctx wrapper.HttpContext, rule LimitRuleItem, log wrapper.Log) (string, *LimitRuleItem, *LimitConfigItem) {
-	switch rule.limitType {
+func hitRateRuleItem(ctx wrapper.HttpContext, rule config.LimitRuleItem) (string, *config.LimitRuleItem, *config.LimitConfigItem) {
+	switch rule.LimitType {
 	// 根据HTTP请求头限流
-	case limitByHeaderType, limitByPerHeaderType:
-		val, err := proxywasm.GetHttpRequestHeader(rule.key)
+	case config.LimitByHeaderType, config.LimitByPerHeaderType:
+		val, err := proxywasm.GetHttpRequestHeader(rule.Key)
 		if err != nil {
-			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", rule.key, err)
+			return logDebugAndReturnEmpty("failed to get request header %s: %v", rule.Key, err)
 		}
-		return val, &rule, findMatchingItem(rule.limitType, rule.configItems, val)
+		return val, &rule, findMatchingItem(rule.LimitType, rule.ConfigItems, val)
 	// 根据HTTP请求参数限流
-	case limitByParamType, limitByPerParamType:
+	case config.LimitByParamType, config.LimitByPerParamType:
 		parse, err := url.Parse(ctx.Path())
 		if err != nil {
-			return logDebugAndReturnEmpty(log, "failed to parse request path: %v", err)
+			return logDebugAndReturnEmpty("failed to parse request path: %v", err)
 		}
 		query, err := url.ParseQuery(parse.RawQuery)
 		if err != nil {
-			return logDebugAndReturnEmpty(log, "failed to parse query params: %v", err)
+			return logDebugAndReturnEmpty("failed to parse query params: %v", err)
 		}
-		val, ok := query[rule.key]
+		val, ok := query[rule.Key]
 		if !ok {
-			return logDebugAndReturnEmpty(log, "request param %s is empty", rule.key)
+			return logDebugAndReturnEmpty("request param %s is empty", rule.Key)
 		}
-		return val[0], &rule, findMatchingItem(rule.limitType, rule.configItems, val[0])
+		return val[0], &rule, findMatchingItem(rule.LimitType, rule.ConfigItems, val[0])
 	// 根据consumer限流
-	case limitByConsumerType, limitByPerConsumerType:
-		val, err := proxywasm.GetHttpRequestHeader(ConsumerHeader)
+	case config.LimitByConsumerType, config.LimitByPerConsumerType:
+		val, err := proxywasm.GetHttpRequestHeader(util.ConsumerHeader)
 		if err != nil {
-			return logDebugAndReturnEmpty(log, "failed to get request header %s: %v", ConsumerHeader, err)
+			return logDebugAndReturnEmpty("failed to get request header %s: %v", util.ConsumerHeader, err)
 		}
-		return val, &rule, findMatchingItem(rule.limitType, rule.configItems, val)
+		return val, &rule, findMatchingItem(rule.LimitType, rule.ConfigItems, val)
 	// 根据cookie中key值限流
-	case limitByCookieType, limitByPerCookieType:
+	case config.LimitByCookieType, config.LimitByPerCookieType:
 		cookie, err := proxywasm.GetHttpRequestHeader(CookieHeader)
 		if err != nil {
-			return logDebugAndReturnEmpty(log, "failed to get request cookie : %v", err)
+			return logDebugAndReturnEmpty("failed to get request cookie : %v", err)
 		}
-		val := extractCookieValueByKey(cookie, rule.key)
+		val := util.ExtractCookieValueByKey(cookie, rule.Key)
 		if val == "" {
-			return logDebugAndReturnEmpty(log, "cookie key '%s' extracted from cookie '%s' is empty.", rule.key, cookie)
+			return logDebugAndReturnEmpty("cookie key '%s' extracted from cookie '%s' is empty.", rule.Key, cookie)
 		}
-		return val, &rule, findMatchingItem(rule.limitType, rule.configItems, val)
+		return val, &rule, findMatchingItem(rule.LimitType, rule.ConfigItems, val)
 	// 根据客户端IP限流
-	case limitByPerIpType:
+	case config.LimitByPerIpType:
 		realIp, err := getDownStreamIp(rule)
 		if err != nil {
 			log.Warnf("failed to get down stream ip: %v", err)
 			return "", &rule, nil
 		}
-		for _, item := range rule.configItems {
-			if _, found, _ := item.ipNet.Get(realIp); !found {
+		for _, item := range rule.ConfigItems {
+			if _, found, _ := item.IpNet.Get(realIp); !found {
 				continue
 			}
 			return realIp.String(), &rule, &item
@@ -258,37 +256,37 @@ func hitRateRuleItem(ctx wrapper.HttpContext, rule LimitRuleItem, log wrapper.Lo
 	return "", nil, nil
 }
 
-func logDebugAndReturnEmpty(log wrapper.Log, errMsg string, args ...interface{}) (string, *LimitRuleItem, *LimitConfigItem) {
+func logDebugAndReturnEmpty(errMsg string, args ...interface{}) (string, *config.LimitRuleItem, *config.LimitConfigItem) {
 	log.Debugf(errMsg, args...)
 	return "", nil, nil
 }
 
-func findMatchingItem(limitType limitRuleItemType, items []LimitConfigItem, key string) *LimitConfigItem {
+func findMatchingItem(limitType config.LimitRuleItemType, items []config.LimitConfigItem, key string) *config.LimitConfigItem {
 	for _, item := range items {
 		// per类型,检查allType和regexpType
-		if limitType == limitByPerHeaderType ||
-			limitType == limitByPerParamType ||
-			limitType == limitByPerConsumerType ||
-			limitType == limitByPerCookieType {
-			if item.configType == allType || (item.configType == regexpType && item.regexp.MatchString(key)) {
+		if limitType == config.LimitByPerHeaderType ||
+			limitType == config.LimitByPerParamType ||
+			limitType == config.LimitByPerConsumerType ||
+			limitType == config.LimitByPerCookieType {
+			if item.ConfigType == config.AllType || (item.ConfigType == config.RegexpType && item.Regexp.MatchString(key)) {
 				return &item
 			}
 		}
 		// 其他类型,直接比较key
-		if item.key == key {
+		if item.Key == key {
 			return &item
 		}
 	}
 	return nil
 }
 
-func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
+func getDownStreamIp(rule config.LimitRuleItem) (net.IP, error) {
 	var (
 		realIpStr string
 		err       error
 	)
-	if rule.limitByPerIp.sourceType == HeaderSourceType {
-		realIpStr, err = proxywasm.GetHttpRequestHeader(rule.limitByPerIp.headerName)
+	if rule.LimitByPerIp.SourceType == config.HeaderSourceType {
+		realIpStr, err = proxywasm.GetHttpRequestHeader(rule.LimitByPerIp.HeaderName)
 		if err == nil {
 			realIpStr = strings.Split(strings.Trim(realIpStr, " "), ",")[0]
 		}
@@ -300,7 +298,7 @@ func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	ip := parseIP(realIpStr)
+	ip := util.ParseIP(realIpStr)
 	realIP := net.ParseIP(ip)
 	if realIP == nil {
 		return nil, fmt.Errorf("invalid ip[%s]", ip)
@@ -308,54 +306,18 @@ func getDownStreamIp(rule LimitRuleItem) (net.IP, error) {
 	return realIP, nil
 }
 
-func (config *ClusterKeyRateLimitConfig) incrementCounter(metricName string, inc uint64) {
-	if inc == 0 {
-		return
-	}
-	counter, ok := config.counterMetrics[metricName]
-	if !ok {
-		counter = proxywasm.DefineCounterMetric(metricName)
-		config.counterMetrics[metricName] = counter
-	}
-	counter.Increment(inc)
-}
-
 func generateMetricName(route, cluster, model, consumer, metricName string) string {
 	return fmt.Sprintf("route.%s.upstream.%s.model.%s.consumer.%s.metric.%s", route, cluster, model, consumer, metricName)
 }
 
-func getRouteName() (string, error) {
-	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
-		return "-", err
-	} else {
-		return string(raw), nil
-	}
-}
-
-func getClusterName() (string, error) {
-	if raw, err := proxywasm.GetProperty([]string{"cluster_name"}); err != nil {
-		return "-", err
-	} else {
-		return string(raw), nil
-	}
-}
-
-func getConsumer() (string, error) {
-	if consumer, err := proxywasm.GetHttpRequestHeader(ConsumerHeader); err != nil {
-		return "none", err
-	} else {
-		return consumer, nil
-	}
-}
-
-func rejected(config ClusterKeyRateLimitConfig, context LimitContext) {
+func rejected(cfg config.AiTokenRateLimitConfig, context LimitContext) {
 	headers := make(map[string][]string)
 	headers[RateLimitResetHeader] = []string{strconv.Itoa(context.reset)}
 	_ = proxywasm.SendHttpResponseWithDetail(
-		config.rejectedCode, "ai-token-ratelimit.rejected", reconvertHeaders(headers), []byte(config.rejectedMsg), -1)
+		cfg.RejectedCode, "ai-token-ratelimit.rejected", util.ReconvertHeaders(headers), []byte(cfg.RejectedMsg), -1)
 
-	route, _ := getRouteName()
-	cluster, _ := getClusterName()
-	consumer, _ := getConsumer()
-	config.incrementCounter(generateMetricName(route, cluster, "none", consumer, TokenRateLimitCount), 1)
+	route, _ := util.GetRouteName()
+	cluster, _ := util.GetClusterName()
+	consumer, _ := util.GetConsumer()
+	cfg.IncrementCounter(generateMetricName(route, cluster, "none", consumer, TokenRateLimitCount), 1)
 }

@@ -50,6 +50,8 @@ const (
 	DefaultNacosCacheDir        = "/var/log/nacos/log/mcp/cache"
 	DefaultNacosNotLoadCache    = true
 	DefaultNacosLogMaxAge       = 3
+	DefaultNacosLogMaxSize      = 64
+	DefaultNacosLogMaxBackups   = 3
 	DefaultRefreshInterval      = time.Second * 30
 	DefaultRefreshIntervalLimit = time.Second * 10
 )
@@ -128,6 +130,8 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		constant.WithNotLoadCacheAtStart(DefaultNacosNotLoadCache),
 		constant.WithLogRollingConfig(&constant.ClientLogRollingConfig{
 			MaxAge: DefaultNacosLogMaxAge,
+			MaxSize: DefaultNacosLogMaxSize,
+			MaxBackups: DefaultNacosLogMaxBackups,
 		}),
 		constant.WithUpdateCacheWhenEmpty(w.updateCacheWhenEmpty),
 		constant.WithNamespaceId(w.NacosNamespaceId),
@@ -467,12 +471,13 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 			convertTool.RequestTemplate = requestTemplate
 		}
 
-		responseTemplate, err := getResponseTemplateFromToolMeta(toolMeta)
+		responseTemplate, errorResponseTemplate, err := getResponseTemplateFromToolMeta(toolMeta)
 		if err != nil {
 			mcpServerLog.Errorf("get response template from tool meta error:%v, tool name %v", err, t.Name)
 			continue
 		} else {
 			convertTool.ResponseTemplate = responseTemplate
+			convertTool.ErrorResponseTemplate = errorResponseTemplate
 		}
 		rule.Tools = append(rule.Tools, convertTool)
 	}
@@ -711,9 +716,9 @@ func getRequestTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.Req
 	return nil, nil
 }
 
-func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.ResponseTemplate, error) {
+func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.ResponseTemplate, string, error) {
 	if toolMeta == nil {
-		return nil, nil
+		return nil, "", nil
 	}
 	toolTemplate := toolMeta.Templates
 	for kind, meta := range toolTemplate {
@@ -721,18 +726,18 @@ func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.Re
 		case provider.JsonGoTemplateType:
 			templateData, err := json.Marshal(meta)
 			if err != nil {
-				return nil, err
+				return nil, "", err
 			}
 			template := &provider.JsonGoTemplate{}
 			if err = json.Unmarshal(templateData, template); err != nil {
-				return nil, err
+				return nil, "", err
 			}
-			return &template.ResponseTemplate, nil
+			return &template.ResponseTemplate, template.ErrorResponseTemplate, nil
 		default:
-			return nil, fmt.Errorf("unsupport tool meta type")
+			return nil, "", fmt.Errorf("unsupported tool meta type: %s", kind)
 		}
 	}
-	return nil, nil
+	return nil, "", nil
 }
 
 func mergeMaps(maps ...map[string]string) map[string]string {

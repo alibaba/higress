@@ -3,12 +3,13 @@ package config
 import (
 	"errors"
 	"fmt"
+	re "regexp"
 	"strings"
 
 	"cluster-key-rate-limit/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
-	re "github.com/wasilibs/go-re2"
 	"github.com/zmap/go-iptree/iptree"
 )
 
@@ -189,11 +190,25 @@ func initLimitRule(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
 	}
 
 	var ruleItems []LimitRuleItem
+	// 用于记录已出现的LimitType和Key的组合
+	seenLimitRules := make(map[string]bool)
+
 	for _, item := range items {
 		ruleItem, err := parseLimitRuleItem(item)
 		if err != nil {
 			return fmt.Errorf("failed to parse rule_item in rule_items: %w", err)
 		}
+
+		// 构造LimitType和Key的唯一标识
+		ruleKey := string(ruleItem.LimitType) + ":" + ruleItem.Key
+
+		// 检查是否有重复的LimitType和Key组合
+		if seenLimitRules[ruleKey] {
+			log.Warnf("duplicate rule found: %s='%s' in rule_items", ruleItem.LimitType, ruleItem.Key)
+		} else {
+			seenLimitRules[ruleKey] = true
+		}
+
 		ruleItems = append(ruleItems, *ruleItem)
 	}
 	config.RuleItems = ruleItems
@@ -203,9 +218,13 @@ func initLimitRule(json gjson.Result, config *ClusterKeyRateLimitConfig) error {
 func parseGlobalThreshold(item gjson.Result) (*GlobalThreshold, error) {
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
-		if q.Exists() && q.Int() > 0 {
+		if q.Exists() {
+			count := q.Int()
+			if count <= 0 {
+				return nil, fmt.Errorf("'%s' must be a positive integer, got %d", timeWindowKey, count)
+			}
 			return &GlobalThreshold{
-				Count:      q.Int(),
+				Count:      count,
 				TimeWindow: duration,
 			}, nil
 		}
@@ -274,7 +293,7 @@ func parseLimitRuleItem(item gjson.Result) (*LimitRuleItem, error) {
 	// 初始化configItems
 	err := initConfigItems(item, &ruleItem)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init config items: %w", err)
+		return nil, err
 	}
 
 	return &ruleItem, nil
@@ -342,13 +361,17 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 func createConfigItemFromRate(item gjson.Result, itemType LimitConfigItemType, key string, ipNet *iptree.IPTree, regexp *re.Regexp) (*LimitConfigItem, error) {
 	for timeWindowKey, duration := range timeWindows {
 		q := item.Get(timeWindowKey)
-		if q.Exists() && q.Int() > 0 {
+		if q.Exists() {
+			count := q.Int()
+			if count <= 0 {
+				return nil, fmt.Errorf("'%s' must be a positive integer for key '%s', got %d", timeWindowKey, key, count)
+			}
 			return &LimitConfigItem{
 				ConfigType: itemType,
 				Key:        key,
 				IpNet:      ipNet,
 				Regexp:     regexp,
-				Count:      q.Int(),
+				Count:      count,
 				TimeWindow: duration,
 			}, nil
 		}

@@ -15,10 +15,10 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -32,8 +32,7 @@ const (
 	vertexEmbeddingAction            = "predict"
 )
 
-type vertexProviderInitializer struct {
-}
+type vertexProviderInitializer struct{}
 
 func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.vertexAuthKey == "" {
@@ -137,7 +136,7 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if v.config.IsOriginal() {
 		return types.ActionContinue, nil
 	}
-	headers := util.GetOriginalRequestHeaders()
+	headers := util.GetRequestHeaders()
 	body, err := v.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 	util.ReplaceRequestHeaders(headers)
 	_ = proxywasm.ReplaceHttpRequestBody(body)
@@ -245,7 +244,7 @@ func (v *vertexProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 		Created: time.Now().UnixMilli() / 1000,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: make([]chatCompletionChoice, 0, len(response.Candidates)),
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     response.UsageMetadata.PromptTokenCount,
 			CompletionTokens: response.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      response.UsageMetadata.TotalTokenCount,
@@ -257,7 +256,7 @@ func (v *vertexProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 			Message: &chatMessage{
 				Role: roleAssistant,
 			},
-			FinishReason: candidate.FinishReason,
+			FinishReason: util.Ptr(candidate.FinishReason),
 		}
 		if len(candidate.Content.Parts) > 0 {
 			choice.Message.Content = candidate.Content.Parts[0].Text
@@ -310,7 +309,7 @@ func (v *vertexProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 		Created: time.Now().UnixMilli() / 1000,
 		Model:   ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		Choices: []chatCompletionChoice{choice},
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     vertexResp.UsageMetadata.PromptTokenCount,
 			CompletionTokens: vertexResp.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      vertexResp.UsageMetadata.TotalTokenCount,
