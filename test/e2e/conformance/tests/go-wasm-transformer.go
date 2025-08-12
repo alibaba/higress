@@ -259,7 +259,6 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 								"X-map": "vmap",
 							},
 						},
-
 					},
 				},
 				Response: http.AssertionResponse{
@@ -315,7 +314,8 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 						{
 							"X-removed":["v1", "v2"],
 							"X-not-renamed":["v1"],
-							"X-to-be-mapped":["v1", "v2"]
+							"X-to-be-mapped":["v1", "v2"],
+							"X-replace": "not-replaced"
 						}
 						`),
 						ContentType: http.ContentTypeApplicationJson,
@@ -332,7 +332,8 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 								"X-renamed":["v1"],
 								"X-add-append":["add","append"],
 								"X-to-be-mapped":["v1", "v2"],
-								"X-map":["v1", "v2"]
+								"X-map":["v1", "v2"],
+								"X-replace": "replaced"
 							}
 						`),
 						},
@@ -376,9 +377,258 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 							"X-renamed":["v1"],
 							"X-add-append":["add","append"],
 							"X-to-be-mapped":["v1", "v2"],
-							"X-map":["v1", "v2"]
+							"X-map":["v1", "v2"],
+							"X-replace":"replaced"
 						}
 						`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 10: map from headers to body",
+					TargetBackend:   "infra-backend-echo-body-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:    "foo10.com",
+						Path:    "/post",
+						Method:  "POST",
+						Headers: map[string]string{"X-map": "higress"},
+						Body: []byte(`
+						{
+							"X-hello":"world"
+						}
+						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body: []byte(`
+						{
+							"X-hello":"world",
+							"kmap":["higress"]
+						}
+						`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 11: map from querys to body",
+					TargetBackend:   "infra-backend-echo-body-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:   "foo11.com",
+						Path:   "/post?X-map=higress",
+						Method: "POST",
+						Body: []byte(`
+						{
+							"X-hello": "world"
+						}
+						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body: []byte(`
+						{
+							"X-hello": "world",
+							"test": {
+								"kmap": ["higress"]
+							}
+						}
+						`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 12: map from body to headers",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:   "foo12.com",
+						Path:   "/post",
+						Method: "POST",
+						Body: []byte(`
+						{
+							"test": {
+								"kmap": "higress"
+							}
+						}
+						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo12.com",
+							Path:    "/post",
+							Method:  "POST",
+							Headers: map[string]string{"X-map": "higress"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 13: map from body to querys",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:   "foo13.com",
+						Path:   "/post",
+						Method: "POST",
+						Body: []byte(`
+						{
+							"test": {
+								"kmap": "higress"
+							}
+						}
+						`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:   "foo13.com",
+							Path:   "/post?X-map=higress",
+							Method: "POST",
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 14: headers & querys, when replace key is not exist, it is equivalent to app",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo14.com",
+						Path: "/get?X-replace-querys=hello",
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo14.com",
+							Path:    "/get?X-replace-querys=exist-querys",
+							Headers: map[string]string{"X-replace-headers": "exist-headers"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 15: body, when replace key is not exist, it is equivalent to add",
+					TargetBackend:   "infra-backend-echo-body-v1",
+					TargetNamespace: "higress-conformance-infra",
+					CompareTarget:   http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo15.com",
+						Path:        "/post",
+						Method:      "POST",
+						Body:        []byte(`{}`),
+						ContentType: http.ContentTypeApplicationJson,
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body: []byte(`
+						{
+							"X-replace-body": "exist-body"
+						}
+						`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 16: request reroute",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo16.com",
+						Path: "/get",
+						Headers: map[string]string{
+							"reroute": "false",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo16.reroute.com",
+							Path:    "/get",
+							Headers: map[string]string{"reroute": "true"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 17: request non reroute",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo17.com",
+						Path: "/get",
+						Headers: map[string]string{
+							"reroute": "false",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo17.non-reroute.com",
+							Path: "/get",
+							// although the header was replaced, it was not rerouted
+							Headers: map[string]string{"reroute": "true"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
 					},
 				},
 			},

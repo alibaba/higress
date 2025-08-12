@@ -3,6 +3,7 @@ package gorm
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -160,7 +161,6 @@ func (c *DBClient) handleSQLError(err error) error {
 // DescribeTable Get the structure of a specific table.
 func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error) {
 	var sql string
-	var args []string
 	switch c.dbType {
 	case MYSQL:
 		sql = `
@@ -175,7 +175,7 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 			from information_schema.columns
 			where table_schema = database() and table_name = ?
 		`
-		args = []string{table}
+		return c.Query(sql, table)
 
 	case POSTGRES:
 		sql = `
@@ -184,20 +184,21 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 				data_type as column_type,
 				is_nullable,
 				case 
-				    when column_default like 'nextval%%' then 'auto_increment'
+				    when column_default like 'nextval%' then 'auto_increment'
 				    when column_default is not null then 'default'
 				    else ''
 				end as column_key,
 				column_default,
 				case 
-				    when column_default like 'nextval%%' then 'auto_increment'
+				    when column_default like 'nextval%' then 'auto_increment'
 				    else ''
 				end as extra,
 				col_description((select oid from pg_class where relname = ?), ordinal_position) as column_comment
 			from information_schema.columns
 			where table_name = ?
 		`
-		args = []string{table, table}
+		lowerTable := strings.ToLower(table)
+		return c.Query(sql, lowerTable, lowerTable)
 
 	case CLICKHOUSE:
 		sql = `
@@ -212,7 +213,7 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 			from system.columns
 			where database = currentDatabase() and table = ?
 		`
-		args = []string{table}
+		return c.Query(sql, table)
 
 	case SQLITE:
 		sql = `
@@ -226,13 +227,11 @@ func (c *DBClient) DescribeTable(table string) ([]map[string]interface{}, error)
 				'' as column_comment
 			from pragma_table_info(?)
 		`
-		args = []string{table}
+		return c.Query(sql, table)
 
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", c.dbType)
 	}
-
-	return c.Query(sql, args)
 }
 
 // ListTables List all tables in the connected database.

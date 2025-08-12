@@ -48,6 +48,7 @@ func parseConfig(json gjson.Result, config *RestrictionConfig, log log.Log) erro
 		case HeaderSourceType:
 			config.IPSourceType = HeaderSourceType
 		case OriginSourceType:
+			config.IPSourceType = OriginSourceType
 		default:
 			config.IPSourceType = OriginSourceType
 		}

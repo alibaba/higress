@@ -23,6 +23,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/mcp"
+	"github.com/higress-group/wasm-go/pkg/mcp/consts"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -33,7 +34,7 @@ func main() {}
 func init() {
 	mcp.LoadMCPFilter(
 		mcp.FilterName("mcp-router"),
-		mcp.SetConfigParser(ParseConfig),
+		mcp.SetConfigOverrideParser(ParseGlobalConfig, ParseOverrideConfig),
 		mcp.SetToolCallRequestFilter(ProcessRequest),
 	)
 	mcp.InitMCPFilter()
@@ -46,13 +47,18 @@ type ServerConfig struct {
 	Path   string `json:"path"`
 }
 
-// McpRouterConfig represents the configuration for the mcp-router filter
-type McpRouterConfig struct {
+// McpRouterGlobalConfig represents the global configuration for the mcp-router filter
+type McpRouterGlobalConfig struct {
 	Servers []ServerConfig `json:"servers"`
 }
 
-func ParseConfig(configBytes []byte, filterConfig *any) error {
-	var config McpRouterConfig
+type McpRouterConfig struct {
+	global *McpRouterGlobalConfig
+	enable bool
+}
+
+func ParseGlobalConfig(configBytes []byte, globalConfig *any) error {
+	var config McpRouterGlobalConfig
 	if err := json.Unmarshal(configBytes, &config); err != nil {
 		return fmt.Errorf("failed to parse mcp-router config: %v", err)
 	}
@@ -62,7 +68,26 @@ func ParseConfig(configBytes []byte, filterConfig *any) error {
 		log.Debugf("Server: %s -> %s%s", server.Name, server.Domain, server.Path)
 	}
 
-	*filterConfig = config
+	*globalConfig = config
+	return nil
+}
+
+func ParseOverrideConfig(configBytes []byte, globalConfig any, ruleConfig *any) error {
+	var config McpRouterConfig
+	if globalConfig == nil {
+		config.global = &McpRouterGlobalConfig{}
+		config.enable = false
+		*ruleConfig = config
+		log.Error("globalConfig not found, mcp router will not work")
+		return nil
+	}
+	parent, ok := globalConfig.(McpRouterGlobalConfig)
+	if !ok {
+		return fmt.Errorf("invalid globalConfig: %v", globalConfig)
+	}
+	config.global = &parent
+	config.enable = gjson.GetBytes(configBytes, "enable").Bool()
+	*ruleConfig = config
 	return nil
 }
 
@@ -72,9 +97,11 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 		log.Errorf("Invalid config type for mcp-router")
 		return types.ActionContinue
 	}
-
-	// Extract server name from tool name (format: "serverName/toolName")
-	parts := strings.SplitN(toolName, "/", 2)
+	if !routerConfig.enable {
+		return types.ActionContinue
+	}
+	// Extract server name from tool name (format: "${serverName}HigressRouteTo${toolName}")
+	parts := strings.SplitN(toolName, consts.ToolSetNameSplitter, 2)
 	if len(parts) != 2 {
 		log.Debugf("Tool name '%s' does not contain server prefix, continuing without routing", toolName)
 		return types.ActionContinue
@@ -87,7 +114,7 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 
 	// Find the server configuration
 	var targetServer *ServerConfig
-	for _, server := range routerConfig.Servers {
+	for _, server := range routerConfig.global.Servers {
 		if server.Name == serverName {
 			targetServer = &server
 			break
@@ -108,6 +135,8 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 			return types.ActionContinue
 		}
 	}
+
+	proxywasm.ReplaceHttpRequestHeader("x-envoy-internal-route", "true")
 
 	// Modify the :path header
 	if err := proxywasm.ReplaceHttpRequestHeader(":path", targetServer.Path); err != nil {
