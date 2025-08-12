@@ -20,6 +20,7 @@ var (
 	latP50            proxywasm.MetricCounter
 	latP95            proxywasm.MetricCounter
 	latP999           proxywasm.MetricCounter
+	counterBatchJobs  proxywasm.MetricCounter
 	metricsInit       = false
 )
 
@@ -31,6 +32,7 @@ func ensureMetrics() {
 	latP50 = proxywasm.DefineCounterMetric(metricLatencyMilliP50)
 	latP95 = proxywasm.DefineCounterMetric(metricLatencyMilliP95)
 	latP999 = proxywasm.DefineCounterMetric(metricLatencyMilliP999)
+	counterBatchJobs = proxywasm.DefineCounterMetric(metricBatchJobTriggers)
 	metricsInit = true
 }
 
@@ -44,7 +46,6 @@ func metricsOnResponse(ctx wrapper.HttpContext) {
 	if v := ctx.GetContext(ctxStartTimeKey); v != nil {
 		if startMs, ok := v.(int64); ok {
 			elapsed := time.Now().UnixMilli() - startMs
-			// naive percentile-like buckets
 			switch {
 			case elapsed <= 100:
 				latP50.Add(1)
@@ -62,4 +63,9 @@ func metricsAddTokens(tokens int) {
 	if tokens > 0 {
 		counterTokenUsage.Add(uint64(tokens))
 	}
+}
+
+func metricsBatchTriggered() {
+	ensureMetrics()
+	counterBatchJobs.Add(1)
 }

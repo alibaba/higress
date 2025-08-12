@@ -65,6 +65,10 @@ spec:
               fieldRef:
                 apiVersion: v1
                 fieldPath: metadata.namespace
+          {{- if .Values.controller.tenantNamespaces }}
+          - name: HIGRESS_TENANT_NAMESPACES
+            value: {{ join "," .Values.controller.tenantNamespaces | quote }}
+          {{- end }}
           - name: SERVICE_ACCOUNT
             valueFrom:
               fieldRef:

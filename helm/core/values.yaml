@@ -551,6 +551,7 @@ controller:
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   tag: ""
   env: {}
+  tenantNamespaces: []
 
   labels: {}
 

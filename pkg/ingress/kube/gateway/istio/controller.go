@@ -21,6 +21,9 @@ import (
 	"sync"
 	"time"
 
+	"os"
+	"strings"
+
 	"go.uber.org/atomic"
 	"istio.io/istio/pilot/pkg/credentials"
 	"istio.io/istio/pilot/pkg/features"
@@ -213,6 +216,17 @@ func (c *Controller) SetStatusWrite(enabled bool, statusManager *status.Manager)
 // Reconcile takes in a current snapshot of the gateway-api configs, and regenerates our internal state.
 // Any status updates required will be enqueued as well.
 func (c *Controller) Reconcile(ps *model.PushContext) error {
+	// Allowed namespaces from env: HIGRESS_TENANT_NAMESPACES="ns1,ns2"
+	var allowed []string
+	if v := os.Getenv("HIGRESS_TENANT_NAMESPACES"); v != "" {
+		for _, ns := range strings.Split(v, ",") {
+			if ns = strings.TrimSpace(ns); ns != "" {
+				allowed = append(allowed, ns)
+			}
+		}
+	}
+	tenantMgr := &tenancy.TenantManager{}
+
 	t0 := time.Now()
 	defer func() {
 		log.Debugf("reconcile complete in %v", time.Since(t0))
@@ -223,6 +237,23 @@ func (c *Controller) Reconcile(ps *model.PushContext) error {
 	tcpRoute := c.cache.List(gvk.TCPRoute, metav1.NamespaceAll)
 	tlsRoute := c.cache.List(gvk.TLSRoute, metav1.NamespaceAll)
 	referenceGrant := c.cache.List(gvk.ReferenceGrant, metav1.NamespaceAll)
+
+	// Apply namespace filtering on inputs if allowed namespaces defined
+	if len(allowed) > 0 {
+		filter := func(in []config.Config) []config.Config {
+			var out []config.Config
+			for _, it := range in {
+				if tenantMgr.AllowedNamespace(it.Namespace, allowed) {
+					out = append(out, it)
+				}
+			}
+			return out
+		}
+		gateway = filter(gateway)
+		httpRoute = filter(httpRoute)
+		tcpRoute = filter(tcpRoute)
+		tlsRoute = filter(tlsRoute)
+	}
 
 	input := GatewayResources{
 		GatewayClass:           deepCopyStatus(gatewayClass),

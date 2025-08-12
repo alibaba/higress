@@ -29,6 +29,9 @@ const (
 	ctxOriginalPath = "original_path"
 	ctxOriginalHost = "original_host"
 	ctxOriginalAuth = "original_auth"
+
+	// batch trigger metric name (counter)
+	metricBatchJobTriggers = "higress_ai_batch_job_triggers_total"
 )
 
 var (
