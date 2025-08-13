@@ -130,6 +130,7 @@ const (
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
 	providerTypeVertex     = "vertex"
+	providerTypeVllm       = "vllm"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -206,6 +207,7 @@ var (
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
 		providerTypeVertex:     &vertexProviderInitializer{},
+		providerTypeVllm:       &vllmProviderInitializer{},
 	}
 )
 
@@ -391,6 +393,12 @@ type ProviderConfig struct {
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
+	// @Title zh-CN vLLM自定义后端URL
+	// @Description zh-CN 仅适用于vLLM服务。vLLM服务的完整URL，包含协议、域名、端口等
+	vllmCustomUrl string `required:"false" yaml:"vllmCustomUrl" json:"vllmCustomUrl"`
+	// @Title zh-CN vLLM主机地址
+	// @Description zh-CN 仅适用于vLLM服务，指定vLLM服务器的主机地址，例如：vllm-service.cluster.local
+	vllmServerHost string `required:"false" yaml:"vllmServerHost" json:"vllmServerHost"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -403,6 +411,14 @@ func (c *ProviderConfig) GetType() string {
 
 func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
+}
+
+func (c *ProviderConfig) GetVllmCustomUrl() string {
+	return c.vllmCustomUrl
+}
+
+func (c *ProviderConfig) GetVllmServerHost() string {
+	return c.vllmServerHost
 }
 
 func (c *ProviderConfig) IsOpenAIProtocol() bool {
@@ -566,6 +582,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.basePath != "" && c.basePathHandling == "" {
 		c.basePathHandling = basePathHandlingRemovePrefix
 	}
+	c.vllmServerHost = json.Get("vllmServerHost").String()
+	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 }
 
 func (c *ProviderConfig) Validate() error {
