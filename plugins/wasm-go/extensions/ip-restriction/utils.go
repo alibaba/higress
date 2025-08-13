@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/asergeyev/nradix"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
 )
@@ -16,8 +18,8 @@ func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 		tree := iptree.New()
 		for _, result := range array {
 			err := tree.AddByString(result.String(), 0)
-			if err != nil {
-				return nil, fmt.Errorf("invalid IP[%s]", result.String())
+			if err != nil && !errors.Is(err, nradix.ErrNodeBusy) { // ErrNodeBusy means the IP already exists in the tree
+				return nil, fmt.Errorf("add IP [%s] into tree failed: %v", result.String(), err)
 			}
 		}
 		return tree, nil
