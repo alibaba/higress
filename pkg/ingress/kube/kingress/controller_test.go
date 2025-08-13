@@ -286,7 +286,7 @@ func testConvertHTTPRoute(t *testing.T, c common.KIngressController) {
 			expectNoError: true,
 		},
 		{
-			description: "valid httpRoute convention, vaild ingress",
+			description: "valid httpRoute convention, valid ingress",
 			input: struct {
 				options       *common.ConvertOptions
 				wrapperConfig *common.WrapperConfig

@@ -57,12 +57,12 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 }
 
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
-	if !endStream {
-		return api.StopAndBuffer
-	}
 	if f.message {
 		for _, server := range f.config.servers {
 			if f.path == server.BaseServer.GetMessageEndpoint() {
+				if !endStream {
+					return api.StopAndBuffer
+				}
 				// Create a response recorder to capture the response
 				recorder := httptest.NewRecorder()
 				// Call the handleMessage method of SSEServer with complete body
