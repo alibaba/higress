@@ -175,8 +175,8 @@ var regexpLimitConfig = func() json.RawMessage {
 				"limit_by_per_header": "x-user-id",
 				"limit_keys": []map[string]interface{}{
 					{
-						"key":                "regexp:^user-\\d+$",
-						"token_per_minute":   150,
+						"key":              "regexp:^user-\\d+$",
+						"token_per_minute": 150,
 					},
 				},
 			},
@@ -465,16 +465,22 @@ func TestOnHttpStreamingBody(t *testing.T) {
 			// 处理流式响应体
 			// 模拟包含 token 统计信息的响应体
 			responseBody := []byte(`{"choices":[{"message":{"content":"Hello, how can I help you?"}}],"usage":{"prompt_tokens":10,"completion_tokens":15,"total_tokens":25}}`)
-			result := host.CallOnHttpStreamingRequestBody(responseBody, false) // 不是最后一个块
+			action := host.CallOnHttpStreamingRequestBody(responseBody, false) // 不是最后一个块
 
-			// 应该返回原始数据
+			result := host.GetRequestBody()
 			require.Equal(t, responseBody, result)
+			// 应该返回 ActionContinue
+			require.Equal(t, types.ActionContinue, action)
 
 			// 处理最后一个块
-			result = host.CallOnHttpStreamingRequestBody([]byte(""), true) // 最后一个块
+			lastChunk := []byte(`{"choices":[{"message":{"content":"How can I help you?"}}],"usage":{"prompt_tokens":10,"completion_tokens":15,"total_tokens":25}}`)
+			action = host.CallOnHttpStreamingRequestBody(lastChunk, true) // 最后一个块
 
-			// 应该返回空数据
-			require.Equal(t, []byte(""), result)
+			result = host.GetRequestBody()
+			require.Equal(t, lastChunk, result)
+
+			// 应该返回 ActionContinue
+			require.Equal(t, types.ActionContinue, action)
 
 			host.CompleteHttp()
 		})
@@ -499,10 +505,12 @@ func TestOnHttpStreamingBody(t *testing.T) {
 			// 处理流式响应体
 			// 模拟不包含 token 统计信息的响应体
 			responseBody := []byte(`{"message": "Hello, world!"}`)
-			result := host.CallOnHttpStreamingRequestBody(responseBody, true) // 最后一个块
+			action := host.CallOnHttpStreamingRequestBody(responseBody, true) // 最后一个块
 
-			// 应该返回原始数据
+			result := host.GetRequestBody()
 			require.Equal(t, responseBody, result)
+			// 应该返回 ActionContinue
+			require.Equal(t, types.ActionContinue, action)
 
 			host.CompleteHttp()
 		})
@@ -534,10 +542,13 @@ func TestCompleteFlow(t *testing.T) {
 
 			// 3. 处理流式响应体
 			responseBody := []byte(`{"choices":[{"message":{"content":"AI response"}}],"usage":{"prompt_tokens":5,"completion_tokens":8,"total_tokens":13}}`)
-			result := host.CallOnHttpStreamingRequestBody(responseBody, true)
+			action = host.CallOnHttpStreamingRequestBody(responseBody, true)
 
-			// 应该返回原始数据
+			result := host.GetRequestBody()
 			require.Equal(t, responseBody, result)
+
+			// 应该返回 ActionContinue
+			require.Equal(t, types.ActionContinue, action)
 
 			// 4. 完成请求
 			host.CompleteHttp()

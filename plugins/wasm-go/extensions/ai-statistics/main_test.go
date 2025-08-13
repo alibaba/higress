@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/test"
@@ -39,6 +40,38 @@ var basicConfig = func() json.RawMessage {
 				"key":                   "api_version",
 				"value_source":          "fixed_value",
 				"value":                 "v1",
+				"apply_to_log":          true,
+				"apply_to_span":         true,
+				"as_separate_log_field": false,
+			},
+			{
+				"key":                   "model",
+				"value_source":          "request_body",
+				"value":                 "model",
+				"apply_to_log":          true,
+				"apply_to_span":         true,
+				"as_separate_log_field": false,
+			},
+			{
+				"key":                   "input_token",
+				"value_source":          "response_body",
+				"value":                 "usage.prompt_tokens",
+				"apply_to_log":          true,
+				"apply_to_span":         true,
+				"as_separate_log_field": false,
+			},
+			{
+				"key":                   "output_token",
+				"value_source":          "response_body",
+				"value":                 "usage.completion_tokens",
+				"apply_to_log":          true,
+				"apply_to_span":         true,
+				"as_separate_log_field": false,
+			},
+			{
+				"key":                   "total_token",
+				"value_source":          "response_body",
+				"value":                 "usage.total_tokens",
 				"apply_to_log":          true,
 				"apply_to_span":         true,
 				"as_separate_log_field": false,
@@ -457,16 +490,22 @@ func TestOnHttpStreamingBody(t *testing.T) {
 
 			// 处理第一个流式块
 			firstChunk := []byte(`data: {"choices":[{"message":{"content":"Hello"}}],"model":"gpt-3.5-turbo"}`)
-			result := host.CallOnHttpStreamingRequestBody(firstChunk, false)
+			action := host.CallOnHttpStreamingResponseBody(firstChunk, false)
+
+			result := host.GetResponseBody()
+			require.Equal(t, firstChunk, result)
 
 			// 应该返回原始数据
-			require.Equal(t, firstChunk, result)
+			require.Equal(t, types.ActionContinue, action)
 
 			// 处理最后一个流式块
 			lastChunk := []byte(`data: {"choices":[{"message":{"content":"How can I help you?"}}],"model":"gpt-3.5-turbo"}`)
-			result = host.CallOnHttpStreamingRequestBody(lastChunk, true)
+			action = host.CallOnHttpStreamingResponseBody(lastChunk, true)
 
 			// 应该返回原始数据
+			require.Equal(t, types.ActionContinue, action)
+
+			result = host.GetResponseBody()
 			require.Equal(t, lastChunk, result)
 
 			host.CompleteHttp()
@@ -493,9 +532,12 @@ func TestOnHttpStreamingBody(t *testing.T) {
 
 			// 处理流式响应体
 			chunk := []byte(`data: {"message": "Hello world"}`)
-			result := host.CallOnHttpStreamingRequestBody(chunk, true)
+			action := host.CallOnHttpStreamingResponseBody(chunk, true)
 
 			// 应该返回原始数据
+			require.Equal(t, types.ActionContinue, action)
+
+			result := host.GetResponseBody()
 			require.Equal(t, chunk, result)
 
 			host.CompleteHttp()
@@ -529,7 +571,8 @@ func TestOnHttpResponseBody(t *testing.T) {
 				"status": "success",
 				"message": "Hello, how can I help you?",
 				"choices": [{"message": {"content": "Hello"}}],
-				"usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25}
+				"usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+				"model": "gpt-3.5-turbo"
 			}`)
 			action := host.CallOnHttpResponseBody(responseBody)
 
@@ -573,6 +616,185 @@ func TestOnHttpResponseBody(t *testing.T) {
 	})
 }
 
+func TestMetrics(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试指标收集
+		t.Run("test token usage metrics", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置路由和集群名称
+			host.SetRouteName("api-v1")
+			host.SetClusterName("cluster-1")
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/api/chat"},
+				{":method", "POST"},
+				{"x-mse-consumer", "user1"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-3.5-turbo",
+				"messages": [{"role": "user", "content": "Hello"}]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 添加延迟，确保有足够的时间间隔来计算 llm_service_duration
+			time.Sleep(10 * time.Millisecond)
+
+			// 3. 处理响应体
+			responseBody := []byte(`{
+				"choices": [{"message": {"content": "Hello, how can I help you?"}}],
+				"usage": {"prompt_tokens": 5, "completion_tokens": 8, "total_tokens": 13},
+				"model": "gpt-3.5-turbo"
+			}`)
+			host.CallOnHttpResponseBody(responseBody)
+
+			// 4. 完成请求
+			host.CompleteHttp()
+
+			// 5. 验证指标值
+			// 检查输入 token 指标
+			inputTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.user1.metric.input_token"
+			inputTokenValue, err := host.GetCounterMetric(inputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(5), inputTokenValue)
+
+			// 检查输出 token 指标
+			outputTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.user1.metric.output_token"
+			outputTokenValue, err := host.GetCounterMetric(outputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(8), outputTokenValue)
+
+			// 检查总 token 指标
+			totalTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.user1.metric.total_token"
+			totalTokenValue, err := host.GetCounterMetric(totalTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(13), totalTokenValue)
+
+			// 检查服务时长指标
+			serviceDurationMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.user1.metric.llm_service_duration"
+			serviceDurationValue, err := host.GetCounterMetric(serviceDurationMetric)
+			require.NoError(t, err)
+			require.Greater(t, serviceDurationValue, uint64(0))
+
+			// 检查请求计数指标
+			durationCountMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.user1.metric.llm_duration_count"
+			durationCountValue, err := host.GetCounterMetric(durationCountMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), durationCountValue)
+		})
+
+		// 测试流式响应指标
+		t.Run("test streaming metrics", func(t *testing.T) {
+			host, status := test.NewTestHost(streamingBodyConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置路由和集群名称
+			host.SetRouteName("api-v1")
+			host.SetClusterName("cluster-1")
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/api/chat"},
+				{":method", "POST"},
+				{"x-mse-consumer", "user2"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"messages": [
+					{"role": "user", "content": "Hello"}
+				]
+			}`)
+			action := host.CallOnHttpRequestBody(requestBody)
+
+			// 应该返回 ActionContinue
+			require.Equal(t, types.ActionContinue, action)
+
+			// 添加延迟，确保有足够的时间间隔来计算 llm_service_duration
+			time.Sleep(10 * time.Millisecond)
+
+			// 3. 处理流式响应头
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/event-stream"},
+			})
+
+			// 应该返回 ActionContinue
+			require.Equal(t, types.ActionContinue, action)
+
+			// 4. 处理流式响应体 - 添加 usage 信息
+			firstChunk := []byte(`data: {"choices":[{"message":{"content":"Hello"}}],"model":"gpt-4","usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`)
+			action = host.CallOnHttpStreamingResponseBody(firstChunk, false)
+
+			// 应该返回原始数据
+			require.Equal(t, types.ActionContinue, action)
+
+			result := host.GetResponseBody()
+			require.Equal(t, firstChunk, result)
+
+			// 5. 处理最后一个流式块 - 添加 usage 信息
+			lastChunk := []byte(`data: {"choices":[{"message":{"content":"How can I help you?"}}],"model":"gpt-4","usage":{"prompt_tokens":5,"completion_tokens":8,"total_tokens":13}}`)
+			action = host.CallOnHttpStreamingResponseBody(lastChunk, true)
+
+			// 应该返回原始数据
+			require.Equal(t, types.ActionContinue, action)
+
+			result = host.GetResponseBody()
+			require.Equal(t, lastChunk, result)
+
+			// 添加延迟，确保有足够的时间间隔来计算 llm_service_duration
+			time.Sleep(10 * time.Millisecond)
+
+			// 6. 完成请求
+			host.CompleteHttp()
+
+			// 7. 验证流式响应指标
+			// 检查首 token 延迟指标
+			firstTokenDurationMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.user2.metric.llm_first_token_duration"
+			firstTokenDurationValue, err := host.GetCounterMetric(firstTokenDurationMetric)
+			require.NoError(t, err)
+			require.Greater(t, firstTokenDurationValue, uint64(0))
+
+			// 检查流式请求计数指标
+			streamDurationCountMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.user2.metric.llm_stream_duration_count"
+			streamDurationCountValue, err := host.GetCounterMetric(streamDurationCountMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), streamDurationCountValue)
+
+			// 检查服务时长指标
+			serviceDurationMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.user2.metric.llm_service_duration"
+			serviceDurationValue, err := host.GetCounterMetric(serviceDurationMetric)
+			require.NoError(t, err)
+			require.Greater(t, serviceDurationValue, uint64(0))
+
+			// 检查 token 指标
+			inputTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.user2.metric.input_token"
+			inputTokenValue, err := host.GetCounterMetric(inputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(5), inputTokenValue)
+
+			outputTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.user2.metric.output_token"
+			outputTokenValue, err := host.GetCounterMetric(outputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(8), outputTokenValue)
+
+			totalTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.user2.metric.total_token"
+			totalTokenValue, err := host.GetCounterMetric(totalTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(13), totalTokenValue)
+		})
+	})
+}
+
 func TestCompleteFlow(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		// 测试完整的统计流程
@@ -580,6 +802,10 @@ func TestCompleteFlow(t *testing.T) {
 			host, status := test.NewTestHost(basicConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置路由和集群名称
+			host.SetRouteName("api-v1")
+			host.SetClusterName("cluster-1")
 
 			// 1. 处理请求头
 			action := host.CallOnHttpRequestHeaders([][2]string{
@@ -605,6 +831,9 @@ func TestCompleteFlow(t *testing.T) {
 			// 应该返回 ActionContinue
 			require.Equal(t, types.ActionContinue, action)
 
+			// 添加延迟，确保有足够的时间间隔来计算 llm_service_duration
+			time.Sleep(10 * time.Millisecond)
+
 			// 3. 处理响应头
 			action = host.CallOnHttpResponseHeaders([][2]string{
 				{":status", "200"},
@@ -617,7 +846,8 @@ func TestCompleteFlow(t *testing.T) {
 			// 4. 处理响应体
 			responseBody := []byte(`{
 				"choices": [{"message": {"content": "Hello, how can I help you?"}}],
-				"usage": {"prompt_tokens": 5, "completion_tokens": 8, "total_tokens": 13}
+				"usage": {"prompt_tokens": 5, "completion_tokens": 8, "total_tokens": 13},
+				"model": "gpt-3.5-turbo"
 			}`)
 			action = host.CallOnHttpResponseBody(responseBody)
 
@@ -626,6 +856,37 @@ func TestCompleteFlow(t *testing.T) {
 
 			// 5. 完成请求
 			host.CompleteHttp()
+
+			// 6. 验证指标值
+			// 检查输入 token 指标
+			inputTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.consumer1.metric.input_token"
+			inputTokenValue, err := host.GetCounterMetric(inputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(5), inputTokenValue)
+
+			// 检查输出 token 指标
+			outputTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.consumer1.metric.output_token"
+			outputTokenValue, err := host.GetCounterMetric(outputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(8), outputTokenValue)
+
+			// 检查总 token 指标
+			totalTokenMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.consumer1.metric.total_token"
+			totalTokenValue, err := host.GetCounterMetric(totalTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(13), totalTokenValue)
+
+			// 检查服务时长指标
+			serviceDurationMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.consumer1.metric.llm_service_duration"
+			serviceDurationValue, err := host.GetCounterMetric(serviceDurationMetric)
+			require.NoError(t, err)
+			require.Greater(t, serviceDurationValue, uint64(0))
+
+			// 检查请求计数指标
+			durationCountMetric := "route.api-v1.upstream.cluster-1.model.gpt-3.5-turbo.consumer.consumer1.metric.llm_duration_count"
+			durationCountValue, err := host.GetCounterMetric(durationCountMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), durationCountValue)
 		})
 
 		// 测试流式响应的完整流程
@@ -633,6 +894,10 @@ func TestCompleteFlow(t *testing.T) {
 			host, status := test.NewTestHost(streamingBodyConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置路由和集群名称
+			host.SetRouteName("api-v1")
+			host.SetClusterName("cluster-1")
 
 			// 1. 处理请求头
 			action := host.CallOnHttpRequestHeaders([][2]string{
@@ -657,6 +922,9 @@ func TestCompleteFlow(t *testing.T) {
 			// 应该返回 ActionContinue
 			require.Equal(t, types.ActionContinue, action)
 
+			// 添加延迟，确保有足够的时间间隔来计算 llm_service_duration
+			time.Sleep(10 * time.Millisecond)
+
 			// 3. 处理流式响应头
 			action = host.CallOnHttpResponseHeaders([][2]string{
 				{":status", "200"},
@@ -666,22 +934,50 @@ func TestCompleteFlow(t *testing.T) {
 			// 应该返回 ActionContinue
 			require.Equal(t, types.ActionContinue, action)
 
-			// 4. 处理流式响应体
-			firstChunk := []byte(`data: {"choices":[{"message":{"content":"Hello"}}],"model":"gpt-4"}`)
-			result := host.CallOnHttpStreamingRequestBody(firstChunk, false)
+			// 4. 处理流式响应体 - 添加 usage 信息
+			firstChunk := []byte(`data: {"choices":[{"message":{"content":"Hello"}}],"model":"gpt-4","usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`)
+			action = host.CallOnHttpStreamingResponseBody(firstChunk, false)
 
 			// 应该返回原始数据
+			require.Equal(t, types.ActionContinue, action)
+
+			result := host.GetResponseBody()
 			require.Equal(t, firstChunk, result)
 
-			// 5. 处理最后一个流式块
-			lastChunk := []byte(`data: {"choices":[{"message":{"content":"How can I help you?"}}],"model":"gpt-4"}`)
-			result = host.CallOnHttpStreamingRequestBody(lastChunk, true)
+			// 5. 处理最后一个流式块 - 添加 usage 信息
+			lastChunk := []byte(`data: {"choices":[{"message":{"content":"How can I help you?"}}],"model":"gpt-4","usage":{"prompt_tokens":5,"completion_tokens":8,"total_tokens":13}}`)
+			action = host.CallOnHttpStreamingResponseBody(lastChunk, true)
 
 			// 应该返回原始数据
+			require.Equal(t, types.ActionContinue, action)
+
+			result = host.GetResponseBody()
 			require.Equal(t, lastChunk, result)
+
+			// 添加延迟，确保有足够的时间间隔来计算 llm_service_duration
+			time.Sleep(10 * time.Millisecond)
 
 			// 6. 完成请求
 			host.CompleteHttp()
+
+			// 7. 验证流式响应指标
+			// 检查首 token 延迟指标
+			firstTokenDurationMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.consumer2.metric.llm_first_token_duration"
+			firstTokenDurationValue, err := host.GetCounterMetric(firstTokenDurationMetric)
+			require.NoError(t, err)
+			require.Greater(t, firstTokenDurationValue, uint64(0))
+
+			// 检查流式请求计数指标
+			streamDurationCountMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.consumer2.metric.llm_stream_duration_count"
+			streamDurationCountValue, err := host.GetCounterMetric(streamDurationCountMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(1), streamDurationCountValue)
+
+			// 检查服务时长指标
+			serviceDurationMetric := "route.api-v1.upstream.cluster-1.model.gpt-4.consumer.consumer2.metric.llm_service_duration"
+			serviceDurationValue, err := host.GetCounterMetric(serviceDurationMetric)
+			require.NoError(t, err)
+			require.Greater(t, serviceDurationValue, uint64(0))
 		})
 	})
 }
