@@ -566,7 +566,7 @@ func TestMcpServerController_ConstructEnvoyFilters(t *testing.T) {
 				MatchList: []*MatchRule{},
 				Servers:   []*SSEServer{},
 			},
-			wantConfigs: 2, // Both session and server filters
+			wantConfigs: 1, // Only session filter when no servers configured
 			wantErr:     nil,
 		},
 	}
@@ -744,24 +744,7 @@ func TestMcpServerController_constructMcpServerStruct(t *testing.T) {
 			mcp: &McpServer{
 				Servers: []*SSEServer{},
 			},
-			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
-					"value": {
-						"library_id": "mcp-server",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-server",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"servers": []
-							}
-						}
-					}
-				}
-			}`,
+			wantJSON: "", // Return empty string when no servers configured
 		},
 		{
 			name: "with servers",
