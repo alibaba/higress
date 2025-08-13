@@ -100,6 +100,10 @@ func init() {
 //
 // @End
 type TransformerConfig struct {
+	// @Title 是否重新路由
+	// @Description 是否在请求转换过程中对路由目标进行重新选择，默认为 true
+	reroute bool `yaml:"reroute"`
+
 	// @Title 转换规则
 	// @Description 指定转换操作类型以及请求/响应头、请求查询参数、请求/响应体参数的转换规则
 	reqRules  []TransformRule `yaml:"reqRules"`
@@ -219,6 +223,13 @@ type Param struct {
 }
 
 func parseConfig(json gjson.Result, config *TransformerConfig, log log.Log) (err error) {
+	reroute := json.Get("reroute")
+	if !reroute.Exists() {
+		config.reroute = true
+	} else {
+		config.reroute = reroute.Bool()
+	}
+
 	reqRulesInJson := json.Get("reqRules")
 	respRulesInJson := json.Get("respRules")
 
@@ -289,6 +300,11 @@ func constructParam(item gjson.Result, op, valueType string) Param {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log log.Log) types.Action {
+	if !config.reroute {
+		log.Debug("disable reroute")
+		ctx.DisableReroute()
+	}
+
 	// because it may be a response transformer, so the setting of host and path have to advance
 	host, path := ctx.Host(), ctx.Path()
 	ctx.SetContext("host", host)

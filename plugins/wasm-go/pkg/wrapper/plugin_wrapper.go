@@ -116,7 +116,7 @@ type TickFuncEntry struct {
 
 var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 
-// Registe multiple onTick functions. Parameters include:
+// Register multiple onTick functions. Parameters include:
 // 1) tickPeriod: the execution period of tickFunc, this value should be a multiple of 100
 // 2) tickFunc: the function to be executed
 //
