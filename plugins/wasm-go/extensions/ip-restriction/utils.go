@@ -8,6 +8,8 @@ import (
 	"github.com/asergeyev/nradix"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
+
+	"github.com/higress-group/wasm-go/pkg/log"
 )
 
 // parseIPNets 解析Ip段配置
@@ -18,8 +20,13 @@ func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 		tree := iptree.New()
 		for _, result := range array {
 			err := tree.AddByString(result.String(), 0)
-			if err != nil && !errors.Is(err, nradix.ErrNodeBusy) { // ErrNodeBusy means the IP already exists in the tree
-				return nil, fmt.Errorf("add IP [%s] into tree failed: %v", result.String(), err)
+			if err != nil {
+				if errors.Is(err, nradix.ErrNodeBusy) {
+					// ErrNodeBusy means the IP already exists in the tree
+					log.Warnf("ignore duplicate IP [%s]", result.String())
+				} else {
+					return nil, fmt.Errorf("add IP [%s] into tree failed: %v", result.String(), err)
+				}
 			}
 		}
 		return tree, nil
