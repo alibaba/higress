@@ -98,8 +98,31 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 	if bedrockEvent.Role != nil {
 		chatChoice.Delta.Role = *bedrockEvent.Role
 	}
+	if bedrockEvent.Start != nil {
+		chatChoice.Delta.Content = nil
+		chatChoice.Delta.ToolCalls = []toolCall{
+			{
+				Id:   bedrockEvent.Start.ToolUse.ToolUseID,
+				Type: "function",
+				Function: functionCall{
+					Name:      bedrockEvent.Start.ToolUse.Name,
+					Arguments: "",
+				},
+			},
+		}
+	}
 	if bedrockEvent.Delta != nil {
 		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
+		if bedrockEvent.Delta.ToolUse != nil {
+			chatChoice.Delta.ToolCalls = []toolCall{
+				{
+					Type: "function",
+					Function: functionCall{
+						Arguments: bedrockEvent.Delta.ToolUse.Input,
+					},
+				},
+			}
+		}
 	}
 	if bedrockEvent.StopReason != nil {
 		chatChoice.FinishReason = util.Ptr(stopReasonBedrock2OpenAI(*bedrockEvent.StopReason))
@@ -773,31 +796,31 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseResponse) *chatCompletionResponse {
 	// responseRaw, _ := json.Marshal(bedrockResponse)
 	// log.Infof("Bedrock response: %s", string(responseRaw))
+	var outputContent string
+	if len(bedrockResponse.Output.Message.Content) > 0 {
+		outputContent = bedrockResponse.Output.Message.Content[0].Text
+	}
 	choice := chatCompletionChoice{
 		Index: 0,
 		Message: &chatMessage{
-			Role: bedrockResponse.Output.Message.Role,
+			Role:    bedrockResponse.Output.Message.Role,
+			Content: outputContent,
 		},
 		FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 	}
-	if stopReasonBedrock2OpenAI(bedrockResponse.StopReason) == finishReasonToolCall {
-		choice.Message.ToolCalls = []toolCall{}
-		for _, content := range bedrockResponse.Output.Message.Content {
-			if content.ToolUse != nil {
-				args, _ := json.Marshal(content.ToolUse.Input)
-				choice.Message.ToolCalls = append(choice.Message.ToolCalls, toolCall{
-					Id:   content.ToolUse.ToolUseId,
-					Type: "function",
-					Function: functionCall{
-						Name:      content.ToolUse.Name,
-						Arguments: string(args),
-					},
-				})
-			}
+	choice.Message.ToolCalls = []toolCall{}
+	for _, content := range bedrockResponse.Output.Message.Content {
+		if content.ToolUse != nil {
+			args, _ := json.Marshal(content.ToolUse.Input)
+			choice.Message.ToolCalls = append(choice.Message.ToolCalls, toolCall{
+				Id:   content.ToolUse.ToolUseId,
+				Type: "function",
+				Function: functionCall{
+					Name:      content.ToolUse.Name,
+					Arguments: string(args),
+				},
+			})
 		}
-	} else if len(bedrockResponse.Output.Message.Content) > 0 {
-		outputContent := bedrockResponse.Output.Message.Content[0].Text
-		choice.Message.Content = outputContent
 	}
 	choices := []chatCompletionChoice{choice}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
