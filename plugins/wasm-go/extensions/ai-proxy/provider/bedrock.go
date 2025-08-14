@@ -1015,7 +1015,7 @@ func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 			Role:    chatMessage.Role,
 			Content: []bedrockMessageContent{{}},
 		}
-		var params map[string]interface{}
+		params := map[string]interface{}{}
 		json.Unmarshal([]byte(chatMessage.ToolCalls[0].Function.Arguments), &params)
 		result.Content[0].ToolUse = &toolUseBlock{
 			Input:     params,
