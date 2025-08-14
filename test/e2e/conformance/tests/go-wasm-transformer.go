@@ -632,6 +632,38 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 18: request header transformer with split",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo18.com",
+						Path: "/get",
+						Headers: map[string]string{
+							"X-split-dedupe-first": "1,2,3",
+							"X-split-dedupe-last":  "a,b,c",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo18.com",
+							Path: "/get",
+							Headers: map[string]string{
+								"X-split-dedupe-first": "1",
+								"X-split-dedupe-last":  "c",
+							},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugin transformer", func(t *testing.T) {
 			for _, testcase := range testcases {
