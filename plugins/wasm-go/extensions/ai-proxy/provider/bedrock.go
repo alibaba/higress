@@ -788,14 +788,11 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 	}
 
 	requestBytes, err := json.Marshal(request)
-	// log.Infof("Bedrock request: %s", string(requestBytes))
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err
 }
 
 func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseResponse) *chatCompletionResponse {
-	// responseRaw, _ := json.Marshal(bedrockResponse)
-	// log.Infof("Bedrock response: %s", string(responseRaw))
 	var outputContent string
 	if len(bedrockResponse.Output.Message.Content) > 0 {
 		outputContent = bedrockResponse.Output.Message.Content[0].Text
@@ -995,7 +992,6 @@ func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 			if part.Type == contentTypeText {
 				content.Text = part.Text
 			} else {
-
 				continue
 			}
 		}
