@@ -642,9 +642,9 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 					ActualRequest: http.Request{
 						Host: "foo18.com",
 						Path: "/get",
-						Headers: map[string]string{
-							"X-split-dedupe-first": "1,2,3",
-							"X-split-dedupe-last":  "a,b,c",
+						RawHeaders: map[string][]string{
+							"X-split-dedupe-first": {"1", "2", "3"},
+							"X-split-dedupe-last":  {"a", "b", "c"},
 						},
 					},
 					ExpectedRequest: &http.ExpectedRequest{
