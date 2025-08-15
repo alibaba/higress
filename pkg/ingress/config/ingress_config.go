@@ -692,7 +692,6 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 	IngressLog.Infof("Found %d number of envoyFilters", len(envoyFilters))
 	m.mutex.Lock()
 	m.cachedEnvoyFilters = envoyFilters
-	// TODO (by CH3CHO): Make sure pilot can get the latest envoy filters.
 	m.mutex.Unlock()
 }
 
