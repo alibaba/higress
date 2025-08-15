@@ -142,7 +142,6 @@ const (
 	finishReasonLength = "length"
 
 	ctxKeyIncrementalStreaming   = "incrementalStreaming"
-	ctxKeyApiKey                 = "apiKey"
 	CtxKeyApiName                = "apiName"
 	ctxKeyIsStreaming            = "isStreaming"
 	ctxKeyStreamingBody          = "streamingBody"
@@ -595,15 +594,6 @@ func (c *ProviderConfig) Validate() error {
 		return err
 	}
 	return nil
-}
-
-func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) string {
-	ctxApiKey := ctx.GetContext(ctxKeyApiKey)
-	if ctxApiKey == nil {
-		ctxApiKey = c.GetRandomToken()
-		ctx.SetContext(ctxKeyApiKey, ctxApiKey)
-	}
-	return ctxApiKey.(string)
 }
 
 func (c *ProviderConfig) GetRandomToken() string {

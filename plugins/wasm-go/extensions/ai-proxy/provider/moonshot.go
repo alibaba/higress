@@ -4,21 +4,22 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 )
 
 // moonshotProvider is the provider for Moonshot AI service.
 
 const (
-	moonshotDomain = "api.moonshot.cn"
+	moonshotDomain                = "api.moonshot.cn"
+	moonshotAnthropicMessagesPath = "/anthropic/v1/messages"
 )
 
 type moonshotProviderInitializer struct{}
@@ -27,7 +28,7 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 	if config.moonshotFileId != "" && config.context != nil {
 		return errors.New("moonshotFileId and context cannot be configured at the same time")
 	}
-	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+	if len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
@@ -35,8 +36,12 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 
 func (m *moonshotProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
-		string(ApiNameModels):         PathOpenAIModels,
+		string(ApiNameChatCompletion):      PathOpenAIChatCompletions,
+		string(ApiNameModels):              PathOpenAIModels,
+		string(ApiNameFiles):               PathOpenAIFiles,
+		string(ApiNameRetrieveFile):        PathOpenAIRetrieveFile,
+		string(ApiNameRetrieveFileContent): PathOpenAIRetrieveFileContent,
+		string(ApiNameAnthropicMessages):   moonshotAnthropicMessagesPath,
 	}
 }
 
@@ -95,7 +100,7 @@ func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 		return types.ActionContinue, replaceJsonRequestBody(request)
 	}
 
-	apiKey := m.config.GetOrSetTokenWithContext(ctx)
+	apiKey := m.config.GetApiTokenInUse(ctx)
 	err := m.getContextContent(apiKey, func(content string, err error) {
 		defer func() {
 			_ = proxywasm.ResumeHttpRequest()
@@ -105,7 +110,7 @@ func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 			_ = util.ErrorHandler("ai-proxy.moonshot.load_ctx_failed", fmt.Errorf("failed to load context file: %v", err))
 			return
 		}
-		err = m.performChatCompletion(ctx, content, request)
+		err = m.performChatCompletion(content, request)
 		if err != nil {
 			_ = util.ErrorHandler("ai-proxy.moonshot.insert_ctx_failed", fmt.Errorf("failed to perform chat completion: %v", err))
 		}
@@ -116,7 +121,7 @@ func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 	return types.ActionContinue, err
 }
 
-func (m *moonshotProvider) performChatCompletion(ctx wrapper.HttpContext, fileContent string, request *chatCompletionRequest) error {
+func (m *moonshotProvider) performChatCompletion(fileContent string, request *chatCompletionRequest) error {
 	insertContextMessage(request, fileContent)
 	return replaceJsonRequestBody(request)
 }
@@ -181,10 +186,4 @@ func (m *moonshotProvider) OnStreamingEvent(ctx wrapper.HttpContext, name ApiNam
 		event.Data = newData
 	}
 	return []StreamEvent{event}, nil
-}
-
-func (m *moonshotProvider) appendStreamEvent(responseBuilder *strings.Builder, event *StreamEvent) {
-	responseBuilder.WriteString(streamDataItemKey)
-	responseBuilder.WriteString(event.Data)
-	responseBuilder.WriteString("\n\n")
 }
