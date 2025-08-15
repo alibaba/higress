@@ -69,7 +69,7 @@ import (
 	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
 	. "github.com/alibaba/higress/pkg/ingress/log"
 	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/registry/memory"
+	"github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/reconcile"
 )
 
@@ -340,10 +340,6 @@ func (m *IngressConfig) listFromIngressControllers(typ config.GroupVersionKind, 
 			}
 			IngressLog.Infof("Append %d configmap EnvoyFilters", len(configmapEnvoyFilters))
 		}
-		if len(envoyFilters) == 0 {
-			IngressLog.Infof("resource type %s, configs number %d", typ, len(m.cachedEnvoyFilters))
-			return m.cachedEnvoyFilters
-		}
 		envoyFilters = append(envoyFilters, m.cachedEnvoyFilters...)
 		IngressLog.Infof("resource type %s, configs number %d", typ, len(envoyFilters))
 		return envoyFilters
@@ -490,6 +486,22 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 		VirtualServices:   map[string]*common.WrapperVirtualService{},
 		HTTPRoutes:        map[string][]*common.WrapperHTTPRoute{},
 		Route2Ingress:     map[string]*common.WrapperConfigWithRuleKey{},
+		ServiceWrappers:   make(map[string]*common.ServiceWrapper),
+		ProxyWrappers:     make(map[string]*common.ProxyWrapper),
+	}
+	if m.RegistryReconciler != nil {
+		for _, sew := range m.RegistryReconciler.GetAllServiceWrapper() {
+			hosts := sew.ServiceEntry.Hosts
+			if len(hosts) == 0 {
+				continue
+			}
+			for _, host := range hosts {
+				convertOptions.ServiceWrappers[host] = sew
+			}
+		}
+		for _, pw := range m.RegistryReconciler.GetAllProxyWrapper() {
+			convertOptions.ProxyWrappers[pw.ProxyName] = pw
+		}
 	}
 
 	// convert http route
@@ -666,6 +678,12 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 			IngressLog.Errorf("Construct basic auth filter error %v", err)
 		} else {
 			envoyFilters = append(envoyFilters, *basicAuth)
+		}
+	}
+
+	if proxyEnvoyFilters := constructProxyEnvoyFilters(convertOptions.ProxyWrappers, convertOptions.ServiceWrappers, m.namespace); len(proxyEnvoyFilters) != 0 {
+		for _, ef := range proxyEnvoyFilters {
+			envoyFilters = append(envoyFilters, *ef)
 		}
 	}
 
@@ -1493,7 +1511,7 @@ func (m *IngressConfig) constructHttp2RpcEnvoyFilter(http2rpcConfig *annotations
 	return &config.Config{
 		Meta: config.Meta{
 			GroupVersionKind: gvk.EnvoyFilter,
-			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, http2rpcConfig.Name),
+			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "http2rpc", http2rpcConfig.Name, "route", httpRoute.Name),
 			Namespace:        namespace,
 		},
 		Spec: &networking.EnvoyFilter{
@@ -1675,28 +1693,150 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 	}, nil
 }
 
-func QueryByName(serviceEntries []*memory.ServiceWrapper, serviceName string) (*memory.ServiceWrapper, error) {
-	IngressLog.Infof("Found http2rpc serviceEntries %s", serviceEntries)
-	for _, se := range serviceEntries {
-		if se.ServiceName == serviceName {
-			return se, nil
+func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, serviceWrappers map[string]*common.ServiceWrapper, namespace string) []*config.Config {
+	var envoyFilters []*config.Config
+	for _, proxyWrapper := range proxyWrappers {
+		envoyFilters = append(envoyFilters, &config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.EnvoyFilter,
+				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "proxy", proxyWrapper.ProxyName),
+				Namespace:        namespace,
+			},
+			Spec: proxyWrapper.EnvoyFilter,
+		})
+	}
+
+	// Create a cluster for each service that uses a proxy.
+	var serviceProxyPatches []*networking.EnvoyFilter_EnvoyConfigObjectPatch
+	for _, serviceWrapper := range serviceWrappers {
+		proxyConfig := serviceWrapper.ProxyConfig
+		if proxyConfig == nil || proxyConfig.ProxyName == "" {
+			continue
+		}
+		IngressLog.Debugf("Found service %s using proxy %s", serviceWrapper.ServiceName, proxyConfig.ProxyName)
+		if err := validateServiceWrapperForProxy(serviceWrapper); err != nil {
+			IngressLog.Warnf("Service wrapper validation failed for proxy: %v", err)
+			continue
+		}
+		proxyWrapper := proxyWrappers[proxyConfig.ProxyName]
+		if proxyWrapper == nil {
+			IngressLog.Warnf("Service %s has proxy config %s, but no corresponding proxy wrapper found", serviceWrapper.ServiceName, proxyConfig.ProxyName)
+			continue
+		}
+		if !proxyConfig.UpstreamProtocol.IsSupportedByProxy() {
+			IngressLog.Warnf("Proxy %s does not support upstream protocol %s, skipping EnvoyFilter construction for service %s")
+			continue
+		}
+		if proxyWrapper.EnvoyFilter == nil {
+			IngressLog.Warnf("Proxy %s has no EnvoyFilter generated, meaning not ready for use.", proxyConfig.ProxyName)
+			continue
+		}
+		se := serviceWrapper.ServiceEntry
+		if se == nil || len(se.Hosts) == 0 || len(se.Ports) == 0 {
+			continue
+		}
+		for _, host := range se.Hosts {
+			IngressLog.Debugf("Constructing EnvoyFilter for service %s using proxy %s", host, proxyConfig.ProxyName)
+			for _, port := range se.Ports {
+				if port == nil || port.Number <= 0 {
+					continue
+				}
+				clusterName := fmt.Sprintf("outbound|%d||%s", port.Number, host)
+
+				// We need to delete the original cluster and add a new one pointing to the local proxy listener.
+				serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+					ApplyTo: networking.EnvoyFilter_CLUSTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+						ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Cluster{
+							Cluster: &networking.EnvoyFilter_ClusterMatch{
+								Name: clusterName,
+							},
+						},
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_REMOVE,
+					},
+				})
+
+				patchObj := map[string]interface{}{
+					"name":            clusterName,
+					"type":            "STATIC",
+					"connect_timeout": "10s",
+					"load_assignment": map[string]interface{}{
+						"cluster_name": clusterName,
+						"endpoints": []map[string]interface{}{
+							{
+								"lb_endpoints": []map[string]interface{}{
+									{
+										"endpoint": map[string]interface{}{
+											"address": map[string]interface{}{
+												"socket_address": map[string]interface{}{
+													"address":    "127.0.0.1",
+													"port_value": proxyWrapper.ListenerPort,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				if proxyConfig.UpstreamProtocol.IsHTTPS() {
+					tlsTypedConfig := map[string]interface{}{
+						"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+					}
+					if proxyConfig.UpstreamSni != "" {
+						tlsTypedConfig["sni"] = proxyConfig.UpstreamSni
+					}
+					patchObj["transport_socket"] = map[string]interface{}{
+						"name":         "envoy.transport_sockets.tls",
+						"typed_config": tlsTypedConfig,
+					}
+				}
+				patchJson, _ := json.Marshal(patchObj)
+				serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+					ApplyTo: networking.EnvoyFilter_CLUSTER,
+					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: networking.EnvoyFilter_GATEWAY,
+					},
+					Patch: &networking.EnvoyFilter_Patch{
+						Operation: networking.EnvoyFilter_Patch_ADD,
+						Value:     util.BuildPatchStruct(string(patchJson)),
+					},
+				})
+			}
 		}
 	}
-	return nil, fmt.Errorf("can't find ServiceEntry by serviceName:%v", serviceName)
+	if len(serviceProxyPatches) != 0 {
+		envoyFilters = append(envoyFilters, &config.Config{
+			Meta: config.Meta{
+				GroupVersionKind: gvk.EnvoyFilter,
+				Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "service-proxy"),
+				Namespace:        namespace,
+			},
+			Spec: &networking.EnvoyFilter{
+				ConfigPatches: serviceProxyPatches,
+			},
+		})
+	}
+
+	return envoyFilters
 }
 
-func QueryRpcServiceVersion(serviceEntry *memory.ServiceWrapper, serviceName string) (string, error) {
-	IngressLog.Infof("Found http2rpc serviceEntry %s", serviceEntry)
-	IngressLog.Infof("Found http2rpc ServiceEntry %s", serviceEntry.ServiceEntry)
-	IngressLog.Infof("Found http2rpc WorkloadSelector %s", serviceEntry.ServiceEntry.WorkloadSelector)
-	IngressLog.Infof("Found http2rpc Labels %s", serviceEntry.ServiceEntry.WorkloadSelector.Labels)
-	labels := (*serviceEntry).ServiceEntry.WorkloadSelector.Labels
-	for key, value := range labels {
-		if key == "version" {
-			return value, nil
-		}
+func validateServiceWrapperForProxy(serviceWrapper *common.ServiceWrapper) error {
+	registryType := registry.ServiceRegistryType(serviceWrapper.RegistryType)
+	switch registryType {
+	case registry.DNS:
+		break
+	default:
+		return fmt.Errorf("service %s has proxy config %s, but registry type %s is not supported for proxying", serviceWrapper.ServiceName, serviceWrapper.ProxyConfig.ProxyName, registryType)
 	}
-	return "", fmt.Errorf("can't get RpcServiceVersion for serviceName:%v", serviceName)
+	if len(serviceWrapper.ServiceEntry.Endpoints) > 1 {
+		return fmt.Errorf("service %s has multiple endpoints, which is not supported for proxying with EnvoyFilter. Skipping EnvoyFilter construction", serviceWrapper.ServiceName)
+	}
+	return nil
 }
 
 func (m *IngressConfig) Run(stop <-chan struct{}) {
