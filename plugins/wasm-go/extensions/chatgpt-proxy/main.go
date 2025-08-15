@@ -29,7 +29,7 @@ type MyConfig struct {
 	ApiKey      string
 	PromptParam string
 	ChatgptPath string
-	HumainId    string
+	HumanId     string
 	AIId        string
 	client      wrapper.HttpClient
 }
@@ -69,9 +69,9 @@ func parseConfig(json gjson.Result, config *MyConfig, log log.Log) error {
 	if config.PromptParam == "" {
 		config.PromptParam = "prompt"
 	}
-	config.HumainId = json.Get("HumainId").String()
-	if config.HumainId == "" {
-		config.HumainId = "Humain:"
+	config.HumanId = json.Get("HumanId").String()
+	if config.HumanId == "" {
+		config.HumanId = "Human:"
 	}
 	config.AIId = json.Get("AIId").String()
 	if config.AIId == "" {
@@ -100,18 +100,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyConfig, log log.Log)
 		proxywasm.SendHttpResponseWithDetail(http.StatusBadRequest, "chatgpt-proxy.empty_query_string", nil, []byte("1-need prompt param"), -1)
 		return types.ActionContinue
 	}
-	querys, err := url.ParseQuery(pairs[1])
+	queries, err := url.ParseQuery(pairs[1])
 	if err != nil {
 		proxywasm.SendHttpResponseWithDetail(http.StatusBadRequest, "chatgpt-proxy.bad_query_string", nil, []byte("2-need prompt param"), -1)
 		return types.ActionContinue
 	}
 	var prompt []string
 	var ok bool
-	if prompt, ok = querys[config.PromptParam]; !ok || len(prompt) == 0 {
+	if prompt, ok = queries[config.PromptParam]; !ok || len(prompt) == 0 {
 		proxywasm.SendHttpResponseWithDetail(http.StatusBadRequest, "chatgpt-proxy.no_prompt", nil, []byte("3-need prompt param"), -1)
 		return types.ActionContinue
 	}
-	body := fmt.Sprintf(bodyTemplate, config.Model, prompt[0], config.HumainId, config.AIId)
+	body := fmt.Sprintf(bodyTemplate, config.Model, prompt[0], config.HumanId, config.AIId)
 	err = config.client.Post(config.ChatgptPath, [][2]string{
 		{"Content-Type", "application/json"},
 		{"Authorization", "Bearer " + config.ApiKey},
