@@ -361,7 +361,6 @@ func (s *store) GetAllServiceWrapper() []*ingress.ServiceWrapper {
 func (s *store) GetAllProxyWrapper() []*ingress.ProxyWrapper {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
-	defer s.cleanUpdateAndDeleteArray()
 
 	pwList := make([]*ingress.ProxyWrapper, 0)
 	for _, pw := range s.pw {
