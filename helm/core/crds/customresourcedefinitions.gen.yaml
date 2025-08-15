@@ -247,6 +247,23 @@ spec:
         properties:
           spec:
             properties:
+              proxies:
+                items:
+                  properties:
+                    connectTimeout:
+                      type: integer
+                    listenerPort:
+                      type: integer
+                    name:
+                      type: string
+                    serverAddress:
+                      type: string
+                    serverPort:
+                      type: integer
+                    type:
+                      type: string
+                  type: object
+                type: array
               registries:
                 items:
                   properties:
@@ -308,6 +325,8 @@ spec:
                     port:
                       type: integer
                     protocol:
+                      type: string
+                    proxyName:
                       type: string
                     sni:
                       type: string
