@@ -93,6 +93,15 @@ func (p Protocol) IsUnsupported() bool {
 	return p == Unsupported
 }
 
+func (p Protocol) IsSupportedByProxy() bool {
+	switch p {
+	case HTTPS:
+		return true
+	default:
+		return false
+	}
+}
+
 func (p Protocol) String() string {
 	return string(p)
 }

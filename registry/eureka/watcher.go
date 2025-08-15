@@ -27,6 +27,7 @@ import (
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
+	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 	provider "github.com/alibaba/higress/registry"
 	. "github.com/alibaba/higress/registry/eureka/client"
 	"github.com/alibaba/higress/registry/memory"
@@ -203,7 +204,7 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 			if err != nil {
 				return err
 			}
-			w.cache.UpdateServiceWrapper(makeHost(service.Name), &memory.ServiceWrapper{
+			w.cache.UpdateServiceWrapper(makeHost(service.Name), &ingress.ServiceWrapper{
 				ServiceName:  service.Name,
 				ServiceEntry: se,
 				Suffix:       suffix,

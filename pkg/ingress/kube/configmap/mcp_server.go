@@ -509,6 +509,11 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 }
 
 func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
+	// if no servers, return empty string
+	if mcp == nil || len(mcp.Servers) == 0 {
+		return ""
+	}
+
 	// Build servers configuration
 	servers := "[]"
 	if len(mcp.Servers) > 0 {
