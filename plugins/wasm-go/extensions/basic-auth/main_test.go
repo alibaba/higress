@@ -17,7 +17,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -864,17 +863,7 @@ func TestCompleteFlow(t *testing.T) {
 
 			// 验证是否添加了 X-Mse-Consumer 请求头
 			requestHeaders := host.GetRequestHeaders()
-			consumerHeaderFound := false
-
-			for _, header := range requestHeaders {
-				if strings.EqualFold(header[0], "X-Mse-Consumer") {
-					consumerHeaderFound = true
-					require.Equal(t, "consumer1", header[1])
-					break
-				}
-			}
-
-			require.True(t, consumerHeaderFound, "X-Mse-Consumer header should be added")
+			require.True(t, test.HasHeaderWithValue(requestHeaders, "X-Mse-Consumer", "consumer1"))
 
 			host.CompleteHttp()
 		})

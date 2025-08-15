@@ -21,3 +21,9 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
+
+require github.com/tidwall/sjson v1.2.5 // indirect
+
+replace github.com/higress-group/proxy-wasm-go-sdk => /home/jz/higress-group/proxy-wasm/proxy-wasm-go-sdk
+
+replace github.com/higress-group/wasm-go => /home/jz/higress-group/proxy-wasm/wasm-go

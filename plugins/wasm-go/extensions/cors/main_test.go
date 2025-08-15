@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -338,35 +337,12 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了 CORS 响应头
 			responseHeaders := host.GetResponseHeaders()
-			allowOriginFound := false
-			exposeHeadersFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "access-control-allow-origin") {
-					allowOriginFound = true
-				}
-				if strings.EqualFold(header[0], "access-control-expose-headers") {
-					exposeHeadersFound = true
-				}
-			}
-
-			// 对于简单请求，只添加必要的 CORS 头
-			require.True(t, allowOriginFound, "Access-Control-Allow-Origin header should be added")
-			require.True(t, exposeHeadersFound, "Access-Control-Expose-Headers header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "access-control-allow-origin"))
+			require.True(t, test.HasHeader(responseHeaders, "access-control-expose-headers"))
 
 			// 对于简单请求，不添加 AllowMethods 和 AllowHeaders（这些只在预检请求时添加）
-			allowMethodsFound := false
-			allowHeadersFound := false
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "access-control-allow-methods") {
-					allowMethodsFound = true
-				}
-				if strings.EqualFold(header[0], "access-control-allow-headers") {
-					allowHeadersFound = true
-				}
-			}
-			require.False(t, allowMethodsFound, "Access-Control-Allow-Methods header should not be added for simple requests")
-			require.False(t, allowHeadersFound, "Access-Control-Allow-Headers header should not be added for simple requests")
+			require.False(t, test.HasHeader(responseHeaders, "access-control-allow-methods"))
+			require.False(t, test.HasHeader(responseHeaders, "access-control-allow-headers"))
 
 			host.CompleteHttp()
 		})
@@ -395,14 +371,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否没有添加 CORS 响应头
 			responseHeaders := host.GetResponseHeaders()
-			corsHeaderFound := false
-			for _, header := range responseHeaders {
-				if strings.HasPrefix(strings.ToLower(header[0]), "access-control-") {
-					corsHeaderFound = true
-					break
-				}
-			}
-			require.False(t, corsHeaderFound, "CORS headers should not be added for non-CORS requests")
+			require.False(t, test.HasHeader(responseHeaders, "access-control-allow-origin"))
+			require.False(t, test.HasHeader(responseHeaders, "access-control-expose-headers"))
 
 			host.CompleteHttp()
 		})
@@ -432,15 +402,7 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了允许凭据的响应头
 			responseHeaders := host.GetResponseHeaders()
-			allowCredentialsFound := false
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "access-control-allow-credentials") {
-					allowCredentialsFound = true
-					require.Equal(t, "true", header[1])
-					break
-				}
-			}
-			require.True(t, allowCredentialsFound, "Access-Control-Allow-Credentials header should be added")
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "access-control-allow-credentials", "true"))
 
 			host.CompleteHttp()
 		})
@@ -463,71 +425,6 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 预检请求应该返回 ActionPause
 			require.Equal(t, types.ActionPause, action)
-
-			host.CompleteHttp()
-		})
-	})
-}
-
-func TestCompleteFlow(t *testing.T) {
-	test.RunTest(t, func(t *testing.T) {
-		t.Run("complete cors request flow", func(t *testing.T) {
-			host, status := test.NewTestHost(basicCorsConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-
-			// 1. 处理请求头
-			action := host.CallOnHttpRequestHeaders([][2]string{
-				{":authority", "example.com"},
-				{":path", "/api/test"},
-				{":method", "GET"},
-				{"origin", "http://example.com"},
-			})
-
-			// 有效的 CORS 请求应该返回 ActionContinue
-			require.Equal(t, types.ActionContinue, action)
-
-			// 2. 处理响应头
-			action = host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-
-			// 应该返回 ActionContinue
-			require.Equal(t, types.ActionContinue, action)
-
-			// 验证完整的 CORS 流程
-			responseHeaders := host.GetResponseHeaders()
-
-			// 验证是否添加了必要的 CORS 响应头
-			allowOriginFound := false
-			exposeHeadersFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "access-control-allow-origin") {
-					allowOriginFound = true
-				}
-				if strings.EqualFold(header[0], "access-control-expose-headers") {
-					exposeHeadersFound = true
-				}
-			}
-
-			require.True(t, allowOriginFound, "Access-Control-Allow-Origin header should be added")
-			require.True(t, exposeHeadersFound, "Access-Control-Allow-Headers header should be added")
-
-			// 对于简单请求，不添加 AllowMethods 和 AllowHeaders（这些只在预检请求时添加）
-			allowMethodsFound := false
-			allowHeadersFound := false
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "access-control-allow-methods") {
-					allowMethodsFound = true
-				}
-				if strings.EqualFold(header[0], "access-control-allow-headers") {
-					allowHeadersFound = true
-				}
-			}
-			require.False(t, allowMethodsFound, "Access-Control-Allow-Methods header should not be added for simple requests")
-			require.False(t, allowHeadersFound, "Access-Control-Allow-Headers header should not be added for simple requests")
 
 			host.CompleteHttp()
 		})

@@ -22,3 +22,7 @@ require (
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 )
+
+replace github.com/higress-group/proxy-wasm-go-sdk => /home/jz/higress-group/proxy-wasm/proxy-wasm-go-sdk
+
+replace github.com/higress-group/wasm-go => /home/jz/higress-group/proxy-wasm/wasm-go

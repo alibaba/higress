@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -501,20 +500,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了限流配额响应头
 			responseHeaders := host.GetResponseHeaders()
-			limitHeaderFound := false
-			remainingHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "x-ratelimit-limit") {
-					limitHeaderFound = true
-				}
-				if strings.EqualFold(header[0], "x-ratelimit-remaining") {
-					remainingHeaderFound = true
-				}
-			}
-
-			require.True(t, limitHeaderFound, "X-RateLimit-Limit header should be added")
-			require.True(t, remainingHeaderFound, "X-RateLimit-Remaining header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "x-ratelimit-limit"))
+			require.True(t, test.HasHeader(responseHeaders, "x-ratelimit-remaining"))
 
 			host.CompleteHttp()
 		})
@@ -563,20 +550,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否没有添加限流配额响应头
 			responseHeaders := host.GetResponseHeaders()
-			limitHeaderFound := false
-			remainingHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "x-ratelimit-limit") {
-					limitHeaderFound = true
-				}
-				if strings.EqualFold(header[0], "x-ratelimit-remaining") {
-					remainingHeaderFound = true
-				}
-			}
-
-			require.False(t, limitHeaderFound, "X-RateLimit-Limit header should not be added")
-			require.False(t, remainingHeaderFound, "X-RateLimit-Remaining header should not be added")
+			require.False(t, test.HasHeader(responseHeaders, "x-ratelimit-limit"))
+			require.False(t, test.HasHeader(responseHeaders, "x-ratelimit-remaining"))
 
 			host.CompleteHttp()
 		})
@@ -617,20 +592,8 @@ func TestCompleteFlow(t *testing.T) {
 			responseHeaders := host.GetResponseHeaders()
 
 			// 验证是否添加了必要的限流响应头
-			limitHeaderFound := false
-			remainingHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "x-ratelimit-limit") {
-					limitHeaderFound = true
-				}
-				if strings.EqualFold(header[0], "x-ratelimit-remaining") {
-					remainingHeaderFound = true
-				}
-			}
-
-			require.True(t, limitHeaderFound, "X-RateLimit-Limit header should be added")
-			require.True(t, remainingHeaderFound, "X-RateLimit-Remaining header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "x-ratelimit-limit"))
+			require.True(t, test.HasHeader(responseHeaders, "x-ratelimit-remaining"))
 
 			host.CompleteHttp()
 		})

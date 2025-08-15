@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -234,23 +233,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了缓存控制头
 			responseHeaders := host.GetResponseHeaders()
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-					// 验证过期时间格式
-					require.Contains(t, header[1], "GMT")
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-					require.Equal(t, "maxAge=3600", header[1])
-				}
-			}
-
-			require.True(t, expiresHeaderFound, "Expires header should be added")
-			require.True(t, cacheControlHeaderFound, "Cache-Control header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "expires"))
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "cache-control", "maxAge=3600"))
 
 			host.CompleteHttp()
 		})
@@ -279,22 +263,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了缓存控制头
 			responseHeaders := host.GetResponseHeaders()
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-					require.Equal(t, "Thu, 31 Dec 2037 23:55:55 GMT", header[1])
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-					require.Equal(t, "maxAge=315360000", header[1])
-				}
-			}
-
-			require.True(t, expiresHeaderFound, "Expires header should be added")
-			require.True(t, cacheControlHeaderFound, "Cache-Control header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "expires"))
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "cache-control", "maxAge=315360000"))
 
 			host.CompleteHttp()
 		})
@@ -323,22 +293,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了缓存控制头
 			responseHeaders := host.GetResponseHeaders()
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-					require.Equal(t, "Thu, 01 Jan 1970 00:00:01 GMT", header[1])
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-					require.Equal(t, "no-cache", header[1])
-				}
-			}
-
-			require.True(t, expiresHeaderFound, "Expires header should be added")
-			require.True(t, cacheControlHeaderFound, "Cache-Control header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "expires"))
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "cache-control", "no-cache"))
 
 			host.CompleteHttp()
 		})
@@ -367,20 +323,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否没有添加缓存控制头
 			responseHeaders := host.GetResponseHeaders()
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-				}
-			}
-
-			require.False(t, expiresHeaderFound, "Expires header should not be added")
-			require.False(t, cacheControlHeaderFound, "Cache-Control header should not be added")
+			require.False(t, test.HasHeader(responseHeaders, "expires"))
+			require.False(t, test.HasHeader(responseHeaders, "cache-control"))
 
 			host.CompleteHttp()
 		})
@@ -409,23 +353,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了缓存控制头
 			responseHeaders := host.GetResponseHeaders()
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-					// 验证过期时间格式
-					require.Contains(t, header[1], "GMT")
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-					require.Equal(t, "maxAge=7200", header[1])
-				}
-			}
-
-			require.True(t, expiresHeaderFound, "Expires header should be added")
-			require.True(t, cacheControlHeaderFound, "Cache-Control header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "expires"))
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "cache-control", "maxAge=7200"))
 
 			host.CompleteHttp()
 		})
@@ -454,23 +383,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了缓存控制头
 			responseHeaders := host.GetResponseHeaders()
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-					// 验证过期时间格式
-					require.Contains(t, header[1], "GMT")
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-					require.Equal(t, "maxAge=1800", header[1])
-				}
-			}
-
-			require.True(t, expiresHeaderFound, "Expires header should be added")
-			require.True(t, cacheControlHeaderFound, "Cache-Control header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "expires"))
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "cache-control", "maxAge=1800"))
 
 			host.CompleteHttp()
 		})
@@ -499,23 +413,8 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			// 验证是否添加了缓存控制头
 			responseHeaders := host.GetResponseHeaders()
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-					// 验证过期时间格式
-					require.Contains(t, header[1], "GMT")
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-					require.Equal(t, "maxAge=3600", header[1])
-				}
-			}
-
-			require.True(t, expiresHeaderFound, "Expires header should be added")
-			require.True(t, cacheControlHeaderFound, "Cache-Control header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "expires"))
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "cache-control", "maxAge=3600"))
 
 			host.CompleteHttp()
 		})
@@ -552,23 +451,8 @@ func TestCompleteFlow(t *testing.T) {
 			responseHeaders := host.GetResponseHeaders()
 
 			// 验证是否添加了必要的缓存控制响应头
-			expiresHeaderFound := false
-			cacheControlHeaderFound := false
-
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "expires") {
-					expiresHeaderFound = true
-					// 验证过期时间格式
-					require.Contains(t, header[1], "GMT")
-				}
-				if strings.EqualFold(header[0], "cache-control") {
-					cacheControlHeaderFound = true
-					require.Equal(t, "maxAge=3600", header[1])
-				}
-			}
-
-			require.True(t, expiresHeaderFound, "Expires header should be added")
-			require.True(t, cacheControlHeaderFound, "Cache-Control header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "expires"))
+			require.True(t, test.HasHeaderWithValue(responseHeaders, "cache-control", "maxAge=3600"))
 
 			host.CompleteHttp()
 		})

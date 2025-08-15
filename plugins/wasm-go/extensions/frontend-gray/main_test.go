@@ -16,7 +16,6 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -299,14 +298,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 
 			// 验证是否添加了版本标签头
 			requestHeaders := host.GetRequestHeaders()
-			versionHeaderFound := false
-			for _, header := range requestHeaders {
-				if strings.EqualFold(header[0], "x-higress-tag") {
-					versionHeaderFound = true
-					break
-				}
-			}
-			require.True(t, versionHeaderFound, "Version header should be added")
+			require.True(t, test.HasHeader(requestHeaders, "x-higress-tag"))
 
 			host.CompleteHttp()
 		})
@@ -328,14 +320,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 
 			// 验证是否添加了版本标签头
 			requestHeaders := host.GetRequestHeaders()
-			versionHeaderFound := false
-			for _, header := range requestHeaders {
-				if strings.EqualFold(header[0], "x-higress-tag") {
-					versionHeaderFound = true
-					break
-				}
-			}
-			require.True(t, versionHeaderFound, "Version header should be added")
+			require.True(t, test.HasHeader(requestHeaders, "x-higress-tag"))
 
 			host.CompleteHttp()
 		})
@@ -357,14 +342,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 
 			// 验证是否添加了版本标签头
 			requestHeaders := host.GetRequestHeaders()
-			versionHeaderFound := false
-			for _, header := range requestHeaders {
-				if strings.EqualFold(header[0], "x-higress-tag") {
-					versionHeaderFound = true
-					break
-				}
-			}
-			require.True(t, versionHeaderFound, "Version header should be added")
+			require.True(t, test.HasHeader(requestHeaders, "x-higress-tag"))
 
 			host.CompleteHttp()
 		})
@@ -387,14 +365,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 
 			// 跳过路径不应该添加版本标签头
 			requestHeaders := host.GetRequestHeaders()
-			versionHeaderFound := false
-			for _, header := range requestHeaders {
-				if strings.EqualFold(header[0], "x-higress-tag") {
-					versionHeaderFound = true
-					break
-				}
-			}
-			require.False(t, versionHeaderFound, "Version header should not be added for skipped paths")
+			require.False(t, test.HasHeader(requestHeaders, "x-higress-tag"))
 
 			host.CompleteHttp()
 		})
@@ -416,14 +387,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 
 			// 非 HTML 请求也应该添加版本标签头
 			requestHeaders := host.GetRequestHeaders()
-			versionHeaderFound := false
-			for _, header := range requestHeaders {
-				if strings.EqualFold(header[0], "x-higress-tag") {
-					versionHeaderFound = true
-					break
-				}
-			}
-			require.True(t, versionHeaderFound, "Version header should be added for non-html requests")
+			require.True(t, test.HasHeader(requestHeaders, "x-higress-tag"))
 
 			host.CompleteHttp()
 		})
@@ -456,14 +420,7 @@ func TestOnHttpResponseHeader(t *testing.T) {
 
 			// 验证是否添加了 Set-Cookie 头
 			responseHeaders := host.GetResponseHeaders()
-			setCookieFound := false
-			for _, header := range responseHeaders {
-				if strings.EqualFold(header[0], "Set-Cookie") {
-					setCookieFound = true
-					break
-				}
-			}
-			require.True(t, setCookieFound, "Set-Cookie header should be added")
+			require.True(t, test.HasHeader(responseHeaders, "Set-Cookie"))
 
 			host.CompleteHttp()
 		})

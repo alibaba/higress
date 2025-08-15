@@ -6,7 +6,15 @@ toolchain go1.24.4
 
 require (
 	github.com/higress-group/wasm-go v1.0.0
+	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.18.0
+)
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/tetratelabs/wazero v1.7.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 require (
@@ -17,3 +25,7 @@ require (
 	github.com/tidwall/resp v0.1.1 // indirect
 	github.com/tidwall/sjson v1.2.5
 )
+
+replace github.com/higress-group/proxy-wasm-go-sdk => /home/jz/higress-group/proxy-wasm/proxy-wasm-go-sdk
+
+replace github.com/higress-group/wasm-go => /home/jz/higress-group/proxy-wasm/wasm-go
