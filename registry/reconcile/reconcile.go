@@ -52,11 +52,11 @@ type Reconciler struct {
 	client        kube.Client
 	namespace     string
 	clusterId     string
+	mcpBridge     *v1.McpBridge
 }
 
 func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
-	return &Reconciler{
-		Cache:         memory.NewCache(),
+	r := &Reconciler{
 		registries:    make(map[string]*apiv1.RegistryConfig),
 		watchers:      make(map[string]Watcher),
 		serviceUpdate: serviceUpdate,
@@ -64,9 +64,14 @@ func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterI
 		namespace:     namespace,
 		clusterId:     clusterId,
 	}
+	r.Cache = memory.NewCache(func() *v1.McpBridge {
+		return r.mcpBridge
+	})
+	return r
 }
 
 func (r *Reconciler) Reconcile(mcpbridge *v1.McpBridge) error {
+	r.mcpBridge = mcpbridge
 	newRegistries := make(map[string]*apiv1.RegistryConfig)
 	if mcpbridge != nil {
 		for _, registry := range mcpbridge.Spec.Registries {
