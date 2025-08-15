@@ -107,6 +107,7 @@ const (
 	providerTypeQwen       = "qwen"
 	providerTypeOpenAI     = "openai"
 	providerTypeGroq       = "groq"
+	providerTypeGrok       = "grok"
 	providerTypeBaichuan   = "baichuan"
 	providerTypeYi         = "yi"
 	providerTypeDeepSeek   = "deepseek"
@@ -182,6 +183,7 @@ var (
 		providerTypeQwen:       &qwenProviderInitializer{},
 		providerTypeOpenAI:     &openaiProviderInitializer{},
 		providerTypeGroq:       &groqProviderInitializer{},
+		providerTypeGrok:       &grokProviderInitializer{},
 		providerTypeBaichuan:   &baichuanProviderInitializer{},
 		providerTypeYi:         &yiProviderInitializer{},
 		providerTypeDeepSeek:   &deepseekProviderInitializer{},
