@@ -506,3 +506,26 @@ func (r embeddingsRequest) ParseInput() []string {
 	}
 	return input
 }
+
+// rerank request structure following OpenAI API design, similar to embeddings
+type rerankRequest struct {
+	Model           string   `json:"model"`
+	Query           string   `json:"query"`
+	Documents       []string `json:"documents"`
+	TopK            int      `json:"top_k,omitempty"`
+	ReturnDocuments bool     `json:"return_documents,omitempty"`
+	User            string   `json:"user,omitempty"`
+}
+
+type rerankResponse struct {
+	Object string       `json:"object"`
+	Data   []rerankData `json:"data"`
+	Model  string       `json:"model"`
+	Usage  usage        `json:"usage"`
+}
+
+type rerankData struct {
+	Index          int     `json:"index"`
+	RelevanceScore float64 `json:"relevance_score"`
+	Document       *string `json:"document,omitempty"`
+}
