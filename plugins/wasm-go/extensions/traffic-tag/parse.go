@@ -175,12 +175,12 @@ func (c ConditionRule) validate() error {
 
 	switch c.Operator {
 	case Op_In, Op_NotIn:
-		// 至少一个值
+		// At least one value
 		if len(c.Value) < 1 {
 			return errors.New("value must contain at least one element for 'in' or 'not_in' operators")
 		}
 	case Op_Percent:
-		// 'percentage' 有且只有一个值，且为0-100之间的整数
+		// 'percentage' has exactly one value, which is an integer between 0-100
 		if len(c.Value) != 1 {
 			return errors.New("value for 'percentage' must contain exactly one element")
 		}
@@ -192,7 +192,7 @@ func (c ConditionRule) validate() error {
 			return fmt.Errorf("value for 'percentage' must be greater than 0 and less than 100")
 		}
 	default:
-		// 其他操作符只能有一个值
+		// Other operators can only have one value
 		if len(c.Value) != 1 {
 			return fmt.Errorf("value must contain exactly one element for '%s' operator", c.Operator)
 		}

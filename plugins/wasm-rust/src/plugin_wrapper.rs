@@ -41,7 +41,7 @@ where
 {
     // fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
     fn create_http_context_use_wrapper(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
-        // trait 继承没法重写 RootContext 的 create_http_context，先写个函数让上层调下吧
+        // trait inheritance cannot override RootContext's create_http_context, write a function for the upper layer to call first
         match self.create_http_context_wrapper(context_id) {
             Some(http_context) => Some(Box::new(PluginHttpWrapper::new(
                 self.rule_matcher(),
