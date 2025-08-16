@@ -28,6 +28,17 @@ func (this *RegistryConfig) UnmarshalJSON(b []byte) error {
 	return McpBridgeUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
+// MarshalJSON is a custom marshaler for ProxyConfig
+func (this *ProxyConfig) MarshalJSON() ([]byte, error) {
+	str, err := McpBridgeMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for ProxyConfig
+func (this *ProxyConfig) UnmarshalJSON(b []byte) error {
+	return McpBridgeUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
 // MarshalJSON is a custom marshaler for InnerMap
 func (this *InnerMap) MarshalJSON() ([]byte, error) {
 	str, err := McpBridgeMarshaler.MarshalToString(this)

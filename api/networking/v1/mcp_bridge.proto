@@ -46,6 +46,7 @@ option go_package = "github.com/alibaba/higress/api/networking/v1";
 // -->
 message McpBridge {
   repeated RegistryConfig registries = 1;
+  repeated ProxyConfig proxies = 2;
 }
 
 message RegistryConfig {
@@ -74,6 +75,16 @@ message RegistryConfig {
   google.protobuf.BoolValue enableScopeMcpServers = 23;
   repeated string allowMcpServers = 24;
   map<string, InnerMap> metadata = 25;
+  string proxyName = 26;
+}
+
+message ProxyConfig {
+  string type = 1 [(google.api.field_behavior) = REQUIRED];
+  string name = 2 [(google.api.field_behavior) = REQUIRED];
+  string serverAddress = 3 [(google.api.field_behavior) = REQUIRED];
+  uint32 serverPort = 4 [(google.api.field_behavior) = REQUIRED];
+  uint32 listenerPort = 5;
+  uint32 connectTimeout = 6;
 }
 
 message InnerMap {

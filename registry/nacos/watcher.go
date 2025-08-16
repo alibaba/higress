@@ -30,6 +30,7 @@ import (
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
+	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
 )
@@ -312,7 +313,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 			return
 		}
 		serviceEntry := w.generateServiceEntry(host, services)
-		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+		w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 			ServiceName:  serviceName,
 			ServiceEntry: serviceEntry,
 			Suffix:       suffix,

@@ -169,6 +169,10 @@ type ConvertOptions struct {
 
 	Service2TrafficPolicy map[ServiceKey]*WrapperTrafficPolicy
 
+	ServiceWrappers map[string]*ServiceWrapper
+
+	ProxyWrappers map[string]*ProxyWrapper
+
 	HasDefaultBackend bool
 }
 
