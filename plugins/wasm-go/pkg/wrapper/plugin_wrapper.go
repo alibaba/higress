@@ -70,7 +70,7 @@ type HttpContext interface {
 	// If any request header is changed in onHttpRequestHeaders, envoy will re-calculate the route. Call this function to disable the re-routing.
 	// You need to call this before making any header modification operations.
 	DisableReroute()
-	// Note that this parameter affects the gateway's memory usage！Support setting a maximum buffer size for each request body individually in request phase.
+	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each request body individually in request phase.
 	SetRequestBodyBufferLimit(byteSize uint32)
 	// Note that this parameter affects the gateway's memory usage! Support setting a maximum buffer size for each response body individually in response phase.
 	SetResponseBodyBufferLimit(byteSize uint32)

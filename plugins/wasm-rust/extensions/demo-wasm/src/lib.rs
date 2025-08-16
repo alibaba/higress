@@ -33,7 +33,7 @@ struct RedisConfig {
     #[serde(default)]
     password: Option<String>,
     #[serde(default = "default_redis_timeout")]
-    timeout: u64, // 超时（默认1000ms）
+    timeout: u64, // Timeout (default 1000ms)
     #[serde(default)]
     database: Option<u32>,
 }
@@ -51,14 +51,14 @@ impl Default for RedisConfig {
     }
 }
 
-// 超时时间默认值
+// Timeout default value
 fn default_redis_timeout() -> u64 {
     1000
 }
 
 #[derive(Default, Debug, Deserialize, Clone)]
 struct DemoWasmConfig {
-    // 配置文件结构体
+    // Configuration file structure
     test: String,
     #[serde(rename = "redis")]
     redis_config: RedisConfig,
@@ -74,7 +74,7 @@ fn format_body(body: Option<Vec<u8>>) -> String {
 }
 
 struct DemoWasm {
-    // 每个请求对应的插件实例
+    // Plugin instance for each request
     log: Log,
     config: Option<Rc<DemoWasmConfig>>,
     weak: Weak<RefCell<Box<dyn HttpContextWrapper<DemoWasmConfig>>>>,
@@ -96,7 +96,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
         &self.log
     }
     fn on_config(&mut self, config: Rc<DemoWasmConfig>) {
-        // 获取config
+        // Get config
         self.log.info(&format!("on_config {}", config.test));
         self.config = Some(config.clone());
     }
@@ -104,10 +104,10 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
         &mut self,
         headers: &MultiMap<String, String>,
     ) -> HeaderAction {
-        // 请求header获取完成回调
+        // Request header retrieval completion callback
         self.log
             .info(&format!("on_http_request_complete_headers {:?}", headers));
-        // 验证配置是否存在
+        // Verify if configuration exists
         let config = match &self.config {
             Some(cfg) => cfg,
             None => {
@@ -115,7 +115,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
                 return HeaderAction::Continue;
             }
         };
-        // 初始化redis client
+        // Initialize redis client
         let redis_client = match self.initialize_redis_client(config) {
             Ok(client) => client,
             Err(err) => {
@@ -125,7 +125,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
             }
         };
         self.redis_client = Some(redis_client);
-        // 调用redis
+        // Call redis
         if let Some(redis_client) = &self.redis_client {
             if let Some(self_rc) = self.weak.upgrade() {
                 let incr_res = redis_client.incr(
@@ -161,7 +161,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
         &mut self,
         headers: &MultiMap<String, String>,
     ) -> HeaderAction {
-        // 返回header获取完成回调
+        // Return header retrieval completion callback
         self.log
             .info(&format!("on_http_response_complete_headers {:?}", headers));
         self.set_http_response_header("Content-Length", None);
@@ -199,15 +199,15 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
         HeaderAction::Continue
     }
     fn cache_request_body(&self) -> bool {
-        // 是否缓存请求body
+        // Whether to cache request body
         true
     }
     fn cache_response_body(&self) -> bool {
-        // 是否缓存返回body
+        // Whether to cache response body
         true
     }
     fn on_http_request_complete_body(&mut self, req_body: &Bytes) -> DataAction {
-        // 请求body获取完成回调
+        // Request body retrieval completion callback
         self.log.info(&format!(
             "on_http_request_complete_body {}",
             String::from_utf8(req_body.clone()).unwrap_or("".to_string())
@@ -215,7 +215,7 @@ impl HttpContextWrapper<DemoWasmConfig> for DemoWasm {
         DataAction::Continue
     }
     fn on_http_response_complete_body(&mut self, res_body: &Bytes) -> DataAction {
-        // 返回body获取完成回调
+        // Response body retrieval completion callback
         let res_body_string = String::from_utf8(res_body.clone()).unwrap_or("".to_string());
         self.log.info(&format!(
             "on_http_response_complete_body {}",
@@ -296,7 +296,7 @@ impl DemoWasm {
         }
         let redis_client = RedisClient::new(&client_config);
 
-        // 初始化redis client
+        // Initialize redis client
         match redis_client.init() {
             Ok(_) => {
                 self.log.info("Redis client initialized successfully");

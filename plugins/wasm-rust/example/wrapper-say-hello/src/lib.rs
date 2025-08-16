@@ -114,7 +114,7 @@ impl HttpContextWrapper<SayHelloConfig> for SayHello {
         &self.log
     }
     fn on_config(&mut self, config: Rc<SayHelloConfig>) {
-        // 获取config
+        // Get config
         self.log.info(&format!("on_config {}", config.name));
         self.config = Some(config.clone());
     }

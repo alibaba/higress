@@ -562,7 +562,7 @@ func TestShouldProcessIngressUpdate(t *testing.T) {
 	if should {
 		t.Fatal("should be false")
 	}
-	//可能有坑，annotation更新可能会引起ingress资源的反复处理。
+	//Potential pitfall: annotation updates may cause repeated processing of ingress resources.
 
 }
 

@@ -12,7 +12,7 @@ import (
 	"github.com/higress-group/wasm-go/pkg/log"
 )
 
-// parseIPNets 解析Ip段配置
+// parseIPNets Parse IP segment configuration
 func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 	if len(array) == 0 {
 		return nil, nil
@@ -33,7 +33,7 @@ func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 	}
 }
 
-// parseIP 解析IP
+// parseIP Parse IP
 func parseIP(source string, fromHeader bool) string {
 
 	if fromHeader {
