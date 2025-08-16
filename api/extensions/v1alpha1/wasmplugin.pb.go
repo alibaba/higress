@@ -826,7 +826,7 @@ var file_extensions_v1alpha1_wasmplugin_proto_depIdxs = []int32{
 	13, // [13:13] is the sub-list for method output_type
 	13, // [13:13] is the sub-list for method input_type
 	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extended
+	13, // [13:13] is the sub-list for extension extendee
 	0,  // [0:13] is the sub-list for field type_name
 }
 
