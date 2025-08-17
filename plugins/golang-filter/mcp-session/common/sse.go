@@ -201,7 +201,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		SessionID: sessionID,
 	})
 
-	//TODO: check session id
+	// TODO: check session id
 	// _, ok := s.sessions.Load(sessionID)
 	// if !ok {
 	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Invalid session ID")

@@ -24,12 +24,12 @@ const (
 )
 
 type RestrictionConfig struct {
-	IPSourceType string         `json:"ip_source_type"` //IP source type
-	IPHeaderName string         `json:"ip_header_name"` //Real IP header
-	Allow        *iptree.IPTree `json:"allow"`          //Allowed IPs
-	Deny         *iptree.IPTree `json:"deny"`           //Denied IPs
-	Status       uint32         `json:"status"`         //Status code returned when denied
-	Message      string         `json:"message"`        //Message returned when denied
+	IPSourceType string         `json:"ip_source_type"` // IP source type
+	IPHeaderName string         `json:"ip_header_name"` // Real IP header
+	Allow        *iptree.IPTree `json:"allow"`          // Allowed IPs
+	Deny         *iptree.IPTree `json:"deny"`           // Denied IPs
+	Status       uint32         `json:"status"`         // Status code returned when denied
+	Message      string         `json:"message"`        // Message returned when denied
 }
 
 func main() {}
