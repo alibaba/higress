@@ -32,6 +32,11 @@ const (
 	ctxOriginalAuth = "original_auth"
 )
 
+type pair[K, V any] struct {
+	key   K
+	value V
+}
+
 var (
 	headersCtxKeyMapping = map[string]string{
 		util.HeaderAuthority:     ctxOriginalHost,
@@ -43,43 +48,43 @@ var (
 		util.HeaderPath:          util.HeaderOriginalPath,
 		util.HeaderAuthorization: util.HeaderOriginalAuth,
 	}
-	pathSuffixToApiName = map[string]provider.ApiName{
+	pathSuffixToApiName = []pair[string, provider.ApiName]{
 		// OpenAI style
-		provider.PathOpenAIChatCompletions: provider.ApiNameChatCompletion,
-		provider.PathOpenAICompletions:     provider.ApiNameCompletion,
-		provider.PathOpenAIEmbeddings:      provider.ApiNameEmbeddings,
-		provider.PathOpenAIAudioSpeech:     provider.ApiNameAudioSpeech,
-		provider.PathOpenAIImageGeneration: provider.ApiNameImageGeneration,
-		provider.PathOpenAIImageVariation:  provider.ApiNameImageVariation,
-		provider.PathOpenAIImageEdit:       provider.ApiNameImageEdit,
-		provider.PathOpenAIBatches:         provider.ApiNameBatches,
-		provider.PathOpenAIFiles:           provider.ApiNameFiles,
-		provider.PathOpenAIModels:          provider.ApiNameModels,
-		provider.PathOpenAIFineTuningJobs:  provider.ApiNameFineTuningJobs,
-		provider.PathOpenAIResponses:       provider.ApiNameResponses,
+		{provider.PathOpenAIChatCompletions, provider.ApiNameChatCompletion},
+		{provider.PathOpenAICompletions, provider.ApiNameCompletion},
+		{provider.PathOpenAIEmbeddings, provider.ApiNameEmbeddings},
+		{provider.PathOpenAIAudioSpeech, provider.ApiNameAudioSpeech},
+		{provider.PathOpenAIImageGeneration, provider.ApiNameImageGeneration},
+		{provider.PathOpenAIImageVariation, provider.ApiNameImageVariation},
+		{provider.PathOpenAIImageEdit, provider.ApiNameImageEdit},
+		{provider.PathOpenAIBatches, provider.ApiNameBatches},
+		{provider.PathOpenAIFiles, provider.ApiNameFiles},
+		{provider.PathOpenAIModels, provider.ApiNameModels},
+		{provider.PathOpenAIFineTuningJobs, provider.ApiNameFineTuningJobs},
+		{provider.PathOpenAIResponses, provider.ApiNameResponses},
 		// Anthropic style
-		provider.PathAnthropicMessages: provider.ApiNameAnthropicMessages,
-		provider.PathAnthropicComplete: provider.ApiNameAnthropicComplete,
+		{provider.PathAnthropicMessages, provider.ApiNameAnthropicMessages},
+		{provider.PathAnthropicComplete, provider.ApiNameAnthropicComplete},
 		// Cohere style
-		provider.PathCohereV1Rerank: provider.ApiNameCohereV1Rerank,
+		{provider.PathCohereV1Rerank, provider.ApiNameCohereV1Rerank},
 	}
-	pathPatternToApiName = map[*regexp.Regexp]provider.ApiName{
+	pathPatternToApiName = []pair[*regexp.Regexp, provider.ApiName]{
 		// OpenAI style
-		util.RegRetrieveBatchPath:                        provider.ApiNameRetrieveBatch,
-		util.RegCancelBatchPath:                          provider.ApiNameCancelBatch,
-		util.RegRetrieveFilePath:                         provider.ApiNameRetrieveFile,
-		util.RegRetrieveFileContentPath:                  provider.ApiNameRetrieveFileContent,
-		util.RegRetrieveFineTuningJobPath:                provider.ApiNameRetrieveFineTuningJob,
-		util.RegRetrieveFineTuningJobEventsPath:          provider.ApiNameFineTuningJobEvents,
-		util.RegRetrieveFineTuningJobCheckpointsPath:     provider.ApiNameFineTuningJobCheckpoints,
-		util.RegCancelFineTuningJobPath:                  provider.ApiNameCancelFineTuningJob,
-		util.RegResumeFineTuningJobPath:                  provider.ApiNameResumeFineTuningJob,
-		util.RegPauseFineTuningJobPath:                   provider.ApiNamePauseFineTuningJob,
-		util.RegFineTuningCheckpointPermissionPath:       provider.ApiNameFineTuningCheckpointPermissions,
-		util.RegDeleteFineTuningCheckpointPermissionPath: provider.ApiNameDeleteFineTuningCheckpointPermission,
+		{util.RegRetrieveBatchPath, provider.ApiNameRetrieveBatch},
+		{util.RegCancelBatchPath, provider.ApiNameCancelBatch},
+		{util.RegRetrieveFilePath, provider.ApiNameRetrieveFile},
+		{util.RegRetrieveFileContentPath, provider.ApiNameRetrieveFileContent},
+		{util.RegRetrieveFineTuningJobPath, provider.ApiNameRetrieveFineTuningJob},
+		{util.RegRetrieveFineTuningJobEventsPath, provider.ApiNameFineTuningJobEvents},
+		{util.RegRetrieveFineTuningJobCheckpointsPath, provider.ApiNameFineTuningJobCheckpoints},
+		{util.RegCancelFineTuningJobPath, provider.ApiNameCancelFineTuningJob},
+		{util.RegResumeFineTuningJobPath, provider.ApiNameResumeFineTuningJob},
+		{util.RegPauseFineTuningJobPath, provider.ApiNamePauseFineTuningJob},
+		{util.RegFineTuningCheckpointPermissionPath, provider.ApiNameFineTuningCheckpointPermissions},
+		{util.RegDeleteFineTuningCheckpointPermissionPath, provider.ApiNameDeleteFineTuningCheckpointPermission},
 		// Gemini style
-		util.RegGeminiGenerateContent:       provider.ApiNameGeminiGenerateContent,
-		util.RegGeminiStreamGenerateContent: provider.ApiNameGeminiStreamGenerateContent,
+		{util.RegGeminiGenerateContent, provider.ApiNameGeminiGenerateContent},
+		{util.RegGeminiStreamGenerateContent, provider.ApiNameGeminiStreamGenerateContent},
 	}
 )
 
@@ -437,16 +442,16 @@ func checkStream(ctx wrapper.HttpContext) {
 
 func getApiName(path string) provider.ApiName {
 	// Check path suffix matches first
-	for suffix, apiName := range pathSuffixToApiName {
-		if strings.HasSuffix(path, suffix) {
-			return apiName
+	for _, p := range pathSuffixToApiName {
+		if strings.HasSuffix(path, p.key) {
+			return p.value
 		}
 	}
 
 	// Check path pattern matches
-	for pattern, apiName := range pathPatternToApiName {
-		if pattern.MatchString(path) {
-			return apiName
+	for _, p := range pathPatternToApiName {
+		if p.key.MatchString(path) {
+			return p.value
 		}
 	}
 
