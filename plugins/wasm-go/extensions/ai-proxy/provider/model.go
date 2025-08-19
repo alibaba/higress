@@ -171,6 +171,7 @@ type chatMessage struct {
 	ReasoningContent string                 `json:"reasoning_content,omitempty"`
 	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
 	Refusal          string                 `json:"refusal,omitempty"`
+	ToolCallId       string                 `json:"tool_call_id,omitempty"`
 }
 
 func (m *chatMessage) handleNonStreamingReasoningContent(reasoningContentMode string) {
@@ -377,14 +378,14 @@ func (m *chatMessage) ParseContent() []chatMessageContent {
 }
 
 type toolCall struct {
-	Index    int          `json:"index"`
-	Id       string       `json:"id"`
+	Index    int          `json:"index,omitempty"`
+	Id       string       `json:"id,omitempty"`
 	Type     string       `json:"type"`
 	Function functionCall `json:"function"`
 }
 
 type functionCall struct {
-	Id        string `json:"id"`
+	Id        string `json:"id,omitempty"`
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
