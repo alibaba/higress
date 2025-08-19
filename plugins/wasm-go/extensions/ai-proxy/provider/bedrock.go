@@ -761,9 +761,11 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 			request.ToolConfig.ToolChoice.Auto = &struct{}{}
 		} else if choice_type, ok := origRequest.ToolChoice.(string); ok {
 			switch choice_type {
-			case "none":
+			case "required":
 				request.ToolConfig.ToolChoice.Any = &struct{}{}
 			case "auto":
+				request.ToolConfig.ToolChoice.Auto = &struct{}{}
+			case "none":
 				request.ToolConfig.ToolChoice.Auto = &struct{}{}
 			}
 		} else if choice, ok := origRequest.ToolChoice.(toolChoice); ok {
