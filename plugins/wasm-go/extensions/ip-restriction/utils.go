@@ -12,7 +12,7 @@ import (
 	"github.com/higress-group/wasm-go/pkg/log"
 )
 
-// parseIPNets Parse CIDR or IP range or subnet configuration
+// parseIPNets Parse IP range configuration
 func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 	if len(array) == 0 {
 		return nil, nil
