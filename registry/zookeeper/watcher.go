@@ -34,6 +34,7 @@ import (
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
+	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 	provider "github.com/alibaba/higress/registry"
 	"github.com/alibaba/higress/registry/memory"
 )
@@ -331,7 +332,7 @@ func (w *watcher) DataChange(eventType Event) bool {
 		se := w.generateServiceEntry(w.serviceEntry[host])
 
 		w.seMux.Unlock()
-		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+		w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 			ServiceName:  host,
 			ServiceEntry: se,
 			Suffix:       "zookeeper",
@@ -362,7 +363,7 @@ func (w *watcher) DataChange(eventType Event) bool {
 				w.cache.DeleteServiceWrapper(host)
 			}
 		} else {
-			w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+			w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 				ServiceName:  host,
 				ServiceEntry: se,
 				Suffix:       "zookeeper",
@@ -562,7 +563,7 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 				if !reflect.DeepEqual(value, config) {
 					w.serviceEntry[host] = config
 					//todo update or create serviceentry
-					w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+					w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 						ServiceName:  host,
 						ServiceEntry: se,
 						Suffix:       "zookeeper",
@@ -572,7 +573,7 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 				}
 			} else {
 				w.serviceEntry[host] = config
-				w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+				w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 					ServiceName:  host,
 					ServiceEntry: se,
 					Suffix:       "zookeeper",
