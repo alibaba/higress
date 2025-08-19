@@ -11,8 +11,6 @@ require (
 	github.com/tidwall/gjson v1.18.0
 )
 
-require github.com/tidwall/sjson v1.2.5 // indirect
-
 require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/bitly/go-simplejson v0.5.1 // indirect
