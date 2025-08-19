@@ -52,7 +52,7 @@ func parseConfig(json gjson.Result, config *PluginConfig, log log.Log) error {
 		return err
 	}
 
-	wrapper.RegisteTickFunc(opts.VerifierInterval.Milliseconds(), func() {
+	wrapper.RegisterTickFunc(opts.VerifierInterval.Milliseconds(), func() {
 		config.oidcHandler.SetVerifier(opts)
 	})
 	return nil
