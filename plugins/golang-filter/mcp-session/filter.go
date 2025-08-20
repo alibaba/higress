@@ -149,6 +149,9 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 func (f *filter) processMcpRequestHeadersForSSEUpstream(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	// We don't need to process the request body for SSE upstream.
 	f.skipRequestBody = true
+	// Remove Accept-Encoding header to avoid gzip encoding,
+	// which our response body handling logic doesn't support.
+	header.Del("Accept-Encoding")
 	return api.Continue
 }
 
