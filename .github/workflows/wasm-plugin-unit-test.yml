@@ -80,10 +80,11 @@ jobs:
     needs: detect-changed-plugins
     if: needs.detect-changed-plugins.outputs.has-changes == 'true'
     strategy:
+      fail-fast: false
       matrix:
         plugin: ${{ fromJson(format('[{0}]', needs.detect-changed-plugins.outputs.changed-plugins)) }}
         go-version: [1.24]
-        fail-fast: false
+      
     
     steps:
     - name: Checkout code
@@ -142,7 +143,7 @@ jobs:
           gotestsum --junitfile ../../../../test-results-${{ matrix.plugin }}.xml \
                    --format standard-verbose \
                    --jsonfile ../../../../test-output-${{ matrix.plugin }}.json \
-                   -- -coverprofile=coverage.out -covermode=atomic ./...
+                   -- -coverprofile=coverage.out -covermode=atomic -coverpkg=./... ./...
           
           echo "✅ Tests completed for ${{ matrix.plugin }}"
         else

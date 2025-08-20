@@ -47,6 +47,7 @@ var (
 func main() {}
 
 func init() {
+	fmt.Println("init")
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseOverrideConfig(parseGlobalConfig, parseOverrideRuleConfig),

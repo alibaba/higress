@@ -13,6 +13,8 @@ require (
 	github.com/tidwall/gjson v1.18.0
 )
 
+require github.com/tetratelabs/wazero v1.7.2 // indirect
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/uuid v1.6.0
@@ -23,3 +25,7 @@ require (
 	github.com/tidwall/sjson v1.2.5
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/higress-group/proxy-wasm-go-sdk => /home/jz/higress-group/proxy-wasm/proxy-wasm-go-sdk
+
+replace github.com/higress-group/wasm-go => /home/jz/higress-group/proxy-wasm/wasm-go
