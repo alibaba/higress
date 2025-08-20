@@ -123,11 +123,11 @@ var globalOnTickFuncs []TickFuncEntry = []TickFuncEntry{}
 // You should call this function in parseConfig phase, for example:
 //
 //	func parseConfig(json gjson.Result, config *HelloWorldConfig, log wrapper.Log) error {
-//	  wrapper.RegisteTickFunc(1000, func() { proxywasm.LogInfo("onTick 1s") })
-//		 wrapper.RegisteTickFunc(3000, func() { proxywasm.LogInfo("onTick 3s") })
+//	  wrapper.RegisterTickFunc(1000, func() { proxywasm.LogInfo("onTick 1s") })
+//		 wrapper.RegisterTickFunc(3000, func() { proxywasm.LogInfo("onTick 3s") })
 //		 return nil
 //	}
-func RegisteTickFunc(tickPeriod int64, tickFunc func()) {
+func RegisterTickFunc(tickPeriod int64, tickFunc func()) {
 	globalOnTickFuncs = append(globalOnTickFuncs, TickFuncEntry{0, tickPeriod, tickFunc})
 }
 
