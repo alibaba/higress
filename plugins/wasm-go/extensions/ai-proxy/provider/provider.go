@@ -130,6 +130,7 @@ const (
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
 	providerTypeVertex     = "vertex"
+	providerTypeTriton     = "triton"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -208,6 +209,7 @@ var (
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
 		providerTypeVertex:     &vertexProviderInitializer{},
+		providerTypeTriton:     &tritonProviderInitializer{},
 	}
 )
 
@@ -393,6 +395,15 @@ type ProviderConfig struct {
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
+	// @Title zh-CN Triton Model Name
+	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelName 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html" 如： POST v2/models/${MODEL_NAME}[/versions/${MODEL_VERSION}]/generate
+	tritonModelName string `required:"false" yaml:"tritonModelName" json:"tritonModelName"`
+	// @Title zh-CN Triton Model Version
+	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
+	tritonModelVersion string `required:"false" yaml:"tritonModelName" json:"tritonModelName"`
+	// @Title zh-CN Triton Server 部署的 Domain
+	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
+	tritonDomain string `required:"false" yaml:"tritonDomain" json:"tritonDomain"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -548,6 +559,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.botType = json.Get("botType").String()
 	c.inputVariable = json.Get("inputVariable").String()
 	c.outputVariable = json.Get("outputVariable").String()
+
+	// NVIDIA triton
+	c.tritonModelName = json.Get("tritonModelName").String()
+	c.tritonModelVersion = json.Get("tritonModelVersion").String()
+	c.tritonDomain = json.Get("tritonDomain").String()
 
 	c.capabilities = make(map[string]string)
 	for capability, pathJson := range json.Get("capabilities").Map() {
