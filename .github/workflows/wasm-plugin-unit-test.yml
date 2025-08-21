@@ -58,7 +58,12 @@ jobs:
           if [[ $file =~ ^plugins/wasm-go/extensions/([^/]+)/ ]]; then
             PLUGIN_NAME="${BASH_REMATCH[1]}"
             if [[ ! " $CHANGED_PLUGINS " =~ " $PLUGIN_NAME " ]]; then
-              CHANGED_PLUGINS="$CHANGED_PLUGINS $PLUGIN_NAME"
+              # 修复：只在非空时添加空格
+              if [ -z "$CHANGED_PLUGINS" ]; then
+                CHANGED_PLUGINS="$PLUGIN_NAME"
+              else
+                CHANGED_PLUGINS="$CHANGED_PLUGINS $PLUGIN_NAME"
+              fi
             fi
           fi
         done
