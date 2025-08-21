@@ -244,9 +244,7 @@ jobs:
         echo "### 📈 Coverage Report" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "📊 **Coverage reports are now available on Codecov**" >> $GITHUB_STEP_SUMMARY
-        echo "🔗 **Project Coverage**: https://codecov.io/gh/${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
         echo "🔗 **This Commit Coverage**: https://codecov.io/gh/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "💡 **Coverage will be automatically commented on this PR**" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
         echo "### 🎯 Summary" >> $GITHUB_STEP_SUMMARY
