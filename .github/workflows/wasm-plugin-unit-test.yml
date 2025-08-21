@@ -2,7 +2,7 @@ name: WASM Plugin Unit Tests(GO)
 
 on:
   push:
-    branches: [ main, wasm-unit-test]
+    branches: [ main ]
     paths:
       - 'plugins/wasm-go/extensions/**'
       - '.github/workflows/wasm-plugin-unit-test.yml'
@@ -216,14 +216,6 @@ jobs:
             plugin_name=$(echo "$result_file" | sed 's/test-results-\(.*\)\.xml/\1/')
             total_plugins=$((total_plugins + 1))
             
-            # 检查WASM文件状态
-            wasm_file="plugins/wasm-go/extensions/$plugin_name/main.wasm"
-            if [ -f "$wasm_file" ]; then
-              wasm_status="✅"
-            else
-              wasm_status="❌"
-            fi
-            
             # 解析XML获取测试结果
             if grep -q '<testsuite' "$result_file"; then
               tests=$(grep -o 'tests="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*')
@@ -236,14 +228,14 @@ jobs:
               total_errors=$((total_errors + errors))
               
               if [ "$failures" = "0" ] && [ "$errors" = "0" ]; then
-                echo "✅ **$plugin_name**: $tests tests passed in ${time}s | $wasm_status WASM" >> $GITHUB_STEP_SUMMARY
+                echo "✅ **$plugin_name**: $tests tests passed in ${time}s" >> $GITHUB_STEP_SUMMARY
                 passed_plugins=$((passed_plugins + 1))
               else
-                echo "❌ **$plugin_name**: $tests tests, $failures failures, $errors errors in ${time}s | $wasm_status WASM" >> $GITHUB_STEP_SUMMARY
+                echo "❌ **$plugin_name**: $tests tests, $failures failures, $errors errors in ${time}s" >> $GITHUB_STEP_SUMMARY
                 failed_plugins=$((failed_plugins + 1))
               fi
             else
-              echo "⚠️ **$plugin_name**: No tests found | $wasm_status WASM" >> $GITHUB_STEP_SUMMARY
+              echo "⚠️ **$plugin_name**: No tests found" >> $GITHUB_STEP_SUMMARY
             fi
           fi
         done
