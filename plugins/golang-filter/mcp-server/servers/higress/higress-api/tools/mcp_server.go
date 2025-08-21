@@ -466,7 +466,7 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 					"consumerAuthInfo": {
 						"type": "object",
 						"properties": {
-							"type": {"type": "string", "description": "Consumer auth type"},
+							"type": {"type": "string", "description": "Consumer auth type，if not enable, it value must be API_KEY "},
 							"enable": {"type": "boolean", "description": "Whether consumer auth is enabled"},
 							"allowedConsumers": {
 								"type": "array",
@@ -482,19 +482,19 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 					},
 					"dsn": {
 						"type": "string",
-						"description": "Data Source Name. For DB type server, it is required such as username:passwd@tcp(ip:port)/Database .For other, it can be empty."
+						"description": "Data Source Name. For DB type server, it is required such as username:passwd@tcp(ip:port)/Database?charset=utf8mb4&parseTime=True&loc=Local .For other, it can be empty."
 					},
 					"dbType": {
 						"type": "string",
 						"enum": ["MYSQL", "POSTGRESQL", "SQLITE", "CLICKHOUSE", ""],
-						"description": "Mcp Server DB Type"
+						"description": "Mcp Server DB Type,if type is DATABASE, it is required"
 					},
 					"upstreamPathPrefix": {
 						"type": "string",
 						"description": "The upstream MCP server will redirect requests based on the path prefix"
 					}
 				},
-				"required": ["name", "type", "dsn", "services", "dbType"],
+				"required": ["name", "type", "dsn", "services"],
 				"additionalProperties": false
 			}
 		},
