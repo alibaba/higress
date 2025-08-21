@@ -82,7 +82,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugin: ${{ fromJson(format('[{0}]', needs.detect-changed-plugins.outputs.changed-plugins)) }}
+        plugin: ${{ split(needs.detect-changed-plugins.outputs.changed-plugins, ' ') }}
         go-version: [1.24]
       
     
