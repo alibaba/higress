@@ -73,6 +73,7 @@ jobs:
           echo "has-changes=true" >> $GITHUB_OUTPUT
           # 将空格分隔转换为 JSON 数组格式
           PLUGINS_JSON=$(echo "$CHANGED_PLUGINS" | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          echo "PLUGINS_JSON: $PLUGINS_JSON"
           echo "plugins=$PLUGINS_JSON" >> $GITHUB_OUTPUT
         fi
 
