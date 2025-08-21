@@ -95,3 +95,11 @@ func TestGemini(t *testing.T) {
 	test.RunGeminiOnStreamingResponseBodyTests(t)
 	test.RunGeminiGetImageURLTests(t)
 }
+
+func TestAzure(t *testing.T) {
+	test.RunAzureParseConfigTests(t)
+	test.RunAzureOnHttpRequestHeadersTests(t)
+	test.RunAzureOnHttpRequestBodyTests(t)
+	test.RunAzureOnHttpResponseHeadersTests(t)
+	test.RunAzureOnHttpResponseBodyTests(t)
+}
