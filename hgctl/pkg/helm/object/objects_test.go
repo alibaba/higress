@@ -704,9 +704,9 @@ func TestK8sObject_ResolveK8sConflict(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			newObj := tt.o1.ResolveK8sConflict()
 			if !newObj.Equal(tt.o2) {
-				newObjjson, _ := newObj.JSON()
-				wantedObjjson, _ := tt.o2.JSON()
-				t.Errorf("Got: %s, want: %s", string(newObjjson), string(wantedObjjson))
+				newObjJson, _ := newObj.JSON()
+				wantedObjJson, _ := tt.o2.JSON()
+				t.Errorf("Got: %s, want: %s", string(newObjJson), string(wantedObjJson))
 			}
 		})
 	}
