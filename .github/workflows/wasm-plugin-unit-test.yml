@@ -85,7 +85,6 @@ jobs:
       fail-fast: false
       matrix:
         plugin: ${{ fromJSON(needs.detect-changed-plugins.outputs.changed-plugins) }}
-        go-version: [1.24]
       
     
     steps:
@@ -94,10 +93,10 @@ jobs:
       with:
         fetch-depth: 0
       
-    - name: Set up Go ${{ matrix.go-version }}
+    - name: Set up Go 1.24
       uses: actions/setup-go@v4
       with:
-        go-version: ${{ matrix.go-version }}
+        go-version: 1.24
         cache: true
         
     - name: Install test tools
