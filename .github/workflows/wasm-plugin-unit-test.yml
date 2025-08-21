@@ -9,7 +9,7 @@ on:
       - 'go.mod'
       - 'go.sum'
   pull_request:
-    branches: [ main, wasm-unit-test ]
+    branches: [ "*" ]
     paths:
       - 'plugins/wasm-go/extensions/**'
       - '.github/workflows/wasm-plugin-unit-test.yml'
@@ -67,11 +67,13 @@ jobs:
         if [ -z "$CHANGED_PLUGINS" ]; then
           echo "No plugin changes detected, skipping tests"
           echo "has-changes=false" >> $GITHUB_OUTPUT
-          echo "plugins=" >> $GITHUB_OUTPUT
+          echo "plugins=[]" >> $GITHUB_OUTPUT
         else
           echo "Changed plugins: $CHANGED_PLUGINS"
           echo "has-changes=true" >> $GITHUB_OUTPUT
-          echo "plugins=$CHANGED_PLUGINS" >> $GITHUB_OUTPUT
+          # 将空格分隔转换为 JSON 数组格式
+          PLUGINS_JSON=$(echo "$CHANGED_PLUGINS" | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          echo "plugins=$PLUGINS_JSON" >> $GITHUB_OUTPUT
         fi
 
   test:
@@ -82,7 +84,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        plugin: ${{ split(needs.detect-changed-plugins.outputs.changed-plugins, ' ') }}
+        plugin: ${{ fromJSON(needs.detect-changed-plugins.outputs.changed-plugins) }}
         go-version: [1.24]
       
     
