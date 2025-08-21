@@ -1,12 +1,11 @@
-module mcp-router
+module jsonrpc-converter
 
-go 1.24.1
+go 1.24.3
 
 require (
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
 	github.com/higress-group/wasm-go v1.0.2-0.20250819092116-2fd2b083a8e2
 	github.com/tidwall/gjson v1.18.0
-	github.com/tidwall/sjson v1.2.5
 )
 
 require (
@@ -28,6 +27,7 @@ require (
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/resp v0.1.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
