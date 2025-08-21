@@ -14,8 +14,6 @@ import (
 )
 
 const (
-	//TODO: decide the tritonDomain
-	tritonDomain                        = "localhost"
 	tritonChatGenerationPath            = "v2/models/{MODEL_NAME}/generate"
 	tritonChatGenerationWithVersionPath = "v2/models/{MODEL_NAME}/versions/{MODEL_VERSION}/generate"
 	tritonChatGenerationStreamPath      = "v2/models/{MODEL_NAME}[/versions/${MODEL_VERSION}]/generate_stream"
@@ -66,13 +64,6 @@ func (t *tritonProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	return t.config.handleRequestBody(t, t.contextCache, ctx, apiName, body)
 }
 
-func (t *tritonProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	finalPath := t.getFinalRequestPath(ctx)
-	util.OverwriteRequestPathHeader(headers, finalPath)
-	util.OverwriteRequestHostHeader(headers, t.config.tritonDomain)
-	headers.Del("Content-Length")
-}
-
 func (t *tritonProvider) GetApiName(path string) ApiName {
 	if strings.Contains(path, tritonChatGenerationPath) {
 		return ApiNameChatCompletion
@@ -80,13 +71,29 @@ func (t *tritonProvider) GetApiName(path string) ApiName {
 	return ""
 }
 
-func (t *tritonProvider) getFinalRequestPath(ctx wrapper.HttpContext) string {
+func (t *tritonProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	if err := t.config.parseRequestAndMapModel(ctx, request, body); err != nil {
+		return nil, err
+	}
+	tritonRequest := t.BuildTritonTexGenRequest(request)
+
+	finalPath := t.getFinalRequestPath(ctx, request)
+	util.OverwriteRequestPathHeader(headers, finalPath)
+	util.OverwriteRequestHostHeader(headers, t.config.tritonDomain)
+	headers.Del("Content-Length")
+
+	return json.Marshal(tritonRequest)
+}
+
+func (t *tritonProvider) getFinalRequestPath(ctx wrapper.HttpContext, oriRequest *chatCompletionRequest) string {
 	res := tritonChatGenerationPath
 	if t.config.tritonModelVersion == "" {
 		res = tritonChatGenerationWithVersionPath
 		res = strings.Replace(res, "{MODEL_VERSION}", t.config.tritonModelVersion, 1)
 	}
-	res = strings.Replace(res, "{MODEL_NAME}", t.config.tritonModelName, 1)
+
+	res = strings.Replace(res, "{MODEL_NAME}", oriRequest.Model, 1)
 
 	log.Debugf("[Triton Server]: Get final RequestPath: %v", res)
 	return res
@@ -109,15 +116,6 @@ type TritonGenerateResponse struct {
 	ModelVersion string `json:"model_version"`
 	TextOutput   string `json:"text_output"`
 	Error        string `json:"error"`
-}
-
-func (t *tritonProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
-	request := &chatCompletionRequest{}
-	if err := t.config.parseRequestAndMapModel(ctx, request, body); err != nil {
-		return nil, err
-	}
-	tritonRequest := t.BuildTritonTexGenRequest(request)
-	return json.Marshal(tritonRequest)
 }
 
 func (t *tritonProvider) BuildTritonTexGenRequest(origRequest *chatCompletionRequest) *TritonGenerateRequest {
@@ -149,7 +147,6 @@ func (t *tritonProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 	}
 	response := t.ParseResponse2OpenAI(tritonRes)
 	return json.Marshal(response)
-
 }
 
 func (t *tritonProvider) ParseResponse2OpenAI(tritonRes *TritonGenerateResponse) *chatCompletionResponse {
