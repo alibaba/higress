@@ -536,6 +536,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		retType, _ := toolsCall(ctx, config.LLMClient, config.LLMInfo, config.JsonResp, config.APIsParam, config.APIClient, rawResponse.Choices[0].Message.Content, rawResponse, log)
 		return retType
 	} else {
+
 		return types.ActionContinue
 	}
 }
