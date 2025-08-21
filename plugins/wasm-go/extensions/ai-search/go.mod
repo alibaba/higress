@@ -6,8 +6,8 @@ toolchain go1.24.4
 
 require (
 	github.com/antchfx/xmlquery v1.4.4
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
-	github.com/higress-group/wasm-go v1.0.1-0.20250714125049-cb970b4561fa
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250821081453-581014498091
+	github.com/higress-group/wasm-go v1.0.2-0.20250821081215-b573359becf8
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/sjson v1.2.5
 )
@@ -22,7 +22,3 @@ require (
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 )
-
-replace github.com/higress-group/proxy-wasm-go-sdk => /home/jz/higress-group/proxy-wasm/proxy-wasm-go-sdk
-
-replace github.com/higress-group/wasm-go => /home/jz/higress-group/proxy-wasm/wasm-go

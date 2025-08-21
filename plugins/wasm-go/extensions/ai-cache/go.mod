@@ -8,8 +8,8 @@ toolchain go1.24.4
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
-	github.com/higress-group/wasm-go v1.0.0
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250821081453-581014498091
+	github.com/higress-group/wasm-go v1.0.2-0.20250821081215-b573359becf8
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/resp v0.1.1
@@ -25,7 +25,3 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/higress-group/proxy-wasm-go-sdk => /home/jz/higress-group/proxy-wasm/proxy-wasm-go-sdk
-
-replace github.com/higress-group/wasm-go => /home/jz/higress-group/proxy-wasm/wasm-go
