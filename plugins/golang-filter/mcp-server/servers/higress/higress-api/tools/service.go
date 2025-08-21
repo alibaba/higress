@@ -292,7 +292,7 @@ func getAddServiceSourceSchema() json.RawMessage {
 					},
 					"domain": {
 						"type": "string",
-						"description": "The domain name or IP address（eg: 127.0.0.1:8080) (required)"
+						"description": "The domain name or IP address + port（eg: 127.0.0.1:8080) (required)"
 					},
 					"port": {
 						"type": "integer",
