@@ -192,17 +192,17 @@ jobs:
       with:
         pattern: test-results-*
         merge-multiple: true
+        path: ${{ github.workspace }}
         
     - name: Download all coverage files
       uses: actions/download-artifact@v4
       with:
         pattern: coverage-*
         merge-multiple: true
-        
+        path: ${{ github.workspace }}
+  
     - name: Install required tools
       run: |
-        sudo apt-get update
-        sudo apt-get install -y xmlstarlet
         go install github.com/wadey/gocovmerge@latest
         
     - name: Generate comprehensive test summary
@@ -227,12 +227,18 @@ jobs:
             
             # 解析XML获取测试结果
             if grep -q '<testsuite' "$result_file"; then
-              # 使用xmlstarlet解析XML属性，添加容错机制
-              tests=$(xmlstarlet sel -t -v "//testsuite/@tests" "$result_file" 2>/dev/null || echo "0")
-              failures=$(xmlstarlet sel -t -v "//testsuite/@failures" "$result_file" 2>/dev/null || echo "0")
-              errors=$(xmlstarlet sel -t -v "//testsuite/@errors" "$result_file" 2>/dev/null || echo "0")
-              time=$(xmlstarlet sel -t -v "//testsuite/@time" "$result_file" 2>/dev/null || echo "0")
+              # 使用grep解析XML属性，更稳定可靠
+              tests=$(grep -o 'tests="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              time=$(grep -o 'time="[0-9.]*"' "$result_file" | head -1 | grep -o '[0-9.]*' || echo "0")
               
+              # 确保数值有效，避免bash算术运算错误
+              tests=${tests:-0}
+              failures=${failures:-0}
+              errors=${errors:-0}
+              
+              # 转换为整数进行算术运算
               total_tests=$((total_tests + tests))
               total_failures=$((total_failures + failures))
               total_errors=$((total_errors + errors))
@@ -286,8 +292,12 @@ jobs:
               plugin_name=$(echo "$result_file" | sed 's/test-results-\(.*\)\.xml/\1/')
               
               # 检查是否有失败
-              failures=$(xmlstarlet sel -t -v "//testsuite/@failures" "$result_file" 2>/dev/null || echo "0")
-              errors=$(xmlstarlet sel -t -v "//testsuite/@errors" "$result_file" 2>/dev/null || echo "0")
+              failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              
+              # 确保数值有效
+              failures=${failures:-0}
+              errors=${errors:-0}
               
               if [ "$failures" -gt 0 ] || [ "$errors" -gt 0 ]; then
                 echo "**$plugin_name**:" >> $GITHUB_STEP_SUMMARY
@@ -304,8 +314,8 @@ jobs:
       run: |
         echo "Merging coverage reports..."
         
-        # 查找所有覆盖率文件（artifact名称格式：coverage-插件名）
-        coverage_files=$(find . -name "coverage-*")
+        # 使用绝对路径查找，更可靠
+        coverage_files=$(find ${{ github.workspace }} -name "coverage-*" -o -name "coverage-*.out")
         
         if [ -n "$coverage_files" ]; then
           echo "Found coverage files:"
@@ -323,12 +333,11 @@ jobs:
         fi
         
     - name: Upload merged coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       if: always()
       with:
         file: ${{ github.workspace }}/merged_coverage.out
-        flags: wasm-plugins-tests
-        name: codecov-wasm-plugins
+        flags: wasm-go-plugins-tests
+        name: codecov-wasm-go-plugins
         fail_ci_if_error: false
         verbose: true
-        token: ${{ secrets.CODECOV_TOKEN }}
