@@ -1,4 +1,4 @@
-name: WASM Plugin Unit Tests(GO)
+name: Wasm Plugin Unit Tests(GO)
 
 on:
   push:

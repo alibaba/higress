@@ -6,7 +6,7 @@ toolchain go1.24.4
 
 require (
 	github.com/antchfx/xmlquery v1.4.4
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250821081453-581014498091
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250822030947-8345453fddd0
 	github.com/higress-group/wasm-go v1.0.2-0.20250821081215-b573359becf8
 	github.com/tidwall/gjson v1.18.0
 	github.com/tidwall/sjson v1.2.5

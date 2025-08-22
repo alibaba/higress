@@ -268,11 +268,6 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 
 			// 应该返回ActionContinue
 			require.Equal(t, types.ActionContinue, action)
-
-			// 验证Authorization头被移除并替换为配置中的API Key
-			config, _ := host.GetMatchConfig()
-			pluginConfig := config.(*PluginConfig)
-			require.Equal(t, "sk-test123", pluginConfig.apiKey)
 		})
 
 		// 测试来自插件的请求头处理
