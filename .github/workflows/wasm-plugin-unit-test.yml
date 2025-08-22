@@ -2,7 +2,7 @@ name: Wasm Plugin Unit Tests(GO)
 
 on:
   push:
-    branches: [ main]
+    branches: [ main ]
     paths:
       - 'plugins/wasm-go/extensions/**'
       - '.github/workflows/wasm-plugin-unit-test.yml'
@@ -329,13 +329,37 @@ jobs:
           echo "Found coverage files:"
           echo "$coverage_files"
           
-          # 确保gocovmerge在PATH中
-          export PATH=$PATH:$GOPATH/bin
+          # 使用gocovmerge顺序合并
+          echo "Merging Go coverage files using gocovmerge sequential method..."
           
-          # 合并覆盖率报告
-          gocovmerge $coverage_files > ${{ github.workspace }}/merged_coverage.out
+          # 将文件列表转换为数组
+          readarray -t coverage_array <<< "$coverage_files"
+          file_count=${#coverage_array[@]}
           
-          echo "Coverage reports merged successfully"
+          echo "Total files to merge: $file_count"
+          
+          # 复制第一个文件作为基础
+          cp "${coverage_array[0]}" ${{ github.workspace }}/merged_coverage.out
+          echo "Starting with: ${coverage_array[0]}"
+          
+          # 如果有多个文件，逐个合并其他文件到最终目标
+          if [ $file_count -gt 1 ]; then
+            echo "Multiple files, merging sequentially with gocovmerge..."
+            
+            for ((i=1; i<file_count; i++)); do
+              current_file="${coverage_array[i]}"
+              
+              echo "Merging file $((i+1))/$file_count: $current_file"
+              
+              # 使用gocovmerge合并到最终目标文件
+              gocovmerge "${{ github.workspace }}/merged_coverage.out" "$current_file" > "${{ github.workspace }}/temp_merge.out"
+              mv "${{ github.workspace }}/temp_merge.out" "${{ github.workspace }}/merged_coverage.out"
+              
+              echo "Successfully merged with $current_file"
+            done
+          fi
+          
+          echo "Coverage reports merged successfully using gocovmerge sequential method"
           echo "Merged file size: $(wc -c < ${{ github.workspace }}/merged_coverage.out) bytes"
         else
           echo "No coverage files found"
