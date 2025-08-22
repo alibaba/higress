@@ -314,6 +314,27 @@ jobs:
       run: |
         echo "Merging coverage reports..."
         
+        # 调试信息：显示当前状态
+        echo "=== DEBUG INFO ==="
+        echo "Current working directory: $(pwd)"
+        echo "GitHub workspace: ${{ github.workspace }}"
+        echo "Current directory contents:"
+        ls -la
+        echo ""
+        echo "GitHub workspace contents:"
+        ls -la ${{ github.workspace }}
+        echo ""
+        echo "Looking for coverage files in current directory:"
+        find . -name "coverage-*" 2>/dev/null || echo "No coverage files found in current directory"
+        echo ""
+        echo "Looking for coverage files in GitHub workspace:"
+        find ${{ github.workspace }} -name "coverage-*" 2>/dev/null || echo "No coverage files found in GitHub workspace"
+        echo ""
+        echo "Looking for any files with 'coverage' in name:"
+        find ${{ github.workspace }} -name "*coverage*" 2>/dev/null || echo "No files with 'coverage' in name found"
+        echo "=== END DEBUG INFO ==="
+        echo ""
+        
         # 使用绝对路径查找，更可靠
         coverage_files=$(find ${{ github.workspace }} -name "coverage-*" -o -name "coverage-*.out")
         
