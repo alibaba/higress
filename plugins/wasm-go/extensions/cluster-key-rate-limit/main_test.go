@@ -15,6 +15,7 @@
 package main
 
 import (
+	"cluster-key-rate-limit/config"
 	"encoding/json"
 	"testing"
 
@@ -228,9 +229,19 @@ func TestParseConfig(t *testing.T) {
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			config, err := host.GetMatchConfig()
+			cfg, err := host.GetMatchConfig()
 			require.NoError(t, err)
-			require.NotNil(t, config)
+			require.NotNil(t, cfg)
+
+			// 验证配置内容
+			parsedConfig := cfg.(*config.ClusterKeyRateLimitConfig)
+			require.Equal(t, "routeA-global-limit-rule", parsedConfig.RuleName)
+			require.NotNil(t, parsedConfig.GlobalThreshold)
+			require.Equal(t, int64(1000), parsedConfig.GlobalThreshold.Count)
+			require.Equal(t, int64(60), parsedConfig.GlobalThreshold.TimeWindow)
+			require.True(t, parsedConfig.ShowLimitQuotaHeader)
+			require.Equal(t, uint32(429), parsedConfig.RejectedCode)
+			require.Equal(t, "Too many requests", parsedConfig.RejectedMsg)
 		})
 
 		// 测试基于请求参数的限流配置解析
@@ -239,9 +250,18 @@ func TestParseConfig(t *testing.T) {
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			config, err := host.GetMatchConfig()
+			cfg, err := host.GetMatchConfig()
 			require.NoError(t, err)
-			require.NotNil(t, config)
+			require.NotNil(t, cfg)
+
+			// 验证配置内容
+			parsedConfig := cfg.(*config.ClusterKeyRateLimitConfig)
+			require.Equal(t, "routeA-request-param-limit-rule", parsedConfig.RuleName)
+			require.Len(t, parsedConfig.RuleItems, 1)
+			require.Equal(t, config.LimitByParamType, parsedConfig.RuleItems[0].LimitType)
+			require.Equal(t, "apikey", parsedConfig.RuleItems[0].Key)
+			require.Len(t, parsedConfig.RuleItems[0].ConfigItems, 2)
+			require.True(t, parsedConfig.ShowLimitQuotaHeader)
 		})
 
 		// 测试基于请求头的限流配置解析
@@ -250,9 +270,18 @@ func TestParseConfig(t *testing.T) {
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			config, err := host.GetMatchConfig()
+			cfg, err := host.GetMatchConfig()
 			require.NoError(t, err)
-			require.NotNil(t, config)
+			require.NotNil(t, cfg)
+
+			// 验证配置内容
+			parsedConfig := cfg.(*config.ClusterKeyRateLimitConfig)
+			require.Equal(t, "routeA-request-header-limit-rule", parsedConfig.RuleName)
+			require.Len(t, parsedConfig.RuleItems, 1)
+			require.Equal(t, config.LimitByHeaderType, parsedConfig.RuleItems[0].LimitType)
+			require.Equal(t, "x-ca-key", parsedConfig.RuleItems[0].Key)
+			require.Len(t, parsedConfig.RuleItems[0].ConfigItems, 2)
+			require.True(t, parsedConfig.ShowLimitQuotaHeader)
 		})
 
 		// 测试基于 Consumer 的限流配置解析
@@ -261,9 +290,17 @@ func TestParseConfig(t *testing.T) {
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			config, err := host.GetMatchConfig()
+			cfg, err := host.GetMatchConfig()
 			require.NoError(t, err)
-			require.NotNil(t, config)
+			require.NotNil(t, cfg)
+
+			// 验证配置内容
+			parsedConfig := cfg.(*config.ClusterKeyRateLimitConfig)
+			require.Equal(t, "routeA-consumer-limit-rule", parsedConfig.RuleName)
+			require.Len(t, parsedConfig.RuleItems, 1)
+			require.Equal(t, config.LimitByConsumerType, parsedConfig.RuleItems[0].LimitType)
+			require.Len(t, parsedConfig.RuleItems[0].ConfigItems, 2)
+			require.True(t, parsedConfig.ShowLimitQuotaHeader)
 		})
 
 		// 测试基于 Cookie 的限流配置解析
@@ -272,9 +309,18 @@ func TestParseConfig(t *testing.T) {
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			config, err := host.GetMatchConfig()
+			cfg, err := host.GetMatchConfig()
 			require.NoError(t, err)
-			require.NotNil(t, config)
+			require.NotNil(t, cfg)
+
+			// 验证配置内容
+			parsedConfig := cfg.(*config.ClusterKeyRateLimitConfig)
+			require.Equal(t, "routeA-cookie-limit-rule", parsedConfig.RuleName)
+			require.Len(t, parsedConfig.RuleItems, 1)
+			require.Equal(t, config.LimitByCookieType, parsedConfig.RuleItems[0].LimitType)
+			require.Equal(t, "key1", parsedConfig.RuleItems[0].Key)
+			require.Len(t, parsedConfig.RuleItems[0].ConfigItems, 2)
+			require.True(t, parsedConfig.ShowLimitQuotaHeader)
 		})
 
 		// 测试基于 IP 的限流配置解析
@@ -283,9 +329,18 @@ func TestParseConfig(t *testing.T) {
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			config, err := host.GetMatchConfig()
+			cfg, err := host.GetMatchConfig()
 			require.NoError(t, err)
-			require.NotNil(t, config)
+			require.NotNil(t, cfg)
+
+			// 验证配置内容
+			parsedConfig := cfg.(*config.ClusterKeyRateLimitConfig)
+			require.Equal(t, "routeA-client-ip-limit-rule", parsedConfig.RuleName)
+			require.Len(t, parsedConfig.RuleItems, 1)
+			require.Equal(t, config.LimitByPerIpType, parsedConfig.RuleItems[0].LimitType)
+			require.NotNil(t, parsedConfig.RuleItems[0].LimitByPerIp)
+			require.Equal(t, config.HeaderSourceType, parsedConfig.RuleItems[0].LimitByPerIp.SourceType)
+			require.True(t, parsedConfig.ShowLimitQuotaHeader)
 		})
 
 		// 测试正则表达式限流配置解析
@@ -294,9 +349,19 @@ func TestParseConfig(t *testing.T) {
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			config, err := host.GetMatchConfig()
+			cfg, err := host.GetMatchConfig()
 			require.NoError(t, err)
-			require.NotNil(t, config)
+			require.NotNil(t, cfg)
+
+			// 验证配置内容
+			parsedConfig := cfg.(*config.ClusterKeyRateLimitConfig)
+			require.Equal(t, "routeA-regexp-limit-rule", parsedConfig.RuleName)
+			require.Len(t, parsedConfig.RuleItems, 1)
+			require.Equal(t, config.LimitByPerParamType, parsedConfig.RuleItems[0].LimitType)
+			require.Equal(t, "apikey", parsedConfig.RuleItems[0].Key)
+			require.Len(t, parsedConfig.RuleItems[0].ConfigItems, 3)
+			require.Equal(t, config.RegexpType, parsedConfig.RuleItems[0].ConfigItems[0].ConfigType)
+			require.True(t, parsedConfig.ShowLimitQuotaHeader)
 		})
 	})
 }

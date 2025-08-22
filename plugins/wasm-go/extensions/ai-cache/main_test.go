@@ -814,7 +814,7 @@ func TestOnHttpResponseBody(t *testing.T) {
 			})
 
 			// 构造响应体
-			responseBody := `{
+			expectedResponseBody := `{
 				"id": "chatcmpl-123",
 				"choices": [
 					{
@@ -831,12 +831,12 @@ func TestOnHttpResponseBody(t *testing.T) {
 			}`
 
 			// 调用响应体处理
-			action := host.CallOnHttpResponseBody([]byte(responseBody))
+			action := host.CallOnHttpResponseBody([]byte(expectedResponseBody))
 
 			// 应该返回ActionContinue
 			require.Equal(t, types.ActionContinue, action)
-			responseBody = string(host.GetResponseBody())
-			require.Equal(t, responseBody, responseBody)
+			actualResponseBody := string(host.GetResponseBody())
+			require.JSONEq(t, expectedResponseBody, actualResponseBody)
 		})
 
 		// 测试流式响应体处理
@@ -873,7 +873,7 @@ func TestOnHttpResponseBody(t *testing.T) {
 			})
 
 			// 构造流式响应体
-			streamResponseBody := `data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"role":"assistant","content":"今天"},"finish_reason":null}]}
+			expectedStreamResponseBody := `data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"role":"assistant","content":"今天"},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"role":"assistant","content":"北京"},"finish_reason":null}]}
 
@@ -882,12 +882,12 @@ data: {"id":"chatcmpl-123","choices":[{"index":0,"delta":{"role":"assistant","co
 data: [DONE]`
 
 			// 调用响应体处理
-			action := host.CallOnHttpStreamingResponseBody([]byte(streamResponseBody), true)
+			action := host.CallOnHttpStreamingResponseBody([]byte(expectedStreamResponseBody), true)
 
 			// 应该返回ActionContinue
 			require.Equal(t, types.ActionContinue, action)
-			streamResponseBody = string(host.GetResponseBody())
-			require.Equal(t, streamResponseBody, streamResponseBody)
+			actualStreamResponseBody := string(host.GetResponseBody())
+			require.Equal(t, expectedStreamResponseBody, actualStreamResponseBody)
 		})
 
 		// 测试无缓存键的响应体处理
@@ -906,7 +906,7 @@ data: [DONE]`
 			require.Equal(t, types.ActionContinue, action)
 
 			// 构造响应体
-			responseBody := `{
+			expectedResponseBody := `{
 				"id": "chatcmpl-123",
 				"choices": [
 					{
@@ -921,13 +921,13 @@ data: [DONE]`
 			}`
 
 			// 调用响应体处理
-			action = host.CallOnHttpStreamingResponseBody([]byte(responseBody), true)
+			action = host.CallOnHttpStreamingResponseBody([]byte(expectedResponseBody), true)
 
 			// 应该返回ActionContinue
 			require.Equal(t, types.ActionContinue, action)
 
-			responseBody = string(host.GetResponseBody())
-			require.Equal(t, responseBody, responseBody)
+			actualResponseBody := string(host.GetResponseBody())
+			require.JSONEq(t, expectedResponseBody, actualResponseBody)
 		})
 	})
 }

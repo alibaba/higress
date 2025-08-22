@@ -62,6 +62,32 @@ var missingRequiredConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"accessKey": "test-ak",
 		"secretKey": "test-sk",
+		// 故意缺少必需字段：serviceName, servicePort, serviceHost
+	})
+	return data
+}()
+
+// 测试配置：缺少服务配置字段
+var missingServiceConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"accessKey":     "test-ak",
+		"secretKey":     "test-sk",
+		"checkRequest":  true,
+		"checkResponse": true,
+		// 缺少 serviceName, servicePort, serviceHost
+	})
+	return data
+}()
+
+// 测试配置：缺少认证字段
+var missingAuthConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":   "security-service",
+		"servicePort":   8080,
+		"serviceHost":   "security.example.com",
+		"checkRequest":  true,
+		"checkResponse": true,
+		// 缺少 accessKey, secretKey
 	})
 	return data
 }()
@@ -105,6 +131,20 @@ func TestParseConfig(t *testing.T) {
 		// 测试缺少必需字段的配置
 		t.Run("missing required config", func(t *testing.T) {
 			host, status := test.NewTestHost(missingRequiredConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusFailed, status)
+		})
+
+		// 测试缺少服务配置字段
+		t.Run("missing service config", func(t *testing.T) {
+			host, status := test.NewTestHost(missingServiceConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusFailed, status)
+		})
+
+		// 测试缺少认证字段
+		t.Run("missing auth config", func(t *testing.T) {
+			host, status := test.NewTestHost(missingAuthConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusFailed, status)
 		})

@@ -196,6 +196,9 @@ jobs:
         pattern: test-results-*
         merge-multiple: true
         
+    - name: Install xmlstarlet
+      run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+        
     - name: Generate comprehensive test summary
       run: |
         echo "## 🧪 Go Plugin Test Results" >> $GITHUB_STEP_SUMMARY
@@ -218,10 +221,11 @@ jobs:
             
             # 解析XML获取测试结果
             if grep -q '<testsuite' "$result_file"; then
-              tests=$(grep -o 'tests="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*')
-              failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*')
-              errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*')
-              time=$(grep -o 'time="[0-9.]*"' "$result_file" | head -1 | grep -o '[0-9.]*')
+              # 使用xmlstarlet解析XML属性，添加容错机制
+              tests=$(xmlstarlet sel -t -v "//testsuite/@tests" "$result_file" 2>/dev/null || echo "0")
+              failures=$(xmlstarlet sel -t -v "//testsuite/@failures" "$result_file" 2>/dev/null || echo "0")
+              errors=$(xmlstarlet sel -t -v "//testsuite/@errors" "$result_file" 2>/dev/null || echo "0")
+              time=$(xmlstarlet sel -t -v "//testsuite/@time" "$result_file" 2>/dev/null || echo "0")
               
               total_tests=$((total_tests + tests))
               total_failures=$((total_failures + failures))
@@ -276,8 +280,8 @@ jobs:
               plugin_name=$(echo "$result_file" | sed 's/test-results-\(.*\)\.xml/\1/')
               
               # 检查是否有失败
-              failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*')
-              errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*')
+              failures=$(xmlstarlet sel -t -v "//testsuite/@failures" "$result_file" 2>/dev/null || echo "0")
+              errors=$(xmlstarlet sel -t -v "//testsuite/@errors" "$result_file" 2>/dev/null || echo "0")
               
               if [ "$failures" -gt 0 ] || [ "$errors" -gt 0 ]; then
                 echo "**$plugin_name**:" >> $GITHUB_STEP_SUMMARY
