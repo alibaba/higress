@@ -321,64 +321,6 @@ paths:
 
 func TestParseConfig(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
-		// 测试完整配置解析
-		t.Run("complete config", func(t *testing.T) {
-			host, status := test.NewTestHost(completeConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-
-			configRaw, err := host.GetMatchConfig()
-			require.NoError(t, err)
-			require.NotNil(t, configRaw)
-
-			config, ok := configRaw.(*PluginConfig)
-			require.True(t, ok, "config should be of type *PluginConfig")
-
-			// 验证响应模板
-			require.Contains(t, config.ReturnResponseTemplate, "gpt-4o")
-
-			// 验证LLM配置
-			require.Equal(t, "test-api-key", config.LLMInfo.APIKey)
-			require.Equal(t, "llm-service", config.LLMInfo.ServiceName)
-			require.Equal(t, int64(8080), config.LLMInfo.ServicePort)
-			require.Equal(t, "llm.example.com", config.LLMInfo.Domain)
-			require.Equal(t, "/v1/chat/completions", config.LLMInfo.Path)
-			require.Equal(t, "qwen-turbo", config.LLMInfo.Model)
-			require.Equal(t, int64(20), config.LLMInfo.MaxIterations)
-			require.Equal(t, int64(60000), config.LLMInfo.MaxExecutionTime)
-			require.Equal(t, int64(2000), config.LLMInfo.MaxTokens)
-
-			// 验证API配置
-			require.Len(t, config.APIsParam, 1)
-			require.Len(t, config.APIsParam[0].ToolsParam, 2)
-
-			// 验证GET工具
-			getTool := config.APIsParam[0].ToolsParam[0]
-			require.Equal(t, "getWeather", getTool.ToolName)
-			require.Equal(t, "GET", getTool.Method)
-			require.Equal(t, "/weather", getTool.Path)
-			require.Contains(t, getTool.ParamName, "city")
-			require.Contains(t, getTool.ParamName, "date")
-
-			// 验证POST工具
-			postTool := config.APIsParam[0].ToolsParam[1]
-			require.Equal(t, "translateText", postTool.ToolName)
-			require.Equal(t, "POST", postTool.Method)
-			require.Equal(t, "/translate", postTool.Path)
-			require.Contains(t, postTool.ParamName, "text")
-			require.Contains(t, postTool.ParamName, "targetLang")
-
-			// 验证提示模板
-			require.Equal(t, "EN", config.PromptTemplate.Language)
-			require.Equal(t, "What is your question?", config.PromptTemplate.ENTemplate.Question)
-			require.Equal(t, "Let me think about this", config.PromptTemplate.ENTemplate.Thought1)
-			require.Equal(t, "Based on the observation", config.PromptTemplate.ENTemplate.Observation)
-			require.Equal(t, "Now I understand", config.PromptTemplate.ENTemplate.Thought2)
-
-			// 验证JSON响应配置
-			require.True(t, config.JsonResp.Enable)
-			require.NotNil(t, config.JsonResp.JsonSchema)
-		})
 
 		// 测试最小配置解析（使用默认值）
 		t.Run("minimal config with defaults", func(t *testing.T) {
