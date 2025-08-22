@@ -318,61 +318,61 @@ jobs:
           done
         fi
         
-    - name: Merge coverage reports
-      run: |
-        echo "Merging coverage reports..."
+    # - name: Merge coverage reports
+    #   run: |
+    #     echo "Merging coverage reports..."
+    #     
+    #     # 使用绝对路径查找，更可靠
+    #     coverage_files=$(find ${{ github.workspace }} -name "coverage-*")
+    #     
+    #     if [ -n "$coverage_files" ]; then
+    #       echo "Found coverage files:"
+    #       echo "$coverage_files"
+    #       
+    #       # 使用gocovmerge顺序合并
+    #       echo "Merging Go coverage files using gocovmerge sequential method..."
+    #       
+    #       # 将文件列表转换为数组
+    #       readarray -t coverage_array <<< "$coverage_files"
+    #       file_count=${#coverage_array[@]}
+    #       
+    #       echo "Total files to merge: $file_count"
+    #       
+    #       # 复制第一个文件作为基础
+    #       cp "${coverage_array[0]}" ${{ github.workspace }}/merged_coverage.out
+    #       echo "Starting with: ${coverage_array[0]}"
+    #       
+    #       # 如果有多个文件，逐个合并其他文件到最终目标
+    #       if [ $file_count -gt 1 ]; then
+    #         echo "Multiple files, merging sequentially with gocovmerge..."
+    #         
+    #         for ((i=1; i<file_count; i++)); do
+    #           current_file="${coverage_array[i]}"
+    #           
+    #           echo "Merging file $((i+1))/$file_count: $current_file"
+    #           
+    #           # 使用gocovmerge合并到最终目标文件
+    #           gocovmerge "${{ github.workspace }}/merged_coverage.out" "$current_file" > "${{ github.workspace }}/temp_merge.out"
+    #           mv "${{ github.workspace }}/temp_merge.out" "${{ github.workspace }}/merged_coverage.out"
+    #           
+    #           echo "Successfully merged with $current_file"
+    #           done
+    #         fi
+    #         
+    #         echo "Coverage reports merged successfully using gocovmerge sequential method"
+    #         echo "Merged file size: $(wc -c < ${{ github.workspace }}/merged_coverage.out) bytes"
+    #       else
+    #         echo "No coverage files found"
+    #         # 创建空的覆盖率文件
+    #         echo "mode: atomic" > ${{ github.workspace }}/merged_coverage.out
+    #       fi
         
-        # 使用绝对路径查找，更可靠
-        coverage_files=$(find ${{ github.workspace }} -name "coverage-*")
-        
-        if [ -n "$coverage_files" ]; then
-          echo "Found coverage files:"
-          echo "$coverage_files"
-          
-          # 使用gocovmerge顺序合并
-          echo "Merging Go coverage files using gocovmerge sequential method..."
-          
-          # 将文件列表转换为数组
-          readarray -t coverage_array <<< "$coverage_files"
-          file_count=${#coverage_array[@]}
-          
-          echo "Total files to merge: $file_count"
-          
-          # 复制第一个文件作为基础
-          cp "${coverage_array[0]}" ${{ github.workspace }}/merged_coverage.out
-          echo "Starting with: ${coverage_array[0]}"
-          
-          # 如果有多个文件，逐个合并其他文件到最终目标
-          if [ $file_count -gt 1 ]; then
-            echo "Multiple files, merging sequentially with gocovmerge..."
-            
-            for ((i=1; i<file_count; i++)); do
-              current_file="${coverage_array[i]}"
-              
-              echo "Merging file $((i+1))/$file_count: $current_file"
-              
-              # 使用gocovmerge合并到最终目标文件
-              gocovmerge "${{ github.workspace }}/merged_coverage.out" "$current_file" > "${{ github.workspace }}/temp_merge.out"
-              mv "${{ github.workspace }}/temp_merge.out" "${{ github.workspace }}/merged_coverage.out"
-              
-              echo "Successfully merged with $current_file"
-            done
-          fi
-          
-          echo "Coverage reports merged successfully using gocovmerge sequential method"
-          echo "Merged file size: $(wc -c < ${{ github.workspace }}/merged_coverage.out) bytes"
-        else
-          echo "No coverage files found"
-          # 创建空的覆盖率文件
-          echo "mode: atomic" > ${{ github.workspace }}/merged_coverage.out
-        fi
-        
-    - name: Upload merged coverage to Codecov
-      uses: codecov/codecov-action@v4
-      if: always()
-      with:
-        file: ${{ github.workspace }}/merged_coverage.out
-        flags: wasm-go-plugins-tests
-        name: codecov-wasm-go-plugins
-        fail_ci_if_error: false
-        verbose: true
+    # - name: Upload merged coverage to Codecov
+    #   uses: codecov/codecov-action@v4
+    #   if: always()
+    #   with:
+    #     file: ${{ github.workspace }}/merged_coverage.out
+    #     flags: wasm-go-plugins-tests
+    #     name: codecov-wasm-go-plugins
+    #     fail_ci_if_error: false
+    #     verbose: true
