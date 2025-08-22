@@ -169,16 +169,13 @@ jobs:
           test-output-${{ matrix.plugin }}.json
         retention-days: 30
         
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+    - name: Upload coverage report for ${{ matrix.plugin }}
+      uses: actions/upload-artifact@v4
       if: always()
       with:
-        file: ./plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage.out
-        flags: ${{ matrix.plugin }}-tests
-        name: codecov-${{ matrix.plugin }}
-        fail_ci_if_error: false
-        verbose: true
-        token: ${{ secrets.CODECOV_TOKEN }}
+        name: coverage-${{ matrix.plugin }}.out
+        path: coverage.out
+        retention-days: 30
 
   test-summary:
     name: Test Summary & Coverage
@@ -196,8 +193,17 @@ jobs:
         pattern: test-results-*
         merge-multiple: true
         
-    - name: Install xmlstarlet
-      run: sudo apt-get update && sudo apt-get install -y xmlstarlet
+    - name: Download all coverage files
+      uses: actions/download-artifact@v4
+      with:
+        pattern: coverage-*
+        merge-multiple: true
+        
+    - name: Install required tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xmlstarlet
+        go install github.com/axw/gocov/gocov-merge@latest
         
     - name: Generate comprehensive test summary
       run: |
@@ -293,3 +299,36 @@ jobs:
             fi
           done
         fi
+        
+    - name: Merge coverage reports
+      run: |
+        echo "Merging coverage reports..."
+        
+        # 查找所有覆盖率文件（artifact名称格式：coverage-插件名）
+        coverage_files=$(find . -name "coverage-*")
+        
+        if [ -n "$coverage_files" ]; then
+          echo "Found coverage files:"
+          echo "$coverage_files"
+          
+          # 合并覆盖率报告
+          gocov-merge $coverage_files > ${{ github.workspace }}/merged_coverage.out
+          
+          echo "Coverage reports merged successfully"
+          echo "Merged file size: $(wc -c < ${{ github.workspace }}/merged_coverage.out) bytes"
+        else
+          echo "No coverage files found"
+          # 创建空的覆盖率文件
+          echo "mode: atomic" > ${{ github.workspace }}/merged_coverage.out
+        fi
+        
+    - name: Upload merged coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: always()
+      with:
+        file: ${{ github.workspace }}/merged_coverage.out
+        flags: wasm-plugins-tests
+        name: codecov-wasm-plugins
+        fail_ci_if_error: false
+        verbose: true
+        token: ${{ secrets.CODECOV_TOKEN }}
