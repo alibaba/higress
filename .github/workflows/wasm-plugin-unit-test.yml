@@ -2,7 +2,7 @@ name: Wasm Plugin Unit Tests(GO)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main]
     paths:
       - 'plugins/wasm-go/extensions/**'
       - '.github/workflows/wasm-plugin-unit-test.yml'
@@ -150,7 +150,7 @@ jobs:
           gotestsum --junitfile ../../../../test-results-${{ matrix.plugin }}.xml \
                    --format standard-verbose \
                    --jsonfile ../../../../test-output-${{ matrix.plugin }}.json \
-                   -- -coverprofile=coverage.out -covermode=atomic -coverpkg=./... ./...
+                   -- -coverprofile=coverage-${{ matrix.plugin }}.out -covermode=atomic -coverpkg=./... ./...
           
           echo "✅ Tests completed for ${{ matrix.plugin }}"
         else
@@ -173,8 +173,8 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: coverage-${{ matrix.plugin }}.out
-        path: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage.out
+        name: coverage-${{ matrix.plugin }}
+        path: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage-${{ matrix.plugin }}.out
         retention-days: 30
 
   test-summary:
@@ -187,6 +187,16 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Set up Go 1.24
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.24
+        cache: true
+        
+    - name: Install required tools
+      run: |
+        go install github.com/wadey/gocovmerge@latest
+        
     - name: Download all test results
       uses: actions/download-artifact@v4
       with:
@@ -200,10 +210,8 @@ jobs:
         pattern: coverage-*
         merge-multiple: true
         path: ${{ github.workspace }}
-  
-    - name: Install required tools
-      run: |
-        go install github.com/wadey/gocovmerge@latest
+        
+
         
     - name: Generate comprehensive test summary
       run: |
@@ -314,33 +322,15 @@ jobs:
       run: |
         echo "Merging coverage reports..."
         
-        # 调试信息：显示当前状态
-        echo "=== DEBUG INFO ==="
-        echo "Current working directory: $(pwd)"
-        echo "GitHub workspace: ${{ github.workspace }}"
-        echo "Current directory contents:"
-        ls -la
-        echo ""
-        echo "GitHub workspace contents:"
-        ls -la ${{ github.workspace }}
-        echo ""
-        echo "Looking for coverage files in current directory:"
-        find . -name "coverage-*" 2>/dev/null || echo "No coverage files found in current directory"
-        echo ""
-        echo "Looking for coverage files in GitHub workspace:"
-        find ${{ github.workspace }} -name "coverage-*" 2>/dev/null || echo "No coverage files found in GitHub workspace"
-        echo ""
-        echo "Looking for any files with 'coverage' in name:"
-        find ${{ github.workspace }} -name "*coverage*" 2>/dev/null || echo "No files with 'coverage' in name found"
-        echo "=== END DEBUG INFO ==="
-        echo ""
-        
         # 使用绝对路径查找，更可靠
-        coverage_files=$(find ${{ github.workspace }} -name "coverage-*" -o -name "coverage-*.out")
+        coverage_files=$(find ${{ github.workspace }} -name "coverage-*")
         
         if [ -n "$coverage_files" ]; then
           echo "Found coverage files:"
           echo "$coverage_files"
+          
+          # 确保gocovmerge在PATH中
+          export PATH=$PATH:$GOPATH/bin
           
           # 合并覆盖率报告
           gocovmerge $coverage_files > ${{ github.workspace }}/merged_coverage.out
