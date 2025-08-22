@@ -174,7 +174,7 @@ jobs:
       if: always()
       with:
         name: coverage-${{ matrix.plugin }}.out
-        path: coverage.out
+        path: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage.out
         retention-days: 30
 
   test-summary:
@@ -203,7 +203,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y xmlstarlet
-        go install github.com/axw/gocov/gocov-merge@latest
+        go install github.com/wadey/gocovmerge@latest
         
     - name: Generate comprehensive test summary
       run: |
@@ -312,7 +312,7 @@ jobs:
           echo "$coverage_files"
           
           # 合并覆盖率报告
-          gocov-merge $coverage_files > ${{ github.workspace }}/merged_coverage.out
+          gocovmerge $coverage_files > ${{ github.workspace }}/merged_coverage.out
           
           echo "Coverage reports merged successfully"
           echo "Merged file size: $(wc -c < ${{ github.workspace }}/merged_coverage.out) bytes"
