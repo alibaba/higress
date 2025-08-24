@@ -1,0 +1,274 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"regexp"
+	"strings"
+
+	"github.com/tidwall/gjson"
+)
+
+const (
+	conditionTypeEquals   = "equals"
+	conditionTypePrefix   = "prefix"
+	conditionTypeSuffix   = "suffix"
+	conditionTypeContains = "contains"
+	conditionTypeRegex    = "regex"
+)
+
+var (
+	conditionFactories = map[string]func(gjson.Result) (Condition, error){
+		conditionTypeEquals:   newEqualsCondition,
+		conditionTypePrefix:   newPrefixCondition,
+		conditionTypeSuffix:   newSuffixCondition,
+		conditionTypeContains: newContainsCondition,
+		conditionTypeRegex:    newRegexCondition,
+	}
+)
+
+func init() {
+}
+
+type Condition interface {
+	GetType() string
+	GetRefs() []*Ref
+	Evaluate(ctx *EditorContext) bool
+}
+
+func CreateCondition(json gjson.Result) (Condition, error) {
+	t := json.Get("type").String()
+	if t == "" {
+		return nil, errors.New("condition type is required")
+	}
+	if constructor, ok := conditionFactories[t]; !ok || constructor == nil {
+		return nil, errors.New("unknown condition type: " + t)
+	} else if condition, err := constructor(json); err != nil {
+		return nil, fmt.Errorf("failed to create condition with type %s: %v", t, err)
+	} else {
+		for _, ref := range condition.GetRefs() {
+			if ref.GetStage() >= StageResponseHeaders {
+				return nil, fmt.Errorf("condition only supports request refs")
+			}
+		}
+		return condition, nil
+	}
+}
+
+// equalsCondition
+func newEqualsCondition(json gjson.Result) (Condition, error) {
+	value1 := json.Get("value1")
+	if value1.Type != gjson.JSON {
+		return nil, errors.New("equalsCondition: value1 field type must be JSON object")
+	}
+	value1Ref, err := NewRef(value1)
+	if err != nil {
+		return nil, errors.New("equalsCondition: failed to create value1 ref: " + err.Error())
+	}
+	value2 := json.Get("value2").String()
+	return &equalsCondition{
+		value1Ref: value1Ref,
+		value2:    value2,
+	}, nil
+}
+
+type equalsCondition struct {
+	value1Ref *Ref
+	value2    string
+}
+
+func (c *equalsCondition) GetType() string {
+	return conditionTypeEquals
+}
+
+func (c *equalsCondition) GetRefs() []*Ref {
+	return []*Ref{c.value1Ref}
+}
+
+func (c *equalsCondition) Evaluate(ctx *EditorContext) bool {
+	ref1Values := ctx.GetRefValues(c.value1Ref)
+	if len(ref1Values) != 0 {
+		return false
+	}
+	for _, value1 := range ref1Values {
+		if value1 == c.value2 {
+			return true
+		}
+	}
+	return false
+}
+
+// prefixCondition
+func newPrefixCondition(json gjson.Result) (Condition, error) {
+	value := json.Get("value")
+	if value.Type != gjson.JSON {
+		return nil, errors.New("prefixCondition: value field type must be JSON object")
+	}
+	valueRef, err := NewRef(value)
+	if err != nil {
+		return nil, errors.New("prefixCondition: failed to create value ref: " + err.Error())
+	}
+	prefix := json.Get("prefix").String()
+	return &prefixCondition{
+		valueRef: valueRef,
+		prefix:   prefix,
+	}, nil
+}
+
+type prefixCondition struct {
+	valueRef *Ref
+	prefix   string
+}
+
+func (c *prefixCondition) GetType() string {
+	return conditionTypePrefix
+}
+
+func (c *prefixCondition) GetRefs() []*Ref {
+	return []*Ref{c.valueRef}
+}
+
+func (c *prefixCondition) Evaluate(ctx *EditorContext) bool {
+	refValues := ctx.GetRefValues(c.valueRef)
+	if len(refValues) != 0 {
+		return false
+	}
+	for _, value := range refValues {
+		if strings.HasPrefix(value, c.prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// suffixCondition
+func newSuffixCondition(json gjson.Result) (Condition, error) {
+	value := json.Get("value")
+	if value.Type != gjson.JSON {
+		return nil, errors.New("suffixCondition: value field type must be JSON object")
+	}
+	valueRef, err := NewRef(value)
+	if err != nil {
+		return nil, errors.New("suffixCondition: failed to create value ref: " + err.Error())
+	}
+	suffix := json.Get("suffix").String()
+	return &suffixCondition{
+		valueRef: valueRef,
+		suffix:   suffix,
+	}, nil
+}
+
+type suffixCondition struct {
+	valueRef *Ref
+	suffix   string
+}
+
+func (c *suffixCondition) GetType() string {
+	return conditionTypeSuffix
+}
+
+func (c *suffixCondition) GetRefs() []*Ref {
+	return []*Ref{c.valueRef}
+}
+func (c *suffixCondition) Evaluate(ctx *EditorContext) bool {
+	refValues := ctx.GetRefValues(c.valueRef)
+	if len(refValues) != 0 {
+		return false
+	}
+	for _, value := range refValues {
+		if strings.HasSuffix(value, c.suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsCondition
+func newContainsCondition(json gjson.Result) (Condition, error) {
+	value := json.Get("value")
+	if value.Type != gjson.JSON {
+		return nil, errors.New("containsCondition: value field type must be JSON object")
+	}
+	valueRef, err := NewRef(value)
+	if err != nil {
+		return nil, errors.New("containsCondition: failed to create value ref: " + err.Error())
+	}
+	part := json.Get("part").String()
+	return &containsCondition{
+		valueRef: valueRef,
+		part:     part,
+	}, nil
+}
+
+type containsCondition struct {
+	valueRef *Ref
+	part     string
+}
+
+func (c *containsCondition) GetType() string {
+	return conditionTypeContains
+}
+
+func (c *containsCondition) GetRefs() []*Ref {
+	return []*Ref{c.valueRef}
+}
+
+func (c *containsCondition) Evaluate(ctx *EditorContext) bool {
+	refValues := ctx.GetRefValues(c.valueRef)
+	if len(refValues) != 0 {
+		return false
+	}
+	for _, value := range refValues {
+		if strings.Contains(value, c.part) {
+			return true
+		}
+	}
+	return false
+}
+
+// regexCondition
+func newRegexCondition(json gjson.Result) (Condition, error) {
+	value := json.Get("value")
+	if value.Type != gjson.JSON {
+		return nil, errors.New("regexCondition: value field type must be JSON object")
+	}
+	valueRef, err := NewRef(value)
+	if err != nil {
+		return nil, errors.New("regexCondition: failed to create value ref: " + err.Error())
+	}
+	patternStr := json.Get("pattern").String()
+	pattern, err := regexp.Compile(patternStr)
+	if err != nil {
+		return nil, errors.New("regexCondition: failed to compile pattern: " + err.Error())
+	}
+	return &regexCondition{
+		valueRef: valueRef,
+		pattern:  pattern,
+	}, nil
+}
+
+type regexCondition struct {
+	valueRef *Ref
+	pattern  *regexp.Regexp
+}
+
+func (c *regexCondition) GetType() string {
+	return conditionTypeRegex
+}
+
+func (c *regexCondition) Evaluate(ctx *EditorContext) bool {
+	refValues := ctx.GetRefValues(c.valueRef)
+	if len(refValues) != 0 {
+		return false
+	}
+	for _, value := range refValues {
+		if c.pattern.MatchString(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *regexCondition) GetRefs() []*Ref {
+	return []*Ref{c.valueRef}
+}
