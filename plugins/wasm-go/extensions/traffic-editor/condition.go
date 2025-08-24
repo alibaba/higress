@@ -121,7 +121,7 @@ func (c *equalsCondition) GetRefs() []*Ref {
 
 func (c *equalsCondition) Evaluate(ctx *EditorContext) bool {
 	ref1Values := ctx.GetRefValues(c.value1Ref)
-	if len(ref1Values) != 0 {
+	if len(ref1Values) == 0 {
 		return false
 	}
 	for _, value1 := range ref1Values {
@@ -164,7 +164,7 @@ func (c *prefixCondition) GetRefs() []*Ref {
 
 func (c *prefixCondition) Evaluate(ctx *EditorContext) bool {
 	refValues := ctx.GetRefValues(c.valueRef)
-	if len(refValues) != 0 {
+	if len(refValues) == 0 {
 		return false
 	}
 	for _, value := range refValues {
@@ -206,7 +206,7 @@ func (c *suffixCondition) GetRefs() []*Ref {
 }
 func (c *suffixCondition) Evaluate(ctx *EditorContext) bool {
 	refValues := ctx.GetRefValues(c.valueRef)
-	if len(refValues) != 0 {
+	if len(refValues) == 0 {
 		return false
 	}
 	for _, value := range refValues {
@@ -249,7 +249,7 @@ func (c *containsCondition) GetRefs() []*Ref {
 
 func (c *containsCondition) Evaluate(ctx *EditorContext) bool {
 	refValues := ctx.GetRefValues(c.valueRef)
-	if len(refValues) != 0 {
+	if len(refValues) == 0 {
 		return false
 	}
 	for _, value := range refValues {
@@ -292,7 +292,7 @@ func (c *regexCondition) GetType() string {
 
 func (c *regexCondition) Evaluate(ctx *EditorContext) bool {
 	refValues := ctx.GetRefValues(c.valueRef)
-	if len(refValues) != 0 {
+	if len(refValues) == 0 {
 		return false
 	}
 	for _, value := range refValues {
