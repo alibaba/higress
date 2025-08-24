@@ -117,8 +117,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.HmacAuthConfig) ty
 		proxywasm.RemoveHttpRequestHeader(authorizationHeader)
 	}
 
-	// 如果需要验证请求体，进入 onHttpRequestBody 方法
-	if cfg.ValidateRequestBody {
+	// 如果有请求体且需要验证请求体，进入 onHttpRequestBody 方法
+	if wrapper.HasRequestBody() && cfg.ValidateRequestBody {
 		return types.HeaderStopIteration
 	}
 	ctx.DontReadRequestBody()
@@ -138,8 +138,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, cfg config.HmacAuthConfig, body 
 		encodedDigest := base64.StdEncoding.EncodeToString(hash[:])
 		digestCreated := "SHA-256=" + encodedDigest
 
-		// 比较请求头中的 Digest和服务端计算的摘要
+		// 比较请求头中的 Digest 和服务端计算的摘要
 		if digestCreated != digestHeaderVal {
+			log.Warnf("Request body digest validation failed. Expected: %s, Got: %s, Body size: %d bytes",
+				digestCreated, digestHeaderVal, len(body))
 			sendErrorResponse("Invalid digest")
 			return types.ActionContinue
 		}
