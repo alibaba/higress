@@ -2,14 +2,15 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/tidwall/gjson"
 )
 
 const (
-	refTypeRequestHeader  = "requestHeader"
-	refTypeRequestQuery   = "requestQuery"
-	refTypeResponseHeader = "responseHeader"
+	refTypeRequestHeader  = "request_header"
+	refTypeRequestQuery   = "request_query"
+	refTypeResponseHeader = "response_header"
 )
 
 var (
@@ -36,10 +37,8 @@ func NewRef(json gjson.Result) (*Ref, error) {
 		return nil, errors.New("missing type field")
 	}
 
-	if stage, ok := refType2Stage[ref.Type]; ok {
-		ref.stage = stage
-	} else {
-		return nil, errors.New("invalid type field: " + ref.Type)
+	if _, ok := refType2Stage[ref.Type]; !ok {
+		return nil, fmt.Errorf("unknown ref type: %s", ref.Type)
 	}
 
 	if name := json.Get("name").String(); name != "" {
@@ -52,5 +51,14 @@ func NewRef(json gjson.Result) (*Ref, error) {
 }
 
 func (r *Ref) GetStage() Stage {
+	if r.stage == 0 {
+		if stage, ok := refType2Stage[r.Type]; ok {
+			r.stage = stage
+		}
+	}
 	return r.stage
+}
+
+func (r *Ref) String() string {
+	return fmt.Sprintf("%s/%s", r.Type, r.Name)
 }

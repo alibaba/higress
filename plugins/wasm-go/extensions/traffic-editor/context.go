@@ -3,7 +3,8 @@ package main
 type Stage int
 
 const (
-	StageRequestHeaders Stage = iota
+	StageInvalid Stage = iota
+	StageRequestHeaders
 	StageRequestBody
 	StageResponseHeaders
 	StageResponseBody

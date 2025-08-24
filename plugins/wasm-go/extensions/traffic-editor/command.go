@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/tidwall/gjson"
 )
 
@@ -59,43 +60,6 @@ func (s *CommandSet) CreatExecutors() []Executor {
 		executors = append(executors, executor)
 	}
 	return executors
-}
-
-type ConditionSet struct {
-	Conditions    []Condition    `json:"conditions,omitempty"`
-	RelatedStages map[Stage]bool `json:"-"`
-}
-
-func (s *ConditionSet) FromJson(json gjson.Result) error {
-	relatedStages := map[Stage]bool{}
-	s.Conditions = nil
-	if conditionsJson := json.Get("conditions"); conditionsJson.Exists() && conditionsJson.IsArray() {
-		for _, item := range conditionsJson.Array() {
-			if condition, err := CreateCondition(item); err != nil {
-				return fmt.Errorf("failed to create condition from json: %v\n  %v", err, item)
-			} else {
-				s.Conditions = append(s.Conditions, condition)
-				for _, ref := range condition.GetRefs() {
-					relatedStages[ref.GetStage()] = true
-				}
-			}
-		}
-	}
-	s.RelatedStages = relatedStages
-
-	return nil
-}
-
-func (s *ConditionSet) Matches(editorContext *EditorContext) bool {
-	if len(s.Conditions) == 0 {
-		return true
-	}
-	for _, condition := range s.Conditions {
-		if !condition.Evaluate(editorContext) {
-			return false
-		}
-	}
-	return true
 }
 
 type ConditionalCommandSet struct {
@@ -256,8 +220,8 @@ func (c *copyCommand) CreateExecutor() Executor {
 
 type copyExecutor struct {
 	baseExecutor
-	command    *copyCommand
-	valueToSet string
+	command     *copyCommand
+	valueToCopy string
 }
 
 func (e *copyExecutor) GetCommand() Command {
@@ -272,15 +236,20 @@ func (e *copyExecutor) Run(editorContext *EditorContext, stage Stage) error {
 	command := e.command
 
 	if command.sourceRef.GetStage() == stage {
-		e.valueToSet = editorContext.GetRefValue(command.sourceRef)
+		e.valueToCopy = editorContext.GetRefValue(command.sourceRef)
+		log.Debugf("copyCommand: valueToCopy=%s", e.valueToCopy)
 	}
 
-	if e.valueToSet == "" {
+	if e.valueToCopy == "" {
+		log.Debug("copyCommand: valueToCopy is empty. skip.")
+		e.finished = true
 		return nil
 	}
 
 	if command.targetRef.GetStage() == stage {
-		editorContext.SetRefValue(command.targetRef, e.valueToSet)
+		editorContext.SetRefValue(command.targetRef, e.valueToCopy)
+		log.Debugf("copyCommand: set %s to %s", e.valueToCopy, command.targetRef)
+		e.finished = true
 	}
 
 	return nil
@@ -329,7 +298,18 @@ func (e *deleteExecutor) GetCommand() Command {
 }
 
 func (e *deleteExecutor) Run(editorContext *EditorContext, stage Stage) error {
-	// TODO: 实现 delete 操作逻辑
+	if e.finished {
+		return nil
+	}
+
+	command := e.command
+
+	if command.targetRef.GetStage() == stage {
+		log.Debugf("deleteCommand: delete %s", command.targetRef)
+		editorContext.DeleteRefValues(command.targetRef)
+		e.finished = true
+	}
+
 	return nil
 }
 
@@ -388,10 +368,18 @@ func (e *renameExecutor) Run(editorContext *EditorContext, stage Stage) error {
 
 	command := e.command
 
-	if command.targetRef.GetStage() == stage && command.newName != command.targetRef.Name {
-		values := editorContext.GetRefValues(command.targetRef)
-		editorContext.SetRefValues(command.targetRef, values)
-		editorContext.DeleteRefValues(command.targetRef)
+	if command.targetRef.GetStage() == stage {
+		if command.newName == command.targetRef.Name {
+			log.Debugf("renameCommand: skip renaming %s to itself", command.targetRef)
+		} else {
+			values := editorContext.GetRefValues(command.targetRef)
+			log.Debugf("renameCommand: rename %s to %s value=%v", command.targetRef, command.newName, values)
+			editorContext.SetRefValues(&Ref{
+				Type: command.targetRef.Type,
+				Name: command.newName,
+			}, values)
+			editorContext.DeleteRefValues(command.targetRef)
+		}
 		e.finished = true
 	}
 

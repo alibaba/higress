@@ -177,7 +177,11 @@ func saveRequestMetaChanges(editorContext *EditorContext) error {
 }
 
 func saveResponseMetaChanges(editorContext *EditorContext) error {
-	return nil
+	if !editorContext.responseHeadersDirty {
+		return nil
+	}
+	headerSlice := headerMap2Slice(editorContext.responseHeaders)
+	return proxywasm.ReplaceHttpResponseHeaders(headerSlice)
 }
 
 func loadEditorContext(ctx wrapper.HttpContext) *EditorContext {

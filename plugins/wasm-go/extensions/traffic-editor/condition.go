@@ -27,7 +27,41 @@ var (
 	}
 )
 
-func init() {
+type ConditionSet struct {
+	Conditions    []Condition    `json:"conditions,omitempty"`
+	RelatedStages map[Stage]bool `json:"-"`
+}
+
+func (s *ConditionSet) FromJson(json gjson.Result) error {
+	relatedStages := map[Stage]bool{}
+	s.Conditions = nil
+	if conditionsJson := json.Get("conditions"); conditionsJson.Exists() && conditionsJson.IsArray() {
+		for _, item := range conditionsJson.Array() {
+			if condition, err := CreateCondition(item); err != nil {
+				return fmt.Errorf("failed to create condition from json: %v\n  %v", err, item)
+			} else {
+				s.Conditions = append(s.Conditions, condition)
+				for _, ref := range condition.GetRefs() {
+					relatedStages[ref.GetStage()] = true
+				}
+			}
+		}
+	}
+	s.RelatedStages = relatedStages
+
+	return nil
+}
+
+func (s *ConditionSet) Matches(editorContext *EditorContext) bool {
+	if len(s.Conditions) == 0 {
+		return true
+	}
+	for _, condition := range s.Conditions {
+		if !condition.Evaluate(editorContext) {
+			return false
+		}
+	}
+	return true
 }
 
 type Condition interface {
