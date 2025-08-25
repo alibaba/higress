@@ -100,7 +100,7 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 	if !routerConfig.enable {
 		return types.ActionContinue
 	}
-	// Extract server name from tool name (format: "${serverName}HigressRouteTo${toolName}")
+	// Extract server name from tool name (format: "${serverName}___${toolName}")
 	parts := strings.SplitN(toolName, consts.ToolSetNameSplitter, 2)
 	if len(parts) != 2 {
 		log.Debugf("Tool name '%s' does not contain server prefix, continuing without routing", toolName)
