@@ -451,7 +451,7 @@ func TestConvertResources(t *testing.T) {
 		{"weighted"},
 		{"zero"},
 		{"invalid"},
-		// 目前仅支持 type 为 Hostname 和 ServiceImport
+		// Currently, only types of Hostname and ServiceImport are supported.
 		//{"multi-gateway"},
 		{"delegated"},
 		{"route-binding"},

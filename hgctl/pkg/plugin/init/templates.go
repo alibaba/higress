@@ -64,8 +64,8 @@ func main() {
 // @End
 //
 type PluginConfig struct {
-	// @Title 第一个字段，注解格式为 @Title [语言] [标题]，语言缺省值为 en-US
-	// @Description 字符串的前半部分，注解格式为 @Description [语言] [描述]，语言缺省值为 en-US
+	// @Title First field, annotation format is @Title [language] [title], language defaults to en-US
+	// @Description First half of the string, annotation format is @Description [language] [description], language defaults to en-US
 	firstField string ` + "`required:\"true\"`" + `
 
 	// @Title en-US Second Field, annotation format is @Title [language] [title], language defaults to en-US
