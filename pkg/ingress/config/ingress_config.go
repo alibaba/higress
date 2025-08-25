@@ -628,6 +628,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 	mappings := map[string]*common.Rule{}
 
 	initHttp2RpcGlobalConfig := true
+	initMcpSseGlobalFilter := true
 	for _, routes := range convertOptions.HTTPRoutes {
 		for _, route := range routes {
 			if strings.HasSuffix(route.HTTPRoute.Name, "app-root") {
@@ -644,6 +645,19 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 					IngressLog.Infof("Append http2rpc EnvoyFilter for name %s", http2rpc.Name)
 					envoyFilters = append(envoyFilters, *envoyFilter)
 					initHttp2RpcGlobalConfig = false
+				}
+			}
+
+			loadBalance := route.WrapperConfig.AnnotationsConfig.LoadBalance
+			if loadBalance != nil && loadBalance.McpSseStateful {
+				IngressLog.Infof("Found MCP SSE stateful session for route %s", route.HTTPRoute.Name)
+				envoyFilter, err := m.constructMcpSseStatefulSessionEnvoyFilter(route, m.namespace, initMcpSseGlobalFilter)
+				if err != nil {
+					IngressLog.Errorf("Construct MCP SSE stateful session EnvoyFilter error %v", err)
+				} else {
+					IngressLog.Infof("Append MCP SSE stateful session EnvoyFilter for route %s", route.HTTPRoute.Name)
+					envoyFilters = append(envoyFilters, *envoyFilter)
+					initMcpSseGlobalFilter = false
 				}
 			}
 
@@ -1938,6 +1952,99 @@ func (m *IngressConfig) Patch(config.Config, config.PatchFunc) (string, error) {
 
 func (m *IngressConfig) Delete(config.GroupVersionKind, string, string, *string) error {
 	return common.ErrUnsupportedOp
+}
+
+func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.WrapperHTTPRoute, namespace string, initGlobalFilter bool) (*config.Config, error) {
+	httpRoute := route.HTTPRoute
+
+	var configPatches []*networking.EnvoyFilter_EnvoyConfigObjectPatch
+
+	// Add global HTTP filter if this is the first route using MCP SSE stateful session
+	if initGlobalFilter {
+		configPatches = append(configPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+			ApplyTo: networking.EnvoyFilter_HTTP_FILTER,
+			Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+				Context: networking.EnvoyFilter_GATEWAY,
+				ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+					Listener: &networking.EnvoyFilter_ListenerMatch{
+						FilterChain: &networking.EnvoyFilter_ListenerMatch_FilterChainMatch{
+							Filter: &networking.EnvoyFilter_ListenerMatch_FilterMatch{
+								Name: "envoy.filters.network.http_connection_manager",
+								SubFilter: &networking.EnvoyFilter_ListenerMatch_SubFilterMatch{
+									Name: "envoy.filters.http.router",
+								},
+							},
+						},
+					},
+				},
+			},
+			Patch: &networking.EnvoyFilter_Patch{
+				Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
+				Value: buildPatchStruct(`{
+					"name": "envoy.filters.http.mcp_sse_stateful_session",
+					"typed_config": {
+						"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+						"type_url": "type.googleapis.com/envoy.extensions.filters.http.mcp_sse_stateful_session.v3alpha.McpSseStatefulSession"
+					}
+				}`),
+			},
+		})
+	}
+
+	// Add route-specific configuration
+	configPatches = append(configPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
+		ApplyTo: networking.EnvoyFilter_HTTP_ROUTE,
+		Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
+			Context: networking.EnvoyFilter_GATEWAY,
+			ObjectTypes: &networking.EnvoyFilter_EnvoyConfigObjectMatch_RouteConfiguration{
+				RouteConfiguration: &networking.EnvoyFilter_RouteConfigurationMatch{
+					Vhost: &networking.EnvoyFilter_RouteConfigurationMatch_VirtualHostMatch{
+						Route: &networking.EnvoyFilter_RouteConfigurationMatch_RouteMatch{
+							Name: httpRoute.Name,
+						},
+					},
+				},
+			},
+		},
+		Patch: &networking.EnvoyFilter_Patch{
+			Operation: networking.EnvoyFilter_Patch_MERGE,
+			Value: buildPatchStruct(`{
+				"typed_per_filter_config": {
+					"envoy.filters.http.mcp_sse_stateful_session": {
+						"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+						"type_url": "type.googleapis.com/envoy.extensions.filters.http.mcp_sse_stateful_session.v3alpha.McpSseStatefulSessionPerRoute",
+						"value": {
+							"stateful_session": {
+								"session_state": {
+									"name": "envoy.http.mcp_sse_stateful_session.envelope",
+									"typed_config": {
+										"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
+										"type_url": "type.googleapis.com/envoy.extensions.http.mcp_sse_stateful_session.envelope.v3alpha.EnvelopeSessionState",
+										"value": {
+											"param_name": "sessionId",
+											"chunk_end_patterns": ["\r\n\r\n", "\n\n", "\r\r"]
+										}
+									}
+								},
+								"strict": true
+							}
+						}
+					}
+				}
+			}`),
+		},
+	})
+
+	return &config.Config{
+		Meta: config.Meta{
+			GroupVersionKind: gvk.EnvoyFilter,
+			Name:             common.CreateConvertedName(constants.IstioIngressGatewayName, "mcp-sse-stateful-session", "route", httpRoute.Name),
+			Namespace:        namespace,
+		},
+		Spec: &networking.EnvoyFilter{
+			ConfigPatches: configPatches,
+		},
+	}, nil
 }
 
 func (m *IngressConfig) notifyXDSFullUpdate(gvk config.GroupVersionKind, reason istiomodel.TriggerReason, updatedConfigName *util.ClusterNamespacedName) {
