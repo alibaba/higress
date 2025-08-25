@@ -194,6 +194,23 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		}
 	}
 
+	// Auto-detect protocol based on request path and handle conversion if needed
+	// If request is Claude format (/v1/messages) but provider doesn't support it natively,
+	// convert to OpenAI format (/v1/chat/completions)
+	if apiName == provider.ApiNameAnthropicMessages && !providerConfig.IsSupportedAPI(provider.ApiNameAnthropicMessages) {
+		// Provider doesn't support Claude protocol natively, convert to OpenAI format
+		newPath := strings.Replace(path.Path, provider.PathAnthropicMessages, provider.PathOpenAIChatCompletions, 1)
+		_ = proxywasm.ReplaceHttpRequestHeader(":path", newPath)
+		// Update apiName to match the new path
+		apiName = provider.ApiNameChatCompletion
+		// Mark that we need to convert response back to Claude format
+		ctx.SetContext("needClaudeResponseConversion", true)
+		log.Debugf("[Auto Protocol] Claude request detected, provider doesn't support natively, converted path from %s to %s, apiName: %s", path.Path, newPath, apiName)
+	} else if apiName == provider.ApiNameAnthropicMessages {
+		// Provider supports Claude protocol natively, no conversion needed
+		log.Debugf("[Auto Protocol] Claude request detected, provider supports natively, keeping original path: %s, apiName: %s", path.Path, apiName)
+	}
+
 	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !strings.Contains(contentType, util.MimeTypeApplicationJson) {
 		ctx.DontReadRequestBody()
 		log.Debugf("[onHttpRequestHeader] unsupported content type: %s, will not process the request body", contentType)
@@ -354,6 +371,18 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk)
 		if err == nil && modifiedChunk != nil {
+			// Check if we need to convert OpenAI stream response back to Claude format
+			// Only convert if we did the forward conversion (provider doesn't support Claude natively)
+			needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+			if needClaudeConversion {
+				converter := &provider.ClaudeToOpenAIConverter{}
+				claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, modifiedChunk)
+				if err != nil {
+					log.Errorf("failed to convert streaming response to claude format: %v", err)
+					return modifiedChunk
+				}
+				return claudeChunk
+			}
 			return modifiedChunk
 		}
 		return chunk
@@ -388,7 +417,23 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 				}
 			}
 		}
-		return []byte(responseBuilder.String())
+
+		result := []byte(responseBuilder.String())
+
+		// Check if we need to convert OpenAI stream response back to Claude format
+		// Only convert if we did the forward conversion (provider doesn't support Claude natively)
+		needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+		if needClaudeConversion {
+			converter := &provider.ClaudeToOpenAIConverter{}
+			claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, result)
+			if err != nil {
+				log.Errorf("failed to convert streaming event response to claude format: %v", err)
+				return result
+			}
+			return claudeChunk
+		}
+
+		return result
 	}
 	return chunk
 }
@@ -410,6 +455,19 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 			_ = util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
 			return types.ActionContinue
 		}
+
+		// Check if we need to convert OpenAI response back to Claude format
+		// Only convert if we did the forward conversion (provider doesn't support Claude natively)
+		needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+		if needClaudeConversion {
+			converter := &provider.ClaudeToOpenAIConverter{}
+			body, err = converter.ConvertOpenAIResponseToClaude(ctx, body)
+			if err != nil {
+				_ = util.ErrorHandler("ai-proxy.convert_resp_to_claude_failed", fmt.Errorf("failed to convert response to claude format: %v", err))
+				return types.ActionContinue
+			}
+		}
+
 		if err = provider.ReplaceResponseBody(body); err != nil {
 			_ = util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
 		}
