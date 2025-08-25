@@ -17,7 +17,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"hmac-auth/config"
+	"hmac-auth-apisix/config"
 )
 
 const (
@@ -41,7 +41,7 @@ func main() {}
 
 func init() {
 	wrapper.SetCtx(
-		"hmac-auth",
+		"hmac-auth-apisix",
 		wrapper.ParseOverrideConfig(config.ParseGlobalConfig, config.ParseOverrideRuleConfig),
 		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		wrapper.ProcessRequestBody(onHttpRequestBody),
@@ -49,6 +49,25 @@ func init() {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.HmacAuthConfig) types.Action {
+	var (
+		// 未配置 allow 列表，表示插件在该 domain/route 未生效
+		noAllow            = len(cfg.Allow) == 0
+		globalAuthNoSet    = cfg.GlobalAuth == nil
+		globalAuthSetTrue  = !globalAuthNoSet && *cfg.GlobalAuth
+		globalAuthSetFalse = !globalAuthNoSet && !*cfg.GlobalAuth
+		ruleSet            = config.RuleSet
+	)
+
+	// 不需要认证而直接放行的情况：
+	// - global_auth == false 且 当前 domain/route 未配置该插件
+	// - global_auth 未设置 且 有至少一个 domain/route 配置该插件 且 当前 domain/route 未配置该插件
+	if globalAuthSetFalse || (globalAuthNoSet && ruleSet) {
+		if noAllow {
+			log.Info("authorization is not required")
+			ctx.DontReadRequestBody()
+			return types.ActionContinue
+		}
+	}
 	// 提取 HMAC 字段和消费者信息
 	hmacParams, err := retrieveHmacFieldsAndConsumer(cfg)
 	if err != nil {
@@ -58,35 +77,37 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.HmacAuthConfig) ty
 			setConsumerHeader(cfg.AnonymousConsumer)
 			return types.ActionContinue
 		}
-		sendErrorResponse(err.Error())
-		return types.ActionContinue
+		return sendUnauthorizedResponse(err.Error())
 	}
 
-	// 验证消费者是否在允许列表中
-	if !isConsumerAllowed(hmacParams.ConsumerName, cfg.Allow) {
-		sendErrorResponse("consumer '" + hmacParams.ConsumerName + "' is not allowed")
-		return types.ActionContinue
+	if globalAuthSetTrue && !noAllow { // 全局生效，但当前 domain/route 配置了 allow 列表
+		if !contains(cfg.Allow, hmacParams.ConsumerName) {
+			log.Warnf("consumer %q is not allowed", hmacParams.ConsumerName)
+			return sendUnauthorizedResponse("consumer '" + hmacParams.ConsumerName + "' is not allowed")
+		}
+	} else if globalAuthSetFalse || (globalAuthNoSet && ruleSet) { // 非全局生效
+		if !noAllow && !contains(cfg.Allow, hmacParams.ConsumerName) { // 配置了 allow 列表且当前消费者不在 allow 列表中
+			log.Warnf("consumer %q is not allowed", hmacParams.ConsumerName)
+			return sendUnauthorizedResponse("consumer '" + hmacParams.ConsumerName + "' is not allowed")
+		}
 	}
 
 	// 校验时间偏差
 	if cfg.ClockSkew > 0 {
 		if err := validateClockSkew(cfg.ClockSkew); err != nil {
-			sendErrorResponse(err.Error())
-			return types.ActionContinue
+			return sendUnauthorizedResponse(err.Error())
 		}
 	}
 
 	// 验证算法是否允许
-	if !isValidAlgorithm(cfg.AllowedAlgorithms, hmacParams.Algorithm) {
-		sendErrorResponse("Invalid algorithm")
-		return types.ActionContinue
+	if !contains(cfg.AllowedAlgorithms, hmacParams.Algorithm) {
+		return sendUnauthorizedResponse("Invalid algorithm")
 	}
 
 	// 验证签名头
 	if len(cfg.SignedHeaders) > 0 {
 		if len(hmacParams.Headers) == 0 {
-			sendErrorResponse("headers missing")
-			return types.ActionContinue
+			return sendUnauthorizedResponse("headers missing")
 		}
 
 		// 检查所有配置的签名头是否都在签名中
@@ -97,16 +118,14 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.HmacAuthConfig) ty
 
 		for _, requiredHeader := range cfg.SignedHeaders {
 			if !signedHeadersMap[requiredHeader] {
-				sendErrorResponse("expected header \"" + requiredHeader + "\" missing in signing")
-				return types.ActionContinue
+				return sendUnauthorizedResponse("expected header \"" + requiredHeader + "\" missing in signing")
 			}
 		}
 	}
 
 	// 验证 HMAC 签名
 	if err := validateSignature(hmacParams, cfg); err != nil {
-		sendErrorResponse(err.Error())
-		return types.ActionContinue
+		return sendUnauthorizedResponse(err.Error())
 	}
 
 	// 验证成功，设置消费者信息
@@ -129,8 +148,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, cfg config.HmacAuthConfig, body 
 	if cfg.ValidateRequestBody {
 		digestHeaderVal, _ := proxywasm.GetHttpRequestHeader(digestHeader)
 		if digestHeaderVal == "" {
-			sendErrorResponse("Invalid digest")
-			return types.ActionContinue
+			return sendUnauthorizedResponse("Invalid digest")
 		}
 
 		// 计算请求体的 SHA-256 摘要
@@ -142,8 +160,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, cfg config.HmacAuthConfig, body 
 		if digestCreated != digestHeaderVal {
 			log.Warnf("Request body digest validation failed. Expected: %s, Got: %s, Body size: %d bytes",
 				digestCreated, digestHeaderVal, len(body))
-			sendErrorResponse("Invalid digest")
-			return types.ActionContinue
+			return sendUnauthorizedResponse("Invalid digest")
 		}
 	}
 	return types.ActionContinue
@@ -228,22 +245,6 @@ func retrieveHmacFieldsAndConsumer(cfg config.HmacAuthConfig) (*HmacParams, erro
 	return hmacParams, nil
 }
 
-// isConsumerAllowed 检查消费者是否在允许列表中
-func isConsumerAllowed(consumerName string, allowList []string) bool {
-	// 如果允许列表为空，则允许所有消费者
-	if len(allowList) == 0 {
-		return true
-	}
-
-	// 检查消费者是否在允许列表中
-	for _, allowedConsumer := range allowList {
-		if allowedConsumer == consumerName {
-			return true
-		}
-	}
-	return false
-}
-
 // validateClockSkew 检查时间偏差
 func validateClockSkew(clockSkew int) error {
 	dateHeaderVal, _ := proxywasm.GetHttpRequestHeader(dateHeader)
@@ -267,16 +268,6 @@ func validateClockSkew(clockSkew int) error {
 	}
 
 	return nil
-}
-
-// isValidAlgorithm 检查算法是否在允许列表中
-func isValidAlgorithm(allowedAlgorithms []string, algorithm string) bool {
-	for _, alg := range allowedAlgorithms {
-		if alg == algorithm {
-			return true
-		}
-	}
-	return false
 }
 
 // validateSignature 验证签名
@@ -370,13 +361,21 @@ func generateHmacSignature(secretKey, algorithm, message string) (string, error)
 	return base64.StdEncoding.EncodeToString(signature), nil
 }
 
-// sendErrorResponse 发送统一格式的错误响应
-func sendErrorResponse(message string) {
+func sendUnauthorizedResponse(message string) types.Action {
 	errorResponse := fmt.Sprintf(errorResponseTemplate, message)
 	proxywasm.SendHttpResponse(401, nil, []byte(errorResponse), -1)
+	return types.ActionContinue
 }
 
-// setConsumerHeader 设置消费者名称
 func setConsumerHeader(name string) {
 	_ = proxywasm.AddHttpRequestHeader(consumerHeader, name)
+}
+
+func contains(arr []string, item string) bool {
+	for _, i := range arr {
+		if i == item {
+			return true
+		}
+	}
+	return false
 }

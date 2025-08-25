@@ -8,14 +8,20 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-var validAlgorithms = map[string]bool{
-	"hmac-sha1":   true,
-	"hmac-sha256": true,
-	"hmac-sha512": true,
-}
+var (
+	// RuleSet 插件是否至少在一个 domain 或 route 上生效
+	RuleSet bool
+	// allowed_algorithms 配置中允许的算法
+	validAlgorithms = map[string]bool{
+		"hmac-sha1":   true,
+		"hmac-sha256": true,
+		"hmac-sha512": true,
+	}
+)
 
 type HmacAuthConfig struct {
 	Consumers           []Consumer `json:"consumers,omitempty" yaml:"consumers,omitempty"`
+	GlobalAuth          *bool      `json:"global_auth,omitempty" yaml:"global_auth,omitempty"`
 	AllowedAlgorithms   []string   `json:"allowed_algorithms,omitempty" yaml:"allowed_algorithms,omitempty"`
 	ClockSkew           int        `json:"clock_skew,omitempty" yaml:"clock_skew,omitempty"`
 	SignedHeaders       []string   `json:"signed_headers,omitempty" yaml:"signed_headers,omitempty"`
@@ -33,6 +39,9 @@ type Consumer struct {
 
 func ParseGlobalConfig(jsonData gjson.Result, global *HmacAuthConfig) error {
 	log.Debug("global config")
+	RuleSet = false
+
+	// 处理 consumers 配置
 	consumers := jsonData.Get("consumers")
 	if !consumers.Exists() {
 		return errors.New("consumers is required")
@@ -72,6 +81,65 @@ func ParseGlobalConfig(jsonData gjson.Result, global *HmacAuthConfig) error {
 		accessKeyMap[ak.String()] = ak.String()
 	}
 
+	// 处理 global_auth 配置
+	globalAuth := jsonData.Get("global_auth")
+	if globalAuth.Exists() {
+		ga := globalAuth.Bool()
+		global.GlobalAuth = &ga
+	}
+
+	// 处理 allowed_algorithms 配置
+	allowedAlgorithms := jsonData.Get("allowed_algorithms")
+	if allowedAlgorithms.Exists() && len(allowedAlgorithms.Array()) > 0 {
+		global.AllowedAlgorithms = []string{}
+		for _, item := range allowedAlgorithms.Array() {
+			algorithm := item.String()
+			if !validAlgorithms[algorithm] {
+				return errors.New("invalid allowed_algorithm: " + algorithm + ". Must be one of: hmac-sha1, hmac-sha256, hmac-sha512")
+			}
+			global.AllowedAlgorithms = append(global.AllowedAlgorithms, algorithm)
+		}
+	} else {
+		// 如果未设置，则使用默认值
+		global.AllowedAlgorithms = []string{"hmac-sha1", "hmac-sha256", "hmac-sha512"}
+	}
+
+	// 处理 clock_skew 配置
+	clockSkew := jsonData.Get("clock_skew")
+	if !clockSkew.Exists() {
+		// 如果未设置，则使用默认值300
+		global.ClockSkew = 300
+	} else if clockSkew.Int() >= 1 {
+		global.ClockSkew = int(clockSkew.Int())
+	}
+
+	// 处理 signed_headers 配置
+	signedHeaders := jsonData.Get("signed_headers")
+	if signedHeaders.Exists() {
+		global.SignedHeaders = []string{}
+		for _, item := range signedHeaders.Array() {
+			global.SignedHeaders = append(global.SignedHeaders, item.String())
+		}
+	}
+
+	// 处理 validate_request_body 配置
+	validateRequestBody := jsonData.Get("validate_request_body")
+	if validateRequestBody.Exists() {
+		global.ValidateRequestBody = validateRequestBody.Bool()
+	}
+
+	// 处理 hide_credentials 配置
+	hideCredentials := jsonData.Get("hide_credentials")
+	if hideCredentials.Exists() {
+		global.HideCredentials = hideCredentials.Bool()
+	}
+
+	// 处理 anonymous_consumer 配置
+	anonymousConsumer := jsonData.Get("anonymous_consumer")
+	if anonymousConsumer.Exists() {
+		global.AnonymousConsumer = anonymousConsumer.String()
+	}
+
 	if globalBytes, err := json.Marshal(global); err == nil {
 		log.Debugf("global: %s", string(globalBytes))
 	}
@@ -81,58 +149,6 @@ func ParseGlobalConfig(jsonData gjson.Result, global *HmacAuthConfig) error {
 func ParseOverrideRuleConfig(jsonData gjson.Result, global HmacAuthConfig, config *HmacAuthConfig) error {
 	log.Debug("domain/route config")
 	*config = global
-
-	// 处理 allowed_algorithms 配置
-	allowedAlgorithms := jsonData.Get("allowed_algorithms")
-	if allowedAlgorithms.Exists() && len(allowedAlgorithms.Array()) > 0 {
-		config.AllowedAlgorithms = []string{}
-		for _, item := range allowedAlgorithms.Array() {
-			algorithm := item.String()
-			if !validAlgorithms[algorithm] {
-				return errors.New("invalid allowed_algorithm: " + algorithm + ". Must be one of: hmac-sha1, hmac-sha256, hmac-sha512")
-			}
-			config.AllowedAlgorithms = append(config.AllowedAlgorithms, algorithm)
-		}
-	} else {
-		// 如果未设置，则使用默认值
-		config.AllowedAlgorithms = []string{"hmac-sha1", "hmac-sha256", "hmac-sha512"}
-	}
-
-	// 处理 clock_skew 配置
-	clockSkew := jsonData.Get("clock_skew")
-	if !clockSkew.Exists() {
-		// 如果未设置，则使用默认值300
-		config.ClockSkew = 300
-	} else if clockSkew.Int() >= 1 {
-		config.ClockSkew = int(clockSkew.Int())
-	}
-
-	// 处理 signed_headers 配置
-	signedHeaders := jsonData.Get("signed_headers")
-	if signedHeaders.Exists() {
-		config.SignedHeaders = []string{}
-		for _, item := range signedHeaders.Array() {
-			config.SignedHeaders = append(config.SignedHeaders, item.String())
-		}
-	}
-
-	// 处理 validate_request_body 配置
-	validateRequestBody := jsonData.Get("validate_request_body")
-	if validateRequestBody.Exists() {
-		config.ValidateRequestBody = validateRequestBody.Bool()
-	}
-
-	// 处理 hide_credentials 配置
-	hideCredentials := jsonData.Get("hide_credentials")
-	if hideCredentials.Exists() {
-		config.HideCredentials = hideCredentials.Bool()
-	}
-
-	// 处理 anonymous_consumer 配置
-	anonymousConsumer := jsonData.Get("anonymous_consumer")
-	if anonymousConsumer.Exists() {
-		config.AnonymousConsumer = anonymousConsumer.String()
-	}
 
 	// 处理 allow 配置
 	allow := jsonData.Get("allow")
@@ -154,6 +170,7 @@ func ParseOverrideRuleConfig(jsonData gjson.Result, global HmacAuthConfig, confi
 		}
 	}
 
+	RuleSet = true
 	if configBytes, err := json.Marshal(config); err == nil {
 		log.Debugf("config: %s", string(configBytes))
 	}

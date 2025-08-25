@@ -12,6 +12,7 @@ func TestParseGlobalConfig(t *testing.T) {
 		name        string
 		jsonConfig  string
 		expectError bool
+		validate    func(*testing.T, *HmacAuthConfig)
 	}{
 		{
 			name: "Valid config with named consumers",
@@ -30,6 +31,19 @@ func TestParseGlobalConfig(t *testing.T) {
 				]
 			}`,
 			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.Equal(t, 2, len(config.Consumers))
+				assert.Equal(t, "consumer1", config.Consumers[0].Name)
+				assert.Equal(t, "ak1", config.Consumers[0].AccessKey)
+				assert.Equal(t, "sk1", config.Consumers[0].SecretKey)
+				assert.Equal(t, "consumer2", config.Consumers[1].Name)
+				assert.Equal(t, "ak2", config.Consumers[1].AccessKey)
+				assert.Equal(t, "sk2", config.Consumers[1].SecretKey)
+
+				// 默认值检查
+				assert.Equal(t, []string{"hmac-sha1", "hmac-sha256", "hmac-sha512"}, config.AllowedAlgorithms)
+				assert.Equal(t, 300, config.ClockSkew)
+			},
 		},
 		{
 			name: "Valid config without names (use access_key as name)",
@@ -46,6 +60,13 @@ func TestParseGlobalConfig(t *testing.T) {
 				]
 			}`,
 			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.Equal(t, 2, len(config.Consumers))
+				assert.Equal(t, "ak1", config.Consumers[0].Name)
+				assert.Equal(t, "ak1", config.Consumers[0].AccessKey)
+				assert.Equal(t, "ak2", config.Consumers[1].Name)
+				assert.Equal(t, "ak2", config.Consumers[1].AccessKey)
+			},
 		},
 		{
 			name: "Missing consumers",
@@ -99,6 +120,132 @@ func TestParseGlobalConfig(t *testing.T) {
 			}`,
 			expectError: true,
 		},
+		{
+			name: "Valid global_auth",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"global_auth": true
+			}`,
+			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.NotNil(t, config.GlobalAuth)
+				assert.True(t, *config.GlobalAuth)
+			},
+		},
+		{
+			name: "Valid allowed_algorithms",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"allowed_algorithms": ["hmac-sha256"]
+			}`,
+			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.Equal(t, []string{"hmac-sha256"}, config.AllowedAlgorithms)
+			},
+		},
+		{
+			name: "Invalid allowed_algorithms",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"allowed_algorithms": ["invalid-algorithm"]
+			}`,
+			expectError: true,
+		},
+		{
+			name: "Valid clock_skew",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"clock_skew": 600
+			}`,
+			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.Equal(t, 600, config.ClockSkew)
+			},
+		},
+		{
+			name: "Valid signed_headers",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"signed_headers": ["host", "date"]
+			}`,
+			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.Equal(t, []string{"host", "date"}, config.SignedHeaders)
+			},
+		},
+		{
+			name: "Valid validate_request_body",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"validate_request_body": true
+			}`,
+			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.True(t, config.ValidateRequestBody)
+			},
+		},
+		{
+			name: "Valid hide_credentials",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"hide_credentials": true
+			}`,
+			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.True(t, config.HideCredentials)
+			},
+		},
+		{
+			name: "Valid anonymous_consumer",
+			jsonConfig: `{
+				"consumers": [
+					{
+						"access_key": "ak1",
+						"secret_key": "sk1"
+					}
+				],
+				"anonymous_consumer": "anonymous"
+			}`,
+			expectError: false,
+			validate: func(t *testing.T, config *HmacAuthConfig) {
+				assert.Equal(t, "anonymous", config.AnonymousConsumer)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -118,13 +265,8 @@ func TestParseGlobalConfig(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.NotEmpty(t, config.Consumers)
-
-				for _, consumer := range config.Consumers {
-					if consumer.Name == "" {
-						// 如果没有提供name，应该使用access_key作为name
-						assert.Equal(t, consumer.AccessKey, consumer.Name)
-					}
+				if tt.validate != nil {
+					tt.validate(t, config)
 				}
 			}
 		})
@@ -145,6 +287,8 @@ func TestParseOverrideRuleConfig(t *testing.T) {
 				SecretKey: "sk2",
 			},
 		},
+		AllowedAlgorithms: []string{"hmac-sha1", "hmac-sha256", "hmac-sha512"},
+		ClockSkew:         300,
 	}
 
 	tests := []struct {
@@ -162,65 +306,6 @@ func TestParseOverrideRuleConfig(t *testing.T) {
 				assert.Equal(t, []string{"hmac-sha1", "hmac-sha256", "hmac-sha512"}, config.AllowedAlgorithms)
 				assert.Equal(t, 300, config.ClockSkew)
 				assert.Equal(t, 2, len(config.Consumers))
-			},
-			expectError: false,
-		},
-		{
-			name: "Valid allowed_algorithms",
-			jsonConfig: `{
-				"allowed_algorithms": ["hmac-sha256"]
-			}`,
-			validate: func(t *testing.T, config *HmacAuthConfig) {
-				assert.Equal(t, []string{"hmac-sha256"}, config.AllowedAlgorithms)
-			},
-			expectError: false,
-		},
-		{
-			name: "Invalid allowed_algorithms",
-			jsonConfig: `{
-				"allowed_algorithms": ["invalid-algorithm"]
-			}`,
-			expectError: true,
-		},
-		{
-			name: "Valid clock_skew",
-			jsonConfig: `{
-				"clock_skew": 600
-			}`,
-			validate: func(t *testing.T, config *HmacAuthConfig) {
-				assert.Equal(t, 600, config.ClockSkew)
-			},
-			expectError: false,
-		},
-		{
-			name: "Valid signed_headers",
-			jsonConfig: `{
-				"signed_headers": ["host", "date"]
-			}`,
-			validate: func(t *testing.T, config *HmacAuthConfig) {
-				assert.Equal(t, []string{"host", "date"}, config.SignedHeaders)
-			},
-			expectError: false,
-		},
-		{
-			name: "Valid boolean flags",
-			jsonConfig: `{
-				"validate_request_body": true,
-				"hide_credentials": true
-			}`,
-			validate: func(t *testing.T, config *HmacAuthConfig) {
-				assert.True(t, config.ValidateRequestBody)
-				assert.True(t, config.HideCredentials)
-			},
-			expectError: false,
-		},
-		{
-			name: "Valid anonymous_consumer",
-			jsonConfig: `{
-				"anonymous_consumer": "anonymous"
-			}`,
-			validate: func(t *testing.T, config *HmacAuthConfig) {
-				assert.Equal(t, "anonymous", config.AnonymousConsumer)
 			},
 			expectError: false,
 		},
@@ -300,30 +385,4 @@ func TestValidAlgorithms(t *testing.T) {
 			assert.Equal(t, tt.valid, exists)
 		})
 	}
-}
-
-func TestConsumerNameFallback(t *testing.T) {
-	jsonData := gjson.Parse(`{
-		"consumers": [
-			{
-				"access_key": "ak_without_name",
-				"secret_key": "sk1"
-			}
-		]
-	}`)
-
-	config := &HmacAuthConfig{}
-
-	defer func() {
-		if r := recover(); r != nil {
-			// 忽略日志相关的 panic
-		}
-	}()
-
-	err := ParseGlobalConfig(jsonData, config)
-
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(config.Consumers))
-	assert.Equal(t, "ak_without_name", config.Consumers[0].Name)
-	assert.Equal(t, "ak_without_name", config.Consumers[0].AccessKey)
 }

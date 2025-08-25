@@ -1,4 +1,4 @@
-module hmac-auth
+module hmac-auth-apisix
 
 go 1.24.1
 
