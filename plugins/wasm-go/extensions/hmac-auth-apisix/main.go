@@ -79,6 +79,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.HmacAuthConfig) ty
 		}
 		return sendUnauthorizedResponse(err.Error())
 	}
+	log.Debugf("HMAC params extracted: keyId=%s, algorithm=%s, signature=%s, headers=%v, consumerName=%s",
+		hmacParams.KeyId, hmacParams.Algorithm, hmacParams.Signature, hmacParams.Headers, hmacParams.ConsumerName)
 
 	if globalAuthSetTrue && !noAllow { // 全局生效，但当前 domain/route 配置了 allow 列表
 		if !contains(cfg.Allow, hmacParams.ConsumerName) {
@@ -113,11 +115,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.HmacAuthConfig) ty
 		// 检查所有配置的签名头是否都在签名中
 		signedHeadersMap := make(map[string]bool)
 		for _, header := range hmacParams.Headers {
-			signedHeadersMap[header] = true
+			signedHeadersMap[strings.ToLower(header)] = true
 		}
 
 		for _, requiredHeader := range cfg.SignedHeaders {
-			if !signedHeadersMap[requiredHeader] {
+			lowerRequiredHeader := strings.ToLower(requiredHeader)
+			if !signedHeadersMap[lowerRequiredHeader] {
 				return sendUnauthorizedResponse("expected header \"" + requiredHeader + "\" missing in signing")
 			}
 		}
