@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 type Stage int
 
 const (
@@ -51,7 +53,7 @@ func (ctx *EditorContext) GetRequestHeader(key string) []string {
 	if ctx.requestHeaders == nil {
 		return nil
 	}
-	return ctx.requestHeaders[key]
+	return ctx.requestHeaders[strings.ToLower(key)]
 }
 
 func (ctx *EditorContext) GetRequestQuery(key string) []string {
@@ -65,7 +67,7 @@ func (ctx *EditorContext) GetResponseHeader(key string) []string {
 	if ctx.responseHeaders == nil {
 		return nil
 	}
-	return ctx.responseHeaders[key]
+	return ctx.responseHeaders[strings.ToLower(key)]
 }
 
 func (ctx *EditorContext) GetRefValue(ref *Ref) string {
@@ -82,11 +84,11 @@ func (ctx *EditorContext) GetRefValues(ref *Ref) []string {
 	}
 	switch ref.Type {
 	case refTypeRequestHeader:
-		return ctx.GetRequestHeader(ref.Name)
+		return ctx.GetRequestHeader(strings.ToLower(ref.Name))
 	case refTypeRequestQuery:
 		return ctx.GetRequestQuery(ref.Name)
 	case refTypeResponseHeader:
-		return ctx.GetResponseHeader(ref.Name)
+		return ctx.GetResponseHeader(strings.ToLower(ref.Name))
 	default:
 		return nil
 	}
@@ -105,7 +107,7 @@ func (ctx *EditorContext) SetRefValues(ref *Ref, values []string) {
 	}
 	switch ref.Type {
 	case refTypeRequestHeader:
-		ctx.requestHeaders[ref.Name] = values
+		ctx.requestHeaders[strings.ToLower(ref.Name)] = values
 		ctx.requestHeadersDirty = true
 		break
 	case refTypeRequestQuery:
@@ -113,7 +115,7 @@ func (ctx *EditorContext) SetRefValues(ref *Ref, values []string) {
 		ctx.requestQueriesDirty = true
 		break
 	case refTypeResponseHeader:
-		ctx.responseHeaders[ref.Name] = values
+		ctx.responseHeaders[strings.ToLower(ref.Name)] = values
 		ctx.responseHeadersDirty = true
 		break
 	}
@@ -125,7 +127,7 @@ func (ctx *EditorContext) DeleteRefValues(ref *Ref) {
 	}
 	switch ref.Type {
 	case refTypeRequestHeader:
-		delete(ctx.requestHeaders, ref.Name)
+		delete(ctx.requestHeaders, strings.ToLower(ref.Name))
 		ctx.requestHeadersDirty = true
 		break
 	case refTypeRequestQuery:
@@ -133,7 +135,7 @@ func (ctx *EditorContext) DeleteRefValues(ref *Ref) {
 		ctx.requestQueriesDirty = true
 		break
 	case refTypeResponseHeader:
-		delete(ctx.responseHeaders, ref.Name)
+		delete(ctx.responseHeaders, strings.ToLower(ref.Name))
 		ctx.responseHeadersDirty = true
 		break
 	}
