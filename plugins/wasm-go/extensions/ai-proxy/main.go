@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
@@ -31,6 +32,11 @@ const (
 	ctxOriginalAuth = "original_auth"
 )
 
+type pair[K, V any] struct {
+	key   K
+	value V
+}
+
 var (
 	headersCtxKeyMapping = map[string]string{
 		util.HeaderAuthority:     ctxOriginalHost,
@@ -41,6 +47,44 @@ var (
 		util.HeaderAuthority:     util.HeaderOriginalHost,
 		util.HeaderPath:          util.HeaderOriginalPath,
 		util.HeaderAuthorization: util.HeaderOriginalAuth,
+	}
+	pathSuffixToApiName = []pair[string, provider.ApiName]{
+		// OpenAI style
+		{provider.PathOpenAIChatCompletions, provider.ApiNameChatCompletion},
+		{provider.PathOpenAICompletions, provider.ApiNameCompletion},
+		{provider.PathOpenAIEmbeddings, provider.ApiNameEmbeddings},
+		{provider.PathOpenAIAudioSpeech, provider.ApiNameAudioSpeech},
+		{provider.PathOpenAIImageGeneration, provider.ApiNameImageGeneration},
+		{provider.PathOpenAIImageVariation, provider.ApiNameImageVariation},
+		{provider.PathOpenAIImageEdit, provider.ApiNameImageEdit},
+		{provider.PathOpenAIBatches, provider.ApiNameBatches},
+		{provider.PathOpenAIFiles, provider.ApiNameFiles},
+		{provider.PathOpenAIModels, provider.ApiNameModels},
+		{provider.PathOpenAIFineTuningJobs, provider.ApiNameFineTuningJobs},
+		{provider.PathOpenAIResponses, provider.ApiNameResponses},
+		// Anthropic style
+		{provider.PathAnthropicMessages, provider.ApiNameAnthropicMessages},
+		{provider.PathAnthropicComplete, provider.ApiNameAnthropicComplete},
+		// Cohere style
+		{provider.PathCohereV1Rerank, provider.ApiNameCohereV1Rerank},
+	}
+	pathPatternToApiName = []pair[*regexp.Regexp, provider.ApiName]{
+		// OpenAI style
+		{util.RegRetrieveBatchPath, provider.ApiNameRetrieveBatch},
+		{util.RegCancelBatchPath, provider.ApiNameCancelBatch},
+		{util.RegRetrieveFilePath, provider.ApiNameRetrieveFile},
+		{util.RegRetrieveFileContentPath, provider.ApiNameRetrieveFileContent},
+		{util.RegRetrieveFineTuningJobPath, provider.ApiNameRetrieveFineTuningJob},
+		{util.RegRetrieveFineTuningJobEventsPath, provider.ApiNameFineTuningJobEvents},
+		{util.RegRetrieveFineTuningJobCheckpointsPath, provider.ApiNameFineTuningJobCheckpoints},
+		{util.RegCancelFineTuningJobPath, provider.ApiNameCancelFineTuningJob},
+		{util.RegResumeFineTuningJobPath, provider.ApiNameResumeFineTuningJob},
+		{util.RegPauseFineTuningJobPath, provider.ApiNamePauseFineTuningJob},
+		{util.RegFineTuningCheckpointPermissionPath, provider.ApiNameFineTuningCheckpointPermissions},
+		{util.RegDeleteFineTuningCheckpointPermissionPath, provider.ApiNameDeleteFineTuningCheckpointPermission},
+		// Gemini style
+		{util.RegGeminiGenerateContent, provider.ApiNameGeminiGenerateContent},
+		{util.RegGeminiStreamGenerateContent, provider.ApiNameGeminiStreamGenerateContent},
 	}
 )
 
@@ -148,6 +192,23 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
 			apiName = handler.GetApiName(path.Path)
 		}
+	}
+
+	// Auto-detect protocol based on request path and handle conversion if needed
+	// If request is Claude format (/v1/messages) but provider doesn't support it natively,
+	// convert to OpenAI format (/v1/chat/completions)
+	if apiName == provider.ApiNameAnthropicMessages && !providerConfig.IsSupportedAPI(provider.ApiNameAnthropicMessages) {
+		// Provider doesn't support Claude protocol natively, convert to OpenAI format
+		newPath := strings.Replace(path.Path, provider.PathAnthropicMessages, provider.PathOpenAIChatCompletions, 1)
+		_ = proxywasm.ReplaceHttpRequestHeader(":path", newPath)
+		// Update apiName to match the new path
+		apiName = provider.ApiNameChatCompletion
+		// Mark that we need to convert response back to Claude format
+		ctx.SetContext("needClaudeResponseConversion", true)
+		log.Debugf("[Auto Protocol] Claude request detected, provider doesn't support natively, converted path from %s to %s, apiName: %s", path.Path, newPath, apiName)
+	} else if apiName == provider.ApiNameAnthropicMessages {
+		// Provider supports Claude protocol natively, no conversion needed
+		log.Debugf("[Auto Protocol] Claude request detected, provider supports natively, keeping original path: %s, apiName: %s", path.Path, apiName)
 	}
 
 	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !strings.Contains(contentType, util.MimeTypeApplicationJson) {
@@ -310,6 +371,18 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk)
 		if err == nil && modifiedChunk != nil {
+			// Check if we need to convert OpenAI stream response back to Claude format
+			// Only convert if we did the forward conversion (provider doesn't support Claude natively)
+			needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+			if needClaudeConversion {
+				converter := &provider.ClaudeToOpenAIConverter{}
+				claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, modifiedChunk)
+				if err != nil {
+					log.Errorf("failed to convert streaming response to claude format: %v", err)
+					return modifiedChunk
+				}
+				return claudeChunk
+			}
 			return modifiedChunk
 		}
 		return chunk
@@ -344,7 +417,23 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 				}
 			}
 		}
-		return []byte(responseBuilder.String())
+
+		result := []byte(responseBuilder.String())
+
+		// Check if we need to convert OpenAI stream response back to Claude format
+		// Only convert if we did the forward conversion (provider doesn't support Claude natively)
+		needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+		if needClaudeConversion {
+			converter := &provider.ClaudeToOpenAIConverter{}
+			claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, result)
+			if err != nil {
+				log.Errorf("failed to convert streaming event response to claude format: %v", err)
+				return result
+			}
+			return claudeChunk
+		}
+
+		return result
 	}
 	return chunk
 }
@@ -366,6 +455,19 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 			_ = util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
 			return types.ActionContinue
 		}
+
+		// Check if we need to convert OpenAI response back to Claude format
+		// Only convert if we did the forward conversion (provider doesn't support Claude natively)
+		needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+		if needClaudeConversion {
+			converter := &provider.ClaudeToOpenAIConverter{}
+			body, err = converter.ConvertOpenAIResponseToClaude(ctx, body)
+			if err != nil {
+				_ = util.ErrorHandler("ai-proxy.convert_resp_to_claude_failed", fmt.Errorf("failed to convert response to claude format: %v", err))
+				return types.ActionContinue
+			}
+		}
+
 		if err = provider.ReplaceResponseBody(body); err != nil {
 			_ = util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
 		}
@@ -397,99 +499,19 @@ func checkStream(ctx wrapper.HttpContext) {
 }
 
 func getApiName(path string) provider.ApiName {
-	// openai style
-	if strings.HasSuffix(path, provider.PathOpenAIChatCompletions) {
-		return provider.ApiNameChatCompletion
-	}
-	if strings.HasSuffix(path, provider.PathOpenAICompletions) {
-		return provider.ApiNameCompletion
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIEmbeddings) {
-		return provider.ApiNameEmbeddings
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIAudioSpeech) {
-		return provider.ApiNameAudioSpeech
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIImageGeneration) {
-		return provider.ApiNameImageGeneration
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIImageVariation) {
-		return provider.ApiNameImageVariation
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIImageEdit) {
-		return provider.ApiNameImageEdit
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIBatches) {
-		return provider.ApiNameBatches
-	}
-	if util.RegRetrieveBatchPath.MatchString(path) {
-		return provider.ApiNameRetrieveBatch
-	}
-	if util.RegCancelBatchPath.MatchString(path) {
-		return provider.ApiNameCancelBatch
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIFiles) {
-		return provider.ApiNameFiles
-	}
-	if util.RegRetrieveFilePath.MatchString(path) {
-		return provider.ApiNameRetrieveFile
-	}
-	if util.RegRetrieveFileContentPath.MatchString(path) {
-		return provider.ApiNameRetrieveFileContent
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIModels) {
-		return provider.ApiNameModels
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIFineTuningJobs) {
-		return provider.ApiNameFineTuningJobs
-	}
-	if util.RegRetrieveFineTuningJobPath.MatchString(path) {
-		return provider.ApiNameRetrieveFineTuningJob
-	}
-	if util.RegRetrieveFineTuningJobEventsPath.MatchString(path) {
-		return provider.ApiNameFineTuningJobEvents
-	}
-	if util.RegRetrieveFineTuningJobCheckpointsPath.MatchString(path) {
-		return provider.ApiNameFineTuningJobCheckpoints
-	}
-	if util.RegCancelFineTuningJobPath.MatchString(path) {
-		return provider.ApiNameCancelFineTuningJob
-	}
-	if util.RegResumeFineTuningJobPath.MatchString(path) {
-		return provider.ApiNameResumeFineTuningJob
-	}
-	if util.RegPauseFineTuningJobPath.MatchString(path) {
-		return provider.ApiNamePauseFineTuningJob
-	}
-	if util.RegFineTuningCheckpointPermissionPath.MatchString(path) {
-		return provider.ApiNameFineTuningCheckpointPermissions
-	}
-	if util.RegDeleteFineTuningCheckpointPermissionPath.MatchString(path) {
-		return provider.ApiNameDeleteFineTuningCheckpointPermission
-	}
-	if strings.HasSuffix(path, provider.PathOpenAIResponses) {
-		return provider.ApiNameResponses
+	// Check path suffix matches first
+	for _, p := range pathSuffixToApiName {
+		if strings.HasSuffix(path, p.key) {
+			return p.value
+		}
 	}
 
-	// Anthropic
-	if strings.HasSuffix(path, provider.PathAnthropicMessages) {
-		return provider.ApiNameAnthropicMessages
-	}
-	if strings.HasSuffix(path, provider.PathAnthropicComplete) {
-		return provider.ApiNameAnthropicComplete
-	}
-
-	// Gemini
-	if util.RegGeminiGenerateContent.MatchString(path) {
-		return provider.ApiNameGeminiGenerateContent
-	}
-	if util.RegGeminiStreamGenerateContent.MatchString(path) {
-		return provider.ApiNameGeminiStreamGenerateContent
+	// Check path pattern matches
+	for _, p := range pathPatternToApiName {
+		if p.key.MatchString(path) {
+			return p.value
+		}
 	}
 
-	// cohere style
-	if strings.HasSuffix(path, provider.PathCohereV1Rerank) {
-		return provider.ApiNameCohereV1Rerank
-	}
 	return ""
 }
