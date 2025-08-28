@@ -137,6 +137,8 @@ endif
 # for now docker is limited to Linux compiles - why ?
 include docker/docker.mk
 
+docker-build-amd64: docker.higress-amd64 ## Build and push amdd64 docker images to registry defined by $HUB and $TAG
+
 docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
 docker-buildx-push: clean-env docker.higress-buildx
@@ -144,7 +146,7 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.8/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.9/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
