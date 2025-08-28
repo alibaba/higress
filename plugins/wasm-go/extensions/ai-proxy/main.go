@@ -352,7 +352,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 
 	if !needHandleBody && !needHandleStreamingBody && !needClaudeConversion {
 		ctx.DontReadResponseBody()
-	} else if !needHandleStreamingBody {
+	} else {
 		checkStream(ctx)
 	}
 
