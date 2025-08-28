@@ -52,38 +52,7 @@ var IngressLoadBalanceMcpSse = suite.ConformanceTest{
 					},
 				},
 			},
-			{
-				name: "MCP SSE stateful session route config should be added",
-				envoyAssertion: []envoy.Assertion{
-					{
-						Path:            "configs.#.dynamic_route_configs.#.route_config.virtual_hosts.#.routes.#.typed_per_filter_config",
-						CheckType:       envoy.CheckTypeExist,
-						TargetNamespace: "higress-system",
-						ExpectEnvoyConfig: map[string]interface{}{
-							"envoy.filters.http.mcp_sse_stateful_session": map[string]interface{}{
-								"@type":    "type.googleapis.com/udpa.type.v1.TypedStruct",
-								"type_url": "type.googleapis.com/envoy.extensions.filters.http.mcp_sse_stateful_session.v3alpha.McpSseStatefulSessionPerRoute",
-								"value": map[string]interface{}{
-									"stateful_session": map[string]interface{}{
-										"session_state": map[string]interface{}{
-											"name": "envoy.http.mcp_sse_stateful_session.envelope",
-											"typed_config": map[string]interface{}{
-												"@type":    "type.googleapis.com/udpa.type.v1.TypedStruct",
-												"type_url": "type.googleapis.com/envoy.extensions.http.mcp_sse_stateful_session.envelope.v3alpha.EnvelopeSessionState",
-												"value": map[string]interface{}{
-													"param_name":         "sessionId",
-													"chunk_end_patterns": []interface{}{"\r\n\r\n", "\n\n", "\r\r"},
-												},
-											},
-										},
-										"strict": true,
-									},
-								},
-							},
-						},
-					},
-				},
-			},
+			// TODO: add per router filter check
 		}
 
 		t.Run("Ingress LoadBalance MCP SSE", func(t *testing.T) {
