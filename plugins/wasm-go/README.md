@@ -148,6 +148,49 @@ spec:
 
 所有规则会按上面配置的顺序一次执行匹配，当有一个规则匹配时，就停止匹配，并选择匹配的配置执行插件逻辑。
 
+## 单元测试
+
+在开发wasm插件时，建议同时编写单元测试来验证插件功能。详细的单元测试编写指南请参考 [wasm plugin unit test](https://github.com/higress-group/wasm-go/blob/main/pkg/test/README.md)。
+
+### 单元测试样例
+
+```go
+func TestMyPlugin(t *testing.T) {
+    test.RunTest(t, func(t *testing.T) {
+        // 1. 创建测试主机
+        config := json.RawMessage(`{"key": "value"}`)
+        host, status := test.NewTestHost(config)
+        require.Equal(t, types.OnPluginStartStatusOK, status)
+        defer host.Reset()
+
+        // 2. 设置请求头
+        headers := [][2]string{
+            {":method", "GET"},
+            {":path", "/test"},
+            {":authority", "test.com"},
+        }
+
+        // 3. 调用插件请求头处理方法
+        action := host.CallOnHttpRequestHeaders(headers)
+        require.Equal(t, types.ActionPause, action)
+
+        // 4. 模拟外部调用响应（如果需要）
+
+        // host.CallOnRedisCall(0, test.CreateRedisRespString("OK"))
+
+        // host.CallOnHttpCall([][2]string{{":status", "200"}}, []byte(`{"result": "success"}`))
+
+        // 5. 完成请求
+        host.CompleteHttp()
+
+        // 6. 验证结果（如果插件里返回了响应）
+        localResponse := host.GetLocalResponse()
+        require.NotNil(t, localResponse)
+        assert.Equal(t, uint32(200), localResponse.StatusCode)
+    })
+}
+```
+
 ## E2E测试
 
 当你完成一个GO语言的插件功能时, 可以同时创建关联的e2e test cases, 并在本地对插件功能完成测试验证。
