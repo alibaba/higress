@@ -167,6 +167,11 @@ func SetOriginalRequestAuth(auth string) {
 }
 
 func OverwriteRequestAuthorizationHeader(headers http.Header, credential string) {
+	if exist := headers.Get(HeaderOriginalAuth); exist == "" {
+		if originAuth := headers.Get(HeaderAuthorization); originAuth != "" {
+			headers.Set(HeaderOriginalAuth, originAuth)
+		}
+	}
 	headers.Set(HeaderAuthorization, credential)
 }
 

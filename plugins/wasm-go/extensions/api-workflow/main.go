@@ -255,7 +255,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config
 					if next.Target != TaskContinue && next.Target != TaskEnd {
 
 						nextStatus[next.Target] = nextStatus[next.Target] - 1
-						log.Debugf("source is %s,target is %s,status is %v", next.Source, next.Target, nextStatus)
+						log.Debugf("source is %s,target is %s,stauts is %v", next.Source, next.Target, nextStatus)
 						// 还有没执行完的边
 						if nextStatus[next.Target] > 0 {
 							ctx.SetContext(WorkflowExecStatus, nextStatus)

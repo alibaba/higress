@@ -9,20 +9,9 @@ description: AI 代理插件配置参考
 `AI 代理`插件实现了基于 OpenAI API 契约的 AI 代理功能。目前支持 OpenAI、Azure OpenAI、月之暗面（Moonshot）和通义千问等 AI
 服务提供商。
 
-**🚀 自动协议兼容 (Auto Protocol Compatibility)**
-
-插件现在支持**自动协议检测**，无需配置即可同时兼容 OpenAI 和 Claude 两种协议格式：
-
-- **OpenAI 协议**: 请求路径 `/v1/chat/completions`，使用标准的 OpenAI Messages API 格式
-- **Claude 协议**: 请求路径 `/v1/messages`，使用 Anthropic Claude Messages API 格式  
-- **智能转换**: 自动检测请求协议，如果目标供应商不原生支持该协议，则自动进行协议转换
-- **零配置**: 用户无需设置 `protocol` 字段，插件自动处理
-
-> **协议支持说明：**
+> **注意：**
 
 > 请求路径后缀匹配 `/v1/chat/completions` 时，对应文生文场景，会用 OpenAI 的文生文协议解析请求 Body，再转换为对应 LLM 厂商的文生文协议
-
-> 请求路径后缀匹配 `/v1/messages` 时，对应 Claude 文生文场景，会自动检测供应商能力：如果支持原生 Claude 协议则直接转发，否则先转换为 OpenAI 协议再转发给供应商
 
 > 请求路径后缀匹配 `/v1/embeddings` 时，对应文本向量场景，会用 OpenAI 的文本向量协议解析请求 Body，再转换为对应 LLM 厂商的文本向量协议
 
@@ -172,10 +161,6 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 #### Grok
 
 Grok 所对应的 `type` 为 `grok`。它并无特有的配置字段。
-
-#### OpenRouter
-
-OpenRouter 所对应的 `type` 为 `openrouter`。它并无特有的配置字段。
 
 #### 文心一言（Baidu）
 
@@ -952,100 +937,22 @@ provider:
 }
 ```
 
-### 使用 OpenAI 协议代理 OpenRouter 服务
+### 使用 OpenAI 协议代理 Claude 服务
 
 **配置信息**
 
 ```yaml
 provider:
-  type: openrouter
+  type: claude
   apiTokens:
-    - 'YOUR_OPENROUTER_API_TOKEN'
-  modelMapping:
-    'gpt-4': 'openai/gpt-4-turbo-preview'
-    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
-    'claude-3': 'anthropic/claude-3-opus'
-    '*': 'openai/gpt-3.5-turbo'
+    - 'YOUR_CLAUDE_API_TOKEN'
+  version: '2023-06-01'
 ```
 
 **请求示例**
 
 ```json
 {
-  "model": "gpt-4",
-  "messages": [
-    {
-      "role": "user",
-      "content": "你好，你是谁？"
-    }
-  ],
-  "temperature": 0.7
-}
-```
-
-**响应示例**
-
-```json
-{
-  "id": "gen-1234567890abcdef",
-  "object": "chat.completion",
-  "created": 1699123456,
-  "model": "openai/gpt-4-turbo-preview",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "你好！我是一个AI助手，通过OpenRouter平台提供服务。我可以帮助回答问题、协助创作、进行对话等。有什么我可以帮助你的吗？"
-      },
-      "finish_reason": "stop"
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 12,
-    "completion_tokens": 46,
-    "total_tokens": 58
-  }
-}
-```
-
-### 使用自动协议兼容功能
-
-插件现在支持自动协议检测，可以同时处理 OpenAI 和 Claude 两种协议格式的请求。
-
-**配置信息**
-
-```yaml
-provider:
-  type: claude  # 原生支持 Claude 协议的供应商
-  apiTokens:
-    - 'YOUR_CLAUDE_API_TOKEN'
-  version: '2023-06-01'
-```
-
-**OpenAI 协议请求示例**
-
-URL: `http://your-domain/v1/chat/completions`
-
-```json
-{
-  "model": "claude-3-opus-20240229",
-  "max_tokens": 1024,
-  "messages": [
-    {
-      "role": "user",
-      "content": "你好，你是谁？"
-    }
-  ]
-}
-```
-
-**Claude 协议请求示例**
-
-URL: `http://your-domain/v1/messages`
-
-```json
-{
   "model": "claude-3-opus-20240229",
   "max_tokens": 1024,
   "messages": [
@@ -1058,8 +965,6 @@ URL: `http://your-domain/v1/messages`
 ```
 
 **响应示例**
-
-两种协议格式的请求都会返回相应格式的响应：
 
 ```json
 {
@@ -1082,39 +987,6 @@ URL: `http://your-domain/v1/messages`
     "completion_tokens": 126,
     "total_tokens": 142
   }
-}
-```
-
-### 使用智能协议转换
-
-当目标供应商不原生支持 Claude 协议时，插件会自动进行协议转换：
-
-**配置信息**
-
-```yaml
-provider:
-  type: qwen  # 不原生支持 Claude 协议，会自动转换
-  apiTokens:
-    - 'YOUR_QWEN_API_TOKEN'
-  modelMapping:
-    'claude-3-opus-20240229': 'qwen-max'
-    '*': 'qwen-turbo'
-```
-
-**Claude 协议请求**
-
-URL: `http://your-domain/v1/messages` (自动转换为 OpenAI 协议调用供应商)
-
-```json
-{
-  "model": "claude-3-opus-20240229",
-  "max_tokens": 1024,
-  "messages": [
-    {
-      "role": "user",
-      "content": "你好，你是谁？"
-    }
-  ]
 }
 ```
 

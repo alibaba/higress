@@ -183,7 +183,7 @@ toata dragostea mea pentru diavola
 uil2pn
 # badly scripted UAs (e.g. User-Agent: User-Agent: foo)
 user-agent:
-# vuln scanner
+# vuln scannr
 # https://subgraph.com/vega/
 vega/
 # vuln scanner

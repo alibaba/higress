@@ -8,8 +8,16 @@ spec:
   defaultConfigDisable: true
   matchRules:
   - config:
-      redis_key_prefix: "chat_quota:"
-      admin_consumer: consumer3
+      quota_management:
+        deduct_header: "x-quota-identity"
+        deduct_header_value: "user"
+        redis_key_prefix: "chat_quota:"
+        redis_used_prefix: "chat_quota_used:"
+        model_quota_weights:
+          model_name: 1
+      token_header: "authorization"
+      admin_header: "x-admin-key"
+      admin_key: "your-admin-secret"
       admin_path: /quota
       redis:
         service_name: redis-service.default.svc.cluster.local

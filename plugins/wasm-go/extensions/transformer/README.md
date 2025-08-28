@@ -15,11 +15,10 @@ description: 请求响应转换插件配置参考
 
 ## 配置字段
 
-| 名称 |  数据类型   | 填写要求 | 默认值  | 描述 |
-| :----: |:-------:| :----: |:----:| -------- |
-|  reroute | boolean | 选填 | true |  是否在请求转换过程中对路由目标进行重新选择  |
-|  reqRules | string  | 选填，reqRules和respRules至少填一个 |  -   |  请求转换器配置，指定转换操作类型以及请求头、请求查询参数、请求体的转换规则 |
-|  respRules | string  | 选填，reqRules和respRules至少填一个 |  -   |  响应转换器配置，指定转换操作类型以及响应头、响应体的转换规则 |
+| 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
+| :----: | :----: | :----: | :----: | -------- |
+|  reqRules |  string  | 选填，reqRules和respRules至少填一个 |   -  |  请求转换器配置，指定转换操作类型以及请求头、请求查询参数、请求体的转换规则  |
+|  respRules |  string  | 选填，reqRules和respRules至少填一个 |   -  |  响应转换器配置，指定转换操作类型以及响应头、响应体的转换规则  |
 
 `reqRules`和`respRules`中每一项的配置字段说明如下：
 
@@ -66,15 +65,15 @@ description: 请求响应转换插件配置参考
 
 ## 转换操作类型
 
-| 操作类型      | key 字段含义 | value 字段含义     | 描述                                                                                                                                                                                                                                                                                    |
-| :----: | :----: | :----: |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 删除 remove   | 目标 key     |无需设置| 若存在指定的 `key`，则删除；否则无操作                                                                                                                                                                                                                                                                |
-| 重命名 rename | 目标 oldKey |新的 key 名称 newKey| 若存在指定的 `oldKey:value`，则将其键名重命名为 `newKey`，得到 `newKey:value`；否则无操作                                                                                                                                                                                                                      |
-| 更新 replace  | 目标 key |新的 value 值 newValue| 若存在指定的 `key:value`，则将其 value 更新为 `newValue`，得到 `key:newValue`；否则等效于 add 操作                                                                                                                                                                                                            |
-| 添加 add      | 添加的 key | 添加的 value | 若不存在指定的 `key:value`，则添加；否则无操作                                                                                                                                                                                                                                                         |
-| 追加 append   | 目标 key |追加的 value值 appendValue| 若存在指定的 `key:value`，则追加 appendValue 得到 `key:[value..., appendValue]`；否则相当于执行 add 操作，得到 `key:appendValue`                                                                                                                                                                               |
-| 映射 map      | 映射来源 fromKey |映射目标 toKey| 若存在指定的 `fromKey:fromValue`，则将其值 fromValue 映射给 toKey 的值，得到 `toKey:fromValue`，同时保留 `fromKey:fromValue`（注：若 toKey 已存在则其值会被覆盖）；否则无操作                                                                                                                                                      |
-| 去重 dedupe   | 目标 key |指定去重策略 strategy| `strategy` 可选值为：<br>`RETAIN_UNIQUE`: 按顺序保留所有唯一值，如 `k1:[v1,v2,v3,v3,v2,v1]`，去重后得到 `k1:[v1,v2,v3]` <br>`RETAIN_LAST`: 保留最后一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v3` <br>`RETAIN_FIRST` (default): 保留第一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v1`<br>`SPLIT_AND_RETAIN_FIRST`: 对值按逗号进行切割，并保留第一个值，如 `k1:"v1,v2,v3"`，去重后得到 `k1:v1`<br>`SPLIT_AND_RETAIN_LAST`: 对值按逗号进行切割，并保留最后一个值，如 `k1:"v1,v2,v3"`，去重后得到 `k1:v3`<br>（注：若去重后只剩下一个元素 v1 时，键值对变为 `k1:v1`, 而不是 `k1:[v1]`） |
+| 操作类型      | key 字段含义 | value 字段含义     | 描述                                                         |
+| :----: | :----: | :----: | ------------------------------------------------------------ |
+| 删除 remove   | 目标 key     |无需设置| 若存在指定的 `key`，则删除；否则无操作                 |
+| 重命名 rename | 目标 oldKey |新的 key 名称 newKey| 若存在指定的 `oldKey:value`，则将其键名重命名为 `newKey`，得到 `newKey:value`；否则无操作 |
+| 更新 replace  | 目标 key |新的 value 值 newValue| 若存在指定的 `key:value`，则将其 value 更新为 `newValue`，得到 `key:newValue`；否则无操作 |
+| 添加 add      | 添加的 key | 添加的 value |若不存在指定的 `key:value`，则添加；否则无操作               |
+| 追加 append   | 目标 key |追加的 value值 appendValue| 若存在指定的 `key:value`，则追加 appendValue 得到 `key:[value..., appendValue]`；否则相当于执行 add 操作，得到 `key:appendValue` |
+| 映射 map      | 映射来源 fromKey |映射目标 toKey| 若存在指定的 `fromKey:fromValue`，则将其值 fromValue 映射给 toKey 的值，得到 `toKey:fromValue`，同时保留 `fromKey:fromValue`（注：若 toKey 已存在则其值会被覆盖）；否则无操作 |
+| 去重 dedupe   | 目标 key |指定去重策略 strategy| `strategy` 可选值为：<br>`RETAIN_UNIQUE`: 按顺序保留所有唯一值，如 `k1:[v1,v2,v3,v3,v2,v1]`，去重后得到 `k1:[v1,v2,v3]` <br>`RETAIN_LAST`: 保留最后一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v3` <br>`RETAIN_FIRST` (default): 保留第一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v1`<br>（注：若去重后只剩下一个元素 v1 时，键值对变为 `k1:v1`, 而不是 `k1:[v1]`） |
 
 
 
@@ -410,38 +409,6 @@ $ curl -v -X POST console.higress.io/post -H 'host: foo.bar.com' \
   ...
 }
 ```
-
-#### 禁止重新选择路由目标
-
-在请求转换过程中，默认情况下会对路由目标进行重新选择。如果不希望重新选择路由目标，可以设置 `reroute` 为 `false`：
-
-```yaml
-reroute: false
-reqRules:
-  - operate: replace
-    headers:
-      - key: reroute
-        newValue: true
-```
-
-假设路由配置为：
-
-- path 前缀匹配 /，header 精准匹配 reroute: false，路由的目标服务响应为 200 "no rerouting"
-- path 前缀匹配 /，header 精准匹配 reroute: true，路由的目标服务响应为 200 "rerouting"
-
-那么根据上述配置，请求得到的结果为：
-
-```bash
-# 插件将 header 从 reroute: false 替换为 reroute: true，但禁止了重新选择路由目标
-$ curl console.higress.io/get -H 'host: foo.bar.com' -H 'reroute: false'
-no rerouting%
-
-# 去掉插件中的 reroute 配置或将其设置为 true，则
-# 插件将 header 从 reroute: false 替换为 reroute: true，并重新选择路由目标
-$ curl console.higress.io/get -H 'host: foo.bar.com' -H 'reroute: false'
-rerouting% 
-```
-
 
 ### Response Transformer
 

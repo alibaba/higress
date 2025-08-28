@@ -5,21 +5,24 @@ import (
 	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 // deepseekProvider is the provider for deepseek Ai service.
 
 const (
-	deepseekDomain                = "api.deepseek.com"
-	deepseekAnthropicMessagesPath = "/anthropic/v1/messages"
+	deepseekDomain = "api.deepseek.com"
+	// TODO: docs: https://api-docs.deepseek.com/api/create-chat-completion
+	// accourding to the docs, the path should be /chat/completions, need to be verified
+	deepseekChatCompletionPath = "/v1/chat/completions"
 )
 
-type deepseekProviderInitializer struct{}
+type deepseekProviderInitializer struct {
+}
 
 func (m *deepseekProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if len(config.apiTokens) == 0 {
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
@@ -27,9 +30,7 @@ func (m *deepseekProviderInitializer) ValidateConfig(config *ProviderConfig) err
 
 func (m *deepseekProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion):    PathOpenAIChatCompletions,
-		string(ApiNameModels):            PathOpenAIModels,
-		string(ApiNameAnthropicMessages): deepseekAnthropicMessagesPath,
+		string(ApiNameChatCompletion): deepseekChatCompletionPath,
 	}
 }
 

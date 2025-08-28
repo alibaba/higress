@@ -29,12 +29,7 @@ const (
 	reasoningEndTag   = "</think>"
 )
 
-type NonOpenAIStyleOptions struct {
-	ReasoningMaxTokens int `json:"reasoning_max_tokens,omitempty"`
-}
-
 type chatCompletionRequest struct {
-	NonOpenAIStyleOptions
 	Messages            []chatMessage          `json:"messages"`
 	Model               string                 `json:"model"`
 	Store               bool                   `json:"store,omitempty"`
@@ -174,11 +169,8 @@ type chatMessage struct {
 	Role             string                 `json:"role,omitempty"`
 	Content          any                    `json:"content,omitempty"`
 	ReasoningContent string                 `json:"reasoning_content,omitempty"`
-	Reasoning        string                 `json:"reasoning,omitempty"` // For streaming responses
 	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
-	FunctionCall     *functionCall          `json:"function_call,omitempty"` // For legacy OpenAI format
 	Refusal          string                 `json:"refusal,omitempty"`
-	ToolCallId       string                 `json:"tool_call_id,omitempty"`
 }
 
 func (m *chatMessage) handleNonStreamingReasoningContent(reasoningContentMode string) {
@@ -385,14 +377,14 @@ func (m *chatMessage) ParseContent() []chatMessageContent {
 }
 
 type toolCall struct {
-	Index    int          `json:"index,omitempty"`
-	Id       string       `json:"id,omitempty"`
+	Index    int          `json:"index"`
+	Id       string       `json:"id"`
 	Type     string       `json:"type"`
 	Function functionCall `json:"function"`
 }
 
 type functionCall struct {
-	Id        string `json:"id,omitempty"`
+	Id        string `json:"id"`
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
