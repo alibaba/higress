@@ -1,0 +1,47 @@
+{{- if .Values.observability.otelCollector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "higress.fullname" . }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "higress.fullname" . }}-otel-collector
+  template:
+    metadata:
+      labels:
+        app: {{ include "higress.fullname" . }}-otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: {{ .Values.observability.otelCollector.image | default "otel/opentelemetry-collector:0.102.1" | quote }}
+          args: ["--config=/etc/otel/config.yaml"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "higress.fullname" . }}-otel-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "higress.fullname" . }}-otel-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+    exporters:
+      logging: {}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [logging]
+{{- end }}
