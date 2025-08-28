@@ -131,6 +131,7 @@ const (
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
 	providerTypeVertex     = "vertex"
+	providerTypeOpenRouter = "openrouter"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -209,6 +210,7 @@ var (
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
 		providerTypeVertex:     &vertexProviderInitializer{},
+		providerTypeOpenRouter: &openrouterProviderInitializer{},
 	}
 )
 

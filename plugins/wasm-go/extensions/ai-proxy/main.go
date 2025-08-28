@@ -340,17 +340,20 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	}
 	util.ReplaceResponseHeaders(headers)
 
-	checkStream(ctx)
 	_, needHandleBody := activeProvider.(provider.TransformResponseBodyHandler)
 	var needHandleStreamingBody bool
 	_, needHandleStreamingBody = activeProvider.(provider.StreamingResponseBodyHandler)
 	if !needHandleStreamingBody {
 		_, needHandleStreamingBody = activeProvider.(provider.StreamingEventHandler)
 	}
-	if !needHandleBody && !needHandleStreamingBody {
+
+	// Check if we need to read body for Claude response conversion
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+
+	if !needHandleBody && !needHandleStreamingBody && !needClaudeConversion {
 		ctx.DontReadResponseBody()
-	} else if !needHandleStreamingBody {
-		ctx.BufferResponseBody()
+	} else {
+		checkStream(ctx)
 	}
 
 	return types.ActionContinue
@@ -371,19 +374,12 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk)
 		if err == nil && modifiedChunk != nil {
-			// Check if we need to convert OpenAI stream response back to Claude format
-			// Only convert if we did the forward conversion (provider doesn't support Claude natively)
-			needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
-			if needClaudeConversion {
-				converter := &provider.ClaudeToOpenAIConverter{}
-				claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, modifiedChunk)
-				if err != nil {
-					log.Errorf("failed to convert streaming response to claude format: %v", err)
-					return modifiedChunk
-				}
-				return claudeChunk
+			// Convert to Claude format if needed
+			claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, modifiedChunk)
+			if convertErr != nil {
+				return modifiedChunk
 			}
-			return modifiedChunk
+			return claudeChunk
 		}
 		return chunk
 	}
@@ -392,8 +388,8 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		events := provider.ExtractStreamingEvents(ctx, chunk)
 		log.Debugf("[onStreamingResponseBody] %d events received", len(events))
 		if len(events) == 0 {
-			// No events are extracted, return the original chunk
-			return chunk
+			// No events are extracted, return empty bytes slice
+			return []byte("")
 		}
 		var responseBuilder strings.Builder
 		for _, event := range events {
@@ -409,7 +405,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 				log.Errorf("[onStreamingResponseBody] failed to process streaming event: %v\n%s", err, chunk)
 				return chunk
 			}
-			if outputEvents == nil || len(outputEvents) == 0 {
+			if len(outputEvents) == 0 {
 				responseBuilder.WriteString(event.ToHttpString())
 			} else {
 				for _, outputEvent := range outputEvents {
@@ -420,22 +416,37 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 
 		result := []byte(responseBuilder.String())
 
-		// Check if we need to convert OpenAI stream response back to Claude format
-		// Only convert if we did the forward conversion (provider doesn't support Claude natively)
-		needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
-		if needClaudeConversion {
-			converter := &provider.ClaudeToOpenAIConverter{}
-			claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, result)
-			if err != nil {
-				log.Errorf("failed to convert streaming event response to claude format: %v", err)
-				return result
-			}
-			return claudeChunk
+		// Convert to Claude format if needed
+		claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, result)
+		if convertErr != nil {
+			return result
 		}
+		return claudeChunk
+	}
 
+	// If provider doesn't implement any streaming handlers but we need Claude conversion
+	// First extract complete events from the chunk
+	events := provider.ExtractStreamingEvents(ctx, chunk)
+	log.Debugf("[onStreamingResponseBody] %d events received (no handler)", len(events))
+	if len(events) == 0 {
+		// No events are extracted, return empty bytes slice
+		return []byte("")
+	}
+
+	// Build response from extracted events (without handler processing)
+	var responseBuilder strings.Builder
+	for _, event := range events {
+		responseBuilder.WriteString(event.ToHttpString())
+	}
+
+	result := []byte(responseBuilder.String())
+
+	// Convert to Claude format if needed
+	claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, result)
+	if convertErr != nil {
 		return result
 	}
-	return chunk
+	return claudeChunk
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte) types.Action {
@@ -448,31 +459,80 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 
 	log.Debugf("[onHttpResponseBody] provider=%s", activeProvider.GetProviderType())
 
+	var finalBody []byte
+
 	if handler, ok := activeProvider.(provider.TransformResponseBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
-		body, err := handler.TransformResponseBody(ctx, apiName, body)
+		transformedBody, err := handler.TransformResponseBody(ctx, apiName, body)
 		if err != nil {
 			_ = util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
 			return types.ActionContinue
 		}
+		finalBody = transformedBody
+	} else {
+		finalBody = body
+	}
 
-		// Check if we need to convert OpenAI response back to Claude format
-		// Only convert if we did the forward conversion (provider doesn't support Claude natively)
-		needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
-		if needClaudeConversion {
-			converter := &provider.ClaudeToOpenAIConverter{}
-			body, err = converter.ConvertOpenAIResponseToClaude(ctx, body)
-			if err != nil {
-				_ = util.ErrorHandler("ai-proxy.convert_resp_to_claude_failed", fmt.Errorf("failed to convert response to claude format: %v", err))
-				return types.ActionContinue
-			}
-		}
+	// Convert to Claude format if needed (applies to both branches)
+	convertedBody, err := convertResponseBodyToClaude(ctx, finalBody)
+	if err != nil {
+		_ = util.ErrorHandler("ai-proxy.convert_resp_to_claude_failed", err)
+		return types.ActionContinue
+	}
 
-		if err = provider.ReplaceResponseBody(body); err != nil {
-			_ = util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
-		}
+	if err = provider.ReplaceResponseBody(convertedBody); err != nil {
+		_ = util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
 	}
 	return types.ActionContinue
+}
+
+// Helper function to check if Claude response conversion is needed
+func needsClaudeResponseConversion(ctx wrapper.HttpContext) bool {
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+	return needClaudeConversion
+}
+
+// Helper function to convert OpenAI streaming response to Claude format
+func convertStreamingResponseToClaude(ctx wrapper.HttpContext, data []byte) ([]byte, error) {
+	if !needsClaudeResponseConversion(ctx) {
+		return data, nil
+	}
+
+	// Get or create converter instance from context to maintain state
+	const claudeConverterKey = "claudeConverter"
+	var converter *provider.ClaudeToOpenAIConverter
+
+	if converterData := ctx.GetContext(claudeConverterKey); converterData != nil {
+		if c, ok := converterData.(*provider.ClaudeToOpenAIConverter); ok {
+			converter = c
+		}
+	}
+
+	if converter == nil {
+		converter = &provider.ClaudeToOpenAIConverter{}
+		ctx.SetContext(claudeConverterKey, converter)
+	}
+
+	claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, data)
+	if err != nil {
+		log.Errorf("failed to convert streaming response to claude format: %v", err)
+		return data, err
+	}
+	return claudeChunk, nil
+}
+
+// Helper function to convert OpenAI response body to Claude format
+func convertResponseBodyToClaude(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
+	if !needsClaudeResponseConversion(ctx) {
+		return body, nil
+	}
+
+	converter := &provider.ClaudeToOpenAIConverter{}
+	convertedBody, err := converter.ConvertOpenAIResponseToClaude(ctx, body)
+	if err != nil {
+		return body, fmt.Errorf("failed to convert response to claude format: %v", err)
+	}
+	return convertedBody, nil
 }
 
 func normalizeOpenAiRequestBody(body []byte) []byte {
