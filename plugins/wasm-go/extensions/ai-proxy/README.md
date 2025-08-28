@@ -173,6 +173,10 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 
 Grok 所对应的 `type` 为 `grok`。它并无特有的配置字段。
 
+#### OpenRouter
+
+OpenRouter 所对应的 `type` 为 `openrouter`。它并无特有的配置字段。
+
 #### 文心一言（Baidu）
 
 文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
@@ -945,6 +949,63 @@ provider:
     "num_sources_used": 0
   },
   "system_fingerprint": "fp_3a7881249c"
+}
+```
+
+### 使用 OpenAI 协议代理 OpenRouter 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: openrouter
+  apiTokens:
+    - 'YOUR_OPENROUTER_API_TOKEN'
+  modelMapping:
+    'gpt-4': 'openai/gpt-4-turbo-preview'
+    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
+    'claude-3': 'anthropic/claude-3-opus'
+    '*': 'openai/gpt-3.5-turbo'
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.7
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "gen-1234567890abcdef",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "openai/gpt-4-turbo-preview",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是一个AI助手，通过OpenRouter平台提供服务。我可以帮助回答问题、协助创作、进行对话等。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 46,
+    "total_tokens": 58
+  }
 }
 ```
 
