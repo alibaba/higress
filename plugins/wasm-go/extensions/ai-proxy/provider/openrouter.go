@@ -8,6 +8,8 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // openrouterProvider is the provider for OpenRouter service.
@@ -67,6 +69,41 @@ func (o *openrouterProvider) TransformRequestHeaders(ctx wrapper.HttpContext, ap
 	util.OverwriteRequestHostHeader(headers, openrouterDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+o.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
+}
+
+func (o *openrouterProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return o.config.defaultTransformRequestBody(ctx, apiName, body)
+	}
+
+	// Check if ReasoningMaxTokens exists in the request body
+	reasoningMaxTokens := gjson.GetBytes(body, "reasoning_max_tokens")
+	if !reasoningMaxTokens.Exists() || reasoningMaxTokens.Int() == 0 {
+		// No reasoning_max_tokens, use default transformation
+		return o.config.defaultTransformRequestBody(ctx, apiName, body)
+	}
+
+	// Clear reasoning_effort field if it exists
+	modifiedBody, err := sjson.DeleteBytes(body, "reasoning_effort")
+	if err != nil {
+		// If delete fails, continue with original body
+		modifiedBody = body
+	}
+
+	// Set reasoning.max_tokens to the value of reasoning_max_tokens
+	modifiedBody, err = sjson.SetBytes(modifiedBody, "reasoning.max_tokens", reasoningMaxTokens.Int())
+	if err != nil {
+		return nil, err
+	}
+
+	// Remove the original reasoning_max_tokens field
+	modifiedBody, err = sjson.DeleteBytes(modifiedBody, "reasoning_max_tokens")
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply default model mapping
+	return o.config.defaultTransformRequestBody(ctx, apiName, modifiedBody)
 }
 
 func (o *openrouterProvider) GetApiName(path string) ApiName {
