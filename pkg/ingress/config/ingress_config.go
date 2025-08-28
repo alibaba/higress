@@ -2014,7 +2014,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 						"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
 						"type_url": "type.googleapis.com/envoy.extensions.filters.http.mcp_sse_stateful_session.v3alpha.McpSseStatefulSessionPerRoute",
 						"value": {
-							"stateful_session": {
+							"mcp_sse_stateful_session": {
 								"session_state": {
 									"name": "envoy.http.mcp_sse_stateful_session.envelope",
 									"typed_config": {
