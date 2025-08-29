@@ -177,7 +177,7 @@ func selectOneInstance(ctx *RpcContext) (*Instance, error) {
 	return &select_instance, nil
 }
 
-func getRemoteCallhandle(ctx *RpcContext) (RemoteCallHandle, error) {
+func getRemoteCallHandle(ctx *RpcContext) (RemoteCallHandle, error) {
 	if ctx.Protocol == PROTOCOL_HTTP || ctx.Protocol == PROTOCOL_HTTPS {
 		return newHttpRemoteCallHandle(ctx)
 	} else {
@@ -192,7 +192,7 @@ func CommonRemoteCall(reg McpServerRegistry, toolName string, parameters map[str
 		return nil, fmt.Errorf("Unknown tool %s", toolName)
 	}
 
-	remoteHandle, err := getRemoteCallhandle(ctx)
+	remoteHandle, err := getRemoteCallHandle(ctx)
 	if remoteHandle == nil {
 		return nil, fmt.Errorf("Unknown backend protocol %s", ctx.Protocol)
 	}

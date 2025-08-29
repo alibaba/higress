@@ -32,6 +32,7 @@ description: 阿里云内容安全检测
 | `protocol` | string | optional | openai | 协议格式，非openai协议填`original` |
 | `riskLevelBar` | string | optional | high | 拦截风险等级，取值为 max, high, medium, low |
 | `timeout` | int | optional | 2000 | 调用内容安全服务时的超时时间 |
+| `bufferLimit` | int | optional | 1000 | 调用内容安全服务时每段文本的长度限制 |
 
 补充说明一下 `denyMessage`，对非法请求的处理逻辑为：
 - 如果配置了 `denyMessage`，返回内容为 `denyMessage` 配置内容，格式为openai格式的流式/非流式响应

@@ -44,6 +44,15 @@ const (
 	APIName                    = "api"
 	ConsumerKey                = "x-mse-consumer"
 	RequestPath                = "request_path"
+	SkipProcessing             = "skip_processing"
+
+	// AI API Paths
+	PathOpenAIChatCompletions       = "/v1/chat/completions"
+	PathOpenAICompletions           = "/v1/completions"
+	PathOpenAIEmbeddings            = "/v1/embeddings"
+	PathOpenAIModels                = "/v1/models"
+	PathGeminiGenerateContent       = "/generateContent"
+	PathGeminiStreamGenerateContent = "/streamGenerateContent"
 
 	// Source Type
 	FixedValue            = "fixed_value"
@@ -99,6 +108,11 @@ type AIStatisticsConfig struct {
 	shouldBufferStreamingBody bool
 	// If disableOpenaiUsage is true, model/input_token/output_token logs will be skipped
 	disableOpenaiUsage bool
+	valueLengthLimit   int
+	// Path suffixes to enable the plugin on
+	enablePathSuffixes []string
+	// Content types to enable response body buffering
+	enableContentTypes []string
 }
 
 func generateMetricName(route, cluster, model, consumer, metricName string) string {
@@ -146,9 +160,49 @@ func (config *AIStatisticsConfig) incrementCounter(metricName string, inc uint64
 	counter.Increment(inc)
 }
 
+// isPathEnabled checks if the request path matches any of the enabled path suffixes
+func isPathEnabled(requestPath string, enabledSuffixes []string) bool {
+	if len(enabledSuffixes) == 0 {
+		return true // If no path suffixes configured, enable for all
+	}
+
+	// Remove query parameters from path
+	pathWithoutQuery := requestPath
+	if queryPos := strings.Index(requestPath, "?"); queryPos != -1 {
+		pathWithoutQuery = requestPath[:queryPos]
+	}
+
+	// Check if path ends with any enabled suffix
+	for _, suffix := range enabledSuffixes {
+		if strings.HasSuffix(pathWithoutQuery, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// isContentTypeEnabled checks if the content type matches any of the enabled content types
+func isContentTypeEnabled(contentType string, enabledContentTypes []string) bool {
+	if len(enabledContentTypes) == 0 {
+		return true // If no content types configured, enable for all
+	}
+
+	for _, enabledType := range enabledContentTypes {
+		if strings.Contains(contentType, enabledType) {
+			return true
+		}
+	}
+	return false
+}
+
 func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	// Parse tracing span attributes setting.
 	attributeConfigs := configJson.Get("attributes").Array()
+	if configJson.Get("value_length_limit").Exists() {
+		config.valueLengthLimit = int(configJson.Get("value_length_limit").Int())
+	} else {
+		config.valueLengthLimit = 4000
+	}
 	config.attributes = make([]Attribute, len(attributeConfigs))
 	for i, attributeConfig := range attributeConfigs {
 		attribute := Attribute{}
@@ -171,10 +225,49 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	// Parse openai usage config setting.
 	config.disableOpenaiUsage = configJson.Get("disable_openai_usage").Bool()
 
+	// Parse path suffix configuration
+	pathSuffixes := configJson.Get("enable_path_suffixes").Array()
+	config.enablePathSuffixes = make([]string, 0, len(pathSuffixes))
+
+	for _, suffix := range pathSuffixes {
+		suffixStr := suffix.String()
+		if suffixStr == "*" {
+			// Clear the suffixes list since * means all paths are enabled
+			config.enablePathSuffixes = make([]string, 0)
+			break
+		}
+		config.enablePathSuffixes = append(config.enablePathSuffixes, suffixStr)
+	}
+
+	// Parse content type configuration
+	contentTypes := configJson.Get("enable_content_types").Array()
+	config.enableContentTypes = make([]string, 0, len(contentTypes))
+
+	for _, contentType := range contentTypes {
+		contentTypeStr := contentType.String()
+		if contentTypeStr == "*" {
+			// Clear the content types list since * means all content types are enabled
+			config.enableContentTypes = make([]string, 0)
+			break
+		}
+		config.enableContentTypes = append(config.enableContentTypes, contentTypeStr)
+	}
+
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
+	// Check if request path matches enabled suffixes
+	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
+	if !isPathEnabled(requestPath, config.enablePathSuffixes) {
+		log.Debugf("ai-statistics: skipping request for path %s (not in enabled suffixes)", requestPath)
+		// Set skip processing flag and avoid reading request/response body
+		ctx.SetContext(SkipProcessing, true)
+		ctx.DontReadRequestBody()
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+
 	ctx.DisableReroute()
 	route, _ := getRouteName()
 	cluster, _ := getClusterName()
@@ -195,17 +288,22 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 
 	ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 
+	// Set span attributes for ARMS.
+	setSpanAttribute(ArmsSpanKind, "LLM")
 	// Set user defined log & span attributes which type is fixed_value
 	setAttributeBySource(ctx, config, FixedValue, nil)
 	// Set user defined log & span attributes which type is request_header
 	setAttributeBySource(ctx, config, RequestHeader, nil)
-	// Set span attributes for ARMS.
-	setSpanAttribute(ArmsSpanKind, "LLM")
 
 	return types.ActionContinue
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte) types.Action {
+	// Check if processing should be skipped
+	if ctx.GetBoolContext(SkipProcessing, false) {
+		return types.ActionContinue
+	}
+
 	// Set user defined log & span attributes.
 	setAttributeBySource(ctx, config, RequestBody, body)
 	// Set span attributes for ARMS.
@@ -242,12 +340,21 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	ctx.SetUserAttribute(ChatRound, userPromptCount)
 
 	// Write log
-	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	return types.ActionContinue
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+
+	if !isContentTypeEnabled(contentType, config.enableContentTypes) {
+		log.Debugf("ai-statistics: skipping response for content type %s (not in enabled content types)", contentType)
+		// Set skip processing flag and avoid reading response body
+		ctx.SetContext(SkipProcessing, true)
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+
 	if !strings.Contains(contentType, "text/event-stream") {
 		ctx.BufferResponseBody()
 	}
@@ -259,6 +366,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) t
 }
 
 func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool) []byte {
+	// Check if processing should be skipped
+	if ctx.GetBoolContext(SkipProcessing, false) {
+		return data
+	}
+
 	// Buffer stream body for record log & span attributes
 	if config.shouldBufferStreamingBody {
 		streamingBodyBuffer, ok := ctx.GetContext(CtxStreamingBodyBuffer).([]byte)
@@ -319,7 +431,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		}
 
 		// Write log
-		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+		_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 		// Write metrics
 		writeMetric(ctx, config)
@@ -328,6 +440,11 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte) types.Action {
+	// Check if processing should be skipped
+	if ctx.GetBoolContext(SkipProcessing, false) {
+		return types.ActionContinue
+	}
+
 	// Get requestStartTime from http context
 	requestStartTime, _ := ctx.GetContext(StatisticsRequestStartTime).(int64)
 
@@ -359,7 +476,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	setAttributeBySource(ctx, config, ResponseBody, body)
 
 	// Write log
-	ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 	// Write metrics
 	writeMetric(ctx, config)
@@ -392,6 +509,9 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 			if (value == nil || value == "") && attribute.DefaultValue != "" {
 				value = attribute.DefaultValue
+			}
+			if len(fmt.Sprint(value)) > config.valueLengthLimit {
+				value = fmt.Sprint(value)[:config.valueLengthLimit/2] + " [truncated] " + fmt.Sprint(value)[len(fmt.Sprint(value))-config.valueLengthLimit/2:]
 			}
 			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
 			if attribute.ApplyToLog {
@@ -460,7 +580,7 @@ func setSpanAttribute(key string, value interface{}) {
 			log.Warnf("failed to set %s in filter state: %v", traceSpanTag, e)
 		}
 	} else {
-		log.Debugf("failed to write span attribute [%s], because it's value is empty")
+		log.Debugf("failed to write span attribute [%s], because it's value is empty", key)
 	}
 }
 
@@ -471,12 +591,12 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	consumer := ctx.GetStringContext(ConsumerKey, "none")
 	route, ok = ctx.GetContext(RouteName).(string)
 	if !ok {
-		log.Warnf("RouteName typd assert failed, skip metric record")
+		log.Info("RouteName type assert failed, skip metric record")
 		return
 	}
 	cluster, ok = ctx.GetContext(ClusterName).(string)
 	if !ok {
-		log.Warnf("ClusterName typd assert failed, skip metric record")
+		log.Info("ClusterName type assert failed, skip metric record")
 		return
 	}
 
@@ -485,28 +605,28 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	}
 
 	if ctx.GetUserAttribute(tokenusage.CtxKeyModel) == nil || ctx.GetUserAttribute(tokenusage.CtxKeyInputToken) == nil || ctx.GetUserAttribute(tokenusage.CtxKeyOutputToken) == nil || ctx.GetUserAttribute(tokenusage.CtxKeyTotalToken) == nil {
-		log.Warnf("get usage information failed, skip metric record")
+		log.Info("get usage information failed, skip metric record")
 		return
 	}
 	model, ok = ctx.GetUserAttribute(tokenusage.CtxKeyModel).(string)
 	if !ok {
-		log.Warnf("Model typd assert failed, skip metric record")
+		log.Info("Model type assert failed, skip metric record")
 		return
 	}
 	if inputToken, ok := convertToUInt(ctx.GetUserAttribute(tokenusage.CtxKeyInputToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, tokenusage.CtxKeyInputToken), inputToken)
 	} else {
-		log.Warnf("InputToken typd assert failed, skip metric record")
+		log.Info("InputToken type assert failed, skip metric record")
 	}
 	if outputToken, ok := convertToUInt(ctx.GetUserAttribute(tokenusage.CtxKeyOutputToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, tokenusage.CtxKeyOutputToken), outputToken)
 	} else {
-		log.Warnf("OutputToken typd assert failed, skip metric record")
+		log.Info("OutputToken type assert failed, skip metric record")
 	}
 	if totalToken, ok := convertToUInt(ctx.GetUserAttribute(tokenusage.CtxKeyTotalToken)); ok {
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, tokenusage.CtxKeyTotalToken), totalToken)
 	} else {
-		log.Warnf("TotalToken typd assert failed, skip metric record")
+		log.Info("TotalToken type assert failed, skip metric record")
 	}
 
 	// Generate duration metrics
@@ -515,7 +635,7 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	if ctx.GetUserAttribute(LLMFirstTokenDuration) != nil {
 		llmFirstTokenDuration, ok = convertToUInt(ctx.GetUserAttribute(LLMFirstTokenDuration))
 		if !ok {
-			log.Warnf("LLMFirstTokenDuration typd assert failed")
+			log.Info("LLMFirstTokenDuration type assert failed")
 			return
 		}
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMFirstTokenDuration), llmFirstTokenDuration)
@@ -524,7 +644,7 @@ func writeMetric(ctx wrapper.HttpContext, config AIStatisticsConfig) {
 	if ctx.GetUserAttribute(LLMServiceDuration) != nil {
 		llmServiceDuration, ok = convertToUInt(ctx.GetUserAttribute(LLMServiceDuration))
 		if !ok {
-			log.Warnf("LLMServiceDuration typd assert failed")
+			log.Warnf("LLMServiceDuration type assert failed")
 			return
 		}
 		config.incrementCounter(generateMetricName(route, cluster, model, consumer, LLMServiceDuration), llmServiceDuration)

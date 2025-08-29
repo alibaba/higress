@@ -149,6 +149,9 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 func (f *filter) processMcpRequestHeadersForSSEUpstream(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	// We don't need to process the request body for SSE upstream.
 	f.skipRequestBody = true
+	// Remove Accept-Encoding header to avoid gzip encoding,
+	// which our response body handling logic doesn't support.
+	header.Del("Accept-Encoding")
 	return api.Continue
 }
 
@@ -397,48 +400,93 @@ func (f *filter) findNextLineBreak(bufferData string) (error, string) {
 }
 
 func (f *filter) findEndpointUrl(bufferData string) (error, string) {
-	eventIndex := strings.Index(bufferData, "event:")
-	if eventIndex == -1 {
-		return nil, ""
+	// Keep searching for events until we find an endpoint event or run out of data
+	for {
+		eventIndex := strings.Index(bufferData, "event:")
+		if eventIndex == -1 {
+			// No more events found
+			return nil, ""
+		}
+
+		// Move to the start of the event
+		bufferData = bufferData[eventIndex:]
+
+		// Find the end of the event line
+		err, lineBreak := f.findNextLineBreak(bufferData)
+		if err != nil {
+			return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
+		}
+		if lineBreak == "" {
+			// No line break found, which means the data is not enough.
+			return nil, ""
+		}
+
+		api.LogDebugf("event line break sequence: %v", []byte(lineBreak))
+		eventEndIndex := strings.Index(bufferData, lineBreak)
+		if eventEndIndex == -1 {
+			return nil, ""
+		}
+
+		eventName := strings.TrimSpace(bufferData[len("event:"):eventEndIndex])
+
+		// Move past the event line
+		bufferData = bufferData[eventEndIndex+len(lineBreak):]
+
+		if eventName == "endpoint" {
+			// Found endpoint event, now look for the data field
+			err, lineBreak = f.findNextLineBreak(bufferData)
+			if err != nil {
+				return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
+			}
+			if lineBreak == "" {
+				// No line break found, which means the data is not enough.
+				return nil, ""
+			}
+
+			api.LogDebugf("data line break sequence: %v", []byte(lineBreak))
+			dataEndIndex := strings.Index(bufferData, lineBreak)
+			if dataEndIndex == -1 {
+				// Data received not enough.
+				return nil, ""
+			}
+
+			eventData := bufferData[:dataEndIndex]
+			if !strings.HasPrefix(eventData, "data:") {
+				return fmt.Errorf("an unexpected non-data field found in the event. Skip processing. Field: %s", eventData), ""
+			}
+
+			return nil, strings.TrimSpace(eventData[len("data:"):])
+		} else {
+			// Not an endpoint event, skip to the next event
+			api.LogDebugf("Skipping non-endpoint event: %s", eventName)
+
+			// First, we need to skip the data field of this event
+			err, lineBreak = f.findNextLineBreak(bufferData)
+			if err != nil {
+				return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
+			}
+			if lineBreak == "" {
+				// No line break found, which means the data is not enough.
+				return nil, ""
+			}
+
+			dataEndIndex := strings.Index(bufferData, lineBreak)
+			if dataEndIndex == -1 {
+				// Data received not enough.
+				return nil, ""
+			}
+
+			// Move past the data line
+			bufferData = bufferData[dataEndIndex+len(lineBreak):]
+
+			// Skip any additional empty lines that separate events
+			for strings.HasPrefix(bufferData, lineBreak) {
+				bufferData = bufferData[len(lineBreak):]
+			}
+
+			// Continue to look for the next event
+		}
 	}
-	bufferData = bufferData[eventIndex:]
-	err, lineBreak := f.findNextLineBreak(bufferData)
-	if err != nil {
-		return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
-	}
-	if lineBreak == "" {
-		// No line break found, which means the data is not enough.
-		return nil, ""
-	}
-	api.LogDebugf("event line break sequence: %v", []byte(lineBreak))
-	eventEndIndex := strings.Index(bufferData, lineBreak)
-	if eventEndIndex == -1 {
-		return nil, ""
-	}
-	eventName := strings.TrimSpace(bufferData[len("event:"):eventEndIndex])
-	if eventName != "endpoint" {
-		return fmt.Errorf("the initial event [%s] is not an endpoint event. Skip processing", eventName), ""
-	}
-	bufferData = bufferData[eventEndIndex+len(lineBreak):]
-	err, lineBreak = f.findNextLineBreak(bufferData)
-	if err != nil {
-		return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
-	}
-	if lineBreak == "" {
-		// No line break found, which means the data is not enough.
-		return nil, ""
-	}
-	api.LogDebugf("data line break sequence: %v", []byte(lineBreak))
-	dataEndIndex := strings.Index(bufferData, lineBreak)
-	if dataEndIndex == -1 {
-		// Data received not enough.
-		return nil, ""
-	}
-	eventData := bufferData[:dataEndIndex]
-	if !strings.HasPrefix(eventData, "data:") {
-		return fmt.Errorf("an unexpected non-data field found in the event. Skip processing. Field: %s", eventData), ""
-	}
-	return nil, strings.TrimSpace(eventData[len("data:"):])
 }
 
 // OnDestroy stops the goroutine

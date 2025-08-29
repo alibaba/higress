@@ -35,7 +35,7 @@ func (l *McpServerToolsChangeListener) OnToolChanged(reg registry.McpServerRegis
 	resetToolsToMcpServer(l.mcpServer, reg)
 }
 
-func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
+func CreateNacosMcpRegistry(config *NacosConfig) (*NacosMcpRegistry, error) {
 	sc := []constant.ServerConfig{
 		*constant.NewServerConfig(*config.ServerAddr, 8848, constant.WithContextPath("/nacos")),
 	}
@@ -90,7 +90,7 @@ func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
 		return nil, fmt.Errorf("failed to initial naming config client: %w", err)
 	}
 
-	return &NacosMcpRegsitry{
+	return &NacosMcpRegistry{
 		configClient:             configClient,
 		namingClient:             namingClient,
 		serviceMatcher:           *config.ServiceMatcher,
@@ -143,7 +143,7 @@ func (c *NacosConfig) NewServer(serverName string) (*common.MCPServer, error) {
 		"1.0.0",
 	)
 
-	nacosRegistry, err := CreateNacosMcpRegsitry(c)
+	nacosRegistry, err := CreateNacosMcpRegistry(c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize NacosMcpRegistry: %w", err)
 	}
@@ -172,7 +172,7 @@ func (c *NacosConfig) NewServer(serverName string) (*common.MCPServer, error) {
 
 func resetToolsToMcpServer(mcpServer *common.MCPServer, reg registry.McpServerRegistry) {
 	wrappedTools := []common.ServerTool{}
-	tools := reg.ListToolsDesciption()
+	tools := reg.ListToolsDescription()
 	for _, tool := range tools {
 		wrappedTools = append(wrappedTools, common.ServerTool{
 			Tool:    mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema),

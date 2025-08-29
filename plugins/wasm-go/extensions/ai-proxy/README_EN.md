@@ -8,9 +8,20 @@ description: Reference for configuring the AI Proxy plugin
 
 The `AI Proxy` plugin implements AI proxy functionality based on the OpenAI API contract. It currently supports AI service providers such as OpenAI, Azure OpenAI, Moonshot, and Qwen.
 
-> **Note:**
+**🚀 Auto Protocol Compatibility**
+
+The plugin now supports **automatic protocol detection**, allowing seamless compatibility with both OpenAI and Claude protocol formats without configuration:
+
+- **OpenAI Protocol**: Request path `/v1/chat/completions`, using standard OpenAI Messages API format
+- **Claude Protocol**: Request path `/v1/messages`, using Anthropic Claude Messages API format  
+- **Intelligent Conversion**: Automatically detects request protocol and performs conversion if the target provider doesn't natively support it
+- **Zero Configuration**: No need to set `protocol` field, the plugin handles everything automatically
+
+> **Protocol Support:**
 
 > When the request path suffix matches `/v1/chat/completions`, it corresponds to text-to-text scenarios. The request body will be parsed using OpenAI's text-to-text protocol and then converted to the corresponding LLM vendor's text-to-text protocol.
+
+> When the request path suffix matches `/v1/messages`, it corresponds to Claude text-to-text scenarios. The plugin automatically detects provider capabilities: if native Claude protocol is supported, requests are forwarded directly; otherwise, they are converted to OpenAI protocol first.
 
 > When the request path suffix matches `/v1/embeddings`, it corresponds to text vector scenarios. The request body will be parsed using OpenAI's text vector protocol and then converted to the corresponding LLM vendor's text vector protocol.
 
@@ -35,7 +46,7 @@ Plugin execution priority: `100`
 | `apiTokens`      | array of string        | Optional    | -       | Tokens used for authentication when accessing AI services. If multiple tokens are configured, the plugin randomly selects one for each request. Some service providers only support configuring a single token.                                                                                                                                                                           |
 | `timeout`        | number                 | Optional    | -       | Timeout for accessing AI services, in milliseconds. The default value is 120000, which equals 2 minutes. Only used when retrieving context data. Won't affect the request forwarded to the LLM upstream.                                                                                                                                                                                  |
 | `modelMapping`   | map of string          | Optional    | -       | Mapping table for AI models, used to map model names in requests to names supported by the service provider.<br/>1. Supports prefix matching. For example, "gpt-3-\*" matches all model names starting with “gpt-3-”;<br/>2. Supports using "\*" as a key for a general fallback mapping;<br/>3. If the mapped target name is an empty string "", the original model name is preserved. |
-| `protocol`       | string                 | Optional    | -       | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider)                                                                                                                                                                               |
+| `protocol`       | string                 | Optional    | -       | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider). **Note: Auto protocol detection is now supported, no need to configure this field to support both OpenAI and Claude protocols**                                                                                                                                                                               |
 | `context`        | object                 | Optional    | -       | Configuration for AI conversation context information                                                                                                                                                                                                                                                                                                                                     |
 | `customSettings` | array of customSetting | Optional    | -       | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                                                                                                                   |
 | `subPath`        | string                 | Optional    | -       | If subPath is configured, the prefix will be removed from the request path before further processing.                                                                                                                                                                                                                                                                                     |
@@ -129,6 +140,14 @@ For DeepSeek, the corresponding `type` is `deepseek`. It has no unique configura
 
 For Groq, the corresponding `type` is `groq`. It has no unique configuration fields.
 
+#### Grok
+
+For Grok, the corresponding `type` is `grok`. It has no unique configuration fields.
+
+#### OpenRouter
+
+For OpenRouter, the corresponding `type` is `openrouter`. It has no unique configuration fields.
+
 #### ERNIE Bot
 
 For ERNIE Bot, the corresponding `type` is `baidu`. It has no unique configuration fields.
@@ -200,6 +219,8 @@ For Gemini, the corresponding `type` is `gemini`. Its unique configuration field
 | Name                  | Data Type | Filling Requirements | Default Value | Description                                                                                              |
 |---------------------|----------|----------------------|---------------|---------------------------------------------------------------------------------------------------------|
 | `geminiSafetySetting` | map of string   | Optional             | -             | Gemini AI content filtering and safety level settings. Refer to [Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings). |
+| `apiVersion` | string | 非必填 | `v1beta` | To specify the version of the API, you can choose either 'v1' or 'v1beta'. Version differences refer to https://ai.google.dev/gemini-api/docs/api-versions |
+| `geminiThinkingBudget` | number | 非必填 | - | The parameters of the gemini2.5 series: 0 indicates no thinking mode, -1 represents dynamic adjustment. For specific parameter references, please refer to the official website |
 
 ### DeepL
 
@@ -807,19 +828,167 @@ provider:
 }
 ```
 
-### Using OpenAI Protocol Proxy for Claude Service
+### Using OpenAI Protocol Proxy for Grok Service
 
 **Configuration Information**
 
 ```yaml
 provider:
-  type: claude
+  type: grok
+  apiTokens:
+    - "YOUR_GROK_API_TOKEN"
+```
+
+**Example Request**
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant that can answer questions and help with tasks."
+    },
+    {
+      "role": "user",
+      "content": "What is 101*3?"
+    }
+  ],
+  "model": "grok-4"
+}
+```
+
+**Example Response**
+
+```json
+{
+  "id": "a3d1008e-4544-40d4-d075-11527e794e4a",
+  "object": "chat.completion",
+  "created": 1752854522,
+  "model": "grok-4",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "101 multiplied by 3 is 303.",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 32,
+    "completion_tokens": 9,
+    "total_tokens": 135,
+    "prompt_tokens_details": {
+      "text_tokens": 32,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 6
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 94,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "num_sources_used": 0
+  },
+  "system_fingerprint": "fp_3a7881249c"
+}
+```
+
+### Using OpenAI Protocol Proxy for OpenRouter Service
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: openrouter
+  apiTokens:
+    - 'YOUR_OPENROUTER_API_TOKEN'
+  modelMapping:
+    'gpt-4': 'openai/gpt-4-turbo-preview'
+    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
+    'claude-3': 'anthropic/claude-3-opus'
+    '*': 'openai/gpt-3.5-turbo'
+```
+
+**Example Request**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "temperature": 0.7
+}
+```
+
+**Example Response**
+
+```json
+{
+  "id": "gen-1234567890abcdef",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "openai/gpt-4-turbo-preview",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am an AI assistant powered by OpenRouter. I can help answer questions, assist with creative tasks, engage in conversations, and more. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 35,
+    "total_tokens": 47
+  }
+}
+```
+
+### Using Auto Protocol Compatibility
+
+The plugin now supports automatic protocol detection, capable of handling both OpenAI and Claude protocol format requests simultaneously.
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: claude  # Provider with native Claude protocol support
   apiTokens:
     - "YOUR_CLAUDE_API_TOKEN"
   version: "2023-06-01"
 ```
 
-**Example Request**
+**OpenAI Protocol Request Example**
+
+URL: `http://your-domain/v1/chat/completions`
+
+```json
+{
+  "model": "claude-3-opus-20240229",
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ]
+}
+```
+
+**Claude Protocol Request Example**
+
+URL: `http://your-domain/v1/messages`
 
 ```json
 {
@@ -835,6 +1004,8 @@ provider:
 ```
 
 **Example Response**
+
+Both protocol formats will return responses in their respective formats:
 
 ```json
 {
@@ -857,6 +1028,39 @@ provider:
     "completion_tokens": 126,
     "total_tokens": 142
   }
+}
+```
+
+### Using Intelligent Protocol Conversion
+
+When the target provider doesn't natively support Claude protocol, the plugin automatically performs protocol conversion:
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: qwen  # Doesn't natively support Claude protocol, auto-conversion applied
+  apiTokens:
+    - "YOUR_QWEN_API_TOKEN"
+  modelMapping:
+    'claude-3-opus-20240229': 'qwen-max'
+    '*': 'qwen-turbo'
+```
+
+**Claude Protocol Request**
+
+URL: `http://your-domain/v1/messages` (automatically converted to OpenAI protocol for provider)
+
+```json
+{
+  "model": "claude-3-opus-20240229",
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ]
 }
 ```
 

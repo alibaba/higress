@@ -146,7 +146,7 @@ func (c *ProviderConfig) SetApiTokensFailover(activeProvider Provider) error {
 			return fmt.Errorf("failed to init apiTokens: %v", err)
 		}
 
-		wrapper.RegisteTickFunc(c.failover.healthCheckInterval, func() {
+		wrapper.RegisterTickFunc(c.failover.healthCheckInterval, func() {
 			// Only the Wasm VM that successfully acquires the lease will perform health check
 			if c.isFailoverEnabled() && c.tryAcquireOrRenewLease(vmID) {
 				log.Debugf("Successfully acquired or renewed lease for %v: %v", vmID, c.GetType())
