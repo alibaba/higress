@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"path"
@@ -131,6 +132,7 @@ const (
 	providerTypeBedrock    = "bedrock"
 	providerTypeVertex     = "vertex"
 	providerTypeTriton     = "triton"
+	providerTypeOpenRouter = "openrouter"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -210,6 +212,7 @@ var (
 		providerTypeBedrock:    &bedrockProviderInitializer{},
 		providerTypeVertex:     &vertexProviderInitializer{},
 		providerTypeTriton:     &tritonProviderInitializer{},
+		providerTypeOpenRouter: &openrouterProviderInitializer{},
 	}
 )
 
@@ -530,10 +533,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.reasoningContentMode = strings.ToLower(c.reasoningContentMode)
 		switch c.reasoningContentMode {
 		case reasoningBehaviorPassThrough, reasoningBehaviorIgnore, reasoningBehaviorConcat:
-			break
+			// valid values, no action needed
 		default:
 			c.reasoningContentMode = reasoningBehaviorPassThrough
-			break
 		}
 	}
 
@@ -845,6 +847,10 @@ func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {
 	return exist
 }
 
+func (c *ProviderConfig) IsSupportedAPI(apiName ApiName) bool {
+	return c.isSupportedAPI(apiName)
+}
+
 func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) {
 	for capability, path := range capabilities {
 		c.capabilities[capability] = path
@@ -868,8 +874,22 @@ func (c *ProviderConfig) handleRequestBody(
 		return types.ActionContinue, nil
 	}
 
-	// use openai protocol
 	var err error
+
+	// handle claude protocol input - auto-detect based on conversion marker
+	// If main.go detected a Claude request that needs conversion, convert the body
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+	if needClaudeConversion {
+		// Convert Claude protocol to OpenAI protocol
+		converter := &ClaudeToOpenAIConverter{}
+		body, err = converter.ConvertClaudeRequestToOpenAI(body)
+		if err != nil {
+			return types.ActionContinue, fmt.Errorf("failed to convert claude request to openai: %v", err)
+		}
+		log.Debugf("[Auto Protocol] converted Claude request body to OpenAI format")
+	}
+
+	// use openai protocol (either original openai or converted from claude)
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body)
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {

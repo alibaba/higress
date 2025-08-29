@@ -66,9 +66,10 @@ type consistentHashByCookie struct {
 }
 
 type LoadBalanceConfig struct {
-	simple networking.LoadBalancerSettings_SimpleLB
-	other  *consistentHashByOther
-	cookie *consistentHashByCookie
+	simple         networking.LoadBalancerSettings_SimpleLB
+	other          *consistentHashByOther
+	cookie         *consistentHashByCookie
+	McpSseStateful bool
 }
 
 type loadBalance struct{}
@@ -129,7 +130,11 @@ func (l loadBalance) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 	} else {
 		if lb, err := annotations.ParseStringASAP(loadBalanceAnnotation); err == nil {
 			lb = strings.ToUpper(lb)
-			loadBalanceConfig.simple = networking.LoadBalancerSettings_SimpleLB(networking.LoadBalancerSettings_SimpleLB_value[lb])
+			if lb == "MCP-SSE" {
+				loadBalanceConfig.McpSseStateful = true
+			} else {
+				loadBalanceConfig.simple = networking.LoadBalancerSettings_SimpleLB(networking.LoadBalancerSettings_SimpleLB_value[lb])
+			}
 		}
 	}
 
