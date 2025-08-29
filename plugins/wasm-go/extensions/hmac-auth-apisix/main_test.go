@@ -82,6 +82,8 @@ func generateValidAuthHeaderWithDate(dateStr, method, path string) string {
 func createConfig(consumers []map[string]interface{}, extra map[string]interface{}) json.RawMessage {
 	config := map[string]interface{}{
 		"consumers": consumers,
+		// 设置 clock_skew 为 0 来跳过时钟偏差校验
+		"clock_skew": 0,
 	}
 
 	for k, v := range extra {
