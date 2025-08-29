@@ -69,7 +69,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.HmacAuthConfig) ty
 		globalAuthNoSet    = cfg.GlobalAuth == nil
 		globalAuthSetTrue  = !globalAuthNoSet && *cfg.GlobalAuth
 		globalAuthSetFalse = !globalAuthNoSet && !*cfg.GlobalAuth
-		ruleSet            = config.RuleSet
+		ruleSet            = cfg.RuleSet
 	)
 
 	// 不需要认证而直接放行的情况：

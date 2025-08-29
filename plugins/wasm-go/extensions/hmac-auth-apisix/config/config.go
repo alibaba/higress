@@ -8,16 +8,12 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-var (
-	// RuleSet 插件是否至少在一个 domain 或 route 上生效
-	RuleSet bool
-	// allowed_algorithms 配置中允许的算法
-	validAlgorithms = map[string]bool{
-		"hmac-sha1":   true,
-		"hmac-sha256": true,
-		"hmac-sha512": true,
-	}
-)
+// validAlgorithms allowed_algorithms 配置中允许的算法
+var validAlgorithms = map[string]bool{
+	"hmac-sha1":   true,
+	"hmac-sha256": true,
+	"hmac-sha512": true,
+}
 
 type HmacAuthConfig struct {
 	Consumers           []Consumer `json:"consumers,omitempty" yaml:"consumers,omitempty"`
@@ -29,6 +25,8 @@ type HmacAuthConfig struct {
 	HideCredentials     bool       `json:"hide_credentials,omitempty" yaml:"hide_credentials,omitempty"`
 	AnonymousConsumer   string     `json:"anonymous_consumer,omitempty" yaml:"anonymous_consumer,omitempty"`
 	Allow               []string   `json:"allow" yaml:"allow"`
+	// RuleSet 插件是否至少在一个 domain 或 route 上生效
+	RuleSet bool `json:"-" yaml:"-"`
 }
 
 type Consumer struct {
@@ -39,7 +37,7 @@ type Consumer struct {
 
 func ParseGlobalConfig(jsonData gjson.Result, global *HmacAuthConfig) error {
 	log.Debug("global config")
-	RuleSet = false
+	global.RuleSet = false
 
 	// 处理 consumers 配置
 	consumers := jsonData.Get("consumers")
@@ -170,7 +168,7 @@ func ParseOverrideRuleConfig(jsonData gjson.Result, global HmacAuthConfig, confi
 		}
 	}
 
-	RuleSet = true
+	config.RuleSet = true
 	if configBytes, err := json.Marshal(config); err == nil {
 		log.Debugf("config: %s", string(configBytes))
 	}
