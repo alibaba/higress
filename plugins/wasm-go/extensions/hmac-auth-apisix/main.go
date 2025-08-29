@@ -1,3 +1,17 @@
+// Copyright (c) 2025 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
@@ -155,9 +169,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, cfg config.HmacAuthConfig, body 
 		}
 
 		// 计算请求体的 SHA-256 摘要
-		hash := sha256.Sum256(body)
-		encodedDigest := base64.StdEncoding.EncodeToString(hash[:])
-		digestCreated := "SHA-256=" + encodedDigest
+		digestCreated := calculateBodyDigest(body)
 
 		// 比较请求头中的 Digest 和服务端计算的摘要
 		if digestCreated != digestHeaderVal {
@@ -169,7 +181,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, cfg config.HmacAuthConfig, body 
 	return types.ActionContinue
 }
 
-// HmacParams 存储从 Authorization 头解析出的 HMAC 参数
+// HmacParams 存储从 Authorization 头中提取 HMAC 参数和消费者信息
 type HmacParams struct {
 	KeyId        string
 	Algorithm    string
@@ -180,7 +192,7 @@ type HmacParams struct {
 
 // retrieveHmacFieldsAndConsumer 从 Authorization 头中提取 HMAC 参数和消费者信息
 func retrieveHmacFieldsAndConsumer(cfg config.HmacAuthConfig) (*HmacParams, error) {
-	hmacParams := &HmacParams{}
+	params := &HmacParams{}
 
 	// 获取 Authorization 头
 	authString, err := proxywasm.GetHttpRequestHeader(authorizationHeader)
@@ -206,26 +218,26 @@ func retrieveHmacFieldsAndConsumer(cfg config.HmacAuthConfig) (*HmacParams, erro
 
 			switch key {
 			case "keyId":
-				hmacParams.KeyId = value
+				params.KeyId = value
 			case "algorithm":
-				hmacParams.Algorithm = value
+				params.Algorithm = value
 			case "signature":
-				hmacParams.Signature = value
+				params.Signature = value
 			case "headers":
 				// 分割 headers 字段
 				if value != "" {
-					hmacParams.Headers = strings.Split(value, " ")
+					params.Headers = strings.Split(value, " ")
 				}
 			}
 		}
 	}
 
 	// 验证必要字段
-	if hmacParams.KeyId == "" || hmacParams.Signature == "" {
+	if params.KeyId == "" || params.Signature == "" {
 		return nil, fmt.Errorf("keyId or signature missing")
 	}
 
-	if hmacParams.Algorithm == "" {
+	if params.Algorithm == "" {
 		return nil, fmt.Errorf("algorithm missing")
 	}
 
@@ -233,7 +245,7 @@ func retrieveHmacFieldsAndConsumer(cfg config.HmacAuthConfig) (*HmacParams, erro
 	consumerName := ""
 	found := false
 	for _, consumer := range cfg.Consumers {
-		if consumer.AccessKey == hmacParams.KeyId {
+		if consumer.AccessKey == params.KeyId {
 			consumerName = consumer.Name
 			found = true
 			break
@@ -244,8 +256,8 @@ func retrieveHmacFieldsAndConsumer(cfg config.HmacAuthConfig) (*HmacParams, erro
 		return nil, fmt.Errorf("Invalid keyId")
 	}
 
-	hmacParams.ConsumerName = consumerName
-	return hmacParams, nil
+	params.ConsumerName = consumerName
+	return params, nil
 }
 
 // validateClockSkew 检查时间偏差
@@ -291,10 +303,7 @@ func validateSignature(hmacParams *HmacParams, cfg config.HmacAuthConfig) error 
 	}
 
 	// 生成 HMAC 签名
-	signingString, err := generateSigningString(hmacParams)
-	if err != nil {
-		return fmt.Errorf("Failed to generate signing string")
-	}
+	signingString := generateSigningString(hmacParams)
 	expectedSignature, err := generateHmacSignature(secretKey, hmacParams.Algorithm, signingString)
 	if err != nil {
 		return err
@@ -311,7 +320,7 @@ func validateSignature(hmacParams *HmacParams, cfg config.HmacAuthConfig) error 
 }
 
 // generateSigningString 生成签名字符串
-func generateSigningString(hmacParams *HmacParams) (string, error) {
+func generateSigningString(hmacParams *HmacParams) string {
 	var signingStringItems []string
 	signingStringItems = append(signingStringItems, hmacParams.KeyId)
 
@@ -341,7 +350,7 @@ func generateSigningString(hmacParams *HmacParams) (string, error) {
 	}
 
 	signingString := strings.Join(signingStringItems, "\n") + "\n"
-	return signingString, nil
+	return signingString
 }
 
 // generateHmacSignature 生成 HMAC 签名
@@ -362,6 +371,13 @@ func generateHmacSignature(secretKey, algorithm, message string) (string, error)
 	mac.Write([]byte(message))
 	signature := mac.Sum(nil)
 	return base64.StdEncoding.EncodeToString(signature), nil
+}
+
+// calculateBodyDigest 计算请求体的 SHA-256 摘要
+func calculateBodyDigest(body []byte) string {
+	hash := sha256.Sum256(body)
+	encodedDigest := base64.StdEncoding.EncodeToString(hash[:])
+	return "SHA-256=" + encodedDigest
 }
 
 func sendUnauthorizedResponse(message string) types.Action {
