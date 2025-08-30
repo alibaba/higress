@@ -109,7 +109,7 @@ func TestLoadBalanceParse(t *testing.T) {
 			expect: &LoadBalanceConfig{
 				simple: networking.LoadBalancerSettings_ROUND_ROBIN,
 				other: &consistentHashByOther{
-					header: "x-envoy-external-address",
+					useSourceIp: true,
 				},
 			},
 		},
@@ -228,6 +228,25 @@ func TestLoadBalanceApplyTrafficPolicy(t *testing.T) {
 							HashKey: &networking.LoadBalancerSettings_ConsistentHashLB_HttpQueryParameterName{
 								HttpQueryParameterName: "query",
 							},
+						},
+					},
+				},
+			},
+		},
+		{
+			config: &Ingress{
+				LoadBalance: &LoadBalanceConfig{
+					other: &consistentHashByOther{
+						useSourceIp: true,
+					},
+				},
+			},
+			input: &networking.TrafficPolicy_PortTrafficPolicy{},
+			expect: &networking.TrafficPolicy_PortTrafficPolicy{
+				LoadBalancer: &networking.LoadBalancerSettings{
+					LbPolicy: &networking.LoadBalancerSettings_ConsistentHash{
+						ConsistentHash: &networking.LoadBalancerSettings_ConsistentHashLB{
+							UseSourceIp: true,
 						},
 					},
 				},
