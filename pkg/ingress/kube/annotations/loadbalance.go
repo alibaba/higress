@@ -174,7 +174,9 @@ func (l loadBalance) ApplyTrafficPolicy(trafficPolicy *networking.TrafficPolicy,
 		var consistentHash *networking.LoadBalancerSettings_ConsistentHashLB
 		if loadBalanceConfig.other.useSourceIp {
 			consistentHash = &networking.LoadBalancerSettings_ConsistentHashLB{
-				UseSourceIp: true,
+				HashKey: &networking.LoadBalancerSettings_ConsistentHashLB_UseSourceIp{
+					UseSourceIp: true,
+				},
 			}
 		} else if loadBalanceConfig.other.header != "" {
 			consistentHash = &networking.LoadBalancerSettings_ConsistentHashLB{

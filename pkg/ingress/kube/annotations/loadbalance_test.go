@@ -246,7 +246,9 @@ func TestLoadBalanceApplyTrafficPolicy(t *testing.T) {
 				LoadBalancer: &networking.LoadBalancerSettings{
 					LbPolicy: &networking.LoadBalancerSettings_ConsistentHash{
 						ConsistentHash: &networking.LoadBalancerSettings_ConsistentHashLB{
-							UseSourceIp: true,
+							HashKey: &networking.LoadBalancerSettings_ConsistentHashLB_UseSourceIp{
+								UseSourceIp: true,
+							},
 						},
 					},
 				},
