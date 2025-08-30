@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -26,7 +25,7 @@ type RedisConfig struct {
 	KeyPrefix string
 }
 
-func ParseConfig(json gjson.Result, config *ReplayProtectionConfig, log log.Log) error {
+func ParseConfig(json gjson.Result, config *ReplayProtectionConfig) error {
 	// Parse Redis configuration
 	redisConfig := json.Get("redis")
 	if !redisConfig.Exists() {
