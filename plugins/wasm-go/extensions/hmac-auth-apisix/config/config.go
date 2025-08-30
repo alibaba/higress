@@ -16,7 +16,7 @@ var validAlgorithms = map[string]bool{
 }
 
 type HmacAuthConfig struct {
-	Consumers           []Consumer `json:"consumers,omitempty" yaml:"consumers,omitempty"`
+	Consumers           []Consumer `json:"consumers" yaml:"consumers"`
 	GlobalAuth          *bool      `json:"global_auth,omitempty" yaml:"global_auth,omitempty"`
 	AllowedAlgorithms   []string   `json:"allowed_algorithms,omitempty" yaml:"allowed_algorithms,omitempty"`
 	ClockSkew           int        `json:"clock_skew,omitempty" yaml:"clock_skew,omitempty"`
@@ -24,7 +24,7 @@ type HmacAuthConfig struct {
 	ValidateRequestBody bool       `json:"validate_request_body,omitempty" yaml:"validate_request_body,omitempty"`
 	HideCredentials     bool       `json:"hide_credentials,omitempty" yaml:"hide_credentials,omitempty"`
 	AnonymousConsumer   string     `json:"anonymous_consumer,omitempty" yaml:"anonymous_consumer,omitempty"`
-	Allow               []string   `json:"allow" yaml:"allow"`
+	Allow               []string   `json:"allow,omitempty" yaml:"allow,omitempty"`
 	// RuleSet 插件是否至少在一个 domain 或 route 上生效
 	RuleSet bool `json:"-" yaml:"-"`
 }
