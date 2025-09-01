@@ -17,9 +17,9 @@ This release includes **42** updates, covering various aspects such as feature e
 
 This release includes **3** significant updates, which are recommended for your attention:
 
-- **feat: add MCP SSE stateful session load balancer support** ([#2818](https://github.com/alibaba/higress/pull/2818)): This feature enables applications based on SSE to better maintain persistent connections between clients and servers, enhancing user experience and application performance, especially in scenarios requiring long-term connections for data pushing.
+- **feat: add MCP SSE stateful session load balancer support** ([#2818](https://github.com/alibaba/higress/pull/2818)): This feature enables MCP services based on the SSE protocol to better maintain persistent connections between the client and the server, enhancing user experience and application performance, especially in scenarios requiring long-lasting connections for data pushing.
 - **feat: Support adding a proxy server in between when forwarding requests to upstream** ([#2710](https://github.com/alibaba/higress/pull/2710)): This feature allows users to use a proxy server when forwarding requests to upstream services, enhancing the system's flexibility and security, suitable for scenarios where communication through specific proxies is required.
-- **feat(ai-proxy): add auto protocol compatibility for OpenAI and Claude APIs** ([#2810](https://github.com/alibaba/higress/pull/2810)): By automatically detecting and converting protocols, users can seamlessly use APIs from different AI service providers without manual configuration, improving user experience and flexibility.
+- **feat(ai-proxy): add auto protocol compatibility for OpenAI and Claude APIs** ([#2810](https://github.com/alibaba/higress/pull/2810)): By automatically detecting and converting protocols, all AI providers can simultaneously support both the OpenAI protocol and the Claude protocol, allowing for seamless integration with Claude Code.
 
 For more details, please refer to the Important Features section below.
 
