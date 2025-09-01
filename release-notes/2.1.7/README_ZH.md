@@ -334,11 +334,6 @@ provider:
   **Change Log**: 修正了多个文件中的拼写错误，包括测试文件、README以及Go代码中的变量名和配置项名称。 \
   **Feature Value**: 提高了文档的准确性和可读性，确保了代码的一致性和用户体验。对于使用该插件的用户来说，这些更改有助于避免因拼写错误导致的混淆或配置问题。
 
-- **Related PR**: [#2693](https://github.com/alibaba/higress/pull/2693) \
-  **Contributor**: @github-actions[bot] \
-  **Change Log**: 此PR为版本2.1.6添加了详细的英文和中文版发布说明，包括对新功能、Bug修复、重构优化等的概述。 \
-  **Feature Value**: 新增的发布说明使用户能够更清晰地了解当前版本的重要更新内容及其带来的改进，有助于提高用户体验和系统的透明度。
-
 ### 🧪 测试改进 (Testing)
 
 - **Related PR**: [#2809](https://github.com/alibaba/higress/pull/2809) \

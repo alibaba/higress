@@ -336,11 +336,6 @@ This feature significantly improves the usability and flexibility of the AI prox
   **Change Log**: Corrected spelling errors in multiple files, including test files, README, and variable names and configuration item names in Go code. \
   **Feature Value**: This improves the accuracy and readability of the documentation, ensuring the consistency and user experience of the code. For users of the plugin, these changes help avoid confusion or configuration issues caused by spelling errors.
 
-- **Related PR**: [#2693](https://github.com/alibaba/higress/pull/2693) \
-  **Contributor**: @github-actions[bot] \
-  **Change Log**: This PR adds detailed English and Chinese release notes for version 2.1.6, including an overview of new features, bug fixes, and refactoring optimizations. \
-  **Feature Value**: The added release notes allow users to better understand the important updates and improvements in the current version, enhancing the user experience and transparency of the system.
-
 ### 🧪 Testing Improvements (Testing)
 
 - **Related PR**: [#2809](https://github.com/alibaba/higress/pull/2809) \
