@@ -17,9 +17,9 @@
 
 本次发布包含 **3** 项重要更新，建议重点关注：
 
-- **feat: add MCP SSE stateful session load balancer support** ([#2818](https://github.com/alibaba/higress/pull/2818)): 此功能使得基于SSE的应用能够更好地保持客户端与服务器之间的持久连接，增强用户体验和应用性能，特别是在需要维持长时间连接以进行数据推送的场景中。
+- **feat: add MCP SSE stateful session load balancer support** ([#2818](https://github.com/alibaba/higress/pull/2818)): 此功能使得基于SSE协议的MCP服务能够更好地保持客户端与服务器之间的持久连接，增强用户体验和应用性能，特别是在需要维持长时间连接以进行数据推送的场景中。
 - **feat: Support adding a proxy server in between when forwarding requests to upstream** ([#2710](https://github.com/alibaba/higress/pull/2710)): 此功能允许用户在转发请求到上游服务时使用代理服务器，增强了系统的灵活性和安全性，适用于需要通过特定代理进行通信的场景。
-- **feat(ai-proxy): add auto protocol compatibility for OpenAI and Claude APIs** ([#2810](https://github.com/alibaba/higress/pull/2810)): 通过自动协议检测与转换，用户无需手动配置即可无缝使用不同AI服务提供商的API，提升了用户体验和灵活性。
+- **feat(ai-proxy): add auto protocol compatibility for OpenAI and Claude APIs** ([#2810](https://github.com/alibaba/higress/pull/2810)): 通过自动协议检测与转换，使得所有AI Provider可以同时兼容OpenAI协议和Claude协议，可以丝滑对接Claude Code
 
 详细信息请查看下方重要功能详述部分。
 
