@@ -129,8 +129,8 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		constant.WithCacheDir(DefaultNacosCacheDir),
 		constant.WithNotLoadCacheAtStart(DefaultNacosNotLoadCache),
 		constant.WithLogRollingConfig(&constant.ClientLogRollingConfig{
-			MaxAge: DefaultNacosLogMaxAge,
-			MaxSize: DefaultNacosLogMaxSize,
+			MaxAge:     DefaultNacosLogMaxAge,
+			MaxSize:    DefaultNacosLogMaxSize,
 			MaxBackups: DefaultNacosLogMaxBackups,
 		}),
 		constant.WithUpdateCacheWhenEmpty(w.updateCacheWhenEmpty),
@@ -429,6 +429,10 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 		},
 	}
 	rule.Server.Config["credentials"] = credentials
+	// process security schemas
+	if len(toolsDescription.SecuritySchemes) > 0 {
+		rule.Server.SecuritySchemes = toolsDescription.SecuritySchemes
+	}
 
 	var allowTools []string
 	for _, t := range toolsDescription.Tools {
@@ -479,6 +483,15 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 			convertTool.ResponseTemplate = responseTemplate
 			convertTool.ErrorResponseTemplate = errorResponseTemplate
 		}
+
+		security, err := getSecurityFromToolMeta(toolMeta)
+		if err != nil {
+			mcpServerLog.Errorf("get security from tool meta error:%v, tool name %v", err, t.Name)
+			continue
+		} else {
+			convertTool.Security = security
+		}
+
 		rule.Tools = append(rule.Tools, convertTool)
 	}
 
@@ -738,6 +751,30 @@ func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.Re
 		}
 	}
 	return nil, "", nil
+}
+
+func getSecurityFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.ToolSecurity, error) {
+	if toolMeta == nil {
+		return nil, nil
+	}
+	toolTemplate := toolMeta.Templates
+	for kind, meta := range toolTemplate {
+		switch kind {
+		case provider.JsonGoTemplateType:
+			templateData, err := json.Marshal(meta)
+			if err != nil {
+				return nil, err
+			}
+			template := &provider.JsonGoTemplate{}
+			if err = json.Unmarshal(templateData, template); err != nil {
+				return nil, err
+			}
+			return template.Security, nil
+		default:
+			return nil, fmt.Errorf("unsupported tool meta type: %s", kind)
+		}
+	}
+	return nil, nil
 }
 
 func mergeMaps(maps ...map[string]string) map[string]string {
