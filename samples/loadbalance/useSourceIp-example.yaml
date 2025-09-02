@@ -1,0 +1,155 @@
+# Example: Load Balancing with useSourceIp Support
+# This example demonstrates the enhanced consistent hashing feature
+# that uses source IP for load balancing instead of headers.
+#
+# Issue: https://github.com/alibaba/higress/issues/2790
+# PR: https://github.com/alibaba/higress/pull/2844
+#
+# The key improvement is that $remote_addr now uses useSourceIp field
+# instead of x-envoy-external-address header, which works better for
+# private IP addresses.
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-remote-addr
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-server-1
+  namespace: test-remote-addr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-server-1
+  template:
+    metadata:
+      labels:
+        app: echo-server-1
+    spec:
+      containers:
+        - name: echo-server
+          image: hashicorp/http-echo:0.2.3
+          args:
+            - "-text=Server 1 - IP: $(hostname -i)"
+          ports:
+            - containerPort: 5678
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-server-2
+  namespace: test-remote-addr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-server-2
+  template:
+    metadata:
+      labels:
+        app: echo-server-2
+    spec:
+      containers:
+        - name: echo-server
+          image: hashicorp/http-echo:0.2.3
+          args:
+            - "-text=Server 2 - IP: $(hostname -i)"
+          ports:
+            - containerPort: 5678
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-service
+  namespace: test-remote-addr
+spec:
+  selector:
+    app: echo-server-1
+  ports:
+    - port: 80
+      targetPort: 5678
+      name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-service-2
+  namespace: test-remote-addr
+spec:
+  selector:
+    app: echo-server-2
+  ports:
+    - port: 80
+      targetPort: 5678
+      name: http
+---
+# Example 1: Using $remote_addr with useSourceIp (NEW FEATURE)
+# This configuration now uses source IP directly for consistent hashing
+# instead of relying on x-envoy-external-address header
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-remote-addr-source-ip
+  namespace: test-remote-addr
+  annotations:
+    higress.io/upstream-hash-by: "$remote_addr"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: test-source-ip.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo-service
+                port:
+                  number: 80
+---
+# Example 2: Using traditional header-based hashing for comparison
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-remote-addr-header
+  namespace: test-remote-addr
+  annotations:
+    higress.io/upstream-hash-by: "$http_x_real_ip"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: test-header.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo-service-2
+                port:
+                  number: 80
+---
+# Test client for sending requests
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-client
+  namespace: test-remote-addr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-client
+  template:
+    metadata:
+      labels:
+        app: test-client
+    spec:
+      containers:
+        - name: curl
+          image: curlimages/curl:latest
+          command: ["sleep", "3600"]
