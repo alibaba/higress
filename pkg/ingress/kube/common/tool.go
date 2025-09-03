@@ -334,9 +334,16 @@ func SplitServiceFQDN(fqdn string) (string, string, bool) {
 
 func ConvertBackendService(routeDestination *networking.HTTPRouteDestination) model.BackendService {
 	parts := strings.Split(routeDestination.Destination.Host, ".")
+	var namespace, name string
+	if len(parts) == 2 || len(parts) > 2 && strings.HasSuffix(routeDestination.Destination.Host, "cluster.local") {
+		name = parts[0]
+		namespace = parts[1]
+	} else {
+		name = routeDestination.Destination.Host
+	}
 	service := model.BackendService{
-		Namespace: parts[1],
-		Name:      parts[0],
+		Namespace: namespace,
+		Name:      name,
 		Weight:    routeDestination.Weight,
 	}
 	if routeDestination.Destination.Port != nil {
