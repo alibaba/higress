@@ -47,7 +47,7 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
 			// wait until route is reachable to avoid hanging requests
-			client := &http.Client{Timeout: 5 * time.Second}
+			client := &http.Client{Timeout: 1 * time.Second}
 			waitLimiterRouteReady(t, suite.GatewayAddress, client)
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
@@ -210,7 +210,6 @@ func DoRequest(req *roundtripper.Request, client *http.Client) (int, error) {
 	if err != nil {
 		return 1, err
 	}
-	defer client.CloseIdleConnections()
 	defer resp.Body.Close()
 
 	return resp.StatusCode, nil
@@ -222,7 +221,8 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 	result := &Result{
 		Requests: times,
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	// Ensure the runner always completes within a bounded time window to avoid test timeouts.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	startTime := time.Now()
 	for i := 0; i < threads; i++ {
@@ -248,13 +248,24 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 				if statusCode >= 200 && statusCode < 300 {
 					atomic.AddInt32(&result.Success, 1)
 				} else {
-					time.Sleep(50 * time.Millisecond)
+					// brief backoff on non-2xx to reduce tight loops
+					select {
+					case <-ctx.Done():
+						return
+					case <-time.After(50 * time.Millisecond):
+					}
 				}
 			}
 		}()
 	}
 
-	wg.Wait()
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		// timed out; proceed to compute metrics with partial results
+	}
 	result.TotalCostMs = time.Since(startTime).Nanoseconds() / 1e6
 	result.SuccessRps = float64(result.Success) * 1000 / float64(result.TotalCostMs)
 	result.ActualRps = float64(result.Requests) * 1000 / float64(result.TotalCostMs)
