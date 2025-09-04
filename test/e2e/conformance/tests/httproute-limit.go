@@ -22,9 +22,10 @@ import (
 	"io"
 	"sync/atomic"
 
+	"net/url"
+
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
-	"net/url"
 
 	"log"
 	"math/rand"
@@ -45,9 +46,9 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-limit.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
-			//wait ingress ready
-			time.Sleep(1 * time.Second)
-			client := &http.Client{}
+			// wait until route is reachable to avoid hanging requests
+			client := &http.Client{Timeout: 5 * time.Second}
+			waitLimiterRouteReady(t, suite.GatewayAddress, client)
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
 			TestRps10Burst3(t, suite.GatewayAddress, client)
@@ -55,6 +56,26 @@ var HttpRouteLimiter = suite.ConformanceTest{
 			TestRpm10Burst3(t, suite.GatewayAddress, client)
 		})
 	},
+}
+
+// waitLimiterRouteReady polls a simple request until the limiter route responds
+// with any HTTP status (2xx/4xx/5xx), or times out after 90s.
+func waitLimiterRouteReady(t *testing.T, gwAddr string, client *http.Client) {
+	t.Helper()
+	deadline := time.Now().Add(90 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			t.Fatalf("limiter route not ready within timeout")
+		}
+		u := &url.URL{Scheme: "http", Host: gwAddr, Path: "/rps10"}
+		r, _ := http.NewRequest("GET", u.String(), nil)
+		r.Host = "limiter.higress.io"
+		if resp, err := client.Do(r); err == nil {
+			resp.Body.Close()
+			return
+		}
+		time.Sleep(1 * time.Second)
+	}
 }
 
 // TestRps10 test case 1: rps10
