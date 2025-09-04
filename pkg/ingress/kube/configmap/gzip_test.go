@@ -34,7 +34,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "default",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -55,7 +55,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "no content type",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{},
 				DisableOnEtagHeader: true,
@@ -71,7 +71,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "MinContentLength less than zero",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    0,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -87,7 +87,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "MemoryLevel less than 1",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -103,7 +103,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "WindowBits less than 9",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -119,7 +119,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "ChunkSize less than zero",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
