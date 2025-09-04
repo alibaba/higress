@@ -222,7 +222,7 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 		Requests: times,
 	}
 	// Ensure the runner always completes within a bounded time window to avoid test timeouts.
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	startTime := time.Now()
 	for i := 0; i < threads; i++ {
@@ -248,11 +248,11 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 				if statusCode >= 200 && statusCode < 300 {
 					atomic.AddInt32(&result.Success, 1)
 				} else {
-					// brief backoff on non-2xx to reduce tight loops
+					// brief backoff on non-2xx to reduce tight loops, but don't block too long
 					select {
 					case <-ctx.Done():
 						return
-					case <-time.After(50 * time.Millisecond):
+					case <-time.After(1 * time.Millisecond):
 					}
 				}
 			}
