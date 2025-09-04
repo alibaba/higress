@@ -81,6 +81,12 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	return w, nil
 }
 
+func WithVport(vport *apiv1.RegistryConfig_VPort) WatcherOption {
+	return func(w *watcher) {
+		w.Vport = vport
+	}
+}
+
 func WithEurekaFullRefreshInterval(refreshInterval int64) WatcherOption {
 	return func(w *watcher) {
 		if refreshInterval < int64(DefaultFullRefreshIntervalLimit) {
@@ -200,7 +206,7 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 		defer w.UpdateService()
 
 		if len(service.Instances) != 0 {
-			se, err := generateServiceEntry(service)
+			se, err := w.generateServiceEntry(service)
 			if err != nil {
 				return err
 			}
@@ -252,10 +258,10 @@ func convertMap(m map[string]interface{}) map[string]string {
 	return result
 }
 
-func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
+func (w *watcher) generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
-
+	sePort := provider.GetServiceVport(makeHost(app.Name), w.Vport)
 	for _, instance := range app.Instances {
 		protocol := common.HTTP
 		if val, _ := instance.Metadata.GetString("protocol"); val != "" {
@@ -269,7 +275,13 @@ func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error
 			Protocol: protocol.String(),
 		}
 		if len(portList) == 0 {
-			portList = append(portList, port)
+			if sePort != nil {
+				sePort.Name = port.Name
+				sePort.Protocol = port.Protocol
+				portList = append(portList, sePort)
+			} else {
+				portList = append(portList, port)
+			}
 		}
 		endpoint := v1alpha3.WorkloadEntry{
 			Address: instance.IPAddr,
