@@ -1,0 +1,8 @@
+# Test file to verify gzip configuration can be customized
+gzip:
+  enable: true
+  minContentLength: 500
+  contentType:
+    - "text/html"
+    - "application/json"
+  memoryLevel: 6
