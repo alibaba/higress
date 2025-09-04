@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"path"
@@ -107,6 +108,7 @@ const (
 	providerTypeQwen       = "qwen"
 	providerTypeOpenAI     = "openai"
 	providerTypeGroq       = "groq"
+	providerTypeGrok       = "grok"
 	providerTypeBaichuan   = "baichuan"
 	providerTypeYi         = "yi"
 	providerTypeDeepSeek   = "deepseek"
@@ -129,6 +131,7 @@ const (
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
 	providerTypeVertex     = "vertex"
+	providerTypeOpenRouter = "openrouter"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -136,9 +139,11 @@ const (
 	roleSystem    = "system"
 	roleAssistant = "assistant"
 	roleUser      = "user"
+	roleTool      = "tool"
 
-	finishReasonStop   = "stop"
-	finishReasonLength = "length"
+	finishReasonStop     = "stop"
+	finishReasonLength   = "length"
+	finishReasonToolCall = "tool_calls"
 
 	ctxKeyIncrementalStreaming   = "incrementalStreaming"
 	ctxKeyApiKey                 = "apiKey"
@@ -182,6 +187,7 @@ var (
 		providerTypeQwen:       &qwenProviderInitializer{},
 		providerTypeOpenAI:     &openaiProviderInitializer{},
 		providerTypeGroq:       &groqProviderInitializer{},
+		providerTypeGrok:       &grokProviderInitializer{},
 		providerTypeBaichuan:   &baichuanProviderInitializer{},
 		providerTypeYi:         &yiProviderInitializer{},
 		providerTypeDeepSeek:   &deepseekProviderInitializer{},
@@ -204,6 +210,7 @@ var (
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
 		providerTypeVertex:     &vertexProviderInitializer{},
+		providerTypeOpenRouter: &openrouterProviderInitializer{},
 	}
 )
 
@@ -344,6 +351,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN Gemini Thinking Budget 配置
+	// @Description zh-CN 仅适用于 Gemini AI 服务，用于控制思考预算
+	geminiThinkingBudget int64 `required:"false" yaml:"geminiThinkingBudget" json:"geminiThinkingBudget"`
 	// @Title zh-CN Vertex AI访问区域
 	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
 	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
@@ -472,6 +482,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.geminiSafetySetting[k] = v.String()
 		}
 	}
+	c.geminiThinkingBudget = json.Get("geminiThinkingBudget").Int()
 	c.vertexRegion = json.Get("vertexRegion").String()
 	c.vertexProjectId = json.Get("vertexProjectId").String()
 	c.vertexAuthKey = json.Get("vertexAuthKey").String()
@@ -514,10 +525,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.reasoningContentMode = strings.ToLower(c.reasoningContentMode)
 		switch c.reasoningContentMode {
 		case reasoningBehaviorPassThrough, reasoningBehaviorIgnore, reasoningBehaviorConcat:
-			break
+			// valid values, no action needed
 		default:
 			c.reasoningContentMode = reasoningBehaviorPassThrough
-			break
 		}
 	}
 
@@ -824,6 +834,10 @@ func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {
 	return exist
 }
 
+func (c *ProviderConfig) IsSupportedAPI(apiName ApiName) bool {
+	return c.isSupportedAPI(apiName)
+}
+
 func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) {
 	for capability, path := range capabilities {
 		c.capabilities[capability] = path
@@ -847,8 +861,22 @@ func (c *ProviderConfig) handleRequestBody(
 		return types.ActionContinue, nil
 	}
 
-	// use openai protocol
 	var err error
+
+	// handle claude protocol input - auto-detect based on conversion marker
+	// If main.go detected a Claude request that needs conversion, convert the body
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+	if needClaudeConversion {
+		// Convert Claude protocol to OpenAI protocol
+		converter := &ClaudeToOpenAIConverter{}
+		body, err = converter.ConvertClaudeRequestToOpenAI(body)
+		if err != nil {
+			return types.ActionContinue, fmt.Errorf("failed to convert claude request to openai: %v", err)
+		}
+		log.Debugf("[Auto Protocol] converted Claude request body to OpenAI format")
+	}
+
+	// use openai protocol (either original openai or converted from claude)
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body)
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
