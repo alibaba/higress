@@ -135,7 +135,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "CompressionLevel is not right",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -151,7 +151,7 @@ func Test_validGzip(t *testing.T) {
 		{
 			name: "CompressionStrategy is not right",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -191,7 +191,7 @@ func Test_compareGzip(t *testing.T) {
 		{
 			name: "compare result delete",
 			old: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -208,7 +208,7 @@ func Test_compareGzip(t *testing.T) {
 		{
 			name: "compare result equal",
 			old: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -219,7 +219,7 @@ func Test_compareGzip(t *testing.T) {
 				CompressionStrategy: "DEFAULT_STRATEGY",
 			},
 			new: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -235,7 +235,7 @@ func Test_compareGzip(t *testing.T) {
 		{
 			name: "compare result replace",
 			old: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -246,7 +246,7 @@ func Test_compareGzip(t *testing.T) {
 				CompressionStrategy: "DEFAULT_STRATEGY",
 			},
 			new: &Gzip{
-				Enable:              false,
+				Enable:              true,
 				MinContentLength:    1024,
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
@@ -280,7 +280,7 @@ func Test_deepCopyGzip(t *testing.T) {
 		{
 			name: "deep copy case 1",
 			gzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    102,
 				ContentType:         []string{"text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: false,
@@ -291,7 +291,7 @@ func Test_deepCopyGzip(t *testing.T) {
 				CompressionStrategy: "DEFAULT_STRATEGY",
 			},
 			wantGzip: &Gzip{
-				Enable:              true,
+				Enable:              false,
 				MinContentLength:    102,
 				ContentType:         []string{"text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: false,
