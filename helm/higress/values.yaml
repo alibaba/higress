@@ -1,0 +1,4 @@
+# Support Helm chart values for Higress. For more details, refer to the official Higress documentation.
+higress-console:
+  # Set to true to enable the Higress console.
+  enabled: true
