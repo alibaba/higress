@@ -22,10 +22,9 @@ import (
 	"io"
 	"sync/atomic"
 
-	"net/url"
-
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"net/url"
 
 	"log"
 	"math/rand"
@@ -190,6 +189,7 @@ func DoRequest(req *roundtripper.Request, client *http.Client) (int, error) {
 	if err != nil {
 		return 1, err
 	}
+	defer client.CloseIdleConnections()
 	defer resp.Body.Close()
 
 	return resp.StatusCode, nil
