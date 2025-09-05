@@ -46,9 +46,9 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-limit.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
-			// wait until route is reachable to avoid hanging requests
-			client := &http.Client{Timeout: 1 * time.Second}
-			waitLimiterRouteReady(t, suite.GatewayAddress, client)
+			//wait ingress ready
+			time.Sleep(1 * time.Second)
+			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
 			TestRps10Burst3(t, suite.GatewayAddress, client)
@@ -56,26 +56,6 @@ var HttpRouteLimiter = suite.ConformanceTest{
 			TestRpm10Burst3(t, suite.GatewayAddress, client)
 		})
 	},
-}
-
-// waitLimiterRouteReady polls a simple request until the limiter route responds
-// with any HTTP status (2xx/4xx/5xx), or times out after 90s.
-func waitLimiterRouteReady(t *testing.T, gwAddr string, client *http.Client) {
-	t.Helper()
-	deadline := time.Now().Add(90 * time.Second)
-	for {
-		if time.Now().After(deadline) {
-			t.Fatalf("limiter route not ready within timeout")
-		}
-		u := &url.URL{Scheme: "http", Host: gwAddr, Path: "/rps10"}
-		r, _ := http.NewRequest("GET", u.String(), nil)
-		r.Host = "limiter.higress.io"
-		if resp, err := client.Do(r); err == nil {
-			resp.Body.Close()
-			return
-		}
-		time.Sleep(1 * time.Second)
-	}
 }
 
 // TestRps10 test case 1: rps10
@@ -221,8 +201,7 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 	result := &Result{
 		Requests: times,
 	}
-	// Ensure the runner always completes within a bounded time window to avoid test timeouts.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	startTime := time.Now()
 	for i := 0; i < threads; i++ {
@@ -248,24 +227,13 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 				if statusCode >= 200 && statusCode < 300 {
 					atomic.AddInt32(&result.Success, 1)
 				} else {
-					// brief backoff on non-2xx to reduce tight loops, but don't block too long
-					select {
-					case <-ctx.Done():
-						return
-					case <-time.After(1 * time.Millisecond):
-					}
+					time.Sleep(50 * time.Millisecond)
 				}
 			}
 		}()
 	}
 
-	done := make(chan struct{})
-	go func() { wg.Wait(); close(done) }()
-	select {
-	case <-done:
-	case <-ctx.Done():
-		// timed out; proceed to compute metrics with partial results
-	}
+	wg.Wait()
 	result.TotalCostMs = time.Since(startTime).Nanoseconds() / 1e6
 	result.SuccessRps = float64(result.Success) * 1000 / float64(result.TotalCostMs)
 	result.ActualRps = float64(result.Requests) * 1000 / float64(result.TotalCostMs)
