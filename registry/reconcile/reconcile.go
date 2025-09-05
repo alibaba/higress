@@ -28,6 +28,7 @@ import (
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
 	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	higressmcpserver "github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/pkg/kube"
 	. "github.com/alibaba/higress/registry"
@@ -47,25 +48,29 @@ const (
 
 type Reconciler struct {
 	memory.Cache
-	registries    map[string]*apiv1.RegistryConfig
-	proxies       map[string]*apiv1.ProxyConfig
-	watchers      map[string]Watcher
-	serviceUpdate func()
-	client        kube.Client
-	namespace     string
-	clusterId     string
+	registries      map[string]*apiv1.RegistryConfig
+	proxies         map[string]*apiv1.ProxyConfig
+	watchers        map[string]Watcher
+	serviceUpdate   func()
+	client          kube.Client
+	namespace       string
+	clusterId       string
+	mcpbridgeLister listersv1.McpBridgeLister
 }
 
 func NewReconciler(serviceUpdate func(), client kube.Client, namespace, clusterId string) *Reconciler {
+	informerFactory := client.HigressInformer()
+	mcpbridgeLister := informerFactory.Networking().V1().McpBridges().Lister()
 	return &Reconciler{
-		Cache:         memory.NewCache(),
-		registries:    make(map[string]*apiv1.RegistryConfig),
-		proxies:       make(map[string]*apiv1.ProxyConfig),
-		watchers:      make(map[string]Watcher),
-		serviceUpdate: serviceUpdate,
-		client:        client,
-		namespace:     namespace,
-		clusterId:     clusterId,
+		Cache:           memory.NewCache(),
+		registries:      make(map[string]*apiv1.RegistryConfig),
+		proxies:         make(map[string]*apiv1.ProxyConfig),
+		watchers:        make(map[string]Watcher),
+		serviceUpdate:   serviceUpdate,
+		client:          client,
+		namespace:       namespace,
+		clusterId:       clusterId,
+		mcpbridgeLister: mcpbridgeLister,
 	}
 }
 
@@ -196,6 +201,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 	case string(Nacos):
 		watcher, err = nacos.NewWatcher(
 			r.Cache,
+			r.namespace,
 			nacos.WithType(registry.Type),
 			nacos.WithName(registry.Name),
 			nacos.WithDomain(registry.Domain),
@@ -205,10 +211,12 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacos.WithNacosGroups(registry.NacosGroups),
 			nacos.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacos.WithAuthOption(authOption),
+			nacos.WithMcpBridgeLister(r.mcpbridgeLister),
 		)
 	case string(Nacos2), string(Nacos3):
 		watcher, err = nacosv2.NewWatcher(
 			r.Cache,
+			r.namespace,
 			nacosv2.WithType(registry.Type),
 			nacosv2.WithName(registry.Name),
 			nacosv2.WithNacosAddressServer(registry.NacosAddressServer),
@@ -226,6 +234,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithClusterId(r.clusterId),
 			nacosv2.WithNamespace(r.namespace),
 			nacosv2.WithAuthOption(authOption),
+			nacosv2.WithMcpBridgeLister(r.mcpbridgeLister),
 		)
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
@@ -262,10 +271,12 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 	case string(Eureka):
 		watcher, err = eureka.NewWatcher(
 			r.Cache,
+			r.namespace,
 			eureka.WithName(registry.Name),
 			eureka.WithDomain(registry.Domain),
 			eureka.WithType(registry.Type),
 			eureka.WithPort(registry.Port),
+			eureka.WithMcpBridgeLister(r.mcpbridgeLister),
 		)
 	default:
 		return nil, errors.New("unsupported registry type:" + registry.Type)

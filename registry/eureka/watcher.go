@@ -26,6 +26,7 @@ import (
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
 	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 	provider "github.com/alibaba/higress/registry"
@@ -51,21 +52,24 @@ type watcher struct {
 	isStop               bool
 	updateCacheWhenEmpty bool
 
-	eurekaClient              EurekaHttpClient
-	fullRefreshIntervalLimit  time.Duration
-	deltaRefreshIntervalLimit time.Duration
+	eurekaClient               EurekaHttpClient
+	fullRefreshIntervalLimit   time.Duration
+	deltaRefreshIntervalLimit  time.Duration
+	mcpbridgeLister            listersv1.McpBridgeLister
+	registryReconcileNamespace string
 }
 
 type WatcherOption func(w *watcher)
 
-func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, error) {
+func NewWatcher(cache memory.Cache, registryReconcileNs string, opts ...WatcherOption) (provider.Watcher, error) {
 	w := &watcher{
-		WatchingServices: make(map[string]*Plan),
-		RegistryType:     provider.Eureka,
-		Status:           provider.UnHealthy,
-		cache:            cache,
-		mutex:            &sync.Mutex{},
-		stop:             make(chan struct{}),
+		WatchingServices:           make(map[string]*Plan),
+		RegistryType:               provider.Eureka,
+		Status:                     provider.UnHealthy,
+		cache:                      cache,
+		mutex:                      &sync.Mutex{},
+		stop:                       make(chan struct{}),
+		registryReconcileNamespace: registryReconcileNs,
 	}
 
 	w.fullRefreshIntervalLimit = DefaultFullRefreshIntervalLimit
@@ -79,6 +83,12 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	w.eurekaClient = NewEurekaHttpClient(cfg)
 
 	return w, nil
+}
+
+func WithMcpBridgeLister(lister listersv1.McpBridgeLister) WatcherOption {
+	return func(w *watcher) {
+		w.mcpbridgeLister = lister
+	}
 }
 
 func WithEurekaFullRefreshInterval(refreshInterval int64) WatcherOption {
@@ -200,7 +210,7 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 		defer w.UpdateService()
 
 		if len(service.Instances) != 0 {
-			se, err := generateServiceEntry(service)
+			se, err := w.generateServiceEntry(service)
 			if err != nil {
 				return err
 			}
@@ -252,10 +262,15 @@ func convertMap(m map[string]interface{}) map[string]string {
 	return result
 }
 
-func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
+func (w *watcher) generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
-
+	mcpbridge, err := w.mcpbridgeLister.McpBridges(w.registryReconcileNamespace).Get(provider.DefaultMCPBridgeName)
+	if err != nil {
+		log.Errorf("get mcpbrige of %s in namespace % failed with err: %v", provider.DefaultMCPBridgeName, w.registryReconcileNamespace, err)
+		return nil, err
+	}
+	sePort := provider.GenerateSEPort(w.Type, w.Name, makeHost(app.Name), mcpbridge)
 	for _, instance := range app.Instances {
 		protocol := common.HTTP
 		if val, _ := instance.Metadata.GetString("protocol"); val != "" {
@@ -269,7 +284,13 @@ func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error
 			Protocol: protocol.String(),
 		}
 		if len(portList) == 0 {
-			portList = append(portList, port)
+			if sePort != nil {
+				sePort.Name = port.Name
+				sePort.Protocol = port.Protocol
+				portList = append(portList, sePort)
+			} else {
+				portList = append(portList, port)
+			}
 		}
 		endpoint := v1alpha3.WorkloadEntry{
 			Address: instance.IPAddr,

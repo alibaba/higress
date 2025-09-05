@@ -34,6 +34,7 @@ import (
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
 	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 	"github.com/alibaba/higress/registry"
@@ -62,33 +63,36 @@ const (
 type watcher struct {
 	provider.BaseWatcher
 	apiv1.RegistryConfig
-	WatchingServices     map[string]bool              `json:"watching_services"`
-	RegistryType         provider.ServiceRegistryType `json:"registry_type"`
-	Status               provider.WatcherStatus       `json:"status"`
-	namingClient         naming_client.INamingClient
-	cache                memory.Cache
-	mutex                *sync.Mutex
-	stop                 chan struct{}
-	isStop               bool
-	addrProvider         *address.NacosAddressProvider
-	updateCacheWhenEmpty bool
-	nacosClientConfig    *constant.ClientConfig
-	authOption           provider.AuthOption
-	namespace            string
-	clusterId            string
-	mcpWatcher           provider.Watcher
+	WatchingServices           map[string]bool              `json:"watching_services"`
+	RegistryType               provider.ServiceRegistryType `json:"registry_type"`
+	Status                     provider.WatcherStatus       `json:"status"`
+	namingClient               naming_client.INamingClient
+	cache                      memory.Cache
+	mutex                      *sync.Mutex
+	stop                       chan struct{}
+	isStop                     bool
+	addrProvider               *address.NacosAddressProvider
+	updateCacheWhenEmpty       bool
+	nacosClientConfig          *constant.ClientConfig
+	authOption                 provider.AuthOption
+	namespace                  string
+	clusterId                  string
+	mcpWatcher                 provider.Watcher
+	mcpbridgeLister            listersv1.McpBridgeLister
+	registryReconcileNamespace string
 }
 
 type WatcherOption func(w *watcher)
 
-func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, error) {
+func NewWatcher(cache memory.Cache, registryReconcileNs string, opts ...WatcherOption) (provider.Watcher, error) {
 	w := &watcher{
-		WatchingServices: make(map[string]bool),
-		RegistryType:     provider.Nacos2,
-		Status:           provider.UnHealthy,
-		cache:            cache,
-		mutex:            &sync.Mutex{},
-		stop:             make(chan struct{}),
+		WatchingServices:           make(map[string]bool),
+		RegistryType:               provider.Nacos2,
+		Status:                     provider.UnHealthy,
+		cache:                      cache,
+		mutex:                      &sync.Mutex{},
+		stop:                       make(chan struct{}),
+		registryReconcileNamespace: registryReconcileNs,
 	}
 
 	w.NacosRefreshInterval = int64(DefaultRefreshInterval)
@@ -193,6 +197,12 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		return nil, errors.New("new nacos2 watcher timeout")
 	case <-success:
 		return w, nil
+	}
+}
+
+func WithMcpBridgeLister(lister listersv1.McpBridgeLister) WatcherOption {
+	return func(w *watcher) {
+		w.mcpbridgeLister = lister
 	}
 }
 
@@ -530,6 +540,12 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 	isDnsService := false
 
+	mcpbridge, err := w.mcpbridgeLister.McpBridges(w.registryReconcileNamespace).Get(provider.DefaultMCPBridgeName)
+	if err != nil {
+		log.Errorf("get mcpbrige of %s in namespace % failed with err: %v", provider.DefaultMCPBridgeName, w.registryReconcileNamespace, err)
+		return nil
+	}
+	sePort := provider.GenerateSEPort(w.Type, w.Name, host, mcpbridge)
 	for _, service := range services {
 		protocol := common.HTTP
 		if service.Metadata != nil && service.Metadata["protocol"] != "" {
@@ -542,6 +558,13 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 		}
 		if len(portList) == 0 {
 			portList = append(portList, port)
+			if sePort != nil {
+				sePort.Name = port.Name
+				sePort.Protocol = port.Protocol
+				portList = append(portList, sePort)
+			} else {
+				portList = append(portList, port)
+			}
 		}
 		if !isValidIP(service.Ip) {
 			isDnsService = true

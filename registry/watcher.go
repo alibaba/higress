@@ -15,7 +15,12 @@
 package registry
 
 import (
+	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	"istio.io/api/networking/v1alpha3"
+	"istio.io/pkg/log"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -31,7 +36,8 @@ const (
 	Healthy   WatcherStatus       = "healthy"
 	UnHealthy WatcherStatus       = "unhealthy"
 
-	DefaultDialTimeout = time.Second * 3
+	DefaultDialTimeout   = time.Second * 3
+	DefaultMCPBridgeName = "default"
 )
 
 type ServiceRegistryType string
@@ -88,4 +94,45 @@ func ProbeWatcherStatus(host string, port string) WatcherStatus {
 	}
 	_ = conn.Close()
 	return Healthy
+}
+
+func GenerateSEPort(registerType, registerName, appName string, mcpBridge *v1.McpBridge) *v1alpha3.ServicePort {
+	registers := mcpBridge.Spec.Registries
+	for _, register := range registers {
+		if register.Type == registerType && register.Name == registerName {
+			log.Debugf("Registry mcp Watcher is ready, type:%s, name:%s", register.Type, register.Name)
+			vport := register.Vport
+			if vport == nil {
+				log.Warnf("there is no vport exist for %s, skip", appName)
+				break
+			}
+			if vport, ok := getServiceVport(appName, vport); ok {
+				return &v1alpha3.ServicePort{
+					Number: vport,
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func getServiceVport(host string, vport *apiv1.RegistryConfig_VPort) (uint32, bool) {
+	if vport == nil {
+		log.Warnf("there is no vport exist, skip")
+		return 0, false
+	}
+	for _, service := range vport.Services {
+		if strings.EqualFold(service.Name, host) && isValidPort(service.Value) {
+			return service.Value, true
+		}
+	}
+	if isValidPort(vport.Default) {
+		log.Debugf("there is no vport default port exist, use default port %d", vport.Default)
+		return vport.Default, true
+	}
+	return 0, false
+}
+
+func isValidPort(port uint32) bool {
+	return port > 0 && port <= 65535
 }

@@ -332,6 +332,20 @@ spec:
                       type: string
                     type:
                       type: string
+                    vport:
+                      properties:
+                        default:
+                          type: integer
+                        services:
+                          items:
+                            properties:
+                              name:
+                                type: string
+                              value:
+                                type: integer
+                            type: object
+                          type: array
+                      type: object
                     zkServicesPath:
                       items:
                         type: string

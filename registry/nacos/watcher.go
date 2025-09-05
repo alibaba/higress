@@ -29,6 +29,7 @@ import (
 	"istio.io/pkg/log"
 
 	apiv1 "github.com/alibaba/higress/api/networking/v1"
+	listersv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/pkg/common"
 	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
 	provider "github.com/alibaba/higress/registry"
@@ -53,28 +54,31 @@ const (
 type watcher struct {
 	provider.BaseWatcher
 	apiv1.RegistryConfig
-	WatchingServices     map[string]bool              `json:"watching_services"`
-	RegistryType         provider.ServiceRegistryType `json:"registry_type"`
-	Status               provider.WatcherStatus       `json:"status"`
-	namingClient         naming_client.INamingClient
-	cache                memory.Cache
-	mutex                *sync.Mutex
-	stop                 chan struct{}
-	isStop               bool
-	updateCacheWhenEmpty bool
-	authOption           provider.AuthOption
+	WatchingServices           map[string]bool              `json:"watching_services"`
+	RegistryType               provider.ServiceRegistryType `json:"registry_type"`
+	Status                     provider.WatcherStatus       `json:"status"`
+	namingClient               naming_client.INamingClient
+	cache                      memory.Cache
+	mutex                      *sync.Mutex
+	stop                       chan struct{}
+	isStop                     bool
+	updateCacheWhenEmpty       bool
+	authOption                 provider.AuthOption
+	mcpbridgeLister            listersv1.McpBridgeLister
+	registryReconcileNamespace string
 }
 
 type WatcherOption func(w *watcher)
 
-func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, error) {
+func NewWatcher(cache memory.Cache, registryReconcileNs string, opts ...WatcherOption) (provider.Watcher, error) {
 	w := &watcher{
-		WatchingServices: make(map[string]bool),
-		RegistryType:     provider.Nacos,
-		Status:           provider.UnHealthy,
-		cache:            cache,
-		mutex:            &sync.Mutex{},
-		stop:             make(chan struct{}),
+		WatchingServices:           make(map[string]bool),
+		RegistryType:               provider.Nacos,
+		Status:                     provider.UnHealthy,
+		cache:                      cache,
+		mutex:                      &sync.Mutex{},
+		stop:                       make(chan struct{}),
+		registryReconcileNamespace: registryReconcileNs,
 	}
 
 	w.NacosRefreshInterval = int64(DefaultRefreshInterval)
@@ -117,6 +121,12 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	w.namingClient = namingClient
 
 	return w, nil
+}
+
+func WithMcpBridgeLister(lister listersv1.McpBridgeLister) WatcherOption {
+	return func(w *watcher) {
+		w.mcpbridgeLister = lister
+	}
 }
 
 func WithNacosNamespaceId(nacosNamespaceId string) WatcherOption {
@@ -326,6 +336,12 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 func (w *watcher) generateServiceEntry(host string, services []model.SubscribeService) *v1alpha3.ServiceEntry {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
+	mcpbridge, err := w.mcpbridgeLister.McpBridges(w.registryReconcileNamespace).Get(provider.DefaultMCPBridgeName)
+	if err != nil {
+		log.Errorf("get mcpbrige of %s in namespace % failed with err: %v", provider.DefaultMCPBridgeName, w.registryReconcileNamespace, err)
+		return nil
+	}
+	sePort := provider.GenerateSEPort(w.Type, w.Name, host, mcpbridge)
 
 	for _, service := range services {
 		protocol := common.HTTP
@@ -340,7 +356,13 @@ func (w *watcher) generateServiceEntry(host string, services []model.SubscribeSe
 			Protocol: protocol.String(),
 		}
 		if len(portList) == 0 {
-			portList = append(portList, port)
+			if sePort != nil {
+				sePort.Name = port.Name
+				sePort.Protocol = port.Protocol
+				portList = append(portList, sePort)
+			} else {
+				portList = append(portList, port)
+			}
 		}
 		endpoint := v1alpha3.WorkloadEntry{
 			Address: service.Ip,
