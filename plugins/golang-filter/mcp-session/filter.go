@@ -310,7 +310,7 @@ func (f *filter) encodeDataFromSSEUpstream(buffer api.BufferInstance, endStream 
 		// No endpoint URL found. Need to buffer and check again.
 		f.cachedResponseBody = []byte(combinedData)
 		buffer.Reset()
-		return api.StopAndBufferWatermark
+		return api.Continue
 	}
 	// Clear cached data
 	f.cachedResponseBody = nil
