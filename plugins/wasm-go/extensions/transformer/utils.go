@@ -169,7 +169,6 @@ func parseBody(contentType string, body []byte) (interface{}, error) {
 }
 
 func constructBody(contentType string, body interface{}) ([]byte, error) {
-
 	typ, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return nil, err
