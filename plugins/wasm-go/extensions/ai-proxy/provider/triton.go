@@ -167,6 +167,7 @@ func (t *tritonProvider) ParseResponse2OpenAI(tritonRes *TritonGenerateResponse)
 				Role:    roleAssistant,
 				Content: tritonRes.TextOutput,
 			},
+			FinishReason: util.Ptr(finishReasonStop),
 		}},
 		Model: tritonRes.ModelName,
 	}

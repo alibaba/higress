@@ -1982,6 +1982,57 @@ provider:
   }
 }
 ```
+### 使用 OpenAI 协议代理 NVIDIA Triton Interference Server 服务
+
+**配置信息**
+
+```yaml
+providers:
+  - type: triton
+    tritonDomain: <LOCAL_TRITON_DOMAIN>
+    tritonModelVersion: <MODEL_VERSION>
+    apiTokens:
+      - "****"
+    modelMapping:
+      "*": gpt2
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+**响应示例**
+
+```json
+{
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "我是一个AI模型"
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
+}
+```
+
+
+
+
+
 
 
 ## 完整配置示例
