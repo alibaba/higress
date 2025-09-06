@@ -300,6 +300,15 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 
 AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
 
+| 名称            | 数据类型  | 填写要求 | 默认值 | 描述                           |
+|---------------------------|--------|------|-----|------------------------------|
+| `modelVersion` | string   | 非必填  | -   | 用于指定 Triton Server 中 model version           |
+| `tritonDomain` | string   | 非必填  | -   | Triton Server 部署的指定请求 Domain            |
+
+#### NVIDIA Triton Interference Server
+
+NVIDIA Triton Interference Server 所对应的 type 为 triton。它特有的配置字段如下：
+
 | 名称                        | 数据类型   | 填写要求 | 默认值 | 描述                           |
 |---------------------------|--------|------|-----|------------------------------|
 | `awsAccessKey`            | string | 必填   | -   | AWS Access Key，用于身份认证        |
@@ -1973,6 +1982,57 @@ provider:
   }
 }
 ```
+### 使用 OpenAI 协议代理 NVIDIA Triton Interference Server 服务
+
+**配置信息**
+
+```yaml
+providers:
+  - type: triton
+    tritonDomain: <LOCAL_TRITON_DOMAIN>
+    tritonModelVersion: <MODEL_VERSION>
+    apiTokens:
+      - "****"
+    modelMapping:
+      "*": gpt2
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+**响应示例**
+
+```json
+{
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "我是一个AI模型"
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
+}
+```
+
+
+
+
+
 
 
 ## 完整配置示例

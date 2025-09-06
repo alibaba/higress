@@ -1748,6 +1748,53 @@ provider:
 }
 ```
 
+### Utilizing OpenAI Protocol Proxy for NVIDIA Triton Interference Server Services
+
+**Configuration Information**
+
+```yaml
+providers:
+  - type: triton
+    tritonDomain: <LOCAL_TRITON_DOMAIN>
+    tritonModelVersion: <MODEL_VERSION>
+    apiTokens:
+      - "****"
+    modelMapping:
+      "*": gpt2
+```
+
+**Request Example**
+
+```json
+{
+  "model": "gpt2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi, who are you？"
+    }
+  ],
+  "stream": false
+}
+```
+**Response Example**
+
+```json
+{
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "I am a lagguage model."
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
+}
+```
+
 ## Full Configuration Example
 
 ### Kubernetes Example
