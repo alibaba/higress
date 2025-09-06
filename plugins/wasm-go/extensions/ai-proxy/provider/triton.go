@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -14,9 +15,10 @@ import (
 )
 
 const (
-	tritonChatGenerationPath            = "/v2/models/{MODEL_NAME}/generate"
-	tritonChatGenerationWithVersionPath = "/v2/models/{MODEL_NAME}/versions/{MODEL_VERSION}/generate"
-	tritonChatGenerationStreamPath      = "/v2/models/{MODEL_NAME}[/versions/${MODEL_VERSION}]/generate_stream"
+	tritonChatGenerationPath                  = "/v2/models/{MODEL_NAME}/generate"
+	tritonChatGenerationWithVersionPath       = "/v2/models/{MODEL_NAME}/versions/{MODEL_VERSION}/generate"
+	tritonChatGenerationStreamPath            = "/v2/models/{MODEL_NAME}/versions/generate_stream"
+	tritonChatGenerationStreamWithVersionPath = "/v2/models/{MODEL_NAME}/versions/${MODEL_VERSION}/generate_stream"
 )
 
 type tritonProviderInitializer struct{}
@@ -76,9 +78,10 @@ func (t *tritonProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, ap
 	if err := t.config.parseRequestAndMapModel(ctx, request, body); err != nil {
 		return nil, err
 	}
+
 	tritonRequest := t.BuildTritonTexGenRequest(request)
 
-	finalPath := t.getFinalRequestPath(ctx, request)
+	finalPath := t.getFinalRequestPath(ctx, request, request.Stream)
 	util.OverwriteRequestPathHeader(headers, finalPath)
 	util.OverwriteRequestHostHeader(headers, t.config.tritonDomain)
 	log.Debugf("get current config.tritonDomain: %s", t.config.tritonDomain)
@@ -87,7 +90,7 @@ func (t *tritonProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, ap
 	return json.Marshal(tritonRequest)
 }
 
-func (t *tritonProvider) getFinalRequestPath(ctx wrapper.HttpContext, oriRequest *chatCompletionRequest) string {
+func (t *tritonProvider) getFinalRequestPath(ctx wrapper.HttpContext, oriRequest *chatCompletionRequest, streaming bool) string {
 	res := tritonChatGenerationPath
 	log.Debugf("[Triton Server]: CurrentModelVersion: %s", t.config.tritonModelVersion)
 	if t.config.tritonModelVersion != "" {
@@ -96,6 +99,9 @@ func (t *tritonProvider) getFinalRequestPath(ctx wrapper.HttpContext, oriRequest
 	}
 
 	res = strings.Replace(res, "{MODEL_NAME}", oriRequest.Model, 1)
+	if streaming {
+		res += "_stream"
+	}
 
 	log.Debugf("[Triton Server]: Get final RequestPath: %v", res)
 	return res
@@ -153,11 +159,67 @@ func (t *tritonProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 
 func (t *tritonProvider) ParseResponse2OpenAI(tritonRes *TritonGenerateResponse) *chatCompletionResponse {
 	res := &chatCompletionResponse{
-		Id:      tritonRes.Id,
-		Choices: []chatCompletionChoice{},
-		Created: 0,
-		Model:   tritonRes.ModelName,
-		Usage:   &usage{},
+		Id: tritonRes.Id,
+		Choices: []chatCompletionChoice{{
+			Index: 0,
+			Message: &chatMessage{
+				Id:      "",
+				Role:    roleAssistant,
+				Content: tritonRes.TextOutput,
+			},
+		}},
+		Model: tritonRes.ModelName,
 	}
 	return res
+}
+
+func (t *tritonProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
+	log.Infof("[tritonProvider] receive chunk body: %s", string(chunk))
+	if isLastChunk || len(chunk) == 0 {
+		return nil, nil
+	}
+	if name != ApiNameChatCompletion {
+		return chunk, nil
+	}
+	responseBuilder := &strings.Builder{}
+	lines := strings.Split(string(chunk), "\n")
+	for _, data := range lines {
+		if len(data) < 6 {
+			// ignore blank line or wrong format
+			continue
+		}
+		data = data[6:]
+		var tritonRes TritonGenerateResponse
+		if err := json.Unmarshal([]byte(data), &tritonRes); err != nil {
+			log.Errorf("unable to unmarshal triton response: %v", err)
+			continue
+		}
+		response := t.buildOpenAIStreamResponse(ctx, &tritonRes)
+		responseBody, err := json.Marshal(response)
+		if err != nil {
+			log.Errorf("unable to marshal response: %v", err)
+			return nil, err
+		}
+		responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
+	}
+	modifiedResponseChunk := responseBuilder.String()
+	log.Debugf("[tritonStreamingProvider] modified response chunk: %s", modifiedResponseChunk)
+	return []byte(modifiedResponseChunk), nil
+}
+
+func (t *tritonProvider) buildOpenAIStreamResponse(ctx wrapper.HttpContext, tritonRes *TritonGenerateResponse) *chatCompletionResponse {
+	var choice chatCompletionChoice
+	choice.Delta = &chatMessage{
+		Id:      tritonRes.Id,
+		Content: tritonRes.TextOutput,
+	}
+	streamResponse := chatCompletionResponse{
+		Id:      tritonRes.Id,
+		Object:  objectChatCompletionChunk,
+		Created: time.Now().UnixMilli() / 1000,
+		Model:   tritonRes.ModelName,
+		Choices: []chatCompletionChoice{choice},
+	}
+	return &streamResponse
+
 }
