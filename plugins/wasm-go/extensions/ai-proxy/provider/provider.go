@@ -400,7 +400,7 @@ type ProviderConfig struct {
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
 	// @Title zh-CN Triton Model Version
 	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
-	tritonModelVersion string `required:"false" yaml:"tritonModelName" json:"tritonModelName"`
+	tritonModelVersion string `required:"false" yaml:"tritonModelVersion" json:"tritonModelVersion"`
 	// @Title zh-CN Triton Server 部署的 Domain
 	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
 	tritonDomain string `required:"false" yaml:"tritonDomain" json:"tritonDomain"`
@@ -560,7 +560,6 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.outputVariable = json.Get("outputVariable").String()
 
 	// NVIDIA triton
-	c.tritonModelName = json.Get("tritonModelName").String()
 	c.tritonModelVersion = json.Get("tritonModelVersion").String()
 	c.tritonDomain = json.Get("tritonDomain").String()
 

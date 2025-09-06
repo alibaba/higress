@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	tritonChatGenerationPath            = "v2/models/{MODEL_NAME}/generate"
-	tritonChatGenerationWithVersionPath = "v2/models/{MODEL_NAME}/versions/{MODEL_VERSION}/generate"
-	tritonChatGenerationStreamPath      = "v2/models/{MODEL_NAME}[/versions/${MODEL_VERSION}]/generate_stream"
+	tritonChatGenerationPath            = "/v2/models/{MODEL_NAME}/generate"
+	tritonChatGenerationWithVersionPath = "/v2/models/{MODEL_NAME}/versions/{MODEL_VERSION}/generate"
+	tritonChatGenerationStreamPath      = "/v2/models/{MODEL_NAME}[/versions/${MODEL_VERSION}]/generate_stream"
 )
 
 type tritonProviderInitializer struct{}
@@ -81,6 +81,7 @@ func (t *tritonProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, ap
 	finalPath := t.getFinalRequestPath(ctx, request)
 	util.OverwriteRequestPathHeader(headers, finalPath)
 	util.OverwriteRequestHostHeader(headers, t.config.tritonDomain)
+	log.Debugf("get current config.tritonDomain: %s", t.config.tritonDomain)
 	headers.Del("Content-Length")
 
 	return json.Marshal(tritonRequest)
@@ -88,7 +89,8 @@ func (t *tritonProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, ap
 
 func (t *tritonProvider) getFinalRequestPath(ctx wrapper.HttpContext, oriRequest *chatCompletionRequest) string {
 	res := tritonChatGenerationPath
-	if t.config.tritonModelVersion == "" {
+	log.Debugf("[Triton Server]: CurrentModelVersion: %s", t.config.tritonModelVersion)
+	if t.config.tritonModelVersion != "" {
 		res = tritonChatGenerationWithVersionPath
 		res = strings.Replace(res, "{MODEL_VERSION}", t.config.tritonModelVersion, 1)
 	}
