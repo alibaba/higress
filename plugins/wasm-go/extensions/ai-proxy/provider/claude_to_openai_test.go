@@ -35,7 +35,8 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 	converter := &ClaudeToOpenAIConverter{}
 
 	t.Run("convert_multiple_text_content_blocks", func(t *testing.T) {
-		// Test case for the bug fix: multiple text content blocks should be merged into a single string
+		// Test case: multiple text content blocks should remain as separate array elements with cache control support
+		// Both system and user messages should handle array content format
 		claudeRequest := `{
 			"max_tokens": 32000,
 			"messages": [{
@@ -98,15 +99,64 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 		// First message should be system message (converted from Claude's system field)
 		systemMsg := openaiRequest.Messages[0]
 		assert.Equal(t, roleSystem, systemMsg.Role)
-		assert.Equal(t, "xxx\nyyy", systemMsg.Content) // Claude system uses single \n
 
-		// Second message should be user message with merged text content
+		// System content should now also be an array for multiple text blocks
+		systemContentArray, ok := systemMsg.Content.([]interface{})
+		require.True(t, ok, "System content should be an array for multiple text blocks")
+		require.Len(t, systemContentArray, 2)
+
+		// First system text block
+		firstSystemElement, ok := systemContentArray[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, contentTypeText, firstSystemElement["type"])
+		assert.Equal(t, "xxx", firstSystemElement["text"])
+		assert.NotNil(t, firstSystemElement["cache_control"]) // Has cache control
+		systemCacheControl1, ok := firstSystemElement["cache_control"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "ephemeral", systemCacheControl1["type"])
+
+		// Second system text block
+		secondSystemElement, ok := systemContentArray[1].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, contentTypeText, secondSystemElement["type"])
+		assert.Equal(t, "yyy", secondSystemElement["text"])
+		assert.NotNil(t, secondSystemElement["cache_control"]) // Has cache control
+		systemCacheControl2, ok := secondSystemElement["cache_control"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "ephemeral", systemCacheControl2["type"])
+
+		// Second message should be user message with text content as array
 		userMsg := openaiRequest.Messages[1]
 		assert.Equal(t, "user", userMsg.Role)
 
-		// The key fix: multiple text blocks should be merged into a single string
-		expectedContent := "<system-reminder>\nThis is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>\n\n<system-reminder>\nyyy</system-reminder>\n\n你是谁"
-		assert.Equal(t, expectedContent, userMsg.Content)
+		// The content should now be an array of separate text blocks, not merged
+		contentArray, ok := userMsg.Content.([]interface{})
+		require.True(t, ok, "Content should be an array for multiple text blocks")
+		require.Len(t, contentArray, 3)
+
+		// First text block
+		firstElement, ok := contentArray[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, contentTypeText, firstElement["type"])
+		assert.Equal(t, "<system-reminder>\nThis is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.</system-reminder>", firstElement["text"])
+		assert.Nil(t, firstElement["cache_control"]) // No cache control for first block
+
+		// Second text block
+		secondElement, ok := contentArray[1].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, contentTypeText, secondElement["type"])
+		assert.Equal(t, "<system-reminder>\nyyy</system-reminder>", secondElement["text"])
+		assert.Nil(t, secondElement["cache_control"]) // No cache control for second block
+
+		// Third text block with cache control
+		thirdElement, ok := contentArray[2].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, contentTypeText, thirdElement["type"])
+		assert.Equal(t, "你是谁", thirdElement["text"])
+		assert.NotNil(t, thirdElement["cache_control"]) // Has cache control
+		cacheControl, ok := thirdElement["cache_control"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "ephemeral", cacheControl["type"])
 	})
 
 	t.Run("convert_mixed_content_with_image", func(t *testing.T) {
