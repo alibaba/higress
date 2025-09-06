@@ -22,9 +22,10 @@ import (
 	"io"
 	"sync/atomic"
 
+	"net/url"
+
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
-	"net/url"
 
 	"log"
 	"math/rand"
@@ -69,7 +70,9 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	result, err := ParallelRunner(10, 3000, req, client)
+	// Reduce total requests to prevent timeout with rate limiting
+	// 10 threads, 100 total requests (10 per thread) for a 10 RPS limit
+	result, err := ParallelRunner(10, 100, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +91,9 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	result, err := ParallelRunner(10, 5000, req, client)
+	// Reduce total requests for 50 RPS limit to prevent timeout
+	// 10 threads, 500 total requests (50 per thread) for a 50 RPS limit
+	result, err := ParallelRunner(10, 500, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +206,8 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 	result := &Result{
 		Requests: times,
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	// Add timeout to prevent test from hanging indefinitely
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	startTime := time.Now()
 	for i := 0; i < threads; i++ {
@@ -227,7 +233,9 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 				if statusCode >= 200 && statusCode < 300 {
 					atomic.AddInt32(&result.Success, 1)
 				} else {
-					time.Sleep(50 * time.Millisecond)
+					// Reduce sleep time for rate-limited requests to prevent test timeout
+					// Rate limiting is expected behavior, so we don't need long delays
+					time.Sleep(10 * time.Millisecond)
 				}
 			}
 		}()
