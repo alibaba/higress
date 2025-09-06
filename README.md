@@ -21,7 +21,7 @@
 &nbsp; [**Wasm Plugin Hub**](https://higress.cn/en/plugin/) &nbsp; |
 
 <p>
-   English | <a href="README_ZH.md">中文<a/> | <a href="README_JP.md">日本語<a/>
+   English | <a href="README_ZH.md">中文</a> | <a href="README_JP.md">日本語</a>
 </p>
 
 ## What is Higress?

@@ -12,7 +12,8 @@ ARG TARGETARCH
 # This base image is provided by istio, see: https://github.com/istio/istio/blob/master/docker/Dockerfile.base
 FROM ${HUB}/base:${BASE_VERSION}-${TARGETARCH}
 
-COPY ${TARGETARCH:-amd64}/higress /usr/local/bin/higress
+ARG TARGETARCH
+COPY ${TARGETARCH}/higress /usr/local/bin/higress
 
 USER 1337:1337
 
