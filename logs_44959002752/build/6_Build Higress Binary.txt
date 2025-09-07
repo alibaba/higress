@@ -1,0 +1,44 @@
+﻿2025-09-07T11:50:28.4189616Z ##[group]Run GOPROXY="https://proxy.golang.org,direct" make build
+2025-09-07T11:50:28.4190126Z [36;1mGOPROXY="https://proxy.golang.org,direct" make build[0m
+2025-09-07T11:50:28.4220957Z shell: /usr/bin/bash -e {0}
+2025-09-07T11:50:28.4221204Z ##[endgroup]
+2025-09-07T11:50:28.5054856Z git submodule update --init
+2025-09-07T11:50:28.5461654Z Submodule 'envoy/envoy' (https://github.com/higress-group/envoy) registered for path 'envoy/envoy'
+2025-09-07T11:50:28.5466686Z Submodule 'envoy/go-control-plane' (https://github.com/higress-group/go-control-plane) registered for path 'envoy/go-control-plane'
+2025-09-07T11:50:28.5470835Z Submodule 'istio/api' (https://github.com/higress-group/api) registered for path 'istio/api'
+2025-09-07T11:50:28.5497198Z Submodule 'istio/client-go' (https://github.com/higress-group/client-go) registered for path 'istio/client-go'
+2025-09-07T11:50:28.5501746Z Submodule 'istio/istio' (https://github.com/higress-group/istio) registered for path 'istio/istio'
+2025-09-07T11:50:28.5505924Z Submodule 'istio/pkg' (https://github.com/higress-group/pkg) registered for path 'istio/pkg'
+2025-09-07T11:50:28.5510505Z Submodule 'istio/proxy' (https://github.com/higress-group/proxy) registered for path 'istio/proxy'
+2025-09-07T11:50:28.5536667Z Cloning into '/home/runner/work/higress/higress/envoy/envoy'...
+2025-09-07T11:50:31.6486668Z Cloning into '/home/runner/work/higress/higress/envoy/go-control-plane'...
+2025-09-07T11:50:33.1538423Z Cloning into '/home/runner/work/higress/higress/istio/api'...
+2025-09-07T11:50:34.1100320Z Cloning into '/home/runner/work/higress/higress/istio/client-go'...
+2025-09-07T11:50:34.8638631Z Cloning into '/home/runner/work/higress/higress/istio/istio'...
+2025-09-07T11:50:36.4032078Z Cloning into '/home/runner/work/higress/higress/istio/pkg'...
+2025-09-07T11:50:36.9108069Z Cloning into '/home/runner/work/higress/higress/istio/proxy'...
+2025-09-07T11:50:38.1410023Z Submodule path 'envoy/envoy': checked out '7f18940fbc390f7ca1be76d86dd8615c4c5009ce'
+2025-09-07T11:50:38.2794129Z Submodule path 'envoy/go-control-plane': checked out '0ab56e249a3446c6fbdc39be9d45b9e3fd3a2e3e'
+2025-09-07T11:50:38.3395625Z Submodule path 'istio/api': checked out 'd54f2e0f423d136b51fa4aeddccdb98c09c41ab2'
+2025-09-07T11:50:38.3644663Z Submodule path 'istio/client-go': checked out '9b3841d7dec61c18b474c3d3f2349cf81187e52d'
+2025-09-07T11:50:38.6686342Z Submodule path 'istio/istio': checked out 'fa8896cf3372218cf41b9b2b37c9134aae88874c'
+2025-09-07T11:50:38.6928903Z Submodule path 'istio/pkg': checked out '15c662994e6515201dc106a2ec3de85ed50e8078'
+2025-09-07T11:50:38.7207049Z Submodule path 'istio/proxy': checked out 'ced6d8167a01fe1c1630b3df0ac39e1b563f05dc'
+2025-09-07T11:50:38.7213636Z ./tools/hack/prebuild.sh
+2025-09-07T11:50:40.6712586Z GOPROXY="https://proxy.golang.org,direct" GOOS=linux GOARCH=amd64 LDFLAGS='-X github.com/alibaba/higress/pkg/cmd/lversion.higressVersion=v2.1.7 -X github.com/alibaba/higress/pkg/cmd/lversion.gitCommitID=e6a06911c6783201f94dcf8972a3c644cd326c93 -extldflags -static -s -w' tools/hack/gobuild.sh /home/runner/work/higress/higress/out/linux_amd64/ ./cmd/higress
+2025-09-07T11:50:41.1836219Z 
+2025-09-07T11:50:41.1837135Z istio.io/pkg/version.buildVersion=e6a06911c6783201f94dcf8972a3c644cd326c93
+2025-09-07T11:50:41.1837875Z 
+2025-09-07T11:50:41.1838235Z istio.io/pkg/version.buildGitRevision=e6a06911c6783201f94dcf8972a3c644cd326c93
+2025-09-07T11:50:41.1838780Z 
+2025-09-07T11:50:41.1838991Z istio.io/pkg/version.buildStatus=Clean
+2025-09-07T11:50:41.1839342Z 
+2025-09-07T11:50:41.1839542Z istio.io/pkg/version.buildTag=v2.1.7
+2025-09-07T11:50:41.1839854Z 
+2025-09-07T11:50:41.1840318Z istio.io/pkg/version.buildHub=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+2025-09-07T11:50:41.1841100Z ~/work/higress/higress ~/work/higress/higress
+2025-09-07T11:52:31.8332861Z 
+2025-09-07T11:52:31.8333426Z real	1m50.649s
+2025-09-07T11:52:31.8333918Z ~/work/higress/higress
+2025-09-07T11:52:31.8334889Z user	6m22.531s
+2025-09-07T11:52:31.8335273Z sys	0m30.673s

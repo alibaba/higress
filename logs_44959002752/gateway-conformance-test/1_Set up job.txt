@@ -1,0 +1,41 @@
+﻿2025-09-07T11:52:42.4813246Z Current runner version: '2.328.0'
+2025-09-07T11:52:42.4846469Z ##[group]Runner Image Provisioner
+2025-09-07T11:52:42.4847666Z Hosted Compute Agent
+2025-09-07T11:52:42.4848471Z Version: 20250829.383
+2025-09-07T11:52:42.4849534Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+2025-09-07T11:52:42.4850583Z Build Date: 2025-08-29T13:48:48Z
+2025-09-07T11:52:42.4851513Z ##[endgroup]
+2025-09-07T11:52:42.4852467Z ##[group]Operating System
+2025-09-07T11:52:42.4853335Z Ubuntu
+2025-09-07T11:52:42.4854205Z 24.04.3
+2025-09-07T11:52:42.4854942Z LTS
+2025-09-07T11:52:42.4855852Z ##[endgroup]
+2025-09-07T11:52:42.4856540Z ##[group]Runner Image
+2025-09-07T11:52:42.4857605Z Image: ubuntu-24.04
+2025-09-07T11:52:42.4858391Z Version: 20250831.1.0
+2025-09-07T11:52:42.4860006Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250831.1/images/ubuntu/Ubuntu2404-Readme.md
+2025-09-07T11:52:42.4862328Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250831.1
+2025-09-07T11:52:42.4864285Z ##[endgroup]
+2025-09-07T11:52:42.4868503Z ##[group]GITHUB_TOKEN Permissions
+2025-09-07T11:52:42.4871216Z Actions: read
+2025-09-07T11:52:42.4872013Z Attestations: read
+2025-09-07T11:52:42.4872790Z Checks: read
+2025-09-07T11:52:42.4873595Z Contents: read
+2025-09-07T11:52:42.4874509Z Deployments: read
+2025-09-07T11:52:42.4875549Z Discussions: read
+2025-09-07T11:52:42.4876430Z Issues: read
+2025-09-07T11:52:42.4877165Z Metadata: read
+2025-09-07T11:52:42.4877995Z Models: read
+2025-09-07T11:52:42.4878880Z Packages: read
+2025-09-07T11:52:42.4879636Z Pages: read
+2025-09-07T11:52:42.4880423Z PullRequests: read
+2025-09-07T11:52:42.4881325Z RepositoryProjects: read
+2025-09-07T11:52:42.4882250Z SecurityEvents: read
+2025-09-07T11:52:42.4883127Z Statuses: read
+2025-09-07T11:52:42.4884045Z ##[endgroup]
+2025-09-07T11:52:42.4887137Z Secret source: None
+2025-09-07T11:52:42.4888174Z Prepare workflow directory
+2025-09-07T11:52:42.5363768Z Prepare all required actions
+2025-09-07T11:52:42.5423323Z Getting action download info
+2025-09-07T11:52:42.8204200Z Download action repository 'actions/checkout@v3' (SHA:f43a0e5ff2bd294095638e18286ca9a3d1956744)
+2025-09-07T11:52:43.0867782Z Complete job name: gateway-conformance-test

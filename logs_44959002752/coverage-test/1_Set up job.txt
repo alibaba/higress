@@ -1,0 +1,44 @@
+﻿2025-09-07T11:46:52.5715791Z Current runner version: '2.328.0'
+2025-09-07T11:46:52.5740347Z ##[group]Runner Image Provisioner
+2025-09-07T11:46:52.5741177Z Hosted Compute Agent
+2025-09-07T11:46:52.5741711Z Version: 20250829.383
+2025-09-07T11:46:52.5742399Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+2025-09-07T11:46:52.5743086Z Build Date: 2025-08-29T13:48:48Z
+2025-09-07T11:46:52.5743640Z ##[endgroup]
+2025-09-07T11:46:52.5744268Z ##[group]Operating System
+2025-09-07T11:46:52.5744796Z Ubuntu
+2025-09-07T11:46:52.5745276Z 24.04.3
+2025-09-07T11:46:52.5745938Z LTS
+2025-09-07T11:46:52.5746426Z ##[endgroup]
+2025-09-07T11:46:52.5746890Z ##[group]Runner Image
+2025-09-07T11:46:52.5747516Z Image: ubuntu-24.04
+2025-09-07T11:46:52.5748039Z Version: 20250831.1.0
+2025-09-07T11:46:52.5748996Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250831.1/images/ubuntu/Ubuntu2404-Readme.md
+2025-09-07T11:46:52.5750416Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250831.1
+2025-09-07T11:46:52.5751631Z ##[endgroup]
+2025-09-07T11:46:52.5753981Z ##[group]GITHUB_TOKEN Permissions
+2025-09-07T11:46:52.5756517Z Actions: read
+2025-09-07T11:46:52.5757208Z Attestations: read
+2025-09-07T11:46:52.5757713Z Checks: read
+2025-09-07T11:46:52.5758199Z Contents: read
+2025-09-07T11:46:52.5758636Z Deployments: read
+2025-09-07T11:46:52.5759223Z Discussions: read
+2025-09-07T11:46:52.5759732Z Issues: read
+2025-09-07T11:46:52.5760196Z Metadata: read
+2025-09-07T11:46:52.5760720Z Models: read
+2025-09-07T11:46:52.5761217Z Packages: read
+2025-09-07T11:46:52.5761671Z Pages: read
+2025-09-07T11:46:52.5762215Z PullRequests: read
+2025-09-07T11:46:52.5762783Z RepositoryProjects: read
+2025-09-07T11:46:52.5763304Z SecurityEvents: read
+2025-09-07T11:46:52.5763978Z Statuses: read
+2025-09-07T11:46:52.5764445Z ##[endgroup]
+2025-09-07T11:46:52.5766871Z Secret source: None
+2025-09-07T11:46:52.5767928Z Prepare workflow directory
+2025-09-07T11:46:52.6106649Z Prepare all required actions
+2025-09-07T11:46:52.6145609Z Getting action download info
+2025-09-07T11:46:53.0276820Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-09-07T11:46:53.2032387Z Download action repository 'actions/setup-go@v5' (SHA:d35c59abb061a4a6fb18e82ac0862c26744d6ab5)
+2025-09-07T11:46:53.7432632Z Download action repository 'actions/cache@v4' (SHA:0400d5f644dc74513175e3cd8d07132dd4860809)
+2025-09-07T11:46:53.8410285Z Download action repository 'codecov/codecov-action@v4' (SHA:b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238)
+2025-09-07T11:46:54.3593058Z Complete job name: coverage-test

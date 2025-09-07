@@ -1,0 +1,85 @@
+﻿2025-09-07T11:49:47.9106856Z ##[group]Run actions/checkout@v4
+2025-09-07T11:49:47.9108330Z with:
+2025-09-07T11:49:47.9109053Z   fetch-depth: 2
+2025-09-07T11:49:47.9109811Z   repository: alibaba/higress
+2025-09-07T11:49:47.9110944Z   token: ***
+2025-09-07T11:49:47.9111638Z   ssh-strict: true
+2025-09-07T11:49:47.9112363Z   ssh-user: git
+2025-09-07T11:49:47.9113119Z   persist-credentials: true
+2025-09-07T11:49:47.9113964Z   clean: true
+2025-09-07T11:49:47.9114764Z   sparse-checkout-cone-mode: true
+2025-09-07T11:49:47.9115703Z   fetch-tags: false
+2025-09-07T11:49:47.9116452Z   show-progress: true
+2025-09-07T11:49:47.9117199Z   lfs: false
+2025-09-07T11:49:47.9118009Z   submodules: false
+2025-09-07T11:49:47.9118772Z   set-safe-directory: true
+2025-09-07T11:49:47.9119821Z ##[endgroup]
+2025-09-07T11:49:48.0193430Z Syncing repository: alibaba/higress
+2025-09-07T11:49:48.0196166Z ##[group]Getting Git version info
+2025-09-07T11:49:48.0197686Z Working directory is '/home/runner/work/higress/higress'
+2025-09-07T11:49:48.0199506Z [command]/usr/bin/git version
+2025-09-07T11:49:48.0240814Z git version 2.51.0
+2025-09-07T11:49:48.0266786Z ##[endgroup]
+2025-09-07T11:49:48.0281762Z Temporarily overriding HOME='/home/runner/work/_temp/b62fea17-f5c2-469e-87d6-751a63fbdb49' before making global git config changes
+2025-09-07T11:49:48.0284760Z Adding repository directory to the temporary git global config as a safe directory
+2025-09-07T11:49:48.0287652Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/higress/higress
+2025-09-07T11:49:48.0318983Z Deleting the contents of '/home/runner/work/higress/higress'
+2025-09-07T11:49:48.0322634Z ##[group]Initializing the repository
+2025-09-07T11:49:48.0326243Z [command]/usr/bin/git init /home/runner/work/higress/higress
+2025-09-07T11:49:48.0393630Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-09-07T11:49:48.0396875Z hint: is subject to change. To configure the initial branch name to use in all
+2025-09-07T11:49:48.0399071Z hint: of your new repositories, which will suppress this warning, call:
+2025-09-07T11:49:48.0400562Z hint:
+2025-09-07T11:49:48.0401915Z hint: 	git config --global init.defaultBranch <name>
+2025-09-07T11:49:48.0403194Z hint:
+2025-09-07T11:49:48.0404399Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-09-07T11:49:48.0406769Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-09-07T11:49:48.0408477Z hint:
+2025-09-07T11:49:48.0409268Z hint: 	git branch -m <name>
+2025-09-07T11:49:48.0410235Z hint:
+2025-09-07T11:49:48.0411465Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-09-07T11:49:48.0413453Z Initialized empty Git repository in /home/runner/work/higress/higress/.git/
+2025-09-07T11:49:48.0416544Z [command]/usr/bin/git remote add origin https://github.com/alibaba/higress
+2025-09-07T11:49:48.0441894Z ##[endgroup]
+2025-09-07T11:49:48.0443371Z ##[group]Disabling automatic garbage collection
+2025-09-07T11:49:48.0445185Z [command]/usr/bin/git config --local gc.auto 0
+2025-09-07T11:49:48.0472597Z ##[endgroup]
+2025-09-07T11:49:48.0474045Z ##[group]Setting up auth
+2025-09-07T11:49:48.0478481Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-09-07T11:49:48.0507332Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-09-07T11:49:48.0776411Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-09-07T11:49:48.0805481Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-09-07T11:49:48.1024931Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-09-07T11:49:48.1057980Z ##[endgroup]
+2025-09-07T11:49:48.1059524Z ##[group]Fetching the repository
+2025-09-07T11:49:48.1066814Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=2 origin +e6a06911c6783201f94dcf8972a3c644cd326c93:refs/remotes/pull/2867/merge
+2025-09-07T11:49:49.8019280Z From https://github.com/alibaba/higress
+2025-09-07T11:49:49.8020542Z  * [new ref]         e6a06911c6783201f94dcf8972a3c644cd326c93 -> pull/2867/merge
+2025-09-07T11:49:49.8049311Z ##[endgroup]
+2025-09-07T11:49:49.8050411Z ##[group]Determining the checkout info
+2025-09-07T11:49:49.8051580Z ##[endgroup]
+2025-09-07T11:49:49.8056742Z [command]/usr/bin/git sparse-checkout disable
+2025-09-07T11:49:49.8094356Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-09-07T11:49:49.8119904Z ##[group]Checking out the ref
+2025-09-07T11:49:49.8123412Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/2867/merge
+2025-09-07T11:49:50.2258874Z Note: switching to 'refs/remotes/pull/2867/merge'.
+2025-09-07T11:49:50.2259736Z 
+2025-09-07T11:49:50.2260295Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-09-07T11:49:50.2261194Z changes and commit them, and you can discard any commits you make in this
+2025-09-07T11:49:50.2261820Z state without impacting any branches by switching back to a branch.
+2025-09-07T11:49:50.2262264Z 
+2025-09-07T11:49:50.2262558Z If you want to create a new branch to retain commits you create, you may
+2025-09-07T11:49:50.2263572Z do so (now or later) by using -c with the switch command. Example:
+2025-09-07T11:49:50.2263916Z 
+2025-09-07T11:49:50.2264080Z   git switch -c <new-branch-name>
+2025-09-07T11:49:50.2264362Z 
+2025-09-07T11:49:50.2264525Z Or undo this operation with:
+2025-09-07T11:49:50.2264737Z 
+2025-09-07T11:49:50.2264934Z   git switch -
+2025-09-07T11:49:50.2265193Z 
+2025-09-07T11:49:50.2265485Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-09-07T11:49:50.2265904Z 
+2025-09-07T11:49:50.2266371Z HEAD is now at e6a0691 Merge 023c796d9858721de0832ae1259cbf6c16d971c2 into 20b68c039ca346b6b1590fa6cd37255f8cc08939
+2025-09-07T11:49:50.2278381Z ##[endgroup]
+2025-09-07T11:49:50.2317085Z [command]/usr/bin/git log -1 --format=%H
+2025-09-07T11:49:50.2340503Z e6a06911c6783201f94dcf8972a3c644cd326c93

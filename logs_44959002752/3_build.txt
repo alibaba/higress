@@ -1,0 +1,334 @@
+﻿2025-09-07T11:49:46.2387166Z Current runner version: '2.328.0'
+2025-09-07T11:49:46.2417331Z ##[group]Runner Image Provisioner
+2025-09-07T11:49:46.2418910Z Hosted Compute Agent
+2025-09-07T11:49:46.2419783Z Version: 20250829.383
+2025-09-07T11:49:46.2420679Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+2025-09-07T11:49:46.2421899Z Build Date: 2025-08-29T13:48:48Z
+2025-09-07T11:49:46.2422544Z ##[endgroup]
+2025-09-07T11:49:46.2423473Z ##[group]Operating System
+2025-09-07T11:49:46.2424473Z Ubuntu
+2025-09-07T11:49:46.2425188Z 24.04.3
+2025-09-07T11:49:46.2425924Z LTS
+2025-09-07T11:49:46.2426663Z ##[endgroup]
+2025-09-07T11:49:46.2427310Z ##[group]Runner Image
+2025-09-07T11:49:46.2428404Z Image: ubuntu-24.04
+2025-09-07T11:49:46.2429418Z Version: 20250831.1.0
+2025-09-07T11:49:46.2431062Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250831.1/images/ubuntu/Ubuntu2404-Readme.md
+2025-09-07T11:49:46.2433398Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250831.1
+2025-09-07T11:49:46.2435103Z ##[endgroup]
+2025-09-07T11:49:46.2438971Z ##[group]GITHUB_TOKEN Permissions
+2025-09-07T11:49:46.2441598Z Actions: read
+2025-09-07T11:49:46.2442433Z Attestations: read
+2025-09-07T11:49:46.2443198Z Checks: read
+2025-09-07T11:49:46.2444109Z Contents: read
+2025-09-07T11:49:46.2444899Z Deployments: read
+2025-09-07T11:49:46.2445700Z Discussions: read
+2025-09-07T11:49:46.2446457Z Issues: read
+2025-09-07T11:49:46.2446997Z Metadata: read
+2025-09-07T11:49:46.2447942Z Models: read
+2025-09-07T11:49:46.2448841Z Packages: read
+2025-09-07T11:49:46.2449729Z Pages: read
+2025-09-07T11:49:46.2450465Z PullRequests: read
+2025-09-07T11:49:46.2451409Z RepositoryProjects: read
+2025-09-07T11:49:46.2452026Z SecurityEvents: read
+2025-09-07T11:49:46.2453024Z Statuses: read
+2025-09-07T11:49:46.2453918Z ##[endgroup]
+2025-09-07T11:49:46.2456542Z Secret source: None
+2025-09-07T11:49:46.2457731Z Prepare workflow directory
+2025-09-07T11:49:46.2884282Z Prepare all required actions
+2025-09-07T11:49:46.2936738Z Getting action download info
+2025-09-07T11:49:46.7863914Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-09-07T11:49:46.8568455Z Download action repository 'actions/setup-go@v5' (SHA:d35c59abb061a4a6fb18e82ac0862c26744d6ab5)
+2025-09-07T11:49:47.4429442Z Download action repository 'actions/cache@v4' (SHA:0400d5f644dc74513175e3cd8d07132dd4860809)
+2025-09-07T11:49:47.5842352Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2025-09-07T11:49:47.8398435Z Complete job name: build
+2025-09-07T11:49:47.9106882Z ##[group]Run actions/checkout@v4
+2025-09-07T11:49:47.9108378Z with:
+2025-09-07T11:49:47.9109059Z   fetch-depth: 2
+2025-09-07T11:49:47.9109815Z   repository: alibaba/higress
+2025-09-07T11:49:47.9110949Z   token: ***
+2025-09-07T11:49:47.9111642Z   ssh-strict: true
+2025-09-07T11:49:47.9112367Z   ssh-user: git
+2025-09-07T11:49:47.9113124Z   persist-credentials: true
+2025-09-07T11:49:47.9113968Z   clean: true
+2025-09-07T11:49:47.9114775Z   sparse-checkout-cone-mode: true
+2025-09-07T11:49:47.9115708Z   fetch-tags: false
+2025-09-07T11:49:47.9116456Z   show-progress: true
+2025-09-07T11:49:47.9117203Z   lfs: false
+2025-09-07T11:49:47.9118015Z   submodules: false
+2025-09-07T11:49:47.9118776Z   set-safe-directory: true
+2025-09-07T11:49:47.9119830Z ##[endgroup]
+2025-09-07T11:49:48.0193494Z Syncing repository: alibaba/higress
+2025-09-07T11:49:48.0196188Z ##[group]Getting Git version info
+2025-09-07T11:49:48.0197704Z Working directory is '/home/runner/work/higress/higress'
+2025-09-07T11:49:48.0199588Z [command]/usr/bin/git version
+2025-09-07T11:49:48.0240842Z git version 2.51.0
+2025-09-07T11:49:48.0266809Z ##[endgroup]
+2025-09-07T11:49:48.0281793Z Temporarily overriding HOME='/home/runner/work/_temp/b62fea17-f5c2-469e-87d6-751a63fbdb49' before making global git config changes
+2025-09-07T11:49:48.0284770Z Adding repository directory to the temporary git global config as a safe directory
+2025-09-07T11:49:48.0287670Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/higress/higress
+2025-09-07T11:49:48.0319012Z Deleting the contents of '/home/runner/work/higress/higress'
+2025-09-07T11:49:48.0322648Z ##[group]Initializing the repository
+2025-09-07T11:49:48.0326261Z [command]/usr/bin/git init /home/runner/work/higress/higress
+2025-09-07T11:49:48.0393664Z hint: Using 'master' as the name for the initial branch. This default branch name
+2025-09-07T11:49:48.0396898Z hint: is subject to change. To configure the initial branch name to use in all
+2025-09-07T11:49:48.0399109Z hint: of your new repositories, which will suppress this warning, call:
+2025-09-07T11:49:48.0400567Z hint:
+2025-09-07T11:49:48.0401928Z hint: 	git config --global init.defaultBranch <name>
+2025-09-07T11:49:48.0403200Z hint:
+2025-09-07T11:49:48.0404409Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2025-09-07T11:49:48.0406779Z hint: 'development'. The just-created branch can be renamed via this command:
+2025-09-07T11:49:48.0408485Z hint:
+2025-09-07T11:49:48.0409273Z hint: 	git branch -m <name>
+2025-09-07T11:49:48.0410240Z hint:
+2025-09-07T11:49:48.0411471Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2025-09-07T11:49:48.0413458Z Initialized empty Git repository in /home/runner/work/higress/higress/.git/
+2025-09-07T11:49:48.0416551Z [command]/usr/bin/git remote add origin https://github.com/alibaba/higress
+2025-09-07T11:49:48.0441914Z ##[endgroup]
+2025-09-07T11:49:48.0443377Z ##[group]Disabling automatic garbage collection
+2025-09-07T11:49:48.0445216Z [command]/usr/bin/git config --local gc.auto 0
+2025-09-07T11:49:48.0472619Z ##[endgroup]
+2025-09-07T11:49:48.0474052Z ##[group]Setting up auth
+2025-09-07T11:49:48.0478505Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-09-07T11:49:48.0507532Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-09-07T11:49:48.0776483Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-09-07T11:49:48.0805513Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-09-07T11:49:48.1024963Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2025-09-07T11:49:48.1058012Z ##[endgroup]
+2025-09-07T11:49:48.1059824Z ##[group]Fetching the repository
+2025-09-07T11:49:48.1066843Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=2 origin +e6a06911c6783201f94dcf8972a3c644cd326c93:refs/remotes/pull/2867/merge
+2025-09-07T11:49:49.8019349Z From https://github.com/alibaba/higress
+2025-09-07T11:49:49.8020550Z  * [new ref]         e6a06911c6783201f94dcf8972a3c644cd326c93 -> pull/2867/merge
+2025-09-07T11:49:49.8049334Z ##[endgroup]
+2025-09-07T11:49:49.8050431Z ##[group]Determining the checkout info
+2025-09-07T11:49:49.8051597Z ##[endgroup]
+2025-09-07T11:49:49.8056766Z [command]/usr/bin/git sparse-checkout disable
+2025-09-07T11:49:49.8094379Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2025-09-07T11:49:49.8119928Z ##[group]Checking out the ref
+2025-09-07T11:49:49.8123430Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/2867/merge
+2025-09-07T11:49:50.2258946Z Note: switching to 'refs/remotes/pull/2867/merge'.
+2025-09-07T11:49:50.2259811Z 
+2025-09-07T11:49:50.2260303Z You are in 'detached HEAD' state. You can look around, make experimental
+2025-09-07T11:49:50.2261198Z changes and commit them, and you can discard any commits you make in this
+2025-09-07T11:49:50.2261852Z state without impacting any branches by switching back to a branch.
+2025-09-07T11:49:50.2262284Z 
+2025-09-07T11:49:50.2262561Z If you want to create a new branch to retain commits you create, you may
+2025-09-07T11:49:50.2263579Z do so (now or later) by using -c with the switch command. Example:
+2025-09-07T11:49:50.2263920Z 
+2025-09-07T11:49:50.2264084Z   git switch -c <new-branch-name>
+2025-09-07T11:49:50.2264366Z 
+2025-09-07T11:49:50.2264528Z Or undo this operation with:
+2025-09-07T11:49:50.2264740Z 
+2025-09-07T11:49:50.2264938Z   git switch -
+2025-09-07T11:49:50.2265197Z 
+2025-09-07T11:49:50.2265489Z Turn off this advice by setting config variable advice.detachedHead to false
+2025-09-07T11:49:50.2265908Z 
+2025-09-07T11:49:50.2266383Z HEAD is now at e6a0691 Merge 023c796d9858721de0832ae1259cbf6c16d971c2 into 20b68c039ca346b6b1590fa6cd37255f8cc08939
+2025-09-07T11:49:50.2278401Z ##[endgroup]
+2025-09-07T11:49:50.2317175Z [command]/usr/bin/git log -1 --format=%H
+2025-09-07T11:49:50.2340526Z e6a06911c6783201f94dcf8972a3c644cd326c93
+2025-09-07T11:49:50.2565707Z ##[group]Run actions/setup-go@v5
+2025-09-07T11:49:50.2566081Z with:
+2025-09-07T11:49:50.2566469Z   go-version: 1.22
+2025-09-07T11:49:50.2566763Z   check-latest: false
+2025-09-07T11:49:50.2567287Z   token: ***
+2025-09-07T11:49:50.2567979Z   cache: true
+2025-09-07T11:49:50.2568278Z ##[endgroup]
+2025-09-07T11:49:50.4198581Z Setup go version spec 1.22
+2025-09-07T11:49:50.4626787Z Found in cache @ /opt/hostedtoolcache/go/1.22.12/x64
+2025-09-07T11:49:50.4632332Z Added go to the path
+2025-09-07T11:49:50.4635658Z Successfully set up Go version 1.22
+2025-09-07T11:49:50.9516335Z [command]/opt/hostedtoolcache/go/1.22.12/x64/bin/go env GOMODCACHE
+2025-09-07T11:49:50.9546520Z [command]/opt/hostedtoolcache/go/1.22.12/x64/bin/go env GOCACHE
+2025-09-07T11:49:50.9644228Z /home/runner/.cache/go-build
+2025-09-07T11:49:50.9657159Z /home/runner/go/pkg/mod
+2025-09-07T11:49:51.2821587Z Cache hit for: setup-go-Linux-x64-ubuntu24-go-1.22.12-daf44968f9d690123842509264aa9c6cb9ad2f7b553485a9fdc62c849767ebfe
+2025-09-07T11:49:51.6450271Z Received 5549 of 5549 (100.0%), 0.1 MBs/sec
+2025-09-07T11:49:51.6450884Z Cache Size: ~0 MB (5549 B)
+2025-09-07T11:49:51.6481772Z [command]/usr/bin/tar -xf /home/runner/work/_temp/454df93a-11d1-49ab-9089-8b12f50d0263/cache.tzst -P -C /home/runner/work/higress/higress --use-compress-program unzstd
+2025-09-07T11:49:51.6652137Z Cache restored successfully
+2025-09-07T11:49:51.6658081Z Cache restored from key: setup-go-Linux-x64-ubuntu24-go-1.22.12-daf44968f9d690123842509264aa9c6cb9ad2f7b553485a9fdc62c849767ebfe
+2025-09-07T11:49:51.6677876Z go version go1.22.12 linux/amd64
+2025-09-07T11:49:51.6678068Z 
+2025-09-07T11:49:51.6678357Z ##[group]go env
+2025-09-07T11:49:51.7426697Z GO111MODULE=''
+2025-09-07T11:49:51.7427121Z GOARCH='amd64'
+2025-09-07T11:49:51.7427682Z GOBIN=''
+2025-09-07T11:49:51.7428095Z GOCACHE='/home/runner/.cache/go-build'
+2025-09-07T11:49:51.7428666Z GOENV='/home/runner/.config/go/env'
+2025-09-07T11:49:51.7429155Z GOEXE=''
+2025-09-07T11:49:51.7429510Z GOEXPERIMENT=''
+2025-09-07T11:49:51.7429917Z GOFLAGS=''
+2025-09-07T11:49:51.7430203Z GOHOSTARCH='amd64'
+2025-09-07T11:49:51.7430469Z GOHOSTOS='linux'
+2025-09-07T11:49:51.7430722Z GOINSECURE=''
+2025-09-07T11:49:51.7431003Z GOMODCACHE='/home/runner/go/pkg/mod'
+2025-09-07T11:49:51.7431334Z GONOPROXY=''
+2025-09-07T11:49:51.7431568Z GONOSUMDB=''
+2025-09-07T11:49:51.7431789Z GOOS='linux'
+2025-09-07T11:49:51.7432034Z GOPATH='/home/runner/go'
+2025-09-07T11:49:51.7432311Z GOPRIVATE=''
+2025-09-07T11:49:51.7432608Z GOPROXY='https://proxy.golang.org,direct'
+2025-09-07T11:49:51.7433014Z GOROOT='/opt/hostedtoolcache/go/1.22.12/x64'
+2025-09-07T11:49:51.7433401Z GOSUMDB='sum.golang.org'
+2025-09-07T11:49:51.7433670Z GOTMPDIR=''
+2025-09-07T11:49:51.7433923Z GOTOOLCHAIN='auto'
+2025-09-07T11:49:51.7434332Z GOTOOLDIR='/opt/hostedtoolcache/go/1.22.12/x64/pkg/tool/linux_amd64'
+2025-09-07T11:49:51.7434780Z GOVCS=''
+2025-09-07T11:49:51.7435008Z GOVERSION='go1.22.12'
+2025-09-07T11:49:51.7435266Z GCCGO='gccgo'
+2025-09-07T11:49:51.7435496Z GOAMD64='v1'
+2025-09-07T11:49:51.7435731Z AR='ar'
+2025-09-07T11:49:51.7435950Z CC='gcc'
+2025-09-07T11:49:51.7436164Z CXX='g++'
+2025-09-07T11:49:51.7436386Z CGO_ENABLED='1'
+2025-09-07T11:49:51.7436923Z GOMOD='/home/runner/work/higress/higress/go.mod'
+2025-09-07T11:49:51.7437275Z GOWORK=''
+2025-09-07T11:49:51.7437785Z CGO_CFLAGS='-O2 -g'
+2025-09-07T11:49:51.7438074Z CGO_CPPFLAGS=''
+2025-09-07T11:49:51.7438330Z CGO_CXXFLAGS='-O2 -g'
+2025-09-07T11:49:51.7438591Z CGO_FFLAGS='-O2 -g'
+2025-09-07T11:49:51.7438846Z CGO_LDFLAGS='-O2 -g'
+2025-09-07T11:49:51.7439122Z PKG_CONFIG='pkg-config'
+2025-09-07T11:49:51.7439824Z GOGCCFLAGS='-fPIC -m64 -pthread -Wl,--no-gc-sections -fmessage-length=0 -ffile-prefix-map=/tmp/go-build2542530097=/tmp/go-build -gno-record-gcc-switches'
+2025-09-07T11:49:51.7440356Z 
+2025-09-07T11:49:51.7440697Z ##[endgroup]
+2025-09-07T11:49:51.7555060Z ##[group]Run actions/cache@v4
+2025-09-07T11:49:51.7555309Z with:
+2025-09-07T11:49:51.7555507Z   path: ~/.cache/go-build
+~/go/pkg/mod
+2025-09-07T11:49:51.7555766Z   key: Linux-go-17528084081
+2025-09-07T11:49:51.7555987Z   restore-keys: Linux-go
+2025-09-07T11:49:51.7556206Z   enableCrossOsArchive: false
+2025-09-07T11:49:51.7556431Z   fail-on-cache-miss: false
+2025-09-07T11:49:51.7556652Z   lookup-only: false
+2025-09-07T11:49:51.7556849Z   save-always: false
+2025-09-07T11:49:51.7557034Z ##[endgroup]
+2025-09-07T11:49:52.1566641Z Cache hit for: Linux-go-17528084081
+2025-09-07T11:49:53.5133707Z Received 0 of 1707456858 (0.0%), 0.0 MBs/sec
+2025-09-07T11:49:54.5133174Z Received 113246208 of 1707456858 (6.6%), 54.0 MBs/sec
+2025-09-07T11:49:55.5137330Z Received 239075328 of 1707456858 (14.0%), 76.0 MBs/sec
+2025-09-07T11:49:56.5134979Z Received 364904448 of 1707456858 (21.4%), 87.0 MBs/sec
+2025-09-07T11:49:57.5133346Z Received 499122176 of 1707456858 (29.2%), 95.2 MBs/sec
+2025-09-07T11:49:58.5135945Z Received 629145600 of 1707456858 (36.8%), 100.0 MBs/sec
+2025-09-07T11:49:59.5145260Z Received 738197504 of 1707456858 (43.2%), 100.5 MBs/sec
+2025-09-07T11:50:00.5185789Z Received 851443712 of 1707456858 (49.9%), 101.5 MBs/sec
+2025-09-07T11:50:01.5162666Z Received 968884224 of 1707456858 (56.7%), 102.6 MBs/sec
+2025-09-07T11:50:02.5164052Z Received 1073741824 of 1707456858 (62.9%), 102.4 MBs/sec
+2025-09-07T11:50:03.6023093Z Received 1207959552 of 1707456858 (70.7%), 103.9 MBs/sec
+2025-09-07T11:50:04.6018566Z Received 1333788672 of 1707456858 (78.1%), 105.2 MBs/sec
+2025-09-07T11:50:05.6023830Z Received 1434451968 of 1707456858 (84.0%), 104.5 MBs/sec
+2025-09-07T11:50:06.6030710Z Received 1539309568 of 1707456858 (90.2%), 104.2 MBs/sec
+2025-09-07T11:50:07.6033203Z Received 1644167168 of 1707456858 (96.3%), 103.9 MBs/sec
+2025-09-07T11:50:08.1716343Z Received 1707456858 of 1707456858 (100.0%), 104.0 MBs/sec
+2025-09-07T11:50:08.1719090Z Cache Size: ~1628 MB (1707456858 B)
+2025-09-07T11:50:08.1779667Z [command]/usr/bin/tar -xf /home/runner/work/_temp/d391ef41-e68d-4d05-a769-3176a3e54f71/cache.tzst -P -C /home/runner/work/higress/higress --use-compress-program unzstd
+2025-09-07T11:50:27.8464152Z Cache restored successfully
+2025-09-07T11:50:28.1274757Z Cache restored from key: Linux-go-17528084081
+2025-09-07T11:50:28.1387653Z ##[group]Run git stash
+2025-09-07T11:50:28.1387970Z [36;1mgit stash[0m
+2025-09-07T11:50:28.1439129Z shell: /usr/bin/bash -e {0}
+2025-09-07T11:50:28.1439382Z ##[endgroup]
+2025-09-07T11:50:28.4153285Z No local changes to save
+2025-09-07T11:50:28.4189626Z ##[group]Run GOPROXY="https://proxy.golang.org,direct" make build
+2025-09-07T11:50:28.4190130Z [36;1mGOPROXY="https://proxy.golang.org,direct" make build[0m
+2025-09-07T11:50:28.4220962Z shell: /usr/bin/bash -e {0}
+2025-09-07T11:50:28.4221207Z ##[endgroup]
+2025-09-07T11:50:28.5054880Z git submodule update --init
+2025-09-07T11:50:28.5461672Z Submodule 'envoy/envoy' (https://github.com/higress-group/envoy) registered for path 'envoy/envoy'
+2025-09-07T11:50:28.5466700Z Submodule 'envoy/go-control-plane' (https://github.com/higress-group/go-control-plane) registered for path 'envoy/go-control-plane'
+2025-09-07T11:50:28.5470842Z Submodule 'istio/api' (https://github.com/higress-group/api) registered for path 'istio/api'
+2025-09-07T11:50:28.5497206Z Submodule 'istio/client-go' (https://github.com/higress-group/client-go) registered for path 'istio/client-go'
+2025-09-07T11:50:28.5501753Z Submodule 'istio/istio' (https://github.com/higress-group/istio) registered for path 'istio/istio'
+2025-09-07T11:50:28.5505986Z Submodule 'istio/pkg' (https://github.com/higress-group/pkg) registered for path 'istio/pkg'
+2025-09-07T11:50:28.5510511Z Submodule 'istio/proxy' (https://github.com/higress-group/proxy) registered for path 'istio/proxy'
+2025-09-07T11:50:28.5536679Z Cloning into '/home/runner/work/higress/higress/envoy/envoy'...
+2025-09-07T11:50:31.6486706Z Cloning into '/home/runner/work/higress/higress/envoy/go-control-plane'...
+2025-09-07T11:50:33.1538458Z Cloning into '/home/runner/work/higress/higress/istio/api'...
+2025-09-07T11:50:34.1100362Z Cloning into '/home/runner/work/higress/higress/istio/client-go'...
+2025-09-07T11:50:34.8638667Z Cloning into '/home/runner/work/higress/higress/istio/istio'...
+2025-09-07T11:50:36.4032113Z Cloning into '/home/runner/work/higress/higress/istio/pkg'...
+2025-09-07T11:50:36.9108108Z Cloning into '/home/runner/work/higress/higress/istio/proxy'...
+2025-09-07T11:50:38.1410098Z Submodule path 'envoy/envoy': checked out '7f18940fbc390f7ca1be76d86dd8615c4c5009ce'
+2025-09-07T11:50:38.2794161Z Submodule path 'envoy/go-control-plane': checked out '0ab56e249a3446c6fbdc39be9d45b9e3fd3a2e3e'
+2025-09-07T11:50:38.3395662Z Submodule path 'istio/api': checked out 'd54f2e0f423d136b51fa4aeddccdb98c09c41ab2'
+2025-09-07T11:50:38.3644686Z Submodule path 'istio/client-go': checked out '9b3841d7dec61c18b474c3d3f2349cf81187e52d'
+2025-09-07T11:50:38.6686378Z Submodule path 'istio/istio': checked out 'fa8896cf3372218cf41b9b2b37c9134aae88874c'
+2025-09-07T11:50:38.6928928Z Submodule path 'istio/pkg': checked out '15c662994e6515201dc106a2ec3de85ed50e8078'
+2025-09-07T11:50:38.7207068Z Submodule path 'istio/proxy': checked out 'ced6d8167a01fe1c1630b3df0ac39e1b563f05dc'
+2025-09-07T11:50:38.7213649Z ./tools/hack/prebuild.sh
+2025-09-07T11:50:40.6712650Z GOPROXY="https://proxy.golang.org,direct" GOOS=linux GOARCH=amd64 LDFLAGS='-X github.com/alibaba/higress/pkg/cmd/lversion.higressVersion=v2.1.7 -X github.com/alibaba/higress/pkg/cmd/lversion.gitCommitID=e6a06911c6783201f94dcf8972a3c644cd326c93 -extldflags -static -s -w' tools/hack/gobuild.sh /home/runner/work/higress/higress/out/linux_amd64/ ./cmd/higress
+2025-09-07T11:50:41.1836253Z 
+2025-09-07T11:50:41.1837144Z istio.io/pkg/version.buildVersion=e6a06911c6783201f94dcf8972a3c644cd326c93
+2025-09-07T11:50:41.1837881Z 
+2025-09-07T11:50:41.1838239Z istio.io/pkg/version.buildGitRevision=e6a06911c6783201f94dcf8972a3c644cd326c93
+2025-09-07T11:50:41.1838786Z 
+2025-09-07T11:50:41.1838996Z istio.io/pkg/version.buildStatus=Clean
+2025-09-07T11:50:41.1839347Z 
+2025-09-07T11:50:41.1839546Z istio.io/pkg/version.buildTag=v2.1.7
+2025-09-07T11:50:41.1839858Z 
+2025-09-07T11:50:41.1840322Z istio.io/pkg/version.buildHub=higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+2025-09-07T11:50:41.1841105Z ~/work/higress/higress ~/work/higress/higress
+2025-09-07T11:52:31.8332909Z 
+2025-09-07T11:52:31.8333431Z real	1m50.649s
+2025-09-07T11:52:31.8333923Z ~/work/higress/higress
+2025-09-07T11:52:31.8334905Z user	6m22.531s
+2025-09-07T11:52:31.8335277Z sys	0m30.673s
+2025-09-07T11:52:31.8383615Z ##[group]Run actions/upload-artifact@v4
+2025-09-07T11:52:31.8383902Z with:
+2025-09-07T11:52:31.8384077Z   name: higress
+2025-09-07T11:52:31.8384264Z   path: out/
+2025-09-07T11:52:31.8384448Z   if-no-files-found: warn
+2025-09-07T11:52:31.8384670Z   compression-level: 6
+2025-09-07T11:52:31.8384874Z   overwrite: false
+2025-09-07T11:52:31.8385079Z   include-hidden-files: false
+2025-09-07T11:52:31.8385303Z ##[endgroup]
+2025-09-07T11:52:32.0529218Z With the provided path, there will be 1 file uploaded
+2025-09-07T11:52:32.0534088Z Artifact name is valid!
+2025-09-07T11:52:32.0536083Z Root directory input is valid!
+2025-09-07T11:52:32.3523580Z Beginning upload of artifact content to blob storage
+2025-09-07T11:52:34.3208959Z Uploaded bytes 8388608
+2025-09-07T11:52:35.1296423Z Uploaded bytes 16777216
+2025-09-07T11:52:35.1322429Z Uploaded bytes 25165824
+2025-09-07T11:52:35.3229273Z Uploaded bytes 27116216
+2025-09-07T11:52:35.4122821Z Finished uploading artifact content to blob storage!
+2025-09-07T11:52:35.4126491Z SHA256 digest of uploaded artifact zip is 8c4352e54e190ea0bb01017f3b0792de70fe71411a1540ade0e1d97c28de7a0b
+2025-09-07T11:52:35.4128172Z Finalizing artifact upload
+2025-09-07T11:52:35.5716594Z Artifact higress.zip successfully finalized. Artifact ID 3947119605
+2025-09-07T11:52:35.5717936Z Artifact higress has been successfully uploaded! Final size is 27116216 bytes. Artifact ID is 3947119605
+2025-09-07T11:52:35.5723786Z Artifact download URL: https://github.com/alibaba/higress/actions/runs/17528084081/artifacts/3947119605
+2025-09-07T11:52:35.5893218Z Post job cleanup.
+2025-09-07T11:52:35.7157731Z Cache hit occurred on the primary key Linux-go-17528084081, not saving cache.
+2025-09-07T11:52:35.7244157Z Post job cleanup.
+2025-09-07T11:52:35.8770604Z [command]/opt/hostedtoolcache/go/1.22.12/x64/bin/go env GOMODCACHE
+2025-09-07T11:52:35.8810016Z [command]/opt/hostedtoolcache/go/1.22.12/x64/bin/go env GOCACHE
+2025-09-07T11:52:35.8832626Z /home/runner/go/pkg/mod
+2025-09-07T11:52:35.8855541Z /home/runner/.cache/go-build
+2025-09-07T11:52:35.8861159Z Cache hit occurred on the primary key setup-go-Linux-x64-ubuntu24-go-1.22.12-daf44968f9d690123842509264aa9c6cb9ad2f7b553485a9fdc62c849767ebfe, not saving cache.
+2025-09-07T11:52:35.8974399Z Post job cleanup.
+2025-09-07T11:52:35.9922006Z [command]/usr/bin/git version
+2025-09-07T11:52:35.9964734Z git version 2.51.0
+2025-09-07T11:52:36.0008178Z Temporarily overriding HOME='/home/runner/work/_temp/1f64fd79-3ac2-4924-beab-a6d6897e8ec1' before making global git config changes
+2025-09-07T11:52:36.0009580Z Adding repository directory to the temporary git global config as a safe directory
+2025-09-07T11:52:36.0014112Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/higress/higress
+2025-09-07T11:52:36.0048695Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-09-07T11:52:36.0081046Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-09-07T11:52:36.0291683Z Entering 'envoy/envoy'
+2025-09-07T11:52:36.0353556Z Entering 'envoy/go-control-plane'
+2025-09-07T11:52:36.0399060Z Entering 'istio/api'
+2025-09-07T11:52:36.0441773Z Entering 'istio/client-go'
+2025-09-07T11:52:36.0484967Z Entering 'istio/istio'
+2025-09-07T11:52:36.0535172Z Entering 'istio/pkg'
+2025-09-07T11:52:36.0577974Z Entering 'istio/proxy'
+2025-09-07T11:52:36.0636757Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-09-07T11:52:36.0659487Z http.https://github.com/.extraheader
+2025-09-07T11:52:36.0671983Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-09-07T11:52:36.0703829Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-09-07T11:52:36.0914682Z Entering 'envoy/envoy'
+2025-09-07T11:52:36.0974166Z Entering 'envoy/go-control-plane'
+2025-09-07T11:52:36.1019565Z Entering 'istio/api'
+2025-09-07T11:52:36.1063664Z Entering 'istio/client-go'
+2025-09-07T11:52:36.1108484Z Entering 'istio/istio'
+2025-09-07T11:52:36.1159713Z Entering 'istio/pkg'
+2025-09-07T11:52:36.1202636Z Entering 'istio/proxy'
+2025-09-07T11:52:36.1372714Z Cleaning up orphan processes

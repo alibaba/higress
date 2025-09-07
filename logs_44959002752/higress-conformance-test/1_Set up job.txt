@@ -1,0 +1,44 @@
+﻿2025-09-07T11:52:42.6656294Z Current runner version: '2.328.0'
+2025-09-07T11:52:42.6682539Z ##[group]Runner Image Provisioner
+2025-09-07T11:52:42.6683295Z Hosted Compute Agent
+2025-09-07T11:52:42.6683926Z Version: 20250829.383
+2025-09-07T11:52:42.6684512Z Commit: 27cb235aab5b0e52e153a26cd86b4742e89dac5d
+2025-09-07T11:52:42.6685218Z Build Date: 2025-08-29T13:48:48Z
+2025-09-07T11:52:42.6685815Z ##[endgroup]
+2025-09-07T11:52:42.6686394Z ##[group]Operating System
+2025-09-07T11:52:42.6686922Z Ubuntu
+2025-09-07T11:52:42.6687505Z 24.04.3
+2025-09-07T11:52:42.6688124Z LTS
+2025-09-07T11:52:42.6688557Z ##[endgroup]
+2025-09-07T11:52:42.6689099Z ##[group]Runner Image
+2025-09-07T11:52:42.6689676Z Image: ubuntu-24.04
+2025-09-07T11:52:42.6690495Z Version: 20250831.1.0
+2025-09-07T11:52:42.6691468Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20250831.1/images/ubuntu/Ubuntu2404-Readme.md
+2025-09-07T11:52:42.6692935Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20250831.1
+2025-09-07T11:52:42.6694155Z ##[endgroup]
+2025-09-07T11:52:42.6696551Z ##[group]GITHUB_TOKEN Permissions
+2025-09-07T11:52:42.6698433Z Actions: read
+2025-09-07T11:52:42.6699120Z Attestations: read
+2025-09-07T11:52:42.6699606Z Checks: read
+2025-09-07T11:52:42.6700340Z Contents: read
+2025-09-07T11:52:42.6700927Z Deployments: read
+2025-09-07T11:52:42.6701435Z Discussions: read
+2025-09-07T11:52:42.6701900Z Issues: read
+2025-09-07T11:52:42.6702435Z Metadata: read
+2025-09-07T11:52:42.6702889Z Models: read
+2025-09-07T11:52:42.6703376Z Packages: read
+2025-09-07T11:52:42.6703950Z Pages: read
+2025-09-07T11:52:42.6704410Z PullRequests: read
+2025-09-07T11:52:42.6704944Z RepositoryProjects: read
+2025-09-07T11:52:42.6705505Z SecurityEvents: read
+2025-09-07T11:52:42.6706145Z Statuses: read
+2025-09-07T11:52:42.6706615Z ##[endgroup]
+2025-09-07T11:52:42.6708748Z Secret source: None
+2025-09-07T11:52:42.6709506Z Prepare workflow directory
+2025-09-07T11:52:42.7049033Z Prepare all required actions
+2025-09-07T11:52:42.7086983Z Getting action download info
+2025-09-07T11:52:43.0704174Z Download action repository 'actions/checkout@v4' (SHA:08eba0b27e820071cde6df949e0beb9ba4906955)
+2025-09-07T11:52:43.1352523Z Download action repository 'jlumbroso/free-disk-space@main' (SHA:54081f138730dfa15788a46383842cd2f914a1be)
+2025-09-07T11:52:43.3873213Z Download action repository 'actions/setup-go@v5' (SHA:d35c59abb061a4a6fb18e82ac0862c26744d6ab5)
+2025-09-07T11:52:43.7761200Z Download action repository 'actions/cache@v4' (SHA:0400d5f644dc74513175e3cd8d07132dd4860809)
+2025-09-07T11:52:44.0921390Z Complete job name: higress-conformance-test

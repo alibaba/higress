@@ -1,0 +1,26 @@
+﻿2025-09-07T12:16:37.1630701Z Post job cleanup.
+2025-09-07T12:16:37.5135682Z [command]/usr/bin/git version
+2025-09-07T12:16:37.5282967Z git version 2.51.0
+2025-09-07T12:16:37.5376816Z Temporarily overriding HOME='/home/runner/work/_temp/d363fe41-9679-45bc-a66a-f5121a6e7740' before making global git config changes
+2025-09-07T12:16:37.5380759Z Adding repository directory to the temporary git global config as a safe directory
+2025-09-07T12:16:37.5392906Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/higress/higress
+2025-09-07T12:16:37.5473567Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2025-09-07T12:16:37.5561327Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2025-09-07T12:16:37.6069167Z Entering 'envoy/envoy'
+2025-09-07T12:16:37.6210869Z Entering 'envoy/go-control-plane'
+2025-09-07T12:16:37.6269582Z Entering 'istio/api'
+2025-09-07T12:16:37.6370678Z Entering 'istio/client-go'
+2025-09-07T12:16:37.6458463Z Entering 'istio/istio'
+2025-09-07T12:16:37.6594765Z Entering 'istio/pkg'
+2025-09-07T12:16:37.6724463Z Entering 'istio/proxy'
+2025-09-07T12:16:37.6907826Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2025-09-07T12:16:37.6963118Z http.https://github.com/.extraheader
+2025-09-07T12:16:37.6993990Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2025-09-07T12:16:37.7112437Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2025-09-07T12:16:37.7540837Z Entering 'envoy/envoy'
+2025-09-07T12:16:37.7643688Z Entering 'envoy/go-control-plane'
+2025-09-07T12:16:37.7726044Z Entering 'istio/api'
+2025-09-07T12:16:37.7787919Z Entering 'istio/client-go'
+2025-09-07T12:16:37.7854975Z Entering 'istio/istio'
+2025-09-07T12:16:37.7932856Z Entering 'istio/pkg'
+2025-09-07T12:16:37.7996037Z Entering 'istio/proxy'
