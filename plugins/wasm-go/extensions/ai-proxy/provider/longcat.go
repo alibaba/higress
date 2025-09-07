@@ -76,7 +76,11 @@ func (m *longcatProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName 
 			return nil, err
 		}
 		request.ResponseFormat = m.config.responseJsonSchema
-		body, _ = json.Marshal(request)
+		body, err := json.Marshal(request)
+		if err != nil {
+			return nil, err
+		}
+		return body, nil
 	}
 	// For testing purposes, skip defaultTransformRequestBody if ctx is nil
 	if ctx != nil {
