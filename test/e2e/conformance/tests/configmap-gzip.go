@@ -16,6 +16,7 @@ package tests
 
 import (
 	"testing"
+	"time"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
@@ -300,6 +301,8 @@ var ConfigmapGzip = suite.ConformanceTest{
 				if err != nil {
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
+				// Wait for configuration to take effect, especially important when gzip is enabled by default
+				time.Sleep(10 * time.Second)
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase.httpAssert)
 			}
 		})
@@ -319,6 +322,8 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 				if err != nil {
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
+				// Wait for configuration to take effect, especially important when gzip is enabled by default
+				time.Sleep(15 * time.Second)
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, testcase.envoyAssertion)
 			}
 		})
