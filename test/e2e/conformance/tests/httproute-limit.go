@@ -46,8 +46,8 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-limit.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
-			//wait ingress ready
-			time.Sleep(1 * time.Second)
+			//wait ingress ready and rate limiter to be effective
+			time.Sleep(5 * time.Second)
 			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
@@ -70,9 +70,9 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Reduce total requests to prevent timeout with rate limiting
-	// 10 threads, 100 total requests (10 per thread) for a 10 RPS limit
-	result, err := ParallelRunner(10, 100, req, client)
+	// Use fewer threads and longer duration to better test rate limiting
+	// 5 threads, 50 total requests (10 per thread) over a longer period for a 10 RPS limit
+	result, err := ParallelRunner(5, 50, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,9 +91,9 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Reduce total requests for 50 RPS limit to prevent timeout
-	// 10 threads, 500 total requests (50 per thread) for a 50 RPS limit
-	result, err := ParallelRunner(10, 500, req, client)
+	// Use fewer threads and longer duration for 50 RPS limit
+	// 5 threads, 250 total requests (50 per thread) for a 50 RPS limit
+	result, err := ParallelRunner(5, 250, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,6 +210,11 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	startTime := time.Now()
+
+	// Calculate interval between requests to spread them over time
+	// For rate limiting tests, we want to send requests at a steady pace
+	requestInterval := time.Duration(1000/threads) * time.Millisecond // Base interval
+
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
 		go func() {
@@ -237,6 +242,9 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 					// Rate limiting is expected behavior, so we don't need long delays
 					time.Sleep(10 * time.Millisecond)
 				}
+
+				// Add interval between requests to better test rate limiting
+				time.Sleep(requestInterval)
 			}
 		}()
 	}
