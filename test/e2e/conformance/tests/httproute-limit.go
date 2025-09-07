@@ -93,9 +93,9 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Use fewer threads and longer duration to better test rate limiting
-	// 5 threads, 50 total requests (10 per thread) over a longer period for a 10 RPS limit
-	result, err := ParallelRunner(5, 50, req, client)
+	// Use moderate settings for 10 RPS limit
+	// 3 threads, 60 total requests (20 per thread) for a 10 RPS limit
+	result, err := ParallelRunner(3, 60, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,9 +114,9 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Reduce concurrent threads to avoid overwhelming the rate limiter
-	// 3 threads, 150 total requests (50 per thread) for a 50 RPS limit
-	result, err := ParallelRunner(3, 150, req, client)
+	// Use more aggressive settings to achieve higher RPS
+	// 4 threads, 200 total requests (50 per thread) for a 50 RPS limit
+	result, err := ParallelRunner(4, 200, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,8 +135,8 @@ func TestRps10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Reduce concurrent threads for burst test
-	result, err := ParallelRunner(20, 50, req, client)
+	// Use moderate concurrency for burst test with 30 RPS limit
+	result, err := ParallelRunner(15, 60, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,8 +173,8 @@ func TestRpm10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 			Path:   "/rpm10/burst3",
 		},
 	}
-	// Reduce concurrent threads for burst test
-	result, err := ParallelRunner(20, 100, req, client)
+	// Use moderate concurrency for burst test with 30 RPS limit
+	result, err := ParallelRunner(15, 90, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +238,8 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 
 	// Calculate interval between requests to spread them over time
 	// For rate limiting tests, we want to send requests at a steady pace
-	requestInterval := time.Duration(1000/threads) * time.Millisecond // Base interval
+	// Use a smaller interval to achieve higher RPS, but not too small to avoid overwhelming
+	requestInterval := time.Duration(100/threads) * time.Millisecond // Base interval
 
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
