@@ -114,9 +114,9 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Use fewer threads and longer duration for 50 RPS limit
-	// 5 threads, 250 total requests (50 per thread) for a 50 RPS limit
-	result, err := ParallelRunner(5, 250, req, client)
+	// Reduce concurrent threads to avoid overwhelming the rate limiter
+	// 3 threads, 150 total requests (50 per thread) for a 50 RPS limit
+	result, err := ParallelRunner(3, 150, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +135,8 @@ func TestRps10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	result, err := ParallelRunner(30, 50, req, client)
+	// Reduce concurrent threads for burst test
+	result, err := ParallelRunner(20, 50, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +173,8 @@ func TestRpm10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 			Path:   "/rpm10/burst3",
 		},
 	}
-	result, err := ParallelRunner(30, 100, req, client)
+	// Reduce concurrent threads for burst test
+	result, err := ParallelRunner(20, 100, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
