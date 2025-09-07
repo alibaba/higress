@@ -132,6 +132,7 @@ const (
 	providerTypeBedrock    = "bedrock"
 	providerTypeVertex     = "vertex"
 	providerTypeOpenRouter = "openrouter"
+	providerTypeLongcat    = "longcat"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -211,6 +212,7 @@ var (
 		providerTypeBedrock:    &bedrockProviderInitializer{},
 		providerTypeVertex:     &vertexProviderInitializer{},
 		providerTypeOpenRouter: &openrouterProviderInitializer{},
+		providerTypeLongcat:    &longcatProviderInitializer{},
 	}
 )
 
@@ -839,6 +841,9 @@ func (c *ProviderConfig) IsSupportedAPI(apiName ApiName) bool {
 }
 
 func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) {
+	if c.capabilities == nil {
+		c.capabilities = make(map[string]string)
+	}
 	for capability, path := range capabilities {
 		c.capabilities[capability] = path
 	}
