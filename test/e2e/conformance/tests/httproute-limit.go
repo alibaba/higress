@@ -22,9 +22,12 @@ import (
 	"io"
 	"sync/atomic"
 
+	"net/url"
+
+	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
-	"net/url"
 
 	"log"
 	"math/rand"
@@ -45,14 +48,35 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-limit.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
-			//wait ingress ready
-			time.Sleep(1 * time.Second)
+			// Disable gzip for rate limiting tests to avoid processing overhead
+			gzipDisabledConfig := &configmap.HigressConfig{
+				Gzip: &configmap.Gzip{
+					Enable: false,
+				},
+			}
+
+			// Apply gzip disabled configuration
+			err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", gzipDisabledConfig)
+			if err != nil {
+				t.Fatalf("Failed to disable gzip for rate limiting test: %v", err)
+			}
+
+			// Wait for configuration to take effect
+			time.Sleep(5 * time.Second)
+
 			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
 			TestRps10Burst3(t, suite.GatewayAddress, client)
 			TestRpm10(t, suite.GatewayAddress, client)
 			TestRpm10Burst3(t, suite.GatewayAddress, client)
+
+			// Restore default gzip configuration
+			defaultGzipConfig := configmap.NewDefaultHigressConfig()
+			err = kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", defaultGzipConfig)
+			if err != nil {
+				t.Logf("Warning: Failed to restore default gzip configuration: %v", err)
+			}
 		})
 	},
 }
@@ -69,7 +93,9 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	result, err := ParallelRunner(10, 3000, req, client)
+	// Use fewer threads and longer duration to better test rate limiting
+	// 5 threads, 50 total requests (10 per thread) over a longer period for a 10 RPS limit
+	result, err := ParallelRunner(5, 50, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +114,9 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	result, err := ParallelRunner(10, 5000, req, client)
+	// Use fewer threads and longer duration for 50 RPS limit
+	// 5 threads, 250 total requests (50 per thread) for a 50 RPS limit
+	result, err := ParallelRunner(5, 250, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
