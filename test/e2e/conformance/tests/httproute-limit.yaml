@@ -17,7 +17,7 @@ kind: Ingress
 metadata:
   annotations:
     higress.io/route-limit-rps: "10"
-    higress.io/route-limit-burst-multiplier: "2"
+    higress.io/route-limit-burst-multiplier: "1"
   name: higress-http-route-limit-rps10
   namespace: higress-conformance-infra
 spec:
@@ -39,7 +39,7 @@ kind: Ingress
 metadata:
   annotations:
     higress.io/route-limit-rps: "50"
-    higress.io/route-limit-burst-multiplier: "2"
+    higress.io/route-limit-burst-multiplier: "1"
   name: higress-http-route-limit-rps50
   namespace: higress-conformance-infra
 spec:
@@ -83,7 +83,7 @@ kind: Ingress
 metadata:
   annotations:
     higress.io/route-limit-rpm: "10"
-    higress.io/route-limit-burst-multiplier: "2"
+    higress.io/route-limit-burst-multiplier: "1"
   name: higress-http-route-limit-rpm10
   namespace: higress-conformance-infra
 spec:

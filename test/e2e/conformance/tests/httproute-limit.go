@@ -22,12 +22,9 @@ import (
 	"io"
 	"sync/atomic"
 
-	"net/url"
-
-	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"net/url"
 
 	"log"
 	"math/rand"
@@ -48,35 +45,14 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-limit.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
-			// Disable gzip for rate limiting tests to avoid processing overhead
-			gzipDisabledConfig := &configmap.HigressConfig{
-				Gzip: &configmap.Gzip{
-					Enable: false,
-				},
-			}
-
-			// Apply gzip disabled configuration
-			err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", gzipDisabledConfig)
-			if err != nil {
-				t.Fatalf("Failed to disable gzip for rate limiting test: %v", err)
-			}
-
-			// Wait for configuration to take effect, especially important for rate limiter
-			time.Sleep(10 * time.Second)
-
+			//wait ingress ready
+			time.Sleep(1 * time.Second)
 			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
 			TestRps10Burst3(t, suite.GatewayAddress, client)
 			TestRpm10(t, suite.GatewayAddress, client)
 			TestRpm10Burst3(t, suite.GatewayAddress, client)
-
-			// Restore default gzip configuration
-			defaultGzipConfig := configmap.NewDefaultHigressConfig()
-			err = kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", defaultGzipConfig)
-			if err != nil {
-				t.Logf("Warning: Failed to restore default gzip configuration: %v", err)
-			}
 		})
 	},
 }
@@ -93,9 +69,7 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Use moderate settings for 10 RPS limit
-	// 3 threads, 60 total requests (20 per thread) for a 10 RPS limit
-	result, err := ParallelRunner(3, 60, req, client)
+	result, err := ParallelRunner(10, 3000, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,9 +88,7 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Use conservative settings to avoid rate limiter throttling
-	// 2 threads, 100 total requests (50 per thread) for a 50 RPS limit
-	result, err := ParallelRunner(2, 100, req, client)
+	result, err := ParallelRunner(10, 5000, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,8 +107,7 @@ func TestRps10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Use conservative concurrency for burst test with 30 RPS limit
-	result, err := ParallelRunner(8, 40, req, client)
+	result, err := ParallelRunner(30, 50, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,8 +144,7 @@ func TestRpm10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 			Path:   "/rpm10/burst3",
 		},
 	}
-	// Use conservative concurrency for burst test with 30 RPS limit
-	result, err := ParallelRunner(8, 60, req, client)
+	result, err := ParallelRunner(30, 100, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,16 +201,9 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 	result := &Result{
 		Requests: times,
 	}
-	// Add timeout to prevent test from hanging indefinitely
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	startTime := time.Now()
-
-	// Calculate interval between requests to spread them over time
-	// For rate limiting tests, we want to send requests at a steady pace
-	// Use a conservative interval to avoid overwhelming the rate limiter
-	requestInterval := time.Duration(200/threads) * time.Millisecond // Base interval
-
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
 		go func() {
@@ -264,13 +227,8 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 				if statusCode >= 200 && statusCode < 300 {
 					atomic.AddInt32(&result.Success, 1)
 				} else {
-					// Reduce sleep time for rate-limited requests to prevent test timeout
-					// Rate limiting is expected behavior, so we don't need long delays
-					time.Sleep(10 * time.Millisecond)
+					time.Sleep(50 * time.Millisecond)
 				}
-
-				// Add interval between requests to better test rate limiting
-				time.Sleep(requestInterval)
 			}
 		}()
 	}
