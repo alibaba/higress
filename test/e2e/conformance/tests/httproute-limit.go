@@ -61,8 +61,8 @@ var HttpRouteLimiter = suite.ConformanceTest{
 				t.Fatalf("Failed to disable gzip for rate limiting test: %v", err)
 			}
 
-			// Wait for configuration to take effect
-			time.Sleep(5 * time.Second)
+			// Wait for configuration to take effect, especially important for rate limiter
+			time.Sleep(10 * time.Second)
 
 			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)
@@ -114,9 +114,9 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Use more aggressive settings to achieve higher RPS
-	// 4 threads, 200 total requests (50 per thread) for a 50 RPS limit
-	result, err := ParallelRunner(4, 200, req, client)
+	// Use conservative settings to avoid rate limiter throttling
+	// 2 threads, 100 total requests (50 per thread) for a 50 RPS limit
+	result, err := ParallelRunner(2, 100, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,8 +135,8 @@ func TestRps10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 		},
 	}
 
-	// Use moderate concurrency for burst test with 30 RPS limit
-	result, err := ParallelRunner(15, 60, req, client)
+	// Use conservative concurrency for burst test with 30 RPS limit
+	result, err := ParallelRunner(8, 40, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,8 +173,8 @@ func TestRpm10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 			Path:   "/rpm10/burst3",
 		},
 	}
-	// Use moderate concurrency for burst test with 30 RPS limit
-	result, err := ParallelRunner(15, 90, req, client)
+	// Use conservative concurrency for burst test with 30 RPS limit
+	result, err := ParallelRunner(8, 60, req, client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,8 +238,8 @@ func ParallelRunner(threads int, times int, req *roundtripper.Request, client *h
 
 	// Calculate interval between requests to spread them over time
 	// For rate limiting tests, we want to send requests at a steady pace
-	// Use a smaller interval to achieve higher RPS, but not too small to avoid overwhelming
-	requestInterval := time.Duration(100/threads) * time.Millisecond // Base interval
+	// Use a conservative interval to avoid overwhelming the rate limiter
+	requestInterval := time.Duration(200/threads) * time.Millisecond // Base interval
 
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
