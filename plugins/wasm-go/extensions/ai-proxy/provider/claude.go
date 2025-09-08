@@ -138,7 +138,7 @@ type claudeSystemPrompt struct {
 	// Will be set to the string value if system is a simple string
 	StringValue string
 	// Will be set to the array value if system is an array of text blocks
-	ArrayValue []claudeTextGenContent
+	ArrayValue []claudeChatMessageContent
 	// Indicates which type this represents
 	IsArray bool
 }
@@ -154,7 +154,7 @@ func (csp *claudeSystemPrompt) UnmarshalJSON(data []byte) error {
 	}
 
 	// Try to unmarshal as array of text blocks
-	var arrayValue []claudeTextGenContent
+	var arrayValue []claudeChatMessageContent
 	if err := json.Unmarshal(data, &arrayValue); err == nil {
 		csp.ArrayValue = arrayValue
 		csp.IsArray = true
@@ -196,7 +196,7 @@ type claudeThinkingConfig struct {
 type claudeTextGenRequest struct {
 	Model         string                `json:"model"`
 	Messages      []claudeChatMessage   `json:"messages"`
-	System        claudeSystemPrompt    `json:"system,omitempty"`
+	System        *claudeSystemPrompt   `json:"system,omitempty"`
 	MaxTokens     int                   `json:"max_tokens,omitempty"`
 	StopSequences []string              `json:"stop_sequences,omitempty"`
 	Stream        bool                  `json:"stream,omitempty"`
@@ -232,9 +232,11 @@ type claudeTextGenContent struct {
 }
 
 type claudeTextGenUsage struct {
-	InputTokens  int    `json:"input_tokens,omitempty"`
-	OutputTokens int    `json:"output_tokens,omitempty"`
-	ServiceTier  string `json:"service_tier,omitempty"`
+	InputTokens              int    `json:"input_tokens,omitempty"`
+	OutputTokens             int    `json:"output_tokens,omitempty"`
+	CacheReadInputTokens     int    `json:"cache_read_input_tokens,omitempty"`
+	CacheCreationInputTokens int    `json:"cache_creation_input_tokens,omitempty"`
+	ServiceTier              string `json:"service_tier,omitempty"`
 }
 
 type claudeTextGenError struct {
@@ -254,6 +256,7 @@ type claudeTextGenStreamResponse struct {
 type claudeTextGenDelta struct {
 	Type         string  `json:"type"`
 	Text         string  `json:"text,omitempty"`
+	PartialJson  string  `json:"partial_json,omitempty"`
 	StopReason   *string `json:"stop_reason,omitempty"`
 	StopSequence *string `json:"stop_sequence,omitempty"`
 }
@@ -401,7 +404,7 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 
 	for _, message := range origRequest.Messages {
 		if message.Role == roleSystem {
-			claudeRequest.System = claudeSystemPrompt{
+			claudeRequest.System = &claudeSystemPrompt{
 				StringValue: message.StringContent(),
 				IsArray:     false,
 			}
@@ -622,12 +625,12 @@ func (c *claudeProvider) insertHttpContextMessage(body []byte, content string, o
 
 	systemStr := request.System.String()
 	if systemStr == "" {
-		request.System = claudeSystemPrompt{
+		request.System = &claudeSystemPrompt{
 			StringValue: content,
 			IsArray:     false,
 		}
 	} else {
-		request.System = claudeSystemPrompt{
+		request.System = &claudeSystemPrompt{
 			StringValue: content + "\n" + systemStr,
 			IsArray:     false,
 		}
