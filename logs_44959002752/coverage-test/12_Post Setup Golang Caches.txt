@@ -1,8 +1,0 @@
-﻿2025-09-07T11:48:58.7025120Z Post job cleanup.
-2025-09-07T11:48:58.8558465Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/higress/higress --files-from manifest.txt --use-compress-program zstdmt
-2025-09-07T11:49:16.8379227Z Sent 0 of 1707456858 (0.0%), 0.0 MBs/sec
-2025-09-07T11:49:17.8367352Z Sent 536870912 of 1707456858 (31.4%), 255.9 MBs/sec
-2025-09-07T11:49:18.8377387Z Sent 1207959552 of 1707456858 (70.7%), 383.7 MBs/sec
-2025-09-07T11:49:19.8382453Z Sent 1640347994 of 1707456858 (96.1%), 390.7 MBs/sec
-2025-09-07T11:49:19.9654629Z Sent 1707456858 of 1707456858 (100.0%), 394.2 MBs/sec
-2025-09-07T11:49:20.3627963Z Cache saved with key: Linux-go-17528084081

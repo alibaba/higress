@@ -1,5 +1,0 @@
-﻿2025-09-07T11:56:48.4061127Z ##[group]Run git stash
-2025-09-07T11:56:48.4061419Z [36;1mgit stash[0m
-2025-09-07T11:56:48.4086201Z shell: /usr/bin/bash -e {0}
-2025-09-07T11:56:48.4086471Z ##[endgroup]
-2025-09-07T11:56:48.6868013Z No local changes to save

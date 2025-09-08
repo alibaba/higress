@@ -1,5 +1,0 @@
-2025-09-07T11:52:39.6340000Z Job is waiting for a hosted runner to come online.
-2025-09-07T11:52:39.6330000Z Requested labels: ubuntu-latest
-2025-09-07T11:52:39.6330000Z Job defined at: alibaba/higress/.github/workflows/build-and-test.yaml@refs/pull/2867/merge
-2025-09-07T11:52:39.6330000Z Waiting for a runner to pick up this job...
-2025-09-07T11:52:39.6360000Z Job is about to start running on the hosted runner: GitHub Actions 1000171563
