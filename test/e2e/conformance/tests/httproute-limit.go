@@ -61,15 +61,59 @@ var HttpRouteLimiter = suite.ConformanceTest{
 					CompressionStrategy: "DEFAULT_STRATEGY",
 				},
 			}
-			
+
 			err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", gzipDisabledConfig)
 			if err != nil {
 				t.Fatalf("Failed to disable gzip for rate limiting tests: %v", err)
 			}
-			
-			// Wait for configuration to take effect
-			time.Sleep(10 * time.Second)
-			
+
+			// Wait for configuration to take effect by verifying gzip is disabled
+			t.Log("Waiting for gzip configuration to be applied...")
+			testReq := &roundtripper.Request{
+				Method: "GET",
+				Host:   "limiter.higress.io",
+				URL: url.URL{
+					Scheme: "http",
+					Host:   suite.GatewayAddress,
+					Path:   "/",
+				},
+				Headers: map[string][]string{
+					"Accept-Encoding": {"*"},
+				},
+			}
+
+			// Verify that gzip is disabled by checking absence of content-encoding header
+			successes := 0
+			maxAttempts := 30 // 30 attempts with 1s delay = 30s max wait
+			for attempt := 0; attempt < maxAttempts; attempt++ {
+				_, cRes, err := suite.RoundTripper.CaptureRoundTrip(*testReq)
+				if err != nil {
+					t.Logf("Request failed while waiting for gzip config: %v (attempt %d)", err, attempt+1)
+					time.Sleep(1 * time.Second)
+					continue
+				}
+
+				// Check if content-encoding header is absent (gzip disabled)
+				if _, exists := cRes.Headers["content-encoding"]; !exists {
+					successes++
+					if successes >= 3 { // Require 3 consecutive successes
+						t.Logf("Gzip successfully disabled after %d attempts", attempt+1)
+						break
+					}
+				} else {
+					t.Logf("Gzip still enabled, content-encoding header present (attempt %d)", attempt+1)
+					successes = 0
+				}
+
+				if attempt < maxAttempts-1 {
+					time.Sleep(1 * time.Second)
+				}
+			}
+
+			if successes < 3 {
+				t.Fatalf("Failed to verify gzip disabled configuration after %d attempts", maxAttempts)
+			}
+
 			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
