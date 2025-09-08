@@ -22,6 +22,8 @@ import (
 	"io"
 	"sync/atomic"
 
+	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 	"net/url"
@@ -45,8 +47,29 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-limit.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
-			//wait ingress ready
-			time.Sleep(1 * time.Second)
+			// Disable gzip compression for rate limiting tests to ensure accurate measurements
+			gzipDisabledConfig := &configmap.HigressConfig{
+				Gzip: &configmap.Gzip{
+					Enable:              false,
+					MinContentLength:    1024,
+					ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
+					DisableOnEtagHeader: true,
+					MemoryLevel:         5,
+					WindowBits:          12,
+					ChunkSize:           4096,
+					CompressionLevel:    "BEST_COMPRESSION",
+					CompressionStrategy: "DEFAULT_STRATEGY",
+				},
+			}
+			
+			err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", gzipDisabledConfig)
+			if err != nil {
+				t.Fatalf("Failed to disable gzip for rate limiting tests: %v", err)
+			}
+			
+			// Wait for configuration to take effect
+			time.Sleep(10 * time.Second)
+			
 			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)
 			TestRps50(t, suite.GatewayAddress, client)
