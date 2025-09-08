@@ -32,6 +32,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 	Description: "The Envoy config should contain global config",
 	Manifests:   []string{"tests/configmap-global.yaml"},
 	Features:    []suite.SupportedFeature{suite.EnvoyConfigConformanceFeature},
+	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		testCases := []struct {
 			name           string

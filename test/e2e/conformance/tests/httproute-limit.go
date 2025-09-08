@@ -45,7 +45,9 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace uses rps annotation",
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Manifests:   []string{"tests/httproute-limit.yaml"},
+	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		t.Log("🔥 Starting HttpRouteLimiter test - disabling gzip for rate limiting tests")
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
 			// Disable gzip compression for rate limiting tests to ensure accurate measurements
 			gzipDisabledConfig := &configmap.HigressConfig{
@@ -120,6 +122,7 @@ var HttpRouteLimiter = suite.ConformanceTest{
 			TestRps10Burst3(t, suite.GatewayAddress, client)
 			TestRpm10(t, suite.GatewayAddress, client)
 			TestRpm10Burst3(t, suite.GatewayAddress, client)
+			t.Log("✅ HttpRouteLimiter test completed successfully")
 		})
 	},
 }

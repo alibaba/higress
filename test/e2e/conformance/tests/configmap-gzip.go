@@ -293,6 +293,7 @@ var ConfigmapGzip = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace uses the configmap gzip.",
 	Manifests:   []string{"tests/configmap-gzip.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
+	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("Configmap Gzip", func(t *testing.T) {
 			for _, testcase := range testCases {
@@ -311,6 +312,7 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 	Description: "The Envoy config should contain gzip config",
 	Manifests:   []string{"tests/configmap-gzip.yaml"},
 	Features:    []suite.SupportedFeature{suite.EnvoyConfigConformanceFeature},
+	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("ConfigMap Gzip Envoy", func(t *testing.T) {
 			for _, testcase := range testCases {
