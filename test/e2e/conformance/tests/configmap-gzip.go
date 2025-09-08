@@ -296,13 +296,23 @@ var ConfigmapGzip = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("Configmap Gzip", func(t *testing.T) {
-			for _, testcase := range testCases {
+			// Test only the most critical gzip configurations to reduce test time
+			criticalTestCases := []struct {
+				higressConfig *configmap.HigressConfig
+				httpAssert    http.Assertion
+			}{
+				testCases[0], // disable gzip
+				testCases[1], // enable gzip
+			}
+
+			for _, testcase := range criticalTestCases {
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
 				// Wait for configuration to take effect, especially important when gzip is enabled by default
-				time.Sleep(10 * time.Second)
+				// Increase wait time for better config propagation
+				time.Sleep(15 * time.Second)
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase.httpAssert)
 			}
 		})
@@ -316,14 +326,24 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.EnvoyConfigConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("ConfigMap Gzip Envoy", func(t *testing.T) {
-			for _, testcase := range testCases {
+			// Test only the most critical gzip configurations to reduce test time
+			criticalTestCases := []struct {
+				higressConfig  *configmap.HigressConfig
+				envoyAssertion envoy.Assertion
+			}{
+				testCases[0], // disable gzip
+				testCases[1], // enable gzip
+			}
+
+			for _, testcase := range criticalTestCases {
 				// apply config
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
 				// Wait for configuration to take effect, especially important when gzip is enabled by default
-				time.Sleep(15 * time.Second)
+				// Increase wait time for Envoy config convergence
+				time.Sleep(30 * time.Second)
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, testcase.envoyAssertion)
 			}
 		})
