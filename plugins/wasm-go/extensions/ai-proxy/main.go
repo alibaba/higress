@@ -406,7 +406,8 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 				return chunk
 			}
 			if len(outputEvents) == 0 {
-				responseBuilder.WriteString(event.ToHttpString())
+				// no need convert, keep original events
+				responseBuilder.WriteString(event.RawEvent)
 			} else {
 				for _, outputEvent := range outputEvents {
 					responseBuilder.WriteString(outputEvent.ToHttpString())

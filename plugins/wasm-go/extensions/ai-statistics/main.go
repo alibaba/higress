@@ -83,6 +83,23 @@ const (
 	RuleFirst   = "first"
 	RuleReplace = "replace"
 	RuleAppend  = "append"
+
+	// Built-in attributes
+	BuiltinQuestionKey = "question"
+	BuiltinAnswerKey   = "answer"
+
+	// Built-in attribute paths
+	// Question paths (from request body)
+	QuestionPathOpenAI = "messages.@reverse.0.content"
+	QuestionPathClaude = "messages.@reverse.0.content" // Claude uses same format
+
+	// Answer paths (from response body - non-streaming)
+	AnswerPathOpenAINonStreaming = "choices.0.message.content"
+	AnswerPathClaudeNonStreaming = "content.0.text"
+
+	// Answer paths (from response streaming body)
+	AnswerPathOpenAIStreaming = "choices.0.delta.content"
+	AnswerPathClaudeStreaming = "delta.text"
 )
 
 // TracingSpan is the tracing span configuration.
@@ -325,12 +342,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 
 	userPromptCount := 0
 	if messages := gjson.GetBytes(body, "messages"); messages.Exists() && messages.IsArray() {
+		// OpenAI and Claude/Anthropic format - both use "messages" array with "role" field
 		for _, msg := range messages.Array() {
 			if msg.Get("role").String() == "user" {
 				userPromptCount += 1
 			}
 		}
-	} else if contents := gjson.GetBytes(body, "contents"); contents.Exists() && contents.IsArray() { // Google Gemini GenerateContent
+	} else if contents := gjson.GetBytes(body, "contents"); contents.Exists() && contents.IsArray() {
+		// Google Gemini GenerateContent
 		for _, content := range contents.Array() {
 			if !content.Get("role").Exists() || content.Get("role").String() == "user" {
 				userPromptCount += 1
@@ -387,7 +406,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		"id",
 		"response.id",
 		"responseId", // Gemini generateContent
-		"message.id", // anthropic messages
+		"message.id", // anthropic/claude messages
 	}); chatID != nil {
 		ctx.SetUserAttribute(ChatID, chatID.String())
 	}
@@ -456,7 +475,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 		"id",
 		"response.id",
 		"responseId", // Gemini generateContent
-		"message.id", // anthropic messages
+		"message.id", // anthropic/claude messages
 	}); chatID != nil {
 		ctx.SetUserAttribute(ChatID, chatID.String())
 	}
@@ -507,6 +526,15 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 				value = gjson.GetBytes(body, attribute.Value).Value()
 			default:
 			}
+
+			// Handle built-in attributes with Claude/OpenAI protocol fallback logic
+			if (value == nil || value == "") && isBuiltinAttribute(key) {
+				value = getBuiltinAttributeFallback(ctx, config, key, source, body, attribute.Rule)
+				if value != nil && value != "" {
+					log.Debugf("[attribute] Used protocol fallback for %s: %+v", key, value)
+				}
+			}
+
 			if (value == nil || value == "") && attribute.DefaultValue != "" {
 				value = attribute.DefaultValue
 			}
@@ -536,6 +564,45 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 			}
 		}
 	}
+}
+
+// isBuiltinAttribute checks if the given key is a built-in attribute
+func isBuiltinAttribute(key string) bool {
+	return key == BuiltinQuestionKey || key == BuiltinAnswerKey
+}
+
+// getBuiltinAttributeFallback provides protocol compatibility fallback for question/answer attributes
+func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsConfig, key, source string, body []byte, rule string) interface{} {
+	switch key {
+	case BuiltinQuestionKey:
+		if source == RequestBody {
+			// Try OpenAI/Claude format (both use same messages structure)
+			if value := gjson.GetBytes(body, QuestionPathOpenAI).Value(); value != nil && value != "" {
+				return value
+			}
+		}
+	case BuiltinAnswerKey:
+		if source == ResponseStreamingBody {
+			// Try OpenAI format first
+			if value := extractStreamingBodyByJsonPath(body, AnswerPathOpenAIStreaming, rule); value != nil && value != "" {
+				return value
+			}
+			// Try Claude format
+			if value := extractStreamingBodyByJsonPath(body, AnswerPathClaudeStreaming, rule); value != nil && value != "" {
+				return value
+			}
+		} else if source == ResponseBody {
+			// Try OpenAI format first
+			if value := gjson.GetBytes(body, AnswerPathOpenAINonStreaming).Value(); value != nil && value != "" {
+				return value
+			}
+			// Try Claude format
+			if value := gjson.GetBytes(body, AnswerPathClaudeNonStreaming).Value(); value != nil && value != "" {
+				return value
+			}
+		}
+	}
+	return nil
 }
 
 func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) interface{} {
