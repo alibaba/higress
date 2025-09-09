@@ -100,7 +100,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
-						Path:            "configs.#.dynamic_clusters.#",
+						Path:            "configs.#.dynamic_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeExist,
 						TargetNamespace: "higress-system",
 						ExpectEnvoyConfig: map[string]interface{}{
@@ -123,9 +123,115 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 			
 			for i, assertion := range testcase.envoyAssertion {
 				t.Logf("📍 ConfigMapGlobalEnvoy: Running assertion %d with path: %s", i+1, assertion.Path)
+				
+				// Special debugging for the per_connection_buffer_limit_bytes assertion
+				if assertion.Path == "configs.#.dynamic_clusters.#.cluster" {
+					t.Logf("🔍 ConfigMapGlobalEnvoy: Special debugging for cluster buffer limit assertion")
+					debugClusterConfig(t, suite.TimeoutConfig)
+				}
+				
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, assertion)
 				t.Logf("✅ ConfigMapGlobalEnvoy: Assertion %d passed", i+1)
 			}
 		}
 	},
+}
+
+// debugClusterConfig dumps the actual cluster configuration for debugging
+func debugClusterConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig) {
+	t.Logf("🔍 Debug: Starting cluster configuration debug")
+	
+	options := &config.GetEnvoyConfigOptions{
+		GatewayAddress: "localhost",
+		GatewayPort:    80,
+		Timeout:        10,
+		Namespace:      "higress-system",
+	}
+	
+	var allEnvoyConfig string
+	err := wait.Poll(1*time.Second, 10*time.Second, func() (bool, error) {
+		out, err := config.GetEnvoyConfig(options)
+		if err != nil {
+			return false, err
+		}
+		allEnvoyConfig = string(out)
+		return true, nil
+	})
+	
+	if err != nil {
+		t.Logf("❌ Debug: Failed to get Envoy config: %v", err)
+		return
+	}
+	
+	t.Logf("🔍 Debug: Successfully retrieved Envoy config, length: %d bytes", len(allEnvoyConfig))
+	
+	// Try to parse and debug cluster configurations
+	parsed := gjson.Parse(allEnvoyConfig)
+	dynamicClusters := parsed.Get("configs.#.dynamic_clusters")
+	
+	if dynamicClusters.Exists() {
+		t.Logf("🔍 Debug: Found dynamic_clusters in config")
+		if dynamicClusters.IsArray() {
+			t.Logf("🔍 Debug: dynamic_clusters is an array with %d elements", dynamicClusters.Array())
+			for i, cluster := range dynamicClusters.Array() {
+				t.Logf("🔍 Debug: Cluster %d:", i)
+				if cluster.IsObject() {
+					t.Logf("🔍 Debug: Cluster %d keys:", i)
+					cluster.ForEach(func(key, value gjson.Result) bool {
+						t.Logf("  - %s", key.String())
+						return true
+					})
+					
+					// Check if cluster has nested cluster object
+					nestedCluster := cluster.Get("cluster")
+					if nestedCluster.Exists() {
+						t.Logf("🔍 Debug: Cluster %d has nested cluster object:", i)
+						nestedCluster.ForEach(func(key, value gjson.Result) bool {
+							t.Logf("  - cluster.%s", key.String())
+							return true
+						})
+						
+						// Specifically check for per_connection_buffer_limit_bytes
+						if bufferLimit := nestedCluster.Get("per_connection_buffer_limit_bytes"); bufferLimit.Exists() {
+							t.Logf("🔍 Debug: FOUND per_connection_buffer_limit_bytes in cluster %d: %v", i, bufferLimit.Value())
+						} else {
+							t.Logf("🔍 Debug: per_connection_buffer_limit_bytes NOT FOUND in cluster %d", i)
+						}
+					} else {
+						t.Logf("🔍 Debug: Cluster %d does NOT have nested cluster object", i)
+						// Check if per_connection_buffer_limit_bytes exists directly
+						if bufferLimit := cluster.Get("per_connection_buffer_limit_bytes"); bufferLimit.Exists() {
+							t.Logf("🔍 Debug: FOUND per_connection_buffer_limit_bytes directly in cluster %d: %v", i, bufferLimit.Value())
+						} else {
+							t.Logf("🔍 Debug: per_connection_buffer_limit_bytes NOT FOUND directly in cluster %d", i)
+						}
+					}
+				}
+			}
+		} else {
+			t.Logf("🔍 Debug: dynamic_clusters is not an array: %T", dynamicClusters.Value())
+		}
+	} else {
+		t.Logf("🔍 Debug: dynamic_clusters NOT found in config")
+		
+		// Let's see what's actually in configs
+		configs := parsed.Get("configs")
+		if configs.Exists() {
+			t.Logf("🔍 Debug: configs exists, type: %T", configs.Value())
+			if configs.IsArray() {
+				t.Logf("🔍 Debug: configs is an array with %d elements", configs.Array())
+				for i, config := range configs.Array() {
+					t.Logf("🔍 Debug: Config %d keys:", i)
+					config.ForEach(func(key, value gjson.Result) bool {
+						t.Logf("  - %s", key.String())
+						return true
+					})
+				}
+			}
+		} else {
+			t.Logf("🔍 Debug: configs NOT found in config")
+		}
+	}
+	
+	t.Logf("🔍 Debug: Cluster configuration debug completed")
 }
