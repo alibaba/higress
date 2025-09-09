@@ -13,6 +13,9 @@ type RuleType string
 // UpstreamType defines the type of matching rule
 type UpstreamType string
 
+// HostMatchType defines the type of host matching
+type HostMatchType int
+
 const (
 	ExactMatch    RuleType = "exact"
 	PrefixMatch   RuleType = "prefix"
@@ -23,7 +26,17 @@ const (
 	RestUpstream       UpstreamType = "rest"
 	SSEUpstream        UpstreamType = "sse"
 	StreamableUpstream UpstreamType = "streamable"
+
+	HostExact HostMatchType = iota
+	HostPrefix
+	HostSuffix
 )
+
+// HostMatcher defines the structure for host matching
+type HostMatcher struct {
+	matchType HostMatchType
+	host      string
+}
 
 // MatchRule defines the structure for a matching rule
 type MatchRule struct {
@@ -84,11 +97,38 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 	return matchList
 }
 
-// convertWildcardToRegex converts wildcard pattern to regex pattern
-func convertWildcardToRegex(pattern string) string {
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = "^" + strings.ReplaceAll(pattern, "\\*", ".*") + "$"
-	return pattern
+// stripPortFromHost removes port from host string
+// Port removing code is inspired by
+// https://github.com/envoyproxy/envoy/blob/v1.17.0/source/common/http/header_utility.cc#L219
+func stripPortFromHost(reqHost string) string {
+	portStart := strings.LastIndexByte(reqHost, ':')
+	if portStart != -1 {
+		// According to RFC3986 v6 address is always enclosed in "[]".
+		// section 3.2.2.
+		v6EndIndex := strings.LastIndexByte(reqHost, ']')
+		if v6EndIndex == -1 || v6EndIndex < portStart {
+			if portStart+1 <= len(reqHost) {
+				return reqHost[:portStart]
+			}
+		}
+	}
+	return reqHost
+}
+
+// parseHostPattern parses a host pattern and returns a HostMatcher
+func parseHostPattern(pattern string) HostMatcher {
+	var hostMatcher HostMatcher
+	if strings.HasPrefix(pattern, "*") {
+		hostMatcher.matchType = HostSuffix
+		hostMatcher.host = pattern[1:]
+	} else if strings.HasSuffix(pattern, "*") {
+		hostMatcher.matchType = HostPrefix
+		hostMatcher.host = pattern[:len(pattern)-1]
+	} else {
+		hostMatcher.matchType = HostExact
+		hostMatcher.host = pattern
+	}
+	return hostMatcher
 }
 
 // matchPattern checks if the target matches the pattern based on rule type
@@ -117,15 +157,29 @@ func matchPattern(pattern string, target string, ruleType RuleType) bool {
 	}
 }
 
-// matchDomain checks if the domain matches the pattern
+// matchDomain checks if the domain matches the pattern using HostMatcher approach
 func matchDomain(domain string, pattern string) bool {
 	if pattern == "" || pattern == "*" {
 		return true
 	}
-	// Convert wildcard pattern to regex pattern
-	regexPattern := convertWildcardToRegex(pattern)
-	matched, _ := regexp.MatchString(regexPattern, domain)
-	return matched
+
+	// Strip port from domain
+	domain = stripPortFromHost(domain)
+
+	// Parse the pattern into a HostMatcher
+	hostMatcher := parseHostPattern(pattern)
+
+	// Perform matching based on match type
+	switch hostMatcher.matchType {
+	case HostSuffix:
+		return strings.HasSuffix(domain, hostMatcher.host)
+	case HostPrefix:
+		return strings.HasPrefix(domain, hostMatcher.host)
+	case HostExact:
+		return domain == hostMatcher.host
+	default:
+		return false
+	}
 }
 
 // matchDomainAndPath checks if both domain and path match the rule
