@@ -100,7 +100,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
-						Path:            "configs.#.dynamic_clusters.#.cluster",
+						Path:            "configs.#.dynamic_clusters.#",
 						CheckType:       envoy.CheckTypeExist,
 						TargetNamespace: "higress-system",
 						ExpectEnvoyConfig: map[string]interface{}{
@@ -112,14 +112,19 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 		}
 
 		for _, testcase := range testCases {
+			t.Logf("📍 ConfigMapGlobalEnvoy: Applying test case configuration")
 			err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 			if err != nil {
 				t.Logf("❌ ConfigMapGlobalEnvoy: Failed to apply configmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				t.Logf("📍 ConfigMapGlobalEnvoy: ConfigMap application failed: %v", err)
 				t.FailNow()
 			}
-			for _, assertion := range testcase.envoyAssertion {
+			t.Logf("✅ ConfigMapGlobalEnvoy: Configuration applied successfully")
+			
+			for i, assertion := range testcase.envoyAssertion {
+				t.Logf("📍 ConfigMapGlobalEnvoy: Running assertion %d with path: %s", i+1, assertion.Path)
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, assertion)
+				t.Logf("✅ ConfigMapGlobalEnvoy: Assertion %d passed", i+1)
 			}
 		}
 	},
