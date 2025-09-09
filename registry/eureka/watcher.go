@@ -157,6 +157,9 @@ func (w *watcher) Stop() {
 		w.cache.DeleteServiceWrapper(makeHost(serviceName))
 	}
 	w.UpdateService()
+	w.isStop = true
+	close(w.stop)
+	w.Ready(false)
 }
 
 func (w *watcher) IsHealthy() bool {
