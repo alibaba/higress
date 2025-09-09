@@ -68,8 +68,8 @@ type claudeChatMessageContent struct {
 	Name  string                 `json:"name,omitempty"`  // For tool_use
 	Input map[string]interface{} `json:"input,omitempty"` // For tool_use
 	// Tool result fields
-	ToolUseId string `json:"tool_use_id,omitempty"` // For tool_result
-	Content   string `json:"content,omitempty"`     // For tool_result
+	ToolUseId string                     `json:"tool_use_id,omitempty"` // For tool_result
+	Content   claudeChatMessageContentWr `json:"content,omitempty"`     // For tool_result - can be string or array
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for claudeChatMessageContentWr
@@ -88,6 +88,8 @@ func (ccw *claudeChatMessageContentWr) UnmarshalJSON(data []byte) error {
 		ccw.ArrayValue = arrayValue
 		ccw.IsString = false
 		return nil
+	} else {
+		log.Errorf("claude chat message unmarshal failed, data:%s, err:%v", data, err)
 	}
 
 	return fmt.Errorf("content field must be either a string or an array of content blocks")
@@ -101,12 +103,19 @@ func (ccw claudeChatMessageContentWr) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ccw.ArrayValue)
 }
 
-// GetStringValue returns the string representation if it's a string, empty string otherwise
+// GetStringValue returns the string representation if it's a string, or concatenated text from array blocks
 func (ccw claudeChatMessageContentWr) GetStringValue() string {
 	if ccw.IsString {
 		return ccw.StringValue
 	}
-	return ""
+	// If it's an array, concatenate text content from all blocks
+	var parts []string
+	for _, block := range ccw.ArrayValue {
+		if block.Text != "" {
+			parts = append(parts, block.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 // GetArrayValue returns the array representation if it's an array, empty slice otherwise
