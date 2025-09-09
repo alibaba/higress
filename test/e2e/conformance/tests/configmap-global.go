@@ -100,7 +100,7 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 						},
 					},
 					{
-						Path:            "configs.#.dynamic_clusters.#",
+						Path:            "configs.#.dynamic_clusters.#.cluster",
 						CheckType:       envoy.CheckTypeExist,
 						TargetNamespace: "higress-system",
 						ExpectEnvoyConfig: map[string]interface{}{
