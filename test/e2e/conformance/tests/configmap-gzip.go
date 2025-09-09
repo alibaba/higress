@@ -280,26 +280,15 @@ var ConfigmapGzip = suite.ConformanceTest{
 	Description: "The Ingress in the higress-conformance-infra namespace uses the configmap gzip.",
 	Manifests:   []string{"tests/configmap-gzip.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
-	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		t.Log("🚀 ConfigmapGzip: Test started")
 		t.Run("Configmap Gzip", func(t *testing.T) {
-			t.Log("📍 ConfigmapGzip: Processing", len(testCases), "test cases")
-			for i, testcase := range testCases {
-				t.Logf("📍 ConfigmapGzip: Processing test case %d/%d: %s", i+1, len(testCases), testcase.httpAssert.Meta.TestCaseName)
-				
+			for _, testcase := range testCases {
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
-					t.Logf("❌ ConfigmapGzip: Failed to apply config for test case %d: %v", i+1, err)
-					t.Logf("📍 ConfigmapGzip: Failed to apply configmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
-					t.FailNow()
+					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
-				t.Logf("✅ ConfigmapGzip: Config applied for test case %d", i+1)
-				
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase.httpAssert)
-				t.Logf("✅ ConfigmapGzip: HTTP assertion passed for test case %d", i+1)
 			}
-			t.Log("🎉 ConfigmapGzip: All test cases completed successfully")
 		})
 	},
 }
@@ -309,27 +298,16 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 	Description: "The Envoy config should contain gzip config",
 	Manifests:   []string{"tests/configmap-gzip.yaml"},
 	Features:    []suite.SupportedFeature{suite.EnvoyConfigConformanceFeature},
-	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		t.Log("🚀 ConfigMapGzipEnvoy: Test started")
 		t.Run("ConfigMap Gzip Envoy", func(t *testing.T) {
-			t.Log("📍 ConfigMapGzipEnvoy: Processing", len(testCases), "test cases")
-			for i, testcase := range testCases {
-				t.Logf("📍 ConfigMapGzipEnvoy: Processing test case %d/%d", i+1, len(testCases))
-				
+			for _, testcase := range testCases {
 				// apply config
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
-					t.Logf("❌ ConfigMapGzipEnvoy: Failed to apply config for test case %d: %v", i+1, err)
-					t.Logf("📍 ConfigMapGzipEnvoy: Failed to apply configmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
-					t.FailNow()
+					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
-				t.Logf("✅ ConfigMapGzipEnvoy: Config applied for test case %d", i+1)
-				
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, testcase.envoyAssertion)
-				t.Logf("✅ ConfigMapGzipEnvoy: Envoy assertion passed for test case %d", i+1)
 			}
-			t.Log("🎉 ConfigMapGzipEnvoy: All test cases completed successfully")
 		})
 	},
 }

@@ -241,25 +241,6 @@ func findMustExist(t *testing.T, actual interface{}, expected map[string]interfa
 		t.Logf("🔍 Finding key %s", key)
 		if !findKey(actual, key, expectValue) {
 			t.Logf("❌ Not found key %s", key)
-			// Add debug information to show the actual structure
-			t.Logf("🔍 Debug: Actual structure type: %T", actual)
-			if reflect.TypeOf(actual).Kind() == reflect.Map {
-				t.Logf("🔍 Debug: Available keys in actual structure:")
-				actualMap := actual.(map[string]interface{})
-				for k := range actualMap {
-					t.Logf("  - %s", k)
-				}
-				// If this is a cluster structure, look for specific fields
-				if clusterName, exists := actualMap["name"]; exists {
-					t.Logf("🔍 Debug: Found cluster with name: %v", clusterName)
-				}
-				if connectTimeout, exists := actualMap["connect_timeout"]; exists {
-					t.Logf("🔍 Debug: Found connect_timeout: %v", connectTimeout)
-				}
-				if loadAssignment, exists := actualMap["load_assignment"]; exists {
-					t.Logf("🔍 Debug: Found load_assignment: %v", loadAssignment)
-				}
-			}
 			return false
 		}
 		t.Logf("✅ Found key %s", key)
