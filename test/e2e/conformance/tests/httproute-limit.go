@@ -34,6 +34,10 @@ import (
 	"sync"
 	"testing"
 	"time"
+	
+	"sigs.k8s.io/yaml"
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func init() {
@@ -49,6 +53,21 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Log("🔥 Starting HttpRouteLimiter test - disabling gzip for rate limiting tests")
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
+			// First, get the current config to preserve it
+			t.Log("Getting current higress-config state...")
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			
+			cm := &v1.ConfigMap{}
+			err := suite.Client.Get(ctx, client.ObjectKey{Namespace: "higress-system", Name: "higress-config"}, cm)
+			if err != nil {
+				t.Fatalf("Failed to get current higress-config: %v", err)
+			}
+			
+			// Store original config for restoration
+			originalConfig := cm.Data["higress"]
+			t.Log("Original config preserved")
+			
 			// Disable gzip compression for rate limiting tests to ensure accurate measurements
 			gzipDisabledConfig := &configmap.HigressConfig{
 				Gzip: &configmap.Gzip{
@@ -64,10 +83,29 @@ var HttpRouteLimiter = suite.ConformanceTest{
 				},
 			}
 
-			err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", gzipDisabledConfig)
+			err = kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", gzipDisabledConfig)
 			if err != nil {
 				t.Fatalf("Failed to disable gzip for rate limiting tests: %v", err)
 			}
+			
+			// Defer config restoration
+			defer func() {
+				t.Log("Restoring original higress-config...")
+				if originalConfig != "" {
+					// Parse the original config back
+					restoredConfig := &configmap.HigressConfig{}
+					if err := yaml.Unmarshal([]byte(originalConfig), restoredConfig); err != nil {
+						t.Logf("Failed to parse original config: %v", err)
+						return
+					}
+					
+					if err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", restoredConfig); err != nil {
+						t.Logf("Failed to restore original config: %v", err)
+					} else {
+						t.Log("Original config restored successfully")
+					}
+				}
+			}()
 
 			// Wait for configuration to take effect by verifying gzip is disabled
 			t.Log("Waiting for gzip configuration to be applied...")

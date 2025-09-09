@@ -15,12 +15,18 @@
 package tests
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	
+	"sigs.k8s.io/yaml"
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func init() {
@@ -34,6 +40,40 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.EnvoyConfigConformanceFeature},
 	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		// Store original config for restoration
+		t.Log("Getting current higress-config state for ConfigMapGlobalEnvoy test...")
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		
+		cm := &v1.ConfigMap{}
+		err := suite.Client.Get(ctx, client.ObjectKey{Namespace: "higress-system", Name: "higress-config"}, cm)
+		if err != nil {
+			t.Fatalf("Failed to get current higress-config: %v", err)
+		}
+		
+		// Store original config for restoration
+		originalConfig := cm.Data["higress"]
+		t.Log("Original config preserved for ConfigMapGlobalEnvoy test")
+		
+		// Defer config restoration
+		defer func() {
+			t.Log("Restoring original higress-config after ConfigMapGlobalEnvoy test...")
+			if originalConfig != "" {
+				// Parse the original config back
+				restoredConfig := &configmap.HigressConfig{}
+				if err := yaml.Unmarshal([]byte(originalConfig), restoredConfig); err != nil {
+						t.Logf("Failed to parse original config: %v", err)
+						return
+					}
+					
+					if err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", restoredConfig); err != nil {
+						t.Logf("Failed to restore original config: %v", err)
+					} else {
+						t.Log("Original config restored successfully after ConfigMapGlobalEnvoy test")
+					}
+				}
+		}()
+		
 		testCases := []struct {
 			name           string
 			higressConfig  *configmap.HigressConfig
