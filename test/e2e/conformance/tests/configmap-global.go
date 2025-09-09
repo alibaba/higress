@@ -16,11 +16,16 @@ package tests
 
 import (
 	"testing"
+	"time"
 
+	"github.com/alibaba/higress/hgctl/cmd/hgctl/config"
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
+	cfg "github.com/alibaba/higress/test/e2e/conformance/utils/config"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/tidwall/gjson"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 func init() {
@@ -142,10 +147,12 @@ func debugClusterConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig) {
 	t.Logf("🔍 Debug: Starting cluster configuration debug")
 	
 	options := &config.GetEnvoyConfigOptions{
-		GatewayAddress: "localhost",
-		GatewayPort:    80,
-		Timeout:        10,
-		Namespace:      "higress-system",
+		PodName:         "",
+		PodNamespace:    "higress-system",
+		BindAddress:     "localhost",
+		Output:          "json",
+		EnvoyConfigType: config.AllEnvoyConfigType,
+		IncludeEds:      true,
 	}
 	
 	var allEnvoyConfig string
@@ -172,7 +179,7 @@ func debugClusterConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig) {
 	if dynamicClusters.Exists() {
 		t.Logf("🔍 Debug: Found dynamic_clusters in config")
 		if dynamicClusters.IsArray() {
-			t.Logf("🔍 Debug: dynamic_clusters is an array with %d elements", dynamicClusters.Array())
+			t.Logf("🔍 Debug: dynamic_clusters is an array with %d elements", len(dynamicClusters.Array()))
 			for i, cluster := range dynamicClusters.Array() {
 				t.Logf("🔍 Debug: Cluster %d:", i)
 				if cluster.IsObject() {
@@ -219,7 +226,7 @@ func debugClusterConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig) {
 		if configs.Exists() {
 			t.Logf("🔍 Debug: configs exists, type: %T", configs.Value())
 			if configs.IsArray() {
-				t.Logf("🔍 Debug: configs is an array with %d elements", configs.Array())
+				t.Logf("🔍 Debug: configs is an array with %d elements", len(configs.Array()))
 				for i, config := range configs.Array() {
 					t.Logf("🔍 Debug: Config %d keys:", i)
 					config.ForEach(func(key, value gjson.Result) bool {
