@@ -61,7 +61,8 @@ var HttpRouteLimiter = suite.ConformanceTest{
 			err := suite.Client.Get(ctx, client.ObjectKey{Namespace: "higress-system", Name: "higress-config"}, cm)
 			if err != nil {
 				t.Logf("❌ STEP 1 FAILED: Cannot get higress-config: %v", err)
-				t.Fatalf("ConfigMap access failed: %v", err)
+				t.Logf("📍 STEP 1 FAILED: ConfigMap access failed: %v", err)
+				t.FailNow()
 			}
 			t.Log("✅ STEP 1 SUCCESS: higress-config ConfigMap found")
 			
@@ -93,7 +94,8 @@ var HttpRouteLimiter = suite.ConformanceTest{
 			err = kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", gzipDisabledConfig)
 			if err != nil {
 				t.Logf("❌ STEP 3 FAILED: Cannot apply config: %v", err)
-				t.Fatalf("Config application failed: %v", err)
+				t.Logf("📍 STEP 3 FAILED: Config application failed: %v", err)
+				t.FailNow()
 			}
 			t.Log("✅ STEP 3 SUCCESS: Gzip disabled config applied")
 			
@@ -105,7 +107,8 @@ var HttpRouteLimiter = suite.ConformanceTest{
 			err = suite.Client.Get(ctx, client.ObjectKey{Namespace: "higress-system", Name: "higress-config"}, updatedCm)
 			if err != nil {
 				t.Logf("❌ STEP 4 FAILED: Cannot get updated config: %v", err)
-				t.Fatalf("Cannot verify config update: %v", err)
+				t.Logf("📍 STEP 4 FAILED: Cannot verify config update: %v", err)
+				t.FailNow()
 			}
 			
 			updatedConfig := updatedCm.Data["higress"]
@@ -159,7 +162,8 @@ var HttpRouteLimiter = suite.ConformanceTest{
 			_, cRes, err := suite.RoundTripper.CaptureRoundTrip(*testReq)
 			if err != nil {
 				t.Logf("❌ STEP 5.1 FAILED: HTTP request failed: %v", err)
-				t.Fatalf("HTTP request failed: %v", err)
+				t.Logf("📍 STEP 5.1 FAILED: HTTP request failed: %v", err)
+				t.FailNow()
 			}
 			
 			t.Log("✅ STEP 5.1 SUCCESS: HTTP request completed")
@@ -202,7 +206,8 @@ var HttpRouteLimiter = suite.ConformanceTest{
 				
 				if successes < 2 {
 					t.Logf("❌ STEP 5.2 FAILED: Gzip verification failed after %d attempts", maxAttempts)
-					t.Fatalf("Failed to verify gzip disabled configuration after %d attempts", maxAttempts)
+					t.Logf("📍 STEP 5.2 FAILED: Failed to verify gzip disabled configuration after %d attempts", maxAttempts)
+					t.FailNow()
 				}
 			} else {
 				t.Log("✅ STEP 5.1: Gzip is already disabled (no content-encoding header)")
@@ -253,7 +258,8 @@ func TestRps10(t *testing.T, gwAddr string, client *http.Client) {
 	result, err := ParallelRunner(10, 3000, req, client)
 	if err != nil {
 		t.Logf("❌ TestRps10: Parallel runner failed: %v", err)
-		t.Fatal(err)
+		t.Logf("📍 TestRps10: Parallel runner failed: %v", err)
+		t.FailNow()
 	}
 	t.Log("✅ TestRps10: Parallel runner completed")
 	t.Log("📍 TestRps10: Asserting RPS results")
@@ -278,7 +284,8 @@ func TestRps50(t *testing.T, gwAddr string, client *http.Client) {
 	result, err := ParallelRunner(10, 5000, req, client)
 	if err != nil {
 		t.Logf("❌ TestRps50: Parallel runner failed: %v", err)
-		t.Fatal(err)
+		t.Logf("📍 TestRps50: Parallel runner failed: %v", err)
+		t.FailNow()
 	}
 	t.Log("✅ TestRps50: Parallel runner completed")
 	t.Log("📍 TestRps50: Asserting RPS results")
@@ -303,7 +310,8 @@ func TestRps10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 	result, err := ParallelRunner(30, 50, req, client)
 	if err != nil {
 		t.Logf("❌ TestRps10Burst3: Parallel runner failed: %v", err)
-		t.Fatal(err)
+		t.Logf("📍 TestRps10Burst3: Parallel runner failed: %v", err)
+		t.FailNow()
 	}
 	t.Log("✅ TestRps10Burst3: Parallel runner completed")
 	t.Log("📍 TestRps10Burst3: Asserting RPS results")
@@ -328,7 +336,8 @@ func TestRpm10(t *testing.T, gwAddr string, client *http.Client) {
 	result, err := ParallelRunner(10, 100, req, client)
 	if err != nil {
 		t.Logf("❌ TestRpm10: Parallel runner failed: %v", err)
-		t.Fatal(err)
+		t.Logf("📍 TestRpm10: Parallel runner failed: %v", err)
+		t.FailNow()
 	}
 	t.Log("✅ TestRpm10: Parallel runner completed")
 	t.Log("📍 TestRpm10: Asserting RPS results")
@@ -353,7 +362,8 @@ func TestRpm10Burst3(t *testing.T, gwAddr string, client *http.Client) {
 	result, err := ParallelRunner(30, 100, req, client)
 	if err != nil {
 		t.Logf("❌ TestRpm10Burst3: Parallel runner failed: %v", err)
-		t.Fatal(err)
+		t.Logf("📍 TestRpm10Burst3: Parallel runner failed: %v", err)
+		t.FailNow()
 	}
 	t.Log("✅ TestRpm10Burst3: Parallel runner completed")
 	t.Log("📍 TestRpm10Burst3: Asserting RPS results")

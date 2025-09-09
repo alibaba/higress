@@ -73,25 +73,12 @@ var testCases = []struct {
 			},
 		},
 		envoyAssertion: envoy.Assertion{
-			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains",
+			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config.http_filters",
 			TargetNamespace: "higress-system",
 			CheckType:       envoy.CheckTypeNotExist,
 			ExpectEnvoyConfig: map[string]interface{}{
-				"memory_level":           5,
-				"compression_level":      "COMPRESSION_LEVEL_9",
-				"window_bits":            12,
-				"min_content_length":     1024,
-				"disable_on_etag_header": true,
-				"content_type": []interface{}{
-					"text/html",
-					"text/css",
-					"text/plain",
-					"text/xml",
-					"application/json",
-					"application/javascript",
-					"application/xhtml+xml",
-					"image/svg+xml",
-				},
+				"name": "envoy.filters.http.gzip",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.gzip.v3.Gzip",
 			},
 		},
 	},
@@ -304,7 +291,8 @@ var ConfigmapGzip = suite.ConformanceTest{
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
 					t.Logf("❌ ConfigmapGzip: Failed to apply config for test case %d: %v", i+1, err)
-					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
+					t.Logf("📍 ConfigmapGzip: Failed to apply configmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
+					t.FailNow()
 				}
 				t.Logf("✅ ConfigmapGzip: Config applied for test case %d", i+1)
 				
@@ -333,7 +321,8 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
 					t.Logf("❌ ConfigMapGzipEnvoy: Failed to apply config for test case %d: %v", i+1, err)
-					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
+					t.Logf("📍 ConfigMapGzipEnvoy: Failed to apply configmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
+					t.FailNow()
 				}
 				t.Logf("✅ ConfigMapGzipEnvoy: Config applied for test case %d", i+1)
 				

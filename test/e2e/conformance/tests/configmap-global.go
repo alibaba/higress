@@ -114,7 +114,9 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 		for _, testcase := range testCases {
 			err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 			if err != nil {
-				t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
+				t.Logf("❌ ConfigMapGlobalEnvoy: Failed to apply configmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
+				t.Logf("📍 ConfigMapGlobalEnvoy: ConfigMap application failed: %v", err)
+				t.FailNow()
 			}
 			for _, assertion := range testcase.envoyAssertion {
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, assertion)
