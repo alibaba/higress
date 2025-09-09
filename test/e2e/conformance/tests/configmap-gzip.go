@@ -15,19 +15,13 @@
 package tests
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
-	
-	"sigs.k8s.io/yaml"
-	v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func init() {
@@ -301,48 +295,23 @@ var ConfigmapGzip = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		t.Log("🚀 ConfigmapGzip: Test started")
 		t.Run("Configmap Gzip", func(t *testing.T) {
-			// Store original config for restoration
-			t.Log("Getting current higress-config state for ConfigmapGzip test...")
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			
-			cm := &v1.ConfigMap{}
-			err := suite.Client.Get(ctx, client.ObjectKey{Namespace: "higress-system", Name: "higress-config"}, cm)
-			if err != nil {
-				t.Fatalf("Failed to get current higress-config: %v", err)
-			}
-			
-			// Store original config for restoration
-			originalConfig := cm.Data["higress"]
-			t.Log("Original config preserved for ConfigmapGzip test")
-			
-			// Defer config restoration
-			defer func() {
-				t.Log("Restoring original higress-config after ConfigmapGzip test...")
-				if originalConfig != "" {
-					// Parse the original config back
-					restoredConfig := &configmap.HigressConfig{}
-					if err := yaml.Unmarshal([]byte(originalConfig), restoredConfig); err != nil {
-						t.Logf("Failed to parse original config: %v", err)
-						return
-					}
-					
-					if err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", restoredConfig); err != nil {
-						t.Logf("Failed to restore original config: %v", err)
-					} else {
-						t.Log("Original config restored successfully after ConfigmapGzip test")
-					}
-				}
-			}()
-			
-			for _, testcase := range testCases {
+			t.Log("📍 ConfigmapGzip: Processing", len(testCases), "test cases")
+			for i, testcase := range testCases {
+				t.Logf("📍 ConfigmapGzip: Processing test case %d/%d: %s", i+1, len(testCases), testcase.httpAssert.Meta.TestCaseName)
+				
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
+					t.Logf("❌ ConfigmapGzip: Failed to apply config for test case %d: %v", i+1, err)
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
+				t.Logf("✅ ConfigmapGzip: Config applied for test case %d", i+1)
+				
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase.httpAssert)
+				t.Logf("✅ ConfigmapGzip: HTTP assertion passed for test case %d", i+1)
 			}
+			t.Log("🎉 ConfigmapGzip: All test cases completed successfully")
 		})
 	},
 }
@@ -354,49 +323,24 @@ var ConfigMapGzipEnvoy = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.EnvoyConfigConformanceFeature},
 	Parallel:    false,
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		t.Log("🚀 ConfigMapGzipEnvoy: Test started")
 		t.Run("ConfigMap Gzip Envoy", func(t *testing.T) {
-			// Store original config for restoration
-			t.Log("Getting current higress-config state for ConfigMapGzipEnvoy test...")
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			
-			cm := &v1.ConfigMap{}
-			err := suite.Client.Get(ctx, client.ObjectKey{Namespace: "higress-system", Name: "higress-config"}, cm)
-			if err != nil {
-				t.Fatalf("Failed to get current higress-config: %v", err)
-			}
-			
-			// Store original config for restoration
-			originalConfig := cm.Data["higress"]
-			t.Log("Original config preserved for ConfigMapGzipEnvoy test")
-			
-			// Defer config restoration
-			defer func() {
-				t.Log("Restoring original higress-config after ConfigMapGzipEnvoy test...")
-				if originalConfig != "" {
-					// Parse the original config back
-					restoredConfig := &configmap.HigressConfig{}
-					if err := yaml.Unmarshal([]byte(originalConfig), restoredConfig); err != nil {
-						t.Logf("Failed to parse original config: %v", err)
-						return
-					}
-					
-					if err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", restoredConfig); err != nil {
-						t.Logf("Failed to restore original config: %v", err)
-					} else {
-						t.Log("Original config restored successfully after ConfigMapGzipEnvoy test")
-					}
-				}
-			}()
-			
-			for _, testcase := range testCases {
+			t.Log("📍 ConfigMapGzipEnvoy: Processing", len(testCases), "test cases")
+			for i, testcase := range testCases {
+				t.Logf("📍 ConfigMapGzipEnvoy: Processing test case %d/%d", i+1, len(testCases))
+				
 				// apply config
 				err := kubernetes.ApplyConfigmapDataWithYaml(t, suite.Client, "higress-system", "higress-config", "higress", testcase.higressConfig)
 				if err != nil {
+					t.Logf("❌ ConfigMapGzipEnvoy: Failed to apply config for test case %d: %v", i+1, err)
 					t.Fatalf("can't apply conifgmap %s in namespace %s for data key %s", "higress-config", "higress-system", "higress")
 				}
+				t.Logf("✅ ConfigMapGzipEnvoy: Config applied for test case %d", i+1)
+				
 				envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, testcase.envoyAssertion)
+				t.Logf("✅ ConfigMapGzipEnvoy: Envoy assertion passed for test case %d", i+1)
 			}
+			t.Log("🎉 ConfigMapGzipEnvoy: All test cases completed successfully")
 		})
 	},
 }
