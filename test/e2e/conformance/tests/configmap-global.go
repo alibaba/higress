@@ -15,6 +15,9 @@
 package tests
 
 import (
+	"context"
+	"fmt"
+	"net/url"
 	"testing"
 	"time"
 
@@ -23,9 +26,13 @@ import (
 	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
 	cfg "github.com/alibaba/higress/test/e2e/conformance/utils/config"
+	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
 	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
 	"github.com/tidwall/gjson"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func init() {
@@ -125,6 +132,30 @@ var ConfigMapGlobalEnvoy = suite.ConformanceTest{
 				t.FailNow()
 			}
 			t.Logf("✅ ConfigMapGlobalEnvoy: Configuration applied successfully")
+			
+			// Wait for backend service to be ready before sending traffic
+			t.Logf("📍 ConfigMapGlobalEnvoy: Waiting for backend service to be ready")
+			err = waitForBackendServiceReady(t, suite.Client, suite.TimeoutConfig)
+			if err != nil {
+				t.Logf("❌ ConfigMapGlobalEnvoy: Backend service not ready: %v", err)
+				t.FailNow()
+			}
+			t.Logf("✅ ConfigMapGlobalEnvoy: Backend service is ready")
+			
+			// Send some traffic to trigger cluster creation
+			t.Logf("📍 ConfigMapGlobalEnvoy: Sending traffic to trigger cluster creation")
+			testReq := roundtripper.Request{
+				Method: "GET",
+				URL:    url.URL{Scheme: "http", Host: "foo.com", Path: "/foo"},
+			}
+			_, _, err2 := suite.RoundTripper.CaptureRoundTrip(testReq)
+			if err2 != nil {
+				t.Logf("📍 ConfigMapGlobalEnvoy: Traffic request failed (this is expected): %v", err2)
+			}
+			
+			// Wait for clusters to be created
+			t.Logf("📍 ConfigMapGlobalEnvoy: Waiting for cluster creation")
+			time.Sleep(10 * time.Second)
 			
 			for i, assertion := range testcase.envoyAssertion {
 				t.Logf("📍 ConfigMapGlobalEnvoy: Running assertion %d with path: %s", i+1, assertion.Path)
@@ -241,4 +272,42 @@ func debugClusterConfig(t *testing.T, timeoutConfig cfg.TimeoutConfig) {
 	}
 	
 	t.Logf("🔍 Debug: Cluster configuration debug completed")
+}
+
+// waitForBackendServiceReady waits for the backend service (infra-backend-v3) to be ready
+func waitForBackendServiceReady(t *testing.T, c client.Client, timeoutConfig cfg.TimeoutConfig) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeoutConfig.NamespacesMustBeReady)
+	defer cancel()
+	
+	// Wait for the deployment to be ready
+	deployment := &appsv1.Deployment{}
+	err := wait.PollImmediate(1*time.Second, timeoutConfig.NamespacesMustBeReady, func() (bool, error) {
+		err := c.Get(ctx, client.ObjectKey{Namespace: "higress-conformance-infra", Name: "infra-backend-v3"}, deployment)
+		if err != nil {
+			t.Logf("📍 Waiting for infra-backend-v3 deployment: %v", err)
+			return false, nil
+		}
+		
+		if deployment.Status.ReadyReplicas != *deployment.Spec.Replicas {
+			t.Logf("📍 Deployment not ready: %d/%d replicas ready", deployment.Status.ReadyReplicas, *deployment.Spec.Replicas)
+			return false, nil
+		}
+		
+		t.Logf("✅ Deployment infra-backend-v3 is ready")
+		return true, nil
+	})
+	
+	if err != nil {
+		return fmt.Errorf("deployment not ready: %v", err)
+	}
+	
+	// Wait for the service to be accessible
+	service := &corev1.Service{}
+	err = c.Get(ctx, client.ObjectKey{Namespace: "higress-conformance-infra", Name: "infra-backend-v3"}, service)
+	if err != nil {
+		return fmt.Errorf("service not found: %v", err)
+	}
+	
+	t.Logf("✅ Service infra-backend-v3 is ready")
+	return nil
 }
