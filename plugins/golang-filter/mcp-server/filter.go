@@ -3,6 +3,7 @@ package mcp_server
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -17,6 +18,7 @@ type filter struct {
 	req     *http.Request
 	message bool
 	path    string
+	host    string
 }
 
 func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.StatusType {
@@ -25,9 +27,10 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 		return api.Continue
 	}
 	f.path = url.ParsedURL.Path
+	f.host = url.Host
 
 	for _, server := range f.config.servers {
-		if common.MatchDomainList(url.ParsedURL.Host, server.DomainList) && url.ParsedURL.Path == server.BaseServer.GetMessageEndpoint() {
+		if common.MatchDomainList(f.host, server.DomainList) && strings.HasPrefix(f.path, server.BaseServer.GetMessageEndpoint()) {
 			if url.Method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 				return api.LocalReply
@@ -59,7 +62,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	if f.message {
 		for _, server := range f.config.servers {
-			if f.path == server.BaseServer.GetMessageEndpoint() {
+			if common.MatchDomainList(f.host, server.DomainList) && strings.HasPrefix(f.path, server.BaseServer.GetMessageEndpoint()) {
 				if !endStream {
 					return api.StopAndBuffer
 				}
