@@ -352,6 +352,79 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 		assert.Equal(t, "toolu_01D7FLrfh4GYq7yT1ULFeyMV", toolMsg.ToolCallId)
 	})
 
+	t.Run("convert_tool_result_with_array_content", func(t *testing.T) {
+		// Test Claude tool_result with array content format (new format that was causing the error)
+		claudeRequest := `{
+			"model": "anthropic/claude-sonnet-4",
+			"messages": [{
+				"role": "user",
+				"content": [{
+					"type": "tool_result",
+					"tool_use_id": "toolu_vrtx_01UbCfwoTgoDBqbYEwkVaxd5",
+					"content": [{
+						"text": "Search results for three.js libraries and frameworks",
+						"type": "text"
+					}]
+				}]
+			}],
+			"max_tokens": 1000
+		}`
+
+		result, err := converter.ConvertClaudeRequestToOpenAI([]byte(claudeRequest))
+		require.NoError(t, err)
+
+		var openaiRequest chatCompletionRequest
+		err = json.Unmarshal(result, &openaiRequest)
+		require.NoError(t, err)
+
+		// Should have one tool message
+		require.Len(t, openaiRequest.Messages, 1)
+		toolMsg := openaiRequest.Messages[0]
+
+		assert.Equal(t, "tool", toolMsg.Role)
+		assert.Equal(t, "Search results for three.js libraries and frameworks", toolMsg.Content)
+		assert.Equal(t, "toolu_vrtx_01UbCfwoTgoDBqbYEwkVaxd5", toolMsg.ToolCallId)
+	})
+
+	t.Run("convert_tool_result_with_actual_error_data", func(t *testing.T) {
+		// Test using the actual JSON data from the error log to ensure our fix works
+		claudeRequest := `{
+			"model": "anthropic/claude-sonnet-4", 
+			"messages": [{
+				"role": "user",
+				"content": [{
+					"content": [{
+						"text": "\n  ## 结果 1\n  - **id**: /websites/threejs\n  - **title**: three.js\n  - **description**: three.js is a JavaScript 3D library that makes it easy to create and display animated 3D computer graphics in a web browser. It provides a powerful and flexible way to build interactive 3D experiences.\n",
+						"type": "text"
+					}],
+					"tool_use_id": "toolu_vrtx_01UbCfwoTgoDBqbYEwkVaxd5",
+					"type": "tool_result"
+				}, {
+					"cache_control": {"type": "ephemeral"},
+					"text": "继续",
+					"type": "text"
+				}]
+			}],
+			"max_tokens": 1000
+		}`
+
+		result, err := converter.ConvertClaudeRequestToOpenAI([]byte(claudeRequest))
+		require.NoError(t, err)
+
+		var openaiRequest chatCompletionRequest
+		err = json.Unmarshal(result, &openaiRequest)
+		require.NoError(t, err)
+
+		// Should have one tool message (the text content is included in the same message array)
+		require.Len(t, openaiRequest.Messages, 1)
+
+		// Should be tool message
+		toolMsg := openaiRequest.Messages[0]
+		assert.Equal(t, "tool", toolMsg.Role)
+		assert.Contains(t, toolMsg.Content, "three.js")
+		assert.Equal(t, "toolu_vrtx_01UbCfwoTgoDBqbYEwkVaxd5", toolMsg.ToolCallId)
+	})
+
 	t.Run("convert_multiple_tool_calls", func(t *testing.T) {
 		// Test multiple tool_use in single message
 		claudeRequest := `{
