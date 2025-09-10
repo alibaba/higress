@@ -28,9 +28,9 @@ func (m *zhipuAiProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 
 func (m *zhipuAiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion):    zhipuAiChatCompletionPath,
-		string(ApiNameEmbeddings):        zhipuAiEmbeddingsPath,
-		string(ApiNameAnthropicMessages): zhipuAiAnthropicMessagesPath,
+		string(ApiNameChatCompletion): zhipuAiChatCompletionPath,
+		string(ApiNameEmbeddings):     zhipuAiEmbeddingsPath,
+		// string(ApiNameAnthropicMessages): zhipuAiAnthropicMessagesPath,
 	}
 }
 

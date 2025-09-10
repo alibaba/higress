@@ -108,7 +108,7 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 				for _, toolResult := range conversionResult.toolResults {
 					toolMsg := chatMessage{
 						Role:       "tool",
-						Content:    toolResult.Content,
+						Content:    toolResult.Content.GetStringValue(),
 						ToolCallId: toolResult.ToolUseId,
 					}
 					openaiRequest.Messages = append(openaiRequest.Messages, toolMsg)
@@ -271,7 +271,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 						var input map[string]interface{}
 						if toolCall.Function.Arguments != "" {
 							if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &input); err != nil {
-								log.Errorf("Failed to parse tool call arguments: %v", err)
+								log.Errorf("Failed to parse tool call arguments: %v, arguments: %s", err, toolCall.Function.Arguments)
 								input = map[string]interface{}{}
 							}
 						} else {
