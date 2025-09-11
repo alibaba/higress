@@ -39,14 +39,12 @@ type pair[K, V any] struct {
 
 var (
 	headersCtxKeyMapping = map[string]string{
-		util.HeaderAuthority:     ctxOriginalHost,
-		util.HeaderPath:          ctxOriginalPath,
-		util.HeaderAuthorization: ctxOriginalAuth,
+		util.HeaderAuthority: ctxOriginalHost,
+		util.HeaderPath:      ctxOriginalPath,
 	}
 	headerToOriginalHeaderMapping = map[string]string{
-		util.HeaderAuthority:     util.HeaderOriginalHost,
-		util.HeaderPath:          util.HeaderOriginalPath,
-		util.HeaderAuthorization: util.HeaderOriginalAuth,
+		util.HeaderAuthority: util.HeaderOriginalHost,
+		util.HeaderPath:      util.HeaderOriginalPath,
 	}
 	pathSuffixToApiName = []pair[string, provider.ApiName]{
 		// OpenAI style
@@ -144,6 +142,11 @@ func initContext(ctx wrapper.HttpContext) {
 	for _, originHeader := range headerToOriginalHeaderMapping {
 		proxywasm.RemoveHttpRequestHeader(originHeader)
 	}
+	originalAuth, _ := proxywasm.GetHttpRequestHeader(util.HeaderOriginalAuth)
+	if originalAuth == "" {
+		value, _ := proxywasm.GetHttpRequestHeader(util.HeaderAuthorization)
+		ctx.SetContext(ctxOriginalAuth, value)
+	}
 }
 
 func saveContextsToHeaders(ctx wrapper.HttpContext) {
@@ -160,6 +163,11 @@ func saveContextsToHeaders(ctx wrapper.HttpContext) {
 		if originalHeader != "" {
 			_ = proxywasm.ReplaceHttpRequestHeader(originalHeader, originalValue)
 		}
+	}
+	originalAuth, _ := proxywasm.GetHttpRequestHeader(util.HeaderOriginalAuth)
+	if originalAuth == "" {
+		originalValue := ctx.GetStringContext(ctxOriginalAuth, "")
+		_ = proxywasm.ReplaceHttpRequestHeader(util.HeaderOriginalAuth, originalValue)
 	}
 }
 
