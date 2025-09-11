@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -34,9 +35,11 @@ const (
 	// converseStream路径 /model/{modelId}/converse-stream
 	bedrockStreamChatCompletionPath = "/model/%s/converse-stream"
 	// invoke_model 路径 /model/{modelId}/invoke
-	bedrockInvokeModelPath = "/model/%s/invoke"
-	bedrockSignedHeaders   = "host;x-amz-date"
-	requestIdHeader        = "X-Amzn-Requestid"
+	bedrockInvokeModelPath      = "/model/%s/invoke"
+	bedrockSignedHeaders        = "host;x-amz-date"
+	requestIdHeader             = "X-Amzn-Requestid"
+	reasoningContextMarkerStart = "<think>"
+	reasoningContextMarkerEnd   = "</think>"
 )
 
 type bedrockProviderInitializer struct{}
@@ -110,7 +113,23 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		}
 	}
 	if bedrockEvent.Delta != nil {
-		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
+		if bedrockEvent.Delta.ReasoningContent != nil {
+			var content string
+			if ctx.GetContext("thinking_start") == nil {
+				content += reasoningContextMarkerStart
+				ctx.SetContext("thinking_start", true)
+			}
+			content += *bedrockEvent.Delta.ReasoningContent.Text
+			chatChoice.Delta = &chatMessage{Content: &content}
+		} else if bedrockEvent.Delta.Text != nil {
+			var content string
+			if ctx.GetContext("thinking_start") != nil && ctx.GetContext("thinking_end") == nil {
+				content += reasoningContextMarkerEnd
+				ctx.SetContext("thinking_end", true)
+			}
+			content += *bedrockEvent.Delta.Text
+			chatChoice.Delta = &chatMessage{Content: &content}
+		}
 		if bedrockEvent.Delta.ToolUse != nil {
 			chatChoice.Delta.ToolCalls = []toolCall{
 				{
@@ -162,8 +181,9 @@ type ConverseStreamEvent struct {
 }
 
 type converseStreamEventContentBlockDelta struct {
-	Text    *string            `json:"text,omitempty"`
-	ToolUse *toolUseBlockDelta `json:"toolUse,omitempty"`
+	Text             *string                `json:"text,omitempty"`
+	ToolUse          *toolUseBlockDelta     `json:"toolUse,omitempty"`
+	ReasoningContent *reasoningContentDelta `json:"reasoningContent,omitempty"`
 }
 
 type toolUseBlockStart struct {
@@ -177,6 +197,10 @@ type contentBlockStart struct {
 
 type toolUseBlockDelta struct {
 	Input string `json:"input"`
+}
+
+type reasoningContentDelta struct {
+	Text *string `json:"text,omitempty"`
 }
 
 type bedrockImageGenerationResponse struct {
@@ -788,8 +812,13 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 
 func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseResponse) *chatCompletionResponse {
 	var outputContent string
+	for _, content := range bedrockResponse.Output.Message.Content {
+		if content.ReasoningContent != nil {
+			outputContent += reasoningContextMarkerStart + content.ReasoningContent.ReasoningText.Text + reasoningContextMarkerEnd
+		}
+	}
 	if len(bedrockResponse.Output.Message.Content) > 0 {
-		outputContent = bedrockResponse.Output.Message.Content[0].Text
+		outputContent += bedrockResponse.Output.Message.Content[0].Text
 	}
 	choice := chatCompletionChoice{
 		Index: 0,
@@ -964,8 +993,17 @@ type message struct {
 }
 
 type contentBlock struct {
-	Text    string          `json:"text,omitempty"`
-	ToolUse *bedrockToolUse `json:"toolUse,omitempty"`
+	Text             string            `json:"text,omitempty"`
+	ToolUse          *bedrockToolUse   `json:"toolUse,omitempty"`
+	ReasoningContent *reasoningContent `json:"reasoningContent,omitempty"`
+}
+
+type reasoningContent struct {
+	ReasoningText reasoningText `json:"reasoningText"`
+}
+
+type reasoningText struct {
+	Text string `json:"text"`
 }
 
 type bedrockToolUse struct {
@@ -1039,8 +1077,22 @@ func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 			var content bedrockMessageContent
 			if part.Type == contentTypeText {
 				content.Text = part.Text
+			} else if part.Type == contentTypeImageUrl {
+				base64Str := part.ImageUrl.Url
+				prefix, imageType, err := extractImageType(base64Str)
+				if err != nil {
+					log.Warn("image url is not supported")
+					continue
+				}
+				base64WoPrefix, _ := strings.CutPrefix(base64Str, prefix)
+				content.Image = &imageBlock{
+					Format: imageType,
+					Source: imageSource{
+						Bytes: base64WoPrefix,
+					},
+				}
 			} else {
-				log.Warnf("imageUrl is not supported: %s", part.Type)
+				log.Warnf("type is not supported: %s", part.Type)
 				continue
 			}
 			contents = append(contents, content)
@@ -1117,4 +1169,19 @@ func hmacHex(key []byte, data string) string {
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(data))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func extractImageType(base64Str string) (string, string, error) {
+	re := regexp.MustCompile(`^data:([^;]+);base64,`)
+	matches := re.FindStringSubmatch(base64Str)
+	if len(matches) < 2 {
+		return "", "", fmt.Errorf("invalid base64 format")
+	}
+
+	mimeType := matches[1] // e.g. image/png
+	parts := strings.Split(mimeType, "/")
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("invalid mimeType")
+	}
+	return matches[0], parts[1], nil
 }
