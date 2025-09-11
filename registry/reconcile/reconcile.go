@@ -205,6 +205,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacos.WithNacosGroups(registry.NacosGroups),
 			nacos.WithNacosRefreshInterval(registry.NacosRefreshInterval),
 			nacos.WithAuthOption(authOption),
+			nacos.WithVport(registry.Vport),
 		)
 	case string(Nacos2), string(Nacos3):
 		watcher, err = nacosv2.NewWatcher(
@@ -226,6 +227,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			nacosv2.WithClusterId(r.clusterId),
 			nacosv2.WithNamespace(r.namespace),
 			nacosv2.WithAuthOption(authOption),
+			nacosv2.WithVport(registry.Vport),
 		)
 	case string(Zookeeper):
 		watcher, err = zookeeper.NewWatcher(
@@ -266,6 +268,7 @@ func (r *Reconciler) generateWatcherFromRegistryConfig(registry *apiv1.RegistryC
 			eureka.WithDomain(registry.Domain),
 			eureka.WithType(registry.Type),
 			eureka.WithPort(registry.Port),
+			eureka.WithVport(registry.Vport),
 		)
 	default:
 		return nil, errors.New("unsupported registry type:" + registry.Type)
