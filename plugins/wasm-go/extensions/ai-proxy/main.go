@@ -164,9 +164,8 @@ func saveContextsToHeaders(ctx wrapper.HttpContext) {
 			_ = proxywasm.ReplaceHttpRequestHeader(originalHeader, originalValue)
 		}
 	}
-	originalAuth, _ := proxywasm.GetHttpRequestHeader(util.HeaderOriginalAuth)
-	if originalAuth == "" {
-		originalValue := ctx.GetStringContext(ctxOriginalAuth, "")
+	originalValue := ctx.GetStringContext(ctxOriginalAuth, "")
+	if originalValue != "" {
 		_ = proxywasm.ReplaceHttpRequestHeader(util.HeaderOriginalAuth, originalValue)
 	}
 }
