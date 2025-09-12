@@ -112,6 +112,9 @@ data:
     {{- if hasKey .Values "downstream" }}
     {{- $_ := set $newData "downstream" .Values.downstream }}
     {{- end }}
+    {{- if hasKey .Values "gzip" }}
+    {{- $_ := set $newData "gzip" .Values.gzip }}
+    {{- end }}
     {{- if and (hasKey .Values "tracing") .Values.tracing.enable }}
     {{- $_ := set $newData "tracing" .Values.tracing }}
     {{- end }}
