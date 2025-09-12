@@ -11,7 +11,7 @@ tools:
       type: string
       enum: ["code-interpreter-beta"]
     - name: timeout
-      description: "sanbox timeout in seconds, sanbox will be killed after timeout."
+      description: "sandbox timeout in seconds, sandbox will be killed after timeout."
       type: int
       required: true
       default: 300
