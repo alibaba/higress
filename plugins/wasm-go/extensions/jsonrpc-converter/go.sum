@@ -26,6 +26,8 @@ github.com/higress-group/wasm-go v1.0.2-0.20250724062140-49cd26dcf15a h1:WCnqxeH
 github.com/higress-group/wasm-go v1.0.2-0.20250724062140-49cd26dcf15a/go.mod h1:9k7L730huS/q4V5iH9WLDgf5ZUHEtfhM/uXcegKDG/M=
 github.com/higress-group/wasm-go v1.0.2-0.20250819092116-2fd2b083a8e2 h1:2wlbNpFJCQNbPBFYgswz7Zvxo9O3L0PH0AJxwiCc5lk=
 github.com/higress-group/wasm-go v1.0.2-0.20250819092116-2fd2b083a8e2/go.mod h1:9k7L730huS/q4V5iH9WLDgf5ZUHEtfhM/uXcegKDG/M=
+github.com/higress-group/wasm-go v1.0.2-0.20250911113549-cbf1cfcce774 h1:3nzDlUZ8+Nc0c2f8y0wUiw6mnyu1+ZYT0mK7x9Oitro=
+github.com/higress-group/wasm-go v1.0.2-0.20250911113549-cbf1cfcce774/go.mod h1:882/J8ccU4i+LeyFKmeicbHWAYLj8y7YZr60zk0OOCI=
 github.com/huandu/xstrings v1.5.0 h1:2ag3IFq9ZDANvthTwTiqSSZLjDc+BedvHPAp5tJy2TI=
 github.com/huandu/xstrings v1.5.0/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/invopop/jsonschema v0.13.0 h1:KvpoAJWEjR3uD9Kbm2HWJmqsEaHt8lBUpd0qHcIi21E=
