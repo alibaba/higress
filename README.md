@@ -174,3 +174,14 @@ Higress would not be possible without the valuable open-source work of projects 
         ↑ Back to Top ↑
     </a>
 </p>
+
+## New Enterprise Features
+
+- Multi-Cluster support (Karmada): propagate `ConfigMap` and CRDs across clusters using `ClusterPropagationPolicy`. See `docs/multicluster.md`.
+- AI Autoscaling (KEDA): scale based on LLM metrics (e.g., token usage). See `docs/autoscaling.md` and Helm `keda.*` values.
+- Gateway API surfacing: explicit gateway controller adapter in `pkg/gateway` for reconciliation wiring.
+- Enhanced Observability: Prometheus metrics for AI token usage and latency; OpenTelemetry tracing configuration. See `docs/observability.md`.
+- Multi-Tenancy: namespace-based isolation wired into gateway controller, configurable via `controller.tenantNamespaces` Helm value.
+- Batch AI Workloads (Volcano): submit batch jobs via Volcano. See `docs/volcano.md`.
+
+Each feature is toggleable via Helm values and implemented modularly under `pkg/`.
