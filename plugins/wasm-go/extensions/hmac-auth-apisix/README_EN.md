@@ -1,6 +1,7 @@
-# APISIX HMAC Authentication
+---
+title: APISIX HMAC Authentication
 keywords: [higress, hmac auth, apisix]
-description: Configuration Reference for APISIX HMAC Authentication Plugin
+description: Configuration Reference for the APISIX HMAC Authentication Plugin
 ---
 
 ## Feature Description
