@@ -266,7 +266,7 @@ curl -X POST 'http://localhost:8082/foo' \
 ```shell
 curl -X POST 'http://localhost:8082/foo' \
 -H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date",signature="746z4VISwZehUwZdzTV486ZMMbBtakmMHKPfs/A4RdU="' \
--H 'Date:Fri, 12 Sep 2025 23:53:18 GMT' \  # 此处将POST改为PUT
+-H 'Date:Fri, 12 Sep 2025 23:53:18 GMT' \  # 过期的时间戳
 -H 'Content-Type: application/json' \
 -d '{}'
 ```
