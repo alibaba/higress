@@ -81,17 +81,159 @@ allow:
 ```
 
 **配置说明**：
+
 - 路由名称（如 route-a、route-b）对应网关路由创建时定义的名称，匹配时仅允许consumer1访问
 - 域名匹配（如 `*.example.com`、`test.com`）用于过滤请求域名，匹配时仅允许consumer2访问
 - 未在allow列表中的调用者将被拒绝访问
+
+**生成签名，可以使用以下 Go 代码片段或其他技术栈**：
+
+```go
+package main
+
+import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
+	"fmt"
+	"hash"
+	"strings"
+	"time"
+)
+
+// SignedHeader 定义签名头的结构
+type SignedHeader struct {
+	Name  string
+	Value string
+}
+
+func main() {
+	// 配置参数
+	keyID := "consumer1-key"                            // key id
+	secretKey := "2bda943c-ba2b-11ec-ba07-00163e1250b5" // secret key
+	requestMethod := "POST"                             // HTTP method
+	requestPath := "/foo"                               // Route URI
+	algorithm := "hmac-sha256"                          // algorithm
+	validateRequestBody := false                        // 是否验证请求体，设置为true时会添加Digest头部
+
+	// 如果配置了 signed_headers，则需要按照顺序添加
+	signedHeaders := []SignedHeader{
+		//{Name: "x-custom-header-a", Value: "test1"},
+		//{Name: "x-custom-header-b", Value: "test2"},
+	}
+
+	body := []byte("{}") // request body
+
+	// 获取当前 GMT 时间
+	gmtTime := time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05 GMT")
+
+	// 动态构造签名字符串（有序）
+	signingStringBuilder := strings.Builder{}
+	signingStringBuilder.WriteString(fmt.Sprintf("%s\n%s %s\ndate: %s\n",
+		keyID,
+		requestMethod,
+		requestPath,
+		gmtTime))
+
+	// 按照signedHeaders中的顺序添加header
+	for _, header := range signedHeaders {
+		signingStringBuilder.WriteString(fmt.Sprintf("%s: %s\n", header.Name, header.Value))
+	}
+
+	signingString := signingStringBuilder.String()
+
+	// 创建签名
+	signature, err := generateHmacSignature(secretKey, algorithm, signingString)
+	if err != nil {
+		fmt.Printf("Error generating signature: %v\n", err)
+		return
+	}
+
+	// 动态构建headers字段内容
+	headersField := "@request-target date"
+	for _, header := range signedHeaders {
+		headersField += " " + header.Name
+	}
+
+	// 构造请求头部
+	headers := map[string]string{
+		"Date": gmtTime,
+		"Authorization": fmt.Sprintf(`Signature keyId="%s",algorithm="%s",headers="%s",signature="%s"`,
+			keyID,
+			algorithm,
+			headersField,
+			signature,
+		),
+	}
+
+	// 如果需要验证请求体，则添加Digest头部
+	if validateRequestBody {
+		headers["Digest"] = calculateBodyDigest(body)
+	}
+
+	// 添加签名的请求头
+	for _, header := range signedHeaders {
+		formattedHeaderName := formatHeaderName(header.Name)
+		headers[formattedHeaderName] = header.Value
+	}
+
+	// 打印签名字符串
+	fmt.Printf("signingString: %s\n", signingString)
+	// 打印请求头
+	fmt.Println("Headers:")
+	for key, value := range headers {
+		fmt.Printf("%s: %s\n", key, value)
+	}
+}
+
+// generateHmacSignature 生成HMAC签名
+func generateHmacSignature(secretKey, algorithm, message string) (string, error) {
+	var mac hash.Hash
+
+	switch algorithm {
+	case "hmac-sha1":
+		mac = hmac.New(sha1.New, []byte(secretKey))
+	case "hmac-sha256":
+		mac = hmac.New(sha256.New, []byte(secretKey))
+	case "hmac-sha512":
+		mac = hmac.New(sha512.New, []byte(secretKey))
+	default:
+		return "", fmt.Errorf("unsupported algorithm: %s", algorithm)
+	}
+
+	mac.Write([]byte(message))
+	signature := mac.Sum(nil)
+	return base64.StdEncoding.EncodeToString(signature), nil
+}
+
+// calculateBodyDigest 计算body的摘要
+func calculateBodyDigest(body []byte) string {
+	hash := sha256.Sum256(body)
+	encodedDigest := base64.StdEncoding.EncodeToString(hash[:])
+	return "SHA-256=" + encodedDigest
+}
+
+// formatHeaderName 将header name转换为标准HTTP头格式
+func formatHeaderName(headerName string) string {
+	parts := strings.Split(headerName, "-")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, "-")
+}
+```
 
 **请求与响应示例**：
 
 1. **验证通过场景**
 ```shell
 curl -X POST 'http://localhost:8082/foo' \
--H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date",signature="G2+60rCCHQCQDZOailnKHLCEy++P1Pa5OEP1bG4QlRo="' \
--H 'Date:Sat, 30 Aug 2025 00:52:39 GMT' \
+-H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date",signature="746z4VISwZehUwZdzTV486ZMMbBtakmMHKPfs/A4RdU="' \
+-H 'Date:Fri, 12 Sep 2025 23:53:18 GMT' \
 -H 'Content-Type: application/json' \
 -d '{}'
 ```
@@ -101,8 +243,8 @@ curl -X POST 'http://localhost:8082/foo' \
 2. **请求方法修改导致验签失败**
 ```shell
 curl -X PUT 'http://localhost:8082/foo' \  # 此处将POST改为PUT
--H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date",signature="G2+60rCCHQCQDZOailnKHLCEy++P1Pa5OEP1bG4QlRo="' \
--H 'Date:Sat, 30 Aug 2025 00:52:39 GMT' \
+-H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date",signature="746z4VISwZehUwZdzTV486ZMMbBtakmMHKPfs/A4RdU="' \
+-H 'Date:Fri, 12 Sep 2025 23:53:18 GMT' \
 -H 'Content-Type: application/json' \
 -d '{}'
 ```
@@ -112,8 +254,8 @@ curl -X PUT 'http://localhost:8082/foo' \  # 此处将POST改为PUT
 3. **不在允许列表中的调用者**
 ```shell
 curl -X POST 'http://localhost:8082/foo' \
--H 'Authorization:Signature keyId="consumer2-key",algorithm="hmac-sha256",headers="@request-target date",signature="5sqSbDX9b91dQsfQra2hpluM7O6/yhS7oLcKPQylyCo="' \
--H 'Date:Sat, 30 Aug 2025 00:54:18 GMT' \
+-H 'Authorization:Signature keyId="consumer2-key",algorithm="hmac-sha256",headers="@request-target date",signature="dltotPwd4iWGGz//kuehPJlHXZemR5WKwCPAJD/KPhE="' \
+-H 'Date:Fri, 12 Sep 2025 23:59:01 GMT' \
 -H 'Content-Type: application/json' \
 -d '{}'
 ```
@@ -123,8 +265,8 @@ curl -X POST 'http://localhost:8082/foo' \
 4. **时间戳过期**
 ```shell
 curl -X POST 'http://localhost:8082/foo' \
--H 'Authorization: Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date",signature="gvIUwoYNiK57w6xX2g1Ntpk8lfgD7z+jgom434r5qwg="' \
--H 'Date: Sat, 30 Aug 2025 00:40:21 GMT' \  # 过期的时间戳
+-H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date",signature="746z4VISwZehUwZdzTV486ZMMbBtakmMHKPfs/A4RdU="' \
+-H 'Date:Fri, 12 Sep 2025 23:53:18 GMT' \  # 此处将POST改为PUT
 -H 'Content-Type: application/json' \
 -d '{}'
 ```
@@ -154,35 +296,37 @@ validate_request_body: true  # 启用请求体签名校验
 1. **验证通过场景**
 ```shell
 curl -X POST 'http://localhost:8082/foo' \
--H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date x-custom-header-a x-custom-header-b",signature="+xCWYCmidq3Sisn08N54NWaau5vSY9qEanWoO9HD4mA="' \
--H 'Date:Sat, 30 Aug 2025 01:04:06 GMT' \
+-H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date x-custom-header-a x-custom-header-b",signature="KoOlbkDIR/JzlKK47eURewnIpmhpkQU+KIyBUhqVfmo="' \
+-H 'Date:Sat, 13 Sep 2025 00:04:34 GMT' \
 -H 'Digest:SHA-256=RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=' \  # 请求体摘要
 -H 'X-Custom-Header-A:test1' \
 -H 'X-Custom-Header-B:test2' \
 -H 'Content-Type: application/json' \
 -d '{}'
 ```
+
 - 响应：返回后端服务正常响应
 
 2. **缺少签名头**
 ```shell
 curl -X POST 'http://localhost:8082/foo' \
--H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date x-custom-header-a x-custom-header-b",signature="+xCWYCmidq3Sisn08N54NWaau5vSY9qEanWoO9HD4mA="' \
--H 'Date:Sat, 30 Aug 2025 01:04:06 GMT' \
+-H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date x-custom-header-b",signature="KoOlbkDIR/JzlKK47eURewnIpmhpkQU+KIyBUhqVfmo="' \
+-H 'Date:Sat, 13 Sep 2025 00:04:34 GMT' \
 -H 'Digest:SHA-256=RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=' \
 -H 'X-Custom-Header-B:test2' \  # 缺少X-Custom-Header-A
 -H 'Content-Type: application/json' \
 -d '{}'
 ```
+
 - 响应：`401 Unauthorized`
 - 错误信息：`{"message":"client request can't be validated: expected header "X-Custom-Header-A" missing in signing"}`
 
 3. **请求体被篡改**
 ```shell
 curl -X POST 'http://localhost:8082/foo' \
--H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date x-custom-header-a x-custom-header-b",signature="dSbv6pdQOcgkN89TmSxiT8F9nypbPUqAR2E7ELL8K2s="' \
--H 'Date:Sat, 30 Aug 2025 01:10:17 GMT' \
--H 'Digest:SHA-256=RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=' \  # 与实际body不匹配
+-H 'Authorization:Signature keyId="consumer1-key",algorithm="hmac-sha256",headers="@request-target date x-custom-header-a x-custom-header-b",signature="NcA+44FFtl2rjNvV28wSn8Rln02i4i2tFXKp3/ahyYA="' \
+-H 'Date:Sat, 13 Sep 2025 00:09:40 GMT' \
+-H 'Digest:SHA-256=RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=' \
 -H 'X-Custom-Header-A:test1' \
 -H 'X-Custom-Header-B:test2' \
 -H 'Content-Type: application/json' \
