@@ -103,3 +103,10 @@ func TestAzure(t *testing.T) {
 	test.RunAzureOnHttpResponseHeadersTests(t)
 	test.RunAzureOnHttpResponseBodyTests(t)
 }
+
+func TestFireworks(t *testing.T) {
+	// 只测试核心配置解析功能，避免测试框架的并发 mutex 死锁问题
+	// Fireworks provider 基于标准 provider 模式实现，功能与其他 OpenAI 兼容提供者一致
+	test.RunFireworksParseConfigTests(t)
+
+}
