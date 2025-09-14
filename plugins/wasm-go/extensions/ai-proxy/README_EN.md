@@ -1764,6 +1764,62 @@ provider:
 }
 ```
 
+### Utilizing OpenAI Protocol Proxy for Cerebras Services
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: cerebras
+  apiTokens:
+    - "YOUR_CEREBRAS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "llama3.1-70b"
+    "gpt-3.5-turbo": "llama3.1-8b"
+    "*": "llama3.1-8b"
+```
+
+**Request Example**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "who are you"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+
+```json
+{
+  "id": "cmpl-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "llama3.1-70b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am an AI assistant powered by Cerebras, based on the Llama 3.1 model. I can help answer questions, engage in conversations, and provide various information. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 50,
+    "total_tokens": 60
+  }
+}
+```
+
 ### Utilizing OpenAI Protocol Proxy for NVIDIA Triton Interference Server Services
 
 **Configuration Information**
