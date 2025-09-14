@@ -602,8 +602,8 @@ provider:
   modelMapping:
     "*": "qwen-long" # Qwen's file context can only be used in the qwen-long model
   qwenFileIds:
-    - "file-fe-xxx"
-    - "file-fe-yyy"
+  - "file-fe-xxx"
+  - "file-fe-yyy"
 ```
 
 **Request Example**
@@ -1514,25 +1514,25 @@ provider:
 
 ```json
 {
-  "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
-      },
-      "finish_reason": "stop"
+    "id": "chatcmpl-b010867c-0d3f-40ba-95fd-4e8030551aeb",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "I am a large multi-modal model, trained by Google. I am designed to provide information and answer questions to the best of my abilities."
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1722756984,
+    "model": "gemini-pro",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 5,
+        "completion_tokens": 29,
+        "total_tokens": 34
     }
-  ],
-  "created": 1722756984,
-  "model": "gemini-pro",
-  "object": "chat.completion",
-  "usage": {
-    "prompt_tokens": 5,
-    "completion_tokens": 29,
-    "total_tokens": 34
-  }
 }
 ```
 
@@ -1798,73 +1798,17 @@ providers:
 
 ```json
 {
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "I am a lagguage model."
-      },
-      "finish_reason": "stop"
-    }
-  ],
-  "model": "gpt2"
-}
-```
-
-### Using OpenAI Protocol Proxy for Cerebras Service
-
-**Configuration Information**
-
-```yaml
-provider:
-  type: cerebras
-  apiTokens:
-    - "YOUR_CEREBRAS_API_TOKEN"
-  modelMapping:
-    "gpt-4": "llama3.1-70b"
-    "gpt-3.5-turbo": "llama3.1-8b"
-    "*": "llama3.1-8b"
-```
-
-**Request Example**
-
-```json
-{
-  "model": "gpt-4",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hello, who are you?"
-    }
-  ],
-  "stream": false
-}
-```
-
-**Response Example**
-
-```json
-{
-  "id": "cmpl-123456789",
-  "object": "chat.completion",
-  "created": 1699123456,
-  "model": "llama3.1-70b",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "Hello! I am an AI assistant powered by Cerebras, based on the Llama 3.1 model. I can help answer questions, engage in conversations, and provide various information. How can I assist you today?"
-      },
-      "finish_reason": "stop"
-    }
-  ],
-  "usage": {
-    "prompt_tokens": 10,
-    "completion_tokens": 35,
-    "total_tokens": 45
-  }
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "I am a lagguage model."
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
 }
 ```
 
