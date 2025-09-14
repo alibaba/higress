@@ -14,7 +14,7 @@ description: AI 代理插件配置参考
 插件现在支持**自动协议检测**，无需配置即可同时兼容 OpenAI 和 Claude 两种协议格式：
 
 - **OpenAI 协议**: 请求路径 `/v1/chat/completions`，使用标准的 OpenAI Messages API 格式
-- **Claude 协议**: 请求路径 `/v1/messages`，使用 Anthropic Claude Messages API 格式  
+- **Claude 协议**: 请求路径 `/v1/messages`，使用 Anthropic Claude Messages API 格式
 - **智能转换**: 自动检测请求协议，如果目标供应商不原生支持该协议，则自动进行协议转换
 - **零配置**: 用户无需设置 `protocol` 字段，插件自动处理
 
@@ -41,20 +41,20 @@ description: AI 代理插件配置参考
 
 `provider`的配置字段说明如下：
 
-| 名称                   | 数据类型               | 填写要求 | 默认值 | 描述                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ---------------------- | ---------------------- | -------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------   |
-| `type`                 | string                 | 必填     | -      | AI 服务提供商名称                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `apiTokens`            | array of string        | 非必填   | -      | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。                                                                                                                                                                                                                                                                                                                 |
-| `timeout`              | number                 | 非必填   | -      | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟。此项配置目前仅用于获取上下文信息，并不影响实际转发大模型请求。                                                                                                                                                                                                                                                                                                             |
+| 名称                   | 数据类型               | 填写要求 | 默认值 | 描述                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------- | ---------------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`                 | string                 | 必填     | -      | AI 服务提供商名称                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `apiTokens`            | array of string        | 非必填   | -      | 用于在访问 AI 服务时进行认证的令牌。如果配置了多个 token，插件会在请求时随机进行选择。部分服务提供商只支持配置一个 token。                                                                                                                                                                                                                                                                                                               |
+| `timeout`              | number                 | 非必填   | -      | 访问 AI 服务的超时时间。单位为毫秒。默认值为 120000，即 2 分钟。此项配置目前仅用于获取上下文信息，并不影响实际转发大模型请求。                                                                                                                                                                                                                                                                                                           |
 | `modelMapping`         | map of string          | 非必填   | -      | AI 模型映射表，用于将请求中的模型名称映射为服务提供商支持模型名称。<br/>1. 支持前缀匹配。例如用 "gpt-3-\*" 匹配所有名称以“gpt-3-”开头的模型；<br/>2. 支持使用 "\*" 为键来配置通用兜底映射关系；<br/>3. 如果映射的目标名称为空字符串 ""，则表示保留原模型名称。<br/>4. 支持以 `~` 前缀使用正则匹配。例如用 "~gpt(.\*)" 匹配所有以 "gpt" 开头的模型并支持在目标模型中使用 capture group 引用匹配到的内容。示例: "~gpt(.\*): openai/gpt\$1" |
-| `protocol`             | string                 | 非必填   | -      | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约）                                                                                                                                                                                                                                                                                                      |
-| `context`              | object                 | 非必填   | -      | 配置 AI 对话上下文信息                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `customSettings`       | array of customSetting | 非必填   | -      | 为 AI 请求指定覆盖或者填充参数                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `failover`             | object                 | 非必填   | -      | 配置 apiToken 的 failover 策略，当 apiToken 不可用时，将其移出 apiToken 列表，待健康检测通过后重新添加回 apiToken 列表                                                                                                                                                                                                                                                                                                                     |
-| `retryOnFailure`       | object                 | 非必填   | -      | 当请求失败时立即进行重试                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `reasoningContentMode` | string                 | 非必填   | -      | 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 passthrough。仅支持通义千问服务。                                                                                                                                                                                                                                        |
-| `capabilities`         | map of string          | 非必填   | -      | 部分 provider 的部分 ai 能力原生兼容 openai/v1 格式，不需要重写，可以直接转发，通过此配置项指定来开启转发, key 表示的是采用的厂商协议能力，values 表示的真实的厂商该能力的 api path, 厂商协议能力当前支持: openai/v1/chatcompletions, openai/v1/embeddings, openai/v1/imagegeneration, openai/v1/audiospeech, cohere/v1/rerank                                                                                                             |
-| `subPath`              | string                 | 非必填   | -      | 如果配置了subPath，将会先移除请求path中该前缀，再进行后续处理                                                                                                                                                                                                                                                                                                                                                                              |
+| `protocol`             | string                 | 非必填   | -      | 插件对外提供的 API 接口契约。目前支持以下取值：openai（默认值，使用 OpenAI 的接口契约）、original（使用目标服务提供商的原始接口契约）                                                                                                                                                                                                                                                                                                    |
+| `context`              | object                 | 非必填   | -      | 配置 AI 对话上下文信息                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `customSettings`       | array of customSetting | 非必填   | -      | 为 AI 请求指定覆盖或者填充参数                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `failover`             | object                 | 非必填   | -      | 配置 apiToken 的 failover 策略，当 apiToken 不可用时，将其移出 apiToken 列表，待健康检测通过后重新添加回 apiToken 列表                                                                                                                                                                                                                                                                                                                   |
+| `retryOnFailure`       | object                 | 非必填   | -      | 当请求失败时立即进行重试                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `reasoningContentMode` | string                 | 非必填   | -      | 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 passthrough。仅支持通义千问服务。                                                                                                                                                                                                                                      |
+| `capabilities`         | map of string          | 非必填   | -      | 部分 provider 的部分 ai 能力原生兼容 openai/v1 格式，不需要重写，可以直接转发，通过此配置项指定来开启转发, key 表示的是采用的厂商协议能力，values 表示的真实的厂商该能力的 api path, 厂商协议能力当前支持: openai/v1/chatcompletions, openai/v1/embeddings, openai/v1/imagegeneration, openai/v1/audiospeech, cohere/v1/rerank                                                                                                           |
+| `subPath`              | string                 | 非必填   | -      | 如果配置了 subPath，将会先移除请求 path 中该前缀，再进行后续处理                                                                                                                                                                                                                                                                                                                                                                         |
 
 `context`的配置字段说明如下：
 
@@ -250,11 +250,11 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 
 Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 
-| 名称                   | 数据类型      | 填写要求 | 默认值   | 描述                                                         |
-| ---------------------- | ------------- | -------- | -------- | ------------------------------------------------------------ |
-| `geminiSafetySetting`  | map of string | 非必填   | -        | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
+| 名称                   | 数据类型      | 填写要求 | 默认值   | 描述                                                                                                                                         |
+| ---------------------- | ------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `geminiSafetySetting`  | map of string | 非必填   | -        | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                               |
 | `apiVersion`           | string        | 非必填   | `v1beta` | 用于指定 API 的版本, 可选择 `v1` 或 `v1beta` 。 版本差异请参考[API versions explained](https://ai.google.dev/gemini-api/docs/api-versions)。 |
-| `geminiThinkingBudget` | number        | 非必填   | -        | gemini2.5系列的参数，0是不开启思考，-1动态调整，具体参数指可参考官网 |
+| `geminiThinkingBudget` | number        | 非必填   | -        | gemini2.5 系列的参数，0 是不开启思考，-1 动态调整，具体参数指可参考官网                                                                      |
 
 #### DeepL
 
@@ -287,34 +287,38 @@ Dify 所对应的 `type` 为 `dify`。它特有的配置字段如下:
 
 Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下：
 
-| 名称                         | 数据类型       | 填写要求   | 默认值    | 描述                                                                            |
-|-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
-| `vertexAuthKey`             | string        | 必填     | -      | 用于认证的 Google Service Account JSON Key，格式为 PEM 编码的 PKCS#8 私钥和 client_email 等信息 |
-| `vertexRegion`              | string        | 必填     | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址             |
-| `vertexProjectId`           | string        | 必填     | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                              |
-| `vertexAuthServiceName`     | string        | 必填     | -      | 用于 OAuth2 认证的服务名称，该服务为了访问oauth2.googleapis.com                                |
-| `geminiSafetySetting`       | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
-| `vertexTokenRefreshAhead`   | number        | 非必填   | -      | Vertex access token刷新提前时间(单位秒)                                                |
+| 名称                      | 数据类型      | 填写要求 | 默认值 | 描述                                                                                                           |
+| ------------------------- | ------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------- |
+| `vertexAuthKey`           | string        | 必填     | -      | 用于认证的 Google Service Account JSON Key，格式为 PEM 编码的 PKCS#8 私钥和 client_email 等信息                |
+| `vertexRegion`            | string        | 必填     | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址                                 |
+| `vertexProjectId`         | string        | 必填     | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                                                    |
+| `vertexAuthServiceName`   | string        | 必填     | -      | 用于 OAuth2 认证的服务名称，该服务为了访问 oauth2.googleapis.com                                               |
+| `geminiSafetySetting`     | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) |
+| `vertexTokenRefreshAhead` | number        | 非必填   | -      | Vertex access token 刷新提前时间(单位秒)                                                                       |
 
 #### AWS Bedrock
 
 AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
 
-| 名称            | 数据类型  | 填写要求 | 默认值 | 描述                           |
-|---------------------------|--------|------|-----|------------------------------|
-| `modelVersion` | string   | 非必填  | -   | 用于指定 Triton Server 中 model version           |
-| `tritonDomain` | string   | 非必填  | -   | Triton Server 部署的指定请求 Domain            |
+| 名称           | 数据类型 | 填写要求 | 默认值 | 描述                                    |
+| -------------- | -------- | -------- | ------ | --------------------------------------- |
+| `modelVersion` | string   | 非必填   | -      | 用于指定 Triton Server 中 model version |
+| `tritonDomain` | string   | 非必填   | -      | Triton Server 部署的指定请求 Domain     |
 
 #### NVIDIA Triton Interference Server
 
 NVIDIA Triton Interference Server 所对应的 type 为 triton。它特有的配置字段如下：
 
-| 名称                        | 数据类型   | 填写要求 | 默认值 | 描述                           |
-|---------------------------|--------|------|-----|------------------------------|
-| `awsAccessKey`            | string | 必填   | -   | AWS Access Key，用于身份认证        |
-| `awsSecretKey`            | string | 必填   | -   | AWS Secret Access Key，用于身份认证 |
-| `awsRegion`               | string | 必填   | -   | AWS 区域，例如：us-east-1          |
-| `bedrockAdditionalFields` | map    | 非必填  | -   | Bedrock 额外模型请求参数             |
+| 名称                      | 数据类型 | 填写要求 | 默认值 | 描述                                |
+| ------------------------- | -------- | -------- | ------ | ----------------------------------- |
+| `awsAccessKey`            | string   | 必填     | -      | AWS Access Key，用于身份认证        |
+| `awsSecretKey`            | string   | 必填     | -      | AWS Secret Access Key，用于身份认证 |
+| `awsRegion`               | string   | 必填     | -      | AWS 区域，例如：us-east-1           |
+| `bedrockAdditionalFields` | map      | 非必填   | -      | Bedrock 额外模型请求参数            |
+
+#### Cerebras
+
+Cerebras 所对应的 `type` 为 `cerebras`。它并无特有的配置字段。
 
 ## 用法示例
 
@@ -426,15 +430,15 @@ provider:
 provider:
   type: qwen
   apiTokens:
-    - 'YOUR_QWEN_API_TOKEN'
+    - "YOUR_QWEN_API_TOKEN"
   modelMapping:
-    'gpt-3': 'qwen-turbo'
-    'gpt-35-turbo': 'qwen-plus'
-    'gpt-4-turbo': 'qwen-max'
-    'gpt-4-*': 'qwen-max'
-    'gpt-4o': 'qwen-vl-plus'
-    'text-embedding-v1': 'text-embedding-v1'
-    '*': 'qwen-turbo'
+    "gpt-3": "qwen-turbo"
+    "gpt-35-turbo": "qwen-plus"
+    "gpt-4-turbo": "qwen-max"
+    "gpt-4-*": "qwen-max"
+    "gpt-4o": "qwen-vl-plus"
+    "text-embedding-v1": "text-embedding-v1"
+    "*": "qwen-turbo"
 ```
 
 **AI 对话请求示例**
@@ -656,12 +660,12 @@ provider:
 provider:
   type: qwen
   apiTokens:
-    - 'YOUR_QWEN_API_TOKEN'
+    - "YOUR_QWEN_API_TOKEN"
   modelMapping:
-    '*': 'qwen-long' # 通义千问的文件上下文只能在 qwen-long 模型下使用
+    "*": "qwen-long" # 通义千问的文件上下文只能在 qwen-long 模型下使用
   qwenFileIds:
-    - 'file-fe-xxx'
-    - 'file-fe-yyy'
+    - "file-fe-xxx"
+    - "file-fe-yyy"
 ```
 
 **请求示例**
@@ -711,7 +715,7 @@ provider:
 provider:
   type: qwen
   apiTokens:
-    - 'YOUR_DASHSCOPE_API_TOKEN'
+    - "YOUR_DASHSCOPE_API_TOKEN"
   protocol: original
 ```
 
@@ -759,7 +763,7 @@ provider:
   apiTokens:
     - YOUR_DOUBAO_API_KEY
   modelMapping:
-    '*': YOUR_DOUBAO_ENDPOINT
+    "*": YOUR_DOUBAO_ENDPOINT
   timeout: 1200000
 ```
 
@@ -840,7 +844,7 @@ provider:
 provider:
   type: groq
   apiTokens:
-    - 'YOUR_GROQ_API_TOKEN'
+    - "YOUR_GROQ_API_TOKEN"
 ```
 
 **请求示例**
@@ -899,7 +903,7 @@ provider:
 provider:
   type: grok
   apiTokens:
-    - 'YOUR_GROK_API_TOKEN'
+    - "YOUR_GROK_API_TOKEN"
 ```
 
 **请求示例**
@@ -969,12 +973,12 @@ provider:
 provider:
   type: openrouter
   apiTokens:
-    - 'YOUR_OPENROUTER_API_TOKEN'
+    - "YOUR_OPENROUTER_API_TOKEN"
   modelMapping:
-    'gpt-4': 'openai/gpt-4-turbo-preview'
-    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
-    'claude-3': 'anthropic/claude-3-opus'
-    '*': 'openai/gpt-3.5-turbo'
+    "gpt-4": "openai/gpt-4-turbo-preview"
+    "gpt-3.5-turbo": "openai/gpt-3.5-turbo"
+    "claude-3": "anthropic/claude-3-opus"
+    "*": "openai/gpt-3.5-turbo"
 ```
 
 **请求示例**
@@ -1026,10 +1030,10 @@ provider:
 
 ```yaml
 provider:
-  type: claude  # 原生支持 Claude 协议的供应商
+  type: claude # 原生支持 Claude 协议的供应商
   apiTokens:
-    - 'YOUR_CLAUDE_API_TOKEN'
-  version: '2023-06-01'
+    - "YOUR_CLAUDE_API_TOKEN"
+  version: "2023-06-01"
 ```
 
 **OpenAI 协议请求示例**
@@ -1102,12 +1106,12 @@ URL: `http://your-domain/v1/messages`
 
 ```yaml
 provider:
-  type: qwen  # 不原生支持 Claude 协议，会自动转换
+  type: qwen # 不原生支持 Claude 协议，会自动转换
   apiTokens:
-    - 'YOUR_QWEN_API_TOKEN'
+    - "YOUR_QWEN_API_TOKEN"
   modelMapping:
-    'claude-3-opus-20240229': 'qwen-max'
-    '*': 'qwen-turbo'
+    "claude-3-opus-20240229": "qwen-max"
+    "*": "qwen-turbo"
 ```
 
 **Claude 协议请求**
@@ -1133,14 +1137,14 @@ URL: `http://your-domain/v1/messages` (自动转换为 OpenAI 协议调用供应
 
 ```yaml
 provider:
-  type: 'hunyuan'
-  hunyuanAuthKey: '<YOUR AUTH KEY>'
+  type: "hunyuan"
+  hunyuanAuthKey: "<YOUR AUTH KEY>"
   apiTokens:
-    - ''
-  hunyuanAuthId: '<YOUR AUTH ID>'
+    - ""
+  hunyuanAuthId: "<YOUR AUTH ID>"
   timeout: 1200000
   modelMapping:
-    '*': 'hunyuan-lite'
+    "*": "hunyuan-lite"
 ```
 
 **请求示例**
@@ -1201,10 +1205,10 @@ curl --location 'http://<your higress domain>/v1/chat/completions' \
 provider:
   type: baidu
   apiTokens:
-    - 'YOUR_BAIDU_API_TOKEN'
+    - "YOUR_BAIDU_API_TOKEN"
   modelMapping:
-    'gpt-3': 'ERNIE-4.0'
-    '*': 'ERNIE-4.0'
+    "gpt-3": "ERNIE-4.0"
+    "*": "ERNIE-4.0"
 ```
 
 **请求示例**
@@ -1256,11 +1260,11 @@ provider:
 provider:
   type: minimax
   apiTokens:
-    - 'YOUR_MINIMAX_API_TOKEN'
+    - "YOUR_MINIMAX_API_TOKEN"
   modelMapping:
-    'gpt-3': 'abab6.5s-chat'
-    'gpt-4': 'abab6.5g-chat'
-    '*': 'abab6.5t-chat'
+    "gpt-3": "abab6.5s-chat"
+    "gpt-4": "abab6.5g-chat"
+    "*": "abab6.5t-chat"
 ```
 
 **请求示例**
@@ -1324,12 +1328,12 @@ provider:
 provider:
   type: github
   apiTokens:
-    - 'YOUR_GITHUB_ACCESS_TOKEN'
+    - "YOUR_GITHUB_ACCESS_TOKEN"
   modelMapping:
-    'gpt-4o': 'gpt-4o'
-    'gpt-4': 'Phi-3.5-MoE-instruct'
-    'gpt-3.5': 'cohere-command-r-08-2024'
-    'text-embedding-3-large': 'text-embedding-3-large'
+    "gpt-4o": "gpt-4o"
+    "gpt-4": "Phi-3.5-MoE-instruct"
+    "gpt-3.5": "cohere-command-r-08-2024"
+    "text-embedding-3-large": "text-embedding-3-large"
 ```
 
 **请求示例**
@@ -1426,13 +1430,13 @@ provider:
 provider:
   type: ai360
   apiTokens:
-    - 'YOUR_360_API_TOKEN'
+    - "YOUR_360_API_TOKEN"
   modelMapping:
-    'gpt-4o': '360gpt-turbo-responsibility-8k'
-    'gpt-4': '360gpt2-pro'
-    'gpt-3.5': '360gpt-turbo'
-    'text-embedding-3-small': 'embedding_s1_v1.2'
-    '*': '360gpt-pro'
+    "gpt-4o": "360gpt-turbo-responsibility-8k"
+    "gpt-4": "360gpt2-pro"
+    "gpt-3.5": "360gpt-turbo"
+    "text-embedding-3-small": "embedding_s1_v1.2"
+    "*": "360gpt-pro"
 ```
 
 **请求示例**
@@ -1540,10 +1544,10 @@ URL: <http://your-domain/v1/embeddings>
 provider:
   type: cloudflare
   apiTokens:
-    - 'YOUR_WORKERS_AI_API_TOKEN'
-  cloudflareAccountId: 'YOUR_CLOUDFLARE_ACCOUNT_ID'
+    - "YOUR_WORKERS_AI_API_TOKEN"
+  cloudflareAccountId: "YOUR_CLOUDFLARE_ACCOUNT_ID"
   modelMapping:
-    '*': '@cf/meta/llama-3-8b-instruct'
+    "*": "@cf/meta/llama-3-8b-instruct"
 ```
 
 **请求示例**
@@ -1591,11 +1595,11 @@ provider:
 provider:
   type: spark
   apiTokens:
-    - 'APIKey:APISecret'
+    - "APIKey:APISecret"
   modelMapping:
-    'gpt-4o': 'generalv3.5'
-    'gpt-4': 'generalv3'
-    '*': 'general'
+    "gpt-4o": "generalv3.5"
+    "gpt-4": "generalv3"
+    "*": "general"
 ```
 
 **请求示例**
@@ -1709,8 +1713,8 @@ provider:
 provider:
   type: deepl
   apiTokens:
-    - 'YOUR_DEEPL_API_TOKEN'
-  targetLang: 'ZH'
+    - "YOUR_DEEPL_API_TOKEN"
+  targetLang: "ZH"
 ```
 
 **请求示例**
@@ -1763,9 +1767,9 @@ provider:
 provider:
   type: together-ai
   apiTokens:
-    - 'YOUR_TOGETHER_AI_API_TOKEN'
+    - "YOUR_TOGETHER_AI_API_TOKEN"
   modelMapping:
-    '*': 'Qwen/Qwen2.5-72B-Instruct-Turbo'
+    "*": "Qwen/Qwen2.5-72B-Instruct-Turbo"
 ```
 
 **请求示例**
@@ -1820,9 +1824,9 @@ provider:
 provider:
   type: dify
   apiTokens:
-    - 'YOUR_DIFY_API_TOKEN'
+    - "YOUR_DIFY_API_TOKEN"
   modelMapping:
-    '*': 'dify'
+    "*": "dify"
 ```
 
 **请求示例**
@@ -1982,6 +1986,7 @@ provider:
   }
 }
 ```
+
 ### 使用 OpenAI 协议代理 NVIDIA Triton Interference Server 服务
 
 **配置信息**
@@ -2011,29 +2016,80 @@ providers:
   "stream": false
 }
 ```
+
 **响应示例**
 
 ```json
 {
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "我是一个AI模型"
-            },
-            "finish_reason": "stop",
-        }
-    ],
-    "model": "gpt2",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "我是一个AI模型"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "model": "gpt2"
 }
 ```
 
+### 使用 OpenAI 协议代理 Cerebras 服务
 
+**配置信息**
 
+```yaml
+provider:
+  type: cerebras
+  apiTokens:
+    - "YOUR_CEREBRAS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "llama3.1-70b"
+    "gpt-3.5-turbo": "llama3.1-8b"
+    "*": "llama3.1-8b"
+```
 
+**请求示例**
 
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
 
+**响应示例**
+
+```json
+{
+  "id": "cmpl-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "llama3.1-70b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是一个由 Cerebras 提供的 AI 助手，基于 Llama 3.1 模型。我可以帮助回答问题、进行对话和提供各种信息。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 50,
+    "total_tokens": 60
+  }
+}
+```
 
 ## 完整配置示例
 
@@ -2053,7 +2109,7 @@ spec:
         provider:
           type: groq
           apiTokens:
-            - 'YOUR_API_TOKEN'
+            - "YOUR_API_TOKEN"
       ingress:
         - groq
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
@@ -2065,7 +2121,7 @@ metadata:
     higress.io/backend-protocol: HTTPS
     higress.io/destination: groq.dns
     higress.io/proxy-ssl-name: api.groq.com
-    higress.io/proxy-ssl-server-name: 'on'
+    higress.io/proxy-ssl-server-name: "on"
   labels:
     higress.io/resource-definer: higress
   name: groq
@@ -2116,7 +2172,7 @@ curl "http://<YOUR-DOMAIN>/v1/chat/completions" -H "Content-Type: application/js
 `docker-compose.yml` 配置文件：
 
 ```yaml
-version: '3.7'
+version: "3.7"
 services:
   envoy:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/envoy:1.20
@@ -2126,7 +2182,7 @@ services:
     networks:
       - higress-net
     ports:
-      - '10000:10000'
+      - "10000:10000"
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
       - ./plugin.wasm:/etc/envoy/plugin.wasm
@@ -2155,7 +2211,7 @@ static_resources:
         - filters:
             - name: envoy.filters.network.http_connection_manager
               typed_config:
-                '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 scheme_header_transformation:
                   scheme_to_overwrite: https
                 stat_prefix: ingress_http
@@ -2163,23 +2219,23 @@ static_resources:
                 access_log:
                   - name: envoy.access_loggers.stdout
                     typed_config:
-                      '@type': type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                 # Modify as required
                 route_config:
                   name: local_route
                   virtual_hosts:
                     - name: local_service
-                      domains: ['*']
+                      domains: ["*"]
                       routes:
                         - match:
-                            prefix: '/'
+                            prefix: "/"
                           route:
                             cluster: claude
                             timeout: 300s
                 http_filters:
                   - name: claude
                     typed_config:
-                      '@type': type.googleapis.com/udpa.type.v1.TypedStruct
+                      "@type": type.googleapis.com/udpa.type.v1.TypedStruct
                       type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
                       value:
                         config:
@@ -2190,7 +2246,7 @@ static_resources:
                               local:
                                 filename: /etc/envoy/plugin.wasm
                           configuration:
-                            '@type': 'type.googleapis.com/google.protobuf.StringValue'
+                            "@type": "type.googleapis.com/google.protobuf.StringValue"
                             value: | # 插件配置
                               {
                                 "provider": {
@@ -2219,8 +2275,8 @@ static_resources:
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
-          '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          'sni': 'api.anthropic.com'
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          "sni": "api.anthropic.com"
 ```
 
 访问示例：
