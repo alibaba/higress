@@ -251,7 +251,7 @@ Cloudflare Workers AI 所对应的 `type` 为 `cloudflare`。它特有的配置�
 Gemini 所对应的 `type` 为 `gemini`。它特有的配置字段如下：
 
 | 名称                   | 数据类型      | 填写要求 | 默认值   | 描述                                                                                                                                         |
-| ---------------------- | ------------- | -------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| ---------------------- | ------------- | -------- | -------- | ------------------------------------------------------------ |
 | `geminiSafetySetting`  | map of string | 非必填   | -        | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                               |
 | `apiVersion`           | string        | 非必填   | `v1beta` | 用于指定 API 的版本, 可选择 `v1` 或 `v1beta` 。 版本差异请参考[API versions explained](https://ai.google.dev/gemini-api/docs/api-versions)。 |
 | `geminiThinkingBudget` | number        | 非必填   | -        | gemini2.5 系列的参数，0 是不开启思考，-1 动态调整，具体参数指可参考官网                                                                      |
@@ -288,7 +288,7 @@ Dify 所对应的 `type` 为 `dify`。它特有的配置字段如下:
 Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下：
 
 | 名称                      | 数据类型      | 填写要求 | 默认值 | 描述                                                                                                           |
-| ------------------------- | ------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------- |
+|-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
 | `vertexAuthKey`           | string        | 必填     | -      | 用于认证的 Google Service Account JSON Key，格式为 PEM 编码的 PKCS#8 私钥和 client_email 等信息                |
 | `vertexRegion`            | string        | 必填     | -      | Google Cloud 区域（如 us-central1, europe-west4 等），用于构建 Vertex API 地址                                 |
 | `vertexProjectId`         | string        | 必填     | -      | Google Cloud 项目 ID，用于标识目标 GCP 项目                                                                    |
@@ -301,7 +301,7 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
 
 | 名称           | 数据类型 | 填写要求 | 默认值 | 描述                                    |
-| -------------- | -------- | -------- | ------ | --------------------------------------- |
+|---------------------------|--------|------|-----|------------------------------|
 | `modelVersion` | string   | 非必填   | -      | 用于指定 Triton Server 中 model version |
 | `tritonDomain` | string   | 非必填   | -      | Triton Server 部署的指定请求 Domain     |
 
@@ -310,7 +310,7 @@ AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
 NVIDIA Triton Interference Server 所对应的 type 为 triton。它特有的配置字段如下：
 
 | 名称                      | 数据类型 | 填写要求 | 默认值 | 描述                                |
-| ------------------------- | -------- | -------- | ------ | ----------------------------------- |
+|---------------------------|--------|------|-----|------------------------------|
 | `awsAccessKey`            | string   | 必填     | -      | AWS Access Key，用于身份认证        |
 | `awsSecretKey`            | string   | 必填     | -      | AWS Secret Access Key，用于身份认证 |
 | `awsRegion`               | string   | 必填     | -      | AWS 区域，例如：us-east-1           |
@@ -430,15 +430,15 @@ provider:
 provider:
   type: qwen
   apiTokens:
-    - "YOUR_QWEN_API_TOKEN"
+    - 'YOUR_QWEN_API_TOKEN'
   modelMapping:
-    "gpt-3": "qwen-turbo"
-    "gpt-35-turbo": "qwen-plus"
-    "gpt-4-turbo": "qwen-max"
-    "gpt-4-*": "qwen-max"
-    "gpt-4o": "qwen-vl-plus"
-    "text-embedding-v1": "text-embedding-v1"
-    "*": "qwen-turbo"
+    'gpt-3': 'qwen-turbo'
+    'gpt-35-turbo': 'qwen-plus'
+    'gpt-4-turbo': 'qwen-max'
+    'gpt-4-*': 'qwen-max'
+    'gpt-4o': 'qwen-vl-plus'
+    'text-embedding-v1': 'text-embedding-v1'
+    '*': 'qwen-turbo'
 ```
 
 **AI 对话请求示例**
@@ -660,12 +660,12 @@ provider:
 provider:
   type: qwen
   apiTokens:
-    - "YOUR_QWEN_API_TOKEN"
+    - 'YOUR_QWEN_API_TOKEN'
   modelMapping:
-    "*": "qwen-long" # 通义千问的文件上下文只能在 qwen-long 模型下使用
+    '*': 'qwen-long' # 通义千问的文件上下文只能在 qwen-long 模型下使用
   qwenFileIds:
-    - "file-fe-xxx"
-    - "file-fe-yyy"
+    - 'file-fe-xxx'
+    - 'file-fe-yyy'
 ```
 
 **请求示例**
@@ -715,7 +715,7 @@ provider:
 provider:
   type: qwen
   apiTokens:
-    - "YOUR_DASHSCOPE_API_TOKEN"
+    - 'YOUR_DASHSCOPE_API_TOKEN'
   protocol: original
 ```
 
@@ -844,7 +844,7 @@ provider:
 provider:
   type: groq
   apiTokens:
-    - "YOUR_GROQ_API_TOKEN"
+    - 'YOUR_GROQ_API_TOKEN'
 ```
 
 **请求示例**
@@ -973,12 +973,12 @@ provider:
 provider:
   type: openrouter
   apiTokens:
-    - "YOUR_OPENROUTER_API_TOKEN"
+    - 'YOUR_OPENROUTER_API_TOKEN'
   modelMapping:
-    "gpt-4": "openai/gpt-4-turbo-preview"
-    "gpt-3.5-turbo": "openai/gpt-3.5-turbo"
-    "claude-3": "anthropic/claude-3-opus"
-    "*": "openai/gpt-3.5-turbo"
+    'gpt-4': 'openai/gpt-4-turbo-preview'
+    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
+    'claude-3': 'anthropic/claude-3-opus'
+    '*': 'openai/gpt-3.5-turbo'
 ```
 
 **请求示例**
@@ -1030,10 +1030,10 @@ provider:
 
 ```yaml
 provider:
-  type: claude # 原生支持 Claude 协议的供应商
+  type: claude  # 原生支持 Claude 协议的供应商
   apiTokens:
-    - "YOUR_CLAUDE_API_TOKEN"
-  version: "2023-06-01"
+    - 'YOUR_CLAUDE_API_TOKEN'
+  version: '2023-06-01'
 ```
 
 **OpenAI 协议请求示例**
@@ -1106,12 +1106,12 @@ URL: `http://your-domain/v1/messages`
 
 ```yaml
 provider:
-  type: qwen # 不原生支持 Claude 协议，会自动转换
+  type: qwen  # 不原生支持 Claude 协议，会自动转换
   apiTokens:
-    - "YOUR_QWEN_API_TOKEN"
+    - 'YOUR_QWEN_API_TOKEN'
   modelMapping:
-    "claude-3-opus-20240229": "qwen-max"
-    "*": "qwen-turbo"
+    'claude-3-opus-20240229': 'qwen-max'
+    '*': 'qwen-turbo'
 ```
 
 **Claude 协议请求**
@@ -1137,14 +1137,14 @@ URL: `http://your-domain/v1/messages` (自动转换为 OpenAI 协议调用供应
 
 ```yaml
 provider:
-  type: "hunyuan"
-  hunyuanAuthKey: "<YOUR AUTH KEY>"
+  type: 'hunyuan'
+  hunyuanAuthKey: '<YOUR AUTH KEY>'
   apiTokens:
-    - ""
-  hunyuanAuthId: "<YOUR AUTH ID>"
+    - ''
+  hunyuanAuthId: '<YOUR AUTH ID>'
   timeout: 1200000
   modelMapping:
-    "*": "hunyuan-lite"
+    '*': 'hunyuan-lite'
 ```
 
 **请求示例**
@@ -1205,10 +1205,10 @@ curl --location 'http://<your higress domain>/v1/chat/completions' \
 provider:
   type: baidu
   apiTokens:
-    - "YOUR_BAIDU_API_TOKEN"
+    - 'YOUR_BAIDU_API_TOKEN'
   modelMapping:
-    "gpt-3": "ERNIE-4.0"
-    "*": "ERNIE-4.0"
+    'gpt-3': 'ERNIE-4.0'
+    '*': 'ERNIE-4.0'
 ```
 
 **请求示例**
@@ -1260,11 +1260,11 @@ provider:
 provider:
   type: minimax
   apiTokens:
-    - "YOUR_MINIMAX_API_TOKEN"
+    - 'YOUR_MINIMAX_API_TOKEN'
   modelMapping:
-    "gpt-3": "abab6.5s-chat"
-    "gpt-4": "abab6.5g-chat"
-    "*": "abab6.5t-chat"
+    'gpt-3': 'abab6.5s-chat'
+    'gpt-4': 'abab6.5g-chat'
+    '*': 'abab6.5t-chat'
 ```
 
 **请求示例**
@@ -1328,12 +1328,12 @@ provider:
 provider:
   type: github
   apiTokens:
-    - "YOUR_GITHUB_ACCESS_TOKEN"
+    - 'YOUR_GITHUB_ACCESS_TOKEN'
   modelMapping:
-    "gpt-4o": "gpt-4o"
-    "gpt-4": "Phi-3.5-MoE-instruct"
-    "gpt-3.5": "cohere-command-r-08-2024"
-    "text-embedding-3-large": "text-embedding-3-large"
+    'gpt-4o': 'gpt-4o'
+    'gpt-4': 'Phi-3.5-MoE-instruct'
+    'gpt-3.5': 'cohere-command-r-08-2024'
+    'text-embedding-3-large': 'text-embedding-3-large'
 ```
 
 **请求示例**
@@ -1430,13 +1430,13 @@ provider:
 provider:
   type: ai360
   apiTokens:
-    - "YOUR_360_API_TOKEN"
+    - 'YOUR_360_API_TOKEN'
   modelMapping:
-    "gpt-4o": "360gpt-turbo-responsibility-8k"
-    "gpt-4": "360gpt2-pro"
-    "gpt-3.5": "360gpt-turbo"
-    "text-embedding-3-small": "embedding_s1_v1.2"
-    "*": "360gpt-pro"
+    'gpt-4o': '360gpt-turbo-responsibility-8k'
+    'gpt-4': '360gpt2-pro'
+    'gpt-3.5': '360gpt-turbo'
+    'text-embedding-3-small': 'embedding_s1_v1.2'
+    '*': '360gpt-pro'
 ```
 
 **请求示例**
@@ -1544,10 +1544,10 @@ URL: <http://your-domain/v1/embeddings>
 provider:
   type: cloudflare
   apiTokens:
-    - "YOUR_WORKERS_AI_API_TOKEN"
-  cloudflareAccountId: "YOUR_CLOUDFLARE_ACCOUNT_ID"
+    - 'YOUR_WORKERS_AI_API_TOKEN'
+  cloudflareAccountId: 'YOUR_CLOUDFLARE_ACCOUNT_ID'
   modelMapping:
-    "*": "@cf/meta/llama-3-8b-instruct"
+    '*': '@cf/meta/llama-3-8b-instruct'
 ```
 
 **请求示例**
@@ -1595,11 +1595,11 @@ provider:
 provider:
   type: spark
   apiTokens:
-    - "APIKey:APISecret"
+    - 'APIKey:APISecret'
   modelMapping:
-    "gpt-4o": "generalv3.5"
-    "gpt-4": "generalv3"
-    "*": "general"
+    'gpt-4o': 'generalv3.5'
+    'gpt-4': 'generalv3'
+    '*': 'general'
 ```
 
 **请求示例**
@@ -1713,8 +1713,8 @@ provider:
 provider:
   type: deepl
   apiTokens:
-    - "YOUR_DEEPL_API_TOKEN"
-  targetLang: "ZH"
+    - 'YOUR_DEEPL_API_TOKEN'
+  targetLang: 'ZH'
 ```
 
 **请求示例**
@@ -1767,9 +1767,9 @@ provider:
 provider:
   type: together-ai
   apiTokens:
-    - "YOUR_TOGETHER_AI_API_TOKEN"
+    - 'YOUR_TOGETHER_AI_API_TOKEN'
   modelMapping:
-    "*": "Qwen/Qwen2.5-72B-Instruct-Turbo"
+    '*': 'Qwen/Qwen2.5-72B-Instruct-Turbo'
 ```
 
 **请求示例**
@@ -1824,9 +1824,9 @@ provider:
 provider:
   type: dify
   apiTokens:
-    - "YOUR_DIFY_API_TOKEN"
+    - 'YOUR_DIFY_API_TOKEN'
   modelMapping:
-    "*": "dify"
+    '*': 'dify'
 ```
 
 **请求示例**
@@ -2021,17 +2021,17 @@ providers:
 
 ```json
 {
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "我是一个AI模型"
-      },
-      "finish_reason": "stop"
-    }
-  ],
-  "model": "gpt2"
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "我是一个AI模型"
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
 }
 ```
 
@@ -2109,7 +2109,7 @@ spec:
         provider:
           type: groq
           apiTokens:
-            - "YOUR_API_TOKEN"
+            - 'YOUR_API_TOKEN'
       ingress:
         - groq
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
@@ -2121,7 +2121,7 @@ metadata:
     higress.io/backend-protocol: HTTPS
     higress.io/destination: groq.dns
     higress.io/proxy-ssl-name: api.groq.com
-    higress.io/proxy-ssl-server-name: "on"
+    higress.io/proxy-ssl-server-name: 'on'
   labels:
     higress.io/resource-definer: higress
   name: groq
@@ -2172,7 +2172,7 @@ curl "http://<YOUR-DOMAIN>/v1/chat/completions" -H "Content-Type: application/js
 `docker-compose.yml` 配置文件：
 
 ```yaml
-version: "3.7"
+version: '3.7'
 services:
   envoy:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/envoy:1.20
@@ -2182,7 +2182,7 @@ services:
     networks:
       - higress-net
     ports:
-      - "10000:10000"
+      - '10000:10000'
     volumes:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
       - ./plugin.wasm:/etc/envoy/plugin.wasm
@@ -2211,7 +2211,7 @@ static_resources:
         - filters:
             - name: envoy.filters.network.http_connection_manager
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 scheme_header_transformation:
                   scheme_to_overwrite: https
                 stat_prefix: ingress_http
@@ -2219,23 +2219,23 @@ static_resources:
                 access_log:
                   - name: envoy.access_loggers.stdout
                     typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      '@type': type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                 # Modify as required
                 route_config:
                   name: local_route
                   virtual_hosts:
                     - name: local_service
-                      domains: ["*"]
+                      domains: ['*']
                       routes:
                         - match:
-                            prefix: "/"
+                            prefix: '/'
                           route:
                             cluster: claude
                             timeout: 300s
                 http_filters:
                   - name: claude
                     typed_config:
-                      "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+                      '@type': type.googleapis.com/udpa.type.v1.TypedStruct
                       type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
                       value:
                         config:
@@ -2246,7 +2246,7 @@ static_resources:
                               local:
                                 filename: /etc/envoy/plugin.wasm
                           configuration:
-                            "@type": "type.googleapis.com/google.protobuf.StringValue"
+                            '@type': 'type.googleapis.com/google.protobuf.StringValue'
                             value: | # 插件配置
                               {
                                 "provider": {
@@ -2275,8 +2275,8 @@ static_resources:
       transport_socket:
         name: envoy.transport_sockets.tls
         typed_config:
-          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
-          "sni": "api.anthropic.com"
+          '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          'sni': 'api.anthropic.com'
 ```
 
 访问示例：

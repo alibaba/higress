@@ -13,7 +13,7 @@ The `AI Proxy` plugin implements AI proxy functionality based on the OpenAI API 
 The plugin now supports **automatic protocol detection**, allowing seamless compatibility with both OpenAI and Claude protocol formats without configuration:
 
 - **OpenAI Protocol**: Request path `/v1/chat/completions`, using standard OpenAI Messages API format
-- **Claude Protocol**: Request path `/v1/messages`, using Anthropic Claude Messages API format
+- **Claude Protocol**: Request path `/v1/messages`, using Anthropic Claude Messages API format  
 - **Intelligent Conversion**: Automatically detects request protocol and performs conversion if the target provider doesn't natively support it
 - **Zero Configuration**: No need to set `protocol` field, the plugin handles everything automatically
 
@@ -34,39 +34,39 @@ Plugin execution priority: `100`
 
 ### Basic Configuration
 
-| Name       | Data Type | Requirement | Default | Description                                               |
-| ---------- | --------- | ----------- | ------- | --------------------------------------------------------- |
-| `provider` | object    | Required    | -       | Configures information for the target AI service provider |
+| Name       | Data Type   | Requirement | Default | Description               |
+|------------|--------|------|-----|------------------|
+| `provider` | object | Required   | -   | Configures information for the target AI service provider |
 
 **Details for the `provider` configuration fields:**
 
-| Name             | Data Type              | Requirement | Default | Description                                                                                                                                                                                                                                                                                                                                                                             |
-| ---------------- | ---------------------- | ----------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`           | string                 | Required    | -       | Name of the AI service provider                                                                                                                                                                                                                                                                                                                                                         |
-| `apiTokens`      | array of string        | Optional    | -       | Tokens used for authentication when accessing AI services. If multiple tokens are configured, the plugin randomly selects one for each request. Some service providers only support configuring a single token.                                                                                                                                                                         |
-| `timeout`        | number                 | Optional    | -       | Timeout for accessing AI services, in milliseconds. The default value is 120000, which equals 2 minutes. Only used when retrieving context data. Won't affect the request forwarded to the LLM upstream.                                                                                                                                                                                |
+| Name             | Data Type              | Requirement | Default | Description                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------   | ---------------        | --------    | ------  | -------------------------------------------------------------------------------------------------------------------------------------------------------------                                                                                                                                                                                                                             |
+| `type`           | string                 | Required    | -       | Name of the AI service provider                                                                                                                                                                                                                                                                                                                                                           |
+| `apiTokens`      | array of string        | Optional    | -       | Tokens used for authentication when accessing AI services. If multiple tokens are configured, the plugin randomly selects one for each request. Some service providers only support configuring a single token.                                                                                                                                                                           |
+| `timeout`        | number                 | Optional    | -       | Timeout for accessing AI services, in milliseconds. The default value is 120000, which equals 2 minutes. Only used when retrieving context data. Won't affect the request forwarded to the LLM upstream.                                                                                                                                                                                  |
 | `modelMapping`   | map of string          | Optional    | -       | Mapping table for AI models, used to map model names in requests to names supported by the service provider.<br/>1. Supports prefix matching. For example, "gpt-3-\*" matches all model names starting with “gpt-3-”;<br/>2. Supports using "\*" as a key for a general fallback mapping;<br/>3. If the mapped target name is an empty string "", the original model name is preserved. |
-| `protocol`       | string                 | Optional    | -       | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider). **Note: Auto protocol detection is now supported, no need to configure this field to support both OpenAI and Claude protocols**                                            |
-| `context`        | object                 | Optional    | -       | Configuration for AI conversation context information                                                                                                                                                                                                                                                                                                                                   |
-| `customSettings` | array of customSetting | Optional    | -       | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                                                                                                                 |
-| `subPath`        | string                 | Optional    | -       | If subPath is configured, the prefix will be removed from the request path before further processing.                                                                                                                                                                                                                                                                                   |
+| `protocol`       | string                 | Optional    | -       | API contract provided by the plugin. Currently supports the following values: openai (default, uses OpenAI's interface contract), original (uses the raw interface contract of the target service provider). **Note: Auto protocol detection is now supported, no need to configure this field to support both OpenAI and Claude protocols**                                                                                                                                                                               |
+| `context`        | object                 | Optional    | -       | Configuration for AI conversation context information                                                                                                                                                                                                                                                                                                                                     |
+| `customSettings` | array of customSetting | Optional    | -       | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                                                                                                                   |
+| `subPath`        | string                 | Optional    | -       | If subPath is configured, the prefix will be removed from the request path before further processing.                                                                                                                                                                                                                                                                                     |
 
 **Details for the `context` configuration fields:**
 
-| Name          | Data Type | Requirement | Default | Description                                                                             |
-| ------------- | --------- | ----------- | ------- | --------------------------------------------------------------------------------------- |
-| `fileUrl`     | string    | Required    | -       | File URL to save AI conversation context. Only supports file content of plain text type |
-| `serviceName` | string    | Required    | -       | Full name of the Higress backend service corresponding to the URL                       |
-| `servicePort` | number    | Required    | -       | Port for accessing the Higress backend service corresponding to the URL                 |
+| Name            | Data Type   | Requirement | Default | Description                               |
+|---------------|--------|------|-----|----------------------------------|
+| `fileUrl`     | string | Required   | -   | File URL to save AI conversation context. Only supports file content of plain text type |
+| `serviceName` | string | Required   | -   | Full name of the Higress backend service corresponding to the URL        |
+| `servicePort` | number | Required   | -   | Port for accessing the Higress backend service corresponding to the URL        |
 
 **Details for the `customSettings` configuration fields:**
 
-| Name        | Data Type             | Requirement | Default | Description                                                                                                                                                                                                      |
-| ----------- | --------------------- | ----------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`      | string                | Required    | -       | Name of the parameter to set, e.g., `max_tokens`                                                                                                                                                                 |
-| `value`     | string/int/float/bool | Required    | -       | Value of the parameter to set, e.g., 0                                                                                                                                                                           |
-| `mode`      | string                | Optional    | "auto"  | Mode for setting the parameter, can be set to "auto" or "raw"; if "auto", the parameter name will be automatically rewritten based on the protocol; if "raw", no rewriting or restriction checks will be applied |
-| `overwrite` | bool                  | Optional    | true    | If false, the parameter is only filled if the user has not set it; otherwise, it directly overrides the user's existing parameter settings                                                                       |
+| Name        | Data Type              | Requirement | Default | Description                                                                                                                         |
+| ----------- | --------------------- | -------- | ------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `name`      | string                | Required     | -      | Name of the parameter to set, e.g., `max_tokens`                                                                                       |
+| `value`     | string/int/float/bool | Required     | -      | Value of the parameter to set, e.g., 0                                                                                                    |
+| `mode`      | string                | Optional   | "auto" | Mode for setting the parameter, can be set to "auto" or "raw"; if "auto", the parameter name will be automatically rewritten based on the protocol; if "raw", no rewriting or restriction checks will be applied |
+| `overwrite` | bool                  | Optional   | true   | If false, the parameter is only filled if the user has not set it; otherwise, it directly overrides the user's existing parameter settings                                            |
 
 The `custom-setting` adheres to the following table, replacing the corresponding field based on `name` and protocol. Users need to fill in values from the `settingName` column that exists in the table. For instance, if a user sets `name` to `max_tokens`, in the openai protocol, it replaces `max_tokens`; for gemini, it replaces `maxOutputTokens`. `"none"` indicates that the protocol does not support this parameter. If `name` is not in this table or the corresponding protocol does not support the parameter, and "raw" mode is not set, the configuration will not take effect.
 
@@ -87,18 +87,18 @@ For most protocols, `custom-setting` modifies or fills parameters at the root pa
 
 For OpenAI, the corresponding `type` is `openai`. Its unique configuration fields include:
 
-| Name                 | Data Type | Requirement | Default | Description                                                                                                                    |
-| -------------------- | --------- | ----------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `openaiCustomUrl`    | string    | Optional    | -       | Custom backend URL based on the OpenAI protocol, e.g., www.example.com/myai/v1/chat/completions                                |
-| `responseJsonSchema` | object    | Optional    | -       | Predefined Json Schema that OpenAI responses must adhere to; note that currently only a few specific models support this usage |
+| Name              | Data Type | Requirement | Default | Description                                                                          |
+|-------------------|----------|----------|--------|-------------------------------------------------------------------------------|
+| `openaiCustomUrl` | string   | Optional   | -      | Custom backend URL based on the OpenAI protocol, e.g., www.example.com/myai/v1/chat/completions |
+| `responseJsonSchema` | object | Optional | - | Predefined Json Schema that OpenAI responses must adhere to; note that currently only a few specific models support this usage|
 
 #### Azure OpenAI
 
 For Azure OpenAI, the corresponding `type` is `azure`. Its unique configuration field is:
 
-| Name              | Data Type | Filling Requirements | Default Value | Description                                                                          |
-| ----------------- | --------- | -------------------- | ------------- | ------------------------------------------------------------------------------------ |
-| `azureServiceUrl` | string    | Required             | -             | The URL of the Azure OpenAI service, must include the `api-version` query parameter. |
+| Name                 | Data Type   | Filling Requirements | Default Value | Description                                                                                                    |
+|---------------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------------|
+| `azureServiceUrl`   | string      | Required             | -             | The URL of the Azure OpenAI service, must include the `api-version` query parameter.                           |
 
 **Note:** Azure OpenAI only supports configuring one API Token.
 
@@ -106,19 +106,19 @@ For Azure OpenAI, the corresponding `type` is `azure`. Its unique configuration 
 
 For Moonshot, the corresponding `type` is `moonshot`. Its unique configuration field is:
 
-| Name             | Data Type | Filling Requirements | Default Value | Description                                                                                                                                                         |
-| ---------------- | --------- | -------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `moonshotFileId` | string    | Optional             | -             | The file ID uploaded via the file interface to Moonshot, whose content will be used as context for AI conversations. Cannot be configured with the `context` field. |
+| Name                | Data Type   | Filling Requirements | Default Value | Description                                                                                                      |
+|-------------------|-------------|----------------------|---------------|-----------------------------------------------------------------------------------------------------------------|
+| `moonshotFileId`   | string      | Optional             | -             | The file ID uploaded via the file interface to Moonshot, whose content will be used as context for AI conversations. Cannot be configured with the `context` field. |
 
 #### Qwen (Tongyi Qwen)
 
 For Qwen (Tongyi Qwen), the corresponding `type` is `qwen`. Its unique configuration fields are:
 
-| Name                   | Data Type       | Filling Requirements | Default Value | Description                                                                                                                                                                   |
-| ---------------------- | --------------- | -------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `qwenEnableSearch`     | boolean         | Optional             | -             | Whether to enable the built-in Internet search function provided by Qwen.                                                                                                     |
-| `qwenFileIds`          | array of string | Optional             | -             | The file IDs uploaded via the Dashscope file interface, whose content will be used as context for AI conversations. Cannot be configured with the `context` field.            |
-| `qwenEnableCompatible` | boolean         | Optional             | false         | Enable Qwen compatibility mode. When Qwen compatibility mode is enabled, the compatible mode interface of Qwen will be called, and the request/response will not be modified. |
+| Name                 | Data Type            | Filling Requirements | Default Value | Description                                                                                                            |
+|--------------------|-----------------|----------------------|---------------|------------------------------------------------------------------------------------------------------------------------|
+| `qwenEnableSearch`  | boolean          | Optional             | -             | Whether to enable the built-in Internet search function provided by Qwen.                                             |
+| `qwenFileIds`       | array of string   | Optional             | -             | The file IDs uploaded via the Dashscope file interface, whose content will be used as context for AI conversations. Cannot be configured with the `context` field. |
+| `qwenEnableCompatible` | boolean          | Optional | false         | Enable Qwen compatibility mode. When Qwen compatibility mode is enabled, the compatible mode interface of Qwen will be called, and the request/response will not be modified. |
 
 #### Baichuan AI
 
@@ -164,35 +164,35 @@ For Mistral, the corresponding `type` is `mistral`. It has no unique configurati
 
 For MiniMax, the corresponding `type` is `minimax`. Its unique configuration field is:
 
-| Name             | Data Type | Filling Requirements                                                                        | Default Value | Description                                                                                                                                           |
-| ---------------- | --------- | ------------------------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `minimaxGroupId` | string    | Required when using models `abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat` | -             | When using models `abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`, Minimax uses ChatCompletion Pro and requires setting the groupID. |
+| Name             | Data Type | Filling Requirements | Default Value | Description                                                                                                 |
+| ---------------- | -------- | --------------------- |---------------|------------------------------------------------------------------------------------------------------------|
+| `minimaxGroupId` | string   | Required when using models `abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat` | -             | When using models `abab6.5-chat`, `abab6.5s-chat`, `abab5.5s-chat`, `abab5.5-chat`, Minimax uses ChatCompletion Pro and requires setting the groupID. |
 
 #### Anthropic Claude
 
 For Anthropic Claude, the corresponding `type` is `claude`. Its unique configuration field is:
 
-| Name            | Data Type | Filling Requirements | Default Value | Description                                                     |
-| --------------- | --------- | -------------------- | ------------- | --------------------------------------------------------------- |
-| `claudeVersion` | string    | Optional             | -             | The version of the Claude service's API, default is 2023-06-01. |
+| Name        | Data Type   | Filling Requirements | Default Value | Description                                                                                                    |
+|------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------------|
+| `claudeVersion` | string | Optional             | -             | The version of the Claude service's API, default is 2023-06-01.                                               |
 
 #### Ollama
 
 For Ollama, the corresponding `type` is `ollama`. Its unique configuration field is:
 
-| Name               | Data Type | Filling Requirements | Default Value | Description                                              |
-| ------------------ | --------- | -------------------- | ------------- | -------------------------------------------------------- |
-| `ollamaServerHost` | string    | Required             | -             | The host address of the Ollama server.                   |
-| `ollamaServerPort` | number    | Required             | -             | The port number of the Ollama server, defaults to 11434. |
+| Name                | Data Type   | Filling Requirements | Default Value | Description                                                                                              |
+|-------------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------|
+| `ollamaServerHost` | string      | Required             | -             | The host address of the Ollama server.                                                                |
+| `ollamaServerPort` | number      | Required             | -             | The port number of the Ollama server, defaults to 11434.                                              |
 
 #### Hunyuan
 
 For Hunyuan, the corresponding `type` is `hunyuan`. Its unique configuration fields are:
 
-| Name             | Data Type | Filling Requirements | Default Value | Description                                              |
-| ---------------- | --------- | -------------------- | ------------- | -------------------------------------------------------- |
-| `hunyuanAuthId`  | string    | Required             | -             | Hunyuan authentication ID for version 3 authentication.  |
-| `hunyuanAuthKey` | string    | Required             | -             | Hunyuan authentication key for version 3 authentication. |
+| Name                | Data Type   | Filling Requirements | Default Value | Description                                                                                              |
+|-------------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------|
+| `hunyuanAuthId`    | string      | Required             | -             | Hunyuan authentication ID for version 3 authentication.                                                |
+| `hunyuanAuthKey`   | string      | Required             | -             | Hunyuan authentication key for version 3 authentication.                                               |
 
 #### Stepfun
 
@@ -202,9 +202,9 @@ For Stepfun, the corresponding `type` is `stepfun`. It has no unique configurati
 
 For Cloudflare Workers AI, the corresponding `type` is `cloudflare`. Its unique configuration field is:
 
-| Name                  | Data Type | Filling Requirements | Default Value | Description                                                                                                                 |
-| --------------------- | --------- | -------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `cloudflareAccountId` | string    | Required             | -             | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id). |
+| Name                | Data Type   | Filling Requirements | Default Value | Description                                                                                              |
+|-------------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------|
+| `cloudflareAccountId` | string      | Required             | -             | [Cloudflare Account ID](https://developers.cloudflare.com/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id). |
 
 #### Spark
 
@@ -216,39 +216,39 @@ The `apiTokens` field value for Xunfei Spark (Xunfei Star) is `APIKey:APISecret`
 
 For Gemini, the corresponding `type` is `gemini`. Its unique configuration field is:
 
-| Name                   | Data Type     | Filling Requirements | Default Value | Description                                                                                                                                                                     |
-| ---------------------- | ------------- | -------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `geminiSafetySetting`  | map of string | Optional             | -             | Gemini AI content filtering and safety level settings. Refer to [Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings).                                       |
-| `apiVersion`           | string        | 非必填               | `v1beta`      | To specify the version of the API, you can choose either 'v1' or 'v1beta'. Version differences refer to https://ai.google.dev/gemini-api/docs/api-versions                      |
-| `geminiThinkingBudget` | number        | 非必填               | -             | The parameters of the gemini2.5 series: 0 indicates no thinking mode, -1 represents dynamic adjustment. For specific parameter references, please refer to the official website |
+| Name                  | Data Type | Filling Requirements | Default Value | Description                                                                                              |
+|---------------------|----------|----------------------|---------------|---------------------------------------------------------------------------------------------------------|
+| `geminiSafetySetting` | map of string   | Optional             | -             | Gemini AI content filtering and safety level settings. Refer to [Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings). |
+| `apiVersion` | string | 非必填 | `v1beta` | To specify the version of the API, you can choose either 'v1' or 'v1beta'. Version differences refer to https://ai.google.dev/gemini-api/docs/api-versions |
+| `geminiThinkingBudget` | number | 非必填 | - | The parameters of the gemini2.5 series: 0 indicates no thinking mode, -1 represents dynamic adjustment. For specific parameter references, please refer to the official website |
 
 ### DeepL
 
 For DeepL, the corresponding `type` is `deepl`. Its unique configuration field is:
 
-| Name         | Data Type | Requirement | Default | Description                                                   |
-| ------------ | --------- | ----------- | ------- | ------------------------------------------------------------- |
+| Name         | Data Type | Requirement | Default | Description                         |
+| ------------ | --------- | ----------- | ------- | ------------------------------------ |
 | `targetLang` | string    | Required    | -       | The target language required by the DeepL translation service |
 
 #### Google Vertex AI
 
 For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
 
-| Name                        | Data Type     | Requirement | Default | Description                                                                                                                                                |
-| --------------------------- | ------------- | ----------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `vertexAuthKey`             | string        | Required    | -       | Google Service Account JSON Key used for authentication. The format should be PEM encoded PKCS#8 private key along with client_email and other information |
-| `vertexRegion`              | string        | Required    | -       | Google Cloud region (e.g., us-central1, europe-west4) used to build the Vertex API address                                                                 |
-| `vertexProjectId`           | string        | Required    | -       | Google Cloud Project ID, used to identify the target GCP project                                                                                           |
-| `vertexAuthServiceName`     | string        | Required    | -       | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                                                               |
-| `vertexGeminiSafetySetting` | map of string | Optional    | -       | Gemini model content safety filtering settings.                                                                                                            |
-| `vertexTokenRefreshAhead`   | number        | Optional    | -       | Vertex access token refresh ahead time in seconds                                                                                                          |
+| Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `vertexAuthKey`             | string        | Required      | -      | Google Service Account JSON Key used for authentication. The format should be PEM encoded PKCS#8 private key along with client_email and other information  |
+| `vertexRegion`              | string        | Required      | -      | Google Cloud region (e.g., us-central1, europe-west4) used to build the Vertex API address                                                                  |
+| `vertexProjectId`           | string        | Required      | -      | Google Cloud Project ID, used to identify the target GCP project                                                                                            |
+| `vertexAuthServiceName`     | string        | Required      | -      | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                                                                |
+| `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
+| `vertexTokenRefreshAhead`   | number        | Optional      | -      | Vertex access token refresh ahead time in seconds                                                                                                           |
 
 #### AWS Bedrock
 
 For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
 
 | Name                      | Data Type | Requirement | Default | Description                                             |
-| ------------------------- | --------- | ----------- | ------- | ------------------------------------------------------- |
+|---------------------------|-----------|-------------|---------|---------------------------------------------------------|
 | `awsAccessKey`            | string    | Required    | -       | AWS Access Key used for authentication                  |
 | `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
 | `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
@@ -370,13 +370,13 @@ provider:
   apiTokens:
     - "YOUR_QWEN_API_TOKEN"
   modelMapping:
-    "gpt-3": "qwen-turbo"
-    "gpt-35-turbo": "qwen-plus"
-    "gpt-4-turbo": "qwen-max"
-    "gpt-4-*": "qwen-max"
-    "gpt-4o": "qwen-vl-plus"
-    "text-embedding-v1": "text-embedding-v1"
-    "*": "qwen-turbo"
+    'gpt-3': "qwen-turbo"
+    'gpt-35-turbo': "qwen-plus"
+    'gpt-4-turbo': "qwen-max"
+    'gpt-4-*': "qwen-max"
+    'gpt-4o': "qwen-vl-plus"
+    'text-embedding-v1': 'text-embedding-v1'
+    '*': "qwen-turbo"
 ```
 
 **AI Conversation Request Example**
@@ -432,25 +432,25 @@ Request Example:
 
 ```json
 {
-  "model": "gpt-4o",
-  "messages": [
-    {
-      "role": "user",
-      "content": [
+    "model": "gpt-4o",
+    "messages": [
         {
-          "type": "image_url",
-          "image_url": {
-            "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg"
-          }
-        },
-        {
-          "type": "text",
-          "text": "Where is this picture from?"
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://dashscope.oss-cn-beijing.aliyuncs.com/images/dog_and_girl.jpeg"
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": "Where is this picture from?"
+                }
+            ]
         }
-      ]
-    }
-  ],
-  "temperature": 0.3
+    ],
+    "temperature": 0.3
 }
 ```
 
@@ -458,28 +458,28 @@ Response Example:
 
 ```json
 {
-  "id": "17c5955d-af9c-9f28-bbde-293a9c9a3515",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": [
-          {
-            "text": "This photo depicts a woman and a dog on a beach. As I cannot access specific geographical information, I cannot pinpoint the exact location of this beach. However, visually, it appears to be a sandy coastline along a coastal area with waves breaking on the shore. Such scenes can be found in many beautiful seaside locations worldwide. If you need more precise information, please provide additional context or descriptive details."
-          }
-        ]
-      },
-      "finish_reason": "stop"
+    "id": "17c5955d-af9c-9f28-bbde-293a9c9a3515",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "text": "This photo depicts a woman and a dog on a beach. As I cannot access specific geographical information, I cannot pinpoint the exact location of this beach. However, visually, it appears to be a sandy coastline along a coastal area with waves breaking on the shore. Such scenes can be found in many beautiful seaside locations worldwide. If you need more precise information, please provide additional context or descriptive details."
+                    }
+                ]
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1723949230,
+    "model": "qwen-vl-plus",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 1279,
+        "completion_tokens": 78
     }
-  ],
-  "created": 1723949230,
-  "model": "qwen-vl-plus",
-  "object": "chat.completion",
-  "usage": {
-    "prompt_tokens": 1279,
-    "completion_tokens": 78
-  }
 }
 ```
 
@@ -698,13 +698,13 @@ providers:
 ```yaml
 activeProviderId: my-doubao
 providers:
-  - id: my-doubao
-    type: doubao
-    apiTokens:
-      - YOUR_DOUBAO_API_KEY
-    modelMapping:
-      "*": YOUR_DOUBAO_ENDPOINT
-    timeout: 1200000
+- id: my-doubao
+  type: doubao
+  apiTokens:
+    - YOUR_DOUBAO_API_KEY
+  modelMapping:
+    '*': YOUR_DOUBAO_ENDPOINT
+  timeout: 1200000
 ```
 
 ### Using original Protocol Proxy for Coze applications
@@ -911,12 +911,12 @@ provider:
 provider:
   type: openrouter
   apiTokens:
-    - "YOUR_OPENROUTER_API_TOKEN"
+    - 'YOUR_OPENROUTER_API_TOKEN'
   modelMapping:
-    "gpt-4": "openai/gpt-4-turbo-preview"
-    "gpt-3.5-turbo": "openai/gpt-3.5-turbo"
-    "claude-3": "anthropic/claude-3-opus"
-    "*": "openai/gpt-3.5-turbo"
+    'gpt-4': 'openai/gpt-4-turbo-preview'
+    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
+    'claude-3': 'anthropic/claude-3-opus'
+    '*': 'openai/gpt-3.5-turbo'
 ```
 
 **Example Request**
@@ -968,7 +968,7 @@ The plugin now supports automatic protocol detection, capable of handling both O
 
 ```yaml
 provider:
-  type: claude # Provider with native Claude protocol support
+  type: claude  # Provider with native Claude protocol support
   apiTokens:
     - "YOUR_CLAUDE_API_TOKEN"
   version: "2023-06-01"
@@ -1044,12 +1044,12 @@ When the target provider doesn't natively support Claude protocol, the plugin au
 
 ```yaml
 provider:
-  type: qwen # Doesn't natively support Claude protocol, auto-conversion applied
+  type: qwen  # Doesn't natively support Claude protocol, auto-conversion applied
   apiTokens:
     - "YOUR_QWEN_API_TOKEN"
   modelMapping:
-    "claude-3-opus-20240229": "qwen-max"
-    "*": "qwen-turbo"
+    'claude-3-opus-20240229': 'qwen-max'
+    '*': 'qwen-turbo'
 ```
 
 **Claude Protocol Request**
@@ -1113,25 +1113,25 @@ curl --location 'http://<your higress domain>/v1/chat/completions' \
 
 ```json
 {
-  "id": "fd140c3e-0b69-4b19-849b-d354d32a6162",
-  "choices": [
-    {
-      "index": 0,
-      "delta": {
-        "role": "assistant",
-        "content": "Hello! I am a professional developer."
-      },
-      "finish_reason": "stop"
+    "id": "fd140c3e-0b69-4b19-849b-d354d32a6162",
+    "choices": [
+        {
+            "index": 0,
+            "delta": {
+                "role": "assistant",
+                "content": "Hello! I am a professional developer."
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1717493117,
+    "model": "hunyuan-lite",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 15,
+        "completion_tokens": 9,
+        "total_tokens": 24
     }
-  ],
-  "created": 1717493117,
-  "model": "hunyuan-lite",
-  "object": "chat.completion",
-  "usage": {
-    "prompt_tokens": 15,
-    "completion_tokens": 9,
-    "total_tokens": 24
-  }
 }
 ```
 
@@ -1145,22 +1145,22 @@ provider:
   apiTokens:
     - "YOUR_BAIDU_API_TOKEN"
   modelMapping:
-    "gpt-3": "ERNIE-4.0"
-    "*": "ERNIE-4.0"
+    'gpt-3': "ERNIE-4.0"
+    '*': "ERNIE-4.0"
 ```
 
 **Request Example**
 
 ```json
 {
-  "model": "gpt-4-turbo",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hello, who are you?"
-    }
-  ],
-  "stream": false
+    "model": "gpt-4-turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Hello, who are you?"
+        }
+    ],
+    "stream": false
 }
 ```
 
@@ -1168,25 +1168,25 @@ provider:
 
 ```json
 {
-  "id": "as-e90yfg1pk1",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "Hello, I am ERNIE Bot. I can interact with people, answer questions, assist in creation, and efficiently provide information, knowledge, and inspiration."
-      },
-      "finish_reason": "stop"
+    "id": "as-e90yfg1pk1",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "Hello, I am ERNIE Bot. I can interact with people, answer questions, assist in creation, and efficiently provide information, knowledge, and inspiration."
+            },
+            "finish_reason": "stop"
+        }
+    ],
+    "created": 1717251488,
+    "model": "ERNIE-4.0",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 4,
+        "completion_tokens": 33,
+        "total_tokens": 37
     }
-  ],
-  "created": 1717251488,
-  "model": "ERNIE-4.0",
-  "object": "chat.completion",
-  "usage": {
-    "prompt_tokens": 4,
-    "completion_tokens": 33,
-    "total_tokens": 37
-  }
 }
 ```
 
@@ -1210,14 +1210,14 @@ provider:
 
 ```json
 {
-  "model": "gpt-4-turbo",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hello, who are you?"
-    }
-  ],
-  "stream": false
+    "model": "gpt-4-turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Hello, who are you?"
+        }
+    ],
+    "stream": false
 }
 ```
 
@@ -1225,31 +1225,31 @@ provider:
 
 ```json
 {
-  "id": "02b2251f8c6c09d68c1743f07c72afd7",
-  "choices": [
-    {
-      "finish_reason": "stop",
-      "index": 0,
-      "message": {
-        "content": "Hello! I am MM Intelligent Assistant, a large language model developed by MiniMax. I can help answer questions, provide information, and engage in conversations. How can I assist you?",
-        "role": "assistant"
-      }
+    "id": "02b2251f8c6c09d68c1743f07c72afd7",
+    "choices": [
+        {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+                "content": "Hello! I am MM Intelligent Assistant, a large language model developed by MiniMax. I can help answer questions, provide information, and engage in conversations. How can I assist you?",
+                "role": "assistant"
+            }
+        }
+    ],
+    "created": 1717760544,
+    "model": "abab6.5s-chat",
+    "object": "chat.completion",
+    "usage": {
+        "total_tokens": 106
+    },
+    "input_sensitive": false,
+    "output_sensitive": false,
+    "input_sensitive_type": 0,
+    "output_sensitive_type": 0,
+    "base_resp": {
+        "status_code": 0,
+        "status_msg": ""
     }
-  ],
-  "created": 1717760544,
-  "model": "abab6.5s-chat",
-  "object": "chat.completion",
-  "usage": {
-    "total_tokens": 106
-  },
-  "input_sensitive": false,
-  "output_sensitive": false,
-  "input_sensitive_type": 0,
-  "output_sensitive_type": 0,
-  "base_resp": {
-    "status_code": 0,
-    "status_msg": ""
-  }
 }
 ```
 
@@ -1333,8 +1333,8 @@ provider:
 
 ```json
 {
-  "input": ["Hello"],
-  "model": "text-embedding-3-small"
+  "input":["Hello"],
+  "model":"text-embedding-3-small"
 }
 ```
 
@@ -1437,18 +1437,18 @@ provider:
 
 ```json
 {
-  "model": "gpt-4o",
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are a professional developer!"
-    },
-    {
-      "role": "user",
-      "content": "Hello, who are you?"
-    }
-  ],
-  "stream": false
+    "model": "gpt-4o",
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a professional developer!"
+        },
+        {
+            "role": "user",
+            "content": "Hello, who are you?"
+        }
+    ],
+    "stream": false
 }
 ```
 
@@ -1456,24 +1456,24 @@ provider:
 
 ```json
 {
-  "id": "cha000c23c6@dx190ef0b4b96b8f2532",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "Hello! I am a professional developer skilled in programming and problem-solving. What can I assist you with?"
-      }
+    "id": "cha000c23c6@dx190ef0b4b96b8f2532",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "Hello! I am a professional developer skilled in programming and problem-solving. What can I assist you with?"
+            }
+        }
+    ],
+    "created": 1721997415,
+    "model": "generalv3.5",
+    "object": "chat.completion",
+    "usage": {
+        "prompt_tokens": 10,
+        "completion_tokens": 19,
+        "total_tokens": 29
     }
-  ],
-  "created": 1721997415,
-  "model": "generalv3.5",
-  "object": "chat.completion",
-  "usage": {
-    "prompt_tokens": 10,
-    "completion_tokens": 19,
-    "total_tokens": 29
-  }
 }
 ```
 
@@ -1499,14 +1499,14 @@ provider:
 
 ```json
 {
-  "model": "gpt-3.5",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Who are you?"
-    }
-  ],
-  "stream": false
+    "model": "gpt-3.5",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Who are you?"
+        }
+    ],
+    "stream": false
 }
 ```
 
@@ -1576,19 +1576,11 @@ Here, `model` denotes the service tier of DeepL and can only be either `Free` or
   "choices": [
     {
       "index": 0,
-      "message": {
-        "name": "EN",
-        "role": "assistant",
-        "content": "operate a gambling establishment"
-      }
+      "message": { "name": "EN", "role": "assistant", "content": "operate a gambling establishment" }
     },
     {
       "index": 1,
-      "message": {
-        "name": "EN",
-        "role": "assistant",
-        "content": "Bank of China"
-      }
+      "message": { "name": "EN", "role": "assistant", "content": "Bank of China" }
     }
   ],
   "created": 1722747752,
@@ -1615,13 +1607,13 @@ provider:
 
 ```json
 {
-  "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Who are you?"
-    }
-  ]
+    "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+    "messages": [
+        {
+            "role": "user",
+            "content": "Who are you?"
+        }
+    ]
 }
 ```
 
@@ -1890,13 +1882,13 @@ metadata:
   namespace: higress-system
 spec:
   matchRules:
-    - config:
-        provider:
-          type: groq
-          apiTokens:
-            - "YOUR_API_TOKEN"
-      ingress:
-        - groq
+  - config:
+      provider:
+        type: groq
+        apiTokens:
+          - "YOUR_API_TOKEN"
+    ingress:
+    - groq
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
 ---
 apiVersion: networking.k8s.io/v1
@@ -1914,16 +1906,16 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: <YOUR-DOMAIN>
-      http:
-        paths:
-          - backend:
-              resource:
-                apiGroup: networking.higress.io
-                kind: McpBridge
-                name: default
-            path: /
-            pathType: Prefix
+  - host: <YOUR-DOMAIN>
+    http:
+      paths:
+      - backend:
+          resource:
+            apiGroup: networking.higress.io
+            kind: McpBridge
+            name: default
+        path: /
+        pathType: Prefix
 ---
 apiVersion: networking.higress.io/v1
 kind: McpBridge
@@ -1932,10 +1924,10 @@ metadata:
   namespace: higress-system
 spec:
   registries:
-    - domain: api.groq.com
-      name: groq
-      port: 443
-      type: dns
+  - domain: api.groq.com
+    name: groq
+    port: 443
+    type: dns
 ```
 
 Access Example:
@@ -1957,7 +1949,7 @@ curl "http://<YOUR-DOMAIN>/v1/chat/completions" -H "Content-Type: application/js
 `docker-compose.yml` configuration file:
 
 ```yaml
-version: "3.7"
+version: '3.7'
 services:
   envoy:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/envoy:1.20
@@ -2010,7 +2002,7 @@ static_resources:
                   name: local_route
                   virtual_hosts:
                     - name: local_service
-                      domains: ["*"]
+                      domains: [ "*" ]
                       routes:
                         - match:
                             prefix: "/"
