@@ -20,21 +20,21 @@ const (
 
 type cerebrasProviderInitializer struct{}
 
-func (m *cerebrasProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if len(config.apiTokens) == 0 {
-		return errors.New("no apiToken found in Cerebras provider config")
+func (c *cerebrasProviderInitializer) ValidateConfig(config *ProviderConfig) error {
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
 	}
 	return nil
 }
 
-func (m *cerebrasProviderInitializer) DefaultCapabilities() map[string]string {
+func (c *cerebrasProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 		string(ApiNameModels):         PathOpenAIModels,
 	}
 }
 
-func (m *cerebrasProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+func (c *cerebrasProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	if config.openaiCustomUrl != "" {
 		// Handle custom URL like OpenAI
 		customUrl := strings.TrimPrefix(strings.TrimPrefix(config.openaiCustomUrl, "http://"), "https://")
@@ -43,7 +43,7 @@ func (m *cerebrasProviderInitializer) CreateProvider(config ProviderConfig) (Pro
 		if len(pairs) == 2 {
 			customPath += pairs[1]
 		}
-		capabilities := m.DefaultCapabilities()
+		capabilities := c.DefaultCapabilities()
 		for key, mapPath := range capabilities {
 			capabilities[key] = path.Join(customPath, strings.TrimPrefix(mapPath, "/v1"))
 		}
@@ -52,21 +52,24 @@ func (m *cerebrasProviderInitializer) CreateProvider(config ProviderConfig) (Pro
 			pairs[0], customPath, capabilities)
 		return &cerebrasProvider{
 			config:       config,
+			contextCache: createContextCache(&config),
 			customDomain: pairs[0],
 			customPath:   customPath,
 		}, nil
 	}
 
 	// Set default capabilities
-	config.setDefaultCapabilities(m.DefaultCapabilities())
+	config.setDefaultCapabilities(c.DefaultCapabilities())
 
 	return &cerebrasProvider{
-		config: config,
+		config:       config,
+		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type cerebrasProvider struct {
 	config       ProviderConfig
+	contextCache *contextCache
 	customDomain string
 	customPath   string
 }
@@ -99,9 +102,18 @@ func (p *cerebrasProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiN
 }
 
 func (p *cerebrasProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
-	if !p.config.needToProcessRequestBody(apiName) {
-		// We don't need to process the request body for other APIs.
-		return types.ActionContinue, nil
+	if !p.config.isSupportedAPI(apiName) {
+		return types.ActionContinue, errUnsupportedApiName
 	}
-	return p.config.handleRequestBody(p, nil, ctx, apiName, body)
+	return p.config.handleRequestBody(p, p.contextCache, ctx, apiName, body)
+}
+
+func (p *cerebrasProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, PathOpenAIChatCompletions) {
+		return ApiNameChatCompletion
+	}
+	if strings.Contains(path, PathOpenAIModels) {
+		return ApiNameModels
+	}
+	return ""
 }
