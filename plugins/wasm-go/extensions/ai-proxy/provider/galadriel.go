@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -18,8 +19,8 @@ const (
 type galadrielProviderInitializer struct{}
 
 func (m *galadrielProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if len(config.apiTokens) == 0 {
-		return errors.New("no apiToken found in Galadriel provider config")
+	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+		return errors.New("no apiToken found in provider config")
 	}
 	return nil
 }
@@ -65,4 +66,14 @@ func (g *galadrielProvider) TransformRequestHeaders(ctx wrapper.HttpContext, api
 	util.OverwriteRequestHostHeader(headers, galadrielDomain)
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
+}
+
+func (g *galadrielProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, PathOpenAIChatCompletions) {
+		return ApiNameChatCompletion
+	}
+	if strings.Contains(path, PathOpenAIModels) {
+		return ApiNameModels
+	}
+	return ""
 }
