@@ -139,6 +139,52 @@ spec:
 The rules will be matched in the order of configuration. If one match is found, it will stop, and the matching configuration will take effect.
 
 
+## Unit Testing
+
+When developing wasm plugins, it's recommended to write unit tests to verify plugin functionality. For detailed unit testing guidelines, please refer to [wasm plugin unit test](https://github.com/higress-group/wasm-go/blob/main/pkg/test/README.md).
+
+### Unit Test Structure Example
+
+```go
+func TestMyPlugin(t *testing.T) {
+    test.RunTest(t, func(t *testing.T) {
+        // 1. Create test host
+        config := json.RawMessage(`{"key": "value"}`)
+        host, status := test.NewTestHost(config)
+        require.Equal(t, types.OnPluginStartStatusOK, status)
+        defer host.Reset()
+
+        // 2. Set request headers
+        headers := [][2]string{
+            {":method", "GET"},
+            {":path", "/test"},
+            {":authority", "test.com"},
+        }
+
+        // 3. Call plugin request header processing method
+        action := host.CallOnHttpRequestHeaders(headers)
+        require.Equal(t, types.ActionPause, action)
+
+        // 4. Simulate external call responses (if needed)
+
+        // host.CallOnRedisCall(0, test.CreateRedisRespString("OK"))
+
+        // host.CallOnHttpCall([][2]string{{":status", "200"}}, []byte(`{"result": "success"}`))
+
+        // 5. Complete request
+        host.CompleteHttp()
+
+        // 6. Verify results (if the plugin returns a response)
+        localResponse := host.GetLocalResponse()
+        require.NotNil(t, localResponse)
+        assert.Equal(t, uint32(200), localResponse.StatusCode)
+    })
+}
+```
+
+This example shows the basic test structure including configuration parsing, request processing flow, and result verification.
+
+
 ## E2E test
 
 When you complete a GO plug-in function, you can create associated e2e test cases at the same time, and complete the test verification of the plug-in function locally.
