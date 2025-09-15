@@ -486,8 +486,8 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 					},
 					"dbType": {
 						"type": "string",
-						"enum": ["MYSQL", "POSTGRESQL", "SQLITE", "CLICKHOUSE", ""],
-						"description": "Mcp Server DB Type,if type is DATABASE, it is required"
+						"enum": ["MYSQL", "POSTGRESQL", "SQLITE", "CLICKHOUSE"],
+						"description": "Mcp Server DB Type,only if type is DATABASE, it is required"
 					},
 					"upstreamPathPrefix": {
 						"type": "string",
