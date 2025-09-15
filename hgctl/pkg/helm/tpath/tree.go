@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"gopkg.in/yaml.v2"
 	yaml2 "sigs.k8s.io/yaml"
 )

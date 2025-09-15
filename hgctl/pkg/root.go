@@ -17,7 +17,7 @@ package hgctl
 import (
 	"os"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin"
+	"github.com/alibaba/higress/hgctl/pkg/plugin"
 	"github.com/spf13/cobra"
 )
 

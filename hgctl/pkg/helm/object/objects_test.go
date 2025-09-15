@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 

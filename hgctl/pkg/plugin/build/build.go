@@ -23,9 +23,9 @@ import (
 	"os/user"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/option"
-	ptypes "github.com/alibaba/higress/v2/hgctl/pkg/plugin/types"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/option"
+	ptypes "github.com/alibaba/higress/hgctl/pkg/plugin/types"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"

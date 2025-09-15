@@ -20,9 +20,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/docker"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/option"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
+	"github.com/alibaba/higress/hgctl/pkg/docker"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/option"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"

@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
 
 	"github.com/fatih/structtag"
 	"github.com/iancoleman/orderedmap"

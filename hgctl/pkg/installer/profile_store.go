@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
-	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	"github.com/alibaba/higress/hgctl/pkg/helm"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

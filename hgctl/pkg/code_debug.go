@@ -23,7 +23,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
+	"github.com/alibaba/higress/hgctl/pkg/helm"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"

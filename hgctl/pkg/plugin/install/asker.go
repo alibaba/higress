@@ -19,8 +19,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/types"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/types"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/mitchellh/mapstructure"

@@ -22,10 +22,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm/object"
-	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	"github.com/alibaba/higress/hgctl/pkg/helm"
+	"github.com/alibaba/higress/hgctl/pkg/helm/object"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 )
 
 type K8sInstaller struct {

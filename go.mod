@@ -15,7 +15,7 @@ replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
 require (
 	github.com/agiledragon/gomonkey/v2 v2.11.0
-	github.com/alibaba/higress/v2/hgctl v0.0.0-00010101000000-000000000000
+	github.com/alibaba/higress/hgctl v0.0.0-00010101000000-000000000000
 	github.com/avast/retry-go/v4 v4.3.4
 	github.com/caddyserver/certmagic v0.21.3
 	github.com/dubbogo/go-zookeeper v1.0.4-0.20211212162352-f9d2183d89d5
@@ -269,7 +269,7 @@ replace istio.io/client-go => ./external/client-go
 
 replace istio.io/istio => ./external/istio
 
-replace github.com/alibaba/higress/v2/hgctl => ./hgctl
+replace github.com/alibaba/higress/hgctl => ./hgctl
 
 replace github.com/caddyserver/certmagic => github.com/2456868764/certmagic v1.0.2
 

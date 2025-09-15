@@ -21,8 +21,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm/tpath"
-	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	"github.com/alibaba/higress/hgctl/pkg/helm/tpath"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 

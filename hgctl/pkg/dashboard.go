@@ -28,8 +28,8 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/docker"
-	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/docker"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
 	"github.com/alibaba/higress/v2/pkg/cmd/options"
 )
 

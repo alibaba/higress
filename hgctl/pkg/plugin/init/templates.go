@@ -20,7 +20,7 @@ import (
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/types"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/types"
 )
 
 const (

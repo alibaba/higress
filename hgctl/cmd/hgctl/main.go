@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"os"
 
-	hgctl "github.com/alibaba/higress/v2/hgctl/pkg"
+	hgctl "github.com/alibaba/higress/hgctl/pkg"
 )
 
 func main() {

@@ -17,7 +17,7 @@ package hgctl
 import (
 	"fmt"
 
-	"github.com/alibaba/higress/v2/hgctl/cmd/hgctl/config"
+	"github.com/alibaba/higress/hgctl/cmd/hgctl/config"
 	"github.com/alibaba/higress/v2/pkg/cmd/options"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"

@@ -15,13 +15,13 @@
 package plugin
 
 import (
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/build"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/config"
-	plugininit "github.com/alibaba/higress/v2/hgctl/pkg/plugin/init"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/install"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/ls"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/test"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/uninstall"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/build"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/config"
+	plugininit "github.com/alibaba/higress/hgctl/pkg/plugin/init"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/install"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/ls"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/test"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/uninstall"
 
 	"github.com/spf13/cobra"
 )

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/docker"
+	"github.com/alibaba/higress/hgctl/pkg/docker"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"

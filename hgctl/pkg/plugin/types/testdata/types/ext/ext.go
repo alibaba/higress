@@ -14,7 +14,7 @@
 
 package ext
 
-import "github.com/alibaba/higress/v2/hgctl/pkg/plugin/types/testdata/types/ext/nested"
+import "github.com/alibaba/higress/hgctl/pkg/plugin/types/testdata/types/ext/nested"
 
 type TestExStruct struct {
 	one   string

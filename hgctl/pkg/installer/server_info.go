@@ -15,7 +15,7 @@
 package installer
 
 import (
-	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chartutil"

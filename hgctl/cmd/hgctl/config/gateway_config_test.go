@@ -23,7 +23,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
 	"github.com/stretchr/testify/assert"
 )
 

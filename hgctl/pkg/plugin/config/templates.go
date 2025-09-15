@@ -21,8 +21,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/types"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/types"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
 
 	"gopkg.in/yaml.v3"
 )

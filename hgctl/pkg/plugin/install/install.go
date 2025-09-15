@@ -22,12 +22,12 @@ import (
 	"os"
 	"strings"
 
-	k8s "github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/build"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/config"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/option"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/types"
-	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
+	k8s "github.com/alibaba/higress/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/build"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/config"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/option"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/types"
+	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
 	"github.com/alibaba/higress/v2/pkg/cmd/options"
 
 	"github.com/AlecAivazis/survey/v2/terminal"

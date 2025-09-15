@@ -21,9 +21,9 @@ import (
 	"sort"
 	"strings"
 
-	names "github.com/alibaba/higress/v2/hgctl/pkg/helm/name"
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm/tpath"
-	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	names "github.com/alibaba/higress/hgctl/pkg/helm/name"
+	"github.com/alibaba/higress/hgctl/pkg/helm/tpath"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"

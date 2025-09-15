@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alibaba/higress/v2/hgctl/cmd/hgctl/config"
+	"github.com/alibaba/higress/hgctl/cmd/hgctl/config"
 	cfg "github.com/alibaba/higress/v2/test/e2e/conformance/utils/config"
 	"github.com/tidwall/gjson"
 	"k8s.io/apimachinery/pkg/util/wait"

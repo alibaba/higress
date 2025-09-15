@@ -17,7 +17,7 @@ package hgctl
 import (
 	"sort"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
+	"github.com/alibaba/higress/hgctl/pkg/helm"
 	"github.com/spf13/cobra"
 )
 

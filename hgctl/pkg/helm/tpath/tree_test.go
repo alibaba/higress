@@ -17,7 +17,7 @@ package tpath
 import (
 	"testing"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 

@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/v2/hgctl
+module github.com/alibaba/higress/hgctl
 
 go 1.22.2
 

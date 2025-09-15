@@ -14,7 +14,7 @@
 
 package main
 
-import "github.com/alibaba/higress/v2/hgctl/pkg/plugin/types/testdata/types/ext"
+import "github.com/alibaba/higress/hgctl/pkg/plugin/types/testdata/types/ext"
 
 type TestBasicStruct struct {
 	Name    string

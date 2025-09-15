@@ -20,9 +20,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
-	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/v2/hgctl/pkg/manifests"
+	"github.com/alibaba/higress/hgctl/pkg/helm"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/manifests"
 )
 
 const (
