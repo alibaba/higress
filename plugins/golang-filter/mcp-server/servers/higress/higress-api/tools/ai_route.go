@@ -357,7 +357,7 @@ func getAddAiRouteSchema() json.RawMessage {
 							"type": "object",
 							"properties": {
 								"provider": {"type": "string", "description": "LLM provider name"},
-								"weight": {"type": "integer", "description": "Weight of the upstream"},
+								"weight": {"type": "integer", "description": "Weight of the upstream,The sum of upstream weights must be 100"},
 								"modelMapping": {
 									"type": "object",
 									"additionalProperties": {"type": "string"},
