@@ -47,17 +47,25 @@ type McpServerRule struct {
 }
 
 type ServerConfig struct {
-	Name   string                 `json:"name,omitempty"`
-	Config map[string]interface{} `json:"config,omitempty"`
+	Name            string                 `json:"name,omitempty"`
+	Config          map[string]interface{} `json:"config,omitempty"`
+	SecuritySchemes []*SecuritySchemes     `json:"securitySchemes,omitempty"`
 }
 
 type McpTool struct {
-	Name             		string            `json:"name,omitempty"`
-	Description      		string            `json:"description,omitempty"`
-	Args             		[]*ToolArgs       `json:"args,omitempty"`
-	RequestTemplate  		*RequestTemplate  `json:"requestTemplate"`
-	ResponseTemplate 		*ResponseTemplate `json:"responseTemplate"`
-	ErrorResponseTemplate 	string			  `json:"errorResponseTemplate,omitempty"`
+	Name                  string            `json:"name,omitempty"`
+	Description           string            `json:"description,omitempty"`
+	Args                  []*ToolArgs       `json:"args,omitempty"`
+	RequestTemplate       *RequestTemplate  `json:"requestTemplate"`
+	ResponseTemplate      *ResponseTemplate `json:"responseTemplate"`
+	ErrorResponseTemplate string            `json:"errorResponseTemplate,omitempty"`
+	Security              *ToolSecurity     `json:"security"`
+}
+
+type ToolSecurity struct {
+	Id          string `json:"type,omitempty"`
+	PassThrough bool   `json:"passthrough,omitempty"`
+	Credential  string `json:"credential"`
 }
 
 type ToolArgs struct {
@@ -80,6 +88,7 @@ type RequestTemplate struct {
 	ArgsToJsonBody bool                      `json:"argsToJsonBody,omitempty"`
 	ArgsToUrlParam bool                      `json:"argsToUrlParam,omitempty"`
 	ArgsToFormBody bool                      `json:"argsToFormBody,omitempty"`
+	Security       *ToolSecurity             `json:"security,omitempty"`
 }
 
 type RequestTemplateHeaders struct {
@@ -125,8 +134,18 @@ type ServiceRef struct {
 
 // McpToolConfig Struct for mcp tool json unmarshal
 type McpToolConfig struct {
-	Tools     []*ToolDescription    `json:"tools,omitempty"`
-	ToolsMeta map[string]*ToolsMeta `json:"toolsMeta,omitempty"`
+	Tools           []*ToolDescription    `json:"tools,omitempty"`
+	ToolsMeta       map[string]*ToolsMeta `json:"toolsMeta,omitempty"`
+	SecuritySchemes []*SecuritySchemes    `json:"securitySchemes,omitempty"`
+}
+
+type SecuritySchemes struct {
+	Id                string `json:"id,omitempty"`
+	Type              string `json:"type,omitempty"`
+	Scheme            string `json:"scheme,omitempty"`
+	In                string `json:"in,omitempty"`
+	Name              string `json:"name,omitempty"`
+	DefaultCredential string `json:"defaultCredential,omitempty"`
 }
 
 type ToolDescription struct {
@@ -148,8 +167,9 @@ type ToolsMeta struct {
 }
 
 type JsonGoTemplate struct {
-	RequestTemplate  		RequestTemplate   `json:"requestTemplate,omitempty"`
-	ResponseTemplate 		ResponseTemplate  `json:"responseTemplate,omitempty"`
-	ArgsPosition     		map[string]string `json:"argsPosition,omitempty"`
-	ErrorResponseTemplate 	string 			  `json:"errorResponseTemplate,omitempty"`
+	RequestTemplate       RequestTemplate   `json:"requestTemplate,omitempty"`
+	ResponseTemplate      ResponseTemplate  `json:"responseTemplate,omitempty"`
+	ArgsPosition          map[string]string `json:"argsPosition,omitempty"`
+	ErrorResponseTemplate string            `json:"errorResponseTemplate,omitempty"`
+	Security              *ToolSecurity     `json:"security,omitempty"`
 }
