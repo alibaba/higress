@@ -26,8 +26,8 @@ import (
 	controllruntimelog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 
-	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 )
 
 var (

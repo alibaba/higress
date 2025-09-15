@@ -23,9 +23,9 @@ import (
 	"os/user"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/plugin/option"
-	ptypes "github.com/alibaba/higress/hgctl/pkg/plugin/types"
-	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
+	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/option"
+	ptypes "github.com/alibaba/higress/v2/hgctl/pkg/plugin/types"
+	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -423,13 +423,11 @@ func (b *Builder) filesHandler() error {
 	return nil
 }
 
-var (
-	optionalProducts = [][2]string{
-		{"README_ZH.md", MediaTypeREADME_ZH},
-		{"README_EN.md", MediaTypeREADME_EN},
-		{"icon.png", MediaTypeIcon},
-	}
-)
+var optionalProducts = [][2]string{
+	{"README_ZH.md", MediaTypeREADME_ZH},
+	{"README_EN.md", MediaTypeREADME_EN},
+	{"icon.png", MediaTypeIcon},
+}
 
 // TODO(WeixinX): If the image exists, no push is performed
 func (b *Builder) imageHandler() error {
@@ -536,7 +534,7 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse output destination %q", b.Output.Dest)
 		}
-		err = os.MkdirAll(b.Output.Dest, 0755)
+		err = os.MkdirAll(b.Output.Dest, 0o755)
 		if err != nil && !os.IsExist(err) {
 			return errors.Wrapf(err, "failed to create output destination %q", b.Output.Dest)
 		}
@@ -574,7 +572,7 @@ func (b *Builder) config(f ConfigFunc) (err error) {
 	if err != nil && !os.IsExist(err) {
 		return errors.Wrap(err, "failed to create the docker entrypoint file")
 	}
-	err = dockerEp.Chmod(0777)
+	err = dockerEp.Chmod(0o777)
 	if err != nil {
 		return err
 	}

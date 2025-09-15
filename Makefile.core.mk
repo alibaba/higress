@@ -10,7 +10,7 @@ export BASE_VERSION ?= $(HIGRESS_BASE_VERSION)
 
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
-VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/lversion
+VERSION_PACKAGE := github.com/alibaba/higress/v2/pkg/cmd/lversion
 
 GIT_COMMIT:=$(shell git rev-parse HEAD)
 

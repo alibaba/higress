@@ -18,7 +18,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/alibaba/higress/hgctl/pkg/plugin/types"
+	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/types"
 )
 
 const (
@@ -47,11 +47,11 @@ cd {{ .BuildDestDir }}
 tar czf plugin.tar.gz plugin.wasm
 cmd="{{ .BasicCmd }}"
 products=({{ .Products }})
-for ((i=0; i<${#products[*]}; i=i+2)); do 
+for ((i=0; i<${#products[*]}; i=i+2)); do
   f=${products[i]}
   typ=${products[i+1]}
-  if [ -e ${f} ]; then 
-    cmd="${cmd} ./${f}:${typ}" 
+  if [ -e ${f} ]; then
+    cmd="${cmd} ./${f}:${typ}"
   fi
 done
 cmd="${cmd} ./plugin.tar.gz:{{ .MediaTypePlugin }}"
@@ -79,7 +79,7 @@ type ImageTmplFields struct {
 }
 
 func genFilesDockerEntrypoint(ft *FilesTmplFields, target string) error {
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0777)
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0o777)
 	if err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func genFilesDockerEntrypoint(ft *FilesTmplFields, target string) error {
 }
 
 func genImageDockerEntrypoint(it *ImageTmplFields, target string) error {
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0777)
+	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY, 0o777)
 	if err != nil {
 		return err
 	}

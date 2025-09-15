@@ -19,7 +19,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
+	"github.com/alibaba/higress/v2/hgctl/pkg/plugin/utils"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -49,7 +49,7 @@ func create(w io.Writer, target string) error {
 	if err != nil {
 		return errors.Wrap(err, "invalid target path")
 	}
-	if err = os.MkdirAll(target, 0755); err != nil {
+	if err = os.MkdirAll(target, 0o755); err != nil {
 		return err
 	}
 	if err = GenPluginConfYAML(configHelpTmpl, target); err != nil {

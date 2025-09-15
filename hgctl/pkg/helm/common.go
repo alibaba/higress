@@ -21,8 +21,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/helm/tpath"
-	"github.com/alibaba/higress/hgctl/pkg/util"
+	"github.com/alibaba/higress/v2/hgctl/pkg/helm/tpath"
+	"github.com/alibaba/higress/v2/hgctl/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 
@@ -137,7 +137,6 @@ func GenerateConfig(inFilenames []string, setFlags []string) (string, *Profile, 
 	}
 
 	profileString, profile, err := GenProfile(profileName, valuesOverlay, setFlags)
-
 	if err != nil {
 		return "", nil, "", err
 	}

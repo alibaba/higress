@@ -14,7 +14,7 @@
 
 package ext
 
-import "github.com/alibaba/higress/hgctl/pkg/plugin/types/testdata/types/ext/nested"
+import "github.com/alibaba/higress/v2/hgctl/pkg/plugin/types/testdata/types/ext/nested"
 
 type TestExStruct struct {
 	one   string
@@ -22,10 +22,12 @@ type TestExStruct struct {
 	three []bool
 }
 
-type ExPointerInt **int
-type ExBool bool
-type ExSlice []*string
-type ExAlias nested.TestNestedStruct
+type (
+	ExPointerInt **int
+	ExBool       bool
+	ExSlice      []*string
+	ExAlias      nested.TestNestedStruct
+)
 
 type TestNestedStruct struct {
 	NestedStruct *nested.TestNestedStruct

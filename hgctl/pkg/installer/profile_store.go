@@ -22,9 +22,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/helm"
-	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/hgctl/pkg/util"
+	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
+	"github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/v2/hgctl/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,7 +59,7 @@ type FileDirProfileStore struct {
 func (f *FileDirProfileStore) Save(profile *helm.Profile) (string, error) {
 	namespace := profile.Global.Namespace
 	install := profile.Global.Install
-	var profileName = ""
+	profileName := ""
 	if install == helm.InstallK8s || install == helm.InstallLocalK8s {
 		profileName = filepath.Join(f.profilesPath, fmt.Sprintf("%s-%s.yaml", ProfileFilePrefix, namespace))
 	} else {
@@ -109,7 +109,7 @@ func (f *FileDirProfileStore) List() ([]*ProfileContext, error) {
 func (f *FileDirProfileStore) Delete(profile *helm.Profile) (string, error) {
 	namespace := profile.Global.Namespace
 	install := profile.Global.Install
-	var profileName = ""
+	profileName := ""
 	if install == helm.InstallK8s || install == helm.InstallLocalK8s {
 		profileName = filepath.Join(f.profilesPath, fmt.Sprintf("%s-%s.yaml", ProfileFilePrefix, namespace))
 	} else {

@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alibaba/higress/hgctl/pkg/helm"
+	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
 )
 
 type DockerInstaller struct {
@@ -48,7 +48,6 @@ func (d *DockerInstaller) Install() error {
 }
 
 func (d *DockerInstaller) UnInstall() error {
-
 	fmt.Fprintf(d.writer, "\n⌛️ Processing uninstallation... \n\n")
 
 	if err := d.standalone.UnInstall(); err != nil {

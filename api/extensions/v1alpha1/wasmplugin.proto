@@ -24,7 +24,7 @@ import "google/protobuf/struct.proto";
 
 package higress.extensions.v1alpha1;
 
-option go_package="github.com/alibaba/higress/api/extensions/v1alpha1";
+option go_package="github.com/alibaba/higress/v2/api/extensions/v1alpha1";
 
 // <!-- crd generation tags
 // +cue-gen:WasmPlugin:groupName:extensions.higress.io

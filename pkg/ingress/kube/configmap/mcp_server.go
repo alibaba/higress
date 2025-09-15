@@ -26,9 +26,9 @@ import (
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 // RedisConfig defines the configuration for Redis connection
@@ -413,7 +413,7 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	// Build match_list configuration
 	var matchList []*MatchRule
 	matchList = append(matchList, mcp.MatchList...)
-	for provider, _ := range m.mcpServerProviders {
+	for provider := range m.mcpServerProviders {
 		servers := provider.GetMcpServers()
 		if len(servers) == 0 {
 			continue

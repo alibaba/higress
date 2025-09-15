@@ -14,7 +14,7 @@
 
 package main
 
-import "github.com/alibaba/higress/hgctl/pkg/plugin/types/testdata/types/ext"
+import "github.com/alibaba/higress/v2/hgctl/pkg/plugin/types/testdata/types/ext"
 
 type TestBasicStruct struct {
 	Name    string
@@ -44,11 +44,13 @@ type TestAliasStruct struct {
 	MyStruct     MyStruct
 }
 
-type MyString string
-type MyPointerInt *int
-type MyStruct TestBasicStruct
-type NestedAlias ext.ExAlias
-type NestedBasicAlias ext.ExBool
+type (
+	MyString         string
+	MyPointerInt     *int
+	MyStruct         TestBasicStruct
+	NestedAlias      ext.ExAlias
+	NestedBasicAlias ext.ExBool
+)
 
 type TestExternalStruct struct {
 	InternalFloat float64
@@ -62,8 +64,7 @@ type TestNestedStruct struct {
 	NestedStruct *ext.TestNestedStruct
 }
 
-type MyInterface interface {
-}
+type MyInterface interface{}
 
 var MyConst bool
 

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	ingress "github.com/alibaba/higress/test/e2e/conformance"
+	ingress "github.com/alibaba/higress/v2/test/e2e/conformance"
 	"github.com/stretchr/testify/require"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/config"
 )
 
 // Applier prepares manifests depending on the available options and applies

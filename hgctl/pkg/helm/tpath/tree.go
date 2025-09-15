@@ -23,7 +23,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/util"
+	"github.com/alibaba/higress/v2/hgctl/pkg/util"
 	"gopkg.in/yaml.v2"
 	yaml2 "sigs.k8s.io/yaml"
 )
@@ -63,7 +63,6 @@ func GetPathContext(root any, path util.Path, createMissing bool) (*PathContext,
 
 // WritePathContext writes the given value to the Node in the given PathContext.
 func WritePathContext(nc *PathContext, value any, merge bool) error {
-
 	if !util.IsValueNil(value) {
 		return setPathContext(nc, value, merge)
 	}

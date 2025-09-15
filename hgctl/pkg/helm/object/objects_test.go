@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/alibaba/higress/hgctl/pkg/util"
+	"github.com/alibaba/higress/v2/hgctl/pkg/util"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -652,14 +652,14 @@ func TestK8sObject_ResolveK8sConflict(t *testing.T) {
                   kind: PodDisruptionBudget
                   metadata:
                     name: istio
-                  spec: 
+                  spec:
                     maxUnavailable: 3`),
 			o2: getK8sObject(`
                   apiVersion: policy/v1
                   kind: PodDisruptionBudget
                   metadata:
                     name: istio
-                  spec: 
+                  spec:
                     maxUnavailable: 3`),
 		},
 		{
@@ -669,7 +669,7 @@ func TestK8sObject_ResolveK8sConflict(t *testing.T) {
                   kind: PodDisruptionBudget
                   metadata:
                     name: istio
-                  spec: 
+                  spec:
                     maxUnavailable: 50%
                     minAvailable: 3`),
 			o2: getK8sObject(`
@@ -677,7 +677,7 @@ func TestK8sObject_ResolveK8sConflict(t *testing.T) {
                   kind: PodDisruptionBudget
                   metadata:
                     name: istio
-                  spec: 
+                  spec:
                     maxUnavailable: 50%`),
 		},
 		{
@@ -687,7 +687,7 @@ func TestK8sObject_ResolveK8sConflict(t *testing.T) {
                   kind: PodDisruptionBudget
                   metadata:
                     name: istio
-                  spec: 
+                  spec:
                     minAvailable: 0
                     maxUnavailable: 0`),
 			o2: getK8sObject(`

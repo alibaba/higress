@@ -15,9 +15,10 @@
 package hgctl
 
 import (
-	"github.com/alibaba/higress/hgctl/pkg/plugin"
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/alibaba/higress/v2/hgctl/pkg/plugin"
+	"github.com/spf13/cobra"
 )
 
 // GetRootCommand returns the root cobra command to be executed

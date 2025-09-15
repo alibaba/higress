@@ -27,8 +27,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/manifests"
-	"github.com/alibaba/higress/hgctl/pkg/util"
+	"github.com/alibaba/higress/v2/hgctl/pkg/manifests"
+	"github.com/alibaba/higress/v2/hgctl/pkg/util"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -585,7 +585,6 @@ func locateChart(cpOpts *action.ChartPathOptions, name string, settings *cli.Env
 }
 
 func ParseLatestVersion(repoUrl string, version string, devel bool) (string, error) {
-
 	cpOpts := &action.ChartPathOptions{
 		RepoURL: repoUrl,
 		Version: version,
@@ -603,7 +602,6 @@ func ParseLatestVersion(repoUrl string, version string, devel bool) (string, err
 	}
 
 	client, err := getter.All(settings).ByScheme(u.Scheme)
-
 	if err != nil {
 		return "", fmt.Errorf("could not find protocol handler for: %s", u.Scheme)
 	}
@@ -615,7 +613,6 @@ func ParseLatestVersion(repoUrl string, version string, devel bool) (string, err
 		getter.WithBasicAuth(cpOpts.Username, cpOpts.Password),
 		getter.WithPassCredentialsAll(cpOpts.PassCredentialsAll),
 	)
-
 	if err != nil {
 		return "", err
 	}

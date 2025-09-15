@@ -20,9 +20,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/helm"
-	"github.com/alibaba/higress/hgctl/pkg/installer"
-	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
+	"github.com/alibaba/higress/v2/hgctl/pkg/installer"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 	"github.com/spf13/cobra"
 )
 
@@ -91,8 +91,8 @@ func newInstallCmd() *cobra.Command {
 		Example: `  # Apply a default higress installation
   hgctl install
 
-  # Install higress on local kubernetes cluster 
-  hgctl install --set profile=local-k8s 
+  # Install higress on local kubernetes cluster
+  hgctl install --set profile=local-k8s
 
   # Install higress on local docker environment with specific gateway port
   hgctl install --set profile=local-docker --set gateway.httpPort=80 --set gateway.httpsPort=443
@@ -192,7 +192,6 @@ func promptProfileName(writer io.Writer) string {
 			return profileNameLocalDocker
 		}
 	}
-
 }
 
 func installManifests(profile *helm.Profile, writer io.Writer, devel bool) error {

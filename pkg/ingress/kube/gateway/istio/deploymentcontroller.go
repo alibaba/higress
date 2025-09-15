@@ -20,7 +20,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/alibaba/higress/pkg/config/constants"
+	"github.com/alibaba/higress/v2/pkg/config/constants"
 )
 
 // classInfo holds information about a gateway class
@@ -47,7 +47,7 @@ func getBuiltinClasses() map[gateway.ObjectName]gateway.GatewayController {
 	res := map[gateway.ObjectName]gateway.GatewayController{
 		defaultClassName: constants.ManagedGatewayController,
 		// Start - Commented by Higress
-		//constants.RemoteGatewayClassName: constants.UnmanagedGatewayController,
+		// constants.RemoteGatewayClassName: constants.UnmanagedGatewayController,
 		// End - Commented by Higress
 	}
 	// Start - Commented by Higress

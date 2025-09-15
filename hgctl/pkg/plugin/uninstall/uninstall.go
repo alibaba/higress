@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"io"
 
-	k8s "github.com/alibaba/higress/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/pkg/cmd/options"
+	k8s "github.com/alibaba/higress/v2/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 	"github.com/pkg/errors"
 
 	"github.com/spf13/cobra"

@@ -20,10 +20,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/alibaba/higress/hgctl/pkg/helm"
-	"github.com/alibaba/higress/hgctl/pkg/installer"
-	"github.com/alibaba/higress/hgctl/pkg/util"
-	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
+	"github.com/alibaba/higress/v2/hgctl/pkg/installer"
+	"github.com/alibaba/higress/v2/hgctl/pkg/util"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 	"github.com/spf13/cobra"
 )
 
@@ -44,9 +44,9 @@ func newUninstallCmd() *cobra.Command {
 		Use:   "uninstall",
 		Short: "Uninstall higress from a cluster",
 		Long:  "The uninstall command uninstalls higress from a cluster or local environment",
-		Example: `# Uninstall higress 
+		Example: `# Uninstall higress
   hgctl uninstal
-  
+
   # Uninstall higress, istioAPI and GatewayAPI from a cluster
   hgctl uninstall --purge-resources
 `,

@@ -17,7 +17,7 @@ package hgctl
 import (
 	"sort"
 
-	"github.com/alibaba/higress/hgctl/pkg/helm"
+	"github.com/alibaba/higress/v2/hgctl/pkg/helm"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +44,6 @@ func profileListCmd(plArgs *profileListArgs) *cobra.Command {
 
 // profileList list all the builtin profiles.
 func profileList(cmd *cobra.Command, plArgs *profileListArgs) error {
-
 	profiles, err := helm.ListProfiles(plArgs.manifestsPath)
 	if err != nil {
 		return err

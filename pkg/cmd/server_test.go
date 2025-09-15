@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alibaba/higress/pkg/bootstrap"
+	"github.com/alibaba/higress/v2/pkg/bootstrap"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
