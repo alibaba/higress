@@ -29,7 +29,12 @@ const (
 	reasoningEndTag   = "</think>"
 )
 
+type NonOpenAIStyleOptions struct {
+	ReasoningMaxTokens int `json:"reasoning_max_tokens,omitempty"`
+}
+
 type chatCompletionRequest struct {
+	NonOpenAIStyleOptions
 	Messages            []chatMessage          `json:"messages"`
 	Model               string                 `json:"model"`
 	Store               bool                   `json:"store,omitempty"`
@@ -154,10 +159,17 @@ type usage struct {
 	CompletionTokens        int                      `json:"completion_tokens,omitempty"`
 	TotalTokens             int                      `json:"total_tokens,omitempty"`
 	CompletionTokensDetails *completionTokensDetails `json:"completion_tokens_details,omitempty"`
+	PromptTokensDetails     *promptTokensDetails     `json:"prompt_tokens_details,omitempty"`
+}
+
+type promptTokensDetails struct {
+	AudioTokens  int `json:"audio_tokens,omitempty"`
+	CachedTokens int `json:"cached_tokens,omitempty"`
 }
 
 type completionTokensDetails struct {
 	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
+	AudioTokens              int `json:"audio_tokens,omitempty"`
 	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
 	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 }
@@ -169,7 +181,9 @@ type chatMessage struct {
 	Role             string                 `json:"role,omitempty"`
 	Content          any                    `json:"content,omitempty"`
 	ReasoningContent string                 `json:"reasoning_content,omitempty"`
+	Reasoning        string                 `json:"reasoning,omitempty"` // For streaming responses
 	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
+	FunctionCall     *functionCall          `json:"function_call,omitempty"` // For legacy OpenAI format
 	Refusal          string                 `json:"refusal,omitempty"`
 	ToolCallId       string                 `json:"tool_call_id,omitempty"`
 }
@@ -233,11 +247,12 @@ func (m *chatMessage) handleStreamingReasoningContent(ctx wrapper.HttpContext, r
 }
 
 type chatMessageContent struct {
-	Type       string                      `json:"type,omitempty"`
-	Text       string                      `json:"text"`
-	ImageUrl   *chatMessageContentImageUrl `json:"image_url,omitempty"`
-	File       *chatMessageContentFile     `json:"file,omitempty"`
-	InputAudio *chatMessageContentAudio    `json:"input_audio,omitempty"`
+	CacheControl map[string]interface{}      `json:"cache_control,omitempty"`
+	Type         string                      `json:"type,omitempty"`
+	Text         string                      `json:"text"`
+	ImageUrl     *chatMessageContentImageUrl `json:"image_url,omitempty"`
+	File         *chatMessageContentFile     `json:"file,omitempty"`
+	InputAudio   *chatMessageContentAudio    `json:"input_audio,omitempty"`
 }
 
 type chatMessageContentAudio struct {
@@ -395,6 +410,7 @@ func (m *functionCall) IsEmpty() bool {
 }
 
 type StreamEvent struct {
+	RawEvent   string `json:"-"`
 	Id         string `json:"id"`
 	Event      string `json:"event"`
 	Data       string `json:"data"`

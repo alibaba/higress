@@ -1,0 +1,378 @@
+name: Wasm Plugin Unit Tests(GO)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'plugins/wasm-go/extensions/**'
+      - '.github/workflows/wasm-plugin-unit-test.yml'
+      - 'go.mod'
+      - 'go.sum'
+  pull_request:
+    branches: [ "*" ]
+    paths:
+      - 'plugins/wasm-go/extensions/**'
+      - '.github/workflows/wasm-plugin-unit-test.yml'
+      - 'go.mod'
+      - 'go.sum'
+
+env:
+  GO111MODULE: on
+  CGO_ENABLED: 0
+  GOOS: linux
+  GOARCH: amd64
+
+jobs:
+  detect-changed-plugins:
+    name: Detect Changed Plugins
+    runs-on: ubuntu-latest
+    outputs:
+      changed-plugins: ${{ steps.detect.outputs.plugins }}
+      has-changes: ${{ steps.detect.outputs.has-changes }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史用于比较
+        
+    - name: Detect changed plugins
+      id: detect
+      run: |
+        # 获取变更的文件列表
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # PR模式：比较目标分支和源分支
+          git fetch origin ${{ github.base_ref }}
+          CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+        else
+          # Push模式：比较当前提交和上一个提交
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+        fi
+        
+        echo "Changed files:"
+        echo "$CHANGED_FILES"
+        
+        # 提取变更的插件名称
+        CHANGED_PLUGINS=""
+        for file in $CHANGED_FILES; do
+          if [[ $file =~ ^plugins/wasm-go/extensions/([^/]+)/ ]]; then
+            PLUGIN_NAME="${BASH_REMATCH[1]}"
+            if [[ ! " $CHANGED_PLUGINS " =~ " $PLUGIN_NAME " ]]; then
+              # 修复：只在非空时添加空格
+              if [ -z "$CHANGED_PLUGINS" ]; then
+                CHANGED_PLUGINS="$PLUGIN_NAME"
+              else
+                CHANGED_PLUGINS="$CHANGED_PLUGINS $PLUGIN_NAME"
+              fi
+            fi
+          fi
+        done
+        
+        # 如果没有插件变更，不触发测试
+        if [ -z "$CHANGED_PLUGINS" ]; then
+          echo "No plugin changes detected, skipping tests"
+          echo "has-changes=false" >> $GITHUB_OUTPUT
+          echo "plugins=[]" >> $GITHUB_OUTPUT
+        else
+          echo "Changed plugins: $CHANGED_PLUGINS"
+          echo "has-changes=true" >> $GITHUB_OUTPUT
+          # 将空格分隔转换为 JSON 数组格式
+          PLUGINS_JSON=$(echo "$CHANGED_PLUGINS" | sed 's/ /","/g' | sed 's/^/["/' | sed 's/$/"]/')
+          echo "PLUGINS_JSON: $PLUGINS_JSON"
+          echo "plugins=$PLUGINS_JSON" >> $GITHUB_OUTPUT
+        fi
+
+  test:
+    name: Test Changed Plugins
+    runs-on: ubuntu-latest
+    needs: detect-changed-plugins
+    if: needs.detect-changed-plugins.outputs.has-changes == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJSON(needs.detect-changed-plugins.outputs.changed-plugins) }}
+      
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+      
+    - name: Set up Go 1.24
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.24
+        cache: true
+        
+    - name: Install test tools
+      run: |
+        go install gotest.tools/gotestsum@latest
+        # 移除gocov工具，直接使用Codecov
+        
+    - name: Build WASM for ${{ matrix.plugin }}
+      working-directory: plugins/wasm-go/extensions/${{ matrix.plugin }}
+      run: |
+        echo "Building WASM for ${{ matrix.plugin }}..."
+        
+        # 检查是否存在main.go文件
+        
+        export GOOS=wasip1
+        export GOARCH=wasm
+        
+        # 构建WASM文件，失败时直接退出
+        if ! go build -buildmode=c-shared -o main.wasm ./; then
+          echo "❌ WASM build failed for ${{ matrix.plugin }}"
+          exit 1
+        fi
+        
+        # 验证WASM文件是否生成
+        if [ ! -f "main.wasm" ]; then
+          echo "❌ WASM file not generated for ${{ matrix.plugin }}"
+          exit 1
+        fi
+        
+        echo "✅ WASM build successful for ${{ matrix.plugin }}"
+
+        
+    - name: Set WASM_PATH environment variable
+      run: |
+        echo "WASM_PATH=$(pwd)/plugins/wasm-go/extensions/${{ matrix.plugin }}/main.wasm" >> $GITHUB_ENV
+        
+    - name: Run tests with coverage for ${{ matrix.plugin }}
+      working-directory: plugins/wasm-go/extensions/${{ matrix.plugin }}
+      run: |
+        # 检查是否存在main_test.go文件
+        if [ -f "main_test.go" ]; then
+          echo "Running tests for ${{ matrix.plugin }}..."
+          
+          # 运行测试并生成覆盖率报告
+          gotestsum --junitfile ../../../../test-results-${{ matrix.plugin }}.xml \
+                   --format standard-verbose \
+                   --jsonfile ../../../../test-output-${{ matrix.plugin }}.json \
+                   -- -coverprofile=coverage-${{ matrix.plugin }}.out -covermode=atomic -coverpkg=./... ./...
+          
+          echo "✅ Tests completed for ${{ matrix.plugin }}"
+        else
+          echo "No tests found for ${{ matrix.plugin }}, skipping..."
+          # 创建空的测试结果文件
+          echo '<?xml version="1.0" encoding="UTF-8"?><testsuites><testsuite name="no-tests" tests="0" failures="0" errors="0" time="0"></testsuite></testsuites>' > ../../../../test-results-${{ matrix.plugin }}.xml
+        fi
+        
+    - name: Upload test results for ${{ matrix.plugin }}
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.plugin }}
+        path: |
+          test-results-${{ matrix.plugin }}.xml
+          test-output-${{ matrix.plugin }}.json
+        retention-days: 30
+        
+    - name: Upload coverage report for ${{ matrix.plugin }}
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-${{ matrix.plugin }}
+        path: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage-${{ matrix.plugin }}.out
+        retention-days: 30
+
+  test-summary:
+    name: Test Summary & Coverage
+    runs-on: ubuntu-latest
+    needs: [detect-changed-plugins, test]
+    if: always() && needs.detect-changed-plugins.outputs.has-changes == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Go 1.24
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.24
+        cache: true
+        
+    - name: Install required tools
+      run: |
+        go install github.com/wadey/gocovmerge@latest
+        
+    - name: Download all test results
+      uses: actions/download-artifact@v4
+      with:
+        pattern: test-results-*
+        merge-multiple: true
+        path: ${{ github.workspace }}
+        
+    - name: Download all coverage files
+      uses: actions/download-artifact@v4
+      with:
+        pattern: coverage-*
+        merge-multiple: true
+        path: ${{ github.workspace }}
+        
+
+        
+    - name: Generate comprehensive test summary
+      run: |
+        echo "## 🧪 Go Plugin Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        total_plugins=0
+        passed_plugins=0
+        failed_plugins=0
+        total_tests=0
+        total_failures=0
+        total_errors=0
+        
+        echo "### 📊 Test Results by Plugin" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        for result_file in test-results-*.xml; do
+          if [ -f "$result_file" ]; then
+            plugin_name=$(echo "$result_file" | sed 's/test-results-\(.*\)\.xml/\1/')
+            total_plugins=$((total_plugins + 1))
+            
+            # 解析XML获取测试结果
+            if grep -q '<testsuite' "$result_file"; then
+              # 使用grep解析XML属性，更稳定可靠
+              tests=$(grep -o 'tests="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              time=$(grep -o 'time="[0-9.]*"' "$result_file" | head -1 | grep -o '[0-9.]*' || echo "0")
+              
+              # 确保数值有效，避免bash算术运算错误
+              tests=${tests:-0}
+              failures=${failures:-0}
+              errors=${errors:-0}
+              
+              # 转换为整数进行算术运算
+              total_tests=$((total_tests + tests))
+              total_failures=$((total_failures + failures))
+              total_errors=$((total_errors + errors))
+              
+              if [ "$failures" = "0" ] && [ "$errors" = "0" ]; then
+                echo "✅ **$plugin_name**: $tests tests passed in ${time}s" >> $GITHUB_STEP_SUMMARY
+                passed_plugins=$((passed_plugins + 1))
+              else
+                echo "❌ **$plugin_name**: $tests tests, $failures failures, $errors errors in ${time}s" >> $GITHUB_STEP_SUMMARY
+                failed_plugins=$((failed_plugins + 1))
+              fi
+            else
+              echo "⚠️ **$plugin_name**: No tests found" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+        done
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📈 Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📊 **Coverage reports are now available on Codecov**" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 **This Commit Coverage**: https://codecov.io/gh/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 🎯 Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total plugins**: $total_plugins" >> $GITHUB_STEP_SUMMARY
+        echo "- **Passed**: $passed_plugins ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- **Failed**: $failed_plugins ❌" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total tests**: $total_tests" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total failures**: $total_failures" >> $GITHUB_STEP_SUMMARY
+        echo "- **Total errors**: $total_errors" >> $GITHUB_STEP_SUMMARY
+        
+        # 如果有失败，显示详细信息
+        if [ $total_failures -gt 0 ] || [ $total_errors -gt 0 ]; then
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### ❌ Failed Tests Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Failed plugins**: $failed_plugins" >> $GITHUB_STEP_SUMMARY
+          echo "**Total failures**: $total_failures" >> $GITHUB_STEP_SUMMARY
+          echo "**Total errors**: $total_errors" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **View detailed logs**: [Click here](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # 显示每个失败插件的详细信息
+          echo "#### 📊 Failed Plugin Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          for result_file in test-results-*.xml; do
+            if [ -f "$result_file" ]; then
+              plugin_name=$(echo "$result_file" | sed 's/test-results-\(.*\)\.xml/\1/')
+              
+              # 检查是否有失败
+              failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
+              
+              # 确保数值有效
+              failures=${failures:-0}
+              errors=${errors:-0}
+              
+              if [ "$failures" -gt 0 ] || [ "$errors" -gt 0 ]; then
+                echo "**$plugin_name**:" >> $GITHUB_STEP_SUMMARY
+                echo "- Failures: $failures" >> $GITHUB_STEP_SUMMARY
+                echo "- Errors: $errors" >> $GITHUB_STEP_SUMMARY
+                echo "- [View plugin logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+          done
+        fi
+        
+    # - name: Merge coverage reports
+    #   run: |
+    #     echo "Merging coverage reports..."
+    #     
+    #     # 使用绝对路径查找，更可靠
+    #     coverage_files=$(find ${{ github.workspace }} -name "coverage-*")
+    #     
+    #     if [ -n "$coverage_files" ]; then
+    #       echo "Found coverage files:"
+    #       echo "$coverage_files"
+    #       
+    #       # 使用gocovmerge顺序合并
+    #       echo "Merging Go coverage files using gocovmerge sequential method..."
+    #       
+    #       # 将文件列表转换为数组
+    #       readarray -t coverage_array <<< "$coverage_files"
+    #       file_count=${#coverage_array[@]}
+    #       
+    #       echo "Total files to merge: $file_count"
+    #       
+    #       # 复制第一个文件作为基础
+    #       cp "${coverage_array[0]}" ${{ github.workspace }}/merged_coverage.out
+    #       echo "Starting with: ${coverage_array[0]}"
+    #       
+    #       # 如果有多个文件，逐个合并其他文件到最终目标
+    #       if [ $file_count -gt 1 ]; then
+    #         echo "Multiple files, merging sequentially with gocovmerge..."
+    #         
+    #         for ((i=1; i<file_count; i++)); do
+    #           current_file="${coverage_array[i]}"
+    #           
+    #           echo "Merging file $((i+1))/$file_count: $current_file"
+    #           
+    #           # 使用gocovmerge合并到最终目标文件
+    #           gocovmerge "${{ github.workspace }}/merged_coverage.out" "$current_file" > "${{ github.workspace }}/temp_merge.out"
+    #           mv "${{ github.workspace }}/temp_merge.out" "${{ github.workspace }}/merged_coverage.out"
+    #           
+    #           echo "Successfully merged with $current_file"
+    #           done
+    #         fi
+    #         
+    #         echo "Coverage reports merged successfully using gocovmerge sequential method"
+    #         echo "Merged file size: $(wc -c < ${{ github.workspace }}/merged_coverage.out) bytes"
+    #       else
+    #         echo "No coverage files found"
+    #         # 创建空的覆盖率文件
+    #         echo "mode: atomic" > ${{ github.workspace }}/merged_coverage.out
+    #       fi
+        
+    # - name: Upload merged coverage to Codecov
+    #   uses: codecov/codecov-action@v4
+    #   if: always()
+    #   with:
+    #     file: ${{ github.workspace }}/merged_coverage.out
+    #     flags: wasm-go-plugins-tests
+    #     name: codecov-wasm-go-plugins
+    #     fail_ci_if_error: false
+    #     verbose: true
