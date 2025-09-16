@@ -119,7 +119,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 				content += reasoningContextMarkerStart
 				ctx.SetContext("thinking_start", true)
 			}
-			content += *bedrockEvent.Delta.ReasoningContent.Text
+			content += bedrockEvent.Delta.ReasoningContent.Text
 			chatChoice.Delta = &chatMessage{Content: &content}
 		} else if bedrockEvent.Delta.Text != nil {
 			var content string
@@ -200,7 +200,8 @@ type toolUseBlockDelta struct {
 }
 
 type reasoningContentDelta struct {
-	Text *string `json:"text,omitempty"`
+	Text      string `json:"text,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
 
 type bedrockImageGenerationResponse struct {
@@ -771,6 +772,22 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		},
 	}
 
+	if origRequest.ReasoningEffort != "" {
+		thinkingBudget := 1024 // default
+		switch origRequest.ReasoningEffort {
+		case "low":
+			thinkingBudget = 1024
+		case "medium":
+			thinkingBudget = 4096
+		case "high":
+			thinkingBudget = 16384
+		}
+		request.AdditionalModelRequestFields["thinking"] = map[string]interface{}{
+			"type":          "enabled",
+			"budget_tokens": thinkingBudget,
+		}
+	}
+
 	if origRequest.Tools != nil {
 		request.ToolConfig = &bedrockToolConfig{}
 		if origRequest.ToolChoice == nil {
@@ -811,14 +828,19 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 }
 
 func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseResponse) *chatCompletionResponse {
-	var outputContent string
+	var outputContent, reasoningContent, normalContent string
 	for _, content := range bedrockResponse.Output.Message.Content {
 		if content.ReasoningContent != nil {
-			outputContent += reasoningContextMarkerStart + content.ReasoningContent.ReasoningText.Text + reasoningContextMarkerEnd
+			reasoningContent = content.ReasoningContent.ReasoningText.Text
+		}
+		if content.Text != "" {
+			normalContent = content.Text
 		}
 	}
-	if len(bedrockResponse.Output.Message.Content) > 0 {
-		outputContent += bedrockResponse.Output.Message.Content[0].Text
+	if reasoningContent != "" {
+		outputContent = reasoningContextMarkerStart + reasoningContent + reasoningContextMarkerEnd + normalContent
+	} else {
+		outputContent = normalContent
 	}
 	choice := chatCompletionChoice{
 		Index: 0,
@@ -1003,7 +1025,8 @@ type reasoningContent struct {
 }
 
 type reasoningText struct {
-	Text string `json:"text"`
+	Text      string `json:"text,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
 
 type bedrockToolUse struct {
