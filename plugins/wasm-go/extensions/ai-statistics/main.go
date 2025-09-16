@@ -150,7 +150,7 @@ func getAPIName() (string, error) {
 		return "-", err
 	} else {
 		parts := strings.Split(string(raw), "@")
-		if len(parts) != 5 {
+		if len(parts) < 3 {
 			return "-", errors.New("not api type")
 		} else {
 			return strings.Join(parts[:3], "@"), nil
