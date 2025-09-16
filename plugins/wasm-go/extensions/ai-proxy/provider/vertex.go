@@ -399,9 +399,18 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 		},
 	}
 	if request.ReasoningEffort != "" {
+		thinkingBudget := 1024 // default
+		switch request.ReasoningEffort {
+		case "low":
+			thinkingBudget = 1024
+		case "medium":
+			thinkingBudget = 4096
+		case "high":
+			thinkingBudget = 16384
+		}
 		vertexRequest.GenerationConfig.ThinkingConfig = vertexThinkingConfig{
 			IncludeThoughts: true,
-			ThinkingBudget:  1024,
+			ThinkingBudget:  thinkingBudget,
 		}
 	}
 	if request.Tools != nil {
