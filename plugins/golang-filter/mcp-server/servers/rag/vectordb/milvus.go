@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -434,7 +435,6 @@ func (m *MilvusProvider) AddDoc(ctx context.Context, filename string, docs []sch
 		entity.NewColumnFloatVector("vector", len(vectors[0]), vectors),
 		entity.NewColumnJSONBytes("metadata", metadatas),
 		entity.NewColumnInt32("document_index", documentIndexes),
-		entity.NewColumnFloat("score", scores),
 	}
 
 	// 插入数据
@@ -597,6 +597,83 @@ func (m *MilvusProvider) DeleteDocs(ctx context.Context, ids []string) error {
 	}
 
 	return nil
+}
+
+func (m *MilvusProvider) ListDocs(ctx context.Context, knowledgeID string, limit int) ([]schema.Document, error) {
+	// 构建查询表达式
+	expr := fmt.Sprintf(`knowledge_id == "%s"`, knowledgeID)
+	// 查询所有相关文档
+	queryResult, err := m.client.Query(
+		ctx,
+		m.documentCollection,
+		[]string{}, // 分区
+		expr,       // 过滤条件
+		[]string{"id", "content", "metadata", "document_index", "created_at"},
+		client.WithOffset(0), client.WithLimit(int64(limit)),
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query documents: %w", err)
+	}
+
+	if len(queryResult) == 0 {
+		return []schema.Document{}, nil
+	}
+
+	rowCount := queryResult[0].Len()
+	documents := make([]schema.Document, 0, rowCount)
+
+	// 解析查询结果
+	for i := 0; i < rowCount; i++ {
+		var (
+			id            string
+			content       string
+			metadata      map[string]interface{}
+			documentIndex int32
+			createdAt     int64
+		)
+
+		for _, col := range queryResult {
+			switch col.Name() {
+			case "id":
+				if v, err := col.(*entity.ColumnVarChar).Get(i); err == nil {
+					id = v.(string)
+				}
+			case "content":
+				if v, err := col.(*entity.ColumnVarChar).Get(i); err == nil {
+					content = v.(string)
+				}
+			case "metadata":
+				if v, err := col.(*entity.ColumnJSONBytes).Get(i); err == nil {
+					if bytes, ok := v.([]byte); ok {
+						_ = json.Unmarshal(bytes, &metadata)
+					}
+				}
+			case "document_index":
+				if v, err := col.(*entity.ColumnInt32).Get(i); err == nil {
+					documentIndex = v.(int32)
+				}
+			case "created_at":
+				if v, err := col.(*entity.ColumnInt64).Get(i); err == nil {
+					createdAt = v.(int64)
+				}
+			}
+		}
+
+		doc := schema.Document{
+			ID:            id,
+			Content:       content,
+			Metadata:      metadata,
+			DocumentIndex: int(documentIndex),
+			CreatedAt:     time.UnixMilli(createdAt),
+		}
+		documents = append(documents, doc)
+	}
+	// 按照 document_index 升序排序
+	sort.Slice(documents, func(i, j int) bool {
+		return documents[i].DocumentIndex < documents[j].DocumentIndex
+	})
+	return documents, nil
 }
 
 func (m *MilvusProvider) CreateKnowledge(ctx context.Context, knowledge schema.Knowledge) error {
@@ -763,6 +840,19 @@ func (m *MilvusProvider) ListKnowledge(ctx context.Context, limit int) ([]schema
 	}
 
 	return knowledgeList, nil
+}
+
+// UpdateKnowledge 更新知识
+func (m *MilvusProvider) UpdateKnowledge(ctx context.Context, knowledge schema.Knowledge) error {
+	// 构建更新表达式
+	if err := m.DeleteKnowledge(ctx, knowledge.ID); err != nil {
+		return fmt.Errorf("delete knowledge failed, err: %w", err)
+	}
+
+	if err := m.CreateKnowledge(ctx, knowledge); err != nil {
+		return fmt.Errorf("add knowledge failed, err: %w", err)
+	}
+	return nil
 }
 
 // GetKnowledge 获取特定知识详情

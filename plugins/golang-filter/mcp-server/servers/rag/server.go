@@ -117,7 +117,7 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 
 	// 添加知识管理工具
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("create-knowledge-from-text", "Create knowledge base from text content", GetCreateKnowledgeFromTextSchema()),
+		mcp.NewToolWithRawSchema("create-knowledge-from-text", "Create knowledge from text content", GetCreateKnowledgeFromTextSchema()),
 		HandleCreateKnowledgeFromText(ragClient),
 	)
 	mcpServer.AddTool(
@@ -143,33 +143,35 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 		HandleDeleteChunk(ragClient),
 	)
 
-	// 添加会话管理工具
+	// 添加搜索工具
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("create-session", "Create a new chat session", GetCreateSessionSchema()),
-		HandleCreateSession(ragClient),
-	)
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("get-session", "Get session details by ID", GetGetSessionSchema()),
-		HandleGetSession(ragClient),
-	)
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-sessions", "List all chat sessions", GetListSessionsSchema()),
-		HandleListSessions(ragClient),
-	)
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("delete-session", "Delete session by ID", GetDeleteSessionSchema()),
-		HandleDeleteSession(ragClient),
-	)
-
-	// 添加搜索和聊天工具
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("search", "Search knowledge base with query", GetSearchSchema()),
+		mcp.NewToolWithRawSchema("search", "Search knowledge chunks with query", GetSearchSchema()),
 		HandleSearch(ragClient),
 	)
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("chat", "Chat with RAG system", GetChatSchema()),
-		HandleChat(ragClient),
-	)
+
+	// 添加会话管理工具
+	// mcpServer.AddTool(
+	// 	mcp.NewToolWithRawSchema("create-session", "Create a new chat session", GetCreateSessionSchema()),
+	// 	HandleCreateSession(ragClient),
+	// )
+	// mcpServer.AddTool(
+	// 	mcp.NewToolWithRawSchema("get-session", "Get session details by ID", GetGetSessionSchema()),
+	// 	HandleGetSession(ragClient),
+	// )
+	// mcpServer.AddTool(
+	// 	mcp.NewToolWithRawSchema("list-sessions", "List all chat sessions", GetListSessionsSchema()),
+	// 	HandleListSessions(ragClient),
+	// )
+	// mcpServer.AddTool(
+	// 	mcp.NewToolWithRawSchema("delete-session", "Delete session by ID", GetDeleteSessionSchema()),
+	// 	HandleDeleteSession(ragClient),
+	// )
+
+	// 添加聊天工具
+	// mcpServer.AddTool(
+	// 	mcp.NewToolWithRawSchema("chat", "Chat with RAG system", GetChatSchema()),
+	// 	HandleChat(ragClient),
+	// )
 
 	return mcpServer, nil
 }

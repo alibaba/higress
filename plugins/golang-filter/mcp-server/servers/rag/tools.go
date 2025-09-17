@@ -53,10 +53,13 @@ func HandleGetKnowledge(ragClient *RAGClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid id argument")
 		}
 
-		// TODO: 实现获取知识详情的逻辑
+		knowledge, err := ragClient.GetKnowledge(id)
+		if err != nil {
+			return nil, fmt.Errorf("get knowledge failed, err: %w", err)
+		}
+
 		result := map[string]interface{}{
-			"id":      id,
-			"content": "Sample knowledge content",
+			"knowledge": knowledge,
 		}
 
 		return buildCallToolResult(result)
@@ -72,7 +75,10 @@ func HandleDeleteKnowledge(ragClient *RAGClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid id argument")
 		}
 
-		// TODO: 实现删除知识的逻辑
+		if err := ragClient.DeleteKnowledge(id); err != nil {
+			return nil, fmt.Errorf("delete knowledge failed, err: %w", err)
+		}
+
 		result := map[string]interface{}{
 			"success": true,
 			"message": "Knowledge deleted",
@@ -87,16 +93,20 @@ func HandleDeleteKnowledge(ragClient *RAGClient) common.ToolHandlerFunc {
 func HandleListChunks(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
-		knowledgeId, ok := arguments["knowledge_id"].(string)
+		knowledgeID, ok := arguments["knowledge_id"].(string)
 		if !ok {
 			return nil, fmt.Errorf("invalid knowledge_id argument")
 		}
 
-		// TODO: 实现列出知识块的逻辑
+		chunks, err := ragClient.ListChunks(knowledgeID)
+		if err != nil {
+			return nil, fmt.Errorf("list chunks failed, err: %w", err)
+		}
+
 		result := map[string]interface{}{
-			"chunks":       []interface{}{},
-			"total":        0,
-			"knowledge_id": knowledgeId,
+			"chunks":       chunks,
+			"total":        len(chunks),
+			"knowledge_id": knowledgeID,
 		}
 
 		return buildCallToolResult(result)
@@ -112,7 +122,10 @@ func HandleDeleteChunk(ragClient *RAGClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid id argument")
 		}
 
-		// TODO: 实现删除知识块的逻辑
+		if err := ragClient.DeleteChunk(id); err != nil {
+			return nil, fmt.Errorf("delete chunk failed, err: %w", err)
+		}
+
 		result := map[string]interface{}{
 			"success": true,
 			"message": "Chunk deleted",
