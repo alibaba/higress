@@ -76,6 +76,15 @@ message RegistryConfig {
   repeated string allowMcpServers = 24;
   map<string, InnerMap> metadata = 25;
   string proxyName = 26;
+  message VPort {
+    uint32 default = 1;
+    message Services {
+      string name = 1;
+      uint32 value = 2;
+    }
+    repeated Services services = 2;
+  }
+  VPort vport = 27;
 }
 
 message ProxyConfig {

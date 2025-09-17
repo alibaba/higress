@@ -196,6 +196,12 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	}
 }
 
+func WithVport(vport *apiv1.RegistryConfig_VPort) WatcherOption {
+	return func(w *watcher) {
+		w.Vport = vport
+	}
+}
+
 func WithNacosAddressServer(nacosAddressServer string) WatcherOption {
 	return func(w *watcher) {
 		w.NacosAddressServer = nacosAddressServer
@@ -529,7 +535,7 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
 	isDnsService := false
-
+	sePort := provider.GetServiceVport(host, w.Vport)
 	for _, service := range services {
 		protocol := common.HTTP
 		if service.Metadata != nil && service.Metadata["protocol"] != "" {
@@ -541,7 +547,13 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 			Protocol: protocol.String(),
 		}
 		if len(portList) == 0 {
-			portList = append(portList, port)
+			if sePort != nil {
+				sePort.Name = port.Name
+				sePort.Protocol = port.Protocol
+				portList = append(portList, sePort)
+			} else {
+				portList = append(portList, port)
+			}
 		}
 		if !isValidIP(service.Ip) {
 			isDnsService = true

@@ -144,6 +144,10 @@ For Groq, the corresponding `type` is `groq`. It has no unique configuration fie
 
 For Grok, the corresponding `type` is `grok`. It has no unique configuration fields.
 
+#### OpenRouter
+
+For OpenRouter, the corresponding `type` is `openrouter`. It has no unique configuration fields.
+
 #### ERNIE Bot
 
 For ERNIE Bot, the corresponding `type` is `baidu`. It has no unique configuration fields.
@@ -891,6 +895,63 @@ provider:
     "num_sources_used": 0
   },
   "system_fingerprint": "fp_3a7881249c"
+}
+```
+
+### Using OpenAI Protocol Proxy for OpenRouter Service
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: openrouter
+  apiTokens:
+    - 'YOUR_OPENROUTER_API_TOKEN'
+  modelMapping:
+    'gpt-4': 'openai/gpt-4-turbo-preview'
+    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
+    'claude-3': 'anthropic/claude-3-opus'
+    '*': 'openai/gpt-3.5-turbo'
+```
+
+**Example Request**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "temperature": 0.7
+}
+```
+
+**Example Response**
+
+```json
+{
+  "id": "gen-1234567890abcdef",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "openai/gpt-4-turbo-preview",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am an AI assistant powered by OpenRouter. I can help answer questions, assist with creative tasks, engage in conversations, and more. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 35,
+    "total_tokens": 47
+  }
 }
 ```
 
@@ -1684,6 +1745,53 @@ provider:
     "completion_tokens": 57,
     "total_tokens": 67
   }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for NVIDIA Triton Interference Server Services
+
+**Configuration Information**
+
+```yaml
+providers:
+  - type: triton
+    tritonDomain: <LOCAL_TRITON_DOMAIN>
+    tritonModelVersion: <MODEL_VERSION>
+    apiTokens:
+      - "****"
+    modelMapping:
+      "*": gpt2
+```
+
+**Request Example**
+
+```json
+{
+  "model": "gpt2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hi, who are you？"
+    }
+  ],
+  "stream": false
+}
+```
+**Response Example**
+
+```json
+{
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "I am a lagguage model."
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
 }
 ```
 
