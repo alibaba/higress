@@ -77,6 +77,9 @@ type bedrockProvider struct {
 func (b *bedrockProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	events := extractAmazonEventStreamEvents(ctx, chunk)
 	if len(events) == 0 {
+		if isLastChunk {
+			return []byte(ssePrefix + "[DONE]\n\n"), nil
+		}
 		return chunk, fmt.Errorf("No events are extracted ")
 	}
 	var responseBuilder strings.Builder
@@ -87,6 +90,9 @@ func (b *bedrockProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 			return chunk, err
 		}
 		responseBuilder.WriteString(string(outputEvent))
+	}
+	if isLastChunk {
+		responseBuilder.WriteString(ssePrefix + "[DONE]\n\n")
 	}
 	return []byte(responseBuilder.String()), nil
 }
