@@ -191,7 +191,10 @@ func (v *vertexProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body [
 
 func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	log.Infof("[vertexProvider] receive chunk body: %s", string(chunk))
-	if isLastChunk || len(chunk) == 0 {
+	if isLastChunk {
+		return []byte(ssePrefix + "[DONE]\n\n"), nil
+	}
+	if len(chunk) == 0 {
 		return nil, nil
 	}
 	if name != ApiNameChatCompletion {
