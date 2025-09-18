@@ -664,6 +664,66 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 					},
 				},
 			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 19: request multipart/form-data body with file",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "foo19.com",
+						Path:        "/post",
+						Method:      "POST",
+						ContentType: "multipart/form-data; boundary=--------------------------180978275079165582161528",
+						Body: []byte(`
+						----------------------------180978275079165582161528
+						Content-Disposition: form-data; name="file1"; filename="test.txt"
+						Content-Type: text/plain
+
+						这是一个txt文件
+						----------------------------180978275079165582161528
+						Content-Disposition: form-data; name="file2"; filename="test.txt"
+						Content-Type: text/plain
+
+						这是一个txt文件
+						----------------------------180978275079165582161528--
+
+						`),
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:        "foo19.com",
+							Path:        "/post",
+							Method:      "POST",
+							ContentType: "multipart/form-data; boundary=--------------------------180978275079165582161528",
+							Body: []byte(`
+							----------------------------180978275079165582161528
+							Content-Disposition: form-data; name="file2"; filename="test.txt"
+							Content-Type: text/plain
+
+							这是一个txt文件
+							----------------------------180978275079165582161528
+							Content-Disposition: form-data; name="file1"; filename="test.txt"
+							Content-Type: text/plain
+
+							这是一个txt文件
+							----------------------------180978275079165582161528
+							Content-Disposition: form-data; name="x-process"
+
+							wasm
+							----------------------------180978275079165582161528--
+
+						`),
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
 		}
 		t.Run("WasmPlugin transformer", func(t *testing.T) {
 			for _, testcase := range testcases {
