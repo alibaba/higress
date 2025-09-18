@@ -31,8 +31,6 @@ const (
 	vertexChatCompletionAction       = "generateContent"
 	vertexChatCompletionStreamAction = "streamGenerateContent?alt=sse"
 	vertexEmbeddingAction            = "predict"
-	reasoningContextMarkerStart      = "<think>"
-	reasoningContextMarkerEnd        = "</think>"
 )
 
 type vertexProviderInitializer struct{}
@@ -278,7 +276,7 @@ func (v *vertexProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 					},
 				}
 			} else if part.Thounght != nil && len(candidate.Content.Parts) > 1 {
-				choice.Message.Content = reasoningContextMarkerStart + part.Text + reasoningContextMarkerEnd + candidate.Content.Parts[1].Text
+				choice.Message.Content = reasoningStartTag + part.Text + reasoningEndTag + candidate.Content.Parts[1].Text
 			} else if part.Text != "" {
 				choice.Message.Content = part.Text
 			}
@@ -339,14 +337,14 @@ func (v *vertexProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 			}
 		} else if part.Thounght != nil {
 			if ctx.GetContext("thinking_start") == nil {
-				choice.Delta = &chatMessage{Content: reasoningContextMarkerStart + part.Text}
+				choice.Delta = &chatMessage{Content: reasoningStartTag + part.Text}
 				ctx.SetContext("thinking_start", true)
 			} else {
 				choice.Delta = &chatMessage{Content: part.Text}
 			}
 		} else if part.Text != "" {
 			if ctx.GetContext("thinking_start") != nil && ctx.GetContext("thinking_end") == nil {
-				choice.Delta = &chatMessage{Content: reasoningContextMarkerEnd + part.Text}
+				choice.Delta = &chatMessage{Content: reasoningEndTag + part.Text}
 				ctx.SetContext("thinking_end", true)
 			} else {
 				choice.Delta = &chatMessage{Content: part.Text}
