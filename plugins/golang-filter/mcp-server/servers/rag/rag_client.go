@@ -9,7 +9,7 @@ import (
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/schema"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/textsplitter"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/vectordb"
-	"github.com/google/uuid"
+	"github.com/distribution/distribution/v3/uuid"
 	"oras.land/oras-go/pkg/context"
 )
 
@@ -60,38 +60,12 @@ func NewRAGClient(config *config.Config) (*RAGClient, error) {
 	return ragclient, nil
 }
 
-func (r *RAGClient) ListKnowledge() ([]schema.Knowledge, error) {
-
-	knowledges, err := r.vectordbProvider.ListKnowledge(context.Background(), MAX_LIST_KNOWLEDGE_ROW_COUNT)
-	if err != nil {
-		return nil, fmt.Errorf("list knowledge failed, err: %w", err)
-	}
-	return knowledges, nil
-}
-
-func (r *RAGClient) GetKnowledge(id string) (*schema.Knowledge, error) {
-	knowledge, err := r.vectordbProvider.GetKnowledge(context.Background(), id)
-	if err != nil {
-		return nil, fmt.Errorf("get knowledge failed, err: %w", err)
-	}
-	return knowledge, nil
-}
-
-// DeleteKnowledge 删除知识
-func (r *RAGClient) DeleteKnowledge(id string) error {
-	if err := r.vectordbProvider.DeleteKnowledge(context.Background(), id); err != nil {
-		return fmt.Errorf("delete knowledge failed, err: %w", err)
-	}
-	return nil
-}
-
 // ListChunks 根据知识ID列出文档块，按 DocumentIndex 升序返回
-func (r *RAGClient) ListChunks(knowledgeID string) ([]schema.Document, error) {
-	docs, err := r.vectordbProvider.ListDocs(context.Background(), knowledgeID, MAX_LIST_DOCUMENT_ROW_COUNT)
+func (r *RAGClient) ListChunks() ([]schema.Document, error) {
+	docs, err := r.vectordbProvider.ListDocs(context.Background(), MAX_LIST_DOCUMENT_ROW_COUNT)
 	if err != nil {
 		return nil, fmt.Errorf("list chunks failed, err: %w", err)
 	}
-
 	return docs, nil
 }
 
@@ -103,55 +77,52 @@ func (r *RAGClient) DeleteChunk(id string) error {
 	return nil
 }
 
-func (r *RAGClient) CreateKnowledgeFromText(text string, name string) (*schema.Knowledge, error) {
-	// start to splitter text
-	knowledge := schema.Knowledge{
-		ID:               uuid.New().String(),
-		Name:             name,
-		SourceURL:        "",
-		Status:           "pending",
-		FileSize:         int64(len(text)),
-		EnableMultimodel: false,
-		Metadata:         map[string]any{},
-		ChunkCount:       0,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
-	}
-
-	if err := r.vectordbProvider.CreateKnowledge(context.Background(), knowledge); err != nil {
-		return nil, fmt.Errorf("create knowledge failed, err: %w", err)
-	}
-
-	return &knowledge, nil
-}
-
-func (r *RAGClient) handleKnowledgeFromText(text string, knowledge schema.Knowledge) (*schema.Knowledge, error) {
+func (r *RAGClient) CreateChunkFromText(text string, chunkName string) ([]schema.Document, error) {
 
 	docs, err := textsplitter.CreateDocuments(r.textSplitter, []string{text}, make([]map[string]any, 0))
 	if err != nil {
 		return nil, fmt.Errorf("create documents failed, err: %w", err)
 	}
 
-	for _, doc := range docs {
-		doc.Metadata["knowledge_id"] = knowledge.ID
+	results := make([]schema.Document, 0, len(docs))
+
+	for chunkIndex, doc := range docs {
+		doc.ID = uuid.Generate().String()
+		doc.Metadata["chunk_index"] = chunkIndex
+		doc.Metadata["chunk_name"] = chunkName
+		doc.Metadata["chunk_size"] = len(doc.Content)
 		// handle embedding
 		embedding, err := r.embeddingProvider.GetEmbedding(context.Background(), doc.Content)
 		if err != nil {
 			return nil, fmt.Errorf("create embedding failed, err: %w", err)
 		}
 		doc.Vector = embedding
+		doc.CreatedAt = time.Now()
+		results = append(results, doc)
 	}
 
-	if err := r.vectordbProvider.AddDoc(context.Background(), knowledge.ID, docs); err != nil {
-
+	if err := r.vectordbProvider.AddDoc(context.Background(), results); err != nil {
+		return nil, fmt.Errorf("add documents failed, err: %w", err)
 	}
 
-	knowledge.ChunkCount = len(docs)
+	return results, nil
+}
 
-	// update knowledge
-	if err := r.vectordbProvider.UpdateKnowledge(context.Background(), knowledge); err != nil {
-		return nil, fmt.Errorf("update knowledge failed, err: %w", err)
+// search 搜索文档块
+func (r *RAGClient) SearchChunks(query string, topK int, threshold float64) ([]schema.SearchResult, error) {
+
+	vector, err := r.embeddingProvider.GetEmbedding(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("create embedding failed, err: %w", err)
 	}
-	return &knowledge, nil
+	options := &schema.SearchOptions{
+		TopK:      topK,
+		Threshold: threshold,
+	}
 
+	docs, err := r.vectordbProvider.SearchDocs(context.Background(), vector, options)
+	if err != nil {
+		return nil, fmt.Errorf("search chunks failed, err: %w", err)
+	}
+	return docs, nil
 }

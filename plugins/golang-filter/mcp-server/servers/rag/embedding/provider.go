@@ -37,7 +37,7 @@ var (
 
 type Provider interface {
 	GetProviderType() string
-	GetEmbedding(ctx context.Context, queryString string) ([]float64, error)
+	GetEmbedding(ctx context.Context, queryString string) ([]float32, error)
 }
 
 func NewEmbeddingProvider(config config.EmbeddingConfig) (Provider, error) {

@@ -30,83 +30,17 @@ func HandleCreateKnowledgeFromText(ragClient *RAGClient) common.ToolHandlerFunc 
 	}
 }
 
-// HandleListKnowledge 处理列出知识
-func HandleListKnowledge(ragClient *RAGClient) common.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// TODO: 实现列出知识的逻辑
-		knowledges, err := ragClient.ListKnowledge()
-		if err != nil {
-			return nil, fmt.Errorf("list knowledge failed, err: %w", err)
-		}
-		return buildCallToolResult(map[string]interface{}{
-			"knowledges": knowledges,
-		})
-	}
-}
-
-// HandleGetKnowledge 处理获取知识详情
-func HandleGetKnowledge(ragClient *RAGClient) common.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		arguments := request.Params.Arguments
-		id, ok := arguments["id"].(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid id argument")
-		}
-
-		knowledge, err := ragClient.GetKnowledge(id)
-		if err != nil {
-			return nil, fmt.Errorf("get knowledge failed, err: %w", err)
-		}
-
-		result := map[string]interface{}{
-			"knowledge": knowledge,
-		}
-
-		return buildCallToolResult(result)
-	}
-}
-
-// HandleDeleteKnowledge 处理删除知识
-func HandleDeleteKnowledge(ragClient *RAGClient) common.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		arguments := request.Params.Arguments
-		id, ok := arguments["id"].(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid id argument")
-		}
-
-		if err := ragClient.DeleteKnowledge(id); err != nil {
-			return nil, fmt.Errorf("delete knowledge failed, err: %w", err)
-		}
-
-		result := map[string]interface{}{
-			"success": true,
-			"message": "Knowledge deleted",
-			"id":      id,
-		}
-
-		return buildCallToolResult(result)
-	}
-}
-
 // HandleListChunks 处理列出知识块
 func HandleListChunks(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		arguments := request.Params.Arguments
-		knowledgeID, ok := arguments["knowledge_id"].(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid knowledge_id argument")
-		}
-
-		chunks, err := ragClient.ListChunks(knowledgeID)
+		chunks, err := ragClient.ListChunks()
 		if err != nil {
 			return nil, fmt.Errorf("list chunks failed, err: %w", err)
 		}
 
 		result := map[string]interface{}{
-			"chunks":       chunks,
-			"total":        len(chunks),
-			"knowledge_id": knowledgeID,
+			"chunks": chunks,
+			"total":  len(chunks),
 		}
 
 		return buildCallToolResult(result)
@@ -209,11 +143,25 @@ func HandleSearch(ragClient *RAGClient) common.ToolHandlerFunc {
 		if !ok {
 			return nil, fmt.Errorf("invalid query argument")
 		}
+		topK, ok := arguments["topk"].(int)
+		if !ok {
+			topK = 10
+		}
+
+		threshold, ok := arguments["threshold"].(float64)
+		if !ok {
+			threshold = 0.5
+		}
+
+		searchResult, err := ragClient.SearchChunks(query, int(topK), threshold)
+		if err != nil {
+			return nil, fmt.Errorf("search chunks failed, err: %w", err)
+		}
 
 		// TODO: 实现搜索的逻辑
 		result := map[string]interface{}{
-			"results": []interface{}{},
-			"total":   0,
+			"results": searchResult,
+			"total":   len(searchResult),
 			"query":   query,
 		}
 
@@ -259,8 +207,8 @@ func buildCallToolResult(results any) (*mcp.CallToolResult, error) {
 
 // Schema functions
 
-// GetCreateKnowledgeFromTextSchema returns the schema for create knowledge from text tool
-func GetCreateKnowledgeFromTextSchema() json.RawMessage {
+// GetCreateChunkFromTextSchema returns the schema for create chunk from text tool
+func GetCreateChunkFromTextSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
@@ -313,13 +261,7 @@ func GetDeleteKnowledgeSchema() json.RawMessage {
 func GetListChunksSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
-		"properties": {
-			"knowledge_id": {
-				"type": "string",
-				"description": "The knowledge ID to list chunks for"
-			}
-		},
-		"required": ["knowledge_id"]
+		"properties": {}
 	}`)
 }
 
@@ -327,7 +269,7 @@ func GetListChunksSchema() json.RawMessage {
 func GetDeleteChunkSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
-		"properties": {
+		"properties": {}
 			"id": {
 				"type": "string",
 				"description": "The chunk ID to delete"
@@ -389,7 +331,15 @@ func GetSearchSchema() json.RawMessage {
 			"query": {
 				"type": "string",
 				"description": "The search query"
-			}
+			}，
+			"topk": {
+                "type": "integer",
+               "description": "The number of top results to return (optional, default 10)"
+            },
+            "threshold": {
+               "type": "number",
+               "description": "The relevance score threshold for filtering results (optional, default 0.5)"
+            }
 		},
 		"required": ["query"]
 	}`)

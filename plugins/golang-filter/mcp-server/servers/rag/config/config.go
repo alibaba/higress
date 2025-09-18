@@ -22,7 +22,7 @@ type RAGConfig struct {
 
 // SplitterConfig 文档分块器配置
 type SplitterConfig struct {
-	Type         string `json:"type" yaml:"type"` // recursive, character, token
+	Provider     string `json:"provider" yaml:"provider"` // recursive, character, token
 	ChunkSize    int    `json:"chunk_size" yaml:"chunk_size"`
 	ChunkOverlap int    `json:"chunk_overlap" yaml:"chunk_overlap"`
 }
@@ -48,14 +48,13 @@ type EmbeddingConfig struct {
 
 // VectorDBConfig 向量数据库配置
 type VectorDBConfig struct {
-	Provider            string `json:"provider" yaml:"provider"` // milvus, qdrant, chroma
-	Host                string `json:"host" yaml:"host"`
-	Port                int    `json:"port" yaml:"port"`
-	Database            string `json:"database" yaml:"database"`
-	KnowledgeCollection string `json:"knowledge_collection" yaml:"knowledge_collection"`
-	DocumentCollection  string `json:"document_collection" yaml:"document_collection"`
-	Username            string `json:"username,omitempty" yaml:"username,omitempty"`
-	Password            string `json:"password,omitempty" yaml:"password,omitempty"`
+	Provider   string `json:"provider" yaml:"provider"` // milvus, qdrant, chroma
+	Host       string `json:"host" yaml:"host"`
+	Port       int    `json:"port" yaml:"port"`
+	Database   string `json:"database" yaml:"database"`
+	Collection string `json:"collection" yaml:"collection"`
+	Username   string `json:"username,omitempty" yaml:"username,omitempty"`
+	Password   string `json:"password,omitempty" yaml:"password,omitempty"`
 }
 
 // RerankConfig 重排序配置

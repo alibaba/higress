@@ -29,8 +29,8 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 			c.config.RAG.KnowledgeBase = knowledgeBase
 		}
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
-			if splitterType, exists := splitter["type"].(string); exists {
-				c.config.RAG.Splitter.Type = splitterType
+			if splitterType, exists := splitter["provider"].(string); exists {
+				c.config.RAG.Splitter.Provider = splitterType
 			}
 			if chunkSize, exists := splitter["chunk_size"].(float64); exists {
 				c.config.RAG.Splitter.ChunkSize = int(chunkSize)
@@ -117,25 +117,13 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 
 	// 添加知识管理工具
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("create-knowledge-from-text", "Create knowledge from text content", GetCreateKnowledgeFromTextSchema()),
+		mcp.NewToolWithRawSchema("create-chunk-from-text", "Create chunks from text content", GetCreateChunkFromTextSchema()),
 		HandleCreateKnowledgeFromText(ragClient),
-	)
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-knowledge", "List all knowledge in the knowledge base", GetListKnowledgeSchema()),
-		HandleListKnowledge(ragClient),
-	)
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("get-knowledge", "Get specific knowledge by ID", GetGetKnowledgeSchema()),
-		HandleGetKnowledge(ragClient),
-	)
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("delete-knowledge", "Delete knowledge by ID", GetDeleteKnowledgeSchema()),
-		HandleDeleteKnowledge(ragClient),
 	)
 
 	// 添加块管理工具
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-chunks", "List chunks for specific knowledge", GetListChunksSchema()),
+		mcp.NewToolWithRawSchema("list-chunks", "List all chunks ", GetListChunksSchema()),
 		HandleListChunks(ragClient),
 	)
 	mcpServer.AddTool(
@@ -145,7 +133,7 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 
 	// 添加搜索工具
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("search", "Search knowledge chunks with query", GetSearchSchema()),
+		mcp.NewToolWithRawSchema("search-chunk", "Search chunks with query", GetSearchSchema()),
 		HandleSearch(ragClient),
 	)
 

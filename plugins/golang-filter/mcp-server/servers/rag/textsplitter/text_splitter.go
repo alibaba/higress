@@ -11,11 +11,20 @@ type TextSplitter interface {
 	SplitText(text string) ([]string, error)
 }
 
+type NoSplitterCharacter struct {
+}
+
+func (s NoSplitterCharacter) SplitText(text string) ([]string, error) {
+	return []string{text}, nil
+}
+
 func NewTextSplitter(cfg *config.SplitterConfig) (TextSplitter, error) {
-	switch cfg.Type {
+	switch cfg.Provider {
 	case "recursive":
 		return NewRecursiveCharacter(WithChunkSize(cfg.ChunkSize), WithChunkOverlap(cfg.ChunkOverlap), WithSeparators([]string{"\n\n", "\n", ".", "。", "?", "!", "；"})), nil
+	case "nosplitter":
+		return NoSplitterCharacter{}, nil
 	default:
-		return nil, fmt.Errorf("unknown text splitter type: %s", cfg.Type)
+		return nil, fmt.Errorf("unknown text splitter type: %s", cfg.Provider)
 	}
 }

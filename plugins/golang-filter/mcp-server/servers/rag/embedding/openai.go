@@ -84,7 +84,7 @@ type OpenAIResponse struct {
 
 type OpenAIResult struct {
 	Object    string    `json:"object"`
-	Embedding []float64 `json:"embedding"`
+	Embedding []float32 `json:"embedding"`
 	Index     int       `json:"index"`
 }
 
@@ -136,7 +136,7 @@ func (o *OpenAIProvider) parseTextEmbedding(responseBody []byte) (*OpenAIRespons
 	return &resp, nil
 }
 
-func (o *OpenAIProvider) GetEmbedding(ctx context.Context, queryString string) ([]float64, error) {
+func (o *OpenAIProvider) GetEmbedding(ctx context.Context, queryString string) ([]float32, error) {
 	// 构造请求数据
 	requestData, err := o.constructRequestData(queryString)
 	if err != nil {

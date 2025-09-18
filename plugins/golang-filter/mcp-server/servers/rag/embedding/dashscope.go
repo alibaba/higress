@@ -65,7 +65,7 @@ func (d *DashScopeProvider) GetProviderType() string {
 }
 
 type Embedding struct {
-	Embedding []float64 `json:"embedding"`
+	Embedding []float32 `json:"embedding"`
 	TextIndex int       `json:"text_index"`
 }
 
@@ -132,7 +132,7 @@ func (d *DashScopeProvider) constructRequestData(texts []string) (EmbeddingReque
 
 type Result struct {
 	ID     string                 `json:"id"`
-	Vector []float64              `json:"vector,omitempty"`
+	Vector []float32              `json:"vector,omitempty"`
 	Fields map[string]interface{} `json:"fields"`
 	Score  float64                `json:"score"`
 }
@@ -148,7 +148,7 @@ func (d *DashScopeProvider) parseTextEmbedding(responseBody []byte) (*Response, 
 
 func (d *DashScopeProvider) GetEmbedding(
 	ctx context.Context,
-	queryString string) ([]float64, error) {
+	queryString string) ([]float32, error) {
 	// 构造请求数据
 	requestData, err := d.constructRequestData([]string{queryString})
 	if err != nil {

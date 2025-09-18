@@ -13,14 +13,16 @@ const (
 
 // Document represents a document with its vector embedding and metadata
 type Document struct {
-	ID            string                 `json:"id"`
-	KnowledgeID   string                 `json:"knowledge_id"`
-	Content       string                 `json:"content"`
-	Vector        []float64              `json:"-"`
-	Metadata      map[string]interface{} `json:"metadata"`
-	DocumentIndex int                    `json:"document_index" yaml:"document_index"`
-	Score         float64                `json:"score,omitempty"`
-	CreatedAt     time.Time              `json:"created_at"`
+	ID        string                 `json:"id"`
+	Content   string                 `json:"content"`
+	Vector    []float32              `json:"-"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	CreatedAt time.Time              `json:"created_at"`
+}
+
+type SearchResult struct {
+	Document Document `json:"document"`
+	Score    float64  `json:"score"`
 }
 
 // Knowledge represents a knowledge entity with associated documents

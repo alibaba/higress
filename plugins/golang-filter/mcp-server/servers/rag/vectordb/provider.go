@@ -28,35 +28,21 @@ type VectorStoreProvider interface {
 	DropCollection(ctx context.Context) error
 
 	// AddDoc adds documents to the vector store
-	AddDoc(ctx context.Context, knowledgeID string, docs []schema.Document) error
+	AddDoc(ctx context.Context, docs []schema.Document) error
 
 	// DeleteDoc deletes documents by filename from the vector store
 	DeleteDoc(ctx context.Context, id string) error
 
 	// UpdateDoc updates documents in the vector store
-	UpdateDoc(ctx context.Context, knowledgeID string, docs []schema.Document) error
+	UpdateDoc(ctx context.Context, docs []schema.Document) error
 
 	// SearchDocs searches for similar documents in the vector store
-	SearchDocs(ctx context.Context, vector []float32, options *schema.SearchOptions) ([]schema.Document, error)
+	SearchDocs(ctx context.Context, vector []float32, options *schema.SearchOptions) ([]schema.SearchResult, error)
 
 	// DeleteDocs deletes documents by IDs from the vector store
 	DeleteDocs(ctx context.Context, ids []string) error
 
-	ListDocs(ctx context.Context, knowledgeID string, limit int) ([]schema.Document, error)
-
-	CreateKnowledge(ctx context.Context, knowledge schema.Knowledge) error
-
-	// ListKnowledge lists all knowledge in the vector store
-	ListKnowledge(ctx context.Context, limit int) ([]schema.Knowledge, error)
-
-	// GetKnowledge gets knowledge details by filename
-	GetKnowledge(ctx context.Context, KnowledgeID string) (*schema.Knowledge, error)
-
-	// DeleteKnowledge deletes knowledge by filename from the vector store
-	DeleteKnowledge(ctx context.Context, KnowledgeID string) error
-
-	// UpdateKnowledge updates knowledge in the vector store
-	UpdateKnowledge(ctx context.Context, knowledge schema.Knowledge) error
+	ListDocs(ctx context.Context, limit int) ([]schema.Document, error)
 
 	// GetProviderType returns the type of the vector store provider
 	GetProviderType() string
