@@ -28,11 +28,11 @@ import (
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	provider "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/memory"
 )
 
 const (
@@ -269,7 +269,6 @@ func (w *watcher) subscribe(groupName string, serviceName string) error {
 		GroupName:         groupName,
 		SubscribeCallback: w.getSubscribeCallback(groupName, serviceName),
 	})
-
 	if err != nil {
 		log.Errorf("subscribe service error:%v, groupName:%s, serviceName:%s", err, groupName, serviceName)
 		return err
@@ -286,7 +285,6 @@ func (w *watcher) unsubscribe(groupName string, serviceName string) error {
 		GroupName:         groupName,
 		SubscribeCallback: w.getSubscribeCallback(groupName, serviceName),
 	})
-
 	if err != nil {
 		log.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, groupName, serviceName)
 		return err
@@ -303,7 +301,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 	return func(services []model.SubscribeService, err error) {
 		defer w.UpdateService()
 
-		//log.Info("callback", "serviceName", serviceName, "suffix", suffix, "details", services)
+		// log.Info("callback", "serviceName", serviceName, "suffix", suffix, "details", services)
 
 		if err != nil {
 			if strings.Contains(err.Error(), "hosts is empty") {

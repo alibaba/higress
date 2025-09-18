@@ -30,14 +30,14 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/kingress"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/registry/reconcile"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/kingress"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/kube"
+	"github.com/alibaba/higress/v2/registry/reconcile"
 )
 
 var (
@@ -310,9 +310,11 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 
 		cleanHost := common.CleanHost(host)
 		// namespace/name, name format: (istio cluster id)-host
-		gateways := []string{m.namespace + "/" +
-			common.CreateConvertedName(m.clusterId.String(), cleanHost),
-			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
+		gateways := []string{
+			m.namespace + "/" +
+				common.CreateConvertedName(m.clusterId.String(), cleanHost),
+			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost),
+		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
 		if !exist {

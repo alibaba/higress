@@ -22,10 +22,12 @@ type TestExStruct struct {
 	three []bool
 }
 
-type ExPointerInt **int
-type ExBool bool
-type ExSlice []*string
-type ExAlias nested.TestNestedStruct
+type (
+	ExPointerInt **int
+	ExBool       bool
+	ExSlice      []*string
+	ExAlias      nested.TestNestedStruct
+)
 
 type TestNestedStruct struct {
 	NestedStruct *nested.TestNestedStruct

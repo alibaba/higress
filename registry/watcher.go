@@ -15,12 +15,13 @@
 package registry
 
 import (
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"istio.io/api/networking/v1alpha3"
-	"istio.io/pkg/log"
 	"net"
 	"strings"
 	"time"
+
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"istio.io/api/networking/v1alpha3"
+	"istio.io/pkg/log"
 )
 
 const (
@@ -74,6 +75,7 @@ func (w *BaseWatcher) GetRegistryType() string { return "" }
 func (w *BaseWatcher) AppendServiceUpdateHandler(f func()) {
 	w.UpdateService = f
 }
+
 func (w *BaseWatcher) ReadyHandler(f func(isReady bool)) {
 	w.Ready = func(isReady bool) {
 		w.ReadyStatus = isReady
@@ -81,8 +83,10 @@ func (w *BaseWatcher) ReadyHandler(f func(isReady bool)) {
 	}
 }
 
-type ServiceUpdateHandler func()
-type ReadyHandler func(bool)
+type (
+	ServiceUpdateHandler func()
+	ReadyHandler         func(bool)
+)
 
 func ProbeWatcherStatus(host string, port string) WatcherStatus {
 	address := net.JoinHostPort(host, port)

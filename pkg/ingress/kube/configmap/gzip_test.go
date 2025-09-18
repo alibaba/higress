@@ -17,14 +17,14 @@ package configmap
 import (
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"testing"
+
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_validGzip(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		gzip    *Gzip
@@ -269,7 +269,6 @@ func Test_compareGzip(t *testing.T) {
 }
 
 func Test_deepCopyGzip(t *testing.T) {
-
 	tests := []struct {
 		name     string
 		gzip     *Gzip

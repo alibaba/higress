@@ -17,8 +17,8 @@
 package extensions
 
 import (
-	v1alpha1 "github.com/alibaba/higress/client/pkg/informers/externalversions/extensions/v1alpha1"
-	internalinterfaces "github.com/alibaba/higress/client/pkg/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/alibaba/higress/v2/client/pkg/informers/externalversions/extensions/v1alpha1"
+	internalinterfaces "github.com/alibaba/higress/v2/client/pkg/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

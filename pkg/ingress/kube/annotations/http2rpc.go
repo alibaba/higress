@@ -15,7 +15,7 @@
 package annotations
 
 import (
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 const (

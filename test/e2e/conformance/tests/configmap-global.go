@@ -17,10 +17,10 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/envoy"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/kubernetes"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {

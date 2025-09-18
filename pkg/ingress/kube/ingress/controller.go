@@ -52,12 +52,12 @@ import (
 	networkinglister "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/cert"
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/cert"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -99,7 +99,8 @@ type controller struct {
 
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kubeclient.Client, options common.Options,
-	secretController secret.SecretController) common.IngressController {
+	secretController secret.SecretController,
+) common.IngressController {
 	opts := ktypes.InformerOptions{Namespace: options.WatchNamespace}
 	ingressInformer := util.GetInformerFiltered(client, opts, gvrIngressV1Beta1, &ingress.Ingress{},
 		func(options metav1.ListOptions) (runtime.Object, error) {
@@ -401,7 +402,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			}
 			if c.options.GatewaySelectorKey != "" {
 				wrapperGateway.Gateway.Selector = map[string]string{c.options.GatewaySelectorKey: c.options.GatewaySelectorValue}
-
 			}
 			wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 				Port: &networking.Port{
@@ -534,11 +534,9 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
 	definedRules := sets.New[string]()
 
-	var (
-		// But in across ingresses case, we will restrict this limit.
-		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
-		tempRuleKey []string
-	)
+	// But in across ingresses case, we will restrict this limit.
+	// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
+	var tempRuleKey []string
 
 	for _, rule := range ingressV1.Rules {
 		if rule.HTTP == nil || len(rule.HTTP.Paths) == 0 {
@@ -1048,7 +1046,8 @@ func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
-	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) ([]*networking.HTTPRouteDestination, common.Event) {
+	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig,
+) ([]*networking.HTTPRouteDestination, common.Event) {
 	if backend == nil {
 		return nil, common.InvalidBackendService
 	}

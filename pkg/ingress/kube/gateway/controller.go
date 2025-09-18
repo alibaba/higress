@@ -33,11 +33,11 @@ import (
 	"istio.io/istio/pkg/kube/multicluster"
 	"k8s.io/client-go/tools/cache"
 
-	higressconfig "github.com/alibaba/higress/pkg/config"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	istiogateway "github.com/alibaba/higress/pkg/ingress/kube/gateway/istio"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	istiogateway "github.com/alibaba/higress/v2/pkg/ingress/kube/gateway/istio"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 type gatewayController struct {

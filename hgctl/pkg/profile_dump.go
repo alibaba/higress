@@ -61,7 +61,7 @@ func profileDump(cmd *cobra.Command, args []string, pdArgs *profileDumpArgs) err
 		return err
 	}
 	if len(pdArgs.output) > 0 {
-		err2 := os.WriteFile(pdArgs.output, []byte(yaml), 0644)
+		err2 := os.WriteFile(pdArgs.output, []byte(yaml), 0o644)
 		if err2 != nil {
 			return err2
 		}

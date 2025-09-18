@@ -23,7 +23,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -201,7 +201,6 @@ func TestGenerateUniqueRouteName(t *testing.T) {
 
 	assert.Equal(t, "bar/foo", GenerateUniqueRouteName("xxx", input))
 	assert.Equal(t, "foo", GenerateUniqueRouteName("bar", input))
-
 }
 
 func TestGetLbStatusList(t *testing.T) {

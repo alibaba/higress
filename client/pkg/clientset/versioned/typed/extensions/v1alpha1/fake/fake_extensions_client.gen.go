@@ -17,7 +17,7 @@
 package fake
 
 import (
-	v1alpha1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/extensions/v1alpha1"
+	v1alpha1 "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/typed/extensions/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

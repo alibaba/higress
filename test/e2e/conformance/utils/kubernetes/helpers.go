@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/config"
 )
 
 // FilterStaleConditions returns the list of status condition whos observedGeneration does not

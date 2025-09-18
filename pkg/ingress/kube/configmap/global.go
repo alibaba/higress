@@ -19,8 +19,8 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -68,7 +68,7 @@ type Downstream struct {
 	ConnectionBufferLimits uint32 `json:"connectionBufferLimits,omitempty"`
 	// Http2 configures HTTP/2 specific options.
 	Http2 *Http2 `json:"http2,omitempty"`
-	//RouteTimeout limits the time that timeout for the route.
+	// RouteTimeout limits the time that timeout for the route.
 	RouteTimeout uint32 `json:"routeTimeout"`
 }
 

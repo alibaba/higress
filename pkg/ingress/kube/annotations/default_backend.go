@@ -17,8 +17,8 @@ package annotations
 import (
 	"strconv"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
 	"k8s.io/apimachinery/pkg/types"
 )

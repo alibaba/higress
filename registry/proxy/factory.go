@@ -21,10 +21,10 @@ import (
 
 	"istio.io/api/networking/v1alpha3"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 )
 
 const (
@@ -119,7 +119,7 @@ func FillProxyListenerPorts(proxies []*apiv1.ProxyConfig) bool {
 		return false
 	}
 	filled := false
-	var usedPorts = make(map[uint32]bool)
+	usedPorts := make(map[uint32]bool)
 	for _, proxy := range proxies {
 		if proxy.ListenerPort > 0 {
 			usedPorts[proxy.ListenerPort] = true

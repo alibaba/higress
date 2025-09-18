@@ -59,7 +59,7 @@ type FileDirProfileStore struct {
 func (f *FileDirProfileStore) Save(profile *helm.Profile) (string, error) {
 	namespace := profile.Global.Namespace
 	install := profile.Global.Install
-	var profileName = ""
+	profileName := ""
 	if install == helm.InstallK8s || install == helm.InstallLocalK8s {
 		profileName = filepath.Join(f.profilesPath, fmt.Sprintf("%s-%s.yaml", ProfileFilePrefix, namespace))
 	} else {
@@ -109,7 +109,7 @@ func (f *FileDirProfileStore) List() ([]*ProfileContext, error) {
 func (f *FileDirProfileStore) Delete(profile *helm.Profile) (string, error) {
 	namespace := profile.Global.Namespace
 	install := profile.Global.Install
-	var profileName = ""
+	profileName := ""
 	if install == helm.InstallK8s || install == helm.InstallLocalK8s {
 		profileName = filepath.Join(f.profilesPath, fmt.Sprintf("%s-%s.yaml", ProfileFilePrefix, namespace))
 	} else {

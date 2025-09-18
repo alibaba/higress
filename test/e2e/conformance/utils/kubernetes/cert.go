@@ -34,7 +34,7 @@ import (
 	// ensure auth plugins are loaded
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/cert"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/cert"
 )
 
 // MustCreateSelfSignedCertSecret creates a self-signed SSL certificate and stores it in a secret

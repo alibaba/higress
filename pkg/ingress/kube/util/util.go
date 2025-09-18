@@ -20,11 +20,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"istio.io/istio/pilot/pkg/model"
 	"os"
 	"path"
 	"strconv"
 	"strings"
+
+	"istio.io/istio/pilot/pkg/model"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
@@ -32,7 +33,7 @@ import (
 	"istio.io/istio/pkg/cluster"
 	"k8s.io/apimachinery/pkg/types"
 
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 const (

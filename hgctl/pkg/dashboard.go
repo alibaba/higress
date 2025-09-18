@@ -30,7 +30,7 @@ import (
 
 	"github.com/alibaba/higress/hgctl/pkg/docker"
 	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
-	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 )
 
 var (
@@ -418,7 +418,6 @@ func openBrowser(url string, writer io.Writer, browser bool) {
 	default:
 		fmt.Fprintf(writer, "Unsupported platform %q; open %s in your browser.\n", runtime.GOOS, url)
 	}
-
 }
 
 func openCommand(writer io.Writer, command string, args ...string) {

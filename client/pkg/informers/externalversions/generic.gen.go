@@ -19,8 +19,8 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/alibaba/higress/client/pkg/apis/extensions/v1alpha1"
-	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
+	v1alpha1 "github.com/alibaba/higress/v2/client/pkg/apis/extensions/v1alpha1"
+	v1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

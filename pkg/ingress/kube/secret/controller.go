@@ -15,8 +15,8 @@
 package secret
 
 import (
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/controller"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/controller"
 	"istio.io/istio/pkg/config/schema/gvr"
 	schemakubeclient "istio.io/istio/pkg/config/schema/kubeclient"
 	kubeclient "istio.io/istio/pkg/kube"

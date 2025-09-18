@@ -16,11 +16,12 @@ package secret
 
 import (
 	"context"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
 
 	kubeclient "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/test/util/retry"
@@ -30,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 )
 
 const (

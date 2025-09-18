@@ -63,7 +63,6 @@ func GetPathContext(root any, path util.Path, createMissing bool) (*PathContext,
 
 // WritePathContext writes the given value to the Node in the given PathContext.
 func WritePathContext(nc *PathContext, value any, merge bool) error {
-
 	if !util.IsValueNil(value) {
 		return setPathContext(nc, value, merge)
 	}

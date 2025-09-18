@@ -1,6 +1,6 @@
 # Cuelang configuration to generate OpenAPI schema for Higress configs.
 
-module: github.com/alibaba/higress/api
+module: github.com/alibaba/higress/v2/api
 
 openapi:
   selfContained: true

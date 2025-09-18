@@ -27,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/config"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/roundtripper"
 )
 
 type Assertion struct {
@@ -200,7 +200,7 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 
 	if expected.Request.ActualRequest.Body != nil && len(expected.Request.ActualRequest.Body) > 0 {
 		if len(expected.Request.ActualRequest.ContentType) == 0 {
-			t.Error(`please set Content-Type in ActualRequest manually if you want to send a request with body. 
+			t.Error(`please set Content-Type in ActualRequest manually if you want to send a request with body.
 			For example, \"ContentType: http.ContentTypeApplicationJson\"`)
 		}
 	}
@@ -309,7 +309,7 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 		// CompareTarget为Response时，不支持设定ExpectedRequest断言，ExpectedResponse中设置的所有断言均支持。支持任意backend，如echo-body
 		if expected.Meta.CompareTarget == CompareTargetRequest {
 			if expected.Response.ExpectedResponse.Body != nil {
-				t.Logf(`detected CompareTarget is Request, but ExpectedResponse.Body is set. 
+				t.Logf(`detected CompareTarget is Request, but ExpectedResponse.Body is set.
 				You can only choose one to compare between Response and Request.`)
 				return false
 			}
@@ -325,7 +325,7 @@ func WaitForConsistentResponse(t *testing.T, r roundtripper.RoundTripper, req ro
 			}
 		} else if expected.Meta.CompareTarget == CompareTargetResponse {
 			if expected.Request.ExpectedRequest != nil {
-				t.Logf(`detected CompareTarget is Response, but ExpectedRequest is set. 
+				t.Logf(`detected CompareTarget is Response, but ExpectedRequest is set.
 				You can only choose one to compare between Response and Request.`)
 				return false
 			}
@@ -728,6 +728,7 @@ func ParseFormUrlencodedBody(body []byte) (map[string][]string, error) {
 
 	return ret, nil
 }
+
 func ParseMultipartFormBody(body []byte, boundary string) (map[string][]string, error) {
 	ret := make(map[string][]string)
 	mr := multipart.NewReader(bytes.NewReader(body), boundary)
@@ -755,7 +756,6 @@ func ParseMultipartFormBody(body []byte, boundary string) (map[string][]string, 
 
 // Get User-defined test case name or generate from expected response to a given request.
 func (er *Assertion) GetTestCaseName(i int) string {
-
 	// If TestCase name is provided then use that or else generate one.
 	if er.Meta.TestCaseName != "" {
 		return er.Meta.TestCaseName

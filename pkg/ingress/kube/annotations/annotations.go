@@ -22,7 +22,7 @@ import (
 	"istio.io/istio/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
 )
 
 type GlobalContext struct {

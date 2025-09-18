@@ -20,7 +20,7 @@ import (
 	"regexp"
 	"strings"
 
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	"google.golang.org/protobuf/proto"
 	"istio.io/istio/pkg/config"
 )

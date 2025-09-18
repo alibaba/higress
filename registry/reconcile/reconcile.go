@@ -26,19 +26,19 @@ import (
 	"istio.io/pkg/log"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	higressmcpserver "github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
-	"github.com/alibaba/higress/pkg/kube"
-	. "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/consul"
-	"github.com/alibaba/higress/registry/direct"
-	"github.com/alibaba/higress/registry/eureka"
-	"github.com/alibaba/higress/registry/memory"
-	"github.com/alibaba/higress/registry/nacos"
-	nacosv2 "github.com/alibaba/higress/registry/nacos/v2"
-	"github.com/alibaba/higress/registry/proxy"
-	"github.com/alibaba/higress/registry/zookeeper"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	v1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
+	higressmcpserver "github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/kube"
+	. "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/consul"
+	"github.com/alibaba/higress/v2/registry/direct"
+	"github.com/alibaba/higress/v2/registry/eureka"
+	"github.com/alibaba/higress/v2/registry/memory"
+	"github.com/alibaba/higress/v2/registry/nacos"
+	nacosv2 "github.com/alibaba/higress/v2/registry/nacos/v2"
+	"github.com/alibaba/higress/v2/registry/proxy"
+	"github.com/alibaba/higress/v2/registry/zookeeper"
 )
 
 const (
@@ -168,7 +168,7 @@ func (r *Reconciler) reconcileRegistries(registries []*apiv1.RegistryConfig) err
 	if errHappened {
 		return errors.New("ReconcileRegistries failed, Init Watchers failed")
 	}
-	var ready = make(chan struct{})
+	ready := make(chan struct{})
 	readyTimer := time.NewTimer(DefaultReadyTimeout)
 	go func() {
 		wg.Wait()

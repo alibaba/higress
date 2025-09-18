@@ -51,7 +51,7 @@ func newCreateCommand() *cobra.Command {
 		Example: `  # If the option.yaml file exists in the current path, do the following:
   hgctl plugin test create
 
-  # Explicitly specify the source of the parameters (directory of the build 
+  # Explicitly specify the source of the parameters (directory of the build
     products) and the directory where the test configuration files is stored
   hgctl plugin test create -d ./out -t ./test
   `,
@@ -139,9 +139,8 @@ func (c *creator) create() (err error) {
 	fields.Envoy = &Envoy{JSONExample: jsExample}
 
 	// 4. generate corresponding test files
-	if err = os.MkdirAll(target, 0755); err != nil {
+	if err = os.MkdirAll(target, 0o755); err != nil {
 		return errors.Wrap(err, "failed to create the test environment")
-
 	}
 	if err = c.genTestConfFiles(fields); err != nil {
 		return errors.Wrap(err, "failed to create the test environment")

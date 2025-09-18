@@ -17,8 +17,8 @@
 package v1alpha1
 
 import (
-	v1alpha1 "github.com/alibaba/higress/api/extensions/v1alpha1"
-	v1 "github.com/alibaba/higress/client/pkg/applyconfiguration/meta/v1"
+	v1alpha1 "github.com/alibaba/higress/v2/api/extensions/v1alpha1"
+	v1 "github.com/alibaba/higress/v2/client/pkg/applyconfiguration/meta/v1"
 	metav1alpha1 "istio.io/api/meta/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"

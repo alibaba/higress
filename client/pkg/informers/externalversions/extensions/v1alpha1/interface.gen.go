@@ -17,7 +17,7 @@
 package v1alpha1
 
 import (
-	internalinterfaces "github.com/alibaba/higress/client/pkg/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/alibaba/higress/v2/client/pkg/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

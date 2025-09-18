@@ -7,5 +7,5 @@ buf generate \
     --path networking \
     --path extensions
 
-# Generate CRDs 
+# Generate CRDs
 cue-gen -verbose -f=./cue.yaml -crd=true

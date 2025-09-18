@@ -40,7 +40,7 @@ func CreateNacosMcpRegistry(config *NacosConfig) (*NacosMcpRegistry, error) {
 		*constant.NewServerConfig(*config.ServerAddr, 8848, constant.WithContextPath("/nacos")),
 	}
 
-	//create ClientConfig
+	// create ClientConfig
 	cc := *constant.NewClientConfig(
 		constant.WithTimeoutMs(5000),
 		constant.WithNotLoadCacheAtStart(true),
@@ -74,7 +74,6 @@ func CreateNacosMcpRegistry(config *NacosConfig) (*NacosMcpRegistry, error) {
 			ServerConfigs: sc,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to initial nacos config client: %w", err)
 	}
@@ -85,7 +84,6 @@ func CreateNacosMcpRegistry(config *NacosConfig) (*NacosMcpRegistry, error) {
 			ServerConfigs: sc,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to initial naming config client: %w", err)
 	}
@@ -100,7 +98,6 @@ func CreateNacosMcpRegistry(config *NacosConfig) (*NacosMcpRegistry, error) {
 }
 
 func (c *NacosConfig) ParseConfig(config map[string]any) error {
-
 	serverAddr, ok := config["serverAddr"].(string)
 	if !ok {
 		return errors.New("missing serverAddr")

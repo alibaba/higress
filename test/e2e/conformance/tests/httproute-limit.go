@@ -20,18 +20,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"sync/atomic"
-
-	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
-	"net/url"
-
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/roundtripper"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -45,7 +44,7 @@ var HttpRouteLimiter = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-limit.yaml"},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		t.Run("HTTPRoute limiter", func(t *testing.T) {
-			//wait ingress ready
+			// wait ingress ready
 			time.Sleep(1 * time.Second)
 			client := &http.Client{}
 			TestRps10(t, suite.GatewayAddress, client)

@@ -24,8 +24,8 @@ import (
 	"sort"
 	"strings"
 
-	higressconfig "github.com/alibaba/higress/pkg/config"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 	istio "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pilot/pkg/model"
@@ -1875,8 +1875,8 @@ func UseDefaultService(gw *k8s.GatewaySpec) bool {
 func extractGatewayServices(r GatewayResources, kgw *k8s.GatewaySpec, obj config.Config) ([]string, bool, *ConfigError) {
 	// Start - Updated by Higress
 	if UseDefaultService(kgw) {
-		//name := model.GetOrDefault(obj.Annotations[gatewayNameOverride], getDefaultName(obj.Name, kgw))
-		//return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, true, nil
+		// name := model.GetOrDefault(obj.Annotations[gatewayNameOverride], getDefaultName(obj.Name, kgw))
+		// return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, true, nil
 		name := obj.Annotations[gatewayNameOverride]
 		if len(name) > 0 {
 			return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, false, nil

@@ -22,7 +22,7 @@ import (
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model/credentials"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 )
 
 const (

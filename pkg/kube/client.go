@@ -35,10 +35,10 @@ import (
 	kingressfake "knative.dev/networking/pkg/client/clientset/versioned/fake"
 	kingressinformer "knative.dev/networking/pkg/client/informers/externalversions"
 
-	higressclient "github.com/alibaba/higress/client/pkg/clientset/versioned"
-	higressfake "github.com/alibaba/higress/client/pkg/clientset/versioned/fake"
-	higressinformer "github.com/alibaba/higress/client/pkg/informers/externalversions"
-	"github.com/alibaba/higress/pkg/config/constants"
+	higressclient "github.com/alibaba/higress/v2/client/pkg/clientset/versioned"
+	higressfake "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/fake"
+	higressinformer "github.com/alibaba/higress/v2/client/pkg/informers/externalversions"
+	"github.com/alibaba/higress/v2/pkg/config/constants"
 )
 
 type Client interface {
@@ -50,7 +50,7 @@ type Client interface {
 	// HigressInformer returns an informer for the higress client
 	HigressInformer() higressinformer.SharedInformerFactory
 
-	//KIngress return the Knative kube client
+	// KIngress return the Knative kube client
 	KIngress() kingressclient.Interface
 
 	KIngressInformer() kingressinformer.SharedInformerFactory
@@ -217,7 +217,6 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 			c.kingressInformer.WaitForCacheSync(stop)
 		}
 	}
-
 }
 
 type reflectInformerSync interface {

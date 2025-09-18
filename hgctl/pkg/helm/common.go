@@ -137,7 +137,6 @@ func GenerateConfig(inFilenames []string, setFlags []string) (string, *Profile, 
 	}
 
 	profileString, profile, err := GenProfile(profileName, valuesOverlay, setFlags)
-
 	if err != nil {
 		return "", nil, "", err
 	}

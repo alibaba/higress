@@ -15,7 +15,7 @@
 package cmd
 
 import (
-	"github.com/alibaba/higress/pkg/cmd/version"
+	"github.com/alibaba/higress/v2/pkg/cmd/version"
 	"github.com/spf13/cobra"
 )
 

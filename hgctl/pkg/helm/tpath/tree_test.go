@@ -114,7 +114,7 @@ a:
 			desc: "ModifyListEntryMapValue",
 			path: `a.b.[name:n2]`,
 			value: `name: n2
-list: 
+list:
   - nk1: nv1
   - nk2: nv2`,
 			wantFound: true,
@@ -503,7 +503,7 @@ a: {}
 			want: `
 a:
   list:
-    - v1		
+    - v1
 `,
 		},
 		{
@@ -517,7 +517,7 @@ a:
 			value: `v2`,
 			want: `
 a:
-  list: 
+  list:
   - v1
   - v2
 `,

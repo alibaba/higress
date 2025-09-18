@@ -21,8 +21,8 @@ import (
 	json "encoding/json"
 	"fmt"
 
-	v1alpha1 "github.com/alibaba/higress/client/pkg/apis/extensions/v1alpha1"
-	extensionsv1alpha1 "github.com/alibaba/higress/client/pkg/applyconfiguration/extensions/v1alpha1"
+	v1alpha1 "github.com/alibaba/higress/v2/client/pkg/apis/extensions/v1alpha1"
+	extensionsv1alpha1 "github.com/alibaba/higress/v2/client/pkg/applyconfiguration/extensions/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
@@ -77,7 +77,6 @@ func (c *FakeWasmPlugins) List(ctx context.Context, opts v1.ListOptions) (result
 func (c *FakeWasmPlugins) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(wasmpluginsResource, c.ns, opts))
-
 }
 
 // Create takes the representation of a wasmPlugin and creates it.  Returns the server's representation of the wasmPlugin, and an error, if there is any.

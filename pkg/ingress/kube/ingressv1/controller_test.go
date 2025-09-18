@@ -17,7 +17,7 @@ package ingressv1
 import (
 	"testing"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	networking "istio.io/api/networking/v1alpha3"

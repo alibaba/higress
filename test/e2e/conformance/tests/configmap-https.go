@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -31,7 +31,6 @@ var ConfigmapHttps = suite.ConformanceTest{
 	Manifests:   []string{"tests/configmap-https.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-
 		testCases := []struct {
 			httpAssert http.Assertion
 		}{

@@ -15,9 +15,11 @@ replace github.com/docker/distribution => github.com/docker/distribution v0.0.0-
 // Client-go does not handle different versions of mergo due to some breaking changes - use the matching version
 replace github.com/imdario/mergo => github.com/imdario/mergo v0.3.5
 
+replace github.com/alibaba/higress/v2 => ../
+
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/alibaba/higress v0.0.0
+	github.com/alibaba/higress/v2 v2.0.0-00010101000000-000000000000
 	github.com/compose-spec/compose-go v1.17.0
 	github.com/docker/cli v24.0.7+incompatible
 	github.com/docker/compose/v2 v2.23.3

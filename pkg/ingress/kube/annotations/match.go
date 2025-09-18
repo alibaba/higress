@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -263,6 +263,5 @@ func merge(m1 map[string]*networking.StringMatch, m2 map[string]map[string]strin
 				IngressLog.Errorf("unknown type: %q is not supported Match type", typ)
 			}
 		}
-
 	}
 }

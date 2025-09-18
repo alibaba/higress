@@ -22,7 +22,7 @@ import (
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/keepalive"
 
-	higresskube "github.com/alibaba/higress/pkg/kube"
+	higresskube "github.com/alibaba/higress/v2/pkg/kube"
 )
 
 func TestStartWithNoError(t *testing.T) {

@@ -156,5 +156,4 @@ func (pc *PluginConf) withDefaultValue() {
 	if pc.Phase == "" {
 		pc.Phase = string(types.PhaseDefault)
 	}
-
 }

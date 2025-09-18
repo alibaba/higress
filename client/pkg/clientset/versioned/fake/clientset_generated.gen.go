@@ -17,11 +17,11 @@
 package fake
 
 import (
-	clientset "github.com/alibaba/higress/client/pkg/clientset/versioned"
-	extensionsv1alpha1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/extensions/v1alpha1"
-	fakeextensionsv1alpha1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/extensions/v1alpha1/fake"
-	networkingv1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/networking/v1"
-	fakenetworkingv1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/networking/v1/fake"
+	clientset "github.com/alibaba/higress/v2/client/pkg/clientset/versioned"
+	extensionsv1alpha1 "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/typed/extensions/v1alpha1"
+	fakeextensionsv1alpha1 "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/typed/extensions/v1alpha1/fake"
+	networkingv1 "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/typed/networking/v1"
+	fakenetworkingv1 "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/typed/networking/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

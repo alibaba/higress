@@ -17,7 +17,7 @@ package http
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/roundtripper"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/roundtripper"
 	"github.com/stretchr/testify/require"
 )
 
@@ -688,7 +688,7 @@ func TestCompareResponse(t *testing.T) {
 					"X-header-test2": {"h2", "h22"},
 					"Content-Type":   {"application/json"},
 				},
-				Body: []byte(`							
+				Body: []byte(`
 				{
 					"X-body-test1":["b1"],
 					"X-body-test2":["b2", "b22"]

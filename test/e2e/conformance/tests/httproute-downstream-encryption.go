@@ -20,10 +20,10 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/cert"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/cert"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/kubernetes"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -60,9 +60,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							SNI: "foo1.com",
 							Certificates: http.Certificates{
 								CACerts: [][]byte{caCertOut.Bytes()},
-								ClientKeyPairs: []http.ClientKeyPair{{
-									ClientCert: cliCertOut.Bytes(),
-									ClientKey:  cliKeyOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{
+									{
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
+									},
 								},
 							},
 						},
@@ -98,9 +100,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA},
 							Certificates: http.Certificates{
 								CACerts: [][]byte{caCertOut.Bytes()},
-								ClientKeyPairs: []http.ClientKeyPair{{
-									ClientCert: cliCertOut.Bytes(),
-									ClientKey:  cliKeyOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{
+									{
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
+									},
 								},
 							},
 						},
@@ -136,9 +140,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305},
 							Certificates: http.Certificates{
 								CACerts: [][]byte{caCertOut.Bytes()},
-								ClientKeyPairs: []http.ClientKeyPair{{
-									ClientCert: cliCertOut.Bytes(),
-									ClientKey:  cliKeyOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{
+									{
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
+									},
 								},
 							},
 						},
@@ -175,9 +181,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
 							Certificates: http.Certificates{
 								CACerts: [][]byte{caCertOut.Bytes()},
-								ClientKeyPairs: []http.ClientKeyPair{{
-									ClientCert: cliCertOut.Bytes(),
-									ClientKey:  cliKeyOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{
+									{
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
+									},
 								},
 							},
 						},

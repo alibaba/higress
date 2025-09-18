@@ -24,9 +24,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/alibaba/higress/test/e2e/conformance/tests"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/flags"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/tests"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/flags"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func TestHigressConformanceTests(t *testing.T) {
@@ -68,7 +68,7 @@ func TestHigressConformanceTests(t *testing.T) {
 	case suite.TestAreaSetup:
 		cSuite.Cleanup = false
 		cSuite.Setup(t)
-	case suite.TessAreaClean:
+	case suite.TestAreaClean:
 		cSuite.Clean(t)
 	}
 }

@@ -21,13 +21,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 
-	v1 "github.com/alibaba/higress/client/pkg/apis/extensions/v1alpha1"
-	"github.com/alibaba/higress/client/pkg/clientset/versioned"
-	informersv1 "github.com/alibaba/higress/client/pkg/informers/externalversions/extensions/v1alpha1"
-	listersv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/controller"
-	kubeclient "github.com/alibaba/higress/pkg/kube"
+	v1 "github.com/alibaba/higress/v2/client/pkg/apis/extensions/v1alpha1"
+	"github.com/alibaba/higress/v2/client/pkg/clientset/versioned"
+	informersv1 "github.com/alibaba/higress/v2/client/pkg/informers/externalversions/extensions/v1alpha1"
+	listersv1 "github.com/alibaba/higress/v2/client/pkg/listers/extensions/v1alpha1"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/controller"
+	kubeclient "github.com/alibaba/higress/v2/pkg/kube"
 )
 
 type WasmPluginController controller.Controller[listersv1.WasmPluginLister]

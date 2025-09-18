@@ -28,9 +28,9 @@ import (
 	kingressclient "knative.dev/networking/pkg/client/clientset/versioned"
 	kingresslister "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
 
-	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/kube"
+	common2 "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/kube"
 )
 
 // statusSyncer keeps the status IP in each Ingress resource updated
@@ -44,7 +44,8 @@ type statusSyncer struct {
 
 // newStatusSyncer creates a new instance
 func newStatusSyncer(localKubeClient, client kube.Client, controller *controller, namespace string,
-	serviceLister listerv1.ServiceLister) *statusSyncer {
+	serviceLister listerv1.ServiceLister,
+) *statusSyncer {
 	return &statusSyncer{
 		client:           client.KIngress(),
 		controller:       controller,

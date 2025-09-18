@@ -25,7 +25,7 @@ import (
 	"github.com/alibaba/higress/hgctl/pkg/installer"
 	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
 	"github.com/alibaba/higress/hgctl/pkg/util"
-	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 	"github.com/spf13/cobra"
 )
 
