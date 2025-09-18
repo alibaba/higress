@@ -16,15 +16,6 @@ func getRAGClient() (*RAGClient, error) {
 			},
 		},
 
-		LLM: config.LLMConfig{
-			Provider:    "OpenAI",
-			APIKey:      "",
-			BaseURL:     "https://api.openai.com/v1",
-			Model:       "gpt-3.5-turbo",
-			Temperature: 0.7,
-			MaxTokens:   2000,
-		},
-
 		Embedding: config.EmbeddingConfig{
 			Provider: "dashscope",
 			APIKey:   "sk-0d9dd773c0e24c169b113d10f46656ca",

@@ -23,41 +23,26 @@ func init() {
 }
 
 func (c *RAGConfig) ParseConfig(config map[string]any) error {
+	api.LogInfof("start to parse config %v", config)
 	// 解析RAG配置
 	if ragConfig, ok := config["rag"].(map[string]any); ok {
-		if knowledgeBase, exists := ragConfig["knowledge_base"].(string); exists {
-			c.config.RAG.KnowledgeBase = knowledgeBase
-		}
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
 			if splitterType, exists := splitter["provider"].(string); exists {
 				c.config.RAG.Splitter.Provider = splitterType
+			} else {
+				// no splitter
+				c.config.RAG.Splitter.Provider = "nosplitter"
 			}
 			if chunkSize, exists := splitter["chunk_size"].(float64); exists {
 				c.config.RAG.Splitter.ChunkSize = int(chunkSize)
+			} else {
+				c.config.RAG.Splitter.ChunkSize = 0
 			}
 			if chunkOverlap, exists := splitter["chunk_overlap"].(float64); exists {
 				c.config.RAG.Splitter.ChunkOverlap = int(chunkOverlap)
+			} else {
+				c.config.RAG.Splitter.ChunkOverlap = 0
 			}
-		}
-	}
-
-	// 解析LLM配置
-	if llmConfig, ok := config["llm"].(map[string]any); ok {
-		if provider, exists := llmConfig["provider"].(string); exists {
-			c.config.LLM.Provider = provider
-		} else {
-			return errors.New("missing llm provider")
-		}
-		if apiKey, exists := llmConfig["api_key"].(string); exists {
-			c.config.LLM.APIKey = apiKey
-		} else {
-			return errors.New("missing llm api_key")
-		}
-		if baseURL, exists := llmConfig["base_url"].(string); exists {
-			c.config.LLM.BaseURL = baseURL
-		}
-		if model, exists := llmConfig["model"].(string); exists {
-			c.config.LLM.Model = model
 		}
 	}
 
@@ -70,8 +55,6 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		}
 		if apiKey, exists := embeddingConfig["api_key"].(string); exists {
 			c.config.Embedding.APIKey = apiKey
-		} else {
-			return errors.New("missing embedding api_key")
 		}
 	}
 
@@ -84,25 +67,26 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		}
 	}
 
-	// 解析Rerank配置
-	if rerankConfig, ok := config["rerank"].(map[string]any); ok {
-		if provider, exists := rerankConfig["provider"].(string); exists {
-			c.config.Rerank.Provider = provider
-		} else {
-			return errors.New("missing rerank provider")
-		}
-		if apiKey, exists := rerankConfig["api_key"].(string); exists {
-			c.config.Rerank.APIKey = apiKey
-		} else {
-			return errors.New("missing rerank api_key")
-		}
-	}
+	// // 解析Rerank配置
+	// if rerankConfig, ok := config["rerank"].(map[string]any); ok {
+	// 	if provider, exists := rerankConfig["provider"].(string); exists {
+	// 		c.config.Rerank.Provider = provider
+	// 	} else {
+	// 		return errors.New("missing rerank provider")
+	// 	}
+	// 	if apiKey, exists := rerankConfig["api_key"].(string); exists {
+	// 		c.config.Rerank.APIKey = apiKey
+	// 	} else {
+	// 		return errors.New("missing rerank api_key")
+	// 	}
+	// }
 
 	api.LogDebugf("RAG Config ParseConfig: %+v", config)
 	return nil
 }
 
 func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
+	api.LogInfof("start to new rag server and register tools")
 	mcpServer := common.NewMCPServer(
 		serverName,
 		Version,

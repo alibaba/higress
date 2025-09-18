@@ -1,23 +1,16 @@
 package config
 
-import (
-	"fmt"
-)
-
 // Config 是整个MCP服务器的配置结构
 type Config struct {
 	RAG       RAGConfig       `json:"rag" yaml:"rag"`
-	LLM       LLMConfig       `json:"llm" yaml:"llm"`
 	Embedding EmbeddingConfig `json:"embedding" yaml:"embedding"`
 	VectorDB  VectorDBConfig  `json:"vectordb" yaml:"vectordb"`
-	Rerank    RerankConfig    `json:"rerank" yaml:"rerank"`
 }
 
 // RAGConfig RAG系统基础配置
 type RAGConfig struct {
-	KnowledgeBase string         `json:"knowledge_base" yaml:"knowledge_base"`
-	Splitter      SplitterConfig `json:"splitter" yaml:"splitter"`
-	MaxResults    int            `json:"max_results" yaml:"max_results"`
+	Splitter   SplitterConfig `json:"splitter" yaml:"splitter"`
+	MaxResults int            `json:"max_results" yaml:"max_results"`
 }
 
 // SplitterConfig 文档分块器配置
@@ -55,46 +48,4 @@ type VectorDBConfig struct {
 	Collection string `json:"collection" yaml:"collection"`
 	Username   string `json:"username,omitempty" yaml:"username,omitempty"`
 	Password   string `json:"password,omitempty" yaml:"password,omitempty"`
-}
-
-// RerankConfig 重排序配置
-type RerankConfig struct {
-	Provider string `json:"provider" yaml:"provider"` // cohere, bge, jina
-	APIKey   string `json:"api_key" yaml:"api_key"`
-	Model    string `json:"model" yaml:"model"`
-	TopK     int    `json:"top_k,omitempty" yaml:"top_k,omitempty"`
-}
-
-// Validate 验证配置
-func (c *Config) Validate() error {
-	// 验证LLM配置
-	if c.LLM.Provider == "" {
-		return fmt.Errorf("llm provider is required")
-	}
-	if c.LLM.APIKey == "" {
-		return fmt.Errorf("llm api_key is required")
-	}
-
-	// 验证Embedding配置
-	if c.Embedding.Provider == "" {
-		return fmt.Errorf("embedding provider is required")
-	}
-	if c.Embedding.APIKey == "" {
-		return fmt.Errorf("embedding api_key is required")
-	}
-
-	// 验证VectorDB配置
-	if c.VectorDB.Provider == "" {
-		return fmt.Errorf("vectordb provider is required")
-	}
-
-	// 验证Rerank配置
-	if c.Rerank.Provider == "" {
-		return fmt.Errorf("rerank provider is required")
-	}
-	if c.Rerank.APIKey == "" {
-		return fmt.Errorf("rerank api_key is required")
-	}
-
-	return nil
 }
