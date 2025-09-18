@@ -20,3 +20,6 @@ spec:
           name: envoy.filters.http.custom_response
           typed_config:
             "@type": type.googleapis.com/envoy.extensions.filters.http.custom_response.v3.CustomResponse
+  workloadSelector:
+    labels:
+      {{- include "gateway.selectorLabels" . | nindent 6 }}
