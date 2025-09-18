@@ -35,11 +35,9 @@ const (
 	// converseStream路径 /model/{modelId}/converse-stream
 	bedrockStreamChatCompletionPath = "/model/%s/converse-stream"
 	// invoke_model 路径 /model/{modelId}/invoke
-	bedrockInvokeModelPath      = "/model/%s/invoke"
-	bedrockSignedHeaders        = "host;x-amz-date"
-	requestIdHeader             = "X-Amzn-Requestid"
-	reasoningContextMarkerStart = "<think>"
-	reasoningContextMarkerEnd   = "</think>"
+	bedrockInvokeModelPath = "/model/%s/invoke"
+	bedrockSignedHeaders   = "host;x-amz-date"
+	requestIdHeader        = "X-Amzn-Requestid"
 )
 
 type bedrockProviderInitializer struct{}
@@ -122,7 +120,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		if bedrockEvent.Delta.ReasoningContent != nil {
 			var content string
 			if ctx.GetContext("thinking_start") == nil {
-				content += reasoningContextMarkerStart
+				content += reasoningStartTag
 				ctx.SetContext("thinking_start", true)
 			}
 			content += bedrockEvent.Delta.ReasoningContent.Text
@@ -130,7 +128,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		} else if bedrockEvent.Delta.Text != nil {
 			var content string
 			if ctx.GetContext("thinking_start") != nil && ctx.GetContext("thinking_end") == nil {
-				content += reasoningContextMarkerEnd
+				content += reasoningEndTag
 				ctx.SetContext("thinking_end", true)
 			}
 			content += *bedrockEvent.Delta.Text
@@ -844,7 +842,7 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 		}
 	}
 	if reasoningContent != "" {
-		outputContent = reasoningContextMarkerStart + reasoningContent + reasoningContextMarkerEnd + normalContent
+		outputContent = reasoningStartTag + reasoningContent + reasoningEndTag + normalContent
 	} else {
 		outputContent = normalContent
 	}
