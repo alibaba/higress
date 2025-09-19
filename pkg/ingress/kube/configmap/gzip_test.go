@@ -17,8 +17,9 @@ package configmap
 import (
 	"errors"
 	"fmt"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"testing"
+
+	"github.com/alibaba/higress/pkg/ingress/kube/util"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -375,7 +376,7 @@ func TestGzipController_AddOrUpdateHigressConfig(t *testing.T) {
 			new: &HigressConfig{
 				Gzip: &Gzip{
 					Enable:              true,
-					MinContentLength:    1024,
+					MinContentLength:    2048, // Changed from 1024 to make it different from default
 					ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 					DisableOnEtagHeader: true,
 					MemoryLevel:         5,
@@ -389,7 +390,7 @@ func TestGzipController_AddOrUpdateHigressConfig(t *testing.T) {
 			wantEventPush: "push",
 			wantGzip: &Gzip{
 				Enable:              true,
-				MinContentLength:    1024,
+				MinContentLength:    2048, // Changed from 1024 to make it different from default
 				ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 				DisableOnEtagHeader: true,
 				MemoryLevel:         5,
