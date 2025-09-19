@@ -390,8 +390,9 @@ func (s *MCPServer) HandleMessage(
 		}
 		return s.handleGetPrompt(ctx, baseMessage.ID, request)
 	case "tools/list":
-		api.LogInfof("tools/list request:%v", baseMessage)
+		api.LogInfof("RAGtools/list: request:%v", baseMessage)
 		if s.capabilities.tools == nil {
+			api.LogErrorf("RAGtools/list: tools not supported")
 			return createErrorResponse(
 				baseMessage.ID,
 				mcp.METHOD_NOT_FOUND,
@@ -400,6 +401,7 @@ func (s *MCPServer) HandleMessage(
 		}
 		var request mcp.ListToolsRequest
 		if err := json.Unmarshal(message, &request); err != nil {
+			api.LogErrorf("RAGtools/list: unmarshal request failed, err:%v", err)
 			return createErrorResponse(
 				baseMessage.ID,
 				mcp.INVALID_REQUEST,
@@ -765,7 +767,7 @@ func (s *MCPServer) handleListTools(
 	id interface{},
 	request mcp.ListToolsRequest,
 ) mcp.JSONRPCMessage {
-	api.LogInfof("handleListTools")
+	api.LogInfof("RAGtools/list: handleListTools")
 	s.mu.RLock()
 	tools := make([]mcp.Tool, 0, len(s.tools))
 
@@ -774,7 +776,7 @@ func (s *MCPServer) handleListTools(
 	for name := range s.tools {
 		toolNames = append(toolNames, name)
 	}
-	api.LogInfof("handleListTools, tool length:%d, toolNames:%v", len(toolNames), toolNames)
+	api.LogInfof("RAGtools/list: handleListTools, tool length:%d, toolNames:%v", len(toolNames), toolNames)
 	// Sort the tool names for consistent ordering
 	sort.Strings(toolNames)
 
@@ -790,7 +792,7 @@ func (s *MCPServer) handleListTools(
 	if request.Params.Cursor != "" {
 		result.NextCursor = "" // Handle pagination if needed
 	}
-	api.LogInfof("handleListTools, result tool length:%d", len(result.Tools))
+	api.LogInfof("RAGtools/list: handleListTools, result tool length:%d", len(result.Tools))
 	return createResponse(id, result)
 }
 
