@@ -244,7 +244,7 @@ func (s *MCPServer) HandleMessage(
 	message json.RawMessage,
 ) mcp.JSONRPCMessage {
 	// Add server to context
-
+	api.LogDebugf("RAGtools/list: HandleMessage: message:%s", string(message))
 	ctx = context.WithValue(ctx, serverKey{}, s)
 
 	var baseMessage struct {
@@ -390,7 +390,7 @@ func (s *MCPServer) HandleMessage(
 		}
 		return s.handleGetPrompt(ctx, baseMessage.ID, request)
 	case "tools/list":
-		api.LogInfof("RAGtools/list: request:%v", baseMessage)
+		api.LogDebugf("RAGtools/list: request:%v", baseMessage)
 		if s.capabilities.tools == nil {
 			api.LogErrorf("RAGtools/list: tools not supported")
 			return createErrorResponse(
@@ -767,7 +767,7 @@ func (s *MCPServer) handleListTools(
 	id interface{},
 	request mcp.ListToolsRequest,
 ) mcp.JSONRPCMessage {
-	api.LogInfof("RAGtools/list: handleListTools")
+	api.LogDebugf("RAGtools/list: handleListTools")
 	s.mu.RLock()
 	tools := make([]mcp.Tool, 0, len(s.tools))
 
@@ -776,7 +776,7 @@ func (s *MCPServer) handleListTools(
 	for name := range s.tools {
 		toolNames = append(toolNames, name)
 	}
-	api.LogInfof("RAGtools/list: handleListTools, tool length:%d, toolNames:%v", len(toolNames), toolNames)
+	api.LogDebugf("RAGtools/list: handleListTools, tool length:%d, toolNames:%v", len(toolNames), toolNames)
 	// Sort the tool names for consistent ordering
 	sort.Strings(toolNames)
 
@@ -792,7 +792,7 @@ func (s *MCPServer) handleListTools(
 	if request.Params.Cursor != "" {
 		result.NextCursor = "" // Handle pagination if needed
 	}
-	api.LogInfof("RAGtools/list: handleListTools, result tool length:%d", len(result.Tools))
+	api.LogDebugf("RAGtools/list: handleListTools, result tool length:%d", len(result.Tools))
 	return createResponse(id, result)
 }
 
