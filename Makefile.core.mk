@@ -137,9 +137,9 @@ endif
 # for now docker is limited to Linux compiles - why ?
 include docker/docker.mk
 
-docker-build-amd64: docker.higress-amd64 ## Build and push amdd64 docker images to registry defined by $HUB and $TAG
+docker-build-amd64: clean-higress docker.higress-amd64 ## Build and push amdd64 docker images to registry defined by $HUB and $TAG
 
-docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
+docker-build: clean-higress docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
 docker-buildx-push: clean-env docker.higress-buildx
 
