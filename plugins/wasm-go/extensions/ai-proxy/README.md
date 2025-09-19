@@ -177,6 +177,10 @@ Grok 所对应的 `type` 为 `grok`。它并无特有的配置字段。
 
 OpenRouter 所对应的 `type` 为 `openrouter`。它并无特有的配置字段。
 
+#### Fireworks AI
+
+Fireworks AI 所对应的 `type` 为 `fireworks`。它并无特有的配置字段。
+
 #### 文心一言（Baidu）
 
 文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
@@ -1014,6 +1018,63 @@ provider:
     "prompt_tokens": 12,
     "completion_tokens": 46,
     "total_tokens": 58
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 Fireworks AI 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: fireworks
+  apiTokens:
+    - "YOUR_FIREWORKS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    "gpt-3.5-turbo": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+    "*": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "fw-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是一个由 Fireworks AI 提供的人工智能助手，基于 Llama 3.1 模型。我可以帮助回答问题、进行对话和提供各种信息。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 45,
+    "total_tokens": 60
   }
 }
 ```
@@ -1982,6 +2043,7 @@ provider:
   }
 }
 ```
+
 ### 使用 OpenAI 协议代理 NVIDIA Triton Interference Server 服务
 
 **配置信息**
@@ -2011,6 +2073,7 @@ providers:
   "stream": false
 }
 ```
+
 **响应示例**
 
 ```json

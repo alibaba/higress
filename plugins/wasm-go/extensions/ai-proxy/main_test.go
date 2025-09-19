@@ -103,3 +103,9 @@ func TestAzure(t *testing.T) {
 	test.RunAzureOnHttpResponseHeadersTests(t)
 	test.RunAzureOnHttpResponseBodyTests(t)
 }
+
+func TestFireworks(t *testing.T) {
+	test.RunFireworksParseConfigTests(t)
+	test.RunFireworksOnHttpRequestHeadersTests(t)
+	test.RunFireworksOnHttpRequestBodyTests(t)
+}
