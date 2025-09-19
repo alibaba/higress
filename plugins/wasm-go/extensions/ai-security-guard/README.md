@@ -21,6 +21,7 @@ description: 阿里云内容安全检测
 | `accessKey` | string | requried | - | 阿里云AK |
 | `secretKey` | string | requried | - | 阿里云SK |
 | `action` | string | requried | - | 阿里云ai安全业务接口 |
+| `securityToken` | string | optional | - | 阿里云安全令牌（用于临时凭证） |
 | `checkRequest` | bool | optional | false | 检查提问内容是否合规 |
 | `checkResponse` | bool | optional | false | 检查大模型的回答内容是否合规，生效时会使流式响应变为非流式 |
 | `requestCheckService` | string | optional | llm_query_moderation | 指定阿里云内容安全用于检测输入内容的服务 |
@@ -36,6 +37,8 @@ description: 阿里云内容安全检测
 | `sensitiveDataLevelBar` | string | optional | S4 | 敏感内容检测拦截风险等级，取值为  `S4`, `S3`, `S2` or `S1` |
 | `timeout` | int | optional | 2000 | 调用内容安全服务时的超时时间 |
 | `bufferLimit` | int | optional | 1000 | 调用内容安全服务时每段文本的长度限制 |
+| `consumerSpecificRequestCheckService` | map | optional | - | 为不同消费者指定特定的请求检测服务 |
+| `consumerSpecificResponseCheckService` | map | optional | - | 为不同消费者指定特定的响应检测服务 |
 
 补充说明一下 `denyMessage`，对非法请求的处理逻辑为：
 - 如果配置了 `denyMessage`，返回内容为 `denyMessage` 配置内容，格式为openai格式的流式/非流式响应
@@ -88,6 +91,35 @@ accessKey: "XXXXXXXXX"
 secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
 checkResponse: true
+```
+
+### 使用临时安全凭证
+
+```yaml
+serviceName: safecheck.dns
+servicePort: 443
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
+securityToken: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+checkRequest: true
+```
+
+### 为不同消费者指定不同的检测服务
+
+```yaml
+serviceName: safecheck.dns
+servicePort: 443
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
+checkRequest: true
+consumerSpecificRequestCheckService:
+  consumerA: llm_query_moderation_strict
+  consumerB: llm_query_moderation_relaxed
+consumerSpecificResponseCheckService:
+  consumerA: llm_response_moderation_strict
+  consumerB: llm_response_moderation_relaxed
 ```
 
 ### 指定自定义内容安全检测服务
