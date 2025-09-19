@@ -17,31 +17,50 @@ type RAGConfig struct {
 }
 
 func init() {
+	api.LogInfof("rag server init")
 	common.GlobalRegistry.RegisterServer("rag", &RAGConfig{
-		config: &config.Config{},
+		config: &config.Config{
+			RAG: config.RAGConfig{
+				Splitter: config.SplitterConfig{
+					Provider:     "nosplitter",
+					ChunkSize:    0,
+					ChunkOverlap: 0,
+				},
+				MaxResults: 10,
+			},
+			Embedding: config.EmbeddingConfig{
+				Provider:  "dashscope",
+				APIKey:    "",
+				BaseURL:   "",
+				Model:     "text-embedding-v4",
+				Dimension: 1024,
+			},
+			VectorDB: config.VectorDBConfig{
+				Provider:   "milvus",
+				Host:       "localhost",
+				Port:       6379,
+				Database:   "default",
+				Collection: "rag",
+				Username:   "",
+				Password:   "",
+			},
+		},
 	})
 }
 
 func (c *RAGConfig) ParseConfig(config map[string]any) error {
-	api.LogInfof("start to parse config %v", config)
+	api.LogInfof("start to parse RAG raw config %v", config)
 	// 解析RAG配置
 	if ragConfig, ok := config["rag"].(map[string]any); ok {
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
 			if splitterType, exists := splitter["provider"].(string); exists {
 				c.config.RAG.Splitter.Provider = splitterType
-			} else {
-				// no splitter
-				c.config.RAG.Splitter.Provider = "nosplitter"
 			}
 			if chunkSize, exists := splitter["chunk_size"].(float64); exists {
 				c.config.RAG.Splitter.ChunkSize = int(chunkSize)
-			} else {
-				c.config.RAG.Splitter.ChunkSize = 0
 			}
 			if chunkOverlap, exists := splitter["chunk_overlap"].(float64); exists {
 				c.config.RAG.Splitter.ChunkOverlap = int(chunkOverlap)
-			} else {
-				c.config.RAG.Splitter.ChunkOverlap = 0
 			}
 		}
 	}
@@ -53,8 +72,21 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		} else {
 			return errors.New("missing embedding provider")
 		}
+
 		if apiKey, exists := embeddingConfig["api_key"].(string); exists {
 			c.config.Embedding.APIKey = apiKey
+		}
+		// base_url
+		if baseURL, exists := embeddingConfig["base_url"].(string); exists {
+			c.config.Embedding.BaseURL = baseURL
+		}
+		// model
+		if model, exists := embeddingConfig["model"].(string); exists {
+			c.config.Embedding.Model = model
+		}
+		// dimension
+		if dimension, exists := embeddingConfig["dimension"].(float64); exists {
+			c.config.Embedding.Dimension = int(dimension)
 		}
 	}
 
@@ -65,23 +97,34 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		} else {
 			return errors.New("missing vectordb provider")
 		}
+		// host
+		if host, exists := vectordbConfig["host"].(string); exists {
+			c.config.VectorDB.Host = host
+		}
+		// port
+		if port, exists := vectordbConfig["port"].(float64); exists {
+			c.config.VectorDB.Port = int(port)
+		}
+		// db_name
+		if dbName, exists := vectordbConfig["database"].(string); exists {
+			c.config.VectorDB.Database = dbName
+		}
+		// collection
+		if collection, exists := vectordbConfig["collection"].(string); exists {
+			c.config.VectorDB.Collection = collection
+		}
+
+		// username
+		if username, exists := vectordbConfig["username"].(string); exists {
+			c.config.VectorDB.Username = username
+		}
+		// password
+		if password, exists := vectordbConfig["password"].(string); exists {
+			c.config.VectorDB.Password = password
+		}
 	}
 
-	// // 解析Rerank配置
-	// if rerankConfig, ok := config["rerank"].(map[string]any); ok {
-	// 	if provider, exists := rerankConfig["provider"].(string); exists {
-	// 		c.config.Rerank.Provider = provider
-	// 	} else {
-	// 		return errors.New("missing rerank provider")
-	// 	}
-	// 	if apiKey, exists := rerankConfig["api_key"].(string); exists {
-	// 		c.config.Rerank.APIKey = apiKey
-	// 	} else {
-	// 		return errors.New("missing rerank api_key")
-	// 	}
-	// }
-
-	api.LogDebugf("RAG Config ParseConfig: %+v", config)
+	api.LogInfof("RAG Config ParseConfig Done: %+v", c.config)
 	return nil
 }
 
@@ -144,6 +187,6 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 	// 	mcp.NewToolWithRawSchema("chat", "Chat with RAG system", GetChatSchema()),
 	// 	HandleChat(ragClient),
 	// )
-
+	api.LogInfof("start to new rag server and register tools done")
 	return mcpServer, nil
 }

@@ -10,20 +10,20 @@ type Config struct {
 // RAGConfig RAG系统基础配置
 type RAGConfig struct {
 	Splitter   SplitterConfig `json:"splitter" yaml:"splitter"`
-	MaxResults int            `json:"max_results" yaml:"max_results"`
+	MaxResults int            `json:"max_results,omitempty" yaml:"max_results,omitempty"`
 }
 
 // SplitterConfig 文档分块器配置
 type SplitterConfig struct {
 	Provider     string `json:"provider" yaml:"provider"` // recursive, character, token
-	ChunkSize    int    `json:"chunk_size" yaml:"chunk_size"`
-	ChunkOverlap int    `json:"chunk_overlap" yaml:"chunk_overlap"`
+	ChunkSize    int    `json:"chunk_size,omitempty" yaml:"chunk_size,omitempty"`
+	ChunkOverlap int    `json:"chunk_overlap,omitempty" yaml:"chunk_overlap,omitempty"`
 }
 
 // LLMConfig LLM配置
 type LLMConfig struct {
 	Provider    string  `json:"provider" yaml:"provider"` // openai, dashscope, qwen
-	APIKey      string  `json:"api_key" yaml:"api_key"`
+	APIKey      string  `json:"api_key,omitempty" yaml:"api_key"`
 	BaseURL     string  `json:"base_url,omitempty" yaml:"base_url,omitempty"`
 	Model       string  `json:"model" yaml:"model"`
 	Temperature float64 `json:"temperature,omitempty" yaml:"temperature,omitempty"`
@@ -33,19 +33,19 @@ type LLMConfig struct {
 // EmbeddingConfig 嵌入模型配置
 type EmbeddingConfig struct {
 	Provider  string `json:"provider" yaml:"provider"` // openai, dashscope
-	APIKey    string `json:"api_key" yaml:"api_key"`
+	APIKey    string `json:"api_key,omitempty" yaml:"api_key,omitempty"`
 	BaseURL   string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	Model     string `json:"model" yaml:"model"`
+	Model     string `json:"model,omitempty" yaml:"model,omitempty"`
 	Dimension int    `json:"dimension,omitempty" yaml:"dimension,omitempty"`
 }
 
 // VectorDBConfig 向量数据库配置
 type VectorDBConfig struct {
 	Provider   string `json:"provider" yaml:"provider"` // milvus, qdrant, chroma
-	Host       string `json:"host" yaml:"host"`
-	Port       int    `json:"port" yaml:"port"`
-	Database   string `json:"database" yaml:"database"`
-	Collection string `json:"collection" yaml:"collection"`
+	Host       string `json:"host,omitempty" yaml:"host,omitempty"`
+	Port       int    `json:"port,omitempty" yaml:"port,omitempty"`
+	Database   string `json:"database,omitempty" yaml:"database,omitempty"`
+	Collection string `json:"collection,omitempty" yaml:"collection,omitempty"`
 	Username   string `json:"username,omitempty" yaml:"username,omitempty"`
 	Password   string `json:"password,omitempty" yaml:"password,omitempty"`
 }

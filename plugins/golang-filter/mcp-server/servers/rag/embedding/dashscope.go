@@ -13,7 +13,7 @@ import (
 const (
 	DASHSCOPE_DOMAIN             = "dashscope.aliyuncs.com"
 	DASHSCOPE_PORT               = 443
-	DASHSCOPE_DEFAULT_MODEL_NAME = "text-embedding-v2"
+	DASHSCOPE_DEFAULT_MODEL_NAME = "text-embedding-v4"
 	DASHSCOPE_ENDPOINT           = "/api/v1/services/embeddings/text-embedding/text-embedding"
 )
 

@@ -10,6 +10,7 @@ import (
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/textsplitter"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/vectordb"
 	"github.com/distribution/distribution/v3/uuid"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"oras.land/oras-go/pkg/context"
 )
 
@@ -29,16 +30,18 @@ type RAGClient struct {
 
 // NewRAGClient 创建新的RAG客户端
 func NewRAGClient(config *config.Config) (*RAGClient, error) {
+	api.LogInfof("create rag client, config: %v", config)
 	ragclient := &RAGClient{
 		config: config,
 	}
-
+	api.LogInfof("create rag client, text splitter config: %v", config.RAG.Splitter)
 	textSplitter, err := textsplitter.NewTextSplitter(&config.RAG.Splitter)
 	if err != nil {
 		return nil, fmt.Errorf("create text splitter failed, err: %w", err)
 	}
 	ragclient.textSplitter = textSplitter
 
+	api.LogInfof("create rag client, embedding config: %v", config.Embedding)
 	embeddingProvider, err := embedding.NewEmbeddingProvider(ragclient.config.Embedding)
 	if err != nil {
 		return nil, fmt.Errorf("create embedding provider failed, err: %w", err)
@@ -50,13 +53,16 @@ func NewRAGClient(config *config.Config) (*RAGClient, error) {
 		return nil, fmt.Errorf("create init embedding failed, err: %w", err)
 	}
 	dim := len(demoVector)
+	api.LogInfof("init embedding dim: %d", dim)
 
+	api.LogInfof("create rag client, vector db config: %v", config.VectorDB)
 	provider, err := vectordb.NewVectorDBProvider(&ragclient.config.VectorDB, dim)
 	if err != nil {
 		return nil, fmt.Errorf("create vector store provider failed, err: %w", err)
 	}
 	ragclient.vectordbProvider = provider
 
+	api.LogInfof("create rag client done")
 	return ragclient, nil
 }
 
