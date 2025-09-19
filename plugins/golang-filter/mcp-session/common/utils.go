@@ -12,7 +12,6 @@ type RequestURL struct {
 	Scheme     string
 	Host       string
 	Path       string
-	BaseURL    string
 	ParsedURL  *url.URL
 	InternalIP bool
 }
@@ -23,12 +22,12 @@ func NewRequestURL(header api.RequestHeaderMap) *RequestURL {
 	host, _ := header.Get(":authority")
 	path, _ := header.Get(":path")
 	internalIP, _ := header.Get("x-envoy-internal")
-	baseURL := fmt.Sprintf("%s://%s", scheme, host)
-	parsedURL, err := url.Parse(path)
+	fullURL := fmt.Sprintf("%s://%s%s", scheme, host, path)
+	parsedURL, err := url.Parse(fullURL)
 	if err != nil {
-		api.LogWarnf("url parse path:%s failed:%s", path, err)
+		api.LogWarnf("url parse fullURL:%s failed:%s", fullURL, err)
 		return nil
 	}
 	api.LogDebugf("RequestURL: method=%s, scheme=%s, host=%s, path=%s", method, scheme, host, path)
-	return &RequestURL{Method: method, Scheme: scheme, Host: host, Path: path, BaseURL: baseURL, ParsedURL: parsedURL, InternalIP: internalIP == "true"}
+	return &RequestURL{Method: method, Scheme: scheme, Host: host, Path: path, ParsedURL: parsedURL, InternalIP: internalIP == "true"}
 }

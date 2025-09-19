@@ -17,8 +17,8 @@ const Name = "mcp-server"
 const Version = "1.0.0"
 
 type SSEServerWrapper struct {
-	BaseServer *common.SSEServer
-	DomainList []string
+	BaseServer   *common.SSEServer
+	HostMatchers []common.HostMatcher // Pre-parsed host matchers for efficient matching
 }
 
 type config struct {
@@ -67,15 +67,18 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 			return nil, fmt.Errorf("server %s path is not set", serverType)
 		}
 
-		serverDomainList := []string{}
+		// Parse domain list directly into HostMatchers for efficient matching
+		var hostMatchers []common.HostMatcher
 		if domainList, ok := serverConfigMap["domain_list"].([]interface{}); ok {
+			hostMatchers = make([]common.HostMatcher, 0, len(domainList))
 			for _, domain := range domainList {
 				if domainStr, ok := domain.(string); ok {
-					serverDomainList = append(serverDomainList, domainStr)
+					hostMatchers = append(hostMatchers, common.ParseHostPattern(domainStr))
 				}
 			}
 		} else {
-			serverDomainList = []string{"*"}
+			// Default to match all domains
+			hostMatchers = []common.HostMatcher{common.ParseHostPattern("*")}
 		}
 
 		serverName, ok := serverConfigMap["name"].(string)
@@ -107,7 +110,7 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 			BaseServer: common.NewSSEServer(serverInstance,
 				common.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, mcp_session.GlobalSSEPathSuffix)),
 				common.WithMessageEndpoint(serverPath)),
-			DomainList: serverDomainList,
+			HostMatchers: hostMatchers,
 		})
 		api.LogDebug(fmt.Sprintf("Registered MCP Server: %s", serverType))
 	}

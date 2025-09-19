@@ -30,7 +30,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 	f.host = url.Host
 
 	for _, server := range f.config.servers {
-		if common.MatchDomainList(f.host, server.DomainList) && strings.HasPrefix(f.path, server.BaseServer.GetMessageEndpoint()) {
+		if common.MatchDomainWithMatchers(f.host, server.HostMatchers) && strings.HasPrefix(f.path, server.BaseServer.GetMessageEndpoint()) {
 			if url.Method != http.MethodPost {
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 				return api.LocalReply
@@ -62,7 +62,7 @@ func (f *filter) DecodeHeaders(header api.RequestHeaderMap, endStream bool) api.
 func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.StatusType {
 	if f.message {
 		for _, server := range f.config.servers {
-			if common.MatchDomainList(f.host, server.DomainList) && strings.HasPrefix(f.path, server.BaseServer.GetMessageEndpoint()) {
+			if common.MatchDomainWithMatchers(f.host, server.HostMatchers) && strings.HasPrefix(f.path, server.BaseServer.GetMessageEndpoint()) {
 				if !endStream {
 					return api.StopAndBuffer
 				}
