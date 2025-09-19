@@ -28,7 +28,7 @@ func TestRAGConfig_ParseConfig(t *testing.T) {
 		VectorDB: config.VectorDBConfig{
 			Provider:   "milvus",
 			Host:       "localhost",
-			Port:       6379,
+			Port:       19530,
 			Database:   "default",
 			Collection: "test_rag",
 			Username:   "",

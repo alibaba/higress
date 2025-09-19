@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -389,6 +390,7 @@ func (s *MCPServer) HandleMessage(
 		}
 		return s.handleGetPrompt(ctx, baseMessage.ID, request)
 	case "tools/list":
+		api.LogInfof("tools/list request:%v", baseMessage)
 		if s.capabilities.tools == nil {
 			return createErrorResponse(
 				baseMessage.ID,
@@ -763,6 +765,7 @@ func (s *MCPServer) handleListTools(
 	id interface{},
 	request mcp.ListToolsRequest,
 ) mcp.JSONRPCMessage {
+	api.LogInfof("handleListTools")
 	s.mu.RLock()
 	tools := make([]mcp.Tool, 0, len(s.tools))
 
@@ -771,7 +774,7 @@ func (s *MCPServer) handleListTools(
 	for name := range s.tools {
 		toolNames = append(toolNames, name)
 	}
-
+	api.LogInfof("handleListTools, tool length:%d, toolNames:%v", len(toolNames), toolNames)
 	// Sort the tool names for consistent ordering
 	sort.Strings(toolNames)
 
@@ -787,6 +790,7 @@ func (s *MCPServer) handleListTools(
 	if request.Params.Cursor != "" {
 		result.NextCursor = "" // Handle pagination if needed
 	}
+	api.LogInfof("handleListTools, result tool length:%d", len(result.Tools))
 	return createResponse(id, result)
 }
 

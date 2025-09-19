@@ -17,7 +17,7 @@ type RAGConfig struct {
 }
 
 func init() {
-	api.LogInfof("rag server init")
+	// api.LogInfof("rag server init")
 	common.GlobalRegistry.RegisterServer("rag", &RAGConfig{
 		config: &config.Config{
 			RAG: config.RAGConfig{
