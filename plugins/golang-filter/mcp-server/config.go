@@ -6,6 +6,7 @@ import (
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry/nacos"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/higress-api"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag"
 	mcp_session "github.com/alibaba/higress/plugins/golang-filter/mcp-session"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	xds "github.com/cncf/xds/go/xds/type/v3"
