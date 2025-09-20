@@ -9,7 +9,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -244,7 +243,7 @@ func (s *MCPServer) HandleMessage(
 	message json.RawMessage,
 ) mcp.JSONRPCMessage {
 	// Add server to context
-	api.LogDebugf("RAGtools/list: HandleMessage: message:%s", string(message))
+
 	ctx = context.WithValue(ctx, serverKey{}, s)
 
 	var baseMessage struct {
@@ -390,9 +389,7 @@ func (s *MCPServer) HandleMessage(
 		}
 		return s.handleGetPrompt(ctx, baseMessage.ID, request)
 	case "tools/list":
-		api.LogDebugf("RAGtools/list: request:%v", baseMessage)
 		if s.capabilities.tools == nil {
-			api.LogErrorf("RAGtools/list: tools not supported")
 			return createErrorResponse(
 				baseMessage.ID,
 				mcp.METHOD_NOT_FOUND,
@@ -401,7 +398,6 @@ func (s *MCPServer) HandleMessage(
 		}
 		var request mcp.ListToolsRequest
 		if err := json.Unmarshal(message, &request); err != nil {
-			api.LogErrorf("RAGtools/list: unmarshal request failed, err:%v", err)
 			return createErrorResponse(
 				baseMessage.ID,
 				mcp.INVALID_REQUEST,
@@ -767,7 +763,6 @@ func (s *MCPServer) handleListTools(
 	id interface{},
 	request mcp.ListToolsRequest,
 ) mcp.JSONRPCMessage {
-	api.LogDebugf("RAGtools/list: handleListTools")
 	s.mu.RLock()
 	tools := make([]mcp.Tool, 0, len(s.tools))
 
@@ -776,7 +771,7 @@ func (s *MCPServer) handleListTools(
 	for name := range s.tools {
 		toolNames = append(toolNames, name)
 	}
-	api.LogDebugf("RAGtools/list: handleListTools, tool length:%d, toolNames:%v", len(toolNames), toolNames)
+
 	// Sort the tool names for consistent ordering
 	sort.Strings(toolNames)
 
@@ -792,7 +787,6 @@ func (s *MCPServer) handleListTools(
 	if request.Params.Cursor != "" {
 		result.NextCursor = "" // Handle pagination if needed
 	}
-	api.LogDebugf("RAGtools/list: handleListTools, result tool length:%d", len(result.Tools))
 	return createResponse(id, result)
 }
 

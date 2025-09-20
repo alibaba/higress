@@ -189,8 +189,6 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	}
 
 	sessionID := r.URL.Query().Get("sessionId")
-	api.LogDebugf("RAGtools/list: SSE handleMessage: sessionID:%s", sessionID)
-
 	// support streamable http without sessionId
 	// if sessionID == "" {
 	// 	s.writeJSONRPCError(w, nil, mcp.INVALID_PARAMS, "Missing sessionId")
@@ -212,8 +210,6 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 
 	// Process message through MCPServer
 	response := s.server.HandleMessage(ctx, body)
-
-	api.LogDebugf("RAGtools/list: SSE handleMessage: response:%+v", response)
 	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
@@ -225,7 +221,6 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 			w.WriteHeader(http.StatusOK)
 			status = http.StatusOK
 		}
-		api.LogDebugf("RAGtools/list: SSE handleMessage: response status:%d", status)
 		// Send HTTP response
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
