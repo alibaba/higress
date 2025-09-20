@@ -17,16 +17,24 @@ type RAGConfig struct {
 }
 
 func init() {
-	// api.LogInfof("rag server init")
 	common.GlobalRegistry.RegisterServer("rag", &RAGConfig{
 		config: &config.Config{
 			RAG: config.RAGConfig{
 				Splitter: config.SplitterConfig{
-					Provider:     "nosplitter",
-					ChunkSize:    0,
-					ChunkOverlap: 0,
+					Provider:     "recursive",
+					ChunkSize:    500,
+					ChunkOverlap: 50,
 				},
-				MaxResults: 10,
+				Threshold: 0.5,
+				TopK:      10,
+			},
+			LLM: config.LLMConfig{
+				Provider:    "openai",
+				APIKey:      "",
+				BaseURL:     "",
+				Model:       "gpt-4o",
+				Temperature: 0.5,
+				MaxTokens:   2048,
 			},
 			Embedding: config.EmbeddingConfig{
 				Provider:  "dashscope",
@@ -49,8 +57,8 @@ func init() {
 }
 
 func (c *RAGConfig) ParseConfig(config map[string]any) error {
-	api.LogInfof("start to parse RAG raw config %v", config)
-	// 解析RAG配置
+	api.LogDebugf("start to parse RAG raw config %v", config)
+	// Parse RAG configuration
 	if ragConfig, ok := config["rag"].(map[string]any); ok {
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
 			if splitterType, exists := splitter["provider"].(string); exists {
@@ -63,9 +71,15 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 				c.config.RAG.Splitter.ChunkOverlap = int(chunkOverlap)
 			}
 		}
+		if threshold, exists := ragConfig["threshold"].(float64); exists {
+			c.config.RAG.Threshold = threshold
+		}
+		if topK, exists := ragConfig["top_k"].(float64); exists {
+			c.config.RAG.TopK = int(topK)
+		}
 	}
 
-	// 解析Embedding配置
+	// Parse Embedding configuration
 	if embeddingConfig, ok := config["embedding"].(map[string]any); ok {
 		if provider, exists := embeddingConfig["provider"].(string); exists {
 			c.config.Embedding.Provider = provider
@@ -76,117 +90,90 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		if apiKey, exists := embeddingConfig["api_key"].(string); exists {
 			c.config.Embedding.APIKey = apiKey
 		}
-		// base_url
 		if baseURL, exists := embeddingConfig["base_url"].(string); exists {
 			c.config.Embedding.BaseURL = baseURL
 		}
-		// model
 		if model, exists := embeddingConfig["model"].(string); exists {
 			c.config.Embedding.Model = model
 		}
-		// dimension
 		if dimension, exists := embeddingConfig["dimension"].(float64); exists {
 			c.config.Embedding.Dimension = int(dimension)
 		}
 	}
 
-	// 解析VectorDB配置
+	// Parse VectorDB configuration
 	if vectordbConfig, ok := config["vectordb"].(map[string]any); ok {
 		if provider, exists := vectordbConfig["provider"].(string); exists {
 			c.config.VectorDB.Provider = provider
 		} else {
 			return errors.New("missing vectordb provider")
 		}
-		// host
 		if host, exists := vectordbConfig["host"].(string); exists {
 			c.config.VectorDB.Host = host
 		}
-		// port
 		if port, exists := vectordbConfig["port"].(float64); exists {
 			c.config.VectorDB.Port = int(port)
 		}
-		// db_name
 		if dbName, exists := vectordbConfig["database"].(string); exists {
 			c.config.VectorDB.Database = dbName
 		}
-		// collection
 		if collection, exists := vectordbConfig["collection"].(string); exists {
 			c.config.VectorDB.Collection = collection
 		}
-
-		// username
 		if username, exists := vectordbConfig["username"].(string); exists {
 			c.config.VectorDB.Username = username
 		}
-		// password
 		if password, exists := vectordbConfig["password"].(string); exists {
 			c.config.VectorDB.Password = password
 		}
 	}
 
-	api.LogInfof("RAG Config ParseConfig Done: %+v", c.config)
+	api.LogDebugf("RAG raw config ParseConfig Done: %+v", c.config)
 	return nil
 }
 
 func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
-	api.LogInfof("start to new rag server and register tools")
+	api.LogDebugf("start to new rag client and registe tools")
 	mcpServer := common.NewMCPServer(
 		serverName,
 		Version,
 		common.WithInstructions("This is a RAG (Retrieval-Augmented Generation) server for knowledge management and intelligent Q&A"),
 	)
 
-	// 创建RAG客户端（这里可以根据配置初始化各种客户端）
+	// Initialize RAG client with configuration
 	ragClient, err := NewRAGClient(c.config)
 	if err != nil {
 		return nil, fmt.Errorf("create rag client failed, err: %w", err)
 	}
 
-	// 添加知识管理工具
+	// Knowledge Base Management Tools
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("create-chunk-from-text", "Create chunks from text content", GetCreateChunkFromTextSchema()),
-		HandleCreateKnowledgeFromText(ragClient),
+		mcp.NewToolWithRawSchema("create-chunks-from-text", "Process and segment input text into semantic chunks for knowledge base ingestion", GetCreateChunkFromTextSchema()),
+		HandleCreateChunkFromText(ragClient),
 	)
 
-	// 添加块管理工具
+	// Chunk Management Tools
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("list-chunks", "List all chunks ", GetListChunksSchema()),
+		mcp.NewToolWithRawSchema("list-chunks", "Retrieve and display all knowledge chunks in the database", GetListChunksSchema()),
 		HandleListChunks(ragClient),
 	)
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("delete-chunk", "Delete specific chunk by ID", GetDeleteChunkSchema()),
+		mcp.NewToolWithRawSchema("delete-chunk", "Remove a specific knowledge chunk from the database using its unique identifier", GetDeleteChunkSchema()),
 		HandleDeleteChunk(ragClient),
 	)
 
-	// 添加搜索工具
+	// Semantic Search Tool
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("search-chunk", "Search chunks with query", GetSearchSchema()),
+		mcp.NewToolWithRawSchema("search-chunks", "Perform semantic search across knowledge chunks using natural language query", GetSearchSchema()),
 		HandleSearch(ragClient),
 	)
 
-	// 添加会话管理工具
-	// mcpServer.AddTool(
-	// 	mcp.NewToolWithRawSchema("create-session", "Create a new chat session", GetCreateSessionSchema()),
-	// 	HandleCreateSession(ragClient),
-	// )
-	// mcpServer.AddTool(
-	// 	mcp.NewToolWithRawSchema("get-session", "Get session details by ID", GetGetSessionSchema()),
-	// 	HandleGetSession(ragClient),
-	// )
-	// mcpServer.AddTool(
-	// 	mcp.NewToolWithRawSchema("list-sessions", "List all chat sessions", GetListSessionsSchema()),
-	// 	HandleListSessions(ragClient),
-	// )
-	// mcpServer.AddTool(
-	// 	mcp.NewToolWithRawSchema("delete-session", "Delete session by ID", GetDeleteSessionSchema()),
-	// 	HandleDeleteSession(ragClient),
-	// )
+	// Intelligent Q&A Tool
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("chat", "Generate contextually relevant responses using RAG system with LLM integration", GetChatSchema()),
+		HandleChat(ragClient),
+	)
 
-	// 添加聊天工具
-	// mcpServer.AddTool(
-	// 	mcp.NewToolWithRawSchema("chat", "Chat with RAG system", GetChatSchema()),
-	// 	HandleChat(ragClient),
-	// )
-	api.LogInfof("start to new rag server and register tools done")
+	api.LogDebugf("new rag client and registe tools done")
 	return mcpServer, nil
 }

@@ -1,17 +1,18 @@
 package rag
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/embedding"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/llm"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/schema"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/textsplitter"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/vectordb"
 	"github.com/distribution/distribution/v3/uuid"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
-	"oras.land/oras-go/pkg/context"
 )
 
 const (
@@ -19,54 +20,62 @@ const (
 	MAX_LIST_DOCUMENT_ROW_COUNT  = 1000
 )
 
-// RAGClient RAG客户端
+// RAGClient represents the RAG (Retrieval-Augmented Generation) client
 type RAGClient struct {
-	config *config.Config
-	// 这里可以添加LLM客户端、向量数据库客户端等
+	config            *config.Config
 	vectordbProvider  vectordb.VectorStoreProvider
 	embeddingProvider embedding.Provider
 	textSplitter      textsplitter.TextSplitter
+	llmProvider       llm.Provider
 }
 
-// NewRAGClient 创建新的RAG客户端
+// NewRAGClient creates a new RAG client instance
 func NewRAGClient(config *config.Config) (*RAGClient, error) {
-	api.LogInfof("create rag client, config: %v", config)
+	api.LogDebugf("create rag client, config: %v", config)
 	ragclient := &RAGClient{
 		config: config,
 	}
-	api.LogInfof("create rag client, text splitter config: %v", config.RAG.Splitter)
+	api.LogDebugf("create rag client, text splitter config: %v", config.RAG.Splitter)
 	textSplitter, err := textsplitter.NewTextSplitter(&config.RAG.Splitter)
 	if err != nil {
 		return nil, fmt.Errorf("create text splitter failed, err: %w", err)
 	}
 	ragclient.textSplitter = textSplitter
 
-	api.LogInfof("create rag client, embedding config: %v", config.Embedding)
+	api.LogDebugf("create rag client, embedding config: %v", config.Embedding)
 	embeddingProvider, err := embedding.NewEmbeddingProvider(ragclient.config.Embedding)
 	if err != nil {
 		return nil, fmt.Errorf("create embedding provider failed, err: %w", err)
 	}
 	ragclient.embeddingProvider = embeddingProvider
 
-	demoVector, err := embeddingProvider.GetEmbedding(context.Background(), "初始化")
+	api.LogDebugf("create rag client, llm config: %v", config.LLM)
+	llmProvider, err := llm.NewLLMProvider(ragclient.config.LLM)
+	if err != nil {
+		return nil, fmt.Errorf("create llm provider failed, err: %w", err)
+	}
+	ragclient.llmProvider = llmProvider
+
+	api.LogDebugf("create rag client, init embedding")
+	demoVector, err := embeddingProvider.GetEmbedding(context.Background(), "initialization")
 	if err != nil {
 		return nil, fmt.Errorf("create init embedding failed, err: %w", err)
 	}
 	dim := len(demoVector)
-	api.LogInfof("init embedding dim: %d", dim)
+	api.LogDebugf("init embedding dim: %d", dim)
 
-	api.LogInfof("create rag client, vector db config: %v", config.VectorDB)
+	api.LogDebugf("create rag client, vector db config: %v", config.VectorDB)
 	provider, err := vectordb.NewVectorDBProvider(&ragclient.config.VectorDB, dim)
 	if err != nil {
 		return nil, fmt.Errorf("create vector store provider failed, err: %w", err)
 	}
 	ragclient.vectordbProvider = provider
 
-	api.LogInfof("create rag client done")
+	api.LogDebugf("create rag client done")
 	return ragclient, nil
 }
 
-// ListChunks 根据知识ID列出文档块，按 DocumentIndex 升序返回
+// ListChunks lists document chunks by knowledge ID, returns in ascending order of DocumentIndex
 func (r *RAGClient) ListChunks() ([]schema.Document, error) {
 	docs, err := r.vectordbProvider.ListDocs(context.Background(), MAX_LIST_DOCUMENT_ROW_COUNT)
 	if err != nil {
@@ -75,7 +84,7 @@ func (r *RAGClient) ListChunks() ([]schema.Document, error) {
 	return docs, nil
 }
 
-// DeleteChunk 删除指定文档块
+// DeleteChunk deletes a specific document chunk
 func (r *RAGClient) DeleteChunk(id string) error {
 	if err := r.vectordbProvider.DeleteDocs(context.Background(), []string{id}); err != nil {
 		return fmt.Errorf("delete chunk failed, err: %w", err)
@@ -83,7 +92,7 @@ func (r *RAGClient) DeleteChunk(id string) error {
 	return nil
 }
 
-func (r *RAGClient) CreateChunkFromText(text string, chunkName string) ([]schema.Document, error) {
+func (r *RAGClient) CreateChunkFromText(text string, title string) ([]schema.Document, error) {
 
 	docs, err := textsplitter.CreateDocuments(r.textSplitter, []string{text}, make([]map[string]any, 0))
 	if err != nil {
@@ -95,9 +104,9 @@ func (r *RAGClient) CreateChunkFromText(text string, chunkName string) ([]schema
 	for chunkIndex, doc := range docs {
 		doc.ID = uuid.Generate().String()
 		doc.Metadata["chunk_index"] = chunkIndex
-		doc.Metadata["chunk_name"] = chunkName
+		doc.Metadata["chunk_title"] = title
 		doc.Metadata["chunk_size"] = len(doc.Content)
-		// handle embedding
+		// Generate embedding for the document
 		embedding, err := r.embeddingProvider.GetEmbedding(context.Background(), doc.Content)
 		if err != nil {
 			return nil, fmt.Errorf("create embedding failed, err: %w", err)
@@ -114,7 +123,7 @@ func (r *RAGClient) CreateChunkFromText(text string, chunkName string) ([]schema
 	return results, nil
 }
 
-// search 搜索文档块
+// SearchChunks searches for document chunks
 func (r *RAGClient) SearchChunks(query string, topK int, threshold float64) ([]schema.SearchResult, error) {
 
 	vector, err := r.embeddingProvider.GetEmbedding(context.Background(), query)
@@ -125,10 +134,32 @@ func (r *RAGClient) SearchChunks(query string, topK int, threshold float64) ([]s
 		TopK:      topK,
 		Threshold: threshold,
 	}
-
 	docs, err := r.vectordbProvider.SearchDocs(context.Background(), vector, options)
 	if err != nil {
 		return nil, fmt.Errorf("search chunks failed, err: %w", err)
 	}
 	return docs, nil
+}
+
+// Chat generates a response using LLM
+func (r *RAGClient) Chat(query string) (string, error) {
+	if r.llmProvider == nil {
+		return "", fmt.Errorf("llm provider not initialized")
+	}
+
+	docs, err := r.SearchChunks(query, r.config.RAG.TopK, r.config.RAG.Threshold)
+	if err != nil {
+		return "", fmt.Errorf("search chunks failed, err: %w", err)
+	}
+
+	contexts := make([]string, 0, len(docs))
+	for _, doc := range docs {
+		contexts = append(contexts, doc.Document.Content)
+	}
+	prompt := llm.BuildPrompt(query, contexts, "\n\n")
+	resp, err := r.llmProvider.GenerateCompletion(context.Background(), prompt)
+	if err != nil {
+		return "", fmt.Errorf("generate completion failed, err: %w", err)
+	}
+	return resp, nil
 }

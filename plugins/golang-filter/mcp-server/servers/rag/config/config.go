@@ -3,14 +3,16 @@ package config
 // Config 是整个MCP服务器的配置结构
 type Config struct {
 	RAG       RAGConfig       `json:"rag" yaml:"rag"`
+	LLM       LLMConfig       `json:"llm" yaml:"llm"`
 	Embedding EmbeddingConfig `json:"embedding" yaml:"embedding"`
 	VectorDB  VectorDBConfig  `json:"vectordb" yaml:"vectordb"`
 }
 
 // RAGConfig RAG系统基础配置
 type RAGConfig struct {
-	Splitter   SplitterConfig `json:"splitter" yaml:"splitter"`
-	MaxResults int            `json:"max_results,omitempty" yaml:"max_results,omitempty"`
+	Splitter  SplitterConfig `json:"splitter" yaml:"splitter"`
+	Threshold float64        `json:"threshold,omitempty" yaml:"threshold,omitempty"`
+	TopK      int            `json:"top_k,omitempty" yaml:"top_k,omitempty"`
 }
 
 // SplitterConfig 文档分块器配置

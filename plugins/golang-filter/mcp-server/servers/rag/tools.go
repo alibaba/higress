@@ -9,45 +9,46 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// HandleCreateKnowledgeFromText 处理从文本创建知识
-func HandleCreateKnowledgeFromText(ragClient *RAGClient) common.ToolHandlerFunc {
+// HandleCreateChunkFromText handles the creation of knowledge chunks from text input
+func HandleCreateChunkFromText(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
-		text, ok := arguments["text"].(string)
-		if !ok {
+		text, ok1 := arguments["text"].(string)
+		title, ok2 := arguments["title"].(string)
+		if !ok1 {
 			return nil, fmt.Errorf("invalid text argument")
 		}
+		if !ok2 {
+			return nil, fmt.Errorf("invalid title argument")
+		}
+		// Create knowledge chunks
+		docs, err := ragClient.CreateChunkFromText(text, title)
+		if err != nil {
+			return nil, fmt.Errorf("create chunk failed, err: %w", err)
+		}
 
-		// TODO: 实现从文本创建知识的逻辑
 		result := map[string]interface{}{
 			"success": true,
-			"message": "Knowledge created from text",
-			"id":      "knowledge-1",
-			"text":    text,
+			"message": fmt.Sprintf("chunks created from text, title: %s", title),
+			"data":    docs,
 		}
 
 		return buildCallToolResult(result)
 	}
 }
 
-// HandleListChunks 处理列出知识块
+// HandleListChunks handles the listing of knowledge chunks
 func HandleListChunks(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		chunks, err := ragClient.ListChunks()
 		if err != nil {
 			return nil, fmt.Errorf("list chunks failed, err: %w", err)
 		}
-
-		result := map[string]interface{}{
-			"chunks": chunks,
-			"total":  len(chunks),
-		}
-
-		return buildCallToolResult(result)
+		return buildCallToolResult(chunks)
 	}
 }
 
-// HandleDeleteChunk 处理删除知识块
+// HandleDeleteChunk handles the deletion of a knowledge chunk
 func HandleDeleteChunk(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -62,18 +63,17 @@ func HandleDeleteChunk(ragClient *RAGClient) common.ToolHandlerFunc {
 
 		result := map[string]interface{}{
 			"success": true,
-			"message": "Chunk deleted",
-			"id":      id,
+			"message": fmt.Sprintf("chunk deleted, id: %s", id),
 		}
 
 		return buildCallToolResult(result)
 	}
 }
 
-// HandleCreateSession 处理创建聊天会话
+// HandleCreateSession handles the creation of a chat session
 func HandleCreateSession(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// TODO: 实现创建聊天会话的逻辑
+		// TODO: Implement chat session creation logic
 		result := map[string]interface{}{
 			"session_id": "session-1",
 			"created_at": "2024-01-01T00:00:00Z",
@@ -83,7 +83,7 @@ func HandleCreateSession(ragClient *RAGClient) common.ToolHandlerFunc {
 	}
 }
 
-// HandleGetSession 处理获取会话详情
+// HandleGetSession handles retrieving session details
 func HandleGetSession(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -92,7 +92,7 @@ func HandleGetSession(ragClient *RAGClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid session_id argument")
 		}
 
-		// TODO: 实现获取会话详情的逻辑
+		// TODO: Implement session details retrieval logic
 		result := map[string]interface{}{
 			"session_id": sessionId,
 			"messages":   []interface{}{},
@@ -102,10 +102,10 @@ func HandleGetSession(ragClient *RAGClient) common.ToolHandlerFunc {
 	}
 }
 
-// HandleListSessions 处理列出会话
+// HandleListSessions handles listing all sessions
 func HandleListSessions(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// TODO: 实现列出会话的逻辑
+		// TODO: Implement session listing logic
 		result := map[string]interface{}{
 			"sessions": []interface{}{},
 			"total":    0,
@@ -115,7 +115,7 @@ func HandleListSessions(ragClient *RAGClient) common.ToolHandlerFunc {
 	}
 }
 
-// HandleDeleteSession 处理删除会话
+// HandleDeleteSession handles the deletion of a session
 func HandleDeleteSession(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -124,7 +124,7 @@ func HandleDeleteSession(ragClient *RAGClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid session_id argument")
 		}
 
-		// TODO: 实现删除会话的逻辑
+		// TODO: Implement session deletion logic
 		result := map[string]interface{}{
 			"success":    true,
 			"message":    "Session deleted",
@@ -135,7 +135,7 @@ func HandleDeleteSession(ragClient *RAGClient) common.ToolHandlerFunc {
 	}
 }
 
-// HandleSearch 处理搜索
+// HandleSearch handles semantic search functionality
 func HandleSearch(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
@@ -145,46 +145,37 @@ func HandleSearch(ragClient *RAGClient) common.ToolHandlerFunc {
 		}
 		topK, ok := arguments["topk"].(int)
 		if !ok {
-			topK = 10
+			topK = ragClient.config.RAG.TopK
 		}
 
 		threshold, ok := arguments["threshold"].(float64)
 		if !ok {
-			threshold = 0.5
+			threshold = ragClient.config.RAG.Threshold
 		}
 
 		searchResult, err := ragClient.SearchChunks(query, int(topK), threshold)
 		if err != nil {
 			return nil, fmt.Errorf("search chunks failed, err: %w", err)
 		}
-
-		// TODO: 实现搜索的逻辑
-		result := map[string]interface{}{
-			"results": searchResult,
-			"total":   len(searchResult),
-			"query":   query,
-		}
-
-		return buildCallToolResult(result)
+		return buildCallToolResult(searchResult)
 	}
 }
 
-// HandleChat 处理聊天
+// HandleChat handles chat interactions using LLM
 func HandleChat(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		arguments := request.Params.Arguments
-		message, ok := arguments["message"].(string)
+		query, ok := arguments["query"].(string)
 		if !ok {
-			return nil, fmt.Errorf("invalid message argument")
+			return nil, fmt.Errorf("invalid query argument")
+		}
+		// Generate response using RAGClient's LLM
+		reply, err := ragClient.Chat(query)
+		if err != nil {
+			return nil, fmt.Errorf("chat failed, err: %w", err)
 		}
 
-		// TODO: 实现聊天的逻辑
-		result := map[string]interface{}{
-			"response": "This is a sample response from RAG system",
-			"message":  message,
-		}
-
-		return buildCallToolResult(result)
+		return buildCallToolResult(reply)
 	}
 }
 
@@ -214,10 +205,14 @@ func GetCreateChunkFromTextSchema() json.RawMessage {
 		"properties": {
 			"text": {
 				"type": "string",
-				"description": "The text content to create knowledge from"
+				"description": "The text content to create chunks from"
+			},
+			"title": {
+				"type": "string",
+				"description": "The title of text content"
 			}
 		},
-		"required": ["text"]
+		"required": ["text", "title"]
 	}`)
 }
 
@@ -350,15 +345,11 @@ func GetChatSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
 		"properties": {
-			"message": {
+			"query": {
 				"type": "string",
-				"description": "The chat message"
-			},
-			"session_id": {
-				"type": "string",
-				"description": "The session ID (optional)"
+				"description": "User query"
 			}
 		},
-		"required": ["message"]
+		"required": ["query"]
 	}`)
 }
