@@ -22,8 +22,6 @@ var dashScopeConfig dashScopeProviderConfig
 type dashScopeProviderInitializer struct {
 }
 type dashScopeProviderConfig struct {
-	// @Title zh-CN 文本特征提取服务 API Key
-	// @Description zh-CN 文本特征提取服务 API Key
 	apiKey string
 	model  string
 }
@@ -47,7 +45,6 @@ func (c *dashScopeProviderInitializer) CreateProvider(config config.EmbeddingCon
 		return nil, err
 	}
 
-	// 创建HTTP客户端
 	headers := map[string]string{
 		"Authorization": "Bearer " + config.APIKey,
 		"Content-Type":  "application/json",
@@ -149,25 +146,21 @@ func (d *DashScopeProvider) parseTextEmbedding(responseBody []byte) (*Response, 
 func (d *DashScopeProvider) GetEmbedding(
 	ctx context.Context,
 	queryString string) ([]float32, error) {
-	// 构造请求数据
 	requestData, err := d.constructRequestData([]string{queryString})
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct request data: %v", err)
 	}
 
-	// 发送POST请求
 	responseBody, err := d.client.Post(DASHSCOPE_ENDPOINT, requestData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %v", err)
 	}
 
-	// 解析响应
 	embeddingResp, err := d.parseTextEmbedding(responseBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
-	// 检查是否有embedding结果
 	if len(embeddingResp.Output.Embeddings) == 0 {
 		return nil, errors.New("no embedding found in response")
 	}

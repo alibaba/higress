@@ -3,10 +3,6 @@ package schema
 import "time"
 
 const (
-	META_KNOWLEDGE_ID     = "knowledge_id"
-	META_KNOWLEDGE_SOURCE = "knowledge_source"
-	META_KNOWLEDGE_TITLE  = "knowledge_title"
-
 	DEFAULT_KNOWLEDGE_COLLECTION = "knowledge"
 	DEFAULT_DOCUMENT_COLLECTION  = "document"
 )
@@ -20,6 +16,7 @@ type Document struct {
 	CreatedAt time.Time              `json:"created_at"`
 }
 
+// SearchResult represents a result from a vector search
 type SearchResult struct {
 	Document Document `json:"document"`
 	Score    float64  `json:"score"`

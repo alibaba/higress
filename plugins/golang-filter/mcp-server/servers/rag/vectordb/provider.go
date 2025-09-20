@@ -42,6 +42,7 @@ type VectorStoreProvider interface {
 	// DeleteDocs deletes documents by IDs from the vector store
 	DeleteDocs(ctx context.Context, ids []string) error
 
+	// ListDocs lists documents in the vector store
 	ListDocs(ctx context.Context, limit int) ([]schema.Document, error)
 
 	// GetProviderType returns the type of the vector store provider

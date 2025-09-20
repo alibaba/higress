@@ -14,11 +14,20 @@ func getRAGClient() (*RAGClient, error) {
 				ChunkSize:    200,
 				ChunkOverlap: 20,
 			},
+			Threshold: 0.5,
+			TopK:      10,
+		},
+
+		LLM: config.LLMConfig{
+			Provider: "openai",
+			APIKey:   "sk-xxxx",
+			BaseURL:  "https://openrouter.ai/api/v1",
+			Model:    "openai/gpt-4o",
 		},
 
 		Embedding: config.EmbeddingConfig{
 			Provider: "dashscope",
-			APIKey:   "sk-0d9dd773c0e24c169b113d10f46656ca",
+			APIKey:   "sk-xxxx",
 			Model:    "text-embedding-v4",
 		},
 
@@ -46,7 +55,6 @@ func TestNewRAGClient(t *testing.T) {
 		t.Errorf("getRAGClient() error = %v", err)
 		return
 	}
-
 }
 
 func TestRAGClient_CreateChunkFromText(t *testing.T) {
@@ -121,4 +129,22 @@ func TestRAGClient_SearchChunks(t *testing.T) {
 		return
 	}
 
+}
+
+func TestRAGClient_Chat(t *testing.T) {
+	ragClient, err := getRAGClient()
+	if err != nil {
+		t.Errorf("getRAGClient() error = %v", err)
+		return
+	}
+	query := "what is the competition about?"
+	resp, err := ragClient.Chat(query)
+	if err != nil {
+		t.Errorf("Chat() error = %v", err)
+		return
+	}
+	if resp == "" {
+		t.Errorf("Chat() resp = %s, want not empty", resp)
+		return
+	}
 }

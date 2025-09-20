@@ -3,6 +3,7 @@ package rag
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
@@ -12,7 +13,6 @@ import (
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/textsplitter"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/vectordb"
 	"github.com/distribution/distribution/v3/uuid"
-	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 const (
@@ -31,47 +31,39 @@ type RAGClient struct {
 
 // NewRAGClient creates a new RAG client instance
 func NewRAGClient(config *config.Config) (*RAGClient, error) {
-	api.LogDebugf("create rag client, config: %v", config)
 	ragclient := &RAGClient{
 		config: config,
 	}
-	api.LogDebugf("create rag client, text splitter config: %v", config.RAG.Splitter)
 	textSplitter, err := textsplitter.NewTextSplitter(&config.RAG.Splitter)
 	if err != nil {
 		return nil, fmt.Errorf("create text splitter failed, err: %w", err)
 	}
 	ragclient.textSplitter = textSplitter
 
-	api.LogDebugf("create rag client, embedding config: %v", config.Embedding)
 	embeddingProvider, err := embedding.NewEmbeddingProvider(ragclient.config.Embedding)
 	if err != nil {
 		return nil, fmt.Errorf("create embedding provider failed, err: %w", err)
 	}
 	ragclient.embeddingProvider = embeddingProvider
 
-	api.LogDebugf("create rag client, llm config: %v", config.LLM)
 	llmProvider, err := llm.NewLLMProvider(ragclient.config.LLM)
 	if err != nil {
 		return nil, fmt.Errorf("create llm provider failed, err: %w", err)
 	}
 	ragclient.llmProvider = llmProvider
 
-	api.LogDebugf("create rag client, init embedding")
 	demoVector, err := embeddingProvider.GetEmbedding(context.Background(), "initialization")
 	if err != nil {
 		return nil, fmt.Errorf("create init embedding failed, err: %w", err)
 	}
 	dim := len(demoVector)
-	api.LogDebugf("init embedding dim: %d", dim)
 
-	api.LogDebugf("create rag client, vector db config: %v", config.VectorDB)
 	provider, err := vectordb.NewVectorDBProvider(&ragclient.config.VectorDB, dim)
 	if err != nil {
 		return nil, fmt.Errorf("create vector store provider failed, err: %w", err)
 	}
 	ragclient.vectordbProvider = provider
 
-	api.LogDebugf("create rag client done")
 	return ragclient, nil
 }
 
@@ -154,8 +146,9 @@ func (r *RAGClient) Chat(query string) (string, error) {
 
 	contexts := make([]string, 0, len(docs))
 	for _, doc := range docs {
-		contexts = append(contexts, doc.Document.Content)
+		contexts = append(contexts, strings.ReplaceAll(doc.Document.Content, "\n", " "))
 	}
+
 	prompt := llm.BuildPrompt(query, contexts, "\n\n")
 	resp, err := r.llmProvider.GenerateCompletion(context.Background(), prompt)
 	if err != nil {

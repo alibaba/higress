@@ -6,7 +6,6 @@ import (
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
-	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -57,7 +56,6 @@ func init() {
 }
 
 func (c *RAGConfig) ParseConfig(config map[string]any) error {
-	api.LogDebugf("start to parse RAG raw config %v", config)
 	// Parse RAG configuration
 	if ragConfig, ok := config["rag"].(map[string]any); ok {
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
@@ -128,12 +126,10 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		}
 	}
 
-	api.LogDebugf("RAG raw config ParseConfig Done: %+v", c.config)
 	return nil
 }
 
 func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
-	api.LogDebugf("start to new rag client and registe tools")
 	mcpServer := common.NewMCPServer(
 		serverName,
 		Version,
@@ -174,6 +170,5 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 		HandleChat(ragClient),
 	)
 
-	api.LogDebugf("new rag client and registe tools done")
 	return mcpServer, nil
 }

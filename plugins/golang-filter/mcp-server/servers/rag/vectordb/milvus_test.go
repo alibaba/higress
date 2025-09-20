@@ -6,9 +6,6 @@ import (
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
 )
 
-// TestNewMilvusProvider verifies that NewMilvusProvider returns an error when the
-// Milvus server is not reachable. This keeps the unit test self-contained and
-// avoids needing a real Milvus instance running during CI.
 func TestNewMilvusProvider(t *testing.T) {
 	_, err := getMilvusProvider()
 	if err != nil {
