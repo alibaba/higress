@@ -66,13 +66,17 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 				if !endStream {
 					return api.StopAndBuffer
 				}
+				api.LogDebugf("RAGtools/list: host: %s path:%s", f.host, f.path)
+				api.LogDebugf("RAGtools/list: DecodeData Message request body: %s", string(buffer.Bytes()))
 				// Create a response recorder to capture the response
 				recorder := httptest.NewRecorder()
 				// Call the handleMessage method of SSEServer with complete body
 				httpStatus := server.BaseServer.HandleMessage(recorder, f.req, buffer.Bytes())
+				api.LogDebugf("RAGtools/list: DecodeData Message httpStatus:%d", httpStatus)
+				api.LogDebugf("RAGtools/list: DecodeData Message response body: %s", recorder.Body.String())
 				f.message = false
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), recorder.Header(), 0, "")
-				return api.LocalReply
+				api.LogDebugf("RAGtools/list: DecodeData Message SendLocalReply")
 			}
 		}
 	}

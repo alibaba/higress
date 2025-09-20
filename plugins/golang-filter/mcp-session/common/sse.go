@@ -225,6 +225,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 			w.WriteHeader(http.StatusOK)
 			status = http.StatusOK
 		}
+		api.LogDebugf("RAGtools/list: SSE handleMessage: response status:%d", status)
 		// Send HTTP response
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
