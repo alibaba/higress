@@ -226,8 +226,8 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 			status = http.StatusOK
 		}
 		api.LogDebugf("RAGtools/list: SSE handleMessage: response status:%d", status)
-		w.Header().Set("Content-Type", "application/json")
 		// Send HTTP response
+		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
 	} else {
 		// For notifications, just send 202 Accepted with no body

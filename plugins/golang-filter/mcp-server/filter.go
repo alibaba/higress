@@ -77,6 +77,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 				f.message = false
 				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), recorder.Header(), 0, "")
 				api.LogDebugf("RAGtools/list: DecodeData Message SendLocalReply")
+				return api.LocalReply
 			}
 		}
 	}
