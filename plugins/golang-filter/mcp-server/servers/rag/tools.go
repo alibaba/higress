@@ -269,7 +269,7 @@ func GetListChunksSchema() json.RawMessage {
 func GetDeleteChunkSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
-		"properties": {}
+		"properties": {
 			"id": {
 				"type": "string",
 				"description": "The chunk ID to delete"
@@ -331,14 +331,14 @@ func GetSearchSchema() json.RawMessage {
 			"query": {
 				"type": "string",
 				"description": "The search query"
-			}，
+			},
 			"topk": {
                 "type": "integer",
-               "description": "The number of top results to return (optional, default 10)"
+                "description": "The number of top results to return (optional, default 10)"
             },
             "threshold": {
-               "type": "number",
-               "description": "The relevance score threshold for filtering results (optional, default 0.5)"
+                "type": "number",
+                "description": "The relevance score threshold for filtering results (optional, default 0.5)"
             }
 		},
 		"required": ["query"]

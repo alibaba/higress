@@ -217,8 +217,6 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
-		//  修复：先设置Header，再WriteHeader
-		w.Header().Set("Content-Type", "application/json")
 		if sessionID != "" {
 			w.WriteHeader(http.StatusAccepted)
 			status = http.StatusAccepted
@@ -228,6 +226,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 			status = http.StatusOK
 		}
 		api.LogDebugf("RAGtools/list: SSE handleMessage: response status:%d", status)
+		w.Header().Set("Content-Type", "application/json")
 		// Send HTTP response
 		json.NewEncoder(w).Encode(response)
 	} else {
