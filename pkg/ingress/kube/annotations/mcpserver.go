@@ -17,8 +17,8 @@ package annotations
 import (
 	"strings"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
-	"github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 const (

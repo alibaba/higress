@@ -20,7 +20,7 @@ import (
 
 	"istio.io/pkg/log"
 
-	"github.com/alibaba/higress/pkg/cmd"
+	"github.com/alibaba/higress/v2/pkg/cmd"
 )
 
 func main() {

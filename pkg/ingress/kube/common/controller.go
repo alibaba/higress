@@ -26,9 +26,9 @@ import (
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/cert"
-	"github.com/alibaba/higress/pkg/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/cert"
+	"github.com/alibaba/higress/v2/pkg/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
 )
 
 type ServiceKey struct {
