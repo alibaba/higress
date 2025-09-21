@@ -98,7 +98,7 @@ func GetQueryToolSchema() json.RawMessage {
 	{
 		"type": "object",
 		"properties": {
-		"sql": { 
+		"sql": {
 				"type": "string",
 				"description": "The sql query to execute"
 			}
@@ -113,7 +113,7 @@ func GetExecuteToolSchema() json.RawMessage {
 	{
 		"type": "object",
 		"properties": {
-		"sql": { 
+		"sql": {
 				"type": "string",
 				"description": "The sql to execute"
 			}
@@ -128,7 +128,7 @@ func GetDescribeTableToolSchema() json.RawMessage {
 	{
 		"type": "object",
 		"properties": {
-		"table": { 
+		"table": {
 				"type": "string",
 				"description": "table name"
 			}

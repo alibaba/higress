@@ -28,7 +28,7 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/config"
 )
 
 // RoundTripper is an interface used to make requests within conformance tests.
