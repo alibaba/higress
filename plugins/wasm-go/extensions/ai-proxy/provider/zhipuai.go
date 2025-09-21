@@ -6,14 +6,15 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 const (
-	zhipuAiDomain             = "open.bigmodel.cn"
-	zhipuAiChatCompletionPath = "/api/paas/v4/chat/completions"
-	zhipuAiEmbeddingsPath     = "/api/paas/v4/embeddings"
+	zhipuAiDomain                = "open.bigmodel.cn"
+	zhipuAiChatCompletionPath    = "/api/paas/v4/chat/completions"
+	zhipuAiEmbeddingsPath        = "/api/paas/v4/embeddings"
+	zhipuAiAnthropicMessagesPath = "/api/anthropic/v1/messages"
 )
 
 type zhipuAiProviderInitializer struct{}
@@ -29,6 +30,7 @@ func (m *zhipuAiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		string(ApiNameChatCompletion): zhipuAiChatCompletionPath,
 		string(ApiNameEmbeddings):     zhipuAiEmbeddingsPath,
+		// string(ApiNameAnthropicMessages): zhipuAiAnthropicMessagesPath,
 	}
 }
 
@@ -74,6 +76,9 @@ func (m *zhipuAiProvider) GetApiName(path string) ApiName {
 	}
 	if strings.Contains(path, zhipuAiEmbeddingsPath) {
 		return ApiNameEmbeddings
+	}
+	if strings.Contains(path, zhipuAiAnthropicMessagesPath) {
+		return ApiNameAnthropicMessages
 	}
 	return ""
 }

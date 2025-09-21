@@ -7,9 +7,11 @@ toolchain go1.24.4
 require (
 	github.com/higress-group/oauth2-proxy v1.0.1-0.20250702092041-8932d225759a
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
-	github.com/higress-group/wasm-go v1.0.0
+	github.com/higress-group/wasm-go v1.0.2-0.20250911113549-cbf1cfcce774
 	github.com/tidwall/gjson v1.18.0
 )
+
+require github.com/tidwall/sjson v1.2.5 // indirect
 
 require (
 	github.com/benbjohnson/clock v1.3.5 // indirect

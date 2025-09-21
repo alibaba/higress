@@ -93,6 +93,7 @@ type Request struct {
 	Method           string
 	Path             string
 	Headers          map[string]string
+	RawHeaders       http.Header
 	Body             []byte
 	ContentType      string
 	UnfollowRedirect bool
@@ -236,6 +237,14 @@ func MakeRequestAndExpectEventuallyConsistentResponse(t *testing.T, r roundtripp
 			vals := strings.Split(value, ",")
 			for _, val := range vals {
 				req.Headers[name] = append(req.Headers[name], strings.TrimSpace(val))
+			}
+		}
+	}
+
+	if expected.Request.ActualRequest.RawHeaders != nil {
+		for name, values := range expected.Request.ActualRequest.RawHeaders {
+			for _, value := range values {
+				req.Headers[name] = append(req.Headers[name], strings.TrimSpace(value))
 			}
 		}
 	}
@@ -755,7 +764,7 @@ func (er *Assertion) GetTestCaseName(i int) string {
 	headerStr := ""
 	reqStr := ""
 
-	if er.Request.ActualRequest.Headers != nil {
+	if er.Request.ActualRequest.Headers != nil || er.Request.ActualRequest.RawHeaders != nil {
 		headerStr = " with headers"
 	}
 

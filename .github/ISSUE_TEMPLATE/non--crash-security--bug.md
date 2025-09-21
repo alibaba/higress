@@ -35,9 +35,15 @@ Just paste your stack trace here!
 
 ### Ⅴ. Anything else we need to know?
 
+> It is recommended to provided Higress runtime logs and configurations for us to investigate your issue, especially for controller and gateway components.
+> 
+> Please checkout following documents on how to obtain these data.
+> - https://higress.cn/docs/latest/ops/how-tos/view-logs/
+> - https://higress.cn/docs/latest/ops/how-tos/view-configs/
+
 
 ### Ⅵ. Environment:
 
 - Higress version:  
-- OS :
-- Others:
+- OS: 
+- Others: 

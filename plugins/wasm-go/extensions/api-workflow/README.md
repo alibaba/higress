@@ -373,12 +373,12 @@ curl  -v '127.0.0.1:8080'  -H 'Accept: application/json, text/event-stream'  -H 
 [api-workflow] workflow exec task,source is start,target is A, body is {"input":{"texts":["higress项目主仓库的github地址是什么"]},"model":"text-embedding-v2","parameters":{"text_type":"query"}},header is [[Authorization Bearer sk-b98f4628125xxxxxxxxxxxxxxxx] [Content-Type application/json]]
 [api-workflow] workflow exec task,source is start,target is B, body is {"embeddings":"default","msg":"default request body","sk":"sk-xxxxxx"},header is [[AK ak-xxxxxxxxxxxxxxxxxxxx] [Content-Type application/json]]
 [api-workflow] workflow exec task,source is start,target is C, body is ,header is []
-[api-workflow] source is B,target is D,stauts is map[A:0 B:0 C:0 D:2 E:1]
-[api-workflow] source is C,target is D,stauts is map[A:0 B:0 C:0 D:1 E:1]
-[api-workflow] source is A,target is D,stauts is map[A:0 B:0 C:0 D:0 E:1]
+[api-workflow] source is B,target is D,status is map[A:0 B:0 C:0 D:2 E:1]
+[api-workflow] source is C,target is D,status is map[A:0 B:0 C:0 D:1 E:1]
+[api-workflow] source is A,target is D,status is map[A:0 B:0 C:0 D:0 E:1]
 [api-workflow] workflow exec task,source is A,target is D, body is,header is []
 [api-workflow] source is D,target is end,workflow is pass
-[api-workflow] source is D,target is E,stauts is map[A:0 B:0 C:0 D:0 E:0]
+[api-workflow] source is D,target is E,status is map[A:0 B:0 C:0 D:0 E:0]
 [api-workflow] workflow exec task,source is D,target is E, body is {"save":"{\"A_result\":0.007155838584362588,\"B_result\":\"this is b\",\"C_result\":\"this is c\"}"},header is [] 
 [api-workflow] source is E,target is end,workflow is end
 ```

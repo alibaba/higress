@@ -128,5 +128,5 @@ Please note that you need to replace `"key":"value"` with the actual data conten
  - In streaming mode, if the masked words are split across multiple chunks, restoration may not be possible
  - In streaming mode, if sensitive words are split across multiple chunks, there may be cases where part of the sensitive word is returned to the user
  - Grok built-in rule list: https://help.aliyun.com/zh/sls/user-guide/grok-patterns
- - Built-in sensitive word library data source: https://github.com/houbb/sensitive-word/tree/master/src/main/resources
+ - Built-in sensitive word library data source: https://github.com/houbb/sensitive-word-data/tree/main/src/main/resources
  - Since the sensitive word list is matched after tokenizing the text, please set `deny_words` to single words. In the case of multiple words in English, such as `hello world`, the match may not be successful.

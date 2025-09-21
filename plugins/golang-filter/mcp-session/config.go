@@ -64,7 +64,7 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 		redisClient, err := common.NewRedisClient(redisConfig)
 		if err != nil {
-			api.LogErrorf("Failed to initialize Redis client: %w", err)
+			api.LogErrorf("Failed to initialize Redis client: %v", err)
 		} else {
 			api.LogDebug("Redis client initialized")
 		}

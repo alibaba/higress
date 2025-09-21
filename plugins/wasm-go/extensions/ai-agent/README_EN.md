@@ -283,7 +283,7 @@ apis:
 This example configures three services demonstrating both GET and POST types of tools. The GET type tools include Amap and XZWeather, while the POST type tool is the DeepL translation. All three services need to be properly configured in the Higress service with DNS domain names and should be healthy.  
 Amap provides two tools, one for obtaining the coordinates of a specified location and the other for searching for points of interest near the coordinates. Document: https://lbs.amap.com/api/webservice/guide/api-advanced/newpoisearch  
 XZWeather provides one tool to get real-time weather conditions for a specified city, supporting results in Chinese, English, and Japanese, as well as representations in Celsius and Fahrenheit. Document: https://seniverse.yuque.com/hyper_data/api_v3/nyiu3t  
-DeepL provides one tool for translating given sentences, supporting multiple languages. Document: https://developers.deepl.com/docs/v/zh/api-reference/translate?fallback=true  
+DeepL provides one tool for translating given sentences, supporting multiple languages. Document: https://developers.deepl.com/api-reference/translate/request-translation  
 
 Below are test cases. For stability, it is recommended to maintain a stable version of the large model. The example used here is qwen-max-0403:  
 **Request Example**  

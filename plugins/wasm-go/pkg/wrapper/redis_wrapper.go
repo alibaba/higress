@@ -143,7 +143,7 @@ func RedisCall(cluster Cluster, respQuery []byte, callback RedisResponseCallback
 			response, err := proxywasm.GetRedisCallResponse(0, responseSize)
 			var responseValue resp.Value
 			if status != 0 {
-				proxywasm.LogCriticalf("Error occured while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
+				proxywasm.LogCriticalf("Error occurred while calling redis, it seems cannot connect to the redis cluster. request-id: %s", requestID)
 				responseValue = resp.ErrorValue(fmt.Errorf("cannot connect to redis cluster"))
 			} else {
 				if err != nil {

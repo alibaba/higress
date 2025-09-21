@@ -156,7 +156,7 @@ class TickFuncEntry {
 
 var globalOnTickFuncs = new Array<TickFuncEntry>();
 
-export function RegisteTickFunc(tickPeriod: i64, tickFunc: () => void): void {
+export function RegisterTickFunc(tickPeriod: i64, tickFunc: () => void): void {
   globalOnTickFuncs.push(new TickFuncEntry(0, tickPeriod, tickFunc));
 }
 

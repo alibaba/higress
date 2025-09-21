@@ -243,7 +243,7 @@ class RouteRuleMatcher {
     std::string route_name;
     getValue({"route_name"}, &route_name);
     std::string service_name;
-    getValue({"service_name"}, &service_name);
+    getValue({"cluster_name"}, &service_name);
     std::optional<std::reference_wrapper<PluginConfig>> match_config;
     std::optional<std::reference_wrapper<std::unordered_set<std::string>>>
         allow_set;

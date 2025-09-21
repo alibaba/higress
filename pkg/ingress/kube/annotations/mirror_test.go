@@ -15,12 +15,13 @@
 package annotations
 
 import (
+	"reflect"
+	"testing"
+
 	"github.com/alibaba/higress/pkg/ingress/kube/util"
 	"github.com/golang/protobuf/proto"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pilot/pkg/model"
-	"reflect"
-	"testing"
 )
 
 func TestParseMirror(t *testing.T) {
@@ -29,6 +30,28 @@ func TestParseMirror(t *testing.T) {
 		expect *MirrorConfig
 	}{
 		{},
+		{
+			input: []map[string]string{
+				{buildHigressAnnotationKey(mirrorTargetFQDN): "www.example.com"},
+				{buildNginxAnnotationKey(mirrorTargetFQDN): "www.example.com"},
+			},
+			expect: &MirrorConfig{
+				ServiceInfo: util.ServiceInfo{},
+				FQDN:        "www.example.com",
+				FPort:       80,
+			},
+		},
+		{
+			input: []map[string]string{
+				{buildHigressAnnotationKey(mirrorTargetFQDN): "192.168.252.112", buildHigressAnnotationKey(mirrorTargetFQDNPort): "8080"},
+				{buildNginxAnnotationKey(mirrorTargetFQDN): "192.168.252.112", buildNginxAnnotationKey(mirrorTargetFQDNPort): "8080"},
+			},
+			expect: &MirrorConfig{
+				ServiceInfo: util.ServiceInfo{},
+				FQDN:        "192.168.252.112",
+				FPort:       8080,
+			},
+		},
 		{
 			input: []map[string]string{
 				{buildHigressAnnotationKey(mirrorTargetService): "test/app"},
@@ -143,6 +166,42 @@ func TestMirror_ApplyRoute(t *testing.T) {
 			expect: &networking.HTTPRoute{
 				Mirror: &networking.Destination{
 					Host: "test.default.svc.cluster.local",
+					Port: &networking.PortSelector{
+						Number: 8080,
+					},
+				},
+			},
+		},
+		{
+			config: &Ingress{
+				Mirror: &MirrorConfig{
+					ServiceInfo: util.ServiceInfo{},
+					FQDN:        "www.example.com",
+					FPort:       80,
+				},
+			},
+			input: &networking.HTTPRoute{},
+			expect: &networking.HTTPRoute{
+				Mirror: &networking.Destination{
+					Host: "www.example.com",
+					Port: &networking.PortSelector{
+						Number: 80,
+					},
+				},
+			},
+		},
+		{
+			config: &Ingress{
+				Mirror: &MirrorConfig{
+					ServiceInfo: util.ServiceInfo{},
+					FQDN:        "192.168.252.112",
+					FPort:       8080,
+				},
+			},
+			input: &networking.HTTPRoute{},
+			expect: &networking.HTTPRoute{
+				Mirror: &networking.Destination{
+					Host: "192.168.252.112",
 					Port: &networking.PortSelector{
 						Number: 8080,
 					},

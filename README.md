@@ -17,11 +17,14 @@
 </div>
 
 [**Official Site**](https://higress.ai/en/) &nbsp; |
+&nbsp; [**Docs**](https://higress.cn/en/docs/latest/overview/what-is-higress/) &nbsp; |
+&nbsp; [**Blog**](https://higress.cn/en/blog/) &nbsp; |
 &nbsp; [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/) &nbsp; |
+&nbsp; [**Developer Guide**](https://higress.cn/en/docs/latest/dev/architecture/) &nbsp; |
 &nbsp; [**Wasm Plugin Hub**](https://higress.cn/en/plugin/) &nbsp; |
 
 <p>
-   English | <a href="README_ZH.md">中文<a/> | <a href="README_JP.md">日本語<a/>
+   English | <a href="README_ZH.md">中文</a> | <a href="README_JP.md">日本語</a>
 </p>
 
 ## What is Higress?
