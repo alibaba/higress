@@ -13,6 +13,9 @@ type RuleType string
 // UpstreamType defines the type of matching rule
 type UpstreamType string
 
+// HostMatchType defines the type of host matching
+type HostMatchType int
+
 const (
 	ExactMatch    RuleType = "exact"
 	PrefixMatch   RuleType = "prefix"
@@ -23,7 +26,17 @@ const (
 	RestUpstream       UpstreamType = "rest"
 	SSEUpstream        UpstreamType = "sse"
 	StreamableUpstream UpstreamType = "streamable"
+
+	HostExact HostMatchType = iota
+	HostPrefix
+	HostSuffix
 )
+
+// HostMatcher defines the structure for host matching
+type HostMatcher struct {
+	matchType HostMatchType
+	host      string
+}
 
 // MatchRule defines the structure for a matching rule
 type MatchRule struct {
@@ -33,6 +46,7 @@ type MatchRule struct {
 	UpstreamType      UpstreamType `json:"upstream_type"`       // Type of upstream(s) matched by the rule
 	EnablePathRewrite bool         `json:"enable_path_rewrite"` // Enable request path rewrite for matched routes
 	PathRewritePrefix string       `json:"path_rewrite_prefix"` // Prefix the request path would be rewritten to.
+	HostMatcher       HostMatcher  // Host matcher for efficient matching
 }
 
 // ParseMatchList parses the match list from the config
@@ -78,17 +92,47 @@ func ParseMatchList(matchListConfig []interface{}) []MatchRule {
 					rule.PathRewritePrefix = "/" + rule.PathRewritePrefix
 				}
 			}
+
+			rule.HostMatcher = ParseHostPattern(rule.MatchRuleDomain)
+
 			matchList = append(matchList, rule)
 		}
 	}
 	return matchList
 }
 
-// convertWildcardToRegex converts wildcard pattern to regex pattern
-func convertWildcardToRegex(pattern string) string {
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = "^" + strings.ReplaceAll(pattern, "\\*", ".*") + "$"
-	return pattern
+// stripPortFromHost removes port from host string
+// Port removing code is inspired by
+// https://github.com/envoyproxy/envoy/blob/v1.17.0/source/common/http/header_utility.cc#L219
+func stripPortFromHost(reqHost string) string {
+	portStart := strings.LastIndexByte(reqHost, ':')
+	if portStart != -1 {
+		// According to RFC3986 v6 address is always enclosed in "[]".
+		// section 3.2.2.
+		v6EndIndex := strings.LastIndexByte(reqHost, ']')
+		if v6EndIndex == -1 || v6EndIndex < portStart {
+			if portStart+1 <= len(reqHost) {
+				return reqHost[:portStart]
+			}
+		}
+	}
+	return reqHost
+}
+
+// ParseHostPattern parses a host pattern and returns a HostMatcher
+func ParseHostPattern(pattern string) HostMatcher {
+	var hostMatcher HostMatcher
+	if strings.HasPrefix(pattern, "*") {
+		hostMatcher.matchType = HostSuffix
+		hostMatcher.host = pattern[1:]
+	} else if strings.HasSuffix(pattern, "*") {
+		hostMatcher.matchType = HostPrefix
+		hostMatcher.host = pattern[:len(pattern)-1]
+	} else {
+		hostMatcher.matchType = HostExact
+		hostMatcher.host = pattern
+	}
+	return hostMatcher
 }
 
 // matchPattern checks if the target matches the pattern based on rule type
@@ -117,20 +161,27 @@ func matchPattern(pattern string, target string, ruleType RuleType) bool {
 	}
 }
 
-// matchDomain checks if the domain matches the pattern
-func matchDomain(domain string, pattern string) bool {
-	if pattern == "" || pattern == "*" {
-		return true
+// matchDomainWithMatcher checks if the domain matches using a pre-parsed HostMatcher
+func matchDomainWithMatcher(domain string, hostMatcher HostMatcher) bool {
+	// Strip port from domain
+	domain = stripPortFromHost(domain)
+
+	// Perform matching based on match type
+	switch hostMatcher.matchType {
+	case HostSuffix:
+		return strings.HasSuffix(domain, hostMatcher.host)
+	case HostPrefix:
+		return strings.HasPrefix(domain, hostMatcher.host)
+	case HostExact:
+		return domain == hostMatcher.host
+	default:
+		return false
 	}
-	// Convert wildcard pattern to regex pattern
-	regexPattern := convertWildcardToRegex(pattern)
-	matched, _ := regexp.MatchString(regexPattern, domain)
-	return matched
 }
 
 // matchDomainAndPath checks if both domain and path match the rule
 func matchDomainAndPath(domain, path string, rule MatchRule) bool {
-	return matchDomain(domain, rule.MatchRuleDomain) &&
+	return matchDomainWithMatcher(domain, rule.HostMatcher) &&
 		matchPattern(rule.MatchRulePath, path, rule.MatchRuleType)
 }
 
@@ -150,9 +201,9 @@ func IsMatch(rules []MatchRule, host, path string) (bool, MatchRule) {
 }
 
 // MatchDomainList checks if the domain matches any of the domains in the list
-func MatchDomainList(domain string, domainList []string) bool {
-	for _, d := range domainList {
-		if matchDomain(domain, d) {
+func MatchDomainWithMatchers(domain string, hostMatchers []HostMatcher) bool {
+	for _, hostMatcher := range hostMatchers {
+		if matchDomainWithMatcher(domain, hostMatcher) {
 			return true
 		}
 	}

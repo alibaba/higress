@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -48,7 +48,8 @@ var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v2",
 					TargetNamespace: "higress-conformance-infra",
@@ -64,7 +65,8 @@ var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v2",
 					TargetNamespace: "higress-conformance-infra",
@@ -80,7 +82,8 @@ var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v3",
 					TargetNamespace: "higress-conformance-infra",
@@ -96,7 +99,8 @@ var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
@@ -129,7 +133,8 @@ var HTTPRouteHostNameSameNamespace = suite.ConformanceTest{
 						StatusCode: 200,
 					},
 				},
-			}, {
+			},
+			{
 				Meta: http.AssertionMeta{
 					TargetBackend:   "infra-backend-v3",
 					TargetNamespace: "higress-conformance-infra",

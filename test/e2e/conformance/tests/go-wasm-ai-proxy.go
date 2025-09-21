@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 // The llm-mock service response has a fixed id of `chatcmpl-llm-mock`.
@@ -1022,6 +1022,66 @@ data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant
 data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"\n"},"finish_reason":null,"logprobs":null}],"created":10,"model":"dify","object":"chat.completion.chunk","usage":null}
 
 data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"role":"assistant","content":"USER: \n你好\n"},"finish_reason":"stop","logprobs":null}],"model":"dify","object":"chat.completion.chunk","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}
+
+`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "grok case 1: non-streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.x.ai",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:  "grok case 2: streaming request",
+					CompareTarget: http.CompareTargetResponse,
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host:        "api.x.ai",
+						Path:        "/v1/chat/completions",
+						Method:      "POST",
+						ContentType: http.ContentTypeApplicationJson,
+						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode:  200,
+						ContentType: http.ContentTypeTextEventStream,
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion.chunk","usage":null}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion.chunk","usage":null}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion.chunk","usage":null}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion.chunk","usage":null}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion.chunk","usage":null}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion.chunk","usage":null}
+
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"grok-beta","object":"chat.completion.chunk","usage":null}
+
+data: [DONE]
 
 `),
 					},

@@ -31,8 +31,8 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/util/version"
 
-	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	netv1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {
@@ -146,7 +146,7 @@ func GetHost(annotations map[string]string) string {
 
 // Istio requires that the name of the gateway must conform to the DNS label.
 // For details, you can view: https://github.com/istio/istio/blob/2d5c40ad5e9cceebe64106005aa38381097da2ba/pkg/config/validation/validation.go#L478
-func convertToDNSLabelValid(input string) string {
+func ConvertToDNSLabelValid(input string) string {
 	hasher := md5.New()
 	hasher.Write([]byte(input))
 	hash := hasher.Sum(nil)
@@ -156,7 +156,7 @@ func convertToDNSLabelValid(input string) string {
 
 // CleanHost follow the format of mse-ops for host.
 func CleanHost(host string) string {
-	return convertToDNSLabelValid(host)
+	return ConvertToDNSLabelValid(host)
 }
 
 func CreateConvertedName(items ...string) string {
@@ -334,9 +334,16 @@ func SplitServiceFQDN(fqdn string) (string, string, bool) {
 
 func ConvertBackendService(routeDestination *networking.HTTPRouteDestination) model.BackendService {
 	parts := strings.Split(routeDestination.Destination.Host, ".")
+	var namespace, name string
+	if len(parts) == 2 || len(parts) > 2 && strings.HasSuffix(routeDestination.Destination.Host, "cluster.local") {
+		name = parts[0]
+		namespace = parts[1]
+	} else {
+		name = routeDestination.Destination.Host
+	}
 	service := model.BackendService{
-		Namespace: parts[1],
-		Name:      parts[0],
+		Namespace: namespace,
+		Name:      name,
 		Weight:    routeDestination.Weight,
 	}
 	if routeDestination.Destination.Port != nil {

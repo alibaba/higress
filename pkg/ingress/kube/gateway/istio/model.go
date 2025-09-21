@@ -26,7 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
-	"github.com/alibaba/higress/pkg/config/constants"
+	"github.com/alibaba/higress/v2/pkg/config/constants"
 )
 
 const (

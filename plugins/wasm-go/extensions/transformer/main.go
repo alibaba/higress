@@ -39,6 +39,7 @@ func init() {
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.WithRebuildAfterRequests[TransformerConfig](1000),
 	)
 }
 
@@ -100,6 +101,10 @@ func init() {
 //
 // @End
 type TransformerConfig struct {
+	// @Title 是否重新路由
+	// @Description 是否在请求转换过程中对路由目标进行重新选择，默认为 true
+	reroute bool `yaml:"reroute"`
+
 	// @Title 转换规则
 	// @Description 指定转换操作类型以及请求/响应头、请求查询参数、请求/响应体参数的转换规则
 	reqRules  []TransformRule `yaml:"reqRules"`
@@ -219,6 +224,13 @@ type Param struct {
 }
 
 func parseConfig(json gjson.Result, config *TransformerConfig, log log.Log) (err error) {
+	reroute := json.Get("reroute")
+	if !reroute.Exists() {
+		config.reroute = true
+	} else {
+		config.reroute = reroute.Bool()
+	}
+
 	reqRulesInJson := json.Get("reqRules")
 	respRulesInJson := json.Get("respRules")
 
@@ -289,6 +301,11 @@ func constructParam(item gjson.Result, op, valueType string) Param {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log log.Log) types.Action {
+	if !config.reroute {
+		log.Debug("disable reroute")
+		ctx.DisableReroute()
+	}
+
 	// because it may be a response transformer, so the setting of host and path have to advance
 	host, path := ctx.Host(), ctx.Path()
 	ctx.SetContext("host", host)
@@ -995,7 +1012,15 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
 						kvs[key] = vs[len(vs)-1:]
 					}
-
+				case "SPLIT_AND_RETAIN_FIRST":
+					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
+						kvs[key] = strings.Split(vs[0], ",")[:1]
+					}
+				case "SPLIT_AND_RETAIN_LAST":
+					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
+						split := strings.Split(vs[0], ",")
+						kvs[key] = split[len(split)-1:]
+					}
 				case "RETAIN_FIRST":
 					fallthrough
 				default:
@@ -1186,7 +1211,20 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map
 
 				case "RETAIN_LAST":
 					dedupedVal = values[len(values)-1].Value() // key: last
-
+				case "SPLIT_AND_RETAIN_FIRST":
+					if len(values) > 0 {
+						split := strings.Split(values[0].String(), ",")
+						if len(split) > 0 {
+							dedupedVal = split[0]
+						}
+					}
+				case "SPLIT_AND_RETAIN_LAST":
+					if len(values) > 0 {
+						split := strings.Split(values[0].String(), ",")
+						if len(split) > 0 {
+							dedupedVal = split[len(split)-1]
+						}
+					}
 				case "RETAIN_FIRST":
 					fallthrough
 				default:

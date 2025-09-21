@@ -29,6 +29,7 @@ jobs:
         run: |
           git clone https://github.com/github/github-mcp-server.git
           cd github-mcp-server
+          git checkout 5904a0365ec11f661ecea5c255e86860d279f3b1
           go build -o ../github-mcp-serve ./cmd/github-mcp-server
           cd ..
           chmod u+x github-mcp-serve

@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -167,7 +167,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 4: request transformer with arbitary order",
+					TestCaseName:    "case 4: request transformer with arbitrary order",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -204,7 +204,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 5: response transformer with arbitary order",
+					TestCaseName:    "case 5: response transformer with arbitrary order",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},
@@ -263,7 +263,6 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 				},
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
-
 						StatusCode: 200,
 					},
 				},
@@ -572,6 +571,95 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 							"X-replace-body": "exist-body"
 						}
 						`),
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 16: request reroute",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo16.com",
+						Path: "/get",
+						Headers: map[string]string{
+							"reroute": "false",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host:    "foo16.reroute.com",
+							Path:    "/get",
+							Headers: map[string]string{"reroute": "true"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 17: request non reroute",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo17.com",
+						Path: "/get",
+						Headers: map[string]string{
+							"reroute": "false",
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo17.non-reroute.com",
+							Path: "/get",
+							// although the header was replaced, it was not rerouted
+							Headers: map[string]string{"reroute": "true"},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
+					},
+				},
+			},
+			{
+				Meta: http.AssertionMeta{
+					TestCaseName:    "case 18: request header transformer with split",
+					TargetBackend:   "infra-backend-v1",
+					TargetNamespace: "higress-conformance-infra",
+				},
+				Request: http.AssertionRequest{
+					ActualRequest: http.Request{
+						Host: "foo18.com",
+						Path: "/get",
+						RawHeaders: map[string][]string{
+							"X-split-dedupe-first": {"1,2,3"},
+							"X-split-dedupe-last":  {"a,b,c"},
+						},
+					},
+					ExpectedRequest: &http.ExpectedRequest{
+						Request: http.Request{
+							Host: "foo18.com",
+							Path: "/get",
+							Headers: map[string]string{
+								"X-split-dedupe-first": "1",
+								"X-split-dedupe-last":  "c",
+							},
+						},
+					},
+				},
+				Response: http.AssertionResponse{
+					ExpectedResponse: http.Response{
+						StatusCode: 200,
 					},
 				},
 			},

@@ -20,6 +20,8 @@ description: 阿里云内容安全检测
 | `serviceHost` | string | requried | - | 阿里云内容安全endpoint的域名 |
 | `accessKey` | string | requried | - | 阿里云AK |
 | `secretKey` | string | requried | - | 阿里云SK |
+| `action` | string | requried | - | 阿里云ai安全业务接口 |
+| `securityToken` | string | optional | - | 阿里云安全令牌（用于临时凭证） |
 | `checkRequest` | bool | optional | false | 检查提问内容是否合规 |
 | `checkResponse` | bool | optional | false | 检查大模型的回答内容是否合规，生效时会使流式响应变为非流式 |
 | `requestCheckService` | string | optional | llm_query_moderation | 指定阿里云内容安全用于检测输入内容的服务 |
@@ -30,9 +32,13 @@ description: 阿里云内容安全检测
 | `denyCode` | int | optional | 200 | 指定内容非法时的响应状态码 |
 | `denyMessage` | string | optional | openai格式的流式/非流式响应 | 指定内容非法时的响应内容 |
 | `protocol` | string | optional | openai | 协议格式，非openai协议填`original` |
-| `riskLevelBar` | string | optional | high | 拦截风险等级，取值为 max, high, medium, low |
+| `contentModerationLevelBar` | string | optional | max | 内容合规检测拦截风险等级，取值为 `max`, `high`, `medium` or `low` |
+| `promptAttackLevelBar` | string | optional | max | 提示词攻击检测拦截风险等级，取值为 `max`, `high`, `medium` or `low` |
+| `sensitiveDataLevelBar` | string | optional | S4 | 敏感内容检测拦截风险等级，取值为  `S4`, `S3`, `S2` or `S1` |
 | `timeout` | int | optional | 2000 | 调用内容安全服务时的超时时间 |
 | `bufferLimit` | int | optional | 1000 | 调用内容安全服务时每段文本的长度限制 |
+| `consumerSpecificRequestCheckService` | map | optional | - | 为不同消费者指定特定的请求检测服务 |
+| `consumerSpecificResponseCheckService` | map | optional | - | 为不同消费者指定特定的响应检测服务 |
 
 补充说明一下 `denyMessage`，对非法请求的处理逻辑为：
 - 如果配置了 `denyMessage`，返回内容为 `denyMessage` 配置内容，格式为openai格式的流式/非流式响应
@@ -44,11 +50,19 @@ description: 阿里云内容安全检测
 - 如果没有配置 `denyMessage`，优先返回阿里云内容安全的建议回答，非流式响应
 - 如果阿里云内容安全未返回建议回答，返回内置的兜底回答，内容为`"很抱歉，我无法回答您的问题"`，非流式响应
 
-补充说明一下 `riskLevelBar` 的四个等级：
-- `max`: 检测请求/响应内容，但是不会产生拦截行为
-- `high`: 内容安全检测结果中风险等级为 `high` 时产生拦截
-- `medium`: 内容安全检测结果中风险等级 >= `medium` 时产生拦截
-- `low`: 内容安全检测结果中风险等级 >= `low` 时产生拦截
+补充说明一下内容合规检测、提示词攻击检测、敏感内容检测三种风险的四个等级：
+
+- 对于内容合规检测、提示词攻击检测：
+    - `max`: 检测请求/响应内容，但是不会产生拦截行为
+    - `high`: 内容安全检测/提示词攻击检测 结果中风险等级为 `high` 时产生拦截
+    - `medium`: 内容安全检测/提示词攻击检测 结果中风险等级 >= `medium` 时产生拦截
+    - `low`: 内容安全检测/提示词攻击检测 结果中风险等级 >= `low` 时产生拦截
+
+- 对于敏感内容检测：
+    - `S4`: 检测请求/响应内容，但是不会产生拦截行为
+    - `S3`: 敏感内容检测结果中风险等级为 `S3` 时产生拦截
+    - `S2`: 敏感内容检测结果中风险等级 >= `S2` 时产生拦截
+    - `S1`: 敏感内容检测结果中风险等级 >= `S1` 时产生拦截
 
 ## 配置示例
 ### 前提条件
@@ -77,6 +91,35 @@ accessKey: "XXXXXXXXX"
 secretKey: "XXXXXXXXXXXXXXX"
 checkRequest: true
 checkResponse: true
+```
+
+### 使用临时安全凭证
+
+```yaml
+serviceName: safecheck.dns
+servicePort: 443
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
+securityToken: "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+checkRequest: true
+```
+
+### 为不同消费者指定不同的检测服务
+
+```yaml
+serviceName: safecheck.dns
+servicePort: 443
+serviceHost: "green-cip.cn-shanghai.aliyuncs.com"
+accessKey: "XXXXXXXXX"
+secretKey: "XXXXXXXXXXXXXXX"
+checkRequest: true
+consumerSpecificRequestCheckService:
+  consumerA: llm_query_moderation_strict
+  consumerB: llm_query_moderation_relaxed
+consumerSpecificResponseCheckService:
+  consumerA: llm_response_moderation_strict
+  consumerB: llm_response_moderation_relaxed
 ```
 
 ### 指定自定义内容安全检测服务
@@ -143,21 +186,21 @@ curl http://localhost/v1/chat/completions \
 
 ```json
 {
-    "id": "chatcmpl-AAy3hK1dE4ODaegbGOMoC9VY4Sizv",
-    "object": "chat.completion",
-    "created": 1677652288,
-    "model": "gpt-4o-mini",
-    "system_fingerprint": "fp_44709d6fcb",
-    "choices": [
-        {
-            "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": "作为一名人工智能助手，我不能提供涉及色情、暴力、政治等敏感话题的内容。如果您有其他相关问题，欢迎您提问。",
-            },
-            "logprobs": null,
-            "finish_reason": "stop"
-        }
-    ]
+  "id": "chatcmpl-AAy3hK1dE4ODaegbGOMoC9VY4Sizv",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "gpt-4o-mini",
+  "system_fingerprint": "fp_44709d6fcb",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "作为一名人工智能助手，我不能提供涉及色情、暴力、政治等敏感话题的内容。如果您有其他相关问题，欢迎您提问。",
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ]
 }
 ```
