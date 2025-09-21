@@ -81,10 +81,11 @@ type Response struct {
 }
 
 type Data struct {
-	RiskLevel string   `json:"RiskLevel"`
-	Result    []Result `json:"Result,omitempty"`
-	Advice    []Advice `json:"Advice,omitempty"`
-	Detail    []Detail `json:"Detail,omitempty"`
+	RiskLevel  string   `json:"RiskLevel"`
+	AttackLevel string  `json:"AttackLevel,omitempty"`
+	Result     []Result `json:"Result,omitempty"`
+	Advice     []Advice `json:"Advice,omitempty"`
+	Detail     []Detail `json:"Detail,omitempty"`
 }
 
 type Result struct {
@@ -142,16 +143,51 @@ func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) 
 }
 
 func levelToInt(riskLevel string) int {
+	// First check against our defined constants
 	switch riskLevel {
-	case MaxRisk, S4Sensitive:
+	case MaxRisk:
 		return 4
-	case HighRisk, S3Sensitive:
+	case HighRisk:
 		return 3
-	case MediumRisk, S2Sensitive:
+	case MediumRisk:
 		return 2
-	case LowRisk, S1Sensitive:
+	case LowRisk:
 		return 1
-	case NoRisk, NoSensitive:
+	case NoRisk:
+		return 0
+	case S4Sensitive:
+		return 4
+	case S3Sensitive:
+		return 3
+	case S2Sensitive:
+		return 2
+	case S1Sensitive:
+		return 1
+	case NoSensitive:
+		return 0
+	}
+
+	// Then check against raw string values
+	switch riskLevel {
+	case "max", "MAX":
+		return 4
+	case "high", "HIGH":
+		return 3
+	case "medium", "MEDIUM":
+		return 2
+	case "low", "LOW":
+		return 1
+	case "none", "NONE":
+		return 0
+	case "S4", "s4":
+		return 4
+	case "S3", "s3":
+		return 3
+	case "S2", "s2":
+		return 2
+	case "S1", "s1":
+		return 1
+	case "S0", "s0":
 		return 0
 	default:
 		return -1
@@ -160,6 +196,16 @@ func levelToInt(riskLevel string) int {
 
 func isRiskLevelAcceptable(action string, data Data, config AISecurityConfig) bool {
 	if action == "MultiModalGuard" {
+		// Check top-level risk levels for MultiModalGuard
+		if levelToInt(data.RiskLevel) >= levelToInt(config.contentModerationLevelBar) {
+			return false
+		}
+		// Also check AttackLevel for prompt attack detection
+		if levelToInt(data.AttackLevel) >= levelToInt(config.promptAttackLevelBar) {
+			return false
+		}
+
+		// Check detailed results for backward compatibility
 		for _, detail := range data.Detail {
 			switch detail.Type {
 			case ContentModerationType:
