@@ -19,8 +19,8 @@ package v1
 import (
 	"net/http"
 
-	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	"github.com/alibaba/higress/client/pkg/clientset/versioned/scheme"
+	v1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
+	"github.com/alibaba/higress/v2/client/pkg/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

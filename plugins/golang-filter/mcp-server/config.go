@@ -13,8 +13,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-const Name = "mcp-server"
-const Version = "1.0.0"
+const (
+	Name    = "mcp-server"
+	Version = "1.0.0"
+)
 
 type SSEServerWrapper struct {
 	BaseServer *common.SSEServer
@@ -31,8 +33,7 @@ func (c *config) Destroy() {
 	}
 }
 
-type Parser struct {
-}
+type Parser struct{}
 
 func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (interface{}, error) {
 	configStruct := &xds.TypedStruct{}

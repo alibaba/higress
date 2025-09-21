@@ -17,7 +17,7 @@
 package v1alpha1
 
 import (
-	extensionsv1alpha1 "github.com/alibaba/higress/api/extensions/v1alpha1"
+	extensionsv1alpha1 "github.com/alibaba/higress/v2/api/extensions/v1alpha1"
 	metav1alpha1 "istio.io/api/meta/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

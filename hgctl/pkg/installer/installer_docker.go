@@ -48,7 +48,6 @@ func (d *DockerInstaller) Install() error {
 }
 
 func (d *DockerInstaller) UnInstall() error {
-
 	fmt.Fprintf(d.writer, "\n⌛️ Processing uninstallation... \n\n")
 
 	if err := d.standalone.UnInstall(); err != nil {
