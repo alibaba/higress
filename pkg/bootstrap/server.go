@@ -49,12 +49,12 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/cert"
-	higressconfig "github.com/alibaba/higress/pkg/config"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/mcp"
-	"github.com/alibaba/higress/pkg/ingress/translation"
-	higresskube "github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/v2/pkg/cert"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/mcp"
+	"github.com/alibaba/higress/v2/pkg/ingress/translation"
+	higresskube "github.com/alibaba/higress/v2/pkg/kube"
 )
 
 type XdsOptions struct {
