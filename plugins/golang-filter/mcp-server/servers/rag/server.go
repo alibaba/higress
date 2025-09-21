@@ -99,6 +99,30 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		}
 	}
 
+	// Parse llm configuration
+	if llmConfig, ok := config["llm"].(map[string]any); ok {
+		if provider, exists := llmConfig["provider"].(string); exists {
+			c.config.LLM.Provider = provider
+		} else {
+			return errors.New("missing llm provider")
+		}
+		if apiKey, exists := llmConfig["api_key"].(string); exists {
+			c.config.LLM.APIKey = apiKey
+		}
+		if baseURL, exists := llmConfig["base_url"].(string); exists {
+			c.config.LLM.BaseURL = baseURL
+		}
+		if model, exists := llmConfig["model"].(string); exists {
+			c.config.LLM.Model = model
+		}
+		if temperature, exists := llmConfig["temperature"].(float64); exists {
+			c.config.LLM.Temperature = temperature
+		}
+		if maxTokens, exists := llmConfig["max_tokens"].(float64); exists {
+			c.config.LLM.MaxTokens = int(maxTokens)
+		}
+	}
+
 	// Parse VectorDB configuration
 	if vectordbConfig, ok := config["vectordb"].(map[string]any); ok {
 		if provider, exists := vectordbConfig["provider"].(string); exists {

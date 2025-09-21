@@ -107,7 +107,7 @@ data:
             model: text-embedding-v4
           vectordb:
             provider: milvus
-            host: 192.168.31.72
+            host: <milvus IP>
             port: 19530
             database: default
             collection: test_collection
@@ -127,7 +127,7 @@ data:
 
 ## Milvus 安装
 
-### docker 配置
+### Docker 配置
 配置 Docker Desktop 镜像加速器
 编辑 daemon.json 配置，加上镜像加速器，例如：
 ```
@@ -141,8 +141,8 @@ data:
 }
 ```
 
+### 安装 milvus
 
-### milvus install on docker
 ```
 v2.6.0
 Download the configuration file
@@ -159,10 +159,12 @@ Creating milvus-minio ... done
 Creating milvus-standalone ... done
 ```
 
-### install attu
+### 安装 attu
+
+Attu 是 Milvus 的可视化管理工具，用于查看和管理 Milvus 中的数据。
 
 ```
-docker run -p 8000:3000 -e MILVUS_URL=http://<本机IP>:19530  zilliz/attu:v2.6
+docker run -p 8000:3000 -e MILVUS_URL=http://<本机 IP>:19530  zilliz/attu:v2.6
 Open your browser and navigate to http://localhost:8000
 ```
 
