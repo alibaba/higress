@@ -5,9 +5,6 @@ FROM $BUILDER AS builder
 ARG GOPROXY
 ENV GOPROXY=${GOPROXY}
 
-ARG EXTRA_TAGS=""
-ENV EXTRA_TAGS=${EXTRA_TAGS}
-
 ARG PLUGIN_NAME=hello-world
 
 WORKDIR /workspace
@@ -18,7 +15,7 @@ WORKDIR /workspace/extensions/$PLUGIN_NAME
 
 RUN go mod tidy
 RUN \
-    GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o /main.wasm ./ 
+    GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o /main.wasm .
 
 FROM scratch AS output
 

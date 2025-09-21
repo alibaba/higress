@@ -14,7 +14,7 @@
 
 package tests
 
-import "github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+import "github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 
 func Register(testcase suite.ConformanceTest) {
 	if len(testcase.Features) == 0 {

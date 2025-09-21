@@ -52,13 +52,14 @@ func parseConfig(json gjson.Result, config *PluginConfig, log log.Log) error {
 		return err
 	}
 
-	wrapper.RegisteTickFunc(opts.VerifierInterval.Milliseconds(), func() {
+	wrapper.RegisterTickFunc(opts.VerifierInterval.Milliseconds(), func() {
 		config.oidcHandler.SetVerifier(opts)
 	})
 	return nil
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	config.oidcHandler.SetContext(ctx)
 	req := getHttpRequest()
 	rw := util.NewRecorder()

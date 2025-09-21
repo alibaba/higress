@@ -14,17 +14,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 )
 
 const (
@@ -77,6 +75,9 @@ type bedrockProvider struct {
 func (b *bedrockProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	events := extractAmazonEventStreamEvents(ctx, chunk)
 	if len(events) == 0 {
+		if isLastChunk {
+			return []byte(ssePrefix + "[DONE]\n\n"), nil
+		}
 		return chunk, fmt.Errorf("No events are extracted ")
 	}
 	var responseBuilder strings.Builder
@@ -87,6 +88,9 @@ func (b *bedrockProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 			return chunk, err
 		}
 		responseBuilder.WriteString(string(outputEvent))
+	}
+	if isLastChunk {
+		responseBuilder.WriteString(ssePrefix + "[DONE]\n\n")
 	}
 	return []byte(responseBuilder.String()), nil
 }
@@ -99,8 +103,47 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 	if bedrockEvent.Role != nil {
 		chatChoice.Delta.Role = *bedrockEvent.Role
 	}
+	if bedrockEvent.Start != nil {
+		chatChoice.Delta.Content = nil
+		chatChoice.Delta.ToolCalls = []toolCall{
+			{
+				Id:   bedrockEvent.Start.ToolUse.ToolUseID,
+				Type: "function",
+				Function: functionCall{
+					Name:      bedrockEvent.Start.ToolUse.Name,
+					Arguments: "",
+				},
+			},
+		}
+	}
 	if bedrockEvent.Delta != nil {
-		chatChoice.Delta = &chatMessage{Content: bedrockEvent.Delta.Text}
+		if bedrockEvent.Delta.ReasoningContent != nil {
+			var content string
+			if ctx.GetContext("thinking_start") == nil {
+				content += reasoningStartTag
+				ctx.SetContext("thinking_start", true)
+			}
+			content += bedrockEvent.Delta.ReasoningContent.Text
+			chatChoice.Delta = &chatMessage{Content: &content}
+		} else if bedrockEvent.Delta.Text != nil {
+			var content string
+			if ctx.GetContext("thinking_start") != nil && ctx.GetContext("thinking_end") == nil {
+				content += reasoningEndTag
+				ctx.SetContext("thinking_end", true)
+			}
+			content += *bedrockEvent.Delta.Text
+			chatChoice.Delta = &chatMessage{Content: &content}
+		}
+		if bedrockEvent.Delta.ToolUse != nil {
+			chatChoice.Delta.ToolCalls = []toolCall{
+				{
+					Type: "function",
+					Function: functionCall{
+						Arguments: bedrockEvent.Delta.ToolUse.Input,
+					},
+				},
+			}
+		}
 	}
 	if bedrockEvent.StopReason != nil {
 		chatChoice.FinishReason = util.Ptr(stopReasonBedrock2OpenAI(*bedrockEvent.StopReason))
@@ -142,8 +185,9 @@ type ConverseStreamEvent struct {
 }
 
 type converseStreamEventContentBlockDelta struct {
-	Text    *string            `json:"text,omitempty"`
-	ToolUse *toolUseBlockDelta `json:"toolUse,omitempty"`
+	Text             *string                `json:"text,omitempty"`
+	ToolUse          *toolUseBlockDelta     `json:"toolUse,omitempty"`
+	ReasoningContent *reasoningContentDelta `json:"reasoningContent,omitempty"`
 }
 
 type toolUseBlockStart struct {
@@ -157,6 +201,11 @@ type contentBlockStart struct {
 
 type toolUseBlockDelta struct {
 	Input string `json:"input"`
+}
+
+type reasoningContentDelta struct {
+	Text      string `json:"text,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
 
 type bedrockImageGenerationResponse struct {
@@ -591,29 +640,7 @@ func (b *bedrockProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName
 	return b.config.handleRequestBody(b, b.contextCache, ctx, apiName, body)
 }
 
-func (b *bedrockProvider) insertHttpContextMessage(body []byte, content string, onlyOneSystemBeforeFile bool) ([]byte, error) {
-	request := &bedrockTextGenRequest{}
-	if err := json.Unmarshal(body, request); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal request: %v", err)
-	}
-
-	if len(request.System) > 0 {
-		request.System = append(request.System, systemContentBlock{Text: content})
-	} else {
-		request.System = []systemContentBlock{{Text: content}}
-	}
-
-	requestBytes, err := json.Marshal(request)
-	b.setAuthHeaders(requestBytes, nil)
-	return requestBytes, err
-}
-
 func (b *bedrockProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
-	if gjson.GetBytes(body, "model").Exists() {
-		rawModel := gjson.GetBytes(body, "model").String()
-		encodedModel := url.QueryEscape(rawModel)
-		body, _ = sjson.SetBytes(body, "model", encodedModel)
-	}
 	switch apiName {
 	case ApiNameChatCompletion:
 		return b.onChatCompletionRequestBody(ctx, body, headers)
@@ -651,7 +678,7 @@ func (b *bedrockProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, 
 		return nil, err
 	}
 	headers.Set("Accept", "*/*")
-	util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockInvokeModelPath, request.Model))
+	b.overwriteRequestPathHeader(headers, bedrockInvokeModelPath, request.Model)
 	return b.buildBedrockImageGenerationRequest(request, headers)
 }
 
@@ -675,7 +702,6 @@ func (b *bedrockProvider) buildBedrockImageGenerationRequest(origRequest *imageG
 			Quality:        origRequest.Quality,
 		},
 	}
-	util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockInvokeModelPath, origRequest.Model))
 	requestBytes, err := json.Marshal(request)
 	b.setAuthHeaders(requestBytes, headers)
 	return requestBytes, err
@@ -714,9 +740,9 @@ func (b *bedrockProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, b
 	streaming := request.Stream
 	headers.Set("Accept", "*/*")
 	if streaming {
-		util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockStreamChatCompletionPath, request.Model))
+		b.overwriteRequestPathHeader(headers, bedrockStreamChatCompletionPath, request.Model)
 	} else {
-		util.OverwriteRequestPathHeader(headers, fmt.Sprintf(bedrockChatCompletionPath, request.Model))
+		b.overwriteRequestPathHeader(headers, bedrockChatCompletionPath, request.Model)
 	}
 	return b.buildBedrockTextGenerationRequest(request, headers)
 }
@@ -726,9 +752,12 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 	systemMessages := make([]systemContentBlock, 0)
 
 	for _, msg := range origRequest.Messages {
-		if msg.Role == roleSystem {
+		switch msg.Role {
+		case roleSystem:
 			systemMessages = append(systemMessages, systemContentBlock{Text: msg.StringContent()})
-		} else {
+		case roleTool:
+			messages = append(messages, chatToolMessage2BedrockMessage(msg))
+		default:
 			messages = append(messages, chatMessage2BedrockMessage(msg))
 		}
 	}
@@ -747,6 +776,52 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		},
 	}
 
+	if origRequest.ReasoningEffort != "" {
+		thinkingBudget := 1024 // default
+		switch origRequest.ReasoningEffort {
+		case "low":
+			thinkingBudget = 1024
+		case "medium":
+			thinkingBudget = 4096
+		case "high":
+			thinkingBudget = 16384
+		}
+		request.AdditionalModelRequestFields["thinking"] = map[string]interface{}{
+			"type":          "enabled",
+			"budget_tokens": thinkingBudget,
+		}
+	}
+
+	if origRequest.Tools != nil {
+		request.ToolConfig = &bedrockToolConfig{}
+		if origRequest.ToolChoice == nil {
+			request.ToolConfig.ToolChoice.Auto = &struct{}{}
+		} else if choice_type, ok := origRequest.ToolChoice.(string); ok {
+			switch choice_type {
+			case "required":
+				request.ToolConfig.ToolChoice.Any = &struct{}{}
+			case "auto":
+				request.ToolConfig.ToolChoice.Auto = &struct{}{}
+			case "none":
+				request.ToolConfig.ToolChoice.Auto = &struct{}{}
+			}
+		} else if choice, ok := origRequest.ToolChoice.(toolChoice); ok {
+			request.ToolConfig.ToolChoice.Tool = &bedrockToolSpecification{
+				Name: choice.Function.Name,
+			}
+		}
+		request.ToolConfig.Tools = []bedrockTool{}
+		for _, tool := range origRequest.Tools {
+			request.ToolConfig.Tools = append(request.ToolConfig.Tools, bedrockTool{
+				ToolSpec: bedrockToolSpecification{
+					InputSchema: bedrockToolInputSchemaJson{Json: tool.Function.Parameters},
+					Name:        tool.Function.Name,
+					Description: tool.Function.Description,
+				},
+			})
+		}
+	}
+
 	for key, value := range b.config.bedrockAdditionalFields {
 		request.AdditionalModelRequestFields[key] = value
 	}
@@ -757,20 +832,43 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 }
 
 func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockConverseResponse) *chatCompletionResponse {
-	var outputContent string
-	if len(bedrockResponse.Output.Message.Content) > 0 {
-		outputContent = bedrockResponse.Output.Message.Content[0].Text
+	var outputContent, reasoningContent, normalContent string
+	for _, content := range bedrockResponse.Output.Message.Content {
+		if content.ReasoningContent != nil {
+			reasoningContent = content.ReasoningContent.ReasoningText.Text
+		}
+		if content.Text != "" {
+			normalContent = content.Text
+		}
 	}
-	choices := []chatCompletionChoice{
-		{
-			Index: 0,
-			Message: &chatMessage{
-				Role:    bedrockResponse.Output.Message.Role,
-				Content: outputContent,
-			},
-			FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
+	if reasoningContent != "" {
+		outputContent = reasoningStartTag + reasoningContent + reasoningEndTag + normalContent
+	} else {
+		outputContent = normalContent
+	}
+	choice := chatCompletionChoice{
+		Index: 0,
+		Message: &chatMessage{
+			Role:    bedrockResponse.Output.Message.Role,
+			Content: outputContent,
 		},
+		FinishReason: util.Ptr(stopReasonBedrock2OpenAI(bedrockResponse.StopReason)),
 	}
+	choice.Message.ToolCalls = []toolCall{}
+	for _, content := range bedrockResponse.Output.Message.Content {
+		if content.ToolUse != nil {
+			args, _ := json.Marshal(content.ToolUse.Input)
+			choice.Message.ToolCalls = append(choice.Message.ToolCalls, toolCall{
+				Id:   content.ToolUse.ToolUseId,
+				Type: "function",
+				Function: functionCall{
+					Name:      content.ToolUse.Name,
+					Arguments: string(args),
+				},
+			})
+		}
+	}
+	choices := []chatCompletionChoice{choice}
 	requestId := ctx.GetStringContext(requestIdHeader, "")
 	modelId, _ := url.QueryUnescape(ctx.GetStringContext(ctxKeyFinalRequestModel, ""))
 	return &chatCompletionResponse{
@@ -788,6 +886,17 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 	}
 }
 
+func (b *bedrockProvider) overwriteRequestPathHeader(headers http.Header, format, model string) {
+	modelInPath := model
+	// Just in case the model name has already been URL-escaped, we shouldn't escape it again.
+	if !strings.ContainsRune(model, '%') {
+		modelInPath = url.QueryEscape(model)
+	}
+	path := fmt.Sprintf(format, modelInPath)
+	log.Debugf("overwriting bedrock request path: %s", path)
+	util.OverwriteRequestPathHeader(headers, path)
+}
+
 func stopReasonBedrock2OpenAI(reason string) string {
 	switch reason {
 	case "end_turn":
@@ -796,6 +905,8 @@ func stopReasonBedrock2OpenAI(reason string) string {
 		return finishReasonStop
 	case "max_tokens":
 		return finishReasonLength
+	case "tool_use":
+		return finishReasonToolCall
 	default:
 		return reason
 	}
@@ -807,10 +918,36 @@ type bedrockTextGenRequest struct {
 	InferenceConfig              bedrockInferenceConfig   `json:"inferenceConfig,omitempty"`
 	AdditionalModelRequestFields map[string]interface{}   `json:"additionalModelRequestFields,omitempty"`
 	PerformanceConfig            PerformanceConfiguration `json:"performanceConfig,omitempty"`
+	ToolConfig                   *bedrockToolConfig       `json:"toolConfig,omitempty"`
+}
+
+type bedrockToolConfig struct {
+	Tools      []bedrockTool     `json:"tools,omitempty"`
+	ToolChoice bedrockToolChoice `json:"toolChoice,omitempty"`
 }
 
 type PerformanceConfiguration struct {
 	Latency string `json:"latency,omitempty"`
+}
+
+type bedrockTool struct {
+	ToolSpec bedrockToolSpecification `json:"toolSpec,omitempty"`
+}
+
+type bedrockToolChoice struct {
+	Any  *struct{}                 `json:"any,omitempty"`
+	Auto *struct{}                 `json:"auto,omitempty"`
+	Tool *bedrockToolSpecification `json:"tool,omitempty"`
+}
+
+type bedrockToolSpecification struct {
+	InputSchema bedrockToolInputSchemaJson `json:"inputSchema,omitempty"`
+	Name        string                     `json:"name"`
+	Description string                     `json:"description,omitempty"`
+}
+
+type bedrockToolInputSchemaJson struct {
+	Json map[string]interface{} `json:"json,omitempty"`
 }
 
 type bedrockMessage struct {
@@ -819,8 +956,10 @@ type bedrockMessage struct {
 }
 
 type bedrockMessageContent struct {
-	Text  string      `json:"text,omitempty"`
-	Image *imageBlock `json:"image,omitempty"`
+	Text       string           `json:"text,omitempty"`
+	Image      *imageBlock      `json:"image,omitempty"`
+	ToolResult *toolResultBlock `json:"toolResult,omitempty"`
+	ToolUse    *toolUseBlock    `json:"toolUse,omitempty"`
 }
 
 type systemContentBlock struct {
@@ -834,6 +973,22 @@ type imageBlock struct {
 
 type imageSource struct {
 	Bytes string `json:"bytes,omitempty"`
+}
+
+type toolResultBlock struct {
+	ToolUseId string                   `json:"toolUseId"`
+	Content   []toolResultContentBlock `json:"content"`
+	Status    string                   `json:"status,omitempty"`
+}
+
+type toolResultContentBlock struct {
+	Text string `json:"text"`
+}
+
+type toolUseBlock struct {
+	Input     map[string]interface{} `json:"input"`
+	Name      string                 `json:"name"`
+	ToolUseId string                 `json:"toolUseId"`
 }
 
 type bedrockInferenceConfig struct {
@@ -859,13 +1014,29 @@ type converseOutputMemberMessage struct {
 }
 
 type message struct {
-	Content []contentBlockMemberText `json:"content"`
-
-	Role string `json:"role"`
+	Content []contentBlock `json:"content"`
+	Role    string         `json:"role"`
 }
 
-type contentBlockMemberText struct {
-	Text string `json:"text"`
+type contentBlock struct {
+	Text             string            `json:"text,omitempty"`
+	ToolUse          *bedrockToolUse   `json:"toolUse,omitempty"`
+	ReasoningContent *reasoningContent `json:"reasoningContent,omitempty"`
+}
+
+type reasoningContent struct {
+	ReasoningText reasoningText `json:"reasoningText"`
+}
+
+type reasoningText struct {
+	Text      string `json:"text,omitempty"`
+	Signature string `json:"signature,omitempty"`
+}
+
+type bedrockToolUse struct {
+	Name      string                 `json:"name"`
+	ToolUseId string                 `json:"toolUseId"`
+	Input     map[string]interface{} `json:"input"`
 }
 
 type tokenUsage struct {
@@ -876,9 +1047,53 @@ type tokenUsage struct {
 	TotalTokens int `json:"totalTokens"`
 }
 
+func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
+	toolResultContent := &toolResultBlock{}
+	toolResultContent.ToolUseId = chatMessage.ToolCallId
+	if text, ok := chatMessage.Content.(string); ok {
+		toolResultContent.Content = []toolResultContentBlock{
+			{
+				Text: text,
+			},
+		}
+		openaiContent := chatMessage.ParseContent()
+		for _, part := range openaiContent {
+			var content bedrockMessageContent
+			if part.Type == contentTypeText {
+				content.Text = part.Text
+			} else {
+				continue
+			}
+		}
+	} else {
+		log.Warnf("only text content is supported, current content is %v", chatMessage.Content)
+	}
+	return bedrockMessage{
+		Role: roleUser,
+		Content: []bedrockMessageContent{
+			{
+				ToolResult: toolResultContent,
+			},
+		},
+	}
+}
+
 func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
-	if chatMessage.IsStringContent() {
-		return bedrockMessage{
+	var result bedrockMessage
+	if len(chatMessage.ToolCalls) > 0 {
+		result = bedrockMessage{
+			Role:    chatMessage.Role,
+			Content: []bedrockMessageContent{{}},
+		}
+		params := map[string]interface{}{}
+		json.Unmarshal([]byte(chatMessage.ToolCalls[0].Function.Arguments), &params)
+		result.Content[0].ToolUse = &toolUseBlock{
+			Input:     params,
+			Name:      chatMessage.ToolCalls[0].Function.Name,
+			ToolUseId: chatMessage.ToolCalls[0].Id,
+		}
+	} else if chatMessage.IsStringContent() {
+		result = bedrockMessage{
 			Role:    chatMessage.Role,
 			Content: []bedrockMessageContent{{Text: chatMessage.StringContent()}},
 		}
@@ -889,35 +1104,42 @@ func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 			var content bedrockMessageContent
 			if part.Type == contentTypeText {
 				content.Text = part.Text
+			} else if part.Type == contentTypeImageUrl {
+				base64Str := part.ImageUrl.Url
+				prefix, imageType, err := extractImageType(base64Str)
+				if err != nil {
+					log.Warn("image url is not supported")
+					continue
+				}
+				base64WoPrefix, _ := strings.CutPrefix(base64Str, prefix)
+				content.Image = &imageBlock{
+					Format: imageType,
+					Source: imageSource{
+						Bytes: base64WoPrefix,
+					},
+				}
 			} else {
-				log.Warnf("imageUrl is not supported: %s", part.Type)
+				log.Warnf("type is not supported: %s", part.Type)
 				continue
 			}
 			contents = append(contents, content)
 		}
-		return bedrockMessage{
+		result = bedrockMessage{
 			Role:    chatMessage.Role,
 			Content: contents,
 		}
 	}
+	return result
 }
 
 func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
 	t := time.Now().UTC()
 	amzDate := t.Format("20060102T150405Z")
 	dateStamp := t.Format("20060102")
-	path, _ := proxywasm.GetHttpRequestHeader(":path")
-	if headers != nil {
-		path = headers.Get(":path")
-	}
+	path := headers.Get(":path")
 	signature := b.generateSignature(path, amzDate, dateStamp, body)
-	if headers != nil {
-		headers.Set("X-Amz-Date", amzDate)
-		headers.Set("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
-	} else {
-		_ = proxywasm.ReplaceHttpRequestHeader("X-Amz-Date", amzDate)
-		_ = proxywasm.ReplaceHttpRequestHeader("Authorization", fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
-	}
+	headers.Set("X-Amz-Date", amzDate)
+	util.OverwriteRequestAuthorizationHeader(headers, fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s/%s/%s/aws4_request, SignedHeaders=%s, Signature=%s", b.config.awsAccessKey, dateStamp, b.config.awsRegion, awsService, bedrockSignedHeaders, signature))
 }
 
 func (b *bedrockProvider) generateSignature(path, amzDate, dateStamp string, body []byte) string {
@@ -974,4 +1196,19 @@ func hmacHex(key []byte, data string) string {
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(data))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+func extractImageType(base64Str string) (string, string, error) {
+	re := regexp.MustCompile(`^data:([^;]+);base64,`)
+	matches := re.FindStringSubmatch(base64Str)
+	if len(matches) < 2 {
+		return "", "", fmt.Errorf("invalid base64 format")
+	}
+
+	mimeType := matches[1] // e.g. image/png
+	parts := strings.Split(mimeType, "/")
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("invalid mimeType")
+	}
+	return matches[0], parts[1], nil
 }

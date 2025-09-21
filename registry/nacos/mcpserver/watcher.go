@@ -24,12 +24,12 @@ import (
 	"sync"
 	"time"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	common2 "github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	common2 "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
+	provider "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/memory"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/model"
@@ -129,8 +129,8 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		constant.WithCacheDir(DefaultNacosCacheDir),
 		constant.WithNotLoadCacheAtStart(DefaultNacosNotLoadCache),
 		constant.WithLogRollingConfig(&constant.ClientLogRollingConfig{
-			MaxAge: DefaultNacosLogMaxAge,
-			MaxSize: DefaultNacosLogMaxSize,
+			MaxAge:     DefaultNacosLogMaxAge,
+			MaxSize:    DefaultNacosLogMaxSize,
 			MaxBackups: DefaultNacosLogMaxBackups,
 		}),
 		constant.WithUpdateCacheWhenEmpty(w.updateCacheWhenEmpty),
@@ -429,6 +429,10 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 		},
 	}
 	rule.Server.Config["credentials"] = credentials
+	// process security schemas
+	if len(toolsDescription.SecuritySchemes) > 0 {
+		rule.Server.SecuritySchemes = toolsDescription.SecuritySchemes
+	}
 
 	var allowTools []string
 	for _, t := range toolsDescription.Tools {
@@ -471,13 +475,23 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 			convertTool.RequestTemplate = requestTemplate
 		}
 
-		responseTemplate, err := getResponseTemplateFromToolMeta(toolMeta)
+		responseTemplate, errorResponseTemplate, err := getResponseTemplateFromToolMeta(toolMeta)
 		if err != nil {
 			mcpServerLog.Errorf("get response template from tool meta error:%v, tool name %v", err, t.Name)
 			continue
 		} else {
 			convertTool.ResponseTemplate = responseTemplate
+			convertTool.ErrorResponseTemplate = errorResponseTemplate
 		}
+
+		security, err := getSecurityFromToolMeta(toolMeta)
+		if err != nil {
+			mcpServerLog.Errorf("get security from tool meta error:%v, tool name %v", err, t.Name)
+			continue
+		} else {
+			convertTool.Security = security
+		}
+
 		rule.Tools = append(rule.Tools, convertTool)
 	}
 
@@ -715,7 +729,31 @@ func getRequestTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.Req
 	return nil, nil
 }
 
-func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.ResponseTemplate, error) {
+func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.ResponseTemplate, string, error) {
+	if toolMeta == nil {
+		return nil, "", nil
+	}
+	toolTemplate := toolMeta.Templates
+	for kind, meta := range toolTemplate {
+		switch kind {
+		case provider.JsonGoTemplateType:
+			templateData, err := json.Marshal(meta)
+			if err != nil {
+				return nil, "", err
+			}
+			template := &provider.JsonGoTemplate{}
+			if err = json.Unmarshal(templateData, template); err != nil {
+				return nil, "", err
+			}
+			return &template.ResponseTemplate, template.ErrorResponseTemplate, nil
+		default:
+			return nil, "", fmt.Errorf("unsupported tool meta type: %s", kind)
+		}
+	}
+	return nil, "", nil
+}
+
+func getSecurityFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.ToolSecurity, error) {
 	if toolMeta == nil {
 		return nil, nil
 	}
@@ -731,9 +769,9 @@ func getResponseTemplateFromToolMeta(toolMeta *provider.ToolsMeta) (*provider.Re
 			if err = json.Unmarshal(templateData, template); err != nil {
 				return nil, err
 			}
-			return &template.ResponseTemplate, nil
+			return template.Security, nil
 		default:
-			return nil, fmt.Errorf("unsupport tool meta type")
+			return nil, fmt.Errorf("unsupported tool meta type: %s", kind)
 		}
 	}
 	return nil, nil

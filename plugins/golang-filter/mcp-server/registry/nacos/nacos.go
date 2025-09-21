@@ -14,7 +14,7 @@ import (
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
 )
 
-type NacosMcpRegsitry struct {
+type NacosMcpRegistry struct {
 	serviceMatcher           map[string]string
 	configClient             config_client.IConfigClient
 	namingClient             naming_client.INamingClient
@@ -24,10 +24,12 @@ type NacosMcpRegsitry struct {
 	currentServiceSet        map[string]bool
 }
 
-const DEFAULT_SERVICE_LIST_MAX_PGSIZXE = 10000
-const MCP_TOOL_SUBFIX = "-mcp-tools.json"
+const (
+	DEFAULT_SERVICE_LIST_MAX_PGSIZXE = 10000
+	MCP_TOOL_SUBFIX                  = "-mcp-tools.json"
+)
 
-func (n *NacosMcpRegsitry) ListToolsDesciption() []*registry.ToolDescription {
+func (n *NacosMcpRegistry) ListToolsDescription() []*registry.ToolDescription {
 	if n.toolsDescription == nil {
 		n.refreshToolsList()
 	}
@@ -39,7 +41,7 @@ func (n *NacosMcpRegsitry) ListToolsDesciption() []*registry.ToolDescription {
 	return result
 }
 
-func (n *NacosMcpRegsitry) GetToolRpcContext(toolName string) (*registry.RpcContext, bool) {
+func (n *NacosMcpRegistry) GetToolRpcContext(toolName string) (*registry.RpcContext, bool) {
 	if n.toolsRpcContext == nil {
 		n.refreshToolsList()
 	}
@@ -47,11 +49,11 @@ func (n *NacosMcpRegsitry) GetToolRpcContext(toolName string) (*registry.RpcCont
 	return tool, ok
 }
 
-func (n *NacosMcpRegsitry) RegisterToolChangeEventListener(listener registry.ToolChangeEventListener) {
+func (n *NacosMcpRegistry) RegisterToolChangeEventListener(listener registry.ToolChangeEventListener) {
 	n.toolChangeEventListeners = append(n.toolChangeEventListeners, listener)
 }
 
-func (n *NacosMcpRegsitry) refreshToolsList() bool {
+func (n *NacosMcpRegistry) refreshToolsList() bool {
 	changed := false
 	for group, serviceMatcher := range n.serviceMatcher {
 		if n.refreshToolsListForGroup(group, serviceMatcher) {
@@ -61,13 +63,12 @@ func (n *NacosMcpRegsitry) refreshToolsList() bool {
 	return changed
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher string) bool {
+func (n *NacosMcpRegistry) refreshToolsListForGroup(group string, serviceMatcher string) bool {
 	services, err := n.namingClient.GetAllServicesInfo(vo.GetAllServiceInfoParam{
 		GroupName: group,
 		PageNo:    1,
 		PageSize:  DEFAULT_SERVICE_LIST_MAX_PGSIZXE,
 	})
-
 	if err != nil {
 		api.LogError(fmt.Sprintf("Get service list error when refresh tools list for group %s, error %s", group, err))
 		return false
@@ -77,7 +78,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher
 	serviceList := services.Doms
 	pattern, err := regexp.Compile(serviceMatcher)
 	if err != nil {
-		api.LogErrorf("Match service error for patter %s", serviceMatcher)
+		api.LogErrorf("Match service error for pattern %s", serviceMatcher)
 		return false
 	}
 
@@ -101,7 +102,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher
 	}
 
 	serviceShouldBeDeleted := []string{}
-	for serviceName, _ := range n.currentServiceSet {
+	for serviceName := range n.currentServiceSet {
 		if !strings.HasPrefix(serviceName, group) {
 			continue
 		}
@@ -110,7 +111,7 @@ func (n *NacosMcpRegsitry) refreshToolsListForGroup(group string, serviceMatcher
 			serviceShouldBeDeleted = append(serviceShouldBeDeleted, serviceName)
 			changed = true
 			toolsShouldBeDeleted := []string{}
-			for toolName, _ := range n.toolsDescription {
+			for toolName := range n.toolsDescription {
 				if strings.HasPrefix(toolName, serviceName) {
 					toolsShouldBeDeleted = append(toolsShouldBeDeleted, toolName)
 				}
@@ -134,11 +135,11 @@ func getFormatServiceName(group string, service string) string {
 	return fmt.Sprintf("%s_%s", group, service)
 }
 
-func (n *NacosMcpRegsitry) deleteToolForService(group string, service string) {
+func (n *NacosMcpRegistry) deleteToolForService(group string, service string) {
 	toolsNeedReset := []string{}
 
 	formatServiceName := getFormatServiceName(group, service)
-	for tool, _ := range n.toolsDescription {
+	for tool := range n.toolsDescription {
 		if strings.HasPrefix(tool, formatServiceName) {
 			toolsNeedReset = append(toolsNeedReset, tool)
 		}
@@ -150,15 +151,13 @@ func (n *NacosMcpRegsitry) deleteToolForService(group string, service string) {
 	}
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) bool {
-
+func (n *NacosMcpRegistry) refreshToolsListForServiceWithContent(group string, service string, newConfig *string, instances *[]model.Instance) bool {
 	if newConfig == nil {
 		dataId := makeToolsConfigId(service)
 		content, err := n.configClient.GetConfig(vo.ConfigParam{
 			DataId: dataId,
 			Group:  group,
 		})
-
 		if err != nil {
 			api.LogError(fmt.Sprintf("Get tools config for sercice %s:%s error %s", group, service, err))
 			return false
@@ -173,7 +172,6 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 			GroupName:   group,
 			HealthyOnly: true,
 		})
-
 		if err != nil {
 			api.LogError(fmt.Sprintf("List instance for sercice %s:%s error %s", group, service, err))
 			return false
@@ -243,13 +241,12 @@ func (n *NacosMcpRegsitry) refreshToolsListForServiceWithContent(group string, s
 	return true
 }
 
-func (n *NacosMcpRegsitry) GetCredential(name string, group string) *registry.CredentialInfo {
+func (n *NacosMcpRegistry) GetCredential(name string, group string) *registry.CredentialInfo {
 	dataId := makeCredentialDataId(name)
 	content, err := n.configClient.GetConfig(vo.ConfigParam{
 		DataId: dataId,
 		Group:  group,
 	})
-
 	if err != nil {
 		api.LogError(fmt.Sprintf("Get credentials for %s:%s error %s", group, dataId, err))
 		return nil
@@ -265,12 +262,11 @@ func (n *NacosMcpRegsitry) GetCredential(name string, group string) *registry.Cr
 	return &credential
 }
 
-func (n *NacosMcpRegsitry) refreshToolsListForService(group string, service string) bool {
+func (n *NacosMcpRegistry) refreshToolsListForService(group string, service string) bool {
 	return n.refreshToolsListForServiceWithContent(group, service, nil, nil)
 }
 
-func (n *NacosMcpRegsitry) listenToService(group string, service string) {
-
+func (n *NacosMcpRegistry) listenToService(group string, service string) {
 	// config changed, tools description may be changed
 	err := n.configClient.ListenConfig(vo.ConfigParam{
 		DataId: makeToolsConfigId(service),
@@ -282,7 +278,6 @@ func (n *NacosMcpRegsitry) listenToService(group string, service string) {
 			}
 		},
 	})
-
 	if err != nil {
 		api.LogError(fmt.Sprintf("Listen to service's tool config error %s", err))
 	}

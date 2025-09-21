@@ -449,6 +449,7 @@ func recursiveRefineJson(ctx wrapper.HttpContext, config PluginConfig, log log.L
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	if config.rejectStruct.RejectCode != HTTP_STATUS_OK {
 		sendResponse(ctx, config, log, nil)
 		return types.ActionPause

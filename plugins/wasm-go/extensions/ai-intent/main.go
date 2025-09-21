@@ -198,6 +198,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log log.Log) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	log.Debug("start onHttpRequestHeaders function.")
 
 	log.Debug("end onHttpRequestHeaders function.")

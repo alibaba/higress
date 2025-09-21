@@ -3,17 +3,20 @@ package provider
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"path"
 	"regexp"
+	"strconv"
+
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -54,6 +57,18 @@ const (
 	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
 	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
 
+	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
+	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
+	ApiNameQwenAsyncAIGC               ApiName = "qwen/v1/services/aigc"
+	ApiNameQwenAsyncTask               ApiName = "qwen/v1/tasks"
+	ApiNameQwenV1Rerank                ApiName = "qwen/v1/rerank"
+	ApiNameGeminiGenerateContent       ApiName = "gemini/v1beta/generatecontent"
+	ApiNameGeminiStreamGenerateContent ApiName = "gemini/v1beta/streamgeneratecontent"
+	ApiNameAnthropicMessages           ApiName = "anthropic/v1/messages"
+	ApiNameAnthropicComplete           ApiName = "anthropic/v1/complete"
+
+	// OpenAI
+	PathOpenAIPrefix                               = "/v1"
 	PathOpenAICompletions                          = "/v1/completions"
 	PathOpenAIChatCompletions                      = "/v1/chat/completions"
 	PathOpenAIEmbeddings                           = "/v1/embeddings"
@@ -79,11 +94,12 @@ const (
 	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
 	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
 
-	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
-	ApiNameCohereV1Rerank ApiName = "cohere/v1/rerank"
-	ApiNameQwenV1Rerank   ApiName = "qwen/v1/rerank"
-	ApiNameQwenAsyncAIGC  ApiName = "api/v1/services/aigc"
-	ApiNameQwenAsyncTask  ApiName = "api/v1/tasks/"
+	// Anthropic
+	PathAnthropicMessages = "/v1/messages"
+	PathAnthropicComplete = "/v1/complete"
+
+	// Cohere
+	PathCohereV1Rerank = "/v1/rerank"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"
@@ -92,6 +108,7 @@ const (
 	providerTypeQwen       = "qwen"
 	providerTypeOpenAI     = "openai"
 	providerTypeGroq       = "groq"
+	providerTypeGrok       = "grok"
 	providerTypeBaichuan   = "baichuan"
 	providerTypeYi         = "yi"
 	providerTypeDeepSeek   = "deepseek"
@@ -114,6 +131,10 @@ const (
 	providerTypeDify       = "dify"
 	providerTypeBedrock    = "bedrock"
 	providerTypeVertex     = "vertex"
+	providerTypeTriton     = "triton"
+	providerTypeOpenRouter = "openrouter"
+	providerTypeLongcat    = "longcat"
+	providerTypeFireworks  = "fireworks"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -121,9 +142,11 @@ const (
 	roleSystem    = "system"
 	roleAssistant = "assistant"
 	roleUser      = "user"
+	roleTool      = "tool"
 
-	finishReasonStop   = "stop"
-	finishReasonLength = "length"
+	finishReasonStop     = "stop"
+	finishReasonLength   = "length"
+	finishReasonToolCall = "tool_calls"
 
 	ctxKeyIncrementalStreaming   = "incrementalStreaming"
 	ctxKeyApiKey                 = "apiKey"
@@ -167,6 +190,7 @@ var (
 		providerTypeQwen:       &qwenProviderInitializer{},
 		providerTypeOpenAI:     &openaiProviderInitializer{},
 		providerTypeGroq:       &groqProviderInitializer{},
+		providerTypeGrok:       &grokProviderInitializer{},
 		providerTypeBaichuan:   &baichuanProviderInitializer{},
 		providerTypeYi:         &yiProviderInitializer{},
 		providerTypeDeepSeek:   &deepseekProviderInitializer{},
@@ -189,6 +213,10 @@ var (
 		providerTypeDify:       &difyProviderInitializer{},
 		providerTypeBedrock:    &bedrockProviderInitializer{},
 		providerTypeVertex:     &vertexProviderInitializer{},
+		providerTypeTriton:     &tritonProviderInitializer{},
+		providerTypeOpenRouter: &openrouterProviderInitializer{},
+		providerTypeLongcat:    &longcatProviderInitializer{},
+		providerTypeFireworks:  &fireworksProviderInitializer{},
 	}
 )
 
@@ -329,6 +357,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini AI内容过滤和安全级别设定
 	// @Description zh-CN 仅适用于 Gemini AI 服务。参考：https://ai.google.dev/gemini-api/docs/safety-settings
 	geminiSafetySetting map[string]string `required:"false" yaml:"geminiSafetySetting" json:"geminiSafetySetting"`
+	// @Title zh-CN Gemini Thinking Budget 配置
+	// @Description zh-CN 仅适用于 Gemini AI 服务，用于控制思考预算
+	geminiThinkingBudget int64 `required:"false" yaml:"geminiThinkingBudget" json:"geminiThinkingBudget"`
 	// @Title zh-CN Vertex AI访问区域
 	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
 	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
@@ -368,6 +399,15 @@ type ProviderConfig struct {
 	basePath string `required:"false" yaml:"basePath" json:"basePath"`
 	// @Title zh-CN basePathHandling用于指定basePath的处理方式，可选值：removePrefix、prepend
 	basePathHandling basePathHandling `required:"false" yaml:"basePathHandling" json:"basePathHandling"`
+	// @Title zh-CN 首包超时
+	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
+	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
+	// @Title zh-CN Triton Model Version
+	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
+	tritonModelVersion string `required:"false" yaml:"tritonModelVersion" json:"tritonModelVersion"`
+	// @Title zh-CN Triton Server 部署的 Domain
+	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
+	tritonDomain string `required:"false" yaml:"tritonDomain" json:"tritonDomain"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -397,6 +437,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.timeout == 0 {
 		c.timeout = defaultTimeout
 	}
+	// first byte timeout
+	c.firstByteTimeout = uint32(json.Get("firstByteTimeout").Uint())
 	c.openaiCustomUrl = json.Get("openaiCustomUrl").String()
 	c.moonshotFileId = json.Get("moonshotFileId").String()
 	c.azureServiceUrl = json.Get("azureServiceUrl").String()
@@ -452,6 +494,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.geminiSafetySetting[k] = v.String()
 		}
 	}
+	c.geminiThinkingBudget = json.Get("geminiThinkingBudget").Int()
 	c.vertexRegion = json.Get("vertexRegion").String()
 	c.vertexProjectId = json.Get("vertexProjectId").String()
 	c.vertexAuthKey = json.Get("vertexAuthKey").String()
@@ -494,10 +537,9 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.reasoningContentMode = strings.ToLower(c.reasoningContentMode)
 		switch c.reasoningContentMode {
 		case reasoningBehaviorPassThrough, reasoningBehaviorIgnore, reasoningBehaviorConcat:
-			break
+			// valid values, no action needed
 		default:
 			c.reasoningContentMode = reasoningBehaviorPassThrough
-			break
 		}
 	}
 
@@ -520,6 +562,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.botType = json.Get("botType").String()
 	c.inputVariable = json.Get("inputVariable").String()
 	c.outputVariable = json.Get("outputVariable").String()
+
+	// NVIDIA triton
+	c.tritonModelVersion = json.Get("tritonModelVersion").String()
+	c.tritonDomain = json.Get("tritonDomain").String()
 
 	c.capabilities = make(map[string]string)
 	for capability, pathJson := range json.Get("capabilities").Map() {
@@ -783,6 +829,7 @@ func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent
 			value := string(body[valueStartIndex:i])
 			currentEvent.SetValue(currentKey, value)
 		} else {
+			currentEvent.RawEvent = string(body[eventStartIndex : i+1])
 			// Extra new line. The current event is complete.
 			events = append(events, *currentEvent)
 			// Reset event parsing state.
@@ -804,7 +851,14 @@ func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {
 	return exist
 }
 
+func (c *ProviderConfig) IsSupportedAPI(apiName ApiName) bool {
+	return c.isSupportedAPI(apiName)
+}
+
 func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) {
+	if c.capabilities == nil {
+		c.capabilities = make(map[string]string)
+	}
 	for capability, path := range capabilities {
 		c.capabilities[capability] = path
 	}
@@ -813,17 +867,40 @@ func (c *ProviderConfig) setDefaultCapabilities(capabilities map[string]string) 
 func (c *ProviderConfig) handleRequestBody(
 	provider Provider, contextCache *contextCache, ctx wrapper.HttpContext, apiName ApiName, body []byte,
 ) (types.Action, error) {
+	// add the first byte timeout header to the request
+	if c.firstByteTimeout != 0 && c.isStreamingAPI(apiName, body) {
+		err := proxywasm.ReplaceHttpRequestHeader("x-envoy-upstream-rq-first-byte-timeout-ms", strconv.FormatUint(uint64(c.firstByteTimeout), 10))
+		if err != nil {
+			log.Errorf("failed to set x-envoy-upstream-rq-first-byte-timeout-ms header: %v", err)
+		}
+		log.Debugf("[firstByteTimeout] %d", c.firstByteTimeout)
+	}
+
 	// use original protocol
 	if c.IsOriginal() {
 		return types.ActionContinue, nil
 	}
 
-	// use openai protocol
 	var err error
+
+	// handle claude protocol input - auto-detect based on conversion marker
+	// If main.go detected a Claude request that needs conversion, convert the body
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+	if needClaudeConversion {
+		// Convert Claude protocol to OpenAI protocol
+		converter := &ClaudeToOpenAIConverter{}
+		body, err = converter.ConvertClaudeRequestToOpenAI(body)
+		if err != nil {
+			return types.ActionContinue, fmt.Errorf("failed to convert claude request to openai: %v", err)
+		}
+		log.Debugf("[Auto Protocol] converted Claude request body to OpenAI format")
+	}
+
+	// use openai protocol (either original openai or converted from claude)
 	if handler, ok := provider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, apiName, body)
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
-		headers := util.GetOriginalRequestHeaders()
+		headers := util.GetRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 		util.ReplaceRequestHeaders(headers)
 	} else {
@@ -849,7 +926,7 @@ func (c *ProviderConfig) handleRequestBody(
 }
 
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
-	headers := util.GetOriginalRequestHeaders()
+	headers := util.GetRequestHeaders()
 	originPath := headers.Get(":path")
 	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
 		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
@@ -859,9 +936,6 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 	}
 	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
 		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
-	}
-	if headers.Get(":path") != originPath {
-		headers.Set("X-ENVOY-ORIGINAL-PATH", originPath)
 	}
 	util.ReplaceRequestHeaders(headers)
 }
@@ -880,7 +954,9 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 	}
 	model := gjson.GetBytes(body, "model").String()
 	ctx.SetContext(ctxKeyOriginalRequestModel, model)
-	return sjson.SetBytes(body, "model", getMappedModel(model, c.modelMapping))
+	mappedModel := getMappedModel(model, c.modelMapping)
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+	return sjson.SetBytes(body, "model", mappedModel)
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {
@@ -889,6 +965,24 @@ func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext
 	} else {
 		headers.Del("Content-Length")
 	}
+}
+
+func (c *ProviderConfig) isStreamingAPI(apiName ApiName, body []byte) bool {
+	stream := false
+	switch apiName {
+	case ApiNameCompletion,
+		ApiNameChatCompletion,
+		ApiNameImageGeneration,
+		ApiNameImageEdit,
+		ApiNameResponses,
+		ApiNameQwenAsyncAIGC,
+		ApiNameAnthropicMessages,
+		ApiNameAnthropicComplete:
+		stream = gjson.GetBytes(body, "stream").Bool()
+	case ApiNameGeminiStreamGenerateContent:
+		stream = true
+	}
+	return stream
 }
 
 func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
@@ -901,7 +995,10 @@ func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 		ApiNameImageVariation,
 		ApiNameAudioSpeech,
 		ApiNameFineTuningJobs,
-		ApiNameResponses:
+		ApiNameResponses,
+		ApiNameGeminiGenerateContent,
+		ApiNameGeminiStreamGenerateContent,
+		ApiNameAnthropicMessages:
 		return true
 	}
 	return false

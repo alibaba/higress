@@ -18,12 +18,12 @@ func main() {}
 func init() {
 	wrapper.SetCtx(
 		"replay-protection",
-		wrapper.ParseConfigBy(config.ParseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
+		wrapper.ParseConfig(config.ParseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 	)
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ReplayProtectionConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ReplayProtectionConfig) types.Action {
 	nonce, _ := proxywasm.GetHttpRequestHeader(cfg.NonceHeader)
 	if cfg.ForceNonce && nonce == "" {
 		// In force mode, reject the request if a required header is missing.

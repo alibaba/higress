@@ -26,7 +26,7 @@ import (
 	"istio.io/istio/pkg/config/schema/collections"
 	"k8s.io/apimachinery/pkg/labels"
 
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 type PathType string
@@ -168,6 +168,10 @@ type ConvertOptions struct {
 	CanaryIngresses []*WrapperConfig
 
 	Service2TrafficPolicy map[ServiceKey]*WrapperTrafficPolicy
+
+	ServiceWrappers map[string]*ServiceWrapper
+
+	ProxyWrappers map[string]*ProxyWrapper
 
 	HasDefaultBackend bool
 }

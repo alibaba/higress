@@ -117,5 +117,5 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config HttpCallConfig, log lo
 				proxywasm.AddHttpRequestHeader(config.tokenHeader, token)
 			}
 		})
-	return types.ActionPause
+	return types.HeaderStopAllIterationAndWatermark
 }

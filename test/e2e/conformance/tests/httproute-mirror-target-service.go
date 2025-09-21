@@ -22,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 	v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -62,7 +62,7 @@ var HTTPRouteMirrorTargetService = suite.ConformanceTest{
 		t.Run("HTTPRoute mirror request to target service", func(t *testing.T) {
 			for _, testcase := range testcases {
 				http.MakeRequestAndExpectEventuallyConsistentResponse(t, suite.RoundTripper, suite.TimeoutConfig, suite.GatewayAddress, testcase)
-				//check mirror's logs for request
+				// check mirror's logs for request
 				cfg, err := config.GetConfig()
 				if err != nil {
 					t.Fatalf("[httproute-mirror] get config failed.")
