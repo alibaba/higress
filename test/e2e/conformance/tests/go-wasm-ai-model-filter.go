@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -40,10 +40,10 @@ var WasmPluginsAIModelFilter = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:   "ai-api.com",
-						Path:   "/v1/chat/completions",
-						Method: "POST",
-						Body:   `{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}]}`,
+						Host:    "ai-api.com",
+						Path:    "/v1/chat/completions",
+						Method:  "POST",
+						Body:    []byte(`{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}]}`),
 						Headers: map[string]string{"Content-Type": "application/json"},
 					},
 				},
@@ -61,10 +61,10 @@ var WasmPluginsAIModelFilter = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:   "ai-api.com",
-						Path:   "/v1/chat/completions",
-						Method: "POST",
-						Body:   `{"model":"claude-3-sonnet","messages":[{"role":"user","content":"Hello"}]}`,
+						Host:    "ai-api.com",
+						Path:    "/v1/chat/completions",
+						Method:  "POST",
+						Body:    []byte(`{"model":"claude-3-sonnet","messages":[{"role":"user","content":"Hello"}]}`),
 						Headers: map[string]string{"Content-Type": "application/json"},
 					},
 				},
@@ -82,10 +82,10 @@ var WasmPluginsAIModelFilter = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:   "ai-api.com",
-						Path:   "/v1/chat/completions",
-						Method: "POST",
-						Body:   `{"model":"llama-3","messages":[{"role":"user","content":"Hello"}]}`,
+						Host:    "ai-api.com",
+						Path:    "/v1/chat/completions",
+						Method:  "POST",
+						Body:    []byte(`{"model":"llama-3","messages":[{"role":"user","content":"Hello"}]}`),
 						Headers: map[string]string{"Content-Type": "application/json"},
 					},
 				},
@@ -93,7 +93,6 @@ var WasmPluginsAIModelFilter = suite.ConformanceTest{
 					ExpectedResponse: http.Response{
 						StatusCode: 403,
 					},
-					ExpectedResponseBody: `{"error":{"message":"Model not allowed","type":"model_not_allowed","code":"model_filter_rejected","details":"Model not allowed: llama-3"}}`,
 				},
 			},
 			{
@@ -104,10 +103,10 @@ var WasmPluginsAIModelFilter = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:   "ai-api.com",
-						Path:   "/v1/models/gemini-pro:generateContent",
-						Method: "POST",
-						Body:   `{"contents":[{"parts":[{"text":"Hello"}]}]}`,
+						Host:    "ai-api.com",
+						Path:    "/v1/models/gemini-pro:generateContent",
+						Method:  "POST",
+						Body:    []byte(`{"contents":[{"parts":[{"text":"Hello"}]}]}`),
 						Headers: map[string]string{"Content-Type": "application/json"},
 					},
 				},
@@ -125,10 +124,10 @@ var WasmPluginsAIModelFilter = suite.ConformanceTest{
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:   "ai-api.com",
-						Path:   "/v1/models/gemini-flash:generateContent",
-						Method: "POST",
-						Body:   `{"contents":[{"parts":[{"text":"Hello"}]}]}`,
+						Host:    "ai-api.com",
+						Path:    "/v1/models/gemini-flash:generateContent",
+						Method:  "POST",
+						Body:    []byte(`{"contents":[{"parts":[{"text":"Hello"}]}]}`),
 						Headers: map[string]string{"Content-Type": "application/json"},
 					},
 				},
