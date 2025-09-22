@@ -17,11 +17,11 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/envoy"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/kubernetes"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -73,25 +73,12 @@ var testCases = []struct {
 			},
 		},
 		envoyAssertion: envoy.Assertion{
-			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains",
+			Path:            "configs.#.dynamic_listeners.#.active_state.listener.filter_chains.#.filters.#.typed_config.http_filters",
 			TargetNamespace: "higress-system",
 			CheckType:       envoy.CheckTypeNotExist,
 			ExpectEnvoyConfig: map[string]interface{}{
-				"memory_level":           5,
-				"compression_level":      "COMPRESSION_LEVEL_9",
-				"window_bits":            12,
-				"min_content_length":     1024,
-				"disable_on_etag_header": true,
-				"content_type": []interface{}{
-					"text/html",
-					"text/css",
-					"text/plain",
-					"text/xml",
-					"application/json",
-					"application/javascript",
-					"application/xhtml+xml",
-					"image/svg+xml",
-				},
+				"name": "envoy.filters.http.gzip",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.gzip.v3.Gzip",
 			},
 		},
 	},

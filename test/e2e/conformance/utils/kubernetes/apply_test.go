@@ -14,5 +14,5 @@ limitations under the License.
 package kubernetes
 
 import (
-	_ "github.com/alibaba/higress/test/e2e/conformance/utils/flags"
+	_ "github.com/alibaba/higress/v2/test/e2e/conformance/utils/flags"
 )

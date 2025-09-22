@@ -28,7 +28,6 @@ func CheckCacheForKey(key string, ctx wrapper.HttpContext, c config.PluginConfig
 	err := activeCacheProvider.Get(queryKey, func(response resp.Value) {
 		handleCacheResponse(key, response, ctx, log, stream, c, useSimilaritySearch)
 	})
-
 	if err != nil {
 		log.Errorf("[%s] [CheckCacheForKey] failed to retrieve key: %s from cache, error: %v", PLUGIN_NAME, key, err)
 		return err

@@ -134,6 +134,7 @@ const (
 	providerTypeTriton     = "triton"
 	providerTypeOpenRouter = "openrouter"
 	providerTypeLongcat    = "longcat"
+	providerTypeFireworks  = "fireworks"
 	providerTypeCerebras   = "cerebras"
 
 	protocolOpenAI   = "openai"
@@ -216,6 +217,7 @@ var (
 		providerTypeTriton:     &tritonProviderInitializer{},
 		providerTypeOpenRouter: &openrouterProviderInitializer{},
 		providerTypeLongcat:    &longcatProviderInitializer{},
+		providerTypeFireworks:  &fireworksProviderInitializer{},
 		providerTypeCerebras:   &cerebrasProviderInitializer{},
 	}
 )
