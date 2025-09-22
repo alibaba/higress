@@ -66,6 +66,38 @@ jobs:
               "https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/tag/${RELEASE_VERSION}" \
               -o release_page.html
 
+          # Extract system prompt content from HTML
+          echo "Extracting system prompt content..."
+          SYSTEM_PROMPT=""
+
+          # Find the line number where system prompt starts
+          system_prompt_start=$(grep -n "<h2>system prompt</h2>" release_page.html | cut -d: -f1)
+
+          if [ -n "$system_prompt_start" ]; then
+              # Find the next h2 tag after system prompt
+              next_h2_line=$(tail -n +$((system_prompt_start + 1)) release_page.html | grep -n "<h2>" | head -1 | cut -d: -f1)
+
+              if [ -n "$next_h2_line" ]; then
+                  # Calculate actual line number and extract content between the two h2 tags
+                  system_prompt_end=$((system_prompt_start + next_h2_line))
+                  system_prompt_raw=$(sed -n "${system_prompt_start},$((system_prompt_end - 1))p" release_page.html)
+              else
+                  # If no next h2 found, extract till end of file
+                  system_prompt_raw=$(tail -n +${system_prompt_start} release_page.html)
+              fi
+
+              # Clean up HTML tags and decode entities, store in variable
+              SYSTEM_PROMPT=$(echo "$system_prompt_raw" | \
+                  sed 's/&lt;/</g; s/&gt;/>/g; s/&amp;/\&/g; s/&quot;/"/g; s/&#39;/'"'"'/g' | \
+                  sed '/^$/d' | \
+                  sed '1d')  # Remove the first line (system prompt header)
+
+              echo "System Prompt Content:"
+              echo "$SYSTEM_PROMPT"
+          else
+              echo "No system prompt found in the release page."
+          fi
+
           echo "Extracting PR numbers from ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME} release notes..."
           PR_NUMS=$(cat release_page.html | grep -o "/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/pull/[0-9]*" | grep -o "[0-9]*$" | sort -n | uniq | tr '\n' ',')
           PR_NUMS=${PR_NUMS%,}
@@ -88,11 +120,17 @@ jobs:
           cd higress-report-agent
           pip install uv
           uv sync
+
+          # Build command
+          CMD_ARGS="--mode 2 --choice 2 --pr_nums ${PR_NUMS}"
           if [ -n "${IMPORTANT_PR_NUMS}" ]; then
-              uv run report_main.py --mode 2 --choice 2 --pr_nums ${PR_NUMS} --important_prs ${IMPORTANT_PR_NUMS}
-          else
-              uv run report_main.py --mode 2 --choice 2 --pr_nums ${PR_NUMS}
+              CMD_ARGS="${CMD_ARGS} --important_prs ${IMPORTANT_PR_NUMS}"
           fi
+          if [ -n "${SYSTEM_PROMPT}" ]; then
+              CMD_ARGS="${CMD_ARGS} --sys_prompt \"${SYSTEM_PROMPT}\""
+          fi
+
+          uv run report_main.py ${CMD_ARGS}
           cp report.md ../
           cp report.EN.md ../
           cd ..
