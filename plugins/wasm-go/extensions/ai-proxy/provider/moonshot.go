@@ -17,7 +17,8 @@ import (
 // moonshotProvider is the provider for Moonshot AI service.
 
 const (
-	moonshotDomain = "api.moonshot.cn"
+	moonshotDomain                = "api.moonshot.cn"
+	moonshotAnthropicMessagesPath = "/anthropic/v1/messages"
 )
 
 type moonshotProviderInitializer struct{}
@@ -26,7 +27,7 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 	if config.moonshotFileId != "" && config.context != nil {
 		return errors.New("moonshotFileId and context cannot be configured at the same time")
 	}
-	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+	if len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
@@ -34,8 +35,12 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 
 func (m *moonshotProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
-		string(ApiNameModels):         PathOpenAIModels,
+		string(ApiNameChatCompletion):      PathOpenAIChatCompletions,
+		string(ApiNameModels):              PathOpenAIModels,
+		string(ApiNameFiles):               PathOpenAIFiles,
+		string(ApiNameRetrieveFile):        PathOpenAIRetrieveFile,
+		string(ApiNameRetrieveFileContent): PathOpenAIRetrieveFileContent,
+		string(ApiNameAnthropicMessages):   moonshotAnthropicMessagesPath,
 	}
 }
 
