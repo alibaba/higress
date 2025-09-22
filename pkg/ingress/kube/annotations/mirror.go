@@ -15,8 +15,8 @@
 package annotations
 
 import (
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	wrappers "google.golang.org/protobuf/types/known/wrapperspb"
 	networking "istio.io/api/networking/v1alpha3"
 )

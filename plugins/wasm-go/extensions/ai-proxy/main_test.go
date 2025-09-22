@@ -104,6 +104,12 @@ func TestAzure(t *testing.T) {
 	test.RunAzureOnHttpResponseBodyTests(t)
 }
 
+func TestFireworks(t *testing.T) {
+	test.RunFireworksParseConfigTests(t)
+	test.RunFireworksOnHttpRequestHeadersTests(t)
+	test.RunFireworksOnHttpRequestBodyTests(t)
+}
+
 func TestGaladriel(t *testing.T) {
 	test.RunGaladrielParseConfigTests(t)
 	test.RunGaladrielOnHttpRequestHeadersTests(t)

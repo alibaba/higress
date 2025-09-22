@@ -45,6 +45,16 @@ const (
 	LowRisk    = "low"
 	NoRisk     = "none"
 
+	S4Sensitive = "S4"
+	S3Sensitive = "S3"
+	S2Sensitive = "S2"
+	S1Sensitive = "S1"
+	NoSensitive = "S0"
+
+	ContentModerationType = "contentModeration"
+	PromptAttackType      = "promptAttack"
+	SensitiveDataType     = "sensitiveData"
+
 	OpenAIResponseFormat       = `{"id": "%s","object":"chat.completion","model":"from-security-guard","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
 	OpenAIStreamResponseChunk  = `data:{"id":"%s","object":"chat.completion.chunk","model":"from-security-guard","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]}`
 	OpenAIStreamResponseEnd    = `data:{"id":"%s","object":"chat.completion.chunk","model":"from-security-guard","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}],"usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}`
@@ -71,9 +81,11 @@ type Response struct {
 }
 
 type Data struct {
-	RiskLevel string   `json:"RiskLevel"`
-	Result    []Result `json:"Result,omitempty"`
-	Advice    []Advice `json:"Advice,omitempty"`
+	RiskLevel  string   `json:"RiskLevel"`
+	AttackLevel string  `json:"AttackLevel,omitempty"`
+	Result     []Result `json:"Result,omitempty"`
+	Advice     []Advice `json:"Advice,omitempty"`
+	Detail     []Detail `json:"Detail,omitempty"`
 }
 
 type Result struct {
@@ -89,11 +101,18 @@ type Advice struct {
 	HitLibName string `json:"HitLibName,omitempty"`
 }
 
+type Detail struct {
+	Suggestion string `json:"Suggestion,omitempty"`
+	Type       string `json:"Type,omitempty"`
+	Level      string `json:"Level,omitempty"`
+}
+
 type AISecurityConfig struct {
 	client                               wrapper.HttpClient
 	ak                                   string
 	sk                                   string
 	token                                string
+	action                               string
 	checkRequest                         bool
 	requestCheckService                  string
 	requestContentJsonPath               string
@@ -104,7 +123,9 @@ type AISecurityConfig struct {
 	denyCode                             int64
 	denyMessage                          string
 	protocolOriginal                     bool
-	riskLevelBar                         string
+	contentModerationLevelBar            string
+	promptAttackLevelBar                 string
+	sensitiveDataLevelBar                string
 	timeout                              uint32
 	bufferLimit                          int
 	metrics                              map[string]proxywasm.MetricCounter
@@ -121,7 +142,8 @@ func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) 
 	counter.Increment(inc)
 }
 
-func riskLevelToInt(riskLevel string) int {
+func levelToInt(riskLevel string) int {
+	// First check against our defined constants
 	switch riskLevel {
 	case MaxRisk:
 		return 4
@@ -133,8 +155,76 @@ func riskLevelToInt(riskLevel string) int {
 		return 1
 	case NoRisk:
 		return 0
+	case S4Sensitive:
+		return 4
+	case S3Sensitive:
+		return 3
+	case S2Sensitive:
+		return 2
+	case S1Sensitive:
+		return 1
+	case NoSensitive:
+		return 0
+	}
+
+	// Then check against raw string values
+	switch riskLevel {
+	case "max", "MAX":
+		return 4
+	case "high", "HIGH":
+		return 3
+	case "medium", "MEDIUM":
+		return 2
+	case "low", "LOW":
+		return 1
+	case "none", "NONE":
+		return 0
+	case "S4", "s4":
+		return 4
+	case "S3", "s3":
+		return 3
+	case "S2", "s2":
+		return 2
+	case "S1", "s1":
+		return 1
+	case "S0", "s0":
+		return 0
 	default:
 		return -1
+	}
+}
+
+func isRiskLevelAcceptable(action string, data Data, config AISecurityConfig) bool {
+	if action == "MultiModalGuard" {
+		// Check top-level risk levels for MultiModalGuard
+		if levelToInt(data.RiskLevel) >= levelToInt(config.contentModerationLevelBar) {
+			return false
+		}
+		// Also check AttackLevel for prompt attack detection
+		if levelToInt(data.AttackLevel) >= levelToInt(config.promptAttackLevelBar) {
+			return false
+		}
+
+		// Check detailed results for backward compatibility
+		for _, detail := range data.Detail {
+			switch detail.Type {
+			case ContentModerationType:
+				if levelToInt(detail.Level) >= levelToInt(config.contentModerationLevelBar) {
+					return false
+				}
+			case PromptAttackType:
+				if levelToInt(detail.Level) >= levelToInt(config.promptAttackLevelBar) {
+					return false
+				}
+			case SensitiveDataType:
+				if levelToInt(detail.Level) >= levelToInt(config.sensitiveDataLevelBar) {
+					return false
+				}
+			}
+		}
+		return true
+	} else {
+		return levelToInt(data.RiskLevel) < levelToInt(config.contentModerationLevelBar)
 	}
 }
 
@@ -192,6 +282,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig) error {
 		return errors.New("invalid AK/SK config")
 	}
 	config.token = json.Get("securityToken").String()
+	config.action = json.Get("action").String()
 	config.checkRequest = json.Get("checkRequest").Bool()
 	config.checkResponse = json.Get("checkResponse").Bool()
 	config.protocolOriginal = json.Get("protocol").String() == "original"
@@ -226,13 +317,29 @@ func parseConfig(json gjson.Result, config *AISecurityConfig) error {
 	} else {
 		config.responseStreamContentJsonPath = DefaultStreamingResponseJsonPath
 	}
-	if obj := json.Get("riskLevelBar"); obj.Exists() {
-		config.riskLevelBar = obj.String()
-		if riskLevelToInt(config.riskLevelBar) <= 0 {
-			return errors.New("invalid risk level, value must be one of [max, high, medium, low]")
+	if obj := json.Get("contentModerationLevelBar"); obj.Exists() {
+		config.contentModerationLevelBar = obj.String()
+		if levelToInt(config.contentModerationLevelBar) <= 0 {
+			return errors.New("invalid contentModerationLevelBar, value must be one of [max, high, medium, low]")
 		}
 	} else {
-		config.riskLevelBar = HighRisk
+		config.contentModerationLevelBar = MaxRisk
+	}
+	if obj := json.Get("promptAttackLevelBar"); obj.Exists() {
+		config.promptAttackLevelBar = obj.String()
+		if levelToInt(config.promptAttackLevelBar) <= 0 {
+			return errors.New("invalid promptAttackLevelBar, value must be one of [max, high, medium, low]")
+		}
+	} else {
+		config.promptAttackLevelBar = MaxRisk
+	}
+	if obj := json.Get("sensitiveDataLevelBar"); obj.Exists() {
+		config.sensitiveDataLevelBar = obj.String()
+		if levelToInt(config.sensitiveDataLevelBar) <= 0 {
+			return errors.New("invalid sensitiveDataLevelBar, value must be one of [S4, S3, S2, S1]")
+		}
+	} else {
+		config.sensitiveDataLevelBar = S4Sensitive
 	}
 	if obj := json.Get("timeout"); obj.Exists() {
 		config.timeout = uint32(obj.Int())
@@ -306,7 +413,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			proxywasm.ResumeHttpRequest()
 			return
 		}
-		if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
+		if isRiskLevelAcceptable(config.action, response.Data, config) {
 			if contentIndex >= len(content) {
 				endTime := time.Now().UnixMilli()
 				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
@@ -370,11 +477,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AISecurityConfig, body []
 			"SignatureMethod":   "Hmac-SHA1",
 			"SignatureNonce":    randomID,
 			"SignatureVersion":  "1.0",
-			"Action":            "TextModerationPlus",
+			"Action":            config.action,
 			"AccessKeyId":       config.ak,
 			"Timestamp":         timestamp,
 			"Service":           checkService,
-			"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s"}`, sessionID, marshalStr(contentPiece)),
+			"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s","requestFrom": "%s"}`, sessionID, marshalStr(contentPiece), AliyunUserAgent),
 		}
 		if config.token != "" {
 			params["SecurityToken"] = config.token
@@ -444,7 +551,7 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config AISecurityConfi
 			ctx.SetContext("during_call", false)
 			return
 		}
-		if riskLevelToInt(response.Data.RiskLevel) >= riskLevelToInt(config.riskLevelBar) {
+		if !isRiskLevelAcceptable(config.action, response.Data, config) {
 			denyMessage := DefaultDenyMessage
 			if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
 				denyMessage = "\n" + response.Data.Advice[0].Answer
@@ -495,11 +602,11 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config AISecurityConfi
 				"SignatureMethod":   "Hmac-SHA1",
 				"SignatureNonce":    randomID,
 				"SignatureVersion":  "1.0",
-				"Action":            "TextModerationPlus",
+				"Action":            config.action,
 				"AccessKeyId":       config.ak,
 				"Timestamp":         timestamp,
 				"Service":           checkService,
-				"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s"}`, ctx.GetContext("sessionID").(string), marshalStr(buffer)),
+				"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s","requestFrom": "%s"}`, ctx.GetContext("sessionID").(string), marshalStr(buffer), AliyunUserAgent),
 			}
 			if config.token != "" {
 				params["SecurityToken"] = config.token
@@ -563,7 +670,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			proxywasm.ResumeHttpResponse()
 			return
 		}
-		if riskLevelToInt(response.Data.RiskLevel) < riskLevelToInt(config.riskLevelBar) {
+		if isRiskLevelAcceptable(config.action, response.Data, config) {
 			if contentIndex >= len(content) {
 				endTime := time.Now().UnixMilli()
 				ctx.SetUserAttribute("safecheck_response_rt", endTime-startTime)
@@ -626,11 +733,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 			"SignatureMethod":   "Hmac-SHA1",
 			"SignatureNonce":    randomID,
 			"SignatureVersion":  "1.0",
-			"Action":            "TextModerationPlus",
+			"Action":            config.action,
 			"AccessKeyId":       config.ak,
 			"Timestamp":         timestamp,
 			"Service":           checkService,
-			"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s"}`, sessionID, marshalStr(contentPiece)),
+			"ServiceParameters": fmt.Sprintf(`{"sessionId": "%s","content": "%s","requestFrom": "%s"}`, sessionID, marshalStr(contentPiece), AliyunUserAgent),
 		}
 		if config.token != "" {
 			params["SecurityToken"] = config.token

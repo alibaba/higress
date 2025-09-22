@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/envoy"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/envoy"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {

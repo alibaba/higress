@@ -31,10 +31,10 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"sigs.k8s.io/yaml"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/controller"
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/controller"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 type HigressConfigController controller.Controller[listersv1.ConfigMapNamespaceLister]
@@ -180,7 +180,6 @@ func (c *ConfigmapMgr) AddOrUpdateHigressConfig(name util.ClusterNamespacedName)
 		IngressLog.Infof("configmapMgr higress config AddOrUpdate success, result is %d", result)
 		// Call updateConfig
 	}
-
 }
 
 func (c *ConfigmapMgr) ConstructEnvoyFilters() ([]*config.Config, error) {

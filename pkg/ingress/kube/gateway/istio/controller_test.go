@@ -41,7 +41,7 @@ import (
 	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	k8sbeta "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"github.com/alibaba/higress/pkg/config/constants"
+	"github.com/alibaba/higress/v2/pkg/config/constants"
 )
 
 var (

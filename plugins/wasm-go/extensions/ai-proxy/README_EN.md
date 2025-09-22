@@ -148,6 +148,10 @@ For Grok, the corresponding `type` is `grok`. It has no unique configuration fie
 
 For OpenRouter, the corresponding `type` is `openrouter`. It has no unique configuration fields.
 
+#### Fireworks AI
+
+For Fireworks AI, the corresponding `type` is `fireworks`. It has no unique configuration fields.
+
 #### Galadriel
 
 For Galadriel, the corresponding `type` is `galadriel`. It has no unique configuration fields.
@@ -955,6 +959,63 @@ provider:
     "prompt_tokens": 12,
     "completion_tokens": 35,
     "total_tokens": 47
+  }
+}
+```
+
+### Using OpenAI Protocol Proxy for Fireworks AI Service
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: fireworks
+  apiTokens:
+    - "YOUR_FIREWORKS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    "gpt-3.5-turbo": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+    "*": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+```
+
+**Request Example**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100
+}
+```
+
+**Response Example**
+
+```json
+{
+  "id": "fw-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am an AI assistant powered by Fireworks AI, based on the Llama 3.1 model. I can help answer questions, engage in conversations, and provide various information. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 38,
+    "total_tokens": 53
   }
 }
 ```
