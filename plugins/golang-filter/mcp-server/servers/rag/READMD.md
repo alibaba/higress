@@ -23,40 +23,36 @@
 
 ### 配置结构
 
-```yaml
-rag:
-  # RAG系统基础配置
-  splitter:
-    type: "recursive"  # 递归分块器 recursive 和 nosplitter
-    chunk_size: 500
-    chunk_overlap: 50
-  top_k: 5  # 搜索返回的知识块数量
-  threshold: 0.5  # 搜索阈值
+| 名称                         | 数据类型 | 填写要求 | 默认值 | 描述 |
+|----------------------------|----------|-----------|---------|--------|
+| **rag**                    | object | 必填 | - | RAG系统基础配置 |
+| rag.splitter.provider      | string | 必填 | recursive | 分块器类型：recursive或nosplitter |
+| rag.splitter.chunk_size    | integer | 可选 | 500 | 块大小 |
+| rag.splitter.chunk_overlap | integer | 可选 | 50 | 块重叠大小 |
+| rag.top_k                  | integer | 可选 | 10 | 搜索返回的知识块数量 |
+| rag.threshold              | float | 可选 | 0.5 | 搜索阈值 |
+| **llm**                    | object | 可选 | - | LLM配置 |
+| llm.provider               | string | 可选 | openai | LLM提供商 |
+| llm.api_key                | string | 可选 | - | LLM API密钥 |
+| llm.base_url               | string | 可选 |  | LLM API基础URL |
+| llm.model                  | string | 可选 | gpt-4o | LLM模型名称 |
+| llm.max_tokens             | integer | 可选 | 2048 | 最大令牌数 |
+| llm.temperature            | float | 可选 | 0.5 | 温度参数 |
+| **embedding**              | object | 必填 | - | 嵌入配置 |
+| embedding.provider         | string | 必填 | dashscope | 嵌入提供商：openai或dashscope |
+| embedding.api_key          | string | 必填 | - | 嵌入API密钥 |
+| embedding.base_url         | string | 可选 |  | 嵌入API基础URL |
+| embedding.model            | string | 必填 | text-embedding-v4 | 嵌入模型名称 |
+| **vectordb**               | object | 必填 | - | 向量数据库配置 |
+| vectordb.provider          | string | 必填 | milvus | 向量数据库提供商 |
+| vectordb.host              | string | 必填 | localhost | 数据库主机地址 |
+| vectordb.port              | integer | 必填 | 19530 | 数据库端口 |
+| vectordb.database          | string | 必填 | default | 数据库名称 |
+| vectordb.collection        | string | 必填 | test_collection | 集合名称 |
+| vectordb.username          | stri选ng | 可选 | - | 数据库用户名 |
+| vectordb.password          | string | 可选 | - | 数据库密码 |
 
-llm:
-  provider: "openai"  # openai
-  api_key: "your-llm-api-key"
-  base_url: "https://api.openai.com/v1"  # 可选
-  model: "gpt-3.5-turbo"  # LLM模型
-  max_tokens: 2048  # 最大令牌数
-  temperature: 0.5  # 温度参数
 
-embedding:
-  provider: "openai"  # openai, dashscope
-  api_key: "your-embedding-api-key"
-  base_url: "https://api.openai.com/v1"  # 可选
-  model: "text-embedding-ada-002"  # 嵌入模型
-
-vectordb:
-  provider: "milvus"  # milvus
-  host: "localhost"
-  port: 19530
-  database: "default"
-  collection: "test_collection"
-  username: ""  # 可选
-  password: ""  # 可选
-
-```
 ### higress-config 配置样例
 
 ```yaml
@@ -123,6 +119,83 @@ data:
 
 #### LLM 
 - **OpenAI**
+
+## 如何测试数据集的效果
+
+测试数据集的效果分两步，第一步导入数据集语料，第二步测试Chat效果。
+
+### 导入数据集语料
+
+使用 `RAGClient.CreateChunkFromText` 工具导入数据集语料，比如数据集语料格式为 JSON，每个 JSON 对象包含 `body`、`title` 和 `url` 等字段。样例代码如下：
+
+```golang
+func TestRAGClient_LoadChunks(t *testing.T) {
+	t.Logf("TestRAGClient_LoadChunks")
+	ragClient, err := getRAGClient()
+	if err != nil {
+		t.Errorf("getRAGClient() error = %v", err)
+		return
+	}
+	// load json output/corpus.json and then call ragclient CreateChunkFromText to insert chunks
+	file, err := os.Open("/dataset/corpus.json")
+	if err != nil {
+		t.Errorf("LoadData() error = %v", err)
+		return
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	var data []struct {
+		Body  string `json:"body"`
+		Title string `json:"title"`
+		Url   string `json:"url"`
+	}
+	if err := decoder.Decode(&data); err != nil {
+		t.Errorf("LoadData() error = %v", err)
+		return
+	}
+
+	for _, item := range data {
+		t.Logf("LoadData() url = %s", item.Url)
+		t.Logf("LoadData() title = %s", item.Title)
+		t.Logf("LoadData() len body = %d", len(item.Body))
+		chunks, err := ragClient.CreateChunkFromText(item.Body, item.Title)
+		if err != nil {
+			t.Errorf("LoadData() error = %v", err)
+			continue
+		} else {
+			t.Logf("LoadData() chunks len = %d", len(chunks))
+		}
+	}
+	t.Logf("TestRAGClient_LoadChunks done")
+}
+```
+
+### 测试Chat效果
+
+使用 `RAGClient.Chat` 工具测试 Chat 效果。样例代码如下：
+
+```golang
+func TestRAGClient_Chat(t *testing.T) {
+	ragClient, err := getRAGClient()
+	if err != nil {
+		t.Errorf("getRAGClient() error = %v", err)
+		return
+	}
+	query := "Which online betting platform provides a welcome bonus of up to $1000 in bonus bets for new customers' first losses, runs NBA betting promotions, and is anticipated to extend the same sign-up offer to new users in Vermont, as reported by both CBSSports.com and Sporting News?"
+	resp, err := ragClient.Chat(query)
+	if err != nil {
+		t.Errorf("Chat() error = %v", err)
+		return
+	}
+	if resp == "" {
+		t.Errorf("Chat() resp = %s, want not empty", resp)
+		return
+	}
+	t.Logf("Chat() resp = %s", resp)
+}
+```
+
+
 
 
 ## Milvus 安装
