@@ -825,7 +825,7 @@ func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent
 			continue
 		}
 
-		if lineStartIndex != -1 {
+		if lineStartIndex != -1 && valueStartIndex != -1 {
 			value := string(body[valueStartIndex:i])
 			currentEvent.SetValue(currentKey, value)
 		} else {
