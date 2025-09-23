@@ -54,12 +54,7 @@ func (m *azureProviderInitializer) DefaultCapabilities() map[string]string {
 			log.Warnf("azureProviderInitializer: capability %s has an unexpected path %s, skipping", k, v)
 			continue
 		}
-		var path string
-		if k != string(ApiNameResponses) {
-			path = strings.TrimPrefix(v, PathOpenAIPrefix)
-		} else {
-			path = v
-		}
+		path := strings.TrimPrefix(v, PathOpenAIPrefix)
 		if azureModelIrrelevantApis[ApiName(k)] {
 			path = pathAzurePrefix + path
 		} else {
