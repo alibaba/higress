@@ -68,34 +68,36 @@ jobs:
 
           # Extract system prompt content from HTML
           echo "Extracting system prompt content..."
-          SYSTEM_PROMPT=""
+          pip install beautifulsoup4 markdownify
+          SYSTEM_PROMPT=$(python3 -c "
+          import sys
+          from bs4 import BeautifulSoup
+          from markdownify import markdownify
 
-          # Find the line number where system prompt starts
-          system_prompt_start=$(grep -n "<h2>system prompt</h2>" release_page.html | cut -d: -f1)
-
-          if [ -n "$system_prompt_start" ]; then
-              # Find the next h2 tag after system prompt
-              next_h2_line=$(tail -n +$((system_prompt_start + 1)) release_page.html | grep -n "<h2>" | head -1 | cut -d: -f1)
-
-              if [ -n "$next_h2_line" ]; then
-                  # Calculate actual line number and extract content between the two h2 tags
-                  system_prompt_end=$((system_prompt_start + next_h2_line))
-                  system_prompt_raw=$(sed -n "${system_prompt_start},$((system_prompt_end - 1))p" release_page.html)
-              else
-                  # If no next h2 found, extract till end of file
-                  system_prompt_raw=$(tail -n +${system_prompt_start} release_page.html)
-              fi
-
-              # Clean up HTML tags and decode entities, store in variable
-              SYSTEM_PROMPT=$(echo "$system_prompt_raw" | \
-                  sed 's/&lt;/</g; s/&gt;/>/g; s/&amp;/\&/g; s/&quot;/"/g; s/&#39;/'"'"'/g' | \
-                  sed '/^$/d' | \
-                  sed '1d')  # Remove the first line (system prompt header)
-
-              echo "System Prompt Content:"
-              echo "$SYSTEM_PROMPT"
+          with open('release_page.html', 'r') as f:
+              soup = BeautifulSoup(f, 'html.parser')
+          
+          system_prompt_header = soup.find('h2', string='system prompt')
+          if system_prompt_header:
+              content = []
+              for sibling in system_prompt_header.next_siblings:
+                  if sibling.name == 'h2':
+                      break
+                  content.append(str(sibling))
+              html_content = ''.join(content).strip()
+              # Convert HTML to Markdown
+              if html_content:
+                  markdown_content = markdownify(html_content)
+                  print(markdown_content.strip())
+              else:
+                  print('')
+          else:
+              print('')
+          ")
+          if [ -z "${SYSTEM_PROMPT}" ]; then
+              echo "No system prompt found in release notes."
           else
-              echo "No system prompt found in the release page."
+              echo "System prompt content: ${SYSTEM_PROMPT}"
           fi
 
           echo "Extracting PR numbers from ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME} release notes..."
