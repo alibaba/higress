@@ -12,7 +12,7 @@ import (
 
 const (
 	OPENAI_CHAT_ENDPOINT = "/chat/completions"
-	OPENAI_DEFAULT_MODEL = "gpt-3.5-turbo"
+	OPENAI_DEFAULT_MODEL = "gpt-4o"
 )
 
 // openAI specific configuration captured after initialization.

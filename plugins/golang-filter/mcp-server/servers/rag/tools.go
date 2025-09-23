@@ -169,6 +169,10 @@ func HandleChat(ragClient *RAGClient) common.ToolHandlerFunc {
 		if !ok {
 			return nil, fmt.Errorf("invalid query argument")
 		}
+		// check llm provider
+		if ragClient.llmProvider == nil {
+			return nil, fmt.Errorf("llm provider is empty, please check the llm configuration")
+		}
 		// Generate response using RAGClient's LLM
 		reply, err := ragClient.Chat(query)
 		if err != nil {
