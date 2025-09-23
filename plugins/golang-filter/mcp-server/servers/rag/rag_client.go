@@ -46,11 +46,15 @@ func NewRAGClient(config *config.Config) (*RAGClient, error) {
 	}
 	ragclient.embeddingProvider = embeddingProvider
 
-	llmProvider, err := llm.NewLLMProvider(ragclient.config.LLM)
-	if err != nil {
-		return nil, fmt.Errorf("create llm provider failed, err: %w", err)
+	if ragclient.config.LLM.Provider == "" {
+		ragclient.llmProvider = nil
+	} else {
+		llmProvider, err := llm.NewLLMProvider(ragclient.config.LLM)
+		if err != nil {
+			return nil, fmt.Errorf("create llm provider failed, err: %w", err)
+		}
+		ragclient.llmProvider = llmProvider
 	}
-	ragclient.llmProvider = llmProvider
 
 	demoVector, err := embeddingProvider.GetEmbedding(context.Background(), "initialization")
 	if err != nil {

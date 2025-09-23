@@ -81,11 +81,11 @@ type Response struct {
 }
 
 type Data struct {
-	RiskLevel  string   `json:"RiskLevel"`
-	AttackLevel string  `json:"AttackLevel,omitempty"`
-	Result     []Result `json:"Result,omitempty"`
-	Advice     []Advice `json:"Advice,omitempty"`
-	Detail     []Detail `json:"Detail,omitempty"`
+	RiskLevel   string   `json:"RiskLevel"`
+	AttackLevel string   `json:"AttackLevel,omitempty"`
+	Result      []Result `json:"Result,omitempty"`
+	Advice      []Advice `json:"Advice,omitempty"`
+	Detail      []Detail `json:"Detail,omitempty"`
 }
 
 type Result struct {
@@ -123,6 +123,7 @@ type AISecurityConfig struct {
 	denyCode                             int64
 	denyMessage                          string
 	protocolOriginal                     bool
+	riskLevelBar                         string
 	contentModerationLevelBar            string
 	promptAttackLevelBar                 string
 	sensitiveDataLevelBar                string
@@ -224,7 +225,7 @@ func isRiskLevelAcceptable(action string, data Data, config AISecurityConfig) bo
 		}
 		return true
 	} else {
-		return levelToInt(data.RiskLevel) < levelToInt(config.contentModerationLevelBar)
+		return levelToInt(data.RiskLevel) < levelToInt(config.riskLevelBar)
 	}
 }
 
@@ -281,8 +282,17 @@ func parseConfig(json gjson.Result, config *AISecurityConfig) error {
 	if config.ak == "" || config.sk == "" {
 		return errors.New("invalid AK/SK config")
 	}
+	if obj := json.Get("riskLevelBar"); obj.Exists() {
+		config.riskLevelBar = obj.String()
+	} else {
+		config.riskLevelBar = HighRisk
+	}
 	config.token = json.Get("securityToken").String()
-	config.action = json.Get("action").String()
+	if obj := json.Get("action"); obj.Exists() {
+		config.action = json.Get("action").String()
+	} else {
+		config.action = "TextModerationPlus"
+	}
 	config.checkRequest = json.Get("checkRequest").Bool()
 	config.checkResponse = json.Get("checkResponse").Bool()
 	config.protocolOriginal = json.Get("protocol").String() == "original"
