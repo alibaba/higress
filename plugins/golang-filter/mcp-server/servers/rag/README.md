@@ -2,22 +2,67 @@
 
 这是一个 Model Context Protocol (MCP) 服务器，提供知识管理和检索功能。
 
-该 MCP 服务器提供以下工具：
+## MCP 工具说明
 
-## MCP Tools
+Higress RAG MCP Server 提供以下工具，根据配置不同，可用工具也会有所差异：
 
-### 知识管理 
-- `create-chunks-from-text` - 从 Text 创建知识 (p1)
+| 工具名称 | 功能描述 | 依赖配置 | 必选/可选 |
+|---------|---------|---------|----------|
+| `create-chunks-from-text` | 将文本内容分块并存储到向量数据库，用于知识库构建 | embedding, vectordb | **必选** |
+| `list-chunks` | 列出已存储的知识块，用于知识库管理 | vectordb | **必选** |
+| `delete-chunk` | 删除指定的知识块，用于知识库维护 | vectordb | **必选** |
+| `search` | 基于语义相似度搜索知识库中的内容 | embedding, vectordb | **必选** |
+| `chat` | 基于检索增强生成(RAG)回答用户问题，结合知识库内容生成回答 | embedding, vectordb, llm | **可选** |
 
-### 块管理
-- `list-chunks` - 列出知识块 
-- `delete-chunk` - 删除知识块 
+### 工具与配置的关系
 
-### 搜索 
-- `search` - 搜索
+- **基础功能**（知识管理、搜索）：只需配置 `embedding` 和 `vectordb`
+- **高级功能**（聊天问答）：需额外配置 `llm`
 
-### 聊天功能
-- `chat` - 发送聊天消息
+具体关系如下：
+- 未配置 `llm` 时，`chat` 工具将不可用
+- 所有工具都依赖 `embedding` 和 `vectordb` 配置
+- `rag` 配置用于调整分块和检索参数，影响所有工具的行为
+
+## 典型使用场景
+
+### 最小工具集场景（无LLM配置）
+
+适用于仅需要知识库管理和检索的场景，不需要生成式回答。
+
+**可用工具**：`create-chunks-from-text`、`list-chunks`、`delete-chunk`、`search`
+
+**典型用例**：
+1. 构建企业文档库，仅需检索相关文档片段
+2. 数据索引系统，通过语义搜索快速定位信息
+3. 内容管理系统，管理和检索结构化/非结构化内容
+
+**示例流程**：
+```
+1. 使用 create-chunks-from-text 导入文档
+2. 使用 search 检索相关内容
+3. 使用 list-chunks 和 delete-chunk 管理知识库
+```
+
+### 完整工具集场景（含LLM配置）
+
+适用于需要智能问答和内容生成的高级场景。
+
+**可用工具**：`create-chunks-from-text`、`list-chunks`、`delete-chunk`、`search`、`chat`
+
+**典型用例**：
+1. 智能客服系统，基于企业知识库回答用户问题
+2. 文档助手，帮助用户理解和分析复杂文档
+3. 专业领域问答系统，如法律、金融、技术支持等
+
+**示例流程**：
+```
+1. 使用 create-chunks-from-text 导入专业领域文档
+2. 用户通过 chat 工具提问
+3. 系统使用 search 检索相关知识
+4. LLM 结合检索结果生成回答
+5. 管理员使用 list-chunks 和 delete-chunk 维护知识库
+```
 
 ## 配置说明
 
@@ -31,25 +76,25 @@
 | rag.splitter.chunk_overlap | integer | 可选 | 50 | 块重叠大小 |
 | rag.top_k                  | integer | 可选 | 10 | 搜索返回的知识块数量 |
 | rag.threshold              | float | 可选 | 0.5 | 搜索阈值 |
-| **llm**                    | object | 可选 | - | LLM配置 |
+| **llm**                    | object | 可选 | - | LLM配置（不配置则无chat功能） |
 | llm.provider               | string | 可选 | openai | LLM提供商 |
 | llm.api_key                | string | 可选 | - | LLM API密钥 |
 | llm.base_url               | string | 可选 |  | LLM API基础URL |
 | llm.model                  | string | 可选 | gpt-4o | LLM模型名称 |
 | llm.max_tokens             | integer | 可选 | 2048 | 最大令牌数 |
 | llm.temperature            | float | 可选 | 0.5 | 温度参数 |
-| **embedding**              | object | 必填 | - | 嵌入配置 |
+| **embedding**              | object | 必填 | - | 嵌入配置（所有工具必需） |
 | embedding.provider         | string | 必填 | dashscope | 嵌入提供商：openai或dashscope |
 | embedding.api_key          | string | 必填 | - | 嵌入API密钥 |
 | embedding.base_url         | string | 可选 |  | 嵌入API基础URL |
 | embedding.model            | string | 必填 | text-embedding-v4 | 嵌入模型名称 |
-| **vectordb**               | object | 必填 | - | 向量数据库配置 |
+| **vectordb**               | object | 必填 | - | 向量数据库配置（所有工具必需） |
 | vectordb.provider          | string | 必填 | milvus | 向量数据库提供商 |
 | vectordb.host              | string | 必填 | localhost | 数据库主机地址 |
 | vectordb.port              | integer | 必填 | 19530 | 数据库端口 |
 | vectordb.database          | string | 必填 | default | 数据库名称 |
 | vectordb.collection        | string | 必填 | test_collection | 集合名称 |
-| vectordb.username          | stri选ng | 可选 | - | 数据库用户名 |
+| vectordb.username          | string | 可选 | - | 数据库用户名 |
 | vectordb.password          | string | 可选 | - | 数据库密码 |
 
 
@@ -194,9 +239,6 @@ func TestRAGClient_Chat(t *testing.T) {
 	t.Logf("Chat() resp = %s", resp)
 }
 ```
-
-
-
 
 ## Milvus 安装
 
