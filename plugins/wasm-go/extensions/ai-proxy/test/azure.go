@@ -146,6 +146,20 @@ var azureInvalidConfigMissingToken = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：Azure OpenAI Response API配置
+var azureResponseAPIConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type": "azure",
+			"apiTokens": []string{
+				"sk-azure-multi",
+			},
+			"azureServiceUrl": "https://multi-resource.openai.azure.com/openai/responses?api-version=2025-04-01-preview",
+		},
+	})
+	return data
+}()
+
 func RunAzureParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		// 测试基本Azure OpenAI配置解析
@@ -195,6 +209,17 @@ func RunAzureParseConfigTests(t *testing.T) {
 		// 测试Azure OpenAI多模型配置解析
 		t.Run("azure multi model config", func(t *testing.T) {
 			host, status := test.NewTestHost(azureMultiModelConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			require.NotNil(t, config)
+		})
+
+		// 测试Azure Response API 配置解析
+		t.Run("azure response api config", func(t *testing.T) {
+			host, status := test.NewTestHost(azureResponseAPIConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
@@ -411,6 +436,61 @@ func RunAzureOnHttpRequestBodyTests(t *testing.T) {
 			require.Equal(t, "gpt-4", model, "Model should be mapped correctly")
 		})
 
+		// 测试Azure OpenAI Response API 处理
+		t.Run("azure response api request body", func(t *testing.T) {
+			host, status := test.NewTestHost(azureResponseAPIConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/responses/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			// 设置请求体
+			requestBody := `{
+                          "input": [
+                            {
+                              "role": "user",
+                              "content": [
+                                {
+                                  "type": "input_text",
+                                  "text": "Explain quantum computing"
+                                }
+                              ]
+                            }
+                          ],
+                          "model": "gpt-5",
+                          "reasoning": {
+                            "effort": "medium"
+                          }
+                        }`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			// 验证请求体是否被正确处理
+			transformedBody := host.GetRequestBody()
+			require.NotNil(t, transformedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(transformedBody, &bodyMap)
+			require.NoError(t, err)
+
+			model, exists := bodyMap["model"]
+			require.True(t, exists, "Model should exist in request body")
+			require.Equal(t, "gpt-5", model, "Model should be mapped correctly")
+
+			// 验证请求路径是否被正确转换
+			requestHeaders := host.GetRequestHeaders()
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath, "Path header should exist")
+			require.Equal(t, pathValue, "/openai/responses?api-version=2025-04-01-preview", "Path should not equal  Azure response api path")
+		})
+
 		// 测试Azure OpenAI请求体处理（仅部署配置）
 		t.Run("azure deployment only request body", func(t *testing.T) {
 			host, status := test.NewTestHost(azureDeploymentOnlyConfig)
@@ -566,6 +646,10 @@ func RunAzureOnHttpResponseBodyTests(t *testing.T) {
 					}
 				]
 			}`
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.ActionContinue, action)
 			action = host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
