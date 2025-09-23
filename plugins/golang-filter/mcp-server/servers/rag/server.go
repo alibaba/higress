@@ -28,7 +28,7 @@ func init() {
 				TopK:      10,
 			},
 			LLM: config.LLMConfig{
-				Provider:    "openai",
+				Provider:    "",
 				APIKey:      "",
 				BaseURL:     "",
 				Model:       "gpt-4o",
@@ -103,8 +103,6 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 	if llmConfig, ok := config["llm"].(map[string]any); ok {
 		if provider, exists := llmConfig["provider"].(string); exists {
 			c.config.LLM.Provider = provider
-		} else {
-			return errors.New("missing llm provider")
 		}
 		if apiKey, exists := llmConfig["api_key"].(string); exists {
 			c.config.LLM.APIKey = apiKey
@@ -190,7 +188,7 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 
 	// Intelligent Q&A Tool
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("chat", "Generate contextually relevant responses using RAG system with LLM integration", GetChatSchema()),
+		mcp.NewToolWithRawSchema("chat", "Answer user questions by retrieving relevant knowledge from the database and generating responses using RAG-enhanced LLM", GetChatSchema()),
 		HandleChat(ragClient),
 	)
 
