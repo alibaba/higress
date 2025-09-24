@@ -19,7 +19,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -599,29 +599,23 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 				Servers:   []*SSEServer{},
 			},
 			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 					"value": {
-						"library_id": "mcp-session",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-session",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"redis": {
-									"address": "localhost:6379",
-									"username": "",
-									"password": "",
-									"db": 0
-								},
-								"rate_limit": null,
-								"sse_path_suffix": "",
-								"match_list": [],
-								"enable_user_level_server": false
-							}
-						}
+						"redis": {
+							"address": "localhost:6379",
+							"username": "",
+							"password": "",
+							"db": 0
+						},
+						"rate_limit": null,
+						"sse_path_suffix": "",
+						"match_list": [],
+						"enable_user_level_server": false
 					}
 				}
 			}`,
@@ -666,54 +660,48 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 				},
 			},
 			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 					"value": {
-						"library_id": "mcp-session",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-session",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"redis": {
-									"address": "localhost:6379",
-									"username": "user",
-									"password": "pass",
-									"db": 1
-								},
-								"rate_limit": {
-									"limit": 100,
-									"window": 3600,
-									"white_list": ["user1","user2"]
-								},
-								"sse_path_suffix": "/sse",
-								"match_list": [{
-									"match_rule_domain": "*",
-									"match_rule_path": "/test",
-									"match_rule_type": "exact",
-									"upstream_type": "",
-									"enable_path_rewrite": false,
-									"path_rewrite_prefix": ""
-								},{
-									"match_rule_domain": "*",
-									"match_rule_path": "/sse-test-1",
-									"match_rule_type": "prefix",
-									"upstream_type": "sse",
-									"enable_path_rewrite": false,
-									"path_rewrite_prefix": ""
-								},{
-									"match_rule_domain": "*",
-									"match_rule_path": "/sse-test-2",
-									"match_rule_type": "prefix",
-									"upstream_type": "sse",
-									"enable_path_rewrite": true,
-									"path_rewrite_prefix": "/mcp"
-								}],
-								"enable_user_level_server": true
-							}
-						}
+						"redis": {
+							"address": "localhost:6379",
+							"username": "user",
+							"password": "pass",
+							"db": 1
+						},
+						"rate_limit": {
+							"limit": 100,
+							"window": 3600,
+							"white_list": ["user1","user2"]
+						},
+						"sse_path_suffix": "/sse",
+						"match_list": [{
+							"match_rule_domain": "*",
+							"match_rule_path": "/test",
+							"match_rule_type": "exact",
+							"upstream_type": "",
+							"enable_path_rewrite": false,
+							"path_rewrite_prefix": ""
+						},{
+							"match_rule_domain": "*",
+							"match_rule_path": "/sse-test-1",
+							"match_rule_type": "prefix",
+							"upstream_type": "sse",
+							"enable_path_rewrite": false,
+							"path_rewrite_prefix": ""
+						},{
+							"match_rule_domain": "*",
+							"match_rule_path": "/sse-test-2",
+							"match_rule_type": "prefix",
+							"upstream_type": "sse",
+							"enable_path_rewrite": true,
+							"path_rewrite_prefix": "/mcp"
+						}],
+						"enable_user_level_server": true
 					}
 				}
 			}`,
@@ -762,26 +750,20 @@ func TestMcpServerController_constructMcpServerStruct(t *testing.T) {
 				},
 			},
 			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-server",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-server",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 					"value": {
-						"library_id": "mcp-server",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-server",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"servers": [{
-									"name": "test-server",
-									"path": "/test",
-									"type": "test",
-									"domain_list": ["example.com"],
-									"config": {"key":"value"}
-								}]
-							}
-						}
+						"servers": [{
+							"name": "test-server",
+							"path": "/test",
+							"type": "test",
+							"domain_list": ["example.com"],
+							"config": {"key":"value"}
+						}]
 					}
 				}
 			}`,

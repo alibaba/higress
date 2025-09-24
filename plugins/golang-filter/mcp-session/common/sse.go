@@ -223,7 +223,12 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		}
 		// Send HTTP response
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			api.LogErrorf("Failed to marshal SSE Message response: %v", err)
+			status = http.StatusInternalServerError
+		}
+		w.Write(jsonData)
 	} else {
 		// For notifications, just send 202 Accepted with no body
 		w.WriteHeader(http.StatusAccepted)

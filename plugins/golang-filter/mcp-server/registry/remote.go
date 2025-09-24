@@ -13,13 +13,15 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-const HTTP_URL_TEMPLATE = "%s://%s:%d%s"
-const FIX_QUERY_TOKEN_KEY = "key"
-const FIX_QUERY_TOKEN_VALUE = "value"
-const PROTOCOL_HTTP = "http"
-const PROTOCOL_HTTPS = "https"
-const DEFAULT_HTTP_METHOD = "GET"
-const DEFAULT_HTTP_PATH = "/"
+const (
+	HTTP_URL_TEMPLATE     = "%s://%s:%d%s"
+	FIX_QUERY_TOKEN_KEY   = "key"
+	FIX_QUERY_TOKEN_VALUE = "value"
+	PROTOCOL_HTTP         = "http"
+	PROTOCOL_HTTPS        = "https"
+	DEFAULT_HTTP_METHOD   = "GET"
+	DEFAULT_HTTP_PATH     = "/"
+)
 
 func getHttpCredentialHandle(name string) (func(*CredentialInfo, *HttpRemoteCallHandle), error) {
 	if name == "fixed-query-token" {

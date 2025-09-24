@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"net/http"
 
-	extensionsv1alpha1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/extensions/v1alpha1"
-	networkingv1 "github.com/alibaba/higress/client/pkg/clientset/versioned/typed/networking/v1"
+	extensionsv1alpha1 "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/typed/extensions/v1alpha1"
+	networkingv1 "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/typed/networking/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

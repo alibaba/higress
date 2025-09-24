@@ -31,8 +31,8 @@ import (
 	networkingv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/util/version"
 
-	netv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	netv1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 func ValidateBackendResource(resource *v1.TypedLocalObjectReference) bool {

@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"time"
 
-	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	networkingv1 "github.com/alibaba/higress/client/pkg/applyconfiguration/networking/v1"
-	scheme "github.com/alibaba/higress/client/pkg/clientset/versioned/scheme"
+	v1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
+	networkingv1 "github.com/alibaba/higress/v2/client/pkg/applyconfiguration/networking/v1"
+	scheme "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
