@@ -56,6 +56,7 @@ const (
 	ApiNamePauseFineTuningJob                   ApiName = "openai/v1/pausefine-tuningjob"
 	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
 	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
+	ApiNameRerank                               ApiName = "openai/v1/rerank"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
@@ -93,6 +94,7 @@ const (
 	PathOpenAIPauseFineTuningJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
 	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
 	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
+	PathOpenAIRerank                               = "/v1/rerank"
 
 	// Anthropic
 	PathAnthropicMessages = "/v1/messages"
@@ -577,6 +579,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			string(ApiNameImageVariation),
 			string(ApiNameImageEdit),
 			string(ApiNameAudioSpeech),
+			string(ApiNameRerank),
 			string(ApiNameCohereV1Rerank):
 			c.capabilities[capability] = pathJson.String()
 		}
@@ -681,6 +684,11 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 			return err
 		}
 		return c.setRequestModel(ctx, req)
+	case *rerankRequest:
+		if err := decodeRerankRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req)
 	default:
 		return errors.New("unsupported request type")
 	}
@@ -695,6 +703,8 @@ func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interf
 	case *embeddingsRequest:
 		model = &req.Model
 	case *imageGenerationRequest:
+		model = &req.Model
+	case *rerankRequest:
 		model = &req.Model
 	default:
 		return errors.New("unsupported request type")
@@ -996,6 +1006,7 @@ func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 		ApiNameAudioSpeech,
 		ApiNameFineTuningJobs,
 		ApiNameResponses,
+		ApiNameRerank,
 		ApiNameGeminiGenerateContent,
 		ApiNameGeminiStreamGenerateContent,
 		ApiNameAnthropicMessages:
