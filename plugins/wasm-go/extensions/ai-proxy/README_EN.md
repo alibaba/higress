@@ -100,7 +100,15 @@ For Azure OpenAI, the corresponding `type` is `azure`. Its unique configuration 
 |---------------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------------|
 | `azureServiceUrl`   | string      | Required             | -             | The URL of the Azure OpenAI service, must include the `api-version` query parameter.                           |
 
-**Note:** Azure OpenAI only supports configuring one API Token.
+**Note:**
+1. Azure OpenAI only supports configuring one API Token.
+2. `azureServiceUrl` accepts three formats：
+    1. Full URL. e.g. `https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview`
+        - Request will be forwarded to the given URL, no matter what original path the request uses.
+    2. Resource name + deployment name，e.g. `https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME?api-version=2024-02-15-preview`
+        - The path will be updated based on the actual request path, leaving the deployment name unchanged. APIs with no deployment name in the path are also support.
+    3. Resource name only.e.g.`https://YOUR_RESOURCE_NAME.openai.azure.com?api-version=2024-02-15-preview`
+        - The path will be updated based on the actual request path. The deployment name will be filled based on the model name in the request and the configured model mapping rule. APIs with no deployment name in the path are also support.
 
 #### Moonshot
 
