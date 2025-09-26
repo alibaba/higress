@@ -22,15 +22,17 @@ func getRAGClient() (*RAGClient, error) {
 
 		LLM: config.LLMConfig{
 			Provider: "openai",
-			APIKey:   "sk-xxxx",
+			APIKey:   "sk-xxx",
 			BaseURL:  "https://openrouter.ai/api/v1",
 			Model:    "openai/gpt-4o",
 		},
 
 		Embedding: config.EmbeddingConfig{
-			Provider: "dashscope",
-			APIKey:   "sk-xxxx",
-			Model:    "text-embedding-v4",
+			Provider:   "openai",
+			BaseURL:    "https://dashscope.aliyuncs.com/compatible-mode/v1",
+			APIKey:     "sk-xxxx",
+			Model:      "text-embedding-v4",
+			Dimensions: 1536,
 		},
 
 		VectorDB: config.VectorDBConfig{
@@ -38,7 +40,49 @@ func getRAGClient() (*RAGClient, error) {
 			Host:       "localhost",
 			Port:       19530,
 			Database:   "default",
-			Collection: "test_collection",
+			Collection: "test_collection3",
+			Mapping: config.MappingConfig{
+				Fields: []config.FieldMapping{
+					{
+						StandardName: "id",
+						RawName:      "pk",
+						Properties: map[string]interface{}{
+							"max_length": 256,
+							"auto_id":    false,
+						},
+					},
+					{
+						StandardName: "content",
+						RawName:      "page_content",
+						Properties: map[string]interface{}{
+							"max_length": 8192,
+						},
+					},
+					{
+						StandardName: "vector",
+						RawName:      "page_vector",
+						Properties:   make(map[string]interface{}),
+					},
+					{
+						StandardName: "metadata",
+						RawName:      "metadata",
+						Properties:   make(map[string]interface{}),
+					},
+					{
+						StandardName: "created_at",
+						RawName:      "created_at",
+						Properties:   make(map[string]interface{}),
+					},
+				},
+				Index: config.IndexConfig{
+					IndexType: "IVF_FLAT",
+					Params:    map[string]interface{}{"nlist": 64},
+				},
+				Search: config.SearchConfig{
+					MetricType: "COSINE",
+					Params:     map[string]interface{}{"nprobe": 32},
+				},
+			},
 		},
 	}
 
@@ -48,7 +92,6 @@ func getRAGClient() (*RAGClient, error) {
 	}
 
 	return ragClient, nil
-
 }
 
 func TestNewRAGClient(t *testing.T) {
@@ -104,7 +147,7 @@ func TestRAGClient_DeleteChunk(t *testing.T) {
 		return
 	}
 
-	chunk_id := "63ee25d7-41b9-4455-8066-075ca5c803b2"
+	chunk_id := "2a06679c-a8ea-46dc-bf1c-7e7b164a73c8"
 	err = ragClient.DeleteChunk(chunk_id)
 	if err != nil {
 		t.Errorf("DeleteChunk() error = %v", err)
