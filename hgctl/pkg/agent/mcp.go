@@ -49,8 +49,6 @@ func newMCPAddCmd() *cobra.Command {
 func addHTTPMCP(args []string, w io.Writer, noPublish bool) error {
 	// all we need to do is use the kode mcp functionality
 
-	fmt.Println(args)
-
 	return nil
 
 }

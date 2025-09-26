@@ -11,6 +11,8 @@ type KodeClient struct {
 }
 
 func NewKodeClient(execPath string) *KodeClient {
+	// check if there is kode path
+	// TODO: environment configuration(put kode or cli.js in PATH)
 	return &KodeClient{
 		path: execPath,
 	}
@@ -19,8 +21,8 @@ func NewKodeClient(execPath string) *KodeClient {
 func (c *KodeClient) Run(args []string) error {
 	cmd := exec.Command(c.path, args...)
 	cmd.Stdin = os.Stdin
-	cmd.Stdin = os.Stdin
-	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
 
