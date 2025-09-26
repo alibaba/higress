@@ -171,7 +171,7 @@ global:
     # -- The number of successive failed probes before indicating readiness failure.
     readinessFailureThreshold: 30
 
-    # -- The number of successive successed probes before indicating readiness success.
+    # -- The number of successive successful probes before indicating readiness success.
     readinessSuccessThreshold: 30
 
     # -- The initial delay for readiness probes in seconds.
@@ -421,7 +421,7 @@ gateway:
   # -- The number of successive failed probes before indicating readiness failure.
   readinessFailureThreshold: 30
 
-  # -- The number of successive successed probes before indicating readiness success.
+  # -- The number of successive successful probes before indicating readiness success.
   readinessSuccessThreshold: 1
 
   # -- The initial delay for readiness probes in seconds.
@@ -697,7 +697,7 @@ pilot:
   ## Mesh config settings
 
   # -- Install the mesh config map, generated from values.yaml.
-  # If false, pilot wil use default values (by default) or user-supplied values.
+  # If false, pilot will use default values (by default) or user-supplied values.
   configMap: true
 
   # -- Additional labels to apply on the pod level for monitoring and logging configuration.
