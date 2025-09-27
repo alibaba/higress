@@ -2,133 +2,105 @@ package llm
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/common"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
+	"github.com/openai/openai-go/v2/packages/param"
 )
 
 const (
-	OPENAI_CHAT_ENDPOINT = "/chat/completions"
 	OPENAI_DEFAULT_MODEL = "gpt-4o"
 )
 
-// openAI specific configuration captured after initialization.
-type openAIProviderConfig struct {
-	apiKey      string
-	baseURL     string
+type OpenAIProvider struct {
+	client      *openai.Client
 	model       string
-	maxTokens   int
 	temperature float64
+	maxTokens   int
 }
 
 type openAIProviderInitializer struct{}
 
-var openAIConfig openAIProviderConfig
-
-func (i *openAIProviderInitializer) initConfig(c config.LLMConfig) {
-	openAIConfig.apiKey = c.APIKey
-	openAIConfig.baseURL = c.BaseURL
-	openAIConfig.model = c.Model
-	if openAIConfig.model == "" {
-		openAIConfig.model = OPENAI_DEFAULT_MODEL
-	}
-	if openAIConfig.baseURL == "" {
-		openAIConfig.baseURL = "https://api.openai.com/v1" // default public endpoint
-	}
-	openAIConfig.maxTokens = c.MaxTokens
-	openAIConfig.temperature = c.Temperature
-}
-
-func (i *openAIProviderInitializer) validateConfig() error {
-	if openAIConfig.apiKey == "" {
+func (i *openAIProviderInitializer) validateConfig(cfg *config.LLMConfig) error {
+	if cfg.APIKey == "" {
 		return errors.New("[openai llm] apiKey is required")
+	}
+	if cfg.Model == "" {
+		cfg.Model = OPENAI_DEFAULT_MODEL
+	}
+
+	if cfg.Temperature <= 0 || cfg.Temperature > 2 {
+		cfg.Temperature = 0.5
+	}
+
+	if cfg.MaxTokens <= 0 {
+		cfg.MaxTokens = 2048
 	}
 	return nil
 }
 
 func (i *openAIProviderInitializer) CreateProvider(cfg config.LLMConfig) (Provider, error) {
-	i.initConfig(cfg)
-	if err := i.validateConfig(); err != nil {
+	if err := i.validateConfig(&cfg); err != nil {
 		return nil, err
 	}
-	headers := map[string]string{
-		"Authorization": "Bearer " + openAIConfig.apiKey,
-		"Content-Type":  "application/json",
+	// Create OpenAI client
+	var clientOptions []option.RequestOption
+	clientOptions = append(clientOptions, option.WithAPIKey(cfg.APIKey))
+
+	// If a custom baseURL is set, use it
+	if cfg.BaseURL != "" {
+		clientOptions = append(clientOptions, option.WithBaseURL(cfg.BaseURL))
 	}
-	client := common.NewHTTPClient(openAIConfig.baseURL, headers)
-	return &OpenAIProvider{client: client, cfg: openAIConfig}, nil
-}
 
-type OpenAIProvider struct {
-	client *common.HTTPClient
-	cfg    openAIProviderConfig
-}
+	// Create OpenAI client
+	client := openai.NewClient(clientOptions...)
 
-type openAIChatCompletionRequest struct {
-	Model       string              `json:"model"`
-	Messages    []openAIChatMessage `json:"messages"`
-	Temperature float64             `json:"temperature,omitempty"`
-	MaxTokens   int                 `json:"max_tokens,omitempty"`
-}
-
-type openAIChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type openAIChatCompletionResponse struct {
-	ID      string                               `json:"id"`
-	Object  string                               `json:"object"`
-	Choices []openAIChatCompletionResponseChoice `json:"choices"`
-	Error   *openAIError                         `json:"error,omitempty"`
-}
-
-type openAIChatCompletionResponseChoice struct {
-	Index        int               `json:"index"`
-	Message      openAIChatMessage `json:"message"`
-	FinishReason string            `json:"finish_reason"`
-}
-
-type openAIError struct {
-	Message string `json:"message"`
-	Type    string `json:"type"`
-	Code    string `json:"code"`
-	Param   string `json:"param"`
+	return &OpenAIProvider{
+		client:      &client,
+		model:       cfg.Model,
+		temperature: cfg.Temperature,
+		maxTokens:   cfg.MaxTokens,
+	}, nil
 }
 
 // GenerateCompletion implements Provider interface.
 func (o *OpenAIProvider) GenerateCompletion(ctx context.Context, prompt string) (string, error) {
-	req := openAIChatCompletionRequest{
-		Model: o.cfg.model,
-		Messages: []openAIChatMessage{
-			{Role: "user", Content: prompt},
+	// Create chat request
+	params := openai.ChatCompletionNewParams{
+		Model: o.model,
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage(prompt),
 		},
-		Temperature: o.cfg.temperature,
-		MaxTokens:   o.cfg.maxTokens,
 	}
 
-	body, err := o.client.Post(OPENAI_CHAT_ENDPOINT, req)
+	// Set optional parameters
+	if o.temperature > 0 {
+		temperature := float64(o.temperature)
+		params.Temperature = param.Opt[float64]{Value: temperature}
+	}
+
+	if o.maxTokens > 0 {
+		maxTokens := int64(o.maxTokens)
+		params.MaxTokens = param.Opt[int64]{Value: maxTokens}
+	}
+
+	// Send request
+	response, err := o.client.Chat.Completions.New(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("openai llm post error: %w", err)
+		// Handle error
+		return "", fmt.Errorf("openai llm error: %w", err)
 	}
 
-	var resp openAIChatCompletionResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return "", fmt.Errorf("openai llm unmarshal error: %w", err)
-	}
-
-	if resp.Error != nil {
-		return "", fmt.Errorf("openai llm api error: %s - %s", resp.Error.Type, resp.Error.Message)
-	}
-
-	if len(resp.Choices) == 0 {
+	// Check response
+	if len(response.Choices) == 0 {
 		return "", errors.New("openai llm: empty choices")
 	}
 
-	return resp.Choices[0].Message.Content, nil
+	// Return generated content
+	return response.Choices[0].Message.Content, nil
 }
 
 func (o *OpenAIProvider) GetProviderType() string {

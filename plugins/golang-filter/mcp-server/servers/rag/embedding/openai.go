@@ -2,160 +2,93 @@ package embedding
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/common"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
 )
 
 const (
-	OPENAI_DOMAIN             = "api.openai.com"
-	OPENAI_PORT               = 443
-	OPENAI_DEFAULT_MODEL_NAME = "text-embedding-3-small"
-	OPENAI_ENDPOINT           = "/v1/embeddings"
+	OPENAI_DEFAULT_MODEL_NAME = "text-embedding-ada-002"
 )
 
 type openAIProviderInitializer struct {
 }
 
-var openAIConfig openAIProviderConfig
-
-type openAIProviderConfig struct {
-	baseUrl string
-	apiKey  string
-	model   string
-}
-
-func (c *openAIProviderInitializer) InitConfig(config config.EmbeddingConfig) {
-	openAIConfig.apiKey = config.APIKey
-	openAIConfig.model = config.Model
-	openAIConfig.baseUrl = config.BaseURL
-}
-
-func (c *openAIProviderInitializer) ValidateConfig() error {
-	if openAIConfig.apiKey == "" {
-		return errors.New("[openAI] apiKey is required")
+func (c *openAIProviderInitializer) validateConfig(config *config.EmbeddingConfig) error {
+	if config.APIKey == "" {
+		return errors.New("[openai embbeding] apiKey is required")
 	}
+	if config.Model == "" {
+		config.Model = OPENAI_DEFAULT_MODEL_NAME
+	}
+	if config.Dimensions <= 0 {
+		config.Dimensions = 1536
+	}
+
 	return nil
 }
 
 func (c *openAIProviderInitializer) CreateProvider(config config.EmbeddingConfig) (Provider, error) {
-	c.InitConfig(config)
-	err := c.ValidateConfig()
-	if err != nil {
+	if err := c.validateConfig(&config); err != nil {
 		return nil, err
 	}
+	// 创建 OpenAI 客户端
+	var clientOptions []option.RequestOption
+	clientOptions = append(clientOptions, option.WithAPIKey(config.APIKey))
 
-	if openAIConfig.model == "" {
-		openAIConfig.model = OPENAI_DEFAULT_MODEL_NAME
+	// 如果设置了自定义 baseURL，则使用它
+	if config.BaseURL != "" {
+		clientOptions = append(clientOptions, option.WithBaseURL(config.BaseURL))
 	}
-
-	if openAIConfig.baseUrl == "" {
-		openAIConfig.baseUrl = fmt.Sprintf("https://%s", OPENAI_DOMAIN)
-	}
-
-	headers := map[string]string{
-		"Authorization": "Bearer " + config.APIKey,
-		"Content-Type":  "application/json",
-	}
-	httpClient := common.NewHTTPClient(openAIConfig.baseUrl, headers)
+	// 创建 OpenAI 客户端
+	client := openai.NewClient(clientOptions...)
 
 	return &OpenAIProvider{
-		config: openAIConfig,
-		client: httpClient,
+		client:     &client,
+		model:      config.Model,
+		dimensions: config.Dimensions,
 	}, nil
 }
 
-func (o *OpenAIProvider) GetProviderType() string {
+// EmbeddingClient handles vector embedding generation using OpenAI-compatible APIs
+type OpenAIProvider struct {
+	client     *openai.Client
+	model      string
+	dimensions int
+}
+
+func (e *OpenAIProvider) GetProviderType() string {
 	return PROVIDER_TYPE_OPENAI
 }
 
-type OpenAIResponse struct {
-	Object string         `json:"object"`
-	Data   []OpenAIResult `json:"data"`
-	Model  string         `json:"model"`
-	Error  *OpenAIError   `json:"error"`
-}
-
-type OpenAIResult struct {
-	Object    string    `json:"object"`
-	Embedding []float32 `json:"embedding"`
-	Index     int       `json:"index"`
-}
-
-type OpenAIError struct {
-	Message string `json:"prompt_tokens"`
-	Type    string `json:"type"`
-	Code    string `json:"code"`
-	Param   string `json:"param"`
-}
-
-type OpenAIEmbeddingRequest struct {
-	Input string `json:"input"`
-	Model string `json:"model"`
-}
-
-type OpenAIProvider struct {
-	config openAIProviderConfig
-	client *common.HTTPClient
-}
-
-func (o *OpenAIProvider) constructRequestData(text string) (OpenAIEmbeddingRequest, error) {
-	if text == "" {
-		return OpenAIEmbeddingRequest{}, errors.New("queryString text cannot be empty")
+// GetEmbedding generates vector embedding for the given text
+func (e *OpenAIProvider) GetEmbedding(ctx context.Context, text string) ([]float32, error) {
+	params := openai.EmbeddingNewParams{
+		Model: e.model,
+		Input: openai.EmbeddingNewParamsInputUnion{
+			OfString: openai.String(text),
+		},
+		Dimensions:     openai.Int(int64(e.dimensions)),
+		EncodingFormat: openai.EmbeddingNewParamsEncodingFormatFloat,
 	}
 
-	if openAIConfig.apiKey == "" {
-		return OpenAIEmbeddingRequest{}, errors.New("openAI apiKey is empty")
-	}
-
-	model := o.config.model
-	if model == "" {
-		model = OPENAI_DEFAULT_MODEL_NAME
-	}
-
-	data := OpenAIEmbeddingRequest{
-		Input: text,
-		Model: model,
-	}
-
-	return data, nil
-}
-
-func (o *OpenAIProvider) parseTextEmbedding(responseBody []byte) (*OpenAIResponse, error) {
-	var resp OpenAIResponse
-	err := json.Unmarshal(responseBody, &resp)
+	embeddingResp, err := e.client.Embeddings.New(ctx, params)
 	if err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
-func (o *OpenAIProvider) GetEmbedding(ctx context.Context, queryString string) ([]float32, error) {
-	requestData, err := o.constructRequestData(queryString)
-	if err != nil {
-		return nil, fmt.Errorf("failed to construct request data: %v", err)
+		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
 
-	responseBody, err := o.client.Post(OPENAI_ENDPOINT, requestData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %v", err)
+	if len(embeddingResp.Data) == 0 {
+		return nil, fmt.Errorf("empty embedding response")
 	}
 
-	resp, err := o.parseTextEmbedding(responseBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse response: %v", err)
+	// Convert []float64 to []float32
+	embedding := make([]float32, len(embeddingResp.Data[0].Embedding))
+	for i, v := range embeddingResp.Data[0].Embedding {
+		embedding[i] = float32(v)
 	}
 
-	if resp.Error != nil {
-		return nil, fmt.Errorf("OpenAI API error: %s - %s", resp.Error.Type, resp.Error.Message)
-	}
-
-	if len(resp.Data) == 0 {
-		return nil, errors.New("no embedding found in response")
-	}
-
-	return resp.Data[0].Embedding, nil
+	return embedding, nil
 }

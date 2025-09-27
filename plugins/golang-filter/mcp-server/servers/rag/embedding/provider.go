@@ -10,21 +10,21 @@ import (
 // Provider type constants for different embedding services
 const (
 	// DashScope embedding service
-	PROVIDER_TYPE_DASHSCOPE   = "dashscope"
+	PROVIDER_TYPE_DASHSCOPE = "dashscope"
 	// TextIn embedding service
-	PROVIDER_TYPE_TEXTIN      = "textin"
+	PROVIDER_TYPE_TEXTIN = "textin"
 	// Cohere embedding service
-	PROVIDER_TYPE_COHERE      = "cohere"
+	PROVIDER_TYPE_COHERE = "cohere"
 	// OpenAI embedding service
-	PROVIDER_TYPE_OPENAI      = "openai"
+	PROVIDER_TYPE_OPENAI = "openai"
 	// Ollama embedding service
-	PROVIDER_TYPE_OLLAMA      = "ollama"
+	PROVIDER_TYPE_OLLAMA = "ollama"
 	// HuggingFace embedding service
 	PROVIDER_TYPE_HUGGINGFACE = "huggingface"
 	// XFYun embedding service
-	PROVIDER_TYPE_XFYUN       = "xfyun"
+	PROVIDER_TYPE_XFYUN = "xfyun"
 	// Azure embedding service
-	PROVIDER_TYPE_AZURE       = "azure"
+	PROVIDER_TYPE_AZURE = "azure"
 )
 
 // Factory interface for creating Provider instances
@@ -36,8 +36,7 @@ type providerInitializer interface {
 // Maps provider types to their initializers
 var (
 	providerInitializers = map[string]providerInitializer{
-		PROVIDER_TYPE_DASHSCOPE: &dashScopeProviderInitializer{},
-		PROVIDER_TYPE_OPENAI:    &openAIProviderInitializer{},
+		PROVIDER_TYPE_OPENAI: &openAIProviderInitializer{},
 	}
 )
 
