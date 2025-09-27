@@ -28,31 +28,19 @@ local function randomBool()
     return math.random() >= 0.5
 end
 
-local function is_healthy(addr)
-    for i = 4, #KEYS do
-        if addr == KEYS[i] then
-            return true
-        end
-    end
-    return false
-end
-
 if redis.call('HEXISTS', hset_key, current_target) == 1 then
     current_count = redis.call('HGET', hset_key, current_target)
-    local hash = redis.call('HGETALL', hset_key)
-    for i = 1, #hash, 2 do
-		local addr = hash[i]
-		local count = hash[i+1]
-        if is_healthy(addr) then
-            if tonumber(count) < tonumber(current_count) then
-                current_target = addr
-                current_count = count
-            elseif count == current_count and randomBool() then
-                current_target = addr
-                current_count = count
-            end
-        end
-    end
+	for i = 4, #KEYS do
+		if redis.call('HEXISTS', hset_key, KEYS[i]) == 1 then
+			local count = redis.call('HGET', hset_key, KEYS[i])
+			if tonumber(count) < tonumber(current_count) then
+				current_target = KEYS[i]
+				current_count = count
+			elseif count == current_count and randomBool() then
+				current_target = KEYS[i]
+			end
+		end
+	end
 end
 
 redis.call("HINCRBY", hset_key, current_target, 1)

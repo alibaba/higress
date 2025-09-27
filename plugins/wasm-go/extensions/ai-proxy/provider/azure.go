@@ -38,6 +38,7 @@ var (
 		ApiNameFiles:               true,
 		ApiNameRetrieveFile:        true,
 		ApiNameRetrieveFileContent: true,
+		ApiNameResponses:           true,
 	}
 	regexAzureModelWithPath = regexp.MustCompile("/openai/deployments/(.+?)(?:/(.*)|$)")
 )
@@ -100,8 +101,15 @@ func (m *azureProviderInitializer) CreateProvider(config ProviderConfig) (Provid
 		}
 		log.Debugf("azureProvider: found default model from serviceUrl: %s", defaultModel)
 	} else {
-		serviceUrlType = azureServiceUrlTypeDomainOnly
-		log.Debugf("azureProvider: no default model found in serviceUrl")
+		// If path doesn't match the /openai/deployments pattern,
+		// check if it's a custom full path or domain only
+		if serviceUrl.Path != "" && serviceUrl.Path != "/" {
+			serviceUrlType = azureServiceUrlTypeFull
+			log.Debugf("azureProvider: using custom full path: %s", serviceUrl.Path)
+		} else {
+			serviceUrlType = azureServiceUrlTypeDomainOnly
+			log.Debugf("azureProvider: no default model found in serviceUrl")
+		}
 	}
 	log.Debugf("azureProvider: serviceUrlType=%d", serviceUrlType)
 
