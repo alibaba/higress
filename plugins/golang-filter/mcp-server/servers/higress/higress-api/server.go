@@ -48,7 +48,7 @@ func (c *HigressConfig) ParseConfig(config map[string]interface{}) error {
 		c.description = "Higress API MCP Server, which invokes Higress Console APIs to manage resources such as routes, services, and plugins."
 	}
 
-	api.LogDebugf("HigressConfig ParseConfig: higressURL=%s, username=%s, description=%s",
+	api.LogInfof("Higress MCP Server configuration parsed successfully. URL: %s, Username: %s, Description: %s",
 		c.higressURL, c.username, c.description)
 
 	return nil
@@ -67,6 +67,9 @@ func (c *HigressConfig) NewServer(serverName string) (*common.MCPServer, error) 
 	// Register all tools
 	tools.RegisterRouteTools(mcpServer, client)
 	tools.RegisterServiceTools(mcpServer, client)
+	tools.RegisterAiRouteTools(mcpServer, client)
+	tools.RegisterAiProviderTools(mcpServer, client)
+	tools.RegisterMcpServerTools(mcpServer, client)
 	plugins.RegisterCommonPluginTools(mcpServer, client)
 	plugins.RegisterRequestBlockPluginTools(mcpServer, client)
 
