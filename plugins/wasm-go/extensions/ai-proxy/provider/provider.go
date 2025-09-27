@@ -135,6 +135,7 @@ const (
 	providerTypeOpenRouter = "openrouter"
 	providerTypeLongcat    = "longcat"
 	providerTypeFireworks  = "fireworks"
+	providerTypeGaladriel  = "galadriel"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -217,6 +218,7 @@ var (
 		providerTypeOpenRouter: &openrouterProviderInitializer{},
 		providerTypeLongcat:    &longcatProviderInitializer{},
 		providerTypeFireworks:  &fireworksProviderInitializer{},
+		providerTypeGaladriel:  &galadrielProviderInitializer{},
 	}
 )
 
