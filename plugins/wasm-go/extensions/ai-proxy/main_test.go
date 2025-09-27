@@ -109,3 +109,12 @@ func TestFireworks(t *testing.T) {
 	test.RunFireworksOnHttpRequestHeadersTests(t)
 	test.RunFireworksOnHttpRequestBodyTests(t)
 }
+
+func TestCerebras(t *testing.T) {
+	test.RunCerebrasParseConfigTests(t)
+	test.RunCerebrasOnHttpRequestHeadersTests(t)
+	test.RunCerebrasOnHttpRequestBodyTests(t)
+	test.RunCerebrasOnHttpResponseHeadersTests(t)
+	test.RunCerebrasOnHttpResponseBodyTests(t)
+	test.RunCerebrasOnStreamingResponseBodyTests(t)
+}
