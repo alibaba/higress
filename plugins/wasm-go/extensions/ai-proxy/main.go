@@ -97,7 +97,6 @@ func init() {
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
-		wrapper.WithRebuildAfterRequests[config.PluginConfig](1000),
 	)
 }
 
@@ -431,6 +430,10 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 			return result
 		}
 		return claudeChunk
+	}
+
+	if !needsClaudeResponseConversion(ctx) {
+		return chunk
 	}
 
 	// If provider doesn't implement any streaming handlers but we need Claude conversion
