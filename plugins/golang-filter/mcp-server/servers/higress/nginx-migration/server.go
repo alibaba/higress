@@ -1,4 +1,5 @@
 // Package nginxmigration provides nginx configuration migration to Higress functionality
+// Added on 2025.9.29 - Nginx to Higress migration MCP server implementation
 package nginxmigration
 
 import (

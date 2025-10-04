@@ -1,4 +1,5 @@
 // Package tools provides nginx configuration migration tools for Higress
+// Added on 2025.9.29 - Core migration tools implementation
 package tools
 
 import (
