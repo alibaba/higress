@@ -142,6 +142,69 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     "helm.sh/resource-policy": keep
+  name: wasmpluginmatchrules.extensions.higress.io
+spec:
+  group: extensions.higress.io
+  names:
+    categories:
+    - higress-io
+    - extensions-higress-io
+    kind: WasmPluginMatchRule
+    listKind: WasmPluginMatchRuleList
+    plural: wasmpluginmatchrules
+    singular: wasmpluginmatchrule
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: 'CreationTimestamp is a timestamp representing the server time
+        when this object was created. It is not guaranteed to be set in happens-before
+        order across separate operations. Clients may not set this value. It is represented
+        in RFC3339 form and is in UTC. Populated by the system. Read-only. Null for
+        lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          spec:
+            properties:
+              config:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              configDisable:
+                type: boolean
+              domain:
+                items:
+                  type: string
+                type: array
+              ingress:
+                items:
+                  type: string
+                type: array
+              parent:
+                type: string
+              service:
+                items:
+                  type: string
+                type: array
+            type: object
+          status:
+            type: object
+            x-kubernetes-preserve-unknown-fields: true
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep
   name: http2rpcs.networking.higress.io
 spec:
   group: networking.higress.io

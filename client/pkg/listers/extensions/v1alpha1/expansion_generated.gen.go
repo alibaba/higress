@@ -23,3 +23,11 @@ type WasmPluginListerExpansion interface{}
 // WasmPluginNamespaceListerExpansion allows custom methods to be added to
 // WasmPluginNamespaceLister.
 type WasmPluginNamespaceListerExpansion interface{}
+
+// WasmPluginMatchRuleListerExpansion allows custom methods to be added to
+// WasmPluginMatchRuleLister.
+type WasmPluginMatchRuleListerExpansion interface{}
+
+// WasmPluginMatchRuleNamespaceListerExpansion allows custom methods to be added to
+// WasmPluginMatchRuleNamespaceLister.
+type WasmPluginMatchRuleNamespaceListerExpansion interface{}

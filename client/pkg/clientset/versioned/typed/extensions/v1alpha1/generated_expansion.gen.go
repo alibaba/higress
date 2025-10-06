@@ -17,3 +17,5 @@
 package v1alpha1
 
 type WasmPluginExpansion interface{}
+
+type WasmPluginMatchRuleExpansion interface{}

@@ -675,6 +675,114 @@ func (x *EnvVar) GetValue() string {
 	return ""
 }
 
+// <!-- crd generation tags
+// +cue-gen:WasmPluginMatchRule:groupName:extensions.higress.io
+// +cue-gen:WasmPluginMatchRule:version:v1alpha1
+// +cue-gen:WasmPluginMatchRule:storageVersion
+// +cue-gen:WasmPluginMatchRule:annotations:helm.sh/resource-policy=keep
+// +cue-gen:WasmPluginMatchRule:subresource:status
+// +cue-gen:WasmPluginMatchRule:scope:Namespaced
+// +cue-gen:WasmPluginMatchRule:resource:categories=higress-io,extensions-higress-io
+// +cue-gen:WasmPluginMatchRule:preserveUnknownFields:config
+// +cue-gen:WasmPluginMatchRule:printerColumn:name=Age,type=date,JSONPath=.metadata.creationTimestamp,description="CreationTimestamp is a timestamp
+// representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations.
+// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
+// Populated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata"
+// -->
+//
+// <!-- go code generation tags
+// +kubetype-gen
+// +kubetype-gen:groupVersion=extensions.higress.io/v1alpha1
+// +genclient
+// +k8s:deepcopy-gen=true
+// -->
+type WasmPluginMatchRule struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Ingress       []string            `protobuf:"bytes,1,rep,name=ingress,proto3" json:"ingress,omitempty"`
+	Domain        []string            `protobuf:"bytes,2,rep,name=domain,proto3" json:"domain,omitempty"`
+	Config        *_struct.Struct     `protobuf:"bytes,3,opt,name=config,proto3" json:"config,omitempty"`
+	ConfigDisable *wrappers.BoolValue `protobuf:"bytes,4,opt,name=config_disable,json=configDisable,proto3" json:"config_disable,omitempty"`
+	Service       []string            `protobuf:"bytes,5,rep,name=service,proto3" json:"service,omitempty"`
+	Parent        string              `protobuf:"bytes,20,opt,name=parent,proto3" json:"parent,omitempty"`
+}
+
+func (x *WasmPluginMatchRule) Reset() {
+	*x = WasmPluginMatchRule{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_extensions_v1alpha1_wasmplugin_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *WasmPluginMatchRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WasmPluginMatchRule) ProtoMessage() {}
+
+func (x *WasmPluginMatchRule) ProtoReflect() protoreflect.Message {
+	mi := &file_extensions_v1alpha1_wasmplugin_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WasmPluginMatchRule.ProtoReflect.Descriptor instead.
+func (*WasmPluginMatchRule) Descriptor() ([]byte, []int) {
+	return file_extensions_v1alpha1_wasmplugin_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *WasmPluginMatchRule) GetIngress() []string {
+	if x != nil {
+		return x.Ingress
+	}
+	return nil
+}
+
+func (x *WasmPluginMatchRule) GetDomain() []string {
+	if x != nil {
+		return x.Domain
+	}
+	return nil
+}
+
+func (x *WasmPluginMatchRule) GetConfig() *_struct.Struct {
+	if x != nil {
+		return x.Config
+	}
+	return nil
+}
+
+func (x *WasmPluginMatchRule) GetConfigDisable() *wrappers.BoolValue {
+	if x != nil {
+		return x.ConfigDisable
+	}
+	return nil
+}
+
+func (x *WasmPluginMatchRule) GetService() []string {
+	if x != nil {
+		return x.Service
+	}
+	return nil
+}
+
+func (x *WasmPluginMatchRule) GetParent() string {
+	if x != nil {
+		return x.Parent
+	}
+	return ""
+}
+
 var File_extensions_v1alpha1_wasmplugin_proto protoreflect.FileDescriptor
 
 var file_extensions_v1alpha1_wasmplugin_proto_rawDesc = []byte{
@@ -761,7 +869,22 @@ var file_extensions_v1alpha1_wasmplugin_proto_rawDesc = []byte{
 	0x73, 0x69, 0x6f, 0x6e, 0x73, 0x2e, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x2e, 0x45,
 	0x6e, 0x76, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x09, 0x76,
 	0x61, 0x6c, 0x75, 0x65, 0x46, 0x72, 0x6f, 0x6d, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75,
-	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x2a, 0x45,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x22, 0xed,
+	0x01, 0x0a, 0x13, 0x57, 0x61, 0x73, 0x6d, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x4d, 0x61, 0x74,
+	0x63, 0x68, 0x52, 0x75, 0x6c, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x69, 0x6e, 0x67, 0x72, 0x65, 0x73,
+	0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x07, 0x69, 0x6e, 0x67, 0x72, 0x65, 0x73, 0x73,
+	0x12, 0x16, 0x0a, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09,
+	0x52, 0x06, 0x64, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x12, 0x2f, 0x0a, 0x06, 0x63, 0x6f, 0x6e, 0x66,
+	0x69, 0x67, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x17, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c,
+	0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x53, 0x74, 0x72, 0x75, 0x63,
+	0x74, 0x52, 0x06, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x12, 0x41, 0x0a, 0x0e, 0x63, 0x6f, 0x6e,
+	0x66, 0x69, 0x67, 0x5f, 0x64, 0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x62, 0x75, 0x66, 0x2e, 0x42, 0x6f, 0x6f, 0x6c, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x52, 0x0d, 0x63,
+	0x6f, 0x6e, 0x66, 0x69, 0x67, 0x44, 0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x12, 0x18, 0x0a, 0x07,
+	0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x18, 0x05, 0x20, 0x03, 0x28, 0x09, 0x52, 0x07, 0x73,
+	0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x70, 0x61, 0x72, 0x65, 0x6e, 0x74,
+	0x18, 0x14, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x70, 0x61, 0x72, 0x65, 0x6e, 0x74, 0x2a, 0x45,
 	0x0a, 0x0b, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x50, 0x68, 0x61, 0x73, 0x65, 0x12, 0x15, 0x0a,
 	0x11, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x5f, 0x50, 0x48, 0x41,
 	0x53, 0x45, 0x10, 0x00, 0x12, 0x09, 0x0a, 0x05, 0x41, 0x55, 0x54, 0x48, 0x4e, 0x10, 0x01, 0x12,
@@ -776,10 +899,11 @@ var file_extensions_v1alpha1_wasmplugin_proto_rawDesc = []byte{
 	0x01, 0x2a, 0x2d, 0x0a, 0x0c, 0x46, 0x61, 0x69, 0x6c, 0x53, 0x74, 0x72, 0x61, 0x74, 0x65, 0x67,
 	0x79, 0x12, 0x0e, 0x0a, 0x0a, 0x46, 0x41, 0x49, 0x4c, 0x5f, 0x43, 0x4c, 0x4f, 0x53, 0x45, 0x10,
 	0x00, 0x12, 0x0d, 0x0a, 0x09, 0x46, 0x41, 0x49, 0x4c, 0x5f, 0x4f, 0x50, 0x45, 0x4e, 0x10, 0x01,
-	0x42, 0x34, 0x5a, 0x32, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61,
-	0x6c, 0x69, 0x62, 0x61, 0x62, 0x61, 0x2f, 0x68, 0x69, 0x67, 0x72, 0x65, 0x73, 0x73, 0x2f, 0x61,
-	0x70, 0x69, 0x2f, 0x65, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f, 0x6e, 0x73, 0x2f, 0x76, 0x31,
-	0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x42, 0x37, 0x5a, 0x35, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x61,
+	0x6c, 0x69, 0x62, 0x61, 0x62, 0x61, 0x2f, 0x68, 0x69, 0x67, 0x72, 0x65, 0x73, 0x73, 0x2f, 0x76,
+	0x32, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x65, 0x78, 0x74, 0x65, 0x6e, 0x73, 0x69, 0x6f, 0x6e, 0x73,
+	0x2f, 0x76, 0x31, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -795,7 +919,7 @@ func file_extensions_v1alpha1_wasmplugin_proto_rawDescGZIP() []byte {
 }
 
 var file_extensions_v1alpha1_wasmplugin_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_extensions_v1alpha1_wasmplugin_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_extensions_v1alpha1_wasmplugin_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_extensions_v1alpha1_wasmplugin_proto_goTypes = []interface{}{
 	(PluginPhase)(0),            // 0: higress.extensions.v1alpha1.PluginPhase
 	(PullPolicy)(0),             // 1: higress.extensions.v1alpha1.PullPolicy
@@ -805,29 +929,32 @@ var file_extensions_v1alpha1_wasmplugin_proto_goTypes = []interface{}{
 	(*MatchRule)(nil),           // 5: higress.extensions.v1alpha1.MatchRule
 	(*VmConfig)(nil),            // 6: higress.extensions.v1alpha1.VmConfig
 	(*EnvVar)(nil),              // 7: higress.extensions.v1alpha1.EnvVar
-	(*_struct.Struct)(nil),      // 8: google.protobuf.Struct
-	(*wrappers.Int32Value)(nil), // 9: google.protobuf.Int32Value
-	(*wrappers.BoolValue)(nil),  // 10: google.protobuf.BoolValue
+	(*WasmPluginMatchRule)(nil), // 8: higress.extensions.v1alpha1.WasmPluginMatchRule
+	(*_struct.Struct)(nil),      // 9: google.protobuf.Struct
+	(*wrappers.Int32Value)(nil), // 10: google.protobuf.Int32Value
+	(*wrappers.BoolValue)(nil),  // 11: google.protobuf.BoolValue
 }
 var file_extensions_v1alpha1_wasmplugin_proto_depIdxs = []int32{
 	1,  // 0: higress.extensions.v1alpha1.WasmPlugin.image_pull_policy:type_name -> higress.extensions.v1alpha1.PullPolicy
-	8,  // 1: higress.extensions.v1alpha1.WasmPlugin.plugin_config:type_name -> google.protobuf.Struct
+	9,  // 1: higress.extensions.v1alpha1.WasmPlugin.plugin_config:type_name -> google.protobuf.Struct
 	0,  // 2: higress.extensions.v1alpha1.WasmPlugin.phase:type_name -> higress.extensions.v1alpha1.PluginPhase
-	9,  // 3: higress.extensions.v1alpha1.WasmPlugin.priority:type_name -> google.protobuf.Int32Value
+	10, // 3: higress.extensions.v1alpha1.WasmPlugin.priority:type_name -> google.protobuf.Int32Value
 	3,  // 4: higress.extensions.v1alpha1.WasmPlugin.fail_strategy:type_name -> higress.extensions.v1alpha1.FailStrategy
 	6,  // 5: higress.extensions.v1alpha1.WasmPlugin.vm_config:type_name -> higress.extensions.v1alpha1.VmConfig
-	8,  // 6: higress.extensions.v1alpha1.WasmPlugin.default_config:type_name -> google.protobuf.Struct
+	9,  // 6: higress.extensions.v1alpha1.WasmPlugin.default_config:type_name -> google.protobuf.Struct
 	5,  // 7: higress.extensions.v1alpha1.WasmPlugin.match_rules:type_name -> higress.extensions.v1alpha1.MatchRule
-	10, // 8: higress.extensions.v1alpha1.WasmPlugin.default_config_disable:type_name -> google.protobuf.BoolValue
-	8,  // 9: higress.extensions.v1alpha1.MatchRule.config:type_name -> google.protobuf.Struct
-	10, // 10: higress.extensions.v1alpha1.MatchRule.config_disable:type_name -> google.protobuf.BoolValue
+	11, // 8: higress.extensions.v1alpha1.WasmPlugin.default_config_disable:type_name -> google.protobuf.BoolValue
+	9,  // 9: higress.extensions.v1alpha1.MatchRule.config:type_name -> google.protobuf.Struct
+	11, // 10: higress.extensions.v1alpha1.MatchRule.config_disable:type_name -> google.protobuf.BoolValue
 	7,  // 11: higress.extensions.v1alpha1.VmConfig.env:type_name -> higress.extensions.v1alpha1.EnvVar
 	2,  // 12: higress.extensions.v1alpha1.EnvVar.value_from:type_name -> higress.extensions.v1alpha1.EnvValueSource
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	9,  // 13: higress.extensions.v1alpha1.WasmPluginMatchRule.config:type_name -> google.protobuf.Struct
+	11, // 14: higress.extensions.v1alpha1.WasmPluginMatchRule.config_disable:type_name -> google.protobuf.BoolValue
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_extensions_v1alpha1_wasmplugin_proto_init() }
@@ -884,6 +1011,18 @@ func file_extensions_v1alpha1_wasmplugin_proto_init() {
 				return nil
 			}
 		}
+		file_extensions_v1alpha1_wasmplugin_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*WasmPluginMatchRule); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -891,7 +1030,7 @@ func file_extensions_v1alpha1_wasmplugin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_extensions_v1alpha1_wasmplugin_proto_rawDesc,
 			NumEnums:      4,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

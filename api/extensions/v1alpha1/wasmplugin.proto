@@ -24,7 +24,7 @@ import "google/protobuf/struct.proto";
 
 package higress.extensions.v1alpha1;
 
-option go_package="github.com/alibaba/higress/v2/api/extensions/v1alpha1";
+option go_package = "github.com/alibaba/higress/v2/api/extensions/v1alpha1";
 
 // <!-- crd generation tags
 // +cue-gen:WasmPlugin:groupName:extensions.higress.io
@@ -203,4 +203,35 @@ enum FailStrategy {
   // binary, an exception, or abort() on the VM. This flag is not recommended
   // for the authentication or the authorization plugins.
   FAIL_OPEN = 1;
+}
+
+
+// <!-- crd generation tags
+// +cue-gen:WasmPluginMatchRule:groupName:extensions.higress.io
+// +cue-gen:WasmPluginMatchRule:version:v1alpha1
+// +cue-gen:WasmPluginMatchRule:storageVersion
+// +cue-gen:WasmPluginMatchRule:annotations:helm.sh/resource-policy=keep
+// +cue-gen:WasmPluginMatchRule:subresource:status
+// +cue-gen:WasmPluginMatchRule:scope:Namespaced
+// +cue-gen:WasmPluginMatchRule:resource:categories=higress-io,extensions-higress-io
+// +cue-gen:WasmPluginMatchRule:preserveUnknownFields:config
+// +cue-gen:WasmPluginMatchRule:printerColumn:name=Age,type=date,JSONPath=.metadata.creationTimestamp,description="CreationTimestamp is a timestamp
+// representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations.
+// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
+// Populated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata"
+// -->
+//
+// <!-- go code generation tags
+// +kubetype-gen
+// +kubetype-gen:groupVersion=extensions.higress.io/v1alpha1
+// +genclient
+// +k8s:deepcopy-gen=true
+// -->
+message WasmPluginMatchRule {
+  repeated string ingress = 1;
+  repeated string domain = 2;
+  google.protobuf.Struct config = 3;
+  google.protobuf.BoolValue config_disable = 4;
+  repeated string service = 5;
+  string parent = 20;
 }

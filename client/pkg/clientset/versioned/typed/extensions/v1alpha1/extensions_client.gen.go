@@ -27,6 +27,7 @@ import (
 type ExtensionsV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	WasmPluginsGetter
+	WasmPluginMatchRulesGetter
 }
 
 // ExtensionsV1alpha1Client is used to interact with features provided by the extensions.higress.io group.
@@ -36,6 +37,10 @@ type ExtensionsV1alpha1Client struct {
 
 func (c *ExtensionsV1alpha1Client) WasmPlugins(namespace string) WasmPluginInterface {
 	return newWasmPlugins(c, namespace)
+}
+
+func (c *ExtensionsV1alpha1Client) WasmPluginMatchRules(namespace string) WasmPluginMatchRuleInterface {
+	return newWasmPluginMatchRules(c, namespace)
 }
 
 // NewForConfig creates a new ExtensionsV1alpha1Client for the given config.

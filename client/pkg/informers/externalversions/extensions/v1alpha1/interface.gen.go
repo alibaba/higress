@@ -24,6 +24,8 @@ import (
 type Interface interface {
 	// WasmPlugins returns a WasmPluginInformer.
 	WasmPlugins() WasmPluginInformer
+	// WasmPluginMatchRules returns a WasmPluginMatchRuleInformer.
+	WasmPluginMatchRules() WasmPluginMatchRuleInformer
 }
 
 type version struct {
@@ -40,4 +42,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // WasmPlugins returns a WasmPluginInformer.
 func (v *version) WasmPlugins() WasmPluginInformer {
 	return &wasmPluginInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// WasmPluginMatchRules returns a WasmPluginMatchRuleInformer.
+func (v *version) WasmPluginMatchRules() WasmPluginMatchRuleInformer {
+	return &wasmPluginMatchRuleInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

@@ -67,3 +67,49 @@ type WasmPluginList struct {
 	v1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 	Items       []*WasmPlugin `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
+
+//
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// <!-- crd generation tags
+// +cue-gen:WasmPluginMatchRule:groupName:extensions.higress.io
+// +cue-gen:WasmPluginMatchRule:version:v1alpha1
+// +cue-gen:WasmPluginMatchRule:storageVersion
+// +cue-gen:WasmPluginMatchRule:annotations:helm.sh/resource-policy=keep
+// +cue-gen:WasmPluginMatchRule:subresource:status
+// +cue-gen:WasmPluginMatchRule:scope:Namespaced
+// +cue-gen:WasmPluginMatchRule:resource:categories=higress-io,extensions-higress-io
+// +cue-gen:WasmPluginMatchRule:preserveUnknownFields:config
+// +cue-gen:WasmPluginMatchRule:printerColumn:name=Age,type=date,JSONPath=.metadata.creationTimestamp,description="CreationTimestamp is a timestamp
+// representing the server time when this object was created. It is not guaranteed to be set in happens-before order across separate operations.
+// Clients may not set this value. It is represented in RFC3339 form and is in UTC.
+// Populated by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata"
+// -->
+//
+// <!-- go code generation tags
+// +kubetype-gen
+// +kubetype-gen:groupVersion=extensions.higress.io/v1alpha1
+// +genclient
+// +k8s:deepcopy-gen=true
+// -->
+type WasmPluginMatchRule struct {
+	v1.TypeMeta `json:",inline"`
+	// +optional
+	v1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Spec defines the implementation of this definition.
+	// +optional
+	Spec extensionsv1alpha1.WasmPluginMatchRule `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
+
+	Status metav1alpha1.IstioStatus `json:"status"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// WasmPluginMatchRuleList is a collection of WasmPluginMatchRules.
+type WasmPluginMatchRuleList struct {
+	v1.TypeMeta `json:",inline"`
+	// +optional
+	v1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Items       []*WasmPluginMatchRule `json:"items" protobuf:"bytes,2,rep,name=items"`
+}

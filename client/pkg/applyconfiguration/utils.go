@@ -33,6 +33,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 	// Group=extensions.higress.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithKind("WasmPlugin"):
 		return &extensionsv1alpha1.WasmPluginApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("WasmPluginMatchRule"):
+		return &extensionsv1alpha1.WasmPluginMatchRuleApplyConfiguration{}
 
 		// Group=meta.k8s.io, Version=v1
 	case v1.SchemeGroupVersion.WithKind("ManagedFieldsEntry"):

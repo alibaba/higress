@@ -30,6 +30,10 @@ func (c *FakeExtensionsV1alpha1) WasmPlugins(namespace string) v1alpha1.WasmPlug
 	return &FakeWasmPlugins{c, namespace}
 }
 
+func (c *FakeExtensionsV1alpha1) WasmPluginMatchRules(namespace string) v1alpha1.WasmPluginMatchRuleInterface {
+	return &FakeWasmPluginMatchRules{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeExtensionsV1alpha1) RESTClient() rest.Interface {

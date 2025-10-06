@@ -50,6 +50,17 @@ func (this *EnvVar) UnmarshalJSON(b []byte) error {
 	return WasmpluginUnmarshaler.Unmarshal(bytes.NewReader(b), this)
 }
 
+// MarshalJSON is a custom marshaler for WasmPluginMatchRule
+func (this *WasmPluginMatchRule) MarshalJSON() ([]byte, error) {
+	str, err := WasmpluginMarshaler.MarshalToString(this)
+	return []byte(str), err
+}
+
+// UnmarshalJSON is a custom unmarshaler for WasmPluginMatchRule
+func (this *WasmPluginMatchRule) UnmarshalJSON(b []byte) error {
+	return WasmpluginUnmarshaler.Unmarshal(bytes.NewReader(b), this)
+}
+
 var (
 	WasmpluginMarshaler   = &jsonpb.Marshaler{}
 	WasmpluginUnmarshaler = &jsonpb.Unmarshaler{AllowUnknownFields: true}

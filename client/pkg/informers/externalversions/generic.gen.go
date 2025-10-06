@@ -54,6 +54,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=extensions.higress.io, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("wasmplugins"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().WasmPlugins().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("wasmpluginmatchrules"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Extensions().V1alpha1().WasmPluginMatchRules().Informer()}, nil
 
 		// Group=networking.higress.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("http2rpcs"):

@@ -31,6 +31,7 @@ import (
 )
 
 type WasmPluginController controller.Controller[listersv1.WasmPluginLister]
+type WasmPluginMatchRuleController controller.Controller[listersv1.WasmPluginMatchRuleLister]
 
 func NewController(client kubeclient.Client, options common.Options) WasmPluginController {
 	var informer cache.SharedIndexInformer
@@ -46,4 +47,20 @@ func NewController(client kubeclient.Client, options common.Options) WasmPluginC
 
 func GetWasmPlugin(lister listersv1.WasmPluginLister, namespacedName types.NamespacedName) (controllers.Object, error) {
 	return lister.WasmPlugins(namespacedName.Namespace).Get(namespacedName.Name)
+}
+
+func NewMatchRuleController(client kubeclient.Client, options common.Options) WasmPluginMatchRuleController {
+	var informer cache.SharedIndexInformer
+	if options.WatchNamespace == "" {
+		informer = client.HigressInformer().Extensions().V1alpha1().WasmPluginMatchRules().Informer()
+	} else {
+		informer = client.HigressInformer().InformerFor(&v1.WasmPluginMatchRule{}, func(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+			return informersv1.NewWasmPluginMatchRuleInformer(client, options.WatchNamespace, resyncPeriod, nil)
+		})
+	}
+	return controller.NewCommonController("wasmpluginmatchrule", listersv1.NewWasmPluginMatchRuleLister(informer.GetIndexer()), informer, GetWasmPluginMatchRule, options.ClusterId)
+}
+
+func GetWasmPluginMatchRule(lister listersv1.WasmPluginMatchRuleLister, namespacedName types.NamespacedName) (controllers.Object, error) {
+	return lister.WasmPluginMatchRules(namespacedName.Namespace).Get(namespacedName.Name)
 }

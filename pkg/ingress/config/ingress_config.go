@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -46,11 +47,14 @@ import (
 	"istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
 	higressext "github.com/alibaba/higress/v2/api/extensions/v1alpha1"
 	higressv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	extclientv1 "github.com/alibaba/higress/v2/client/pkg/apis/extensions/v1alpha1"
 	extlisterv1 "github.com/alibaba/higress/v2/client/pkg/listers/extensions/v1alpha1"
 	netlisterv1 "github.com/alibaba/higress/v2/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/v2/pkg/cert"
@@ -133,6 +137,12 @@ type IngressConfig struct {
 
 	wasmPlugins map[string]*extensions.WasmPlugin
 
+	wasmPluginMatchRuleController wasmplugin.WasmPluginMatchRuleController
+
+	wasmPluginMatchRuleLister extlisterv1.WasmPluginMatchRuleLister
+
+	wasmPluginMatchRuleParents map[string]string
+
 	http2rpcController http2rpc.Http2RpcController
 
 	http2rpcLister netlisterv1.Http2RpcLister
@@ -190,18 +200,19 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 		clusterId = ""
 	}
 	config := &IngressConfig{
-		remoteIngressControllers: make(map[cluster.ID]common.IngressController),
-		remoteGatewayControllers: make(map[cluster.ID]common.GatewayController),
-		localKubeClient:          localKubeClient,
-		XDSUpdater:               xdsUpdater,
-		annotationHandler:        annotations.NewAnnotationHandlerManager(),
-		clusterId:                clusterId,
-		globalGatewayName:        namespace + "/" + common.CreateConvertedName(clusterId.String(), "global"),
-		watchedSecretSet:         sets.New[string](),
-		namespace:                namespace,
-		wasmPlugins:              make(map[string]*extensions.WasmPlugin),
-		http2rpcs:                make(map[string]*higressv1.Http2Rpc),
-		commonOptions:            options,
+		remoteIngressControllers:   make(map[cluster.ID]common.IngressController),
+		remoteGatewayControllers:   make(map[cluster.ID]common.GatewayController),
+		localKubeClient:            localKubeClient,
+		XDSUpdater:                 xdsUpdater,
+		annotationHandler:          annotations.NewAnnotationHandlerManager(),
+		clusterId:                  clusterId,
+		globalGatewayName:          namespace + "/" + common.CreateConvertedName(clusterId.String(), "global"),
+		watchedSecretSet:           sets.New[string](),
+		namespace:                  namespace,
+		wasmPlugins:                make(map[string]*extensions.WasmPlugin),
+		wasmPluginMatchRuleParents: make(map[string]string),
+		http2rpcs:                  make(map[string]*higressv1.Http2Rpc),
+		commonOptions:              options,
 	}
 
 	// Initialize secret config manager
@@ -219,6 +230,11 @@ func NewIngressConfig(localKubeClient kube.Client, xdsUpdater istiomodel.XDSUpda
 	wasmPluginController.AddEventHandler(config.AddOrUpdateWasmPlugin, config.DeleteWasmPlugin)
 	config.wasmPluginController = wasmPluginController
 	config.wasmPluginLister = wasmPluginController.Lister()
+
+	wasmPluginMatchRuleController := wasmplugin.NewMatchRuleController(localKubeClient, options)
+	wasmPluginMatchRuleController.AddEventHandler(config.AddOrUpdateWasmPluginMatchRule, config.DeleteWasmPluginMatchRule)
+	config.wasmPluginMatchRuleController = wasmPluginMatchRuleController
+	config.wasmPluginMatchRuleLister = wasmPluginMatchRuleController.Lister()
 
 	http2rpcController := http2rpc.NewController(localKubeClient, options)
 	http2rpcController.AddEventHandler(config.AddOrUpdateHttp2Rpc, config.DeleteHttp2Rpc)
@@ -987,7 +1003,7 @@ func (m *IngressConfig) applyInternalActiveRedirect(convertOptions *common.Conve
 	}
 }
 
-func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*extensions.WasmPlugin, error) {
+func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin, matchRuleResources []*extclientv1.WasmPluginMatchRule) (*extensions.WasmPlugin, error) {
 	result := &extensions.WasmPlugin{
 		Selector: &istiotype.WorkloadSelector{
 			MatchLabels: map[string]string{
@@ -1022,13 +1038,8 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 		result.PluginConfig = obj.DefaultConfig
 	}
 	hasValidRule := false
+	var ruleValues []*_struct.Value
 	if len(obj.MatchRules) > 0 {
-		if result.PluginConfig == nil {
-			result.PluginConfig = &_struct.Struct{
-				Fields: map[string]*_struct.Value{},
-			}
-		}
-		var ruleValues []*_struct.Value
 		for _, rule := range obj.MatchRules {
 			if isBoolValueTrue(rule.ConfigDisable) {
 				continue
@@ -1041,65 +1052,9 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 			v := &_struct.Value_StructValue{
 				StructValue: rule.Config,
 			}
-
-			validRule := false
-			var matchItems []*_struct.Value
-			// match ingress
-			for _, ing := range rule.Ingress {
-				matchItems = append(matchItems, &_struct.Value{
-					Kind: &_struct.Value_StringValue{
-						StringValue: ing,
-					},
-				})
-			}
-			if len(matchItems) > 0 {
-				validRule = true
-				v.StructValue.Fields["_match_route_"] = &_struct.Value{
-					Kind: &_struct.Value_ListValue{
-						ListValue: &_struct.ListValue{
-							Values: matchItems,
-						},
-					},
-				}
-			}
-			// match service
-			matchItems = nil
-			for _, service := range rule.Service {
-				matchItems = append(matchItems, &_struct.Value{
-					Kind: &_struct.Value_StringValue{
-						StringValue: service,
-					},
-				})
-			}
-			if len(matchItems) > 0 {
-				validRule = true
-				v.StructValue.Fields["_match_service_"] = &_struct.Value{
-					Kind: &_struct.Value_ListValue{
-						ListValue: &_struct.ListValue{
-							Values: matchItems,
-						},
-					},
-				}
-			}
-			// match domain
-			matchItems = nil
-			for _, domain := range rule.Domain {
-				matchItems = append(matchItems, &_struct.Value{
-					Kind: &_struct.Value_StringValue{
-						StringValue: domain,
-					},
-				})
-			}
-			if len(matchItems) > 0 {
-				validRule = true
-				v.StructValue.Fields["_match_domain_"] = &_struct.Value{
-					Kind: &_struct.Value_ListValue{
-						ListValue: &_struct.ListValue{
-							Values: matchItems,
-						},
-					},
-				}
-			}
+			validRule := appendMatchField(v.StructValue, "_match_route_", rule.Ingress)
+			validRule = appendMatchField(v.StructValue, "_match_service_", rule.Service) || validRule
+			validRule = appendMatchField(v.StructValue, "_match_domain_", rule.Domain) || validRule
 			if validRule {
 				ruleValues = append(ruleValues, &_struct.Value{
 					Kind: v,
@@ -1108,21 +1063,145 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 				return nil, fmt.Errorf("invalid match rule has no match condition, rule:%v", rule)
 			}
 		}
-		if len(ruleValues) > 0 {
-			hasValidRule = true
-			result.PluginConfig.Fields["_rules_"] = &_struct.Value{
-				Kind: &_struct.Value_ListValue{
-					ListValue: &_struct.ListValue{
-						Values: ruleValues,
-					},
-				},
+	}
+	// Separated WasmPluginMatchRule configurations always come after those embedded in the WasmPlugin resource.
+	if len(matchRuleResources) != 0 {
+		slices.SortFunc(matchRuleResources, compareWasmPluginMatchRule)
+		for _, matchRule := range matchRuleResources {
+			rule := &matchRule.Spec
+			if isBoolValueTrue(rule.ConfigDisable) {
+				continue
 			}
+			if rule.Config == nil {
+				rule.Config = &_struct.Struct{
+					Fields: map[string]*_struct.Value{},
+				}
+			}
+			v := &_struct.Value_StructValue{
+				StructValue: rule.Config,
+			}
+			validRule := appendMatchField(v.StructValue, "_match_route_", rule.Ingress)
+			validRule = appendMatchField(v.StructValue, "_match_service_", rule.Service) || validRule
+			validRule = appendMatchField(v.StructValue, "_match_domain_", rule.Domain) || validRule
+			if validRule {
+				ruleValues = append(ruleValues, &_struct.Value{
+					Kind: v,
+				})
+			} else {
+				return nil, fmt.Errorf("invalid match rule with name %s: have no match condition, rule: %v", matchRule.Name, rule)
+			}
+		}
+	}
+	if len(ruleValues) > 0 {
+		hasValidRule = true
+		if result.PluginConfig == nil {
+			result.PluginConfig = &_struct.Struct{
+				Fields: map[string]*_struct.Value{},
+			}
+		}
+		result.PluginConfig.Fields["_rules_"] = &_struct.Value{
+			Kind: &_struct.Value_ListValue{
+				ListValue: &_struct.ListValue{
+					Values: ruleValues,
+				},
+			},
 		}
 	}
 	if !hasValidRule && isBoolValueTrue(obj.DefaultConfigDisable) {
 		return nil, nil
 	}
 	return result, nil
+}
+
+func appendMatchField(parent *_struct.Struct, name string, items []string) bool {
+	if len(items) == 0 {
+		return false
+	}
+	var matchItems []*_struct.Value
+	for _, item := range items {
+		matchItems = append(matchItems, &_struct.Value{
+			Kind: &_struct.Value_StringValue{
+				StringValue: item,
+			},
+		})
+	}
+	if len(matchItems) > 0 {
+		parent.Fields[name] = &_struct.Value{
+			Kind: &_struct.Value_ListValue{
+				ListValue: &_struct.ListValue{
+					Values: matchItems,
+				},
+			},
+		}
+	}
+	return true
+}
+
+func compareWasmPluginMatchRule(a, b *extclientv1.WasmPluginMatchRule) int {
+	if ret := compareStringSlices(a.Spec.Service, b.Spec.Service); ret != 0 {
+		return ret
+	}
+
+	if ret := compareStringSlices(a.Spec.Ingress, b.Spec.Ingress); ret != 0 {
+		return ret
+	}
+
+	if ret := compareStringSlices(a.Spec.Domain, b.Spec.Domain); ret != 0 {
+		return ret
+	}
+
+	if ret := a.CreationTimestamp.Time.Compare(b.CreationTimestamp.Time); ret != 0 {
+		return ret
+	}
+
+	return strings.Compare(a.Name, b.Name)
+}
+
+// compareStringSlices: Compare two string slices with following rules:
+//
+// 1. If both are empty, they are equal.
+// 2. If one is empty but the other one isn't, the non-empty one is smaller.
+// 3. Sort both slices and compare items one by one until finding an unequal pair, and return the item comparison result.
+// 4. No unequal pair is found when reaching the end of one slice but the other one has more items, the one with more items is smaller.
+// 5. Otherwise, they are equal.
+func compareStringSlices(a, b []string) int {
+	aLen := len(a)
+	bLen := len(b)
+	aNotEmpty := aLen != 0
+	bNotEmpty := bLen != 0
+
+	if aNotEmpty != bNotEmpty {
+		if aNotEmpty {
+			return -1
+		}
+		return 1
+	}
+
+	if !aNotEmpty {
+		return 0
+	}
+
+	aCopy := append([]string{}, a...)
+	bCopy := append([]string{}, b...)
+	slices.Sort(aCopy)
+	slices.Sort(bCopy)
+	i := 0
+	minLen := aLen
+	if bLen < minLen {
+		minLen = bLen
+	}
+	for ; i < minLen; i++ {
+		if ret := strings.Compare(aCopy[i], bCopy[i]); ret != 0 {
+			return ret
+		}
+	}
+	if aLen == bLen {
+		return 0
+	}
+	if aLen < bLen {
+		return 1
+	}
+	return -1
 }
 
 func isBoolValueTrue(b *wrappers.BoolValue) bool {
@@ -1139,6 +1218,19 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
 		return
 	}
+	allWasmPluginMatchRules, err := m.wasmPluginMatchRuleLister.WasmPluginMatchRules(clusterNamespacedName.Namespace).List(labels.Everything())
+	if err != nil {
+		IngressLog.Errorf("failed to load all WasmPluginMatchRule resources: %v", err)
+		return
+	}
+	matchedWasmPluginMatchRules := make([]*extclientv1.WasmPluginMatchRule, 0)
+	if len(allWasmPluginMatchRules) != 0 {
+		for _, matchRule := range allWasmPluginMatchRules {
+			if matchRule.Spec.Parent == clusterNamespacedName.Name {
+				matchedWasmPluginMatchRules = append(matchedWasmPluginMatchRules, matchRule)
+			}
+		}
+	}
 	metadata := config.Meta{
 		Name:             clusterNamespacedName.Name + "-wasmplugin",
 		Namespace:        clusterNamespacedName.Namespace,
@@ -1150,7 +1242,7 @@ func (m *IngressConfig) AddOrUpdateWasmPlugin(clusterNamespacedName util.Cluster
 		IngressLog.Debug("WasmPlugin triggered update")
 		f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, istiomodel.EventUpdate)
 	}
-	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec)
+	istioWasmPlugin, err := m.convertIstioWasmPlugin(&wasmPlugin.Spec, matchedWasmPluginMatchRules)
 	if err != nil {
 		IngressLog.Errorf("invalid wasmPlugin:%s, err:%v", clusterNamespacedName.Name, err)
 		return
@@ -1192,6 +1284,66 @@ func (m *IngressConfig) DeleteWasmPlugin(clusterNamespacedName util.ClusterNames
 			IngressLog.Debug("WasmPlugin triggered update")
 			f(config.Config{Meta: metadata}, config.Config{Meta: metadata}, istiomodel.EventDelete)
 		}
+	}
+}
+
+func (m *IngressConfig) AddOrUpdateWasmPluginMatchRule(clusterNamespacedName util.ClusterNamespacedName) {
+	if clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	wasmPluginMatchRule, err := m.wasmPluginMatchRuleLister.WasmPluginMatchRules(clusterNamespacedName.Namespace).Get(clusterNamespacedName.Name)
+	if err != nil {
+		IngressLog.Errorf("wasmPluginMatchRule is not found, namespace:%s, name:%s",
+			clusterNamespacedName.Namespace, clusterNamespacedName.Name)
+		return
+	}
+
+	affectedWasmPlugins := make([]string, 0, 2)
+
+	m.mutex.Lock()
+	newParent := wasmPluginMatchRule.Spec.Parent
+	if newParent != "" {
+		affectedWasmPlugins = append(affectedWasmPlugins, newParent)
+	}
+	oldParent, _ := m.wasmPluginMatchRuleParents[clusterNamespacedName.Name]
+	if oldParent != "" && oldParent != newParent {
+		affectedWasmPlugins = append(affectedWasmPlugins, oldParent)
+	}
+	m.wasmPluginMatchRuleParents[clusterNamespacedName.Name] = newParent
+	m.mutex.Unlock()
+
+	if len(affectedWasmPlugins) != 0 {
+		for _, wasmPluginName := range affectedWasmPlugins {
+			m.AddOrUpdateWasmPlugin(util.ClusterNamespacedName{
+				NamespacedName: types.NamespacedName{
+					Namespace: clusterNamespacedName.Namespace,
+					Name:      wasmPluginName,
+				},
+				ClusterId: clusterNamespacedName.ClusterId,
+			})
+		}
+	}
+}
+
+func (m *IngressConfig) DeleteWasmPluginMatchRule(clusterNamespacedName util.ClusterNamespacedName) {
+	if clusterNamespacedName.Namespace != m.namespace {
+		return
+	}
+	wasmPluginName := ""
+	m.mutex.Lock()
+	if parent, ok := m.wasmPluginMatchRuleParents[clusterNamespacedName.Name]; ok {
+		delete(m.wasmPluginMatchRuleParents, clusterNamespacedName.Name)
+		wasmPluginName = parent
+	}
+	m.mutex.Unlock()
+	if wasmPluginName != "" {
+		m.AddOrUpdateWasmPlugin(util.ClusterNamespacedName{
+			NamespacedName: types.NamespacedName{
+				Namespace: clusterNamespacedName.Namespace,
+				Name:      wasmPluginName,
+			},
+			ClusterId: clusterNamespacedName.ClusterId,
+		})
 	}
 }
 
@@ -1866,6 +2018,7 @@ func (m *IngressConfig) Run(stop <-chan struct{}) {
 	}
 	go m.mcpbridgeController.Run(stop)
 	go m.wasmPluginController.Run(stop)
+	go m.wasmPluginMatchRuleController.Run(stop)
 	go m.http2rpcController.Run(stop)
 	go m.configmapMgr.HigressConfigController.Run(stop)
 }
@@ -1887,6 +2040,9 @@ func (m *IngressConfig) HasSynced() bool {
 		return false
 	}
 	if !m.wasmPluginController.HasSynced() {
+		return false
+	}
+	if !m.wasmPluginMatchRuleController.HasSynced() {
 		return false
 	}
 	if !m.http2rpcController.HasSynced() {
