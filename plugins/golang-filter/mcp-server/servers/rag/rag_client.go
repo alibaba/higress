@@ -56,18 +56,12 @@ func NewRAGClient(config *config.Config) (*RAGClient, error) {
 		ragclient.llmProvider = llmProvider
 	}
 
-	demoVector, err := embeddingProvider.GetEmbedding(context.Background(), "initialization")
-	if err != nil {
-		return nil, fmt.Errorf("create init embedding failed, err: %w", err)
-	}
-	dim := len(demoVector)
-
+	dim := ragclient.config.Embedding.Dimensions
 	provider, err := vectordb.NewVectorDBProvider(&ragclient.config.VectorDB, dim)
 	if err != nil {
 		return nil, fmt.Errorf("create vector store provider failed, err: %w", err)
 	}
 	ragclient.vectordbProvider = provider
-
 	return ragclient, nil
 }
 
