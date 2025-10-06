@@ -28,11 +28,11 @@ func TestRAGConfig_ParseConfig(t *testing.T) {
 			MaxTokens:   2048,
 		},
 		Embedding: config.EmbeddingConfig{
-			Provider:  "dashscope",
-			APIKey:    "sk-XXX",
-			BaseURL:   "",
-			Model:     "text-embedding-v4",
-			Dimension: 1024,
+			Provider:   "dashscope",
+			APIKey:     "sk-XXX",
+			BaseURL:    "",
+			Model:      "text-embedding-v4",
+			Dimensions: 1024,
 		},
 		VectorDB: config.VectorDBConfig{
 			Provider:   "milvus",
@@ -42,6 +42,48 @@ func TestRAGConfig_ParseConfig(t *testing.T) {
 			Collection: "test_rag",
 			Username:   "",
 			Password:   "",
+			Mapping: config.MappingConfig{
+				Fields: []config.FieldMapping{
+					{
+						StandardName: "id",
+						RawName:      "id",
+						Properties: map[string]interface{}{
+							"max_length": 256,
+							"auto_id":    false,
+						},
+					},
+					{
+						StandardName: "content",
+						RawName:      "content",
+						Properties: map[string]interface{}{
+							"max_length": 8192,
+						},
+					},
+					{
+						StandardName: "vector",
+						RawName:      "vector",
+						Properties:   make(map[string]interface{}),
+					},
+					{
+						StandardName: "metadata",
+						RawName:      "metadata",
+						Properties:   make(map[string]interface{}),
+					},
+					{
+						StandardName: "created_at",
+						RawName:      "created_at",
+						Properties:   make(map[string]interface{}),
+					},
+				},
+				Index: config.IndexConfig{
+					IndexType: "HNSW",
+					Params:    map[string]interface{}{"M": 4, "efConstruction": 32},
+				},
+				Search: config.SearchConfig{
+					MetricType: "IP",
+					Params:     map[string]interface{}{"ef": 32},
+				},
+			},
 		},
 	}
 	// 把 config 输出 yaml 格式
