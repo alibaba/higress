@@ -84,7 +84,7 @@ Higress RAG MCP Server 提供以下工具，根据配置不同，可用工具也
 | llm.max_tokens             | integer | 可选 | 2048 | 最大令牌数 |
 | llm.temperature            | float | 可选 | 0.5 | 温度参数 |
 | **embedding**              | object | 必填 | - | 嵌入配置（所有工具必需） |
-| embedding.provider         | string | 必填 | openai | 嵌入提供商：openai |
+| embedding.provider         | string | 必填 | openai | 嵌入提供商：支持openai协议的任意供应商 |
 | embedding.api_key          | string | 必填 | - | 嵌入API密钥 |
 | embedding.base_url         | string | 可选 |  | 嵌入API基础URL |
 | embedding.model            | string | 必填 | text-embedding-ada-002 | 嵌入模型名称 |
