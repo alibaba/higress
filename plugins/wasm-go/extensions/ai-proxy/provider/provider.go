@@ -360,6 +360,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini Thinking Budget 配置
 	// @Description zh-CN 仅适用于 Gemini AI 服务，用于控制思考预算
 	geminiThinkingBudget int64 `required:"false" yaml:"geminiThinkingBudget" json:"geminiThinkingBudget"`
+	// @Title zh-CN Gemini 启用兼容模式
+	// @Description zh-CN 仅适用于 Gemini AI 服务，启用兼容模式后，将调用 Gemini 的兼容模式接口，同时对请求/响应不做修改
+	geminiEnableCompatible bool `required:"false" yaml:"geminiEnableCompatible" json:"geminiEnableCompatible"`
 	// @Title zh-CN Vertex AI访问区域
 	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
 	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`

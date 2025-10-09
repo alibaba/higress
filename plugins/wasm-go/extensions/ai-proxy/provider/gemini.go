@@ -24,14 +24,19 @@ import (
 // geminiProvider is the provider for google gemini/gemini flash service.
 
 const (
-	geminiApiKeyHeader             = "x-goog-api-key"
-	geminiDefaultApiVersion        = "v1beta" // 可选: v1, v1beta
-	geminiDomain                   = "generativelanguage.googleapis.com"
-	geminiChatCompletionPath       = "generateContent"
-	geminiChatCompletionStreamPath = "streamGenerateContent?alt=sse"
-	geminiEmbeddingPath            = "batchEmbedContents"
-	geminiModelsPath               = "models"
-	geminiImageGenerationPath      = "predict"
+	geminiApiKeyHeader                  = "x-goog-api-key"
+	geminiDefaultApiVersion             = "v1beta" // 可选: v1, v1beta
+	geminiDomain                        = "generativelanguage.googleapis.com"
+	geminiChatCompletionPath            = "generateContent"
+	geminiChatCompletionStreamPath      = "streamGenerateContent?alt=sse"
+	geminiEmbeddingPath                 = "batchEmbedContents"
+	geminiModelsPath                    = "models"
+	geminiImageGenerationPath           = "predict"
+	geminiCompatibleChatCompletionPath  = "v1beta/openai/chat/completions"
+	geminiCompatibleCompletionPath      = "v1beta/openai/completions"
+	geminiCompatibleEmbeddingPath       = "v1beta/openai/embeddings"
+	geminiCompatibleImageGenerationPath = "v1beta/openai/images/generations"
+	geminiCompatibleModelsPath          = "v1beta/openai/models"
 )
 
 var geminiThinkingModels = map[string]bool{
@@ -43,7 +48,7 @@ var geminiThinkingModels = map[string]bool{
 type geminiProviderInitializer struct{}
 
 func (g *geminiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if config.apiTokens == nil || len(config.apiTokens) == 0 {
+	if len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
@@ -132,7 +137,6 @@ func (g *geminiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		} else {
 			return action, replaceRequestBody(request)
 		}
-
 	}
 	return types.ActionContinue, replaceRequestBody(request)
 }
@@ -156,8 +160,10 @@ func (g *geminiProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, b
 		return nil, err
 	}
 	path := g.getRequestPath(ApiNameImageGeneration, request.Model, false)
-	log.Debugf("request path:%s", path)
 	util.OverwriteRequestPathHeader(headers, path)
+	if g.config.geminiEnableCompatible {
+		return body, nil
+	}
 	geminiRequest := g.buildGeminiImageGenerationRequest(request)
 	return json.Marshal(geminiRequest)
 }
@@ -181,7 +187,9 @@ func (g *geminiProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 	}
 	path := g.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
 	util.OverwriteRequestPathHeader(headers, path)
-
+	if g.config.geminiEnableCompatible {
+		return body, nil
+	}
 	geminiRequest := g.buildGeminiChatRequest(request)
 	return json.Marshal(geminiRequest)
 }
@@ -193,7 +201,9 @@ func (g *geminiProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body [
 	}
 	path := g.getRequestPath(ApiNameEmbeddings, request.Model, false)
 	util.OverwriteRequestPathHeader(headers, path)
-
+	if g.config.geminiEnableCompatible {
+		return body, nil
+	}
 	geminiRequest := g.buildBatchEmbeddingRequest(request)
 	return json.Marshal(geminiRequest)
 }
@@ -235,6 +245,9 @@ func (g *geminiProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 }
 
 func (g *geminiProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	if g.config.geminiEnableCompatible {
+		return body, nil
+	}
 	switch apiName {
 	case ApiNameChatCompletion:
 		return g.onChatCompletionResponseBody(ctx, body)
@@ -304,16 +317,28 @@ func (g *geminiProvider) getRequestPath(apiName ApiName, model string, stream bo
 	}
 	switch apiName {
 	case ApiNameModels:
+		if g.config.geminiEnableCompatible {
+			return geminiCompatibleModelsPath
+		}
 		return fmt.Sprintf("/%s/%s", g.config.apiVersion, geminiModelsPath)
 	case ApiNameEmbeddings:
+		if g.config.geminiEnableCompatible {
+			return geminiCompatibleEmbeddingPath
+		}
 		action = geminiEmbeddingPath
 	case ApiNameChatCompletion:
+		if g.config.geminiEnableCompatible {
+			return geminiCompatibleChatCompletionPath
+		}
 		if stream {
 			action = geminiChatCompletionStreamPath
 		} else {
 			action = geminiChatCompletionPath
 		}
 	case ApiNameImageGeneration:
+		if g.config.geminiEnableCompatible {
+			return geminiCompatibleImageGenerationPath
+		}
 		action = geminiImageGenerationPath
 	case ApiNameGeminiGenerateContent:
 		action = geminiChatCompletionPath
