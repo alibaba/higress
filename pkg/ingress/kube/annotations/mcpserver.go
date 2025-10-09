@@ -53,7 +53,8 @@ func (a mcpServer) Parse(annotations Annotations, config *Ingress, globalContext
 	var matchRuleDomains []string
 	rawMatchRuleDomains, _ := annotations.ParseStringASAP(mcpServerMatchRuleDomains)
 	if rawMatchRuleDomains == "" || rawMatchRuleDomains == "*" {
-		// Match all domains. Leave an empty slice.
+		// Use wildcard to match all domains so we don't rely on the default behavior of empty domain list
+		matchRuleDomains = []string{"*"}
 	} else if strings.Contains(rawMatchRuleDomains, ",") {
 		matchRuleDomains = strings.Split(rawMatchRuleDomains, ",")
 	} else {

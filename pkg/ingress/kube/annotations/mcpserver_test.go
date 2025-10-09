@@ -132,7 +132,7 @@ func TestMCPServer_Parse(t *testing.T) {
 			},
 			expect: &mcpserver.McpServer{
 				Name:              "default/route",
-				Domains:           nil,
+				Domains:           []string{"*"},
 				PathMatchType:     "prefix",
 				PathMatchValue:    "/mcp",
 				UpstreamType:      "rest",
@@ -153,7 +153,7 @@ func TestMCPServer_Parse(t *testing.T) {
 			},
 			expect: &mcpserver.McpServer{
 				Name:              "default/route",
-				Domains:           nil,
+				Domains:           []string{"*"},
 				PathMatchType:     "prefix",
 				PathMatchValue:    "/mcp",
 				UpstreamType:      "rest",
