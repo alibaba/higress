@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/common"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
