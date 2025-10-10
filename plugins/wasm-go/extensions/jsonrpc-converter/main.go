@@ -185,7 +185,7 @@ func processJsonRpcRequest(context wrapper.HttpContext, config any, id utils.Jso
 	// For MethodToolCall, we set the params in processToolCallRequest
 	if method != MethodToolCall {
 		// JsonRpcParams
-		insertJsonRpcHeaders(true, config, JsonRpcParams, params.String())
+		insertJsonRpcHeaders(true, config, JsonRpcParams, params.Raw)
 	}
 
 	return types.ActionContinue
@@ -212,9 +212,9 @@ func processJsonRpcResponse(context wrapper.HttpContext, config any, id utils.Js
 	// For MethodToolList & MethodToolCall, we set the params in processToolCallResponse and processToolListResponse
 	if method != MethodToolList && method != MethodToolCall {
 		// JsonRpcResult
-		insertJsonRpcHeaders(false, config, JsonRpcResult, result.String())
+		insertJsonRpcHeaders(false, config, JsonRpcResult, result.Raw)
 		// JsonRpcError
-		insertJsonRpcHeaders(false, config, JsonRpcError, error.String())
+		insertJsonRpcHeaders(false, config, JsonRpcError, error.Raw)
 	}
 
 	return types.ActionContinue
@@ -231,7 +231,7 @@ func processToolListResponse(ctx wrapper.HttpContext, config any, tools gjson.Re
 	}
 
 	// JsonRpcResult
-	insertJsonRpcHeaders(false, config, JsonRpcResult, tools.String())
+	insertJsonRpcHeaders(false, config, JsonRpcResult, tools.Raw)
 
 	return types.ActionContinue
 }
@@ -248,7 +248,7 @@ func processToolCallRequest(ctx wrapper.HttpContext, config any, toolName string
 
 	// McpToolName, McpToolArguments
 	insertJsonRpcHeaders(true, config, McpToolName, toolName)
-	insertJsonRpcHeaders(true, config, McpToolArguments, toolArgs.String())
+	insertJsonRpcHeaders(true, config, McpToolArguments, toolArgs.Raw)
 
 	return types.ActionContinue
 }
@@ -264,7 +264,7 @@ func processToolCallResponse(ctx wrapper.HttpContext, config any, isError bool, 
 	}
 
 	// McpToolResponse, McpToolError
-	insertJsonRpcHeaders(false, config, McpToolResponse, content.String())
+	insertJsonRpcHeaders(false, config, McpToolResponse, content.Raw)
 	insertJsonRpcHeaders(false, config, McpToolError, strconv.FormatBool(isError))
 
 	return types.ActionContinue
