@@ -257,6 +257,12 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 		return nil, fmt.Errorf("create rag client failed, err: %w", err)
 	}
 
+	// Initialize enhanced RAG client
+	enhancedClient, err := NewEnhancedRAGClient(c.config)
+	if err != nil {
+		return nil, fmt.Errorf("create enhanced rag client failed, err: %w", err)
+	}
+
 	// Knowledge Base Management Tools
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema("create-chunks-from-text", "Process and segment input text into semantic chunks for knowledge base ingestion", GetCreateChunkFromTextSchema()),
@@ -273,17 +279,53 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 		HandleDeleteChunk(ragClient),
 	)
 
-	// Semantic Search Tool
+	// Basic Search and Chat Tools
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("search-chunks", "Perform semantic search across knowledge chunks using natural language query", GetSearchSchema()),
+		mcp.NewToolWithRawSchema("search", "Perform semantic search across knowledge chunks using natural language query", GetSearchSchema()),
 		HandleSearch(ragClient),
 	)
 
-	// Intelligent Q&A Tool
+	// Only add chat if LLM is configured
+	if ragClient.llmProvider != nil {
+		mcpServer.AddTool(
+			mcp.NewToolWithRawSchema("chat", "Answer user questions by retrieving relevant knowledge from the database and generating responses using RAG-enhanced LLM", GetChatSchema()),
+			HandleChat(ragClient),
+		)
+	}
+
+	// Enhanced Search Tools
 	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema("chat", "Answer user questions by retrieving relevant knowledge from the database and generating responses using RAG-enhanced LLM", GetChatSchema()),
-		HandleChat(ragClient),
+		mcp.NewToolWithRawSchema("hybrid-search", "Perform hybrid search using both vector similarity and BM25 keyword matching with configurable fusion methods", GetHybridSearchSchema()),
+		HandleHybridSearch(enhancedClient),
 	)
+
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("enhanced-search", "Perform advanced search with query enhancement, hybrid retrieval, and post-processing for optimal results", GetEnhancedSearchSchema()),
+		HandleEnhancedSearch(enhancedClient),
+	)
+
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("crag-search", "Perform Corrective RAG search with automatic web augmentation for knowledge gaps and answer validation", GetCRAGSearchSchema()),
+		HandleCRAGSearch(enhancedClient),
+	)
+
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("query-enhancement", "Enhance queries through rewriting, expansion, decomposition, and intent classification for better retrieval", GetQueryEnhancementSchema()),
+		HandleQueryEnhancement(enhancedClient),
+	)
+
+	mcpServer.AddTool(
+		mcp.NewToolWithRawSchema("search-comparison", "Compare different search methods (vector, BM25, hybrid) to analyze retrieval effectiveness", GetSearchComparisonSchema()),
+		HandleSearchComparison(enhancedClient),
+	)
+
+	// Only add enhanced chat if LLM is configured
+	if enhancedClient.llmProvider != nil {
+		mcpServer.AddTool(
+			mcp.NewToolWithRawSchema("enhanced-chat", "Advanced chat with query enhancement, hybrid retrieval, CRAG processing, and intelligent context selection", GetEnhancedChatSchema()),
+			HandleEnhancedChat(enhancedClient),
+		)
+	}
 
 	return mcpServer, nil
 }

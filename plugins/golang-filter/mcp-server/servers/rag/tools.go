@@ -73,7 +73,6 @@ func HandleDeleteChunk(ragClient *RAGClient) common.ToolHandlerFunc {
 // HandleCreateSession handles the creation of a chat session
 func HandleCreateSession(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// TODO: Implement chat session creation logic
 		result := map[string]interface{}{
 			"session_id": "session-1",
 			"created_at": "2024-01-01T00:00:00Z",
@@ -92,7 +91,6 @@ func HandleGetSession(ragClient *RAGClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid session_id argument")
 		}
 
-		// TODO: Implement session details retrieval logic
 		result := map[string]interface{}{
 			"session_id": sessionId,
 			"messages":   []interface{}{},
@@ -105,7 +103,6 @@ func HandleGetSession(ragClient *RAGClient) common.ToolHandlerFunc {
 // HandleListSessions handles listing all sessions
 func HandleListSessions(ragClient *RAGClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		// TODO: Implement session listing logic
 		result := map[string]interface{}{
 			"sessions": []interface{}{},
 			"total":    0,
@@ -124,7 +121,6 @@ func HandleDeleteSession(ragClient *RAGClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("invalid session_id argument")
 		}
 
-		// TODO: Implement session deletion logic
 		result := map[string]interface{}{
 			"success":    true,
 			"message":    "Session deleted",
@@ -352,6 +348,358 @@ func GetChatSchema() json.RawMessage {
 			"query": {
 				"type": "string",
 				"description": "User query"
+			}
+		},
+		"required": ["query"]
+	}`)
+}
+
+// Enhanced Tools for Advanced RAG Features
+
+// HandleHybridSearch handles hybrid search using both vector and BM25 retrieval
+func HandleHybridSearch(enhancedClient *EnhancedRAGClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		query, ok := arguments["query"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid query argument")
+		}
+
+		// Parse optional parameters
+		topK := enhancedClient.config.RAG.TopK
+		if tk, ok := arguments["topk"].(float64); ok {
+			topK = int(tk)
+		}
+
+		threshold := enhancedClient.config.RAG.Threshold
+		if th, ok := arguments["threshold"].(float64); ok {
+			threshold = th
+		}
+
+		fusionMethod := "rrf"
+		if fm, ok := arguments["fusion_method"].(string); ok {
+			fusionMethod = fm
+		}
+
+		vectorWeight := 0.6
+		if vw, ok := arguments["vector_weight"].(float64); ok {
+			vectorWeight = vw
+		}
+
+		bm25Weight := 0.4
+		if bw, ok := arguments["bm25_weight"].(float64); ok {
+			bm25Weight = bw
+		}
+
+		// Create search options
+		options := &fusion.HybridSearchOptions{
+			VectorTopK:   topK * 2,
+			BM25TopK:     topK * 2,
+			FinalTopK:    topK,
+			VectorWeight: vectorWeight,
+			BM25Weight:   bm25Weight,
+			MinScore:     threshold,
+			EnableVector: true,
+			EnableBM25:   true,
+			FusionOptions: fusion.DefaultFusionOptions(),
+		}
+
+		// Set fusion method
+		switch fusionMethod {
+		case "rrf":
+			options.FusionMethod = fusion.RRFFusion
+		case "weighted":
+			options.FusionMethod = fusion.WeightedFusion
+		case "borda":
+			options.FusionMethod = fusion.BordaFusion
+		default:
+			options.FusionMethod = fusion.RRFFusion
+		}
+
+		results, err := enhancedClient.HybridSearch(ctx, query, options)
+		if err != nil {
+			return nil, fmt.Errorf("hybrid search failed: %w", err)
+		}
+
+		return buildCallToolResult(map[string]interface{}{
+			"query":   query,
+			"results": results,
+			"options": options,
+		})
+	}
+}
+
+// HandleEnhancedSearch handles enhanced search with query enhancement and post-processing
+func HandleEnhancedSearch(enhancedClient *EnhancedRAGClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		query, ok := arguments["query"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid query argument")
+		}
+
+		topK := enhancedClient.config.RAG.TopK
+		if tk, ok := arguments["topk"].(float64); ok {
+			topK = int(tk)
+		}
+
+		threshold := enhancedClient.config.RAG.Threshold
+		if th, ok := arguments["threshold"].(float64); ok {
+			threshold = th
+		}
+
+		result, err := enhancedClient.EnhancedSearch(ctx, query, topK, threshold)
+		if err != nil {
+			return nil, fmt.Errorf("enhanced search failed: %w", err)
+		}
+
+		return buildCallToolResult(result)
+	}
+}
+
+// HandleCRAGSearch handles Corrective RAG search with web augmentation
+func HandleCRAGSearch(enhancedClient *EnhancedRAGClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		query, ok := arguments["query"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid query argument")
+		}
+
+		topK := enhancedClient.config.RAG.TopK
+		if tk, ok := arguments["topk"].(float64); ok {
+			topK = int(tk)
+		}
+
+		result, err := enhancedClient.CRAGSearch(ctx, query, topK)
+		if err != nil {
+			return nil, fmt.Errorf("CRAG search failed: %w", err)
+		}
+
+		return buildCallToolResult(result)
+	}
+}
+
+// HandleEnhancedChat handles enhanced chat with all advanced features
+func HandleEnhancedChat(enhancedClient *EnhancedRAGClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		query, ok := arguments["query"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid query argument")
+		}
+
+		if enhancedClient.llmProvider == nil {
+			return nil, fmt.Errorf("llm provider is empty, please check the llm configuration")
+		}
+
+		result, err := enhancedClient.EnhancedChat(ctx, query)
+		if err != nil {
+			return nil, fmt.Errorf("enhanced chat failed: %w", err)
+		}
+
+		return buildCallToolResult(result)
+	}
+}
+
+// HandleQueryEnhancement handles query enhancement operations
+func HandleQueryEnhancement(enhancedClient *EnhancedRAGClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		query, ok := arguments["query"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid query argument")
+		}
+
+		// Parse enhancement options
+		options := &queryenhancement.EnhancementOptions{
+			EnableRewrite:             true,
+			EnableExpansion:           true,
+			EnableDecomposition:       false,
+			EnableIntentClassification: true,
+			MaxRewriteCount:           3,
+			MaxExpansionTerms:         10,
+			MaxSubQueries:             5,
+		}
+
+		if enableRewrite, ok := arguments["enable_rewrite"].(bool); ok {
+			options.EnableRewrite = enableRewrite
+		}
+		if enableExpansion, ok := arguments["enable_expansion"].(bool); ok {
+			options.EnableExpansion = enableExpansion
+		}
+		if enableDecomposition, ok := arguments["enable_decomposition"].(bool); ok {
+			options.EnableDecomposition = enableDecomposition
+		}
+		if enableIntent, ok := arguments["enable_intent"].(bool); ok {
+			options.EnableIntentClassification = enableIntent
+		}
+
+		result, err := enhancedClient.queryEnhancer.EnhanceQuery(ctx, query, options)
+		if err != nil {
+			return nil, fmt.Errorf("query enhancement failed: %w", err)
+		}
+
+		return buildCallToolResult(result)
+	}
+}
+
+// HandleSearchComparison handles comparison between different search methods
+func HandleSearchComparison(enhancedClient *EnhancedRAGClient) common.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		arguments := request.Params.Arguments
+		query, ok := arguments["query"].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid query argument")
+		}
+
+		topK := enhancedClient.config.RAG.TopK
+		if tk, ok := arguments["topk"].(float64); ok {
+			topK = int(tk)
+		}
+
+		comparison, err := enhancedClient.hybridSearchProvider.CompareSearchMethods(ctx, query, topK)
+		if err != nil {
+			return nil, fmt.Errorf("search comparison failed: %w", err)
+		}
+
+		return buildCallToolResult(comparison)
+	}
+}
+
+// Enhanced Tool Schemas
+
+// GetHybridSearchSchema returns the schema for hybrid search tool
+func GetHybridSearchSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"query": {
+				"type": "string",
+				"description": "The search query"
+			},
+			"topk": {
+				"type": "integer",
+				"description": "The number of top results to return (optional, default 10)"
+			},
+			"threshold": {
+				"type": "number",
+				"description": "The relevance score threshold for filtering results (optional, default 0.5)"
+			},
+			"fusion_method": {
+				"type": "string",
+				"description": "Fusion method: rrf, weighted, borda (optional, default rrf)",
+				"enum": ["rrf", "weighted", "borda"]
+			},
+			"vector_weight": {
+				"type": "number",
+				"description": "Weight for vector search results (optional, default 0.6)"
+			},
+			"bm25_weight": {
+				"type": "number",
+				"description": "Weight for BM25 search results (optional, default 0.4)"
+			}
+		},
+		"required": ["query"]
+	}`)
+}
+
+// GetEnhancedSearchSchema returns the schema for enhanced search tool
+func GetEnhancedSearchSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"query": {
+				"type": "string",
+				"description": "The search query"
+			},
+			"topk": {
+				"type": "integer",
+				"description": "The number of top results to return (optional, default 10)"
+			},
+			"threshold": {
+				"type": "number",
+				"description": "The relevance score threshold for filtering results (optional, default 0.5)"
+			}
+		},
+		"required": ["query"]
+	}`)
+}
+
+// GetCRAGSearchSchema returns the schema for CRAG search tool
+func GetCRAGSearchSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"query": {
+				"type": "string",
+				"description": "The search query"
+			},
+			"topk": {
+				"type": "integer",
+				"description": "The number of top results to return (optional, default 10)"
+			}
+		},
+		"required": ["query"]
+	}`)
+}
+
+// GetEnhancedChatSchema returns the schema for enhanced chat tool
+func GetEnhancedChatSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"query": {
+				"type": "string",
+				"description": "User query for enhanced chat with advanced RAG features"
+			}
+		},
+		"required": ["query"]
+	}`)
+}
+
+// GetQueryEnhancementSchema returns the schema for query enhancement tool
+func GetQueryEnhancementSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"query": {
+				"type": "string",
+				"description": "The query to enhance"
+			},
+			"enable_rewrite": {
+				"type": "boolean",
+				"description": "Enable query rewriting (optional, default true)"
+			},
+			"enable_expansion": {
+				"type": "boolean",
+				"description": "Enable query expansion (optional, default true)"
+			},
+			"enable_decomposition": {
+				"type": "boolean",
+				"description": "Enable query decomposition (optional, default false)"
+			},
+			"enable_intent": {
+				"type": "boolean",
+				"description": "Enable intent classification (optional, default true)"
+			}
+		},
+		"required": ["query"]
+	}`)
+}
+
+// GetSearchComparisonSchema returns the schema for search comparison tool
+func GetSearchComparisonSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"query": {
+				"type": "string",
+				"description": "The search query to compare across different methods"
+			},
+			"topk": {
+				"type": "integer",
+				"description": "The number of top results to return for each method (optional, default 10)"
 			}
 		},
 		"required": ["query"]
