@@ -17,7 +17,6 @@ const (
 	geminiDefaultApiVersion             = "v1beta" // 可选: v1, v1beta
 	geminiDomain                        = "generativelanguage.googleapis.com"
 	geminiCompatibleChatCompletionPath  = "/v1beta/openai/chat/completions"
-	geminiCompatibleCompletionPath      = "/v1beta/openai/completions"
 	geminiCompatibleEmbeddingPath       = "/v1beta/openai/embeddings"
 	geminiCompatibleImageGenerationPath = "/v1beta/openai/images/generations"
 	geminiCompatibleModelsPath          = "/v1beta/openai/models"
