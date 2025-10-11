@@ -176,6 +176,16 @@ jobs:
         name: coverage-${{ matrix.plugin }}
         path: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage-${{ matrix.plugin }}.out
         retention-days: 30
+        
+    - name: Upload coverage to Codecov for ${{ matrix.plugin }}
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        file: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage-${{ matrix.plugin }}.out
+        flags: wasm-go-plugin-${{ matrix.plugin }}
+        name: codecov-${{ matrix.plugin }}
+        fail_ci_if_error: false
+        verbose: true
 
   test-summary:
     name: Test Summary & Coverage
@@ -196,6 +206,7 @@ jobs:
     - name: Install required tools
       run: |
         go install github.com/wadey/gocovmerge@latest
+        sudo apt-get update && sudo apt-get install -y bc
         
     - name: Download all test results
       uses: actions/download-artifact@v4
@@ -267,9 +278,105 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### 📈 Coverage Report" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # 覆盖率门禁检查
+        coverage_failed=false
+        
+        # 解析覆盖率文件 - 使用find命令查找覆盖率文件
+        coverage_files=$(find ${{ github.workspace }} -name "coverage-*.out")
+        
+        if [ -n "$coverage_files" ]; then
+          echo "Found coverage files:"
+          echo "$coverage_files"
+        fi
+        
+        for coverage_file in $coverage_files; do
+          if [ -f "$coverage_file" ]; then
+            plugin_name=$(basename "$coverage_file" | sed 's/coverage-\(.*\)\.out/\1/')
+            
+            # 将覆盖率文件复制到对应插件目录，避免go tool cover的模块依赖问题
+            echo "Processing coverage file: $coverage_file"
+            
+            # 检查覆盖率文件是否存在且非空
+            if [ -s "$coverage_file" ]; then
+              # 将覆盖率文件复制到对应插件目录
+              plugin_dir="plugins/wasm-go/extensions/$plugin_name"
+              if [ -d "$plugin_dir" ]; then
+                cp "$coverage_file" "$plugin_dir/"
+                cd "$plugin_dir"
+                
+                # 在插件目录中运行go tool cover，使用正确的模块环境
+                coverage_stats=$(go tool cover -func="$(basename "$coverage_file")" 2>&1 | tail -1)
+                cd - > /dev/null
+                
+                # 清理复制的文件
+                rm -f "$plugin_dir/$(basename "$coverage_file")"
+              else
+                echo "Plugin directory not found: $plugin_dir"
+                coverage_stats=""
+              fi
+              
+              echo "Coverage stats result: $coverage_stats"
+              
+              if [ -n "$coverage_stats" ] && echo "$coverage_stats" | grep -q "%"; then
+                # 提取覆盖率百分比
+                coverage_percent=$(echo "$coverage_stats" | grep -o '[0-9.]*%' | head -1 | sed 's/%//')
+                
+                # 确保数值有效
+                coverage_percent=${coverage_percent:-0}
+                
+                if (( $(echo "$coverage_percent > 0" | bc -l) )); then
+                  # 根据覆盖率设置颜色和图标
+                  if (( $(echo "$coverage_percent >= 80" | bc -l) )); then
+                    coverage_icon="🟢"
+                  elif (( $(echo "$coverage_percent >= 60" | bc -l) )); then
+                    coverage_icon="🟡"
+                    coverage_failed=true
+                  else
+                    coverage_icon="🔴"
+                    coverage_failed=true
+                  fi
+                  
+                  echo "$coverage_icon **$plugin_name**: $coverage_percent%" >> $GITHUB_STEP_SUMMARY
+                  
+                  # 检查覆盖率门禁
+                  if (( $(echo "$coverage_percent < 80" | bc -l) )); then
+                    echo "❌ **$plugin_name**: Coverage below 80% threshold!" >> $GITHUB_STEP_SUMMARY
+                  fi
+                else
+                  echo "⚪ **$plugin_name**: No statements to cover" >> $GITHUB_STEP_SUMMARY
+                fi
+              else
+                echo "⚪ **$plugin_name**: Coverage data unavailable" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "⚪ **$plugin_name**: Coverage file is empty or invalid" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+        done
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "📊 **Coverage reports are now available on Codecov**" >> $GITHUB_STEP_SUMMARY
         echo "🔗 **This Commit Coverage**: https://codecov.io/gh/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # 覆盖率门禁检查
+        if [ "$coverage_failed" = true ]; then
+          echo "### ❌ Coverage Gate Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🚫 **Coverage threshold not met**: Some plugins have coverage below 80%" >> $GITHUB_STEP_SUMMARY
+          echo "📋 **Please improve test coverage before merging this PR**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # 退出CI失败
+          echo "Coverage gate failed - some plugins below 80% threshold"
+          exit 1
+        else
+          echo "### ✅ Coverage Gate Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **All plugins meet the 80% coverage threshold**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
         
         echo "### 🎯 Summary" >> $GITHUB_STEP_SUMMARY
         echo "- **Total plugins**: $total_plugins" >> $GITHUB_STEP_SUMMARY
@@ -317,62 +424,3 @@ jobs:
             fi
           done
         fi
-        
-    # - name: Merge coverage reports
-    #   run: |
-    #     echo "Merging coverage reports..."
-    #     
-    #     # 使用绝对路径查找，更可靠
-    #     coverage_files=$(find ${{ github.workspace }} -name "coverage-*")
-    #     
-    #     if [ -n "$coverage_files" ]; then
-    #       echo "Found coverage files:"
-    #       echo "$coverage_files"
-    #       
-    #       # 使用gocovmerge顺序合并
-    #       echo "Merging Go coverage files using gocovmerge sequential method..."
-    #       
-    #       # 将文件列表转换为数组
-    #       readarray -t coverage_array <<< "$coverage_files"
-    #       file_count=${#coverage_array[@]}
-    #       
-    #       echo "Total files to merge: $file_count"
-    #       
-    #       # 复制第一个文件作为基础
-    #       cp "${coverage_array[0]}" ${{ github.workspace }}/merged_coverage.out
-    #       echo "Starting with: ${coverage_array[0]}"
-    #       
-    #       # 如果有多个文件，逐个合并其他文件到最终目标
-    #       if [ $file_count -gt 1 ]; then
-    #         echo "Multiple files, merging sequentially with gocovmerge..."
-    #         
-    #         for ((i=1; i<file_count; i++)); do
-    #           current_file="${coverage_array[i]}"
-    #           
-    #           echo "Merging file $((i+1))/$file_count: $current_file"
-    #           
-    #           # 使用gocovmerge合并到最终目标文件
-    #           gocovmerge "${{ github.workspace }}/merged_coverage.out" "$current_file" > "${{ github.workspace }}/temp_merge.out"
-    #           mv "${{ github.workspace }}/temp_merge.out" "${{ github.workspace }}/merged_coverage.out"
-    #           
-    #           echo "Successfully merged with $current_file"
-    #           done
-    #         fi
-    #         
-    #         echo "Coverage reports merged successfully using gocovmerge sequential method"
-    #         echo "Merged file size: $(wc -c < ${{ github.workspace }}/merged_coverage.out) bytes"
-    #       else
-    #         echo "No coverage files found"
-    #         # 创建空的覆盖率文件
-    #         echo "mode: atomic" > ${{ github.workspace }}/merged_coverage.out
-    #       fi
-        
-    # - name: Upload merged coverage to Codecov
-    #   uses: codecov/codecov-action@v4
-    #   if: always()
-    #   with:
-    #     file: ${{ github.workspace }}/merged_coverage.out
-    #     flags: wasm-go-plugins-tests
-    #     name: codecov-wasm-go-plugins
-    #     fail_ci_if_error: false
-    #     verbose: true
