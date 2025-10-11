@@ -17,6 +17,7 @@
 [**官网**](https://higress.cn/) &nbsp; |
 &nbsp; [**文档**](https://higress.cn/docs/latest/overview/what-is-higress/) &nbsp; |
 &nbsp; [**博客**](https://higress.cn/blog/) &nbsp; |
+&nbsp; [**MCP Server 快速开始**](https://higress.cn/ai/mcp-quick-start/) &nbsp; |
 &nbsp; [**电子书**](https://higress.cn/docs/ebook/wasm14/) &nbsp; |
 &nbsp; [**开发指引**](https://higress.cn/docs/latest/dev/architecture/) &nbsp; |
 &nbsp; [**AI插件**](https://higress.cn/plugin/) &nbsp;
