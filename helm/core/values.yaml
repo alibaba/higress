@@ -551,6 +551,7 @@ controller:
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
   tag: ""
   env: {}
+  tenantNamespaces: []
 
   labels: {}
 
@@ -815,3 +816,25 @@ pluginServer:
     limits:
       cpu: 500m
       memory: 256Mi
+
+karmada:
+  enabled: false
+
+keda:
+  enabled: false
+  prometheus:
+    serverAddress: http://prometheus-server.monitoring.svc.cluster.local
+  metric:
+    name: higress_ai_token_usage_total
+    threshold: "100"
+
+observability:
+  prometheus:
+    enabled: false
+  otelCollector:
+    enabled: false
+    image: otel/opentelemetry-collector:0.102.1
+
+volcano:
+  enabled: false
+  image: busybox
