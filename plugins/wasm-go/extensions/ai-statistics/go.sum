@@ -8,6 +8,8 @@ github.com/higress-group/wasm-go v1.0.2-0.20250821081215-b573359becf8 h1:rs+AH1w
 github.com/higress-group/wasm-go v1.0.2-0.20250821081215-b573359becf8/go.mod h1:9k7L730huS/q4V5iH9WLDgf5ZUHEtfhM/uXcegKDG/M=
 github.com/higress-group/wasm-go v1.0.2 h1:8fQqR+wHts8tP+v7GYxmsCNyW5nAjn9wPYV0/+Seqzg=
 github.com/higress-group/wasm-go v1.0.2/go.mod h1:882/J8ccU4i+LeyFKmeicbHWAYLj8y7YZr60zk0OOCI=
+github.com/higress-group/wasm-go v1.0.3-0.20251011082652-b8c6db2073e2 h1:zr22n5Jk3tK5lP88Qx6UyZJFHGM+8hrQgjZjF0a3xgo=
+github.com/higress-group/wasm-go v1.0.3-0.20251011082652-b8c6db2073e2/go.mod h1:B8C6+OlpnyYyZUBEdUXA7tYZYD+uwZTNjfkE5FywA+A=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=
