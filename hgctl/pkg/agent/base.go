@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	// AgentBinaryName = "hgctl-agent"
-	AgentBinaryName = "kode"
+	AgentBinaryName = "hgctl-agent"
 	BinaryVersion   = "0.1.0"
 	DevVersion      = "dev"
 )
@@ -17,7 +16,7 @@ const (
 // 1. npm install
 // 2. check the npm version
 // 3. install hgctl-agent
-func setup() {
+func setup() *KodeClient {
 	if !checkAgentInstallStatus() {
 		fmt.Println("installing......")
 		if err := installAgent(); err != nil {
@@ -25,6 +24,8 @@ func setup() {
 			panic("failed to launch hgctl-agent, install failed")
 		}
 	}
+
+	return NewKodeClient("")
 
 }
 

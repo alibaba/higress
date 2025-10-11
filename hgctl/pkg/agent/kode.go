@@ -16,7 +16,7 @@ func NewKodeClient(execPath string) *KodeClient {
 	}
 }
 
-func (c *KodeClient) run(args []string) error {
+func (c *KodeClient) run(args ...string) error {
 	cmd := exec.Command(AgentBinaryName, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -25,8 +25,11 @@ func (c *KodeClient) run(args []string) error {
 
 }
 
+func (c *KodeClient) Start() error {
+	return c.run(AgentBinaryName)
+}
+
+// MCP Related
 func (c *KodeClient) AddMCPServer(name string, url string) error {
-	return c.run([]string{
-		"mcp", "add-sse", name, url,
-	})
+	return c.run("mcp", "add-sse", name, url)
 }
