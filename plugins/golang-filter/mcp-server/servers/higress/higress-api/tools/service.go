@@ -37,7 +37,7 @@ type ServiceSourceResponse = higress.APIResponse[ServiceSource]
 func RegisterServiceTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all service sources
 	mcpServer.AddTool(
-		mcp.NewTool("list-service-sources", mcp.WithDescription("List all available service sources")),
+		mcp.NewToolWithRawSchema("list-service-sources", "List all available service sources", listServiceSourcesSchema()),
 		handleListServiceSources(client),
 	)
 
@@ -129,6 +129,7 @@ func handleAddServiceSource(client *higress.HigressClient) common.ToolHandlerFun
 		if _, ok := configurations["port"]; !ok {
 			return nil, fmt.Errorf("missing required field 'port' in configurations")
 		}
+		// valid protocol,sni,properties,auth
 
 		respBody, err := client.Post("/v1/service-sources", configurations)
 		if err != nil {
@@ -249,6 +250,15 @@ func handleDeleteServiceSource(client *higress.HigressClient) common.ToolHandler
 	}
 }
 
+func listServiceSourcesSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {},
+		"required": [],
+		"additionalProperties": false
+	}`)
+}
+
 func getServiceSourceSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -282,7 +292,7 @@ func getAddServiceSourceSchema() json.RawMessage {
 					},
 					"domain": {
 						"type": "string",
-						"description": "The domain name or IP address (required)"
+						"description": "The domain name or IP address + port（such as: 127.0.0.1:8080) (required)"
 					},
 					"port": {
 						"type": "integer",
@@ -292,7 +302,7 @@ func getAddServiceSourceSchema() json.RawMessage {
 					},
 					"protocol": {
 						"type": "string",
-						"enum": ["http", "https"],
+						"enum": ["http", "https", ""],
 						"description": "The protocol to use (optional, defaults to http)"
 					},
 					"sni": {
@@ -300,7 +310,7 @@ func getAddServiceSourceSchema() json.RawMessage {
 						"description": "Server Name Indication for HTTPS connections (optional)"
 					}
 				},
-				"required": ["name", "type", "domain", "port"],
+				"required": ["name", "type", "domain", "port", "protocol"],
 				"additionalProperties": false
 			}
 		},

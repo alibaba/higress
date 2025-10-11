@@ -58,7 +58,7 @@ type RouteResponse = higress.APIResponse[Route]
 func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all routes
 	mcpServer.AddTool(
-		mcp.NewTool("list-routes", mcp.WithDescription("List all available routes")),
+		mcp.NewToolWithRawSchema("list-routes", "List all available routes", listRouteSchema()),
 		handleListRoutes(client),
 	)
 
@@ -267,6 +267,15 @@ func handleDeleteRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 	}
 }
 
+func listRouteSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {},
+		"required": [],
+		"additionalProperties": false
+	}`)
+}
+
 func getRouteSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -276,7 +285,7 @@ func getRouteSchema() json.RawMessage {
 				"description": "The name of the route"
 			}
 		},
-		"required": ["name"],
+		"required": [],
 		"additionalProperties": false
 	}`)
 }
