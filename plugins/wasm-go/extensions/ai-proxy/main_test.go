@@ -109,3 +109,12 @@ func TestFireworks(t *testing.T) {
 	test.RunFireworksOnHttpRequestHeadersTests(t)
 	test.RunFireworksOnHttpRequestBodyTests(t)
 }
+
+func TestGaladriel(t *testing.T) {
+	test.RunGaladrielParseConfigTests(t)
+	test.RunGaladrielOnHttpRequestHeadersTests(t)
+	test.RunGaladrielOnHttpRequestBodyTests(t)
+	test.RunGaladrielOnHttpResponseHeadersTests(t)
+	test.RunGaladrielOnHttpResponseBodyTests(t)
+	test.RunGaladrielOnStreamingResponseBodyTests(t)
+}
