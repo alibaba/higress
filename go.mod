@@ -271,6 +271,8 @@ replace istio.io/istio => ./external/istio
 
 replace github.com/alibaba/higress/hgctl => ./hgctl
 
+replace github.com/alibaba/higress/plugins/golang-filter => ./plugins/golang-filter
+
 replace github.com/caddyserver/certmagic => github.com/2456868764/certmagic v1.0.2
 
 replace (

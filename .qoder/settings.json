@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "ask": [
+      "Read(!/Users/zhangty/git/higress/**)",
+      "Edit(!/Users/zhangty/git/higress/**)"
+    ],
+    "allow": [
+      "Read(/Users/zhangty/git/higress/**)",
+      "Edit(/Users/zhangty/git/higress/**)"
+    ]
+  },
+  "memoryImport": {},
+  "monitoring": {}
+}
