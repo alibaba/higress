@@ -26,10 +26,13 @@ type MCPAddArg struct {
 	// env string
 }
 
-var KClient = NewKodeClient("")
+type MCPAddHandler struct {
+	c   *KodeClient
+	arg MCPAddArg
+	w   io.Writer
+}
 
 func NewMCPCmd() *cobra.Command {
-	setup()
 	mcpCmd := &cobra.Command{
 		Use:   "mcp",
 		Short: "for the mcp management",
@@ -62,12 +65,20 @@ func newMCPAddCmd() *cobra.Command {
 	return cmd
 }
 
-func addHTTPMCP(w io.Writer, arg MCPAddArg) error {
-	if arg.noPublish {
-		fmt.Printf("%s is set to be noPublish\n", arg.name)
+func newHanlder(c *KodeClient, arg MCPAddArg, w io.Writer) *MCPAddHandler {
+	return &MCPAddHandler{
+		c,
+		arg,
+		w,
+	}
+}
+
+func (h *MCPAddHandler) addHTTPMCP() error {
+	if h.arg.noPublish {
+		fmt.Printf("%s is set to be noPublish\n", h.arg.name)
 	}
 
-	if err := KClient.AddMCPServer(arg.name, arg.url); err != nil {
+	if err := h.c.AddMCPServer(h.arg.name, h.arg.url); err != nil {
 		return fmt.Errorf("mcp add failed: %w", err)
 	}
 
@@ -77,18 +88,20 @@ func addHTTPMCP(w io.Writer, arg MCPAddArg) error {
 
 }
 
-func addOpenAPIMCP(w io.Writer, arg MCPAddArg) error {
-	fmt.Printf("get mcp server %s spec %s\n", arg.name, arg.spec)
+func (h *MCPAddHandler) addOpenAPIMCP() error {
+	fmt.Printf("get mcp server %s spec %s\n", h.arg.name, h.arg.spec)
 	// TODO: OpenAPI transfer
 	return nil
 }
 
 func handleAddMCP(w io.Writer, arg MCPAddArg) error {
+	client := getClient()
+	h := newHanlder(client, arg, w)
 	// spec -> OPENAPI
 	// noPublish -> typ
 	switch arg.typ {
 	case HTTP:
-		return addHTTPMCP(w, arg)
+		return h.addHTTPMCP()
 	case OPENAPI:
 		if arg.spec == "" {
 			return fmt.Errorf("--spec is required for openapi type")
@@ -99,7 +112,7 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 		if arg.url != "" {
 			return fmt.Errorf("--url is not supported for openapi type")
 		}
-		return addOpenAPIMCP(w, arg)
+		return h.addOpenAPIMCP()
 	default:
 		return fmt.Errorf("unsupported mcp type")
 	}

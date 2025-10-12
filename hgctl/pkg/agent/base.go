@@ -16,7 +16,7 @@ const (
 // 1. npm install
 // 2. check the npm version
 // 3. install hgctl-agent
-func setup() *KodeClient {
+func getClient() *KodeClient {
 	if !checkAgentInstallStatus() {
 		fmt.Println("installing......")
 		if err := installAgent(); err != nil {

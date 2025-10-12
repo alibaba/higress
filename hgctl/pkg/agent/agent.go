@@ -16,11 +16,9 @@ func NewAgentCmd() *cobra.Command {
 		},
 	}
 
-	// mcpCmd.AddCommand(newMCPAddCmd())
-
 	return agentCmd
 }
 
 func handleAgentInvoke(w io.Writer) error {
-	return setup().Start()
+	return getClient().Start()
 }
