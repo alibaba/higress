@@ -46,22 +46,30 @@ func init() {
 const (
 	// RedisKeyPrefix 集群限流插件在 Redis 中 key 的统一前缀
 	RedisKeyPrefix = "higress-cluster-key-rate-limit"
-	// ClusterGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
-	ClusterGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d:%d"
+	// ClusterGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口
+	ClusterGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d"
 	// ClusterRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:限流key名称:限流key对应的实际值
 	ClusterRateLimitFormat = RedisKeyPrefix + ":%s:%s:%d:%s:%s"
 	FixedWindowScript      = `
-		local current = redis.call('incr', KEYS[1])
+		local key = KEYS[1]
 		local threshold = tonumber(ARGV[1])
 		local window = tonumber(ARGV[2])
 		
+		local current = tonumber(redis.call('get', key) or "0")
+		
+		-- 只有超过阈值时才停止累加，达到阈值时仍允许（此时是最后一次允许）
+		if current > threshold then
+			return {threshold, current, redis.call('ttl', key)}
+		end
+	
+		-- 计数未超过阈值，执行累加
+		current = redis.call('incr', key)
+		-- 第一次累加时设置过期时间
 		if current == 1 then
-			redis.call('expire', KEYS[1], window)
+			redis.call('expire', key, window)
 		end
 		
-		local ttl = redis.call('ttl', KEYS[1])
-		
-		return {threshold, current, ttl}
+		return {threshold, current, redis.call('ttl', key)}
 	`
 
 	LimitContextKey = "LimitContext" // 限流上下文信息
@@ -97,7 +105,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ClusterKeyRateLimi
 
 	if cfg.GlobalThreshold != nil {
 		// 全局限流模式
-		limitKey = fmt.Sprintf(ClusterGlobalRateLimitFormat, cfg.RuleName, cfg.GlobalThreshold.TimeWindow, cfg.GlobalThreshold.Count)
+		limitKey = fmt.Sprintf(ClusterGlobalRateLimitFormat, cfg.RuleName, cfg.GlobalThreshold.TimeWindow)
 		count = cfg.GlobalThreshold.Count
 		timeWindow = cfg.GlobalThreshold.TimeWindow
 	} else {
