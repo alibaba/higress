@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	// "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -83,6 +84,7 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 	}
 
 	// TODO: Publish to higress
+	publishToHigress(h.arg.name, h.arg.url, "http", nil)
 
 	return nil
 
@@ -116,4 +118,22 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 	default:
 		return fmt.Errorf("unsupported mcp type")
 	}
+}
+
+func publishToHigress(name, url, serverType string, config interface{}) error {
+
+	// add service
+	respBody, err := client.Post("/v1/service-sources")
+
+	// add route
+	// add MCP
+
+	// mcpServer := &MCPServerConfig{
+	// 	Name:   name,
+	// 	Type:   serverType,
+	// 	URL:    url,
+	// 	Config: config,
+	// }
+
+	return client.CreateMCPServer()
 }
