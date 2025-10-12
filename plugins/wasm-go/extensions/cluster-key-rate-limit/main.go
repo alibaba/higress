@@ -48,15 +48,20 @@ const (
 	RedisKeyPrefix = "higress-cluster-key-rate-limit"
 	// ClusterGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
 	ClusterGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d:%d"
-	// ClusterRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
-	ClusterRateLimitFormat = RedisKeyPrefix + ":%s:%s:%d:%d:%s:%s"
+	// ClusterRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:限流key名称:限流key对应的实际值
+	ClusterRateLimitFormat = RedisKeyPrefix + ":%s:%s:%d:%s:%s"
 	FixedWindowScript      = `
-    	local ttl = redis.call('ttl', KEYS[1])
-    	if ttl < 0 then
-        	redis.call('set', KEYS[1], ARGV[1] - 1, 'EX', ARGV[2])
-        	return {ARGV[1], ARGV[1] - 1, ARGV[2]}
-    	end
-    	return {ARGV[1], redis.call('incrby', KEYS[1], -1), ttl}
+		local current = redis.call('incr', KEYS[1])
+		local threshold = tonumber(ARGV[1])
+		local window = tonumber(ARGV[2])
+		
+		if current == 1 then
+			redis.call('expire', KEYS[1], window)
+		end
+		
+		local ttl = redis.call('ttl', KEYS[1])
+		
+		return {threshold, current, ttl}
 	`
 
 	LimitContextKey = "LimitContext" // 限流上下文信息
@@ -103,7 +108,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ClusterKeyRateLimi
 			return types.ActionContinue
 		}
 
-		limitKey = fmt.Sprintf(ClusterRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, configItem.Count, ruleItem.Key, val)
+		limitKey = fmt.Sprintf(ClusterRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, ruleItem.Key, val)
 		count = configItem.Count
 		timeWindow = configItem.TimeWindow
 	}
@@ -118,12 +123,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ClusterKeyRateLimi
 			proxywasm.ResumeHttpRequest()
 			return
 		}
+
+		// 获取限流结果
+		threshold, current, ttl := resultArray[0].Integer(), resultArray[1].Integer(), resultArray[2].Integer()
 		context := LimitContext{
-			count:     resultArray[0].Integer(),
-			remaining: resultArray[1].Integer(),
-			reset:     resultArray[2].Integer(),
+			count:     threshold,
+			remaining: threshold - current,
+			reset:     ttl,
 		}
-		if context.remaining < 0 {
+		if current > threshold {
 			// 触发限流
 			rejected(cfg, context)
 		} else {
