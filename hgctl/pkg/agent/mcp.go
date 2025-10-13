@@ -3,8 +3,10 @@ package agent
 import (
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 
-	// "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress"
+	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -17,6 +19,11 @@ const (
 )
 
 type MCPAddArg struct {
+	// higress console auth arg
+	baseURL  string
+	username string
+	password string
+
 	name      string
 	url       string
 	typ       string
@@ -25,6 +32,7 @@ type MCPAddArg struct {
 	noPublish bool
 	// TODO: support mcp env
 	// env string
+
 }
 
 type MCPAddHandler struct {
@@ -63,15 +71,26 @@ func newMCPAddCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVarP(&arg.scope, "scope", "s", "project", `Configuration scope (project or global)`)
 	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification of the openapi api")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the mcp server will not be plubished to higress")
+
+	cmd.PersistentFlags().StringVar(&arg.baseURL, "base-url", "", "The BaseURL of higress console")
+	cmd.PersistentFlags().StringVar(&arg.username, "user", "", "The username of higress console")
+	cmd.PersistentFlags().StringVarP(&arg.password, "password", "p", "", "The password of higress console")
 	return cmd
 }
 
 func newHanlder(c *KodeClient, arg MCPAddArg, w io.Writer) *MCPAddHandler {
-	return &MCPAddHandler{
-		c,
-		arg,
-		w,
+	return &MCPAddHandler{c, arg, w}
+}
+
+func (h *MCPAddHandler) validateArg() error {
+	if !h.arg.noPublish {
+		if h.arg.baseURL == "" || h.arg.username == "" || h.arg.password == "" {
+			fmt.Println("--username, --base-url, --password must be provided")
+			return fmt.Errorf("invalid args")
+		}
 	}
+	return nil
+
 }
 
 func (h *MCPAddHandler) addHTTPMCP() error {
@@ -83,11 +102,7 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 		return fmt.Errorf("mcp add failed: %w", err)
 	}
 
-	// TODO: Publish to higress
-	publishToHigress(h.arg.name, h.arg.url, "http", nil)
-
-	return nil
-
+	return publishToHigress(h.arg, nil)
 }
 
 func (h *MCPAddHandler) addOpenAPIMCP() error {
@@ -99,6 +114,10 @@ func (h *MCPAddHandler) addOpenAPIMCP() error {
 func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 	client := getClient()
 	h := newHanlder(client, arg, w)
+	if err := h.validateArg(); err != nil {
+		return err
+	}
+
 	// spec -> OPENAPI
 	// noPublish -> typ
 	switch arg.typ {
@@ -120,20 +139,55 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 	}
 }
 
-func publishToHigress(name, url, serverType string, config interface{}) error {
+func publishToHigress(arg MCPAddArg, config interface{}) error {
 
+	client := services.NewHigressClient(arg.baseURL, arg.username, arg.password)
 	// add service
-	respBody, err := client.Post("/v1/service-sources")
+	// handle the url
+	res, err := url.Parse(arg.url)
+	if err != nil {
+		return err
+	}
 
-	// add route
-	// add MCP
+	typ := ""
+	port := ""
 
-	// mcpServer := &MCPServerConfig{
-	// 	Name:   name,
-	// 	Type:   serverType,
-	// 	URL:    url,
-	// 	Config: config,
-	// }
+	if ip := net.ParseIP(res.Hostname()); ip == nil {
+		typ = "dns"
+	} else {
+		typ = "static"
+	}
 
-	return client.CreateMCPServer()
+	if res.Port() == "" && res.Scheme == "http" {
+		port = "80"
+	} else if res.Port() == "" && res.Scheme == "https" {
+		port = "443"
+	} else {
+		port = res.Port()
+	}
+
+	_, err = services.HandleAddServiceSource(client, map[string]interface{}{
+		"domain":        res.Host,
+		"type":          typ,
+		"port":          port,
+		"name":          fmt.Sprintf("hgctl-%s", arg.name),
+		"domainForEdit": res.Host,
+		"protocol":      res.Scheme,
+	})
+	if err != nil {
+		return err
+	}
+
+	// // add route
+	// // add MCP
+
+	// // mcpServer := &MCPServerConfig{
+	// // 	Name:   name,
+	// // 	Type:   serverType,
+	// // 	URL:    url,
+	// // 	Config: config,
+	// // }
+
+	// return client.CreateMCPServer()
+	return nil
 }
