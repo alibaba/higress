@@ -140,7 +140,6 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 }
 
 func publishToHigress(arg MCPAddArg, config interface{}) error {
-
 	client := services.NewHigressClient(arg.baseURL, arg.username, arg.password)
 	// add service
 	// handle the url
@@ -149,28 +148,30 @@ func publishToHigress(arg MCPAddArg, config interface{}) error {
 		return err
 	}
 
-	typ := ""
-	port := ""
+	srvType := ""
+	srvPort := ""
+	srvName := fmt.Sprintf("hgctl-%s", arg.name)
+	srvPath := res.Path
 
 	if ip := net.ParseIP(res.Hostname()); ip == nil {
-		typ = "dns"
+		srvType = "dns"
 	} else {
-		typ = "static"
+		srvType = "static"
 	}
 
 	if res.Port() == "" && res.Scheme == "http" {
-		port = "80"
+		srvPort = "80"
 	} else if res.Port() == "" && res.Scheme == "https" {
-		port = "443"
+		srvPort = "443"
 	} else {
-		port = res.Port()
+		srvPort = res.Port()
 	}
 
 	_, err = services.HandleAddServiceSource(client, map[string]interface{}{
 		"domain":        res.Host,
-		"type":          typ,
-		"port":          port,
-		"name":          fmt.Sprintf("hgctl-%s", arg.name),
+		"type":          srvType,
+		"port":          srvPort,
+		"name":          srvName,
 		"domainForEdit": res.Host,
 		"protocol":      res.Scheme,
 	})
@@ -178,15 +179,23 @@ func publishToHigress(arg MCPAddArg, config interface{}) error {
 		return err
 	}
 
-	// // add route
-	// // add MCP
-
-	// // mcpServer := &MCPServerConfig{
-	// // 	Name:   name,
-	// // 	Type:   serverType,
-	// // 	URL:    url,
-	// // 	Config: config,
-	// // }
+	resp, err := services.HandleAddMCPServer(client, map[string]interface{}{
+		"name": arg.name,
+		//   "description": "",
+		"type":               "DIRECT_ROUTE",
+		"service":            fmt.Sprintf("%s.%s:%s", srvName, srvType, srvPort),
+		"upstreamPathPrefix": srvPath,
+		"services": []map[string]interface{}{{
+			"name":    srvName,
+			"port":    srvPort,
+			"version": "1.0",
+			"weight":  100,
+		}},
+	})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%v", resp)
 
 	// return client.CreateMCPServer()
 	return nil
