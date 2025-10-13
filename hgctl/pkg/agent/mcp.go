@@ -94,15 +94,17 @@ func (h *MCPAddHandler) validateArg() error {
 }
 
 func (h *MCPAddHandler) addHTTPMCP() error {
-	if h.arg.noPublish {
-		fmt.Printf("%s is set to be noPublish\n", h.arg.name)
-	}
 
 	if err := h.c.AddMCPServer(h.arg.name, h.arg.url); err != nil {
 		return fmt.Errorf("mcp add failed: %w", err)
 	}
 
-	return publishToHigress(h.arg, nil)
+	if !h.arg.noPublish {
+		fmt.Printf("%s is set to not be noPublish\n", h.arg.name)
+		return publishToHigress(h.arg, nil)
+	}
+	return nil
+
 }
 
 func (h *MCPAddHandler) addOpenAPIMCP() error {
