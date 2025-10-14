@@ -6,6 +6,7 @@ import (
 
 func HandleAddServiceSource(client *HigressClient, body interface{}) ([]byte, error) {
 	data, ok := body.(map[string]interface{})
+	fmt.Printf("request body: %v\n", data)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse request body")
 	}

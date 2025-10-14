@@ -181,24 +181,27 @@ func publishToHigress(arg MCPAddArg, config interface{}) error {
 		return err
 	}
 
-	resp, err := services.HandleAddMCPServer(client, map[string]interface{}{
+	body := map[string]interface{}{
 		"name": arg.name,
 		//   "description": "",
 		"type":               "DIRECT_ROUTE",
 		"service":            fmt.Sprintf("%s.%s:%s", srvName, srvType, srvPort),
 		"upstreamPathPrefix": srvPath,
 		"services": []map[string]interface{}{{
-			"name":    srvName,
+			"name":    fmt.Sprintf("%s.%s", srvName, srvType),
 			"port":    srvPort,
 			"version": "1.0",
 			"weight":  100,
 		}},
-	})
+	}
+
+	fmt.Printf("request body: %v", body)
+
+	resp, err := services.HandleAddMCPServer(client, body)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("%v", resp)
 
-	// return client.CreateMCPServer()
 	return nil
 }
