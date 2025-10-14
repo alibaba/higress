@@ -121,6 +121,30 @@ func Test_validMcpServer(t *testing.T) {
 			wantErr: errors.New("redis config cannot be empty when user level server is enabled"),
 		},
 		{
+			name: "redis config with password secret missing name",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					PasswordSecret: &SecretKeyReference{
+						Key: "password",
+					},
+				},
+			},
+			wantErr: errors.New("redis passwordSecret.name cannot be empty"),
+		},
+		{
+			name: "redis config with password secret missing key",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+					},
+				},
+			},
+			wantErr: errors.New("redis passwordSecret.key cannot be empty"),
+		},
+		{
 			name: "valid config with redis",
 			mcp: &McpServer{
 				Enable:                true,
@@ -147,6 +171,20 @@ func Test_validMcpServer(t *testing.T) {
 						Config: map[string]interface{}{
 							"key": "value",
 						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid config with redis password secret",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address: "localhost:6379",
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
 					},
 				},
 			},
@@ -265,7 +303,11 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
+					},
+					DB: 0,
 				},
 				MatchList: []*MatchRule{},
 				Servers:   []*SSEServer{},
@@ -276,7 +318,11 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
+					},
+					DB: 0,
 				},
 				MatchList: []*MatchRule{},
 				Servers:   []*SSEServer{},
@@ -291,7 +337,12 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name:      "redis-credentials",
+						Namespace: "custom-ns",
+						Key:       "password",
+					},
+					DB: 0,
 				},
 				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
@@ -318,7 +369,12 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name:      "redis-credentials",
+						Namespace: "custom-ns",
+						Key:       "password",
+					},
+					DB: 0,
 				},
 				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
@@ -702,6 +758,80 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 							"path_rewrite_prefix": "/mcp"
 						}],
 						"enable_user_level_server": true
+					}
+				}
+			}`,
+		},
+		{
+			name: "config with password secret",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address:  "localhost:6379",
+					Password: "ignored",
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
+					},
+				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
+			},
+			wantJSON: `{
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+					"value": {
+						"redis": {
+							"address": "localhost:6379",
+							"username": "",
+							"password": "${secret.redis-credentials.password}",
+							"db": 0
+						},
+						"rate_limit": null,
+						"sse_path_suffix": "",
+						"match_list": [],
+						"enable_user_level_server": false
+					}
+				}
+			}`,
+		},
+		{
+			name: "config with password secret and namespace",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address: "localhost:6379",
+					PasswordSecret: &SecretKeyReference{
+						Namespace: "other-ns",
+						Name:      "redis-credentials",
+						Key:       "password",
+					},
+				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
+			},
+			wantJSON: `{
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+					"value": {
+						"redis": {
+							"address": "localhost:6379",
+							"username": "",
+							"password": "${secret.other-ns/redis-credentials.password}",
+							"db": 0
+						},
+						"rate_limit": null,
+						"sse_path_suffix": "",
+						"match_list": [],
+						"enable_user_level_server": false
 					}
 				}
 			}`,

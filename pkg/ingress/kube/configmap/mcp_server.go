@@ -39,8 +39,20 @@ type RedisConfig struct {
 	Username string `json:"username,omitempty"`
 	// The password for Redis authentication
 	Password string `json:"password,omitempty"`
+	// Reference to a secret containing the password
+	PasswordSecret *SecretKeyReference `json:"passwordSecret,omitempty"`
 	// The database index to use
 	DB int `json:"db,omitempty"`
+}
+
+// SecretKeyReference defines a reference to a key within a Kubernetes secret
+type SecretKeyReference struct {
+	// The namespace of the secret. Defaults to the higress system namespace.
+	Namespace string `json:"namespace,omitempty"`
+	// The name of the secret
+	Name string `json:"name,omitempty"`
+	// The key within the secret data
+	Key string `json:"key,omitempty"`
 }
 
 // MCPRatelimitConfig defines the configuration for rate limit
@@ -119,6 +131,15 @@ func validMcpServer(m *McpServer) error {
 		return nil
 	}
 
+	if m.Redis != nil && m.Redis.PasswordSecret != nil {
+		if m.Redis.PasswordSecret.Name == "" {
+			return errors.New("redis passwordSecret.name cannot be empty")
+		}
+		if m.Redis.PasswordSecret.Key == "" {
+			return errors.New("redis passwordSecret.key cannot be empty")
+		}
+	}
+
 	if m.EnableUserLevelServer && m.Redis == nil {
 		return errors.New("redis config cannot be empty when user level server is enabled")
 	}
@@ -183,6 +204,13 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 			Username: mcp.Redis.Username,
 			Password: mcp.Redis.Password,
 			DB:       mcp.Redis.DB,
+		}
+		if mcp.Redis.PasswordSecret != nil {
+			newMcp.Redis.PasswordSecret = &SecretKeyReference{
+				Namespace: mcp.Redis.PasswordSecret.Namespace,
+				Name:      mcp.Redis.PasswordSecret.Name,
+				Key:       mcp.Redis.PasswordSecret.Key,
+			}
 		}
 	}
 	if mcp.Ratelimit != nil {
@@ -504,12 +532,20 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	// Build redis configuration
 	redisConfig := "null"
 	if mcp.Redis != nil {
+		passwordValue := mcp.Redis.Password
+		if mcp.Redis.PasswordSecret != nil && mcp.Redis.PasswordSecret.Name != "" && mcp.Redis.PasswordSecret.Key != "" {
+			if mcp.Redis.PasswordSecret.Namespace != "" {
+				passwordValue = fmt.Sprintf("${secret.%s/%s.%s}", mcp.Redis.PasswordSecret.Namespace, mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
+			} else {
+				passwordValue = fmt.Sprintf("${secret.%s.%s}", mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
+			}
+		}
 		redisConfig = fmt.Sprintf(`{
 							"address": "%s",
 							"username": "%s",
 							"password": "%s",
 							"db": %d
-						}`, mcp.Redis.Address, mcp.Redis.Username, mcp.Redis.Password, mcp.Redis.DB)
+						}`, mcp.Redis.Address, mcp.Redis.Username, passwordValue, mcp.Redis.DB)
 	}
 
 	// Build rate limit configuration
