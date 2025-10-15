@@ -45,26 +45,55 @@ func init() {
 
 const (
 	RedisKeyPrefix string = "higress-token-ratelimit"
-	// AiTokenGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口:窗口内限流数
-	AiTokenGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d:%d"
-	// AiTokenRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:窗口内限流数:限流key名称:限流key对应的实际值
-	AiTokenRateLimitFormat        = RedisKeyPrefix + ":%s:%s:%d:%d:%s:%s"
+	// AiTokenGlobalRateLimitFormat  全局限流模式 redis key 为 RedisKeyPrefix:限流规则名称:global_threshold:时间窗口
+	AiTokenGlobalRateLimitFormat = RedisKeyPrefix + ":%s:global_threshold:%d"
+	// AiTokenRateLimitFormat 规则限流模式 redis key 为 RedisKeyPrefix:限流规则名称:限流类型:时间窗口:限流key名称:限流key对应的实际值
+	AiTokenRateLimitFormat        = RedisKeyPrefix + ":%s:%s:%d:%s:%s"
 	RequestPhaseFixedWindowScript = `
-	local ttl = redis.call('ttl', KEYS[1])
-	if ttl < 0 then
-	redis.call('set', KEYS[1], ARGV[1], 'EX', ARGV[2])
-	return {ARGV[1], ARGV[1], ARGV[2]}
-	end
-	return {ARGV[1], redis.call('get', KEYS[1]), ttl}
+		local current = redis.call('get', KEYS[1])
+		local ttl = redis.call('ttl', KEYS[1])
+		local threshold = tonumber(ARGV[1])
+		local window = tonumber(ARGV[2])
+	
+    	-- 键不存在时，返回初始状态（计数0，窗口时间为过期时间）
+		if not current then
+			return {threshold, 0, window}
+		end
+
+		-- 修复异常过期时间（确保窗口有效）
+		if ttl < 0 then
+			ttl = window
+		end
+	
+    	-- 返回窗口状态：阈值、当前计数、剩余时间
+		return {threshold, tonumber(current), ttl}
 	`
 	ResponsePhaseFixedWindowScript = `
-	local ttl = redis.call('ttl', KEYS[1])
-	if ttl < 0 then
-	redis.call('set', KEYS[1], ARGV[1]-ARGV[3], 'EX', ARGV[2])
-	return {ARGV[1], ARGV[1]-ARGV[3], ARGV[2]}
-	end
-	return {ARGV[1], redis.call('decrby', KEYS[1], ARGV[3]), ttl}
-	`
+        local key = KEYS[1]
+        local threshold = tonumber(ARGV[1])
+        local window = tonumber(ARGV[2])
+        local added = tonumber(ARGV[3])  -- 需要累加的token数量
+        
+        local current = tonumber(redis.call('get', key) or "0")
+        
+        -- 只有当前计数未超过阈值时才执行累加
+        if current <= threshold then
+            current = redis.call('incrby', key, added)
+            -- 第一次设置值时初始化过期时间
+            if current == added then
+                redis.call('expire', key, window)
+            else
+                -- 非首次设置时检查过期时间，确保窗口有效性
+                local ttl = redis.call('ttl', key)
+                if ttl < 0 then
+                    redis.call('expire', key, window)
+                end
+            end
+        end
+        
+        -- 返回当前窗口状态：阈值、当前计数、剩余时间
+        return {threshold, current, redis.call('ttl', key)}
+    `
 
 	LimitRedisContextKey = "LimitRedisContext"
 
@@ -107,7 +136,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitCo
 
 	if cfg.GlobalThreshold != nil {
 		// 全局限流模式
-		limitKey = fmt.Sprintf(AiTokenGlobalRateLimitFormat, cfg.RuleName, cfg.GlobalThreshold.TimeWindow, cfg.GlobalThreshold.Count)
+		limitKey = fmt.Sprintf(AiTokenGlobalRateLimitFormat, cfg.RuleName, cfg.GlobalThreshold.TimeWindow)
 		count = cfg.GlobalThreshold.Count
 		timeWindow = cfg.GlobalThreshold.TimeWindow
 	} else {
@@ -118,7 +147,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitCo
 			return types.ActionContinue
 		}
 
-		limitKey = fmt.Sprintf(AiTokenRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, configItem.Count, ruleItem.Key, val)
+		limitKey = fmt.Sprintf(AiTokenRateLimitFormat, cfg.RuleName, ruleItem.LimitType, configItem.TimeWindow, ruleItem.Key, val)
 		count = configItem.Count
 		timeWindow = configItem.TimeWindow
 	}
@@ -139,12 +168,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitCo
 			proxywasm.ResumeHttpRequest()
 			return
 		}
+
+		// 获取限流结果
+		threshold, current, ttl := resultArray[0].Integer(), resultArray[1].Integer(), resultArray[2].Integer()
 		context := LimitContext{
-			count:     resultArray[0].Integer(),
-			remaining: resultArray[1].Integer(),
-			reset:     resultArray[2].Integer(),
+			count:     threshold,
+			remaining: threshold - current,
+			reset:     ttl,
 		}
-		if context.remaining < 0 {
+		if current > threshold {
 			// 触发限流
 			ctx.SetUserAttribute("token_ratelimit_status", "limited")
 			ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
