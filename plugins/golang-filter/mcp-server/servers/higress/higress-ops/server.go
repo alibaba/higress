@@ -18,6 +18,7 @@ type HigressOpsConfig struct {
 	istiodURL     string
 	envoyAdminURL string
 	namespace     string
+	istiodToken   string
 	description   string
 }
 
@@ -37,7 +38,15 @@ func (c *HigressOpsConfig) ParseConfig(config map[string]interface{}) error {
 	if namespace, ok := config["namespace"].(string); ok {
 		c.namespace = namespace
 	} else {
-		c.namespace = "istio-system"
+		c.namespace = "higress-system"
+	}
+
+	// Optional: Istiod authentication token (required for cross-pod access)
+	if istiodToken, ok := config["istiodToken"].(string); ok {
+		c.istiodToken = istiodToken
+		api.LogInfof("Istiod authentication token configured")
+	} else {
+		api.LogWarnf("No istiodToken configured. Cross-pod Istiod API requests may fail with 401 errors.")
 	}
 
 	if desc, ok := config["description"].(string); ok {
@@ -59,8 +68,8 @@ func (c *HigressOpsConfig) NewServer(serverName string) (*common.MCPServer, erro
 		common.WithInstructions("This is a Higress Ops MCP Server that provides debug interfaces for Istio and Envoy components"),
 	)
 
-	// Initialize Ops client
-	client := NewOpsClient(c.istiodURL, c.envoyAdminURL, c.namespace)
+	// Initialize Ops client with istiodToken
+	client := NewOpsClient(c.istiodURL, c.envoyAdminURL, c.namespace, c.istiodToken)
 
 	// Register all tools with the client as an interface
 	tools.RegisterIstiodTools(mcpServer, tools.OpsClient(client))

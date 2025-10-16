@@ -13,16 +13,16 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-config-dump",
-			"获取 Envoy 的完整配置快照，包括所有监听器、集群、路由等配置",
+			"Get complete Envoy configuration snapshot, including all listeners, clusters, routes, etc.",
 			CreateParameterSchema(
 				map[string]interface{}{
 					"resource": map[string]interface{}{
 						"type":        "string",
-						"description": "指定资源类型: listeners, clusters, routes, endpoints, secrets 等（可选）",
+						"description": "Specify resource type: listeners, clusters, routes, endpoints, secrets, etc. (optional)",
 					},
 					"mask": map[string]interface{}{
 						"type":        "string",
-						"description": "配置掩码，用于过滤敏感信息（可选）",
+						"description": "Configuration mask for filtering sensitive information (optional)",
 					},
 				},
 				[]string{},
@@ -35,12 +35,12 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-clusters",
-			"获取 Envoy 的所有集群信息和健康状态",
+			"Get all Envoy cluster information and health status",
 			CreateParameterSchema(
 				map[string]interface{}{
 					"format": map[string]interface{}{
 						"type":        "string",
-						"description": "输出格式: json 或 text（默认text）",
+						"description": "Output format: json or text (default text)",
 						"enum":        []string{"json", "text"},
 					},
 				},
@@ -54,12 +54,12 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-listeners",
-			"获取 Envoy 的所有监听器信息",
+			"Get all Envoy listener information",
 			CreateParameterSchema(
 				map[string]interface{}{
 					"format": map[string]interface{}{
 						"type":        "string",
-						"description": "输出格式: json 或 text（默认text）",
+						"description": "Output format: json or text (default text)",
 						"enum":        []string{"json", "text"},
 					},
 				},
@@ -73,16 +73,16 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-routes",
-			"获取 Envoy 的路由配置信息",
+			"Get Envoy route configuration information",
 			CreateParameterSchema(
 				map[string]interface{}{
 					"name": map[string]interface{}{
 						"type":        "string",
-						"description": "特定路由表名称（可选）",
+						"description": "Specific route table name (optional)",
 					},
 					"format": map[string]interface{}{
 						"type":        "string",
-						"description": "输出格式: json 或 text（默认text）",
+						"description": "Output format: json or text (default text)",
 						"enum":        []string{"json", "text"},
 					},
 				},
@@ -96,16 +96,16 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-stats",
-			"获取 Envoy 的统计信息",
+			"Get Envoy statistics information",
 			CreateParameterSchema(
 				map[string]interface{}{
 					"filter": map[string]interface{}{
 						"type":        "string",
-						"description": "统计项过滤器，支持正则表达式（可选）",
+						"description": "Statistics filter, supports regular expressions (optional)",
 					},
 					"format": map[string]interface{}{
 						"type":        "string",
-						"description": "输出格式: json, prometheus 或 text（默认text）",
+						"description": "Output format: json, prometheus or text (default text)",
 						"enum":        []string{"json", "prometheus", "text"},
 					},
 				},
@@ -115,31 +115,11 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 		handleEnvoyStats(client),
 	)
 
-	// Runtime info tool
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema(
-			"get-envoy-runtime",
-			"获取 Envoy 的运行时配置信息",
-			CreateSimpleSchema(),
-		),
-		handleEnvoyRuntime(client),
-	)
-
-	// Memory usage tool
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema(
-			"get-envoy-memory",
-			"获取 Envoy 的内存使用情况",
-			CreateSimpleSchema(),
-		),
-		handleEnvoyMemory(client),
-	)
-
 	// Server info tool
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-server-info",
-			"获取 Envoy 服务器的基本信息",
+			"Get Envoy server basic information",
 			CreateSimpleSchema(),
 		),
 		handleEnvoyServerInfo(client),
@@ -149,7 +129,7 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-ready",
-			"检查 Envoy 是否准备就绪",
+			"Check if Envoy is ready",
 			CreateSimpleSchema(),
 		),
 		handleEnvoyReady(client),
@@ -159,7 +139,7 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-hot-restart-version",
-			"获取 Envoy 热重启版本信息",
+			"Get Envoy hot restart version information",
 			CreateSimpleSchema(),
 		),
 		handleEnvoyHotRestartVersion(client),
@@ -169,7 +149,7 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema(
 			"get-envoy-certs",
-			"获取 Envoy 的证书信息",
+			"Get Envoy certificate information",
 			CreateSimpleSchema(),
 		),
 		handleEnvoyCerts(client),
@@ -330,26 +310,6 @@ func handleEnvoyStats(client OpsClient) common.ToolHandlerFunc {
 			return CreateErrorResult("failed to get Envoy stats: " + err.Error())
 		}
 		return CreateToolResult(data, format)
-	}
-}
-
-func handleEnvoyRuntime(client OpsClient) common.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetEnvoyAdmin("/runtime")
-		if err != nil {
-			return CreateErrorResult("failed to get Envoy runtime: " + err.Error())
-		}
-		return CreateToolResult(data, "json")
-	}
-}
-
-func handleEnvoyMemory(client OpsClient) common.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetEnvoyAdmin("/memory")
-		if err != nil {
-			return CreateErrorResult("failed to get Envoy memory: " + err.Error())
-		}
-		return CreateToolResult(data, "text")
 	}
 }
 

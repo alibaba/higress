@@ -7,7 +7,6 @@ Higress Ops MCP Server provides MCP tools for debugging and monitoring Istio and
 ### Istiod Debug Interfaces
 
 #### Configuration
-- `get-istiod-config-dump`: Get complete Istiod configuration snapshot including all xDS configs
 - `get-istiod-configz`: Get Istiod configuration status and error information
 
 #### Service Discovery
@@ -17,7 +16,6 @@ Higress Ops MCP Server provides MCP tools for debugging and monitoring Istio and
 
 #### Status Monitoring
 - `get-istiod-syncz`: Get synchronization status between Istiod and Envoy proxies
-- `get-istiod-proxy-status`: Get status of all proxies connected to Istiod
 - `get-istiod-metrics`: Get Prometheus metrics from Istiod
 
 #### System Information
@@ -51,8 +49,32 @@ Higress Ops MCP Server provides MCP tools for debugging and monitoring Istio and
 |-----------|------|----------|-------------|
 | `istiodURL` | string | Yes | URL address of Istiod debug interface |
 | `envoyAdminURL` | string | Yes | URL address of Envoy Admin interface |
-| `namespace` | string | Optional | Kubernetes namespace, defaults to istio-system |
-| `description` | string | Optional | Server description |
+| `namespace` | string | Optional | Kubernetes namespace, defaults to `higress-system` |
+| `istiodToken` | string | **Strongly Recommended** | Istiod authentication token (required for cross-pod access) |
+| `description` | string | Optional | Server description, defaults to "Higress Ops MCP Server, which provides debug interfaces for Istio and Envoy components." |
+
+### ⚠️ Important: Istiod Token Configuration
+
+**The `istiodToken` must be configured when accessing Istiod interfaces across pods**, otherwise you will encounter 401 authentication errors.
+
+#### Token Generation
+
+Generate a long-lived Istiod authentication token with the following command:
+
+```bash
+kubectl create token higress-gateway -n higress-system --audience istio-ca --duration 87600h
+```
+
+**Parameter Description:**
+- `higress-gateway`: ServiceAccount name (must match the ServiceAccount used by Higress Gateway Pod)
+- `-n higress-system`: Namespace (must match the `namespace` configuration parameter)
+- `--audience istio-ca`: Token audience, must be `istio-ca`
+- `--duration 87600h`: Token validity period (87600 hours ≈ 10 years)
+
+#### Configuration Status
+
+- **Token Configured**: Logs will show "Istiod authentication token configured", Istiod interfaces can be accessed normally
+- **Token Not Configured**: Logs will show warning "No istiodToken configured. Cross-pod Istiod API requests may fail with 401 errors.", cross-pod access will fail
 
 ## Configuration Example
 
@@ -60,40 +82,70 @@ Higress Ops MCP Server provides MCP tools for debugging and monitoring Istio and
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  annotations:
-    meta.helm.sh/release-name: higress
-    meta.helm.sh/release-namespace: higress-system
-  labels:
-    app: higress-gateway
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: higress-gateway
-    app.kubernetes.io/version: 2.1.4
-    helm.sh/chart: higress-core-2.1.4
-    higress: higress-system-higress-gateway
   name: higress-config
   namespace: higress-system
+  resourceVersion: '107160'
 data:
-  higress: |-
+  higress: |
     mcpServer:
-      sse_path_suffix: /sse # SSE connection path suffix
-      enable: true # Enable MCP Server
+      sse_path_suffix: /sse  # SSE connection path suffix
+      enable: true           # Enable MCP Server
       redis:
-        address: redis-stack-server.higress-system.svc.cluster.local:6379 # Redis service address
-        username: "" # Redis username (optional)
-        password: "" # Redis password (optional)
-        db: 0 # Redis database (optional)
-      match_list: # MCP Server session persistence routing rules
+        address: redis-stack-server.higress-system.svc.cluster.local:6379  # Redis service address
+        username: ""         # Redis username (optional)
+        password: ""         # Redis password (optional)
+        db: 0                # Redis database (optional)
+      match_list:            # MCP Server session persistence routing rules
+        - match_rule_domain: "*"
+          match_rule_path: /higress-api
+          match_rule_type: "prefix"
         - match_rule_domain: "*"
           match_rule_path: /higress-ops
           match_rule_type: "prefix"
+        - match_rule_domain: "*"
+          match_rule_path: /mysql
+          match_rule_type: "prefix"
       servers:
-        - name: higress-ops-mcp-server # MCP Server name
-          path: /higress-ops # Access path, must match match_list configuration
-          type: higress-ops # Type consistent with RegisterServer
+        - name: higress-api-mcp-server     # MCP Server name
+          path: /higress-api               # Access path, must match match_list configuration
+          type: higress-api                # Type consistent with RegisterServer
           config:
-            istiodURL: http://istiod.istio-system.svc.cluster.local:15014
-            envoyAdminURL: http://higress-gateway.higress-system.svc.cluster.local:15000
-            namespace: istio-system
+            higressURL: http://higress-console.higress-system.svc.cluster.local:8080
+            username: admin
+            password: admin
+        - name: higress-ops-mcp-server
+          path: /higress-ops
+          type: higress-ops
+          config:
+            istiodURL: http://higress-controller.higress-system.svc.cluster.local:15014   # istiod url
+            istiodToken: "your_token"      # how to produce: kubectl create token higress-gateway -n higress-system --audience istio-ca --duration 87600h
+            envoyAdminURL: http://127.0.0.1:15000 # envoy url, use 127.0.0.1 as it's in the same container as gateway
+            namespace: higress-system
+            description: "Higress Ops MCP Server for Istio and Envoy debugging"
+  mesh: |-
+    accessLogEncoding: TEXT
+    accessLogFile: /dev/stdout
+    accessLogFormat: '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%","authority":"%REQ(X-ENVOY-ORIGINAL-HOST?:AUTHORITY)%","bytes_received":"%BYTES_RECEIVED%","bytes_sent":"%BYTES_SENT%","downstream_local_address":"%DOWNSTREAM_LOCAL_ADDRESS%","downstream_remote_address":"%DOWNSTREAM_REMOTE_ADDRESS%","duration":"%DURATION%","istio_policy_status":"%DYNAMIC_METADATA(istio.mixer:status)%","method":"%REQ(:METHOD)%","path":"%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%","protocol":"%PROTOCOL%","request_id":"%REQ(X-REQUEST-ID)%","requested_server_name":"%REQUESTED_SERVER_NAME%","response_code":"%RESPONSE_CODE%","response_flags":"%RESPONSE_FLAGS%","route_name":"%ROUTE_NAME%","start_time":"%START_TIME%","trace_id":"%REQ(X-B3-TRACEID)%","upstream_cluster":"%UPSTREAM_CLUSTER%","upstream_host":"%UPSTREAM_HOST%","upstream_local_address":"%UPSTREAM_LOCAL_ADDRESS%","upstream_service_time":"%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%","upstream_transport_failure_reason":"%UPSTREAM_TRANSPORT_FAILURE_REASON%","user_agent":"%REQ(USER-AGENT)%","x_forwarded_for":"%REQ(X-FORWARDED-FOR)%","response_code_details":"%RESPONSE_CODE_DETAILS%"}'
+    configSources:
+    - address: xds://127.0.0.1:15051
+    - address: k8s://
+    defaultConfig:
+      discoveryAddress: higress-controller.higress-system.svc:15012
+      proxyStatsMatcher:
+        inclusionRegexps:
+        - .*
+      tracing: {}
+    dnsRefreshRate: 200s
+    enableAutoMtls: false
+    enablePrometheusMerge: true
+    ingressControllerMode: "OFF"
+    mseIngressGlobalConfig:
+      enableH3: false
+      enableProxyProtocol: false
+    protocolDetectionTimeout: 100ms
+    rootNamespace: higress-system
+    trustDomain: cluster.local
+  meshNetworks: 'networks: {}'
 ```
 
 ## Use Cases

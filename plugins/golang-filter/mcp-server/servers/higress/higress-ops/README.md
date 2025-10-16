@@ -7,7 +7,6 @@ Higress Ops MCP Server 提供了 MCP 工具来调试和监控 Istio 和 Envoy �
 ### Istiod 调试接口
 
 #### 配置相关
-- `get-istiod-config-dump`: 获取 Istiod 的完整配置快照，包括所有 xDS 配置
 - `get-istiod-configz`: 获取 Istiod 的配置状态和错误信息
 
 #### 服务发现相关
@@ -17,7 +16,6 @@ Higress Ops MCP Server 提供了 MCP 工具来调试和监控 Istio 和 Envoy �
 
 #### 状态监控相关
 - `get-istiod-syncz`: 获取 Istiod 与 Envoy 代理的同步状态信息
-- `get-istiod-proxy-status`: 获取所有连接到 Istiod 的代理状态
 - `get-istiod-metrics`: 获取 Istiod 的 Prometheus 指标数据
 
 #### 系统信息相关
@@ -51,8 +49,32 @@ Higress Ops MCP Server 提供了 MCP 工具来调试和监控 Istio 和 Envoy �
 |------|------|------|------|
 | `istiodURL` | string | 必填 | Istiod 调试接口的 URL 地址 |
 | `envoyAdminURL` | string | 必填 | Envoy Admin 接口的 URL 地址 |
-| `namespace` | string | 可选 | Kubernetes 命名空间，默认为 istio-system |
-| `description` | string | 可选 | 服务器描述信息 |
+| `namespace` | string | 可选 | Kubernetes 命名空间，默认为 `higress-system` |
+| `istiodToken` | string | **强烈推荐** | Istiod 认证 Token（跨 Pod 访问必需） |
+| `description` | string | 可选 | 服务器描述信息，默认为 "Higress Ops MCP Server, which provides debug interfaces for Istio and Envoy components." |
+
+### ⚠️ 重要：Istiod Token 配置
+
+**跨 Pod 访问 Istiod 接口时必须配置 `istiodToken`**，否则会遇到 401 认证错误。
+
+#### Token 生成方式
+
+使用以下命令生成长期有效的 Istiod 认证 Token：
+
+```bash
+kubectl create token higress-gateway -n higress-system --audience istio-ca --duration 87600h
+```
+
+**参数说明：**
+- `higress-gateway`: ServiceAccount 名称（与 Higress Gateway Pod 使用的 ServiceAccount 一致）
+- `-n higress-system`: 命名空间（需要与配置参数 `namespace` 一致）
+- `--audience istio-ca`: Token 的受众，必须为 `istio-ca`
+- `--duration 87600h`: Token 有效期（87600小时 ≈ 10年）
+
+#### 配置说明
+
+- **已配置 Token**: 日志会显示 "Istiod authentication token configured"，可以正常访问 Istiod 接口
+- **未配置 Token**: 日志会显示警告 "No istiodToken configured. Cross-pod Istiod API requests may fail with 401 errors."，跨 Pod 访问将会失败
 
 ## 配置示例
 
@@ -60,40 +82,71 @@ Higress Ops MCP Server 提供了 MCP 工具来调试和监控 Istio 和 Envoy �
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  annotations:
-    meta.helm.sh/release-name: higress
-    meta.helm.sh/release-namespace: higress-system
-  labels:
-    app: higress-gateway
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: higress-gateway
-    app.kubernetes.io/version: 2.1.4
-    helm.sh/chart: higress-core-2.1.4
-    higress: higress-system-higress-gateway
   name: higress-config
   namespace: higress-system
+  resourceVersion: '107160'
 data:
-  higress: |-
+  higress: |
     mcpServer:
-      sse_path_suffix: /sse # SSE 连接的路径后缀
-      enable: true # 启用 MCP Server
+      sse_path_suffix: /sse  # SSE 连接的路径后缀
+      enable: true           # 启用 MCP Server
       redis:
-        address: redis-stack-server.higress-system.svc.cluster.local:6379 # Redis服务地址
-        username: "" # Redis用户名（可选）
-        password: "" # Redis密码（可选）
-        db: 0 # Redis数据库（可选）
-      match_list: # MCP Server 会话保持路由规则
+        address: redis-stack-server.higress-system.svc.cluster.local:6379  # Redis服务地址
+        username: ""         # Redis用户名（可选）
+        password: ""         # Redis密码（可选）
+        db: 0                # Redis数据库（可选）
+      match_list:            # MCP Server 会话保持路由规则
+        - match_rule_domain: "*"
+          match_rule_path: /higress-api
+          match_rule_type: "prefix"
         - match_rule_domain: "*"
           match_rule_path: /higress-ops
           match_rule_type: "prefix"
+        - match_rule_domain: "*"
+          match_rule_path: /mysql
+          match_rule_type: "prefix"
       servers:
-        - name: higress-ops-mcp-server # MCP Server 名称
-          path: /higress-ops # 访问路径，需要与 match_list 中的配置匹配
-          type: higress-ops # 类型和 RegisterServer 一致
+        - name: higress-api-mcp-server     # MCP Server 名称
+          path: /higress-api               # 访问路径，需要与 match_list 中的配置匹配
+          type: higress-api                # 类型和 RegisterServer 一致
           config:
-            istiodURL: http://istiod.istio-system.svc.cluster.local:15014
-            envoyAdminURL: http://higress-gateway.higress-system.svc.cluster.local:15000
-            namespace: istio-system
+            higressURL: http://higress-console.higress-system.svc.cluster.local:8080
+            username: admin
+            password: admin
+        - name: higress-ops-mcp-server
+          path: /higress-ops
+          type: higress-ops
+          config:
+            istiodURL: http://higress-controller.higress-system.svc.cluster.local:15014   # istiod url
+            istiodToken: "your token"  # 生成方式：kubectl create token higress-gateway -n higress-system --audience istio-ca --duration 87600h
+            envoyAdminURL: http://127.0.0.1:15000 # envoy url 填127.0.0.1就行，和 gateway 于同一容器
+            namespace: higress-system
+            description: "Higress Ops MCP Server for Istio and Envoy debugging"
+  mesh: |-
+    accessLogEncoding: TEXT
+    accessLogFile: /dev/stdout
+    accessLogFormat: '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%","authority":"%REQ(X-ENVOY-ORIGINAL-HOST?:AUTHORITY)%","bytes_received":"%BYTES_RECEIVED%","bytes_sent":"%BYTES_SENT%","downstream_local_address":"%DOWNSTREAM_LOCAL_ADDRESS%","downstream_remote_address":"%DOWNSTREAM_REMOTE_ADDRESS%","duration":"%DURATION%","istio_policy_status":"%DYNAMIC_METADATA(istio.mixer:status)%","method":"%REQ(:METHOD)%","path":"%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%","protocol":"%PROTOCOL%","request_id":"%REQ(X-REQUEST-ID)%","requested_server_name":"%REQUESTED_SERVER_NAME%","response_code":"%RESPONSE_CODE%","response_flags":"%RESPONSE_FLAGS%","route_name":"%ROUTE_NAME%","start_time":"%START_TIME%","trace_id":"%REQ(X-B3-TRACEID)%","upstream_cluster":"%UPSTREAM_CLUSTER%","upstream_host":"%UPSTREAM_HOST%","upstream_local_address":"%UPSTREAM_LOCAL_ADDRESS%","upstream_service_time":"%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%","upstream_transport_failure_reason":"%UPSTREAM_TRANSPORT_FAILURE_REASON%","user_agent":"%REQ(USER-AGENT)%","x_forwarded_for":"%REQ(X-FORWARDED-FOR)%","response_code_details":"%RESPONSE_CODE_DETAILS%"}'
+    configSources:
+    - address: xds://127.0.0.1:15051
+    - address: k8s://
+    defaultConfig:
+      discoveryAddress: higress-controller.higress-system.svc:15012
+      proxyStatsMatcher:
+        inclusionRegexps:
+        - .*
+      tracing: {}
+    dnsRefreshRate: 200s
+    enableAutoMtls: false
+    enablePrometheusMerge: true
+    ingressControllerMode: "OFF"
+    mseIngressGlobalConfig:
+      enableH3: false
+      enableProxyProtocol: false
+    protocolDetectionTimeout: 100ms
+    rootNamespace: higress-system
+    trustDomain: cluster.local
+  meshNetworks: 'networks: {}'
+
 ```
 
 ## 使用场景
@@ -109,7 +162,7 @@ data:
 - 使用 `get-envoy-memory` 监控内存使用
 
 ### 3. 配置验证
-- 使用 `get-istiod-config-dump` 验证 Istiod 配置
+- 使用 `get-istiod-configz` 验证 Istiod 配置状态
 - 使用 `get-envoy-config-dump` 验证 Envoy 配置
 - 使用 `get-envoy-routes` 检查路由配置
 
@@ -122,14 +175,14 @@ data:
 ### Istiod 工具示例
 
 ```bash
-# 获取特定代理的状态
-get-istiod-proxy-status --proxy="gateway-proxy.istio-system"
-
-# 获取配置快照
-get-istiod-config-dump
+# 获取配置状态
+get-istiod-configz
 
 # 获取同步状态
 get-istiod-syncz
+
+# 获取端点信息
+get-istiod-endpointz
 ```
 
 ### Envoy 工具示例
@@ -154,7 +207,7 @@ get-envoy-routes --name="80" --format="json"
 A: 使用 `get-envoy-clusters` 工具，然后使用 `get-envoy-config-dump --resource="clusters"` 获取详细配置。
 
 ### Q: 如何监控配置同步状态？
-A: 使用 `get-istiod-syncz` 查看整体同步状态，使用 `get-istiod-proxy-status` 查看特定代理状态。
+A: 使用 `get-istiod-syncz` 查看整体同步状态，使用 `get-istiod-configz` 查看配置状态和错误信息。
 
 ### Q: 如何排查路由问题？
 A: 使用 `get-envoy-routes` 查看路由配置，使用 `get-envoy-config-dump --resource="routes"` 获取详细路由信息。

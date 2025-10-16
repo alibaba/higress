@@ -16,26 +16,34 @@ type OpsClient struct {
 	istiodURL     string
 	envoyAdminURL string
 	namespace     string
+	istiodToken   string // Istiod authentication token (audience: istio-ca)
 	httpClient    *http.Client
 }
 
 // NewOpsClient creates a new ops client for Istio/Envoy debug interfaces
-func NewOpsClient(istiodURL, envoyAdminURL, namespace string) *OpsClient {
+func NewOpsClient(istiodURL, envoyAdminURL, namespace, istiodToken string) *OpsClient {
 	if namespace == "" {
-		namespace = "istio-system"
+		namespace = "higress-system"
 	}
 
 	client := &OpsClient{
 		istiodURL:     istiodURL,
 		envoyAdminURL: envoyAdminURL,
 		namespace:     namespace,
+		istiodToken:   istiodToken,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 	}
 
-	api.LogInfof("Istio/Envoy Ops client initialized: istiod=%s, envoy=%s, namespace=%s",
-		istiodURL, envoyAdminURL, namespace)
+	if istiodToken != "" {
+		api.LogInfof("Istio/Envoy Ops client initialized: istiod=%s, envoy=%s, namespace=%s (with authentication token)",
+			istiodURL, envoyAdminURL, namespace)
+	} else {
+		api.LogInfof("Istio/Envoy Ops client initialized: istiod=%s, envoy=%s, namespace=%s (no authentication token)",
+			istiodURL, envoyAdminURL, namespace)
+		api.LogWarnf("No Istiod authentication token provided. Cross-pod Istiod API requests may fail with 401 errors.")
+	}
 
 	return client
 }
@@ -94,6 +102,13 @@ func (c *OpsClient) requestWithParams(baseURL, path string, params map[string]st
 
 	req.Header.Set("Accept", "application/json")
 
+	// Add Istiod authentication token if configured
+	// Istiod requires JWT token with audience "istio-ca" for cross-pod access
+	if c.istiodToken != "" && c.isBaseURL(baseURL, c.istiodURL) {
+		req.Header.Set("Authorization", "Bearer "+c.istiodToken)
+		api.LogDebugf("Added Istiod authentication token for request")
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -126,4 +141,9 @@ func (c *OpsClient) GetIstiodURL() string {
 // GetEnvoyAdminURL returns the Envoy admin URL
 func (c *OpsClient) GetEnvoyAdminURL() string {
 	return c.envoyAdminURL
+}
+
+// isBaseURL checks if the baseURL matches the targetURL (for determining if token is needed)
+func (c *OpsClient) isBaseURL(baseURL, targetURL string) bool {
+	return baseURL == targetURL
 }
