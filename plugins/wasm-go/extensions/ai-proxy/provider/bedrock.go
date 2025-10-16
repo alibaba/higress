@@ -284,11 +284,10 @@ func extractAmazonEventStreamEvents(ctx wrapper.HttpContext, chunk []byte) []Con
 
 	r := bytes.NewReader(body)
 	var events []ConverseStreamEvent
-	var lastRead int64 = -1
+	var lastRead int64 = 0
 	messageBuffer := make([]byte, 1024)
 	defer func() {
 		log.Infof("extractAmazonEventStreamEvents: lastRead=%d, r.Size=%d", lastRead, r.Size())
-		ctx.SetContext(ctxKeyStreamingBody, nil)
 	}()
 
 	for {
@@ -305,6 +304,11 @@ func extractAmazonEventStreamEvents(ctx wrapper.HttpContext, chunk []byte) []Con
 			events = append(events, event)
 		}
 		lastRead = r.Size() - int64(r.Len())
+	}
+	if lastRead < int64(len(body)) {
+		ctx.SetContext(ctxKeyStreamingBody, body[lastRead:])
+	} else {
+		ctx.SetContext(ctxKeyStreamingBody, nil)
 	}
 	return events
 }
@@ -766,7 +770,7 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		System:   systemMessages,
 		Messages: messages,
 		InferenceConfig: bedrockInferenceConfig{
-			MaxTokens:   origRequest.MaxTokens,
+			MaxTokens:   origRequest.getMaxTokens(),
 			Temperature: origRequest.Temperature,
 			TopP:        origRequest.TopP,
 		},
