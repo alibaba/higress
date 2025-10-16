@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
@@ -129,6 +130,25 @@ func handleAddServiceSource(client *higress.HigressClient) common.ToolHandlerFun
 		if _, ok := configurations["port"]; !ok {
 			return nil, fmt.Errorf("missing required field 'port' in configurations")
 		}
+		if t, ok := configurations["type"].(string); ok && t == "static" {
+			if d, ok := configurations["domain"].(string); ok {
+				host, port, err := net.SplitHostPort(d)
+				if err != nil || host == "" || port == "" {
+					return nil, fmt.Errorf("invalid 'domain' format for static type, expected ip:port, got '%s'", d)
+				}
+			} else {
+				return nil, fmt.Errorf("invalid 'domain' field type, expected string")
+			}
+		}
+		if t, ok := configurations["type"].(string); ok && t != "static" {
+			if d, ok := configurations["domain"].(string); ok {
+				host, _, err := net.SplitHostPort(d)
+				if err == nil && host != "" {
+					configurations["domain"] = host
+				}
+			}
+		}
+
 		// valid protocol,sni,properties,auth
 
 		respBody, err := client.Post("/v1/service-sources", configurations)
@@ -273,7 +293,6 @@ func getServiceSourceSchema() json.RawMessage {
 	}`)
 }
 
-// TODO: extend other types of service sources, e.g., nacos, zookeeper, euraka.
 func getAddServiceSourceSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -287,12 +306,12 @@ func getAddServiceSourceSchema() json.RawMessage {
 					},
 					"type": {
 						"type": "string",
-						"enum": ["static", "dns"],
-						"description": "The type of service source: 'static' for static IPs, 'dns' for DNS resolution"
+						"enum": ["static", "dns", "consul", "nacos3","nacos2","nacos1", "eureka", "zookeeper"],
+						"description": "The type of service source. Supported types: 'static' (static IP), 'dns' (DNS resolution), 'consul' (Consul registry), 'nacos3' (Nacos 3.x), 'eureka' (Eureka registry), 'zookeeper' (ZooKeeper registry)"
 					},
 					"domain": {
 						"type": "string",
-						"description": "The domain name or IP address + port（such as: 127.0.0.1:8080) (required)"
+						"description": "The domain name or IP address + port（such as: 127.0.0.1:8080) (required). For dns, use domain name (e.g., 'xxx.com')"
 					},
 					"port": {
 						"type": "integer",
@@ -303,14 +322,34 @@ func getAddServiceSourceSchema() json.RawMessage {
 					"protocol": {
 						"type": "string",
 						"enum": ["http", "https", ""],
-						"description": "The protocol to use (optional, defaults to http)"
+						"description": "The protocol to use (optional, defaults to http, can be empty string for null)"
 					},
 					"sni": {
 						"type": "string",
 						"description": "Server Name Indication for HTTPS connections (optional)"
+					},
+					"properties": {
+						"type": "object",
+						"additionalProperties": true,
+						"description": "Type-specific configuration properties. Required fields by type: consul: 'consulDatacenter' (string), 'consulServiceTag' (string, format: 'key=value'); nacos3: 'nacosNamespaceId' (string, optional), 'nacosGroups' (array of strings), 'enableMCPServer' (boolean, optional), 'mcpServerBaseUrl' (string, required if enableMCPServer is true, e.g., '/mcp'), 'mcpServerExportDomains' (array of strings, required if enableMCPServer is true, e.g., ['xxx.com']); zookeeper: 'zkServicesPath' (array of strings); static/dns/eureka: no additional properties needed"
+					},
+					"authN": {
+						"type": "object",
+						"description": "Authentication configuration",
+						"properties": {
+							"enabled": {
+								"type": "boolean",
+								"description": "Whether authentication is enabled"
+							},
+							"properties": {
+								"type": "object",
+								"additionalProperties": true,
+								"description": "Authentication properties by type. consul: 'consulToken' (string); nacos3: 'nacosUsername' (string), 'nacosPassword' (string)"
+							}
+						}
 					}
 				},
-				"required": ["name", "type", "domain", "port", "protocol"],
+				"required": ["name", "type", "domain", "port"],
 				"additionalProperties": false
 			}
 		},
@@ -319,7 +358,6 @@ func getAddServiceSourceSchema() json.RawMessage {
 	}`)
 }
 
-// TODO: extend other types of service sources, e.g., nacos, zookeeper, euraka.
 func getUpdateServiceSourceSchema() json.RawMessage {
 	return json.RawMessage(`{
 		"type": "object",
@@ -333,12 +371,12 @@ func getUpdateServiceSourceSchema() json.RawMessage {
 				"properties": {
 					"type": {
 						"type": "string",
-						"enum": ["static", "dns"],
-						"description": "The type of service source: 'static' for static IPs, 'dns' for DNS resolution"
+						"enum": ["static", "dns", "consul", "nacos3", "eureka", "zookeeper"],
+						"description": "The type of service source. Supported types: 'static' (static IP), 'dns' (DNS resolution), 'consul' (Consul registry), 'nacos3' (Nacos 3.x), 'eureka' (Eureka registry), 'zookeeper' (ZooKeeper registry)"
 					},
 					"domain": {
 						"type": "string",
-						"description": "The domain name or IP address"
+						"description": "The domain name or IP address + port（such as: 127.0.0.1:8080) (required). For dns, use domain name (e.g., 'xxx.com')"
 					},
 					"port": {
 						"type": "integer",
@@ -348,12 +386,32 @@ func getUpdateServiceSourceSchema() json.RawMessage {
 					},
 					"protocol": {
 						"type": "string",
-						"enum": ["http", "https"],
-						"description": "The protocol to use (optional, defaults to http)"
+						"enum": ["http", "https", ""],
+						"description": "The protocol to use (optional, can be empty string for null)"
 					},
 					"sni": {
 						"type": "string",
 						"description": "Server Name Indication for HTTPS connections"
+					},
+					"properties": {
+						"type": "object",
+						"additionalProperties": true,
+						"description": "Type-specific configuration properties. Required fields by type: consul: 'consulDatacenter' (string), 'consulServiceTag' (string, format: 'key=value'); nacos3: 'nacosNamespaceId' (string, optional), 'nacosGroups' (array of strings), 'enableMCPServer' (boolean, optional), 'mcpServerBaseUrl' (string, required if enableMCPServer is true, e.g., '/mcp'), 'mcpServerExportDomains' (array of strings, required if enableMCPServer is true, e.g., ['xxx.com']); zookeeper: 'zkServicesPath' (array of strings); static/dns/eureka: no additional properties needed"
+					},
+					"authN": {
+						"type": "object",
+						"description": "Authentication configuration",
+						"properties": {
+							"enabled": {
+								"type": "boolean",
+								"description": "Whether authentication is enabled"
+							},
+							"properties": {
+								"type": "object",
+								"additionalProperties": true,
+								"description": "Authentication properties by type. consul: 'consulToken' (string); nacos: 'nacosUsername' (string), 'nacosPassword' (string)"
+							}
+						}
 					}
 				},
 				"additionalProperties": false

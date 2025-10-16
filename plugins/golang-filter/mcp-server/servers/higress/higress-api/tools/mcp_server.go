@@ -23,6 +23,7 @@ type McpServer struct {
 	DSN                string               `json:"dsn,omitempty"`
 	DBType             string               `json:"dbType,omitempty"`
 	UpstreamPathPrefix string               `json:"upstreamPathPrefix,omitempty"`
+	McpServerName      string               `json:"mcpServerName,omitempty"`
 }
 
 // McpUpstreamService represents a service in MCP server
@@ -200,6 +201,34 @@ func handleAddOrUpdateMcpServer(client *higress.HigressClient) common.ToolHandle
 		}
 		if _, ok := configurations["type"]; !ok {
 			return nil, fmt.Errorf("missing required field 'type' in configurations")
+		}
+
+		// Validate service sources exist
+		if services, ok := configurations["services"].([]interface{}); ok && len(services) > 0 {
+			for _, svc := range services {
+				if serviceMap, ok := svc.(map[string]interface{}); ok {
+					if serviceName, ok := serviceMap["name"].(string); ok {
+						// Extract service source name from "serviceName.serviceType" format
+						var serviceSourceName string
+						for i := len(serviceName) - 1; i >= 0; i-- {
+							if serviceName[i] == '.' {
+								serviceSourceName = serviceName[:i]
+								break
+							}
+						}
+
+						if serviceSourceName == "" {
+							return nil, fmt.Errorf("invalid service name format '%s', expected 'serviceName.serviceType'", serviceName)
+						}
+
+						// Check if service source exists
+						_, err := client.Get(fmt.Sprintf("/v1/service-sources/%s", serviceSourceName))
+						if err != nil {
+							return nil, fmt.Errorf("Please create the service source '%s' first and then create the mcpserver", serviceSourceName)
+						}
+					}
+				}
+			}
 		}
 
 		respBody, err := client.Put("/v1/mcpServer", configurations)
@@ -492,6 +521,10 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 					"upstreamPathPrefix": {
 						"type": "string",
 						"description": "The upstream MCP server will redirect requests based on the path prefix"
+					},
+					"mcpServerName": {
+						"type": "string",
+						"description": "Mcp server name (usually same as 'name' field)"
 					}
 				},
 				"required": ["name", "type", "dsn", "services"],
