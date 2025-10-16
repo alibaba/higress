@@ -408,19 +408,30 @@ func RunAllTests() {
 	}
 }
 
-// TestLLMIntegration tests LLM integration (mock test without real API calls)
-func TestLLMIntegration() error {
-	fmt.Println("=== Testing LLM Integration (Mock) ===")
+// TestBasicMigrationTools tests basic migration functionality without LLM dependency
+func TestBasicMigrationTools() error {
+	fmt.Println("=== Testing Basic Migration Tools ===")
 
-	// Create a mock OpenAI client
-	client := NewOpenAIClient("test-api-key", "https://api.openai.com/v1")
-	if client == nil {
-		return fmt.Errorf("failed to create OpenAI client")
+	// Test nginx config parsing
+	testConfig := `server {
+		listen 80;
+		server_name example.com;
+		location / {
+			proxy_pass http://backend:8080;
+		}
+	}`
+
+	config, err := ParseNginxConfig(testConfig)
+	if err != nil {
+		return fmt.Errorf("failed to parse nginx config: %v", err)
 	}
 
-	fmt.Printf("✅ OpenAI client created successfully\n")
-	fmt.Printf("   API Key: %s\n", client.apiKey[:10]+"...")
-	fmt.Printf("   Base URL: %s\n", client.baseURL)
+	if len(config.ServerBlocks) == 0 {
+		return fmt.Errorf("no server blocks found in parsed config")
+	}
+
+	fmt.Printf("✅ Basic migration tools working correctly\n")
+	fmt.Printf("   Server blocks found: %d\n", len(config.ServerBlocks))
 
 	// Note: We're not making actual API calls to avoid costs and dependencies
 	fmt.Println("ℹ️  LLM integration ready for use with valid API key")

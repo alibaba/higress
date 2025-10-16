@@ -1,0 +1,23 @@
+{
+  "server": {
+    "name": "nginx-migration-mcp",
+    "version": "1.0.0", 
+    "port": "8080",
+    "api_base_url": "http://localhost:8080"
+  },
+  "gateway": {
+    "name": "higress-gateway",
+    "namespace": "higress-system"
+  },
+  "service": {
+    "default_name": "backend-service",
+    "default_port": 80,
+    "default_target_port": 8080
+  },
+  "defaults": {
+    "hostname": "example.com",
+    "namespace": "default", 
+    "path_prefix": "/",
+    "route_prefix": "nginx-migrated"
+  }
+}

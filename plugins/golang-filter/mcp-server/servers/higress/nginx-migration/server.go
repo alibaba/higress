@@ -88,14 +88,11 @@ func (c *NginxMigrationConfig) NewServer(serverName string) (*common.MCPServer, 
 	// Register plugin migration tools
 	tools.RegisterPluginMigrationTools(mcpServer, client)
 
-	// Register LLM-enhanced tools if enabled
-	if c.enableLLM && c.llmAPIKey != "" {
-		llmClient := tools.NewOpenAIClient(c.llmAPIKey, c.llmBaseURL)
-		tools.RegisterLLMEnhancedMigrationTools(mcpServer, client, llmClient)
-		api.LogInfof("LLM-enhanced migration tools registered")
-	}
+	// Note: LLM capabilities are provided by the MCP client (e.g., Claude, Cursor)
+	// MCP Server should only provide pure tool functions, not call LLM APIs directly
+	api.LogInfof("MCP server provides nginx migration tools - LLM processing handled by client")
 
-	api.LogInfof("Nginx Migration MCP Server initialized: %s (LLM: %t)", serverName, c.enableLLM)
+	api.LogInfof("Nginx Migration MCP Server initialized: %s", serverName)
 
 	return mcpServer, nil
 }

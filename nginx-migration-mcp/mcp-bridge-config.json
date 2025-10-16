@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "nginx-migration-http-api": {
+      "command": "go",
+      "args": ["run", "/data/pengjie/dev/oss/higress/nginx-migration-mcp/mcp-http-bridge.go", "http://localhost:8080"],
+      "env": {
+        "GO111MODULE": "on",
+        "NGINX_MIGRATION_API_URL": "http://localhost:8080"
+      }
+    }
+  }
+}
