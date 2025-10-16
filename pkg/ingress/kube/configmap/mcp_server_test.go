@@ -788,7 +788,7 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 						"redis": {
 							"address": "localhost:6379",
 							"username": "",
-							"password": "${secret.redis-credentials.password}",
+							"password": "${secret.test-namespace/redis-credentials.password}",
 							"db": 0
 						},
 						"rate_limit": null,

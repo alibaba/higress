@@ -534,8 +534,12 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	if mcp.Redis != nil {
 		passwordValue := mcp.Redis.Password
 		if mcp.Redis.PasswordSecret != nil && mcp.Redis.PasswordSecret.Name != "" && mcp.Redis.PasswordSecret.Key != "" {
-			if mcp.Redis.PasswordSecret.Namespace != "" {
-				passwordValue = fmt.Sprintf("${secret.%s/%s.%s}", mcp.Redis.PasswordSecret.Namespace, mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
+			ns := mcp.Redis.PasswordSecret.Namespace
+			if ns == "" {
+				ns = m.Namespace
+			}
+			if ns != "" {
+				passwordValue = fmt.Sprintf("${secret.%s/%s.%s}", ns, mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
 			} else {
 				passwordValue = fmt.Sprintf("${secret.%s.%s}", mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
 			}
