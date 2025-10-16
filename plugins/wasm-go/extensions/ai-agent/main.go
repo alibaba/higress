@@ -97,7 +97,7 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
-	log.Debug("onHttpRequestBody start")
+	log.Debug("onHttpRequestBody start test")
 	defer log.Debug("onHttpRequestBody end")
 
 	// 拿到请求
