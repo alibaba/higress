@@ -5,6 +5,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "gateway.labels" . | nindent 4}}
+    {{- with .Values.gateway.metrics.PodMonitorSelector }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
   annotations:
     {{- .Values.gateway.annotations | toYaml | nindent 4 }}
 spec:
