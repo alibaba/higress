@@ -478,7 +478,7 @@ func getAddOrUpdateMcpServerSchema() json.RawMessage {
 						"items": {
 							"type": "object",
 							"properties": {
-								"name": {"type": "string", "description": "Service name + Service type, such as:daxt-mcp.static .which must be real exist service"},
+								"name": {"type": "string", "description": "must be service name + service type, such as:daxt-mcp.static .which must be real exist service"},
 								"port": {"type": "integer", "description": "Service port"},
 								"version": {"type": "string", "description": "Service version"},
 								"weight": {"type": "integer", "description": "Service weight"}
