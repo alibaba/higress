@@ -2,7 +2,7 @@
 package standalone
 
 import (
-	"nginx-migration-mcp-final/tools"
+	"nginx-migration-mcp/tools"
 )
 
 // MCPMessage represents a Model Context Protocol message structure

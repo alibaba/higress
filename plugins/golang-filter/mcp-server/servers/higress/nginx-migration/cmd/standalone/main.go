@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"nginx-migration-mcp-final/internal/standalone"
+	"nginx-migration-mcp/internal/standalone"
 )
 
 func main() {
@@ -18,8 +18,8 @@ func main() {
 
 	// 只在调试模式下输出启动日志
 	if os.Getenv("DEBUG") == "true" || os.Getenv("DEBUG") == "1" {
-		log.Println("🚀 Nginx迁移MCP服务器启动...")
-		log.Println("🔗 等待MCP客户端连接...")
+		log.Println("Nginx迁移MCP服务器启动...")
+		log.Println("等待MCP客户端连接...")
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)

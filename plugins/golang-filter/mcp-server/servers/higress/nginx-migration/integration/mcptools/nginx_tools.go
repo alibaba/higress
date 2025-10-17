@@ -76,27 +76,27 @@ func parseNginxConfig(args map[string]interface{}, ctx *MigrationContext) (strin
 		complexity = "Medium"
 	}
 
-	analysis := fmt.Sprintf(`🔍 Nginx配置分析结果
+	analysis := fmt.Sprintf(`Nginx配置分析结果
 
-📊 基础信息:
+基础信息:
 - Server块: %d个
 - Location块: %d个  
 - SSL配置: %t
 - 反向代理: %t
 - URL重写: %t
 
-📈 复杂度: %s
+复杂度: %s
 
-🎯 迁移建议:`, serverCount, locationCount, hasSSL, hasProxy, hasRewrite, complexity)
+迁移建议:`, serverCount, locationCount, hasSSL, hasProxy, hasRewrite, complexity)
 
 	if hasProxy {
-		analysis += "\n✓ 反向代理将转换为HTTPRoute backendRefs"
+		analysis += "\n- 反向代理将转换为HTTPRoute backendRefs"
 	}
 	if hasRewrite {
-		analysis += "\n✓ URL重写将使用URLRewrite过滤器"
+		analysis += "\n- URL重写将使用URLRewrite过滤器"
 	}
 	if hasSSL {
-		analysis += "\n✓ SSL配置需要迁移到Gateway资源"
+		analysis += "\n- SSL配置需要迁移到Gateway资源"
 	}
 
 	return analysis, nil
@@ -130,7 +130,7 @@ func convertToHigress(args map[string]interface{}, ctx *MigrationContext) (strin
 	routeName := generateRouteName(hostname, ctx)
 	serviceName := generateServiceName(hostname, ctx)
 
-	yamlConfig := fmt.Sprintf(`🚀 转换后的Higress配置
+	yamlConfig := fmt.Sprintf(`转换后的Higress配置
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -167,9 +167,9 @@ spec:
   - port: %d
     targetPort: %d
 
-✅ 转换完成！
+转换完成
 
-📋 应用步骤:
+应用步骤:
 1. 保存为 higress-config.yaml
 2. 执行: kubectl apply -f higress-config.yaml
 3. 验证: kubectl get httproute -n %s`,

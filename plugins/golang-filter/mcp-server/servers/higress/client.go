@@ -1,4 +1,4 @@
-fectyipackage higress
+package higress
 
 import (
 	"bytes"

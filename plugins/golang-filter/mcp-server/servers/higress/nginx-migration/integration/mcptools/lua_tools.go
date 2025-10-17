@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"nginx-migration-mcp-final/tools"
+	"nginx-migration-mcp/tools"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 )
@@ -68,20 +68,20 @@ func analyzeLuaPlugin(args map[string]interface{}) (string, error) {
 	warnings := []string{}
 
 	if strings.Contains(luaCode, "ngx.var") {
-		features = append(features, "✓ ngx.var - Nginx变量")
+		features = append(features, "- ngx.var - Nginx变量")
 	}
 	if strings.Contains(luaCode, "ngx.req") {
-		features = append(features, "✓ ngx.req - 请求API")
+		features = append(features, "- ngx.req - 请求API")
 	}
 	if strings.Contains(luaCode, "ngx.exit") {
-		features = append(features, "✓ ngx.exit - 请求终止")
+		features = append(features, "- ngx.exit - 请求终止")
 	}
 	if strings.Contains(luaCode, "ngx.shared") {
-		features = append(features, "⚠️ ngx.shared - 共享字典")
+		features = append(features, "- ngx.shared - 共享字典 (警告)")
 		warnings = append(warnings, "共享字典需要外部缓存替换")
 	}
 	if strings.Contains(luaCode, "ngx.location.capture") {
-		features = append(features, "⚠️ ngx.location.capture - 内部请求")
+		features = append(features, "- ngx.location.capture - 内部请求 (警告)")
 		warnings = append(warnings, "需要改为HTTP客户端调用")
 	}
 
@@ -98,17 +98,17 @@ func analyzeLuaPlugin(args map[string]interface{}) (string, error) {
 		warningsText = strings.Join(warnings, "\n")
 	}
 
-	result := fmt.Sprintf(`🔍 Lua插件兼容性分析
+	result := fmt.Sprintf(`Lua插件兼容性分析
 
-📊 检测特性:
+检测特性:
 %s
 
-⚠️ 兼容性警告:
+兼容性警告:
 %s
 
-📈 兼容性级别: %s
+兼容性级别: %s
 
-💡 迁移建议:`, strings.Join(features, "\n"), warningsText, compatibility)
+迁移建议:`, strings.Join(features, "\n"), warningsText, compatibility)
 
 	switch compatibility {
 	case "full":
@@ -147,17 +147,17 @@ func convertLuaToWasm(args map[string]interface{}) (string, error) {
 		warningsText = strings.Join(analyzer.Warnings, "\n- ")
 	}
 
-	response := fmt.Sprintf(`🚀 Lua脚本转换完成！
+	response := fmt.Sprintf(`Lua脚本转换完成
 
-📊 转换分析:
+转换分析:
 - 复杂度: %s
 - 检测特性: %d个
 - 兼容性警告: %d个
 
-⚠️ 注意事项:
+注意事项:
 %s
 
-📁 生成的文件:
+生成的文件:
 
 ==== main.go ====
 %s
@@ -165,13 +165,13 @@ func convertLuaToWasm(args map[string]interface{}) (string, error) {
 ==== WasmPlugin配置 ====
 %s
 
-🔧 部署步骤:
+部署步骤:
 1. 创建插件目录: mkdir -p extensions/%s
 2. 保存Go代码到: extensions/%s/main.go  
 3. 构建插件: PLUGIN_NAME=%s make build
 4. 应用配置: kubectl apply -f wasmplugin.yaml
 
-💡 提示:
+提示:
 - 请根据实际需求调整配置
 - 测试插件功能后再部署到生产环境
 - 如有共享状态需求，请配置Redis等外部存储
