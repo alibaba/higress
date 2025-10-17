@@ -433,6 +433,10 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		return claudeChunk
 	}
 
+	if !needsClaudeResponseConversion(ctx) {
+		return chunk
+	}
+
 	// If provider doesn't implement any streaming handlers but we need Claude conversion
 	// First extract complete events from the chunk
 	events := provider.ExtractStreamingEvents(ctx, chunk)

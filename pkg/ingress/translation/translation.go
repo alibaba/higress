@@ -25,10 +25,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	ingressconfig "github.com/alibaba/higress/pkg/ingress/config"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/kube"
+	ingressconfig "github.com/alibaba/higress/v2/pkg/ingress/config"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/kube"
 )
 
 var (
@@ -123,7 +123,6 @@ func (m *IngressTranslation) GetIngressRoutes() model.IngressRouteCollection {
 	}
 
 	return m.higressRouteCache
-
 }
 
 func (m *IngressTranslation) GetIngressDomains() model.IngressDomainCollection {

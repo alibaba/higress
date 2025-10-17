@@ -15,10 +15,11 @@
 package config
 
 import (
-	"k8s.io/apimachinery/pkg/types"
 	"testing"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 	"github.com/stretchr/testify/assert"
 	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/cluster"
@@ -32,27 +33,27 @@ type mockXdsUpdater struct {
 }
 
 func (m *mockXdsUpdater) EDSUpdate(shard istiomodel.ShardKey, hostname string, namespace string, entry []*istiomodel.IstioEndpoint) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *mockXdsUpdater) EDSCacheUpdate(shard istiomodel.ShardKey, hostname string, namespace string, entry []*istiomodel.IstioEndpoint) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *mockXdsUpdater) SvcUpdate(shard istiomodel.ShardKey, hostname string, namespace string, event istiomodel.Event) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *mockXdsUpdater) ProxyUpdate(clusterID cluster.ID, ip string) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 
 func (m *mockXdsUpdater) RemoveShard(shardKey istiomodel.ShardKey) {
-	//TODO implement me
+	// TODO implement me
 	panic("implement me")
 }
 

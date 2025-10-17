@@ -25,11 +25,11 @@ import (
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	provider "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/memory"
 )
 
 const (
@@ -156,7 +156,6 @@ func (w *watcher) fetchAllServices() error {
 	q.Datacenter = w.ConsulDatacenter
 	q.Token = w.authOption.ConsulToken
 	services, _, err := w.consulCatalog.Services(q)
-
 	if err != nil {
 		log.Errorf("consul fetch all services error:%v", err)
 		return err
@@ -273,7 +272,6 @@ func (w *watcher) subscribe(serviceName string) error {
 		"type":    "service",
 		"service": serviceName,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -306,7 +304,7 @@ func (w *watcher) getSubscribeCallback(serviceName string) func(idx uint64, data
 				})
 			} else {
 				log.Infof("consul serviceEntry %s is nil", host)
-				//w.cache.DeleteServiceWrapper(host)
+				// w.cache.DeleteServiceWrapper(host)
 			}
 		}
 	}

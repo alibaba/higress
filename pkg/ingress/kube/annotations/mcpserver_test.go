@@ -19,7 +19,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
 )
 
 func TestMCPServer_Parse(t *testing.T) {
@@ -132,7 +132,7 @@ func TestMCPServer_Parse(t *testing.T) {
 			},
 			expect: &mcpserver.McpServer{
 				Name:              "default/route",
-				Domains:           nil,
+				Domains:           []string{"*"},
 				PathMatchType:     "prefix",
 				PathMatchValue:    "/mcp",
 				UpstreamType:      "rest",
@@ -153,7 +153,7 @@ func TestMCPServer_Parse(t *testing.T) {
 			},
 			expect: &mcpserver.McpServer{
 				Name:              "default/route",
-				Domains:           nil,
+				Domains:           []string{"*"},
 				PathMatchType:     "prefix",
 				PathMatchValue:    "/mcp",
 				UpstreamType:      "rest",

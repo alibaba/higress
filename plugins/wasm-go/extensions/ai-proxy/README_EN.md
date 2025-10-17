@@ -100,7 +100,15 @@ For Azure OpenAI, the corresponding `type` is `azure`. Its unique configuration 
 |---------------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------------|
 | `azureServiceUrl`   | string      | Required             | -             | The URL of the Azure OpenAI service, must include the `api-version` query parameter.                           |
 
-**Note:** Azure OpenAI only supports configuring one API Token.
+**Note:**
+1. Azure OpenAI only supports configuring one API Token.
+2. `azureServiceUrl` accepts three formats：
+    1. Full URL. e.g. `https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview`
+        - Request will be forwarded to the given URL, no matter what original path the request uses.
+    2. Resource name + deployment name，e.g. `https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME?api-version=2024-02-15-preview`
+        - The path will be updated based on the actual request path, leaving the deployment name unchanged. APIs with no deployment name in the path are also support.
+    3. Resource name only.e.g.`https://YOUR_RESOURCE_NAME.openai.azure.com?api-version=2024-02-15-preview`
+        - The path will be updated based on the actual request path. The deployment name will be filled based on the model name in the request and the configured model mapping rule. APIs with no deployment name in the path are also support.
 
 #### Moonshot
 
@@ -147,6 +155,10 @@ For Grok, the corresponding `type` is `grok`. It has no unique configuration fie
 #### OpenRouter
 
 For OpenRouter, the corresponding `type` is `openrouter`. It has no unique configuration fields.
+
+#### Fireworks AI
+
+For Fireworks AI, the corresponding `type` is `fireworks`. It has no unique configuration fields.
 
 #### ERNIE Bot
 
@@ -951,6 +963,63 @@ provider:
     "prompt_tokens": 12,
     "completion_tokens": 35,
     "total_tokens": 47
+  }
+}
+```
+
+### Using OpenAI Protocol Proxy for Fireworks AI Service
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: fireworks
+  apiTokens:
+    - "YOUR_FIREWORKS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    "gpt-3.5-turbo": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+    "*": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+```
+
+**Request Example**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100
+}
+```
+
+**Response Example**
+
+```json
+{
+  "id": "fw-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am an AI assistant powered by Fireworks AI, based on the Llama 3.1 model. I can help answer questions, engage in conversations, and provide various information. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 38,
+    "total_tokens": 53
   }
 }
 ```

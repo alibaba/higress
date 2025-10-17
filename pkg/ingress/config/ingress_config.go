@@ -49,28 +49,28 @@ import (
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	higressext "github.com/alibaba/higress/api/extensions/v1alpha1"
-	higressv1 "github.com/alibaba/higress/api/networking/v1"
-	extlisterv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
-	netlisterv1 "github.com/alibaba/higress/client/pkg/listers/networking/v1"
-	"github.com/alibaba/higress/pkg/cert"
-	higressconst "github.com/alibaba/higress/pkg/config/constants"
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/configmap"
-	"github.com/alibaba/higress/pkg/ingress/kube/gateway"
-	"github.com/alibaba/higress/pkg/ingress/kube/http2rpc"
-	"github.com/alibaba/higress/pkg/ingress/kube/ingress"
-	"github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpbridge"
-	"github.com/alibaba/higress/pkg/ingress/kube/mcpserver"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	"github.com/alibaba/higress/pkg/ingress/kube/wasmplugin"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/reconcile"
+	higressext "github.com/alibaba/higress/v2/api/extensions/v1alpha1"
+	higressv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	extlisterv1 "github.com/alibaba/higress/v2/client/pkg/listers/extensions/v1alpha1"
+	netlisterv1 "github.com/alibaba/higress/v2/client/pkg/listers/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/cert"
+	higressconst "github.com/alibaba/higress/v2/pkg/config/constants"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/configmap"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/gateway"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/http2rpc"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/ingress"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/ingressv1"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpbridge"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/wasmplugin"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/kube"
+	"github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/reconcile"
 )
 
 var (
@@ -292,7 +292,7 @@ func (m *IngressConfig) List(typ config.GroupVersionKind, namespace string) []co
 		typ != gvk.WasmPlugin {
 		return nil
 	}
-	var configs = make([]config.Config, 0)
+	configs := make([]config.Config, 0)
 
 	if configsFromIngress := m.listFromIngressControllers(typ, namespace); configsFromIngress != nil {
 		// Process templates for ingress configs
@@ -579,9 +579,11 @@ func (m *IngressConfig) convertVirtualService(configs []common.WrapperConfig) []
 
 		cleanHost := common.CleanHost(host)
 		// namespace/name, name format: (istio cluster id)-host
-		gateways := []string{m.namespace + "/" +
-			common.CreateConvertedName(m.clusterId.String(), cleanHost),
-			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
+		gateways := []string{
+			m.namespace + "/" +
+				common.CreateConvertedName(m.clusterId.String(), cleanHost),
+			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost),
+		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
 		if !exist {
@@ -651,7 +653,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 			loadBalance := route.WrapperConfig.AnnotationsConfig.LoadBalance
 			if loadBalance != nil && loadBalance.McpSseStateful {
 				IngressLog.Infof("Found MCP SSE stateful session for route %s", route.HTTPRoute.Name)
-				envoyFilter, err := m.constructMcpSseStatefulSessionEnvoyFilter(route, m.namespace, initMcpSseGlobalFilter)
+				envoyFilter, err := m.constructMcpSseStatefulSessionEnvoyFilter(route, m.namespace, initMcpSseGlobalFilter, loadBalance.McpSseStatefulKey)
 				if err != nil {
 					IngressLog.Errorf("Construct MCP SSE stateful session EnvoyFilter error %v", err)
 				} else {
@@ -1563,19 +1565,19 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 	}`
 	var methods []interface{}
 	for _, serviceMethod := range dubbo.GetMethods() {
-		var method = make(map[string]interface{})
+		method := make(map[string]interface{})
 		method["name"] = serviceMethod.GetServiceMethod()
 		var params []interface{}
 		// paramFromEntireBody is for methods with single parameter. So when paramFromEntireBody exists, we just ignore params.
-		var paramFromEntireBody = serviceMethod.GetParamFromEntireBody()
+		paramFromEntireBody := serviceMethod.GetParamFromEntireBody()
 		if paramFromEntireBody != nil {
-			var param = make(map[string]interface{})
+			param := make(map[string]interface{})
 			param["extract_key_spec"] = Http2RpcParamSourceMap()["BODY"]
 			param["mapping_type"] = paramFromEntireBody.GetParamType()
 			params = append(params, param)
 		} else {
 			for _, methodParam := range serviceMethod.GetParams() {
-				var param = make(map[string]interface{})
+				param := make(map[string]interface{})
 				param["extract_key"] = methodParam.GetParamKey()
 				param["extract_key_spec"] = Http2RpcParamSourceMap()[methodParam.GetParamSource()]
 				param["mapping_type"] = methodParam.GetParamType()
@@ -1583,12 +1585,12 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 			}
 		}
 		method["parameter_mapping"] = params
-		var path_matcher = make(map[string]interface{})
+		path_matcher := make(map[string]interface{})
 		path_matcher["match_http_method_spec"] = Http2RpcMethodMap()[serviceMethod.HttpMethods[0]]
 		path_matcher["match_pattern"] = serviceMethod.GetHttpPath()
 		method["path_matcher"] = path_matcher
-		var passthrough_setting = make(map[string]interface{})
-		var headersAttach = serviceMethod.GetHeadersAttach()
+		passthrough_setting := make(map[string]interface{})
+		headersAttach := serviceMethod.GetHeadersAttach()
 		if headersAttach == "" {
 			passthrough_setting["passthrough_all_headers"] = false
 		} else if headersAttach == "*" {
@@ -1599,8 +1601,8 @@ func (m *IngressConfig) constructHttp2RpcMethods(dubbo *higressv1.DubboService) 
 		method["passthrough_setting"] = passthrough_setting
 		methods = append(methods, method)
 	}
-	var serviceMapping = make(map[string]interface{})
-	var dubboServiceGroup = dubbo.GetGroup()
+	serviceMapping := make(map[string]interface{})
+	dubboServiceGroup := dubbo.GetGroup()
 	if dubboServiceGroup != "" {
 		serviceMapping["group"] = dubboServiceGroup
 	}
@@ -1954,7 +1956,7 @@ func (m *IngressConfig) Delete(config.GroupVersionKind, string, string, *string)
 	return common.ErrUnsupportedOp
 }
 
-func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.WrapperHTTPRoute, namespace string, initGlobalFilter bool) (*config.Config, error) {
+func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.WrapperHTTPRoute, namespace string, initGlobalFilter bool, mcpSseStatefulKey string) (*config.Config, error) {
 	httpRoute := route.HTTPRoute
 
 	var configPatches []*networking.EnvoyFilter_EnvoyConfigObjectPatch
@@ -2008,7 +2010,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 		},
 		Patch: &networking.EnvoyFilter_Patch{
 			Operation: networking.EnvoyFilter_Patch_MERGE,
-			Value: buildPatchStruct(`{
+			Value: buildPatchStruct(fmt.Sprintf(`{
 				"typed_per_filter_config": {
 					"envoy.filters.http.mcp_sse_stateful_session": {
 						"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
@@ -2021,7 +2023,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 										"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
 										"type_url": "type.googleapis.com/envoy.extensions.http.mcp_sse_stateful_session.envelope.v3alpha.EnvelopeSessionState",
 										"value": {
-											"param_name": "sessionId",
+											"param_name": "%s",
 											"chunk_end_patterns": ["\r\n\r\n", "\n\n", "\r\r"]
 										}
 									}
@@ -2031,7 +2033,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 						}
 					}
 				}
-			}`),
+			}`, mcpSseStatefulKey)),
 		},
 	})
 

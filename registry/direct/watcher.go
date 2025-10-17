@@ -24,12 +24,12 @@ import (
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/registry"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/registry"
+	provider "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/memory"
 	"github.com/go-errors/errors"
 )
 
@@ -210,7 +210,7 @@ func (w *watcher) generateDestinationRule(se *v1alpha3.ServiceEntry) *v1alpha3.D
 		Host: se.Hosts[0],
 		TrafficPolicy: &v1alpha3.TrafficPolicy{
 			PortLevelSettings: []*v1alpha3.TrafficPolicy_PortTrafficPolicy{
-				&v1alpha3.TrafficPolicy_PortTrafficPolicy{
+				{
 					Port: &v1alpha3.PortSelector{
 						Number: se.Ports[0].Number,
 					},
