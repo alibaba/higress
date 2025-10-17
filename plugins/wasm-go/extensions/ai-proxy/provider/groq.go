@@ -6,14 +6,15 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 // groqProvider is the provider for Groq service.
 const (
 	groqDomain             = "api.groq.com"
 	groqChatCompletionPath = "/openai/v1/chat/completions"
+	groqResponsesPath      = "/openai/v1/responses"
 )
 
 type groqProviderInitializer struct{}
@@ -28,6 +29,7 @@ func (g *groqProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 func (g *groqProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		string(ApiNameChatCompletion): groqChatCompletionPath,
+		string(ApiNameResponses):      groqResponsesPath,
 	}
 }
 
