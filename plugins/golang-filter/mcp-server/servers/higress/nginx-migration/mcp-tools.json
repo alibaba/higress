@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "name": "nginx-lua-converter",
+  "description": "Nginx Lua 到 Higress WASM 转换工具集",
+  "tools": [
+    {
+      "name": "parse_nginx_config",
+      "description": "解析和分析 Nginx 配置文件，识别配置结构和复杂度",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "config_content": {
+            "type": "string",
+            "description": "Nginx 配置文件内容"
+          }
+        },
+        "required": ["config_content"]
+      }
+    },
+    {
+      "name": "convert_to_higress",
+      "description": "将 Nginx 配置转换为 Higress HTTPRoute 和 Service 资源",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "config_content": {
+            "type": "string",
+            "description": "Nginx 配置文件内容"
+          },
+          "namespace": {
+            "type": "string",
+            "description": "目标 Kubernetes 命名空间",
+            "default": "default"
+          }
+        },
+        "required": ["config_content"]
+      }
+    },
+    {
+      "name": "analyze_lua_plugin",
+      "description": "分析 Nginx Lua 插件的兼容性，评估迁移复杂度和潜在问题",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lua_code": {
+            "type": "string",
+            "description": "Nginx Lua 插件代码"
+          }
+        },
+        "required": ["lua_code"]
+      }
+    },
+    {
+      "name": "convert_lua_to_wasm",
+      "description": "将 Nginx Lua 脚本自动转换为 Higress WASM 插件，生成完整的 Go 代码和配置",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lua_code": {
+            "type": "string",
+            "description": "要转换的 Nginx Lua 插件代码"
+          },
+          "plugin_name": {
+            "type": "string",
+            "description": "生成的 WASM 插件名称 (小写字母和连字符)"
+          }
+        },
+        "required": ["lua_code", "plugin_name"]
+      }
+    }
+  ]
+}
