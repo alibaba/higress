@@ -70,6 +70,20 @@ description: 阿里云内容安全检测
 
 ![](https://img.alicdn.com/imgextra/i4/O1CN013AbDcn1slCY19inU2_!!6000000005806-0-tps-1754-1320.jpg)
 
+阿里云内容安全配置示例：
+
+```yaml
+requestCheckService: llm_query_moderation
+responseCheckService: llm_response_moderation
+```
+
+阿里云AI安全护栏配置示例：
+
+```yaml
+requestCheckService: query_security_check
+responseCheckService: response_security_check
+```
+
 ### 检测输入内容是否合规
 
 ```yaml

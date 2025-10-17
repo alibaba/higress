@@ -587,7 +587,6 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config AISecurityConfi
 			return
 		}
 		if ctx.BufferQueueSize() >= config.bufferLimit || ctx.GetContext("end_of_stream_received").(bool) {
-			ctx.SetContext("during_call", true)
 			var buffer string
 			for ctx.BufferQueueSize() > 0 {
 				front := ctx.PopBuffer()
@@ -598,9 +597,14 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config AISecurityConfi
 					break
 				}
 			}
+			// if streaming body has reasoning_content, buffer maybe empty
+			log.Debugf("current content piece: %s", buffer)
+			if len(buffer) == 0 {
+				return
+			}
+			ctx.SetContext("during_call", true)
 			timestamp := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 			randomID, _ := generateHexID(16)
-			log.Debugf("current content piece: %s", buffer)
 			consumer, _ := ctx.GetContext("consumer").(string)
 			checkService, ok := config.consumerSpecificResponseCheckService[consumer]
 			if !ok {
@@ -637,7 +641,9 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config AISecurityConfi
 		}
 	}
 	if !ctx.GetContext("risk_detected").(bool) {
-		ctx.PushBuffer(data)
+		for _, chunk := range bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n")) {
+			ctx.PushBuffer([]byte(string(chunk) + "\n\n"))
+		}
 		ctx.SetContext("end_of_stream_received", endOfStream)
 		if !ctx.GetContext("during_call").(bool) {
 			singleCall()
@@ -769,7 +775,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AISecurityConfig, body [
 }
 
 func extractMessageFromStreamingBody(data []byte, jsonPath string) string {
-	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
+	chunks := bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n"))
 	strChunks := []string{}
 	for _, chunk := range chunks {
 		// Example: "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]
