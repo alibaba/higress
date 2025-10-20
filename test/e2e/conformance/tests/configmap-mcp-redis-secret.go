@@ -65,7 +65,9 @@ var ConfigMapMcpRedisSecret = suite.ConformanceTest{
 
 		assertRedisPassword := func(password string) {
 			envoy.AssertEnvoyConfig(t, suite.TimeoutConfig, envoy.Assertion{
-				Path:            `configs.#.dynamic_extension_configs.#(extension_config.name=="golang-filter-mcp-session").extension_config.typed_config.plugin_config.value.redis`,
+				Path: `configs.#(@type=="type.googleapis.com/envoy.admin.v3.EcdsConfigDump").` +
+					`ecds_filters.#(ecds_filter.name=="golang-filter-mcp-session").` +
+					`ecds_filter.typed_config.plugin_config.value.redis`,
 				CheckType:       envoy.CheckTypeMatch,
 				TargetNamespace: configMapNamespace,
 				ExpectEnvoyConfig: map[string]interface{}{
