@@ -14,10 +14,9 @@ import (
 
 // RegisterLuaPluginTools registers Lua plugin analysis and conversion tools
 func RegisterLuaPluginTools(server *common.MCPServer, ctx *MigrationContext) {
-	// Tool 1: Analyze Lua plugin compatibility
 	server.RegisterTool(common.NewTool(
 		"analyze_lua_plugin",
-		"分析 Nginx Lua 插件的兼容性，评估迁移复杂度和潜在问题",
+		"分析 Nginx Lua 插件的兼容性，识别使用的 API 和潜在迁移问题",
 		map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -33,10 +32,9 @@ func RegisterLuaPluginTools(server *common.MCPServer, ctx *MigrationContext) {
 		},
 	))
 
-	// Tool 2: Convert Lua to WASM plugin
 	server.RegisterTool(common.NewTool(
 		"convert_lua_to_wasm",
-		"将 Nginx Lua 脚本自动转换为 Higress WASM 插件，生成完整的 Go 代码和配置",
+		"一键将 Nginx Lua 脚本转换为 Higress WASM 插件，自动生成 Go 代码和配置",
 		map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -147,42 +145,18 @@ func convertLuaToWasm(args map[string]interface{}) (string, error) {
 		warningsText = strings.Join(analyzer.Warnings, "\n- ")
 	}
 
-	response := fmt.Sprintf(`Lua脚本转换完成
-
-转换分析:
-- 复杂度: %s
-- 检测特性: %d个
-- 兼容性警告: %d个
-
-注意事项:
+	response := fmt.Sprintf(`Go 代码:
 %s
 
-生成的文件:
-
-==== main.go ====
+WasmPlugin 配置:
 %s
 
-==== WasmPlugin配置 ====
-%s
-
-部署步骤:
-1. 创建插件目录: mkdir -p extensions/%s
-2. 保存Go代码到: extensions/%s/main.go  
-3. 构建插件: PLUGIN_NAME=%s make build
-4. 应用配置: kubectl apply -f wasmplugin.yaml
-
-提示:
-- 请根据实际需求调整配置
-- 测试插件功能后再部署到生产环境
-- 如有共享状态需求，请配置Redis等外部存储
-`,
-		analyzer.Complexity,
-		len(analyzer.Features),
-		len(analyzer.Warnings),
-		warningsText,
+复杂度: %s, 特性: %d, 警告: %d`,
 		result.GoCode,
 		result.WasmPluginYAML,
-		pluginName, pluginName, pluginName)
+		analyzer.Complexity,
+		len(analyzer.Features),
+		len(analyzer.Warnings))
 
 	return response, nil
 }

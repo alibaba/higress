@@ -10,9 +10,8 @@ import (
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 )
 
-// RegisterNginxConfigTools registers Nginx configuration analysis and conversion tools
+// RegisterNginxConfigTools 注册 Nginx 配置分析和转换工具
 func RegisterNginxConfigTools(server *common.MCPServer, ctx *MigrationContext) {
-	// Tool 1: Parse and analyze Nginx configuration
 	server.RegisterTool(common.NewTool(
 		"parse_nginx_config",
 		"解析和分析 Nginx 配置文件，识别配置结构和复杂度",
@@ -31,7 +30,6 @@ func RegisterNginxConfigTools(server *common.MCPServer, ctx *MigrationContext) {
 		},
 	))
 
-	// Tool 2: Convert Nginx config to Higress HTTPRoute
 	server.RegisterTool(common.NewTool(
 		"convert_to_higress",
 		"将 Nginx 配置转换为 Higress HTTPRoute 和 Service 资源",

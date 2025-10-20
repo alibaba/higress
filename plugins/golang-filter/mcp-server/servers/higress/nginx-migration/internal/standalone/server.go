@@ -275,13 +275,7 @@ func (s *MCPServer) analyzeLuaPlugin(args map[string]interface{}) tools.ToolResu
 }
 `+"```"+`
 
-这将为你提供：
-- 详细的 API 映射表
-- 代码生成模板
-- 最佳实践建议
-- 示例代码片段
-
-然后基于这些提示生成 Go WASM 代码。
+这将为你提供代码生成模板，然后基于模板生成 Go WASM 代码。
 
 ### 选项 2：一键转换
 
@@ -408,74 +402,36 @@ func (s *MCPServer) GenerateConversionHints(args map[string]interface{}) tools.T
 	hints := tools.GenerateConversionHints(analysis, pluginName)
 
 	// 格式化输出
-	userMessage := fmt.Sprintf(`🎯 代码转换提示已生成
+	userMessage := fmt.Sprintf(`🎯 代码转换提示
 
-## 📚 API 映射表
+**插件名称**: %s
+**代码模板**: %s
 
-为你准备了 %d 个 Lua API 到 Go WASM 的映射规则。
-
-## 📝 代码生成模板
-
-已生成针对插件 **%s** 的完整代码模板，包含：
-- 包结构和导入
-- 配置结构体定义
-- 回调函数框架
-- 原始 Lua 逻辑注释
-
-## ✨ 最佳实践
-
-提供了 %d 条最佳实践建议。
-
-## 💡 示例代码片段
-
-准备了 %d 个常用场景的示例代码。
-
----
-
-**现在你可以**：
-1. 基于这些提示开始编写 Go WASM 代码
-2. 参考 API 映射表进行精确转换
-3. 遵循最佳实践建议
-4. 使用示例代码片段作为参考
-
-⚠️ **警告**: %s
+%s
 `,
-		len(hints.APIMappings),
 		pluginName,
-		len(hints.BestPractices),
-		len(hints.ExampleSnippets),
-		formatWarningsListForUser(hints.Warnings),
+		hints.CodeTemplate,
+		func() string {
+			if len(hints.Warnings) > 0 {
+				return "⚠️ **警告**: " + formatWarningsListForUser(hints.Warnings)
+			}
+			return ""
+		}(),
 	)
 
 	// 生成详细的 AI 指令
 	aiInstructions := fmt.Sprintf(`现在你需要基于以下信息生成 Go WASM 插件代码。
 
-## API 映射表
-
-以下是完整的 Lua API 到 Go WASM API 的映射：
-
-%s
-
 ## 代码模板
-
-%s
-
-## 最佳实践
-
-%s
-
-## 示例代码片段
 
 %s
 
 ## 生成代码的要求
 
-1. **严格遵循模板结构**
-2. **使用映射表中的 Go API**
-3. **保持 Lua 代码的业务逻辑等价**
-4. **添加详细注释**
-5. **实现完整的错误处理**
-6. **包含配置解析逻辑**
+1. **实现所需的回调函数**
+2. **保持 Lua 代码的业务逻辑等价**
+3. **添加适当的错误处理**
+4. **包含配置解析逻辑（如需要）**
 
 ## 输出格式
 
@@ -488,10 +444,7 @@ func (s *MCPServer) GenerateConversionHints(args map[string]interface{}) tools.T
 
 生成代码后，建议调用 validate_wasm_code 工具进行验证。
 `,
-		formatAPIMappingsForAI(hints.APIMappings),
 		hints.CodeTemplate,
-		formatBestPracticesForAI(hints.BestPractices),
-		formatExampleSnippetsForAI(hints.ExampleSnippets),
 	)
 
 	return tools.FormatToolResultWithAIContext(userMessage, aiInstructions, hints)
@@ -512,25 +465,48 @@ func (s *MCPServer) ValidateWasmCode(args map[string]interface{}) tools.ToolResu
 	// 执行验证
 	report := tools.ValidateWasmCode(goCode, pluginName)
 
-	// 格式化输出
-	statusEmoji := "✅"
-	statusText := "通过"
-	if !report.IsValid {
-		statusEmoji = "❌"
-		statusText = "未通过"
+	// 统计各类问题数量
+	requiredCount := 0
+	recommendedCount := 0
+	optionalCount := 0
+	bestPracticeCount := 0
+
+	for _, issue := range report.Issues {
+		switch issue.Category {
+		case "required":
+			requiredCount++
+		case "recommended":
+			recommendedCount++
+		case "optional":
+			optionalCount++
+		case "best_practice":
+			bestPracticeCount++
+		}
 	}
 
-	userMessage := fmt.Sprintf(`%s 代码验证结果：%s
+	// 构建用户消息
+	userMessage := fmt.Sprintf(`##  代码验证报告
 
-## 📊 验证评分：%d/100
-
-### 错误 (%d 个)
 %s
 
-### 警告 (%d 个)
+### 发现的回调函数 (%d 个)
 %s
 
-### 改进建议 (%d 个)
+### 配置结构
+%s
+
+### 问题分类
+
+####  必须修复 (%d 个)
+%s
+
+####  建议修复 (%d 个)
+%s
+
+####  可选优化 (%d 个)
+%s
+
+####  最佳实践 (%d 个)
 %s
 
 ### 缺失的导入包 (%d 个)
@@ -539,38 +515,50 @@ func (s *MCPServer) ValidateWasmCode(args map[string]interface{}) tools.ToolResu
 ---
 
 `,
-		statusEmoji,
-		statusText,
-		report.Score,
-		len(report.Errors),
-		formatValidationErrors(report.Errors),
-		len(report.Warnings),
-		formatList(report.Warnings),
-		len(report.Suggestions),
-		formatList(report.Suggestions),
+		report.Summary,
+		len(report.FoundCallbacks),
+		formatCallbacksList(report.FoundCallbacks),
+		formatConfigStatus(report.HasConfig),
+		requiredCount,
+		formatIssuesByCategory(report.Issues, "required"),
+		recommendedCount,
+		formatIssuesByCategory(report.Issues, "recommended"),
+		optionalCount,
+		formatIssuesByCategory(report.Issues, "optional"),
+		bestPracticeCount,
+		formatIssuesByCategory(report.Issues, "best_practice"),
 		len(report.MissingImports),
 		formatList(report.MissingImports),
 	)
 
-	if report.IsValid {
-		userMessage += "🎉 **代码验证通过！**\n\n"
-		userMessage += "**下一步**：调用 `generate_deployment_config` 工具生成部署配置。"
+	// 根据问题级别给出建议
+	hasRequired := requiredCount > 0
+	if hasRequired {
+		userMessage += " **请优先修复 \"必须修复\" 的问题，否则代码可能无法编译或运行。**\n\n"
+	} else if recommendedCount > 0 {
+		userMessage += " **代码基本结构正确。** 建议修复 \"建议修复\" 的问题以提高代码质量。\n\n"
 	} else {
-		userMessage += "⚠️ **请修复上述错误后重新验证。**"
+		userMessage += " **代码验证通过！** 可以继续生成部署配置。\n\n"
+		userMessage += "**下一步**：调用 `generate_deployment_config` 工具生成部署配置。\n"
 	}
 
 	// AI 指令
 	aiInstructions := ""
-	if !report.IsValid {
-		aiInstructions = `代码验证发现错误，需要修复。
+	if hasRequired {
+		aiInstructions = `代码验证发现必须修复的问题。
 
-## 修复建议
+## 修复指南
 
-基于验证报告中的错误和建议，修改代码：
+` + formatIssuesForAI(report.Issues, "required") + `
 
-` + formatValidationErrorsForAI(report.Errors) + `
+请修复上述问题后，再次调用 validate_wasm_code 工具进行验证。
+`
+	} else if recommendedCount > 0 {
+		aiInstructions = `代码基本结构正确，建议修复以下问题：
 
-修复后，再次调用 validate_wasm_code 工具进行验证。
+` + formatIssuesForAI(report.Issues, "recommended") + `
+
+可以选择修复这些问题，或直接调用 generate_deployment_config 工具生成部署配置。
 `
 	} else {
 		aiInstructions = `代码验证通过！
@@ -586,12 +574,7 @@ func (s *MCPServer) ValidateWasmCode(args map[string]interface{}) tools.ToolResu
 }
 ` + "```" + `
 
-这将生成完整的部署配置包，包括：
-- WasmPlugin YAML
-- Makefile
-- Dockerfile
-- README
-- 测试脚本
+这将生成完整的部署配置包。
 `
 	}
 
@@ -628,7 +611,7 @@ func (s *MCPServer) GenerateDeploymentConfig(args map[string]interface{}) tools.
 
 已为插件 **%s** 生成完整的部署配置包。
 
-## 📦 生成的文件
+##  生成的文件
 
 ### 1. WasmPlugin 配置
 - 文件名：wasmplugin.yaml
@@ -651,7 +634,7 @@ func (s *MCPServer) GenerateDeploymentConfig(args map[string]interface{}) tools.
 
 ---
 
-## 🚀 快速部署
+##  快速部署
 
 `+"```bash"+`
 # 1. 保存文件
@@ -742,103 +725,62 @@ func formatWarningsListForUser(warnings []string) string {
 	return strings.Join(warnings, "\n- ")
 }
 
-func formatAPIMappingsForAI(mappings map[string]tools.APIMappingDetail) string {
-	result := []string{}
-	for _, mapping := range mappings {
-		result = append(result, fmt.Sprintf(`
-### %s
-
-**Lua**:
-`+"```lua"+`
-%s
-`+"```"+`
-
-**Go WASM**:
-`+"```go"+`
-%s
-`+"```"+`
-
-**说明**: %s
-
-**示例**:
-`+"```go"+`
-%s
-`+"```"+`
-
-%s
-`,
-			mapping.LuaAPI,
-			mapping.LuaAPI,
-			mapping.GoEquivalent,
-			mapping.Description,
-			mapping.ExampleCode,
-			func() string {
-				if mapping.Notes != "" {
-					return "**注意**: " + mapping.Notes
-				}
-				return ""
-			}(),
-		))
-	}
-	return strings.Join(result, "\n---\n")
-}
-
-func formatBestPracticesForAI(practices []string) string {
-	result := []string{}
-	for i, p := range practices {
-		result = append(result, fmt.Sprintf("%d. %s", i+1, p))
-	}
-	return strings.Join(result, "\n")
-}
-
-func formatExampleSnippetsForAI(snippets map[string]string) string {
-	result := []string{}
-	for name, code := range snippets {
-		result = append(result, fmt.Sprintf(`
-### %s
-`+"```go"+`
-%s
-`+"```",
-			name,
-			code,
-		))
-	}
-	return strings.Join(result, "\n")
-}
-
-func formatValidationErrors(errors []tools.ValidationError) string {
-	if len(errors) == 0 {
+func formatCallbacksList(callbacks []string) string {
+	if len(callbacks) == 0 {
 		return "无"
 	}
-	result := []string{}
-	for _, e := range errors {
-		result = append(result, fmt.Sprintf("- [%s] %s\n  建议：%s", e.Severity, e.Message, e.Suggestion))
-	}
-	return strings.Join(result, "\n")
+	return "- " + strings.Join(callbacks, "\n- ")
 }
 
-func formatValidationErrorsForAI(errors []tools.ValidationError) string {
-	if len(errors) == 0 {
-		return "无错误"
+func formatConfigStatus(hasConfig bool) string {
+	if hasConfig {
+		return " 已定义配置结构体"
 	}
+	return "- 未定义配置结构体（如不需要配置可忽略）"
+}
+
+func formatIssuesByCategory(issues []tools.ValidationIssue, category string) string {
+	var filtered []string
+	for _, issue := range issues {
+		if issue.Category == category {
+			filtered = append(filtered, fmt.Sprintf("- **[%s]** %s\n  💡 建议: %s\n  📌 影响: %s",
+				issue.Type, issue.Message, issue.Suggestion, issue.Impact))
+		}
+	}
+	if len(filtered) == 0 {
+		return "无"
+	}
+	return strings.Join(filtered, "\n\n")
+}
+
+func formatIssuesForAI(issues []tools.ValidationIssue, category string) string {
+	var filtered []tools.ValidationIssue
+	for _, issue := range issues {
+		if issue.Category == category {
+			filtered = append(filtered, issue)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return "无问题"
+	}
+
 	result := []string{}
-	for i, e := range errors {
+	for i, issue := range filtered {
 		result = append(result, fmt.Sprintf(`
-### 错误 %d: %s
+### 问题 %d: %s
 
 **类型**: %s
-**严重程度**: %s
 **建议**: %s
+**影响**: %s
 
-修复此问题的方法：
-%s
+请根据建议修复此问题。
 `,
 			i+1,
-			e.Message,
-			e.Type,
-			e.Severity,
-			e.Suggestion,
-			e.Suggestion, // 可以扩展更详细的修复说明
+			issue.Message,
+			issue.Type,
+			issue.Suggestion,
+			issue.Impact,
 		))
 	}
 	return strings.Join(result, "\n")
