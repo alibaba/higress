@@ -88,6 +88,7 @@ func (c *NginxMigrationConfig) NewServer(serverName string) (*common.MCPServer, 
 	// Register all migration tools
 	mcptools.RegisterNginxConfigTools(mcpServer, migrationCtx)
 	mcptools.RegisterLuaPluginTools(mcpServer, migrationCtx)
+	mcptools.RegisterToolChainTools(mcpServer, migrationCtx)
 
 	api.LogInfof("Nginx Migration MCP Server initialized: %s", serverName)
 

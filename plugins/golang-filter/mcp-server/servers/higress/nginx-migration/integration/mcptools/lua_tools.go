@@ -112,11 +112,11 @@ func analyzeLuaPlugin(args map[string]interface{}) (string, error) {
 
 	switch compatibility {
 	case "full":
-		result += "\n- 可直接迁移到WASM插件\n- 预计工作量: 1-2天"
+		result += "\n- 可直接迁移到WASM插件"
 	case "partial":
-		result += "\n- 需要部分重构\n- 预计工作量: 3-5天"
+		result += "\n- 需要部分重构"
 	case "manual":
-		result += "\n- 需要手动重写\n- 预计工作量: 1-2周"
+		result += "\n- 需要手动重写"
 	}
 
 	return result, nil
