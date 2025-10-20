@@ -447,11 +447,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
-	if !json.Get("qwenEnableSearch").Exists() {
+	if compatible := json.Get("qwenEnableCompatible"); compatible.Exists() {
+		c.qwenEnableCompatible = compatible.Bool()
+	} else {
 		// Default use official compatiable mode
 		c.qwenEnableCompatible = true
-	} else {
-		c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
 	}
 	c.qwenDomain = json.Get("qwenDomain").String()
 	if c.qwenDomain != "" {
