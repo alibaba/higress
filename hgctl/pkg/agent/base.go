@@ -12,11 +12,11 @@ const (
 	DevVersion      = "dev"
 )
 
-// set up the kode env
+// set up the core env
 // 1. npm install
 // 2. check the npm version
 // 3. install hgctl-agent
-func getClient() *KodeClient {
+func getClient() *AICore {
 	if !checkAgentInstallStatus() {
 		fmt.Println("installing......")
 		if err := installAgent(); err != nil {
@@ -25,7 +25,7 @@ func getClient() *KodeClient {
 		}
 	}
 
-	return NewKodeClient("")
+	return NewAICore("")
 
 }
 
