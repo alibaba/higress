@@ -447,7 +447,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
-	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
+	if compatible := json.Get("qwenEnableCompatible"); compatible.Exists() {
+		c.qwenEnableCompatible = compatible.Bool()
+	} else {
+		// Default use official compatiable mode
+		c.qwenEnableCompatible = true
+	}
 	c.qwenDomain = json.Get("qwenDomain").String()
 	if c.qwenDomain != "" {
 		// TODO: validate the domain, if not valid, set to default
