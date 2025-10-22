@@ -74,6 +74,9 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 			string(ApiNameRetrieveFileContent): qwenCompatibleRetrieveFileContentPath,
 			string(ApiNameBatches):             qwenCompatibleBatchesPath,
 			string(ApiNameRetrieveBatch):       qwenCompatibleRetrieveBatchPath,
+			string(ApiNameQwenAsyncAIGC):       qwenAsyncAIGCPath,
+			string(ApiNameQwenAsyncTask):       qwenAsyncTaskPath,
+			string(ApiNameQwenV1Rerank):        qwenTextRerankPath,
 			string(ApiNameAnthropicMessages):   qwenAnthropicMessagesPath,
 		}
 	} else {
