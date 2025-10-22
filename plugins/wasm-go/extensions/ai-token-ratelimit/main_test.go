@@ -291,8 +291,8 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
 			// 模拟 Redis 调用响应（允许请求）
-			// 返回 [count, remaining, ttl] 格式
-			resp := test.CreateRedisRespArray([]interface{}{1000, 999, 60})
+			// 返回 [threshold, current, ttl] 格式
+			resp := test.CreateRedisRespArray([]interface{}{1000, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			host.CompleteHttp()
@@ -316,7 +316,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
 			// 模拟 Redis 调用响应（允许请求）
-			resp := test.CreateRedisRespArray([]interface{}{100, 99, 60})
+			resp := test.CreateRedisRespArray([]interface{}{100, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			host.CompleteHttp()
@@ -339,7 +339,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
 			// 模拟 Redis 调用响应（允许请求）
-			resp := test.CreateRedisRespArray([]interface{}{50, 49, 60})
+			resp := test.CreateRedisRespArray([]interface{}{50, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			host.CompleteHttp()
@@ -363,7 +363,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
 			// 模拟 Redis 调用响应（允许请求）
-			resp := test.CreateRedisRespArray([]interface{}{200, 199, 60})
+			resp := test.CreateRedisRespArray([]interface{}{200, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			host.CompleteHttp()
@@ -387,7 +387,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
 			// 模拟 Redis 调用响应（允许请求）
-			resp := test.CreateRedisRespArray([]interface{}{75, 74, 60})
+			resp := test.CreateRedisRespArray([]interface{}{75, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			host.CompleteHttp()
@@ -410,8 +410,8 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
 			// 模拟 Redis 调用响应（触发限流）
-			// 返回 [count, remaining, ttl] 格式，remaining < 0 表示触发限流
-			resp := test.CreateRedisRespArray([]interface{}{1000, -1, 60})
+			// 返回 [threshold, current, ttl] 格式，current > threshold 表示触发限流
+			resp := test.CreateRedisRespArray([]interface{}{1000, 1001, 60})
 			host.CallOnRedisCall(0, resp)
 
 			// 检查是否发送了限流响应
@@ -459,7 +459,7 @@ func TestOnHttpStreamingBody(t *testing.T) {
 			})
 
 			// 模拟 Redis 调用响应
-			resp := test.CreateRedisRespArray([]interface{}{1000, 999, 60})
+			resp := test.CreateRedisRespArray([]interface{}{1000, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			// 处理流式响应体
@@ -499,7 +499,7 @@ func TestOnHttpStreamingBody(t *testing.T) {
 			})
 
 			// 模拟 Redis 调用响应
-			resp := test.CreateRedisRespArray([]interface{}{1000, 999, 60})
+			resp := test.CreateRedisRespArray([]interface{}{1000, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			// 处理流式响应体
@@ -537,7 +537,7 @@ func TestCompleteFlow(t *testing.T) {
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
 			// 2. 模拟 Redis 调用响应
-			resp := test.CreateRedisRespArray([]interface{}{100, 99, 60})
+			resp := test.CreateRedisRespArray([]interface{}{100, 1, 60})
 			host.CallOnRedisCall(0, resp)
 
 			// 3. 处理流式响应体

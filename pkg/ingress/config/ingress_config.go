@@ -653,7 +653,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 			loadBalance := route.WrapperConfig.AnnotationsConfig.LoadBalance
 			if loadBalance != nil && loadBalance.McpSseStateful {
 				IngressLog.Infof("Found MCP SSE stateful session for route %s", route.HTTPRoute.Name)
-				envoyFilter, err := m.constructMcpSseStatefulSessionEnvoyFilter(route, m.namespace, initMcpSseGlobalFilter)
+				envoyFilter, err := m.constructMcpSseStatefulSessionEnvoyFilter(route, m.namespace, initMcpSseGlobalFilter, loadBalance.McpSseStatefulKey)
 				if err != nil {
 					IngressLog.Errorf("Construct MCP SSE stateful session EnvoyFilter error %v", err)
 				} else {
@@ -1956,7 +1956,7 @@ func (m *IngressConfig) Delete(config.GroupVersionKind, string, string, *string)
 	return common.ErrUnsupportedOp
 }
 
-func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.WrapperHTTPRoute, namespace string, initGlobalFilter bool) (*config.Config, error) {
+func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.WrapperHTTPRoute, namespace string, initGlobalFilter bool, mcpSseStatefulKey string) (*config.Config, error) {
 	httpRoute := route.HTTPRoute
 
 	var configPatches []*networking.EnvoyFilter_EnvoyConfigObjectPatch
@@ -2010,7 +2010,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 		},
 		Patch: &networking.EnvoyFilter_Patch{
 			Operation: networking.EnvoyFilter_Patch_MERGE,
-			Value: buildPatchStruct(`{
+			Value: buildPatchStruct(fmt.Sprintf(`{
 				"typed_per_filter_config": {
 					"envoy.filters.http.mcp_sse_stateful_session": {
 						"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
@@ -2023,7 +2023,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 										"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
 										"type_url": "type.googleapis.com/envoy.extensions.http.mcp_sse_stateful_session.envelope.v3alpha.EnvelopeSessionState",
 										"value": {
-											"param_name": "sessionId",
+											"param_name": "%s",
 											"chunk_end_patterns": ["\r\n\r\n", "\n\n", "\r\r"]
 										}
 									}
@@ -2033,7 +2033,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 						}
 					}
 				}
-			}`),
+			}`, mcpSseStatefulKey)),
 		},
 	})
 
