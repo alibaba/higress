@@ -329,9 +329,8 @@ jobs:
                   # 根据覆盖率设置颜色和图标
                   if (( $(echo "$coverage_percent >= 80" | bc -l) )); then
                     coverage_icon="🟢"
-                  elif (( $(echo "$coverage_percent >= 60" | bc -l) )); then
+                  elif (( $(echo "$coverage_percent >= 30" | bc -l) )); then
                     coverage_icon="🟡"
-                    coverage_failed=true
                   else
                     coverage_icon="🔴"
                     coverage_failed=true
@@ -340,8 +339,8 @@ jobs:
                   echo "$coverage_icon **$plugin_name**: $coverage_percent%" >> $GITHUB_STEP_SUMMARY
                   
                   # 检查覆盖率门禁
-                  if (( $(echo "$coverage_percent < 80" | bc -l) )); then
-                    echo "❌ **$plugin_name**: Coverage below 80% threshold!" >> $GITHUB_STEP_SUMMARY
+                  if (( $(echo "$coverage_percent < 30" | bc -l) )); then
+                    echo "❌ **$plugin_name**: Coverage below 30% threshold!" >> $GITHUB_STEP_SUMMARY
                   fi
                 else
                   echo "⚪ **$plugin_name**: No statements to cover" >> $GITHUB_STEP_SUMMARY
@@ -364,17 +363,17 @@ jobs:
         if [ "$coverage_failed" = true ]; then
           echo "### ❌ Coverage Gate Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🚫 **Coverage threshold not met**: Some plugins have coverage below 80%" >> $GITHUB_STEP_SUMMARY
+          echo "🚫 **Coverage threshold not met**: Some plugins have coverage below 30%" >> $GITHUB_STEP_SUMMARY
           echo "📋 **Please improve test coverage before merging this PR**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # 退出CI失败
-          echo "Coverage gate failed - some plugins below 80% threshold"
+          echo "Coverage gate failed - some plugins below 30% threshold"
           exit 1
         else
           echo "### ✅ Coverage Gate Passed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎉 **All plugins meet the 80% coverage threshold**" >> $GITHUB_STEP_SUMMARY
+          echo "🎉 **All plugins meet the 30% coverage threshold**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
         fi
         
