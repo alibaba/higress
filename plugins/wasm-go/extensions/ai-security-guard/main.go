@@ -534,7 +534,7 @@ func parseConfig(json gjson.Result, config *AISecurityConfig) error {
 				m[k] = v.Value()
 			}
 			consumerName, ok1 := m["name"]
-			matchType, ok2 := m["match_type"]
+			matchType, ok2 := m["matchType"]
 			if !ok1 || !ok2 {
 				continue
 			}
