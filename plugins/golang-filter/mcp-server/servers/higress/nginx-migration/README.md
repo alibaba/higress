@@ -52,15 +52,20 @@ make build
 
 **步骤 1**：复制配置文件
 ```bash
-cp config/rag.yaml.example config/rag.yaml
+cp config/rag.json.example config/rag.json
 ```
 
 **步骤 2**：编辑配置
-```yaml
-rag:
-  enabled: true  # 启用 RAG
-  xxx_key: "your-bailian-key"
-  knowledge_base_id: "kb-xxxxxx"
+```json
+{
+  "rag": {
+    "enabled": true,
+    "workspace_id": "your-workspace-id",
+    "knowledge_base_id": "your-kb-id",
+    "access_key_id": "your-access-key",
+    "access_key_secret": "your-secret"
+  }
+}
 ```
 
 
