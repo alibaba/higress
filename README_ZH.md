@@ -47,7 +47,7 @@ Higress 在阿里内部为解决 Tengine reload 对长连接业务有损，以�
 
 可以点下方按钮安装企业版 Higress: 
 
-[![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i4/O1CN01tHRaNm22hflDqxKV5_!!6000000007152-55-tps-170-40.svg)](https://www.aliyun.com/product/apigateway?spm=a211ab.e7fc7d8.0.0.84356452RpY3yT)
+[![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i4/O1CN01tHRaNm22hflDqxKV5_!!6000000007152-55-tps-170-40.svg)](https://higress.cn/cloud/?spm=36971b57.2ef5001f.0.0.2a932c1fp0CYpa)
 
 
 ## Summary
@@ -81,7 +81,7 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
 
-如果您是在云上部署，推荐使用[企业版](https://www.aliyun.com/product/apigateway?spm=a211ab.e7fc7d8.0.0.84356452RpY3yT)
+如果您是在云上部署，推荐使用[企业版](https://higress.cn/cloud/?spm=36971b57.2ef5001f.0.0.2a932c1fp0CYpa)
 
 ## 使用场景
 
