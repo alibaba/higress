@@ -786,7 +786,7 @@ if __name__ == "__main__":
 
 ```
 
-### 2. python 参考 requirements.txt 如下：
+### 2. python 参考 requirements.txt
 
 ```
 # Milvus向量数据库文档处理系统依赖包
