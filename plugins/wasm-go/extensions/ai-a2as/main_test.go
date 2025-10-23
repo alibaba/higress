@@ -415,7 +415,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "valid config",
 			config: A2ASConfig{
-				Protocol: "openai",
+				Protocol:           "openai",
+				MaxRequestBodySize: 10 * 1024 * 1024,
 				InContextDefenses: InContextDefensesConfig{
 					Enabled:  true,
 					Position: "as_system",
@@ -427,7 +428,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "invalid protocol",
 			config: A2ASConfig{
-				Protocol: "invalid",
+				Protocol:           "invalid",
+				MaxRequestBodySize: 10 * 1024 * 1024,
 			},
 			expectErr: true,
 			errMsg:    "protocol must be",
@@ -435,7 +437,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "invalid defense position",
 			config: A2ASConfig{
-				Protocol: "openai",
+				Protocol:           "openai",
+				MaxRequestBodySize: 10 * 1024 * 1024,
 				InContextDefenses: InContextDefensesConfig{
 					Enabled:  true,
 					Position: "invalid_position",
@@ -447,7 +450,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "template too long",
 			config: A2ASConfig{
-				Protocol: "openai",
+				Protocol:           "openai",
+				MaxRequestBodySize: 10 * 1024 * 1024,
 				InContextDefenses: InContextDefensesConfig{
 					Enabled:  true,
 					Position: "as_system",
@@ -460,7 +464,8 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "too many policies",
 			config: A2ASConfig{
-				Protocol: "openai",
+				Protocol:           "openai",
+				MaxRequestBodySize: 10 * 1024 * 1024,
 				CodifiedPolicies: CodifiedPoliciesConfig{
 					Enabled:  true,
 					Position: "as_system",
@@ -473,32 +478,52 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "auth enabled without secret and unsigned not allowed",
 			config: A2ASConfig{
-				Protocol: "openai",
-			AuthenticatedPrompts: AuthenticatedPromptsConfig{
-				Enabled:       true,
-				Mode:          "simple",
-				AllowUnsigned: false,
-				SharedSecret:  "",
-				Algorithm:     "hmac-sha256",
-			},
+				Protocol:           "openai",
+				MaxRequestBodySize: 10 * 1024 * 1024,
+				AuthenticatedPrompts: AuthenticatedPromptsConfig{
+					Enabled:       true,
+					Mode:          "simple",
+					AllowUnsigned: false,
+					SharedSecret:  "",
+					Algorithm:     "hmac-sha256",
+				},
 			},
 			expectErr: true,
 			errMsg:    "sharedSecret is required",
 		},
 		{
 			name: "auth enabled with unsigned allowed",
-		config: A2ASConfig{
-			Protocol: "openai",
-			AuthenticatedPrompts: AuthenticatedPromptsConfig{
-				Enabled:       true,
-				Mode:          "simple",
-				AllowUnsigned: true,
-				SharedSecret:  "",
-				Algorithm:     "hmac-sha256",
+			config: A2ASConfig{
+				Protocol:           "openai",
+				MaxRequestBodySize: 10 * 1024 * 1024,
+				AuthenticatedPrompts: AuthenticatedPromptsConfig{
+					Enabled:       true,
+					Mode:          "simple",
+					AllowUnsigned: true,
+					SharedSecret:  "",
+					Algorithm:     "hmac-sha256",
+				},
 			},
+			expectErr: false,
 		},
-		expectErr: false,
-	},
+		{
+			name: "max body size too small",
+			config: A2ASConfig{
+				Protocol:           "openai",
+				MaxRequestBodySize: 512, // Less than 1KB
+			},
+			expectErr: true,
+			errMsg:    "maxRequestBodySize must be between",
+		},
+		{
+			name: "max body size too large",
+			config: A2ASConfig{
+				Protocol:           "openai",
+				MaxRequestBodySize: 200 * 1024 * 1024, // More than 100MB
+			},
+			expectErr: true,
+			errMsg:    "maxRequestBodySize must be between",
+		},
 	}
 
 	for _, tt := range tests {

@@ -55,7 +55,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config A2ASConfig) types.Acti
 	ctx.DisableReroute()
 
 	if config.AuthenticatedPrompts.Enabled {
-		if err := verifySignature(config.AuthenticatedPrompts); err != nil {
+		if err := verifySignature(config.AuthenticatedPrompts, config.MaxRequestBodySize); err != nil {
 			log.Errorf("[A2AS] Signature verification failed: %v", err)
 			config.incrementMetric(metricA2ASSignatureVerificationFailed, 1)
 			_ = proxywasm.SendHttpResponse(403, [][2]string{
@@ -340,7 +340,7 @@ func isToolAllowed(permissions AgentPermissions, toolName string) bool {
 	return false
 }
 
-func verifySignature(config AuthenticatedPromptsConfig) error {
+func verifySignature(config AuthenticatedPromptsConfig, maxBodySize int) error {
 	switch config.Mode {
 	case "rfc9421":
 		log.Debugf("[A2AS] Using RFC 9421 signature verification mode")
@@ -348,14 +348,14 @@ func verifySignature(config AuthenticatedPromptsConfig) error {
 	
 	case "simple":
 		log.Debugf("[A2AS] Using simple HMAC signature verification mode")
-		return verifySimpleSignature(config)
+		return verifySimpleSignature(config, maxBodySize)
 	
 	default:
 		return fmt.Errorf("unsupported signature mode: %s", config.Mode)
 	}
 }
 
-func verifySimpleSignature(config AuthenticatedPromptsConfig) error {
+func verifySimpleSignature(config AuthenticatedPromptsConfig, maxBodySize int) error {
 	signatureHeader, err := proxywasm.GetHttpRequestHeader(config.SignatureHeader)
 	
 	if err != nil || signatureHeader == "" {
@@ -371,7 +371,7 @@ func verifySimpleSignature(config AuthenticatedPromptsConfig) error {
 		return nil
 	}
 
-	body, err := proxywasm.GetHttpRequestBody(0, 10*1024*1024)
+	body, err := proxywasm.GetHttpRequestBody(0, maxBodySize)
 	if err != nil {
 		return fmt.Errorf("failed to get request body for signature verification: %v", err)
 	}

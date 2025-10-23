@@ -39,6 +39,7 @@ ai-security-guard（内容检测，Priority 300）
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |------|---------|---------|--------|------|
 | `protocol` | string | 非必填 | "openai" | 协议格式：openai 或 claude |
+| `maxRequestBodySize` | int | 非必填 | 10485760 | 最大请求体大小（字节），范围：1KB (1024) - 100MB (104857600) |
 
 ### Security Boundaries (S) - 安全边界
 

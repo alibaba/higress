@@ -39,6 +39,7 @@ ai-security-guard (Content detection, Priority 300)
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `protocol` | string | No | "openai" | Protocol format: openai or claude |
+| `maxRequestBodySize` | int | No | 10485760 | Maximum request body size (bytes), range: 1KB (1024) - 100MB (104857600) |
 
 ### Security Boundaries (S)
 
