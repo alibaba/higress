@@ -89,7 +89,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 	modifiedBody, err := applyA2ASTransformations(config, body)
 	if err != nil {
 		log.Errorf("[A2AS] Failed to apply transformations: %v", err)
-		return types.ActionContinue
+		_ = proxywasm.SendHttpResponse(500, [][2]string{{"content-type", "application/json"}}, 
+			[]byte(`{"error":"A2AS transformation failed"}`), -1)
+		return types.ActionPause
 	}
 
 	if config.BehaviorCertificates.Enabled {
@@ -385,8 +387,7 @@ func verifySimpleSignature(config AuthenticatedPromptsConfig) error {
 	expectedSignatureBase64 := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
 	if signatureHeader != expectedSignature && signatureHeader != expectedSignatureBase64 {
-		log.Errorf("[A2AS] Signature verification failed: expected %s or %s, got %s", 
-			expectedSignature[:16]+"...", expectedSignatureBase64[:16]+"...", signatureHeader[:16]+"...")
+		log.Errorf("[A2AS] Signature verification failed")
 		return fmt.Errorf("invalid signature")
 	}
 
