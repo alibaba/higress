@@ -67,6 +67,7 @@ type A2ASConfig struct {
 type ConsumerA2ASConfig struct {
 	SecurityBoundaries   *SecurityBoundariesConfig   `json:"securityBoundaries,omitempty"`
 	InContextDefenses    *InContextDefensesConfig    `json:"inContextDefenses,omitempty"`
+	AuthenticatedPrompts *AuthenticatedPromptsConfig `json:"authenticatedPrompts,omitempty"`
 	BehaviorCertificates *BehaviorCertificatesConfig `json:"behaviorCertificates,omitempty"`
 	CodifiedPolicies     *CodifiedPoliciesConfig     `json:"codifiedPolicies,omitempty"`
 }
@@ -121,7 +122,7 @@ type AuthenticatedPromptsConfig struct {
 	SignatureHeader string `json:"signatureHeader"`
 
 	// @Title zh-CN 共享密钥
-	// @Description zh-CN 用于 HMAC 签名验证的共享密钥（base64编码）
+	// @Description zh-CN 用于 HMAC 签名验证的共享密钥（支持 base64 或原始字符串）
 	SharedSecret string `json:"sharedSecret"`
 
 	// @Title zh-CN 签名算法
@@ -364,6 +365,10 @@ func (c *A2ASConfig) MergeConsumerConfig(consumerName string) A2ASConfig {
 
 	if consumerConfig.InContextDefenses != nil {
 		merged.InContextDefenses = *consumerConfig.InContextDefenses
+	}
+
+	if consumerConfig.AuthenticatedPrompts != nil {
+		merged.AuthenticatedPrompts = *consumerConfig.AuthenticatedPrompts
 	}
 
 	if consumerConfig.BehaviorCertificates != nil {

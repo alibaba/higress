@@ -121,15 +121,80 @@ Define and inject application-specific business rules and compliance requirement
 
 Cryptographic signature verification for all prompts to ensure integrity and enable audit trails.
 
+**Version v1.1.0 supports dual-mode signature verification**:
+- **Simple mode** (default): Simplified HMAC-SHA256 signature verification
+- **RFC 9421 mode**: Full HTTP Message Signatures standard implementation
+
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `authenticatedPrompts.enabled` | bool | No | false | Enable signature verification |
+| `authenticatedPrompts.mode` | string | No | "simple" | Signature mode: `simple` or `rfc9421` |
 | `authenticatedPrompts.signatureHeader` | string | No | "Signature" | Signature header name |
-| `authenticatedPrompts.sharedSecret` | string | Yes* | - | HMAC shared secret (base64 encoded) |
+| `authenticatedPrompts.sharedSecret` | string | Yes* | - | HMAC shared secret (supports base64 or raw string) |
 | `authenticatedPrompts.algorithm` | string | No | "hmac-sha256" | Signature algorithm |
 | `authenticatedPrompts.clockSkew` | int | No | 300 | Allowed clock skew (seconds) |
+| `authenticatedPrompts.allowUnsigned` | bool | No | false | Allow unsigned requests to pass through |
+| `authenticatedPrompts.rfc9421` | object | No | - | RFC 9421 specific configuration (when mode=rfc9421) |
+| `authenticatedPrompts.rfc9421.requiredComponents` | array | No | `["@method", "@path", "content-digest"]` | Required signature components |
+| `authenticatedPrompts.rfc9421.maxAge` | int | No | 300 | Maximum signature age (seconds) |
+| `authenticatedPrompts.rfc9421.enforceExpires` | bool | No | true | Enforce expires parameter validation |
+| `authenticatedPrompts.rfc9421.requireContentDigest` | bool | No | true | Require Content-Digest header |
 
-*Required when `enabled=true`
+*Required when `enabled=true` and `allowUnsigned=false`
+
+#### Simple Mode Signature Example
+
+```bash
+# Calculate HMAC-SHA256 signature for request body
+BODY='{"messages":[{"role":"user","content":"test"}]}'
+SECRET="your-shared-secret"
+
+# Generate hex signature
+SIGNATURE=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
+
+# Send request
+curl -X POST https://your-gateway/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Signature: $SIGNATURE" \
+  -d "$BODY"
+```
+
+#### RFC 9421 Mode Signature Example
+
+```bash
+# Full RFC 9421 implementation
+BODY='{"messages":[{"role":"user","content":"test"}]}'
+SECRET="your-shared-secret"
+
+# 1. Calculate Content-Digest
+CONTENT_DIGEST="sha-256=:$(echo -n "$BODY" | openssl dgst -sha256 -binary | base64):"
+
+# 2. Build signature base string
+CREATED=$(date +%s)
+EXPIRES=$((CREATED + 300))
+SIG_BASE="\"@method\": POST
+\"@path\": /v1/chat/completions
+\"content-digest\": $CONTENT_DIGEST
+\"@signature-params\": (\"@method\" \"@path\" \"content-digest\");created=$CREATED;expires=$EXPIRES"
+
+# 3. Calculate signature
+SIGNATURE=$(echo -n "$SIG_BASE" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
+
+# 4. Send request
+curl -X POST https://your-gateway/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Content-Digest: $CONTENT_DIGEST" \
+  -H "Signature: sig1=:$SIGNATURE:" \
+  -H "Signature-Input: sig1=(\"@method\" \"@path\" \"content-digest\");created=$CREATED;expires=$EXPIRES" \
+  -d "$BODY"
+```
+
+**Security Recommendations**:
+- ✅ Use `rfc9421` mode in production for stronger security
+- ✅ Set `allowUnsigned: false` in production
+- ✅ Rotate `sharedSecret` regularly
+- ✅ Use strong random keys (at least 32 bytes)
+- ✅ Enable `Content-Digest` validation in RFC 9421 mode
 
 ### Behavior Certificates (B)
 
@@ -146,6 +211,86 @@ Implement declarative behavior certificates that define agent operation boundari
 **Default deny message:**
 ```
 This operation is not permitted by the agent's behavior certificate.
+```
+
+### Per-Consumer Configuration
+
+**New Feature v1.0.0**: Support differentiated security policies for different consumers (identified by `X-Mse-Consumer` header).
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `consumerConfigs` | object | No | {} | Consumer-specific configuration mapping |
+| `consumerConfigs.{consumerName}.securityBoundaries` | object | No | null | Consumer-specific security boundaries config |
+| `consumerConfigs.{consumerName}.inContextDefenses` | object | No | null | Consumer-specific in-context defenses config |
+| `consumerConfigs.{consumerName}.authenticatedPrompts` | object | No | null | Consumer-specific signature verification config |
+| `consumerConfigs.{consumerName}.behaviorCertificates` | object | No | null | Consumer-specific behavior certificates config |
+| `consumerConfigs.{consumerName}.codifiedPolicies` | object | No | null | Consumer-specific codified policies config |
+
+**Configuration Merge Rules**:
+1. If the request contains `X-Mse-Consumer` header, the plugin looks up the corresponding consumer configuration
+2. If a consumer configures a component (e.g. `securityBoundaries`), the **entire configuration** of that component is replaced by the consumer configuration
+3. If a consumer does not configure a component, the global configuration is used
+
+**Example Configuration**:
+```yaml
+# Global default configuration
+securityBoundaries:
+  enabled: true
+  wrapUserMessages: true
+
+behaviorCertificates:
+  enabled: true
+  permissions:
+    allowedTools:
+      - "read_*"
+      - "search_*"
+
+# Consumer-specific configuration
+consumerConfigs:
+  # High-risk consumer - stricter policies
+  consumer_high_risk:
+    securityBoundaries:
+      enabled: true
+      wrapUserMessages: true
+      includeContentDigest: true  # Additional security measure
+    behaviorCertificates:
+      permissions:
+        allowedTools:
+          - "read_only_tool"  # Only read-only tools allowed
+        deniedTools:
+          - "*"
+    codifiedPolicies:
+      enabled: true
+      policies:
+        - name: "strict_policy"
+          content: "Prohibit all write operations"
+          severity: "critical"
+  
+  # Trusted consumer - relaxed policies
+  consumer_trusted:
+    securityBoundaries:
+      enabled: false  # Trusted consumers can disable boundaries
+    behaviorCertificates:
+      permissions:
+        allowedTools:
+          - "*"  # Allow all tools
+```
+
+**Usage**:
+```bash
+# Request from high-risk consumer
+curl -X POST https://gateway/v1/chat/completions \
+  -H "X-Mse-Consumer: consumer_high_risk" \
+  -H "Content-Type: application/json" \
+  -d '...'
+# → Apply strict security policies
+
+# Request from trusted consumer
+curl -X POST https://gateway/v1/chat/completions \
+  -H "X-Mse-Consumer: consumer_trusted" \
+  -H "Content-Type: application/json" \
+  -d '...'
+# → Apply relaxed security policies
 ```
 
 ## Configuration Examples
@@ -381,47 +526,6 @@ sum(rate(a2as_security_boundaries_applied[5m]))
 
 ## Future Enhancements
 
-### Per-Consumer Configuration Support
-
-**Current Status**: Plugin uses unified configuration for all requests
-
-**Planned Feature**: Support differentiated configuration based on consumer identity
-
-**Implementation Approach**:
-```yaml
-behaviorCertificates:
-  enabled: true
-  perConsumer:
-    consumer1:  # Read-only permissions
-      permissions:
-        allowedTools: ["email.read", "email.search"]
-    consumer2:  # Full permissions
-      permissions:
-        allowedTools: ["*"]
-```
-
-**How It Works**:
-1. Authentication plugins (key-auth, jwt-auth, etc.) set `X-Mse-Consumer` header
-2. ai-a2as reads this header and applies corresponding configuration
-3. Different consumers get different security policies and permissions
-
-**Priority**: Medium (optional feature, doesn't affect core functionality)
-
-### Full RFC 9421 Signature Verification
-
-**Current Status**: Authenticated Prompts feature has framework and content digest implemented
-
-**Planned Feature**: Complete RFC 9421 HTTP Message Signatures verification
-
-**Includes**:
-- Full signature input construction
-- Signature parameter parsing (signature-input, signature)
-- Multiple signature algorithm support (HMAC-SHA256, RSA-PSS-SHA512, etc.)
-- Timestamp and nonce validation
-- Key rotation support
-
-**Priority**: High (security-related)
-
 ### MCP (Model Context Protocol) Integration
 
 **Current Status**: A2AS protections apply to standard LLM requests
@@ -436,6 +540,12 @@ behaviorCertificates:
 **Priority**: Low (advanced feature)
 
 ## Version History
+
+- **v1.1.0** (2025-01): Feature Enhancement Release
+  - ✅ Full RFC 9421 HTTP Message Signatures implementation (dual-mode: Simple + RFC 9421)
+  - ✅ Per-Consumer configuration support (differentiated security policies for different consumers)
+  - ✅ Enhanced configuration validation and error handling
+  - ✅ Added Prometheus observability metrics
 
 - **v1.0.0** (2025-01): Initial release
   - Implemented Security Boundaries (S)
