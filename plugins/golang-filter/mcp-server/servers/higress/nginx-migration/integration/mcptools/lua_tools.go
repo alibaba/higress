@@ -5,8 +5,10 @@ package mcptools
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
+	"nginx-migration-mcp/internal/rag"
 	"nginx-migration-mcp/tools"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
@@ -14,7 +16,8 @@ import (
 
 // RegisterLuaPluginTools registers Lua plugin analysis and conversion tools
 func RegisterLuaPluginTools(server *common.MCPServer, ctx *MigrationContext) {
-	server.RegisterTool(common.NewTool(
+	RegisterSimpleTool(
+		server,
 		"analyze_lua_plugin",
 		"分析 Nginx Lua 插件的兼容性，识别使用的 API 和潜在迁移问题",
 		map[string]interface{}{
@@ -28,11 +31,12 @@ func RegisterLuaPluginTools(server *common.MCPServer, ctx *MigrationContext) {
 			"required": []string{"lua_code"},
 		},
 		func(args map[string]interface{}) (string, error) {
-			return analyzeLuaPlugin(args)
+			return analyzeLuaPlugin(args, ctx)
 		},
-	))
+	)
 
-	server.RegisterTool(common.NewTool(
+	RegisterSimpleTool(
+		server,
 		"convert_lua_to_wasm",
 		"一键将 Nginx Lua 脚本转换为 Higress WASM 插件，自动生成 Go 代码和配置",
 		map[string]interface{}{
@@ -50,37 +54,43 @@ func RegisterLuaPluginTools(server *common.MCPServer, ctx *MigrationContext) {
 			"required": []string{"lua_code", "plugin_name"},
 		},
 		func(args map[string]interface{}) (string, error) {
-			return convertLuaToWasm(args)
+			return convertLuaToWasm(args, ctx)
 		},
-	))
+	)
 }
 
-func analyzeLuaPlugin(args map[string]interface{}) (string, error) {
+func analyzeLuaPlugin(args map[string]interface{}, ctx *MigrationContext) (string, error) {
 	luaCode, ok := args["lua_code"].(string)
 	if !ok {
 		return "", fmt.Errorf("missing or invalid lua_code parameter")
 	}
 
-	// Analyze Lua features
+	// Analyze Lua features (基于规则)
 	features := []string{}
 	warnings := []string{}
+	detectedAPIs := []string{}
 
 	if strings.Contains(luaCode, "ngx.var") {
 		features = append(features, "- ngx.var - Nginx变量")
+		detectedAPIs = append(detectedAPIs, "ngx.var")
 	}
 	if strings.Contains(luaCode, "ngx.req") {
 		features = append(features, "- ngx.req - 请求API")
+		detectedAPIs = append(detectedAPIs, "ngx.req")
 	}
 	if strings.Contains(luaCode, "ngx.exit") {
 		features = append(features, "- ngx.exit - 请求终止")
+		detectedAPIs = append(detectedAPIs, "ngx.exit")
 	}
 	if strings.Contains(luaCode, "ngx.shared") {
 		features = append(features, "- ngx.shared - 共享字典 (警告)")
 		warnings = append(warnings, "共享字典需要外部缓存替换")
+		detectedAPIs = append(detectedAPIs, "ngx.shared")
 	}
 	if strings.Contains(luaCode, "ngx.location.capture") {
 		features = append(features, "- ngx.location.capture - 内部请求 (警告)")
 		warnings = append(warnings, "需要改为HTTP客户端调用")
+		detectedAPIs = append(detectedAPIs, "ngx.location.capture")
 	}
 
 	compatibility := "full"
@@ -91,12 +101,34 @@ func analyzeLuaPlugin(args map[string]interface{}) (string, error) {
 		compatibility = "manual"
 	}
 
+	// === RAG 增强：查询知识库获取转换建议 ===
+	var ragContext *rag.RAGContext
+	if ctx.RAGManager != nil && ctx.RAGManager.IsEnabled() && len(detectedAPIs) > 0 {
+		query := fmt.Sprintf("Nginx Lua API %s 在 Higress WASM 中的转换方法和最佳实践", strings.Join(detectedAPIs, ", "))
+		var err error
+		ragContext, err = ctx.RAGManager.QueryForTool("analyze_lua_plugin", query, "lua_migration")
+		if err != nil {
+			log.Printf("⚠️  RAG query failed for analyze_lua_plugin: %v", err)
+		}
+	}
+
+	// 构建结果
+	var result strings.Builder
+
+	// RAG 上下文（如果有）
+	if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+		result.WriteString("📚 知识库参考资料:\n\n")
+		result.WriteString(ragContext.FormatContextForAI())
+		result.WriteString("\n")
+	}
+
+	// 基于规则的分析
 	warningsText := "无"
 	if len(warnings) > 0 {
 		warningsText = strings.Join(warnings, "\n")
 	}
 
-	result := fmt.Sprintf(`Lua插件兼容性分析
+	result.WriteString(fmt.Sprintf(`Lua插件兼容性分析
 
 检测特性:
 %s
@@ -106,21 +138,21 @@ func analyzeLuaPlugin(args map[string]interface{}) (string, error) {
 
 兼容性级别: %s
 
-迁移建议:`, strings.Join(features, "\n"), warningsText, compatibility)
+迁移建议:`, strings.Join(features, "\n"), warningsText, compatibility))
 
 	switch compatibility {
 	case "full":
-		result += "\n- 可直接迁移到WASM插件"
+		result.WriteString("\n- 可直接迁移到WASM插件")
 	case "partial":
-		result += "\n- 需要部分重构"
+		result.WriteString("\n- 需要部分重构")
 	case "manual":
-		result += "\n- 需要手动重写"
+		result.WriteString("\n- 需要手动重写")
 	}
 
-	return result, nil
+	return result.String(), nil
 }
 
-func convertLuaToWasm(args map[string]interface{}) (string, error) {
+func convertLuaToWasm(args map[string]interface{}, ctx *MigrationContext) (string, error) {
 	luaCode, ok := args["lua_code"].(string)
 	if !ok {
 		return "", fmt.Errorf("missing or invalid lua_code parameter")
@@ -134,18 +166,41 @@ func convertLuaToWasm(args map[string]interface{}) (string, error) {
 	// 分析Lua脚本
 	analyzer := tools.AnalyzeLuaScript(luaCode)
 
+	// === RAG 增强：查询转换模式和代码示例 ===
+	var ragContext *rag.RAGContext
+	if ctx.RAGManager != nil && ctx.RAGManager.IsEnabled() && len(analyzer.Features) > 0 {
+		// 提取特性列表
+		featureList := []string{}
+		for feature := range analyzer.Features {
+			featureList = append(featureList, feature)
+		}
+
+		query := fmt.Sprintf("将使用了 %s 的 Nginx Lua 插件转换为 Higress WASM Go 插件的代码示例",
+			strings.Join(featureList, ", "))
+		var err error
+		ragContext, err = ctx.RAGManager.QueryForTool("convert_lua_to_wasm", query, "lua_to_wasm")
+		if err != nil {
+			log.Printf("⚠️  RAG query failed for convert_lua_to_wasm: %v", err)
+		}
+	}
+
 	// 转换为WASM插件
 	result, err := tools.ConvertLuaToWasm(analyzer, pluginName)
 	if err != nil {
 		return "", fmt.Errorf("conversion failed: %w", err)
 	}
 
-	warningsText := "无特殊注意事项"
-	if len(analyzer.Warnings) > 0 {
-		warningsText = strings.Join(analyzer.Warnings, "\n- ")
+	// 构建响应
+	var response strings.Builder
+
+	// RAG 上下文（如果有）
+	if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+		response.WriteString("📚 知识库代码示例:\n\n")
+		response.WriteString(ragContext.FormatContextForAI())
+		response.WriteString("\n---\n\n")
 	}
 
-	response := fmt.Sprintf(`Go 代码:
+	response.WriteString(fmt.Sprintf(`Go 代码:
 %s
 
 WasmPlugin 配置:
@@ -156,7 +211,7 @@ WasmPlugin 配置:
 		result.WasmPluginYAML,
 		analyzer.Complexity,
 		len(analyzer.Features),
-		len(analyzer.Warnings))
+		len(analyzer.Warnings)))
 
-	return response, nil
+	return response.String(), nil
 }

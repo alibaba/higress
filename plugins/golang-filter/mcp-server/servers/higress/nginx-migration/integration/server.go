@@ -6,7 +6,9 @@ package nginx_migration
 import (
 	"errors"
 
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/nginx-migration/integration/mcptools"
+	"nginx-migration-mcp/integration/mcptools"
+	"nginx-migration-mcp/internal/rag"
+
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
@@ -24,6 +26,7 @@ type NginxMigrationConfig struct {
 	defaultNamespace string
 	defaultHostname  string
 	description      string
+	ragConfigPath    string // RAG 配置文件路径
 }
 
 // ParseConfig parses the configuration map for the Nginx Migration server
@@ -59,8 +62,15 @@ func (c *NginxMigrationConfig) ParseConfig(config map[string]interface{}) error 
 		c.description = "Nginx Migration MCP Server - Convert Nginx configs and Lua plugins to Higress"
 	}
 
-	api.LogDebugf("NginxMigrationConfig ParseConfig: gatewayName=%s, gatewayNamespace=%s, defaultNamespace=%s",
-		c.gatewayName, c.gatewayNamespace, c.defaultNamespace)
+	// RAG 配置路径（可选）
+	if ragPath, ok := config["ragConfigPath"].(string); ok {
+		c.ragConfigPath = ragPath
+	} else {
+		c.ragConfigPath = "config/rag.json" // 默认路径
+	}
+
+	api.LogDebugf("NginxMigrationConfig ParseConfig: gatewayName=%s, gatewayNamespace=%s, defaultNamespace=%s, ragConfig=%s",
+		c.gatewayName, c.gatewayNamespace, c.defaultNamespace, c.ragConfigPath)
 
 	return nil
 }
@@ -85,12 +95,32 @@ func (c *NginxMigrationConfig) NewServer(serverName string) (*common.MCPServer, 
 		DefaultHostname:  c.defaultHostname,
 	}
 
+	// 初始化 RAG Manager（如果配置了）
+	if c.ragConfigPath != "" {
+		api.LogInfof("Loading RAG config from: %s", c.ragConfigPath)
+		ragConfig, err := rag.LoadRAGConfig(c.ragConfigPath)
+		if err != nil {
+			api.LogWarnf("Failed to load RAG config: %v, RAG will be disabled", err)
+			// 不返回错误，继续使用无 RAG 的模式
+			ragConfig = &rag.RAGConfig{Enabled: false}
+		}
+
+		// 创建 RAG Manager
+		migrationCtx.RAGManager = rag.NewRAGManager(ragConfig)
+
+		if migrationCtx.RAGManager.IsEnabled() {
+			api.LogInfof("✅ RAG enabled for Nginx Migration MCP Server")
+		} else {
+			api.LogInfof("📖 RAG disabled, using rule-based approach")
+		}
+	}
+
 	// Register all migration tools
 	mcptools.RegisterNginxConfigTools(mcpServer, migrationCtx)
 	mcptools.RegisterLuaPluginTools(mcpServer, migrationCtx)
 	mcptools.RegisterToolChainTools(mcpServer, migrationCtx)
 
-	api.LogInfof("Nginx Migration MCP Server initialized: %s", serverName)
+	api.LogInfof("Nginx Migration MCP Server initialized: %s (tools registered)", serverName)
 
 	return mcpServer, nil
 }

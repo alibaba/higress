@@ -9,7 +9,7 @@ build: standalone
 # 编译独立模式
 standalone:
 	@echo "编译独立模式..."
-	@cd cmd/standalone && go build -o ../../nginx-migration-mcp
+	@cd standalone/cmd && go build -o ../../nginx-migration-mcp
 	@echo "独立模式编译完成: ./nginx-migration-mcp"
 
 # 清理编译产物

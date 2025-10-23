@@ -5,6 +5,8 @@ package mcptools
 
 import (
 	"fmt"
+	"log"
+	"nginx-migration-mcp/internal/rag"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
@@ -12,7 +14,8 @@ import (
 
 // RegisterNginxConfigTools 注册 Nginx 配置分析和转换工具
 func RegisterNginxConfigTools(server *common.MCPServer, ctx *MigrationContext) {
-	server.RegisterTool(common.NewTool(
+	RegisterSimpleTool(
+		server,
 		"parse_nginx_config",
 		"解析和分析 Nginx 配置文件，识别配置结构和复杂度",
 		map[string]interface{}{
@@ -28,9 +31,10 @@ func RegisterNginxConfigTools(server *common.MCPServer, ctx *MigrationContext) {
 		func(args map[string]interface{}) (string, error) {
 			return parseNginxConfig(args, ctx)
 		},
-	))
+	)
 
-	server.RegisterTool(common.NewTool(
+	RegisterSimpleTool(
+		server,
 		"convert_to_higress",
 		"将 Nginx 配置转换为 Higress HTTPRoute 和 Service 资源",
 		map[string]interface{}{
@@ -51,7 +55,7 @@ func RegisterNginxConfigTools(server *common.MCPServer, ctx *MigrationContext) {
 		func(args map[string]interface{}) (string, error) {
 			return convertToHigress(args, ctx)
 		},
-	))
+	)
 }
 
 func parseNginxConfig(args map[string]interface{}, ctx *MigrationContext) (string, error) {
@@ -74,7 +78,40 @@ func parseNginxConfig(args map[string]interface{}, ctx *MigrationContext) (strin
 		complexity = "Medium"
 	}
 
-	analysis := fmt.Sprintf(`Nginx配置分析结果
+	// 收集配置特性用于 RAG 查询
+	features := []string{}
+	if hasProxy {
+		features = append(features, "反向代理")
+	}
+	if hasRewrite {
+		features = append(features, "URL重写")
+	}
+	if hasSSL {
+		features = append(features, "SSL配置")
+	}
+
+	// === RAG 增强：查询 Nginx 配置迁移最佳实践 ===
+	var ragContext *rag.RAGContext
+	if ctx.RAGManager != nil && ctx.RAGManager.IsEnabled() && len(features) > 0 {
+		query := fmt.Sprintf("Nginx %s 迁移到 Higress 的配置方法和最佳实践", strings.Join(features, "、"))
+		var err error
+		ragContext, err = ctx.RAGManager.QueryForTool("parse_nginx_config", query, "nginx_migration")
+		if err != nil {
+			log.Printf("⚠️  RAG query failed for parse_nginx_config: %v", err)
+		}
+	}
+
+	// 构建分析结果
+	var result strings.Builder
+
+	// RAG 上下文（如果有）
+	if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+		result.WriteString("📚 知识库迁移指南:\n\n")
+		result.WriteString(ragContext.FormatContextForAI())
+		result.WriteString("\n---\n\n")
+	}
+
+	result.WriteString(fmt.Sprintf(`Nginx配置分析结果
 
 基础信息:
 - Server块: %d个
@@ -85,19 +122,19 @@ func parseNginxConfig(args map[string]interface{}, ctx *MigrationContext) (strin
 
 复杂度: %s
 
-迁移建议:`, serverCount, locationCount, hasSSL, hasProxy, hasRewrite, complexity)
+迁移建议:`, serverCount, locationCount, hasSSL, hasProxy, hasRewrite, complexity))
 
 	if hasProxy {
-		analysis += "\n- 反向代理将转换为HTTPRoute backendRefs"
+		result.WriteString("\n- 反向代理将转换为HTTPRoute backendRefs")
 	}
 	if hasRewrite {
-		analysis += "\n- URL重写将使用URLRewrite过滤器"
+		result.WriteString("\n- URL重写将使用URLRewrite过滤器")
 	}
 	if hasSSL {
-		analysis += "\n- SSL配置需要迁移到Gateway资源"
+		result.WriteString("\n- SSL配置需要迁移到Gateway资源")
 	}
 
-	return analysis, nil
+	return result.String(), nil
 }
 
 func convertToHigress(args map[string]interface{}, ctx *MigrationContext) (string, error) {
@@ -124,11 +161,32 @@ func convertToHigress(args map[string]interface{}, ctx *MigrationContext) (strin
 		}
 	}
 
+	// === RAG 增强：查询转换配置示例 ===
+	var ragContext *rag.RAGContext
+	if ctx.RAGManager != nil && ctx.RAGManager.IsEnabled() {
+		query := fmt.Sprintf("将 Nginx server 配置转换为 Higress HTTPRoute 的 YAML 配置示例")
+		var err error
+		ragContext, err = ctx.RAGManager.QueryForTool("convert_to_higress", query, "nginx_to_higress")
+		if err != nil {
+			log.Printf("⚠️  RAG query failed for convert_to_higress: %v", err)
+		}
+	}
+
 	// Generate route name
 	routeName := generateRouteName(hostname, ctx)
 	serviceName := generateServiceName(hostname, ctx)
 
-	yamlConfig := fmt.Sprintf(`转换后的Higress配置
+	// 构建结果
+	var result strings.Builder
+
+	// RAG 上下文（如果有）
+	if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+		result.WriteString("📚 知识库配置示例:\n\n")
+		result.WriteString(ragContext.FormatContextForAI())
+		result.WriteString("\n---\n\n")
+	}
+
+	result.WriteString(fmt.Sprintf(`转换后的Higress配置
 
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -175,9 +233,9 @@ spec:
 		ctx.GatewayName, ctx.GatewayNamespace, hostname,
 		serviceName, ctx.ServicePort,
 		serviceName, namespace,
-		ctx.ServicePort, ctx.TargetPort, namespace)
+		ctx.ServicePort, ctx.TargetPort, namespace))
 
-	return yamlConfig, nil
+	return result.String(), nil
 }
 
 func generateRouteName(hostname string, ctx *MigrationContext) string {

@@ -4,14 +4,28 @@ package standalone
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
+	"nginx-migration-mcp/internal/rag"
 	"nginx-migration-mcp/tools"
 )
 
 // NewMCPServer creates a new MCP server instance
 func NewMCPServer(config *ServerConfig) *MCPServer {
-	return &MCPServer{config: config}
+	// 初始化 RAG 管理器
+	ragConfig, err := rag.LoadRAGConfig("config/rag.json")
+	if err != nil {
+		log.Printf("⚠️  Failed to load RAG config: %v, RAG will be disabled", err)
+		ragConfig = &rag.RAGConfig{Enabled: false}
+	}
+
+	ragManager := rag.NewRAGManager(ragConfig)
+
+	return &MCPServer{
+		config:     config,
+		ragManager: ragManager,
+	}
 }
 
 // HandleMessage processes an incoming MCP message
@@ -401,16 +415,77 @@ func (s *MCPServer) GenerateConversionHints(args map[string]interface{}) tools.T
 	// 生成转换提示
 	hints := tools.GenerateConversionHints(analysis, pluginName)
 
+	// === RAG 增强：查询 Nginx API 转换文档 ===
+	var ragDocs string
+
+	// 构建更精确的查询语句
+	queryBuilder := []string{}
+	if len(analysis.APICalls) > 0 {
+		queryBuilder = append(queryBuilder, "Nginx Lua API 转换到 Higress WASM")
+
+		// 针对不同的 API 类型使用不同的查询关键词
+		hasHeaderOps := analysis.Features["header_manipulation"] || analysis.Features["request_headers"] || analysis.Features["response_headers"]
+		hasBodyOps := analysis.Features["request_body"] || analysis.Features["response_body"]
+		hasResponseControl := analysis.Features["response_control"]
+
+		if hasHeaderOps {
+			queryBuilder = append(queryBuilder, "请求头和响应头处理")
+		}
+		if hasBodyOps {
+			queryBuilder = append(queryBuilder, "请求体和响应体处理")
+		}
+		if hasResponseControl {
+			queryBuilder = append(queryBuilder, "响应控制和状态码设置")
+		}
+
+		// 添加具体的 API 调用
+		if len(analysis.APICalls) > 0 && len(analysis.APICalls) <= 5 {
+			queryBuilder = append(queryBuilder, fmt.Sprintf("涉及 API: %s", strings.Join(analysis.APICalls, ", ")))
+		}
+	} else {
+		queryBuilder = append(queryBuilder, "Higress WASM 插件开发 基础示例 Go SDK 使用")
+	}
+
+	// 添加复杂度相关的查询
+	if analysis.Complexity == "high" {
+		queryBuilder = append(queryBuilder, "复杂插件实现 高级功能")
+	}
+
+	queryString := strings.Join(queryBuilder, " ")
+
+	ragContext, err := s.ragManager.QueryForTool(
+		"generate_conversion_hints",
+		queryString,
+		"lua_migration",
+	)
+
+	if err == nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+		log.Printf("✅ RAG: Found %d documents for conversion hints", len(ragContext.Documents))
+		ragDocs = "\n\n## 📚 参考文档（来自知识库）\n\n" + ragContext.FormatContextForAI()
+	} else {
+		if err != nil {
+			log.Printf("⚠️  RAG query failed: %v", err)
+		}
+		ragDocs = ""
+	}
+
 	// 格式化输出
 	userMessage := fmt.Sprintf(`🎯 代码转换提示
 
 **插件名称**: %s
 **代码模板**: %s
+**RAG 状态**: %s
 
 %s
 `,
 		pluginName,
 		hints.CodeTemplate,
+		func() string {
+			if ragContext != nil && ragContext.Enabled {
+				return fmt.Sprintf("✅ 已加载 %d 个参考文档", len(ragContext.Documents))
+			}
+			return "⚡ 使用规则库（RAG 未启用）"
+		}(),
 		func() string {
 			if len(hints.Warnings) > 0 {
 				return "⚠️ **警告**: " + formatWarningsListForUser(hints.Warnings)
@@ -422,29 +497,78 @@ func (s *MCPServer) GenerateConversionHints(args map[string]interface{}) tools.T
 	// 生成详细的 AI 指令
 	aiInstructions := fmt.Sprintf(`现在你需要基于以下信息生成 Go WASM 插件代码。
 
-## 代码模板
+## 📋 任务概述
+
+**插件名称**: %s
+**原始 Lua 特性**: %s
+**复杂度**: %s
+**兼容性**: %s
+
+## 🎯 代码模板
 
 %s
+%s
 
-## 生成代码的要求
+## ✅ 生成代码的要求
 
-1. **实现所需的回调函数**
-2. **保持 Lua 代码的业务逻辑等价**
-3. **添加适当的错误处理**
-4. **包含配置解析逻辑（如需要）**
+### 必须实现
+1. **实现所需的回调函数**: %s
+2. **保持 Lua 代码的业务逻辑完全等价**
+3. **包含完整的错误处理逻辑**
+4. **实现配置解析函数（如果需要动态配置）**
 
-## 输出格式
+### 代码质量
+5. **添加清晰的注释**：标注每段代码对应的原始 Lua 逻辑
+6. **遵循 Go 代码规范**：使用驼峰命名，适当的包结构
+7. **添加日志记录**：关键步骤使用 log.Info/Warn/Error
+8. **错误返回规范**：失败时返回 types.ActionPause，成功返回 types.ActionContinue
+%s
+
+### 性能优化
+9. **避免不必要的内存分配**
+10. **合理使用缓存**（如果涉及重复查询）
+
+## 📚 参考资源
+
+- Higress WASM Go SDK 文档: https://higress.io/zh-cn/docs/user/wasm-go
+%s
+
+## 📤 输出格式
 
 请按以下格式输出代码：
 
 ### main.go
 `+"```go"+`
-[完整的 Go 代码]
+[完整的 Go 代码，包含所有必要的导入、配置结构体、init函数和回调函数]
 `+"```"+`
 
-生成代码后，建议调用 validate_wasm_code 工具进行验证。
+### 代码说明
+简要说明：
+- 实现了哪些回调函数
+- 如何处理错误情况
+- 与原 Lua 代码的对应关系
+
+生成代码后，**强烈建议**调用 validate_wasm_code 工具进行验证。
 `,
+		pluginName,
+		formatFeaturesList(analysis.Features),
+		analysis.Complexity,
+		analysis.Compatibility,
 		hints.CodeTemplate,
+		ragDocs,
+		hints.CodeTemplate, // 再次显示模板作为提醒
+		func() string {
+			if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+				return "\n\n### 知识库参考\n11. **优先参考上述知识库文档中的示例代码和最佳实践**\n12. **使用文档中推荐的 API 调用方式**"
+			}
+			return ""
+		}(),
+		func() string {
+			if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+				return fmt.Sprintf("- 已从知识库检索到 %d 个相关文档（见上方）", len(ragContext.Documents))
+			}
+			return "- 使用基于规则的代码生成"
+		}(),
 	)
 
 	return tools.FormatToolResultWithAIContext(userMessage, aiInstructions, hints)
@@ -531,14 +655,78 @@ func (s *MCPServer) ValidateWasmCode(args map[string]interface{}) tools.ToolResu
 		formatList(report.MissingImports),
 	)
 
+	// === RAG 增强：查询最佳实践和代码规范 ===
+	var ragBestPractices string
+
+	// 根据验证结果构建更针对性的查询
+	queryBuilder := []string{"Higress WASM 插件"}
+
+	// 根据发现的问题类型添加关键词
+	if requiredCount > 0 || recommendedCount > 0 {
+		queryBuilder = append(queryBuilder, "常见错误")
+
+		// 检查具体问题类型
+		for _, issue := range report.Issues {
+			switch issue.Type {
+			case "error_handling":
+				queryBuilder = append(queryBuilder, "错误处理")
+			case "api_usage":
+				queryBuilder = append(queryBuilder, "API 使用规范")
+			case "config":
+				queryBuilder = append(queryBuilder, "配置解析")
+			case "logging":
+				queryBuilder = append(queryBuilder, "日志记录")
+			}
+		}
+	} else {
+		// 代码已通过基础验证，查询优化建议
+		queryBuilder = append(queryBuilder, "性能优化 最佳实践")
+	}
+
+	// 根据回调函数类型添加特定查询
+	for _, callback := range report.FoundCallbacks {
+		if strings.Contains(callback, "RequestHeaders") {
+			queryBuilder = append(queryBuilder, "请求头处理")
+		}
+		if strings.Contains(callback, "RequestBody") {
+			queryBuilder = append(queryBuilder, "请求体处理")
+		}
+		if strings.Contains(callback, "ResponseHeaders") {
+			queryBuilder = append(queryBuilder, "响应头处理")
+		}
+	}
+
+	// 如果有缺失的导入，查询包管理相关信息
+	if len(report.MissingImports) > 0 {
+		queryBuilder = append(queryBuilder, "依赖包导入")
+	}
+
+	queryString := strings.Join(queryBuilder, " ")
+
+	ragContext, err := s.ragManager.QueryForTool(
+		"validate_wasm_code",
+		queryString,
+		"best_practice",
+	)
+
+	if err == nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+		log.Printf("✅ RAG: Found %d best practice documents", len(ragContext.Documents))
+		ragBestPractices = "\n\n### 📚 最佳实践建议（来自知识库）\n\n" + ragContext.FormatContextForAI()
+		userMessage += ragBestPractices
+	} else {
+		if err != nil {
+			log.Printf("⚠️  RAG query failed for validation: %v", err)
+		}
+	}
+
 	// 根据问题级别给出建议
 	hasRequired := requiredCount > 0
 	if hasRequired {
-		userMessage += " **请优先修复 \"必须修复\" 的问题，否则代码可能无法编译或运行。**\n\n"
+		userMessage += "\n **请优先修复 \"必须修复\" 的问题，否则代码可能无法编译或运行。**\n\n"
 	} else if recommendedCount > 0 {
-		userMessage += " **代码基本结构正确。** 建议修复 \"建议修复\" 的问题以提高代码质量。\n\n"
+		userMessage += "\n **代码基本结构正确。** 建议修复 \"建议修复\" 的问题以提高代码质量。\n\n"
 	} else {
-		userMessage += " **代码验证通过！** 可以继续生成部署配置。\n\n"
+		userMessage += "\n **代码验证通过！** 可以继续生成部署配置。\n\n"
 		userMessage += "**下一步**：调用 `generate_deployment_config` 工具生成部署配置。\n"
 	}
 
@@ -723,6 +911,36 @@ func formatWarningsListForUser(warnings []string) string {
 		return "无"
 	}
 	return strings.Join(warnings, "\n- ")
+}
+
+func formatFeaturesList(features map[string]bool) string {
+	featureNames := map[string]string{
+		"request_headers":     "请求头处理",
+		"response_headers":    "响应头处理",
+		"header_manipulation": "请求头修改",
+		"request_body":        "请求体处理",
+		"response_body":       "响应体处理",
+		"response_control":    "响应控制",
+		"upstream":            "上游服务",
+		"redirect":            "重定向",
+		"rewrite":             "URL重写",
+	}
+
+	var result []string
+	for key, enabled := range features {
+		if enabled {
+			if name, ok := featureNames[key]; ok {
+				result = append(result, name)
+			} else {
+				result = append(result, key)
+			}
+		}
+	}
+
+	if len(result) == 0 {
+		return "基础功能"
+	}
+	return strings.Join(result, ", ")
 }
 
 func formatCallbacksList(callbacks []string) string {

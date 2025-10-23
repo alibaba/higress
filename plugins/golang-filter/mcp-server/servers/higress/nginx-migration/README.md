@@ -29,7 +29,9 @@ make build
 
 构建后会生成 `nginx-migration-mcp` 可执行文件。
 
-### 配置 MCP 客户端
+### 基础配置（无需知识库）
+
+**默认模式**：工具可以直接使用，基于内置规则生成转换建议。
 
 在 MCP 客户端（如 Cursor）的配置文件中添加：
 
@@ -44,7 +46,23 @@ make build
 }
 ```
 
-重启 MCP 客户端后即可使用。详细步骤请参考 [QUICKSTART.md](QUICKSTART.md)。
+### 进阶配置（启用 RAG 知识库）
+
+如需获得更准确的转换建议和官方文档参考，可启用 RAG 知识库功能：
+
+**步骤 1**：复制配置文件
+```bash
+cp config/rag.yaml.example config/rag.yaml
+```
+
+**步骤 2**：编辑配置
+```yaml
+rag:
+  enabled: true  # 启用 RAG
+  xxx_key: "your-bailian-key"
+  knowledge_base_id: "kb-xxxxxx"
+```
+
 
 ## 使用示例
 
@@ -61,12 +79,33 @@ make build
 **方式二：AI 辅助工具链**
 
 1. 使用 `analyze_lua_plugin` 分析 Lua 代码
-2. 使用 `generate_conversion_hints` 获取转换提示和 API 映射
+2. 使用 `generate_conversion_hints` 获取转换提示和 API 映射（可启用 RAG 增强）
 3. AI 根据提示生成 Go WASM 代码
-4. 使用 `validate_wasm_code` 验证生成的代码
+4. 使用 `validate_wasm_code` 验证生成的代码（可启用 RAG 增强）
 5. 使用 `generate_deployment_config` 生成部署配置
 
 推荐使用工具链方式处理复杂插件，可获得更好的转换质量和 AI 辅助。
+
+### 查询知识库（需启用 RAG）
+
+使用 `query_knowledge_base` 工具直接查询 Higress 文档：
+
+```javascript
+// 查询 Lua API 迁移方法
+query_knowledge_base({
+  "query": "ngx.req.get_headers 在 Higress 中怎么实现？",
+  "scenario": "lua_migration",
+  "top_k": 5
+})
+
+// 查询插件配置方法
+query_knowledge_base({
+  "query": "Higress 限流插件配置",
+  "scenario": "config_conversion",
+  "top_k": 3
+})
+```
+
 
 ## 项目结构
 

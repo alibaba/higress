@@ -2,6 +2,7 @@
 package standalone
 
 import (
+	"nginx-migration-mcp/internal/rag"
 	"nginx-migration-mcp/tools"
 )
 
@@ -26,7 +27,8 @@ type CallToolParams struct {
 }
 
 type MCPServer struct {
-	config *ServerConfig
+	config     *ServerConfig
+	ragManager *rag.RAGManager
 }
 
 // Implement the tools.MCPServer interface
