@@ -336,7 +336,7 @@ Open your browser and navigate to http://localhost:8000
 1. 使用 langchain UnstructuredFileLoader 加载文本文件成 Document
 2. 使用 RecursiveTextSplitter 对 Document 进行 chunk 分割
 3. 使用 OpenAI 兼容的 embedding 模型生成向量
-4. 使用 langchain_milvus.Milvus 进行向量存储和检索
+4. 使用 langchain_milvus.Milvus 进行向量存储和检索, 参考文档 https://python.langchain.com/docs/integrations/vectorstores/milvus/
 """
 
 import os
