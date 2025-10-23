@@ -323,27 +323,25 @@ Open your browser and navigate to http://localhost:8000
 ```
 
 
-## Python 代码样例
+## Python 构建测试数据集
 
-这里提供一个 基于 langchain 代码样例，用于生成测试数据集。
+### 1. 基于 langchain + langchain-milvus 代码样例，用于生成测试数据集。
 
 ```python
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Milvus向量数据库文档处理系统
+基于 LangChain Milvus 的文档处理系统
 功能：
-1. 使用langchain `UnstructuredFileLoader` 加载文本文件成 Document
-2. 使用 langchain `RecursiveTextSplitter` 对 Document 进行 chunk 分割
-3. 对每个 chunk 调用 OpenAI 兼容的 embedding
-4. 将每个 chunk 写入 milvus vectordb
+1. 使用 langchain UnstructuredFileLoader 加载文本文件成 Document
+2. 使用 RecursiveTextSplitter 对 Document 进行 chunk 分割
+3. 使用 OpenAI 兼容的 embedding 模型生成向量
+4. 使用 langchain_milvus.Milvus 进行向量存储和检索
 """
 
 import os
-import json
 import logging
 import uuid
-import time
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -351,66 +349,88 @@ from pathlib import Path
 from langchain.document_loaders import UnstructuredFileLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
+from langchain_milvus import Milvus
+from langchain_core.embeddings import Embeddings
 
 # OpenAI client import
 from openai import OpenAI
-
-# Milvus imports
-from pymilvus import (
-    connections,
-    Collection,
-    CollectionSchema,
-    FieldSchema,
-    DataType,
-    utility
-)
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class MilvusDocumentProcessor:
-    """Milvus文档处理器"""
+class DashScopeEmbeddings(Embeddings):
+    def __init__(self, openai_api_key: Optional[str] = None, openai_api_base: Optional[str] = None, model: str = "text-embedding-v1", dim: int = 1536):
+        self.client = OpenAI(
+                api_key=openai_api_key or os.getenv("DASHSCOPE_API_KEY"),
+                base_url=openai_api_base or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        )
+        self.model = model
+        self.dim = dim
+    
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=texts,
+            dimensions=self.dim,
+            encoding_format="float"
+        )
+        return [data.embedding for data in response.data]
+    
+    def embed_query(self, text: str) -> List[float]:
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=[text],
+            dimensions=self.dim,
+            encoding_format="float"
+        )
+        return response.data[0].embedding
+
+
+class LangChainMilvusProcessor:
+    """基于 LangChain Milvus 的文档处理器"""
     
     def __init__(
         self,
-        milvus_host: str = "localhost",
-        milvus_port: str = "19530",
-        user_name: str = "",
-        password: str = "",
+        milvus_uri: str = "http://localhost:19530",
+        milvus_token: str = "",
         db_name: str = "default",
-        collection_name: str = "test_rag",
-        embedding_model: str = "text-embedding-ada-002",
+        collection_name: str = "langchain_rag",
+        embedding_model: str = "text-embedding-v4",
         openai_api_key: Optional[str] = None,
         openai_api_base: Optional[str] = None,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 100,
-        embedding_dim: int = 1536
+        chunk_size: int = 500,
+        chunk_overlap: int = 50,
+        embedding_dim: int = 1024,
+        drop_old: bool = False
     ):
         """
-        初始化Milvus文档处理器
+        初始化 LangChain Milvus 文档处理器
         
         Args:
-            milvus_host: Milvus服务器地址
-            milvus_port: Milvus服务器端口
+            milvus_uri: Milvus 服务器 URI
+            milvus_token: Milvus 认证 token
+            db_name: 数据库名称
             collection_name: 集合名称
             embedding_model: 嵌入模型名称
-            openai_api_key: OpenAI API密钥
-            openai_api_base: OpenAI API基础URL（用于兼容其他服务）
+            openai_api_key: OpenAI API 密钥
+            openai_api_base: OpenAI API 基础 URL
             chunk_size: 文本分割大小
             chunk_overlap: 文本分割重叠大小
+            embedding_dim: 向量维度
+            drop_old: 是否删除已存在的集合
         """
-        self.milvus_host = milvus_host
-        self.milvus_port = milvus_port
-        self.user_name = user_name
-        self.password = password
+        self.milvus_uri = milvus_uri
+        self.milvus_token = milvus_token
         self.db_name = db_name
         self.collection_name = collection_name
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self.embedding_dim = embedding_dim  
-      
+        self.embedding_dim = embedding_dim
+        self.drop_old = drop_old
+        self.embedding_model = embedding_model
+        self.embedding_dim = embedding_dim
         
         # 初始化文本分割器
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -420,106 +440,69 @@ class MilvusDocumentProcessor:
             separators=["\n\n", "\n", " ", ""]
         )
         
-        # 初始化嵌入模型
-        self.openai_client = OpenAI(
-            api_key=openai_api_key or os.getenv("DASHSCOPE_API_KEY"),
-            base_url=openai_api_base or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        self.embeddings = DashScopeEmbeddings(
+            openai_api_key=openai_api_key,
+            openai_api_base=openai_api_base,
+            model=embedding_model,
+            dim=embedding_dim
         )
-        
-        self.embedding_model = embedding_model
-        
-        # Milvus连接和集合
-        self.collection = None
-        
-    def connect_milvus(self):
-        """连接到Milvus数据库"""
-        try:
-            connections.connect(
-                alias="default",
-                host=self.milvus_host,
-                port=self.milvus_port,
-                user=self.user_name,
-                password=self.password,
-                db_name=self.db_name
-            )
-            logger.info(f"成功连接到Milvus: {self.milvus_host}:{self.milvus_port} 数据库: {self.db_name}")
-            return True
-        except Exception as e:
-            logger.error(f"连接Milvus失败: {e}")
-            return False
     
-    def create_collection(self):
-        """
-        创建Milvus集合
-        
-        Args:
-            dimension: 向量维度，默认1536（OpenAI text-embedding-ada-002的维度）
-        """
+        # 初始化 Milvus 向量存储
+        self.vectorstore = None
+        self._init_vectorstore()
+    
+    def _init_vectorstore(self):
+        """初始化 Milvus 向量存储"""
         try:
-            # 检查集合是否已存在
-            if utility.has_collection(self.collection_name):
-                logger.info(f"集合 {self.collection_name} 已存在")
-                self.collection = Collection(self.collection_name)
-                return True
-            
-            # 定义字段
-            fields = [
-                FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, auto_id=False, max_length=256),
-                FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=8192),
-                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=self.embedding_dim),
-                FieldSchema(name="metadata", dtype=DataType.JSON),
-                FieldSchema(name="created_at", dtype=DataType.INT64)
-            ]
-            
-            # 创建集合schema
-            schema = CollectionSchema(
-                fields=fields,
-                description="文档chunk向量存储"
+            self.vectorstore = Milvus(
+                embedding_function=self.embeddings,
+                collection_name=self.collection_name,
+                connection_args={
+                    "uri": self.milvus_uri,
+                    "token": self.milvus_token,
+                    "db_name": self.db_name
+                },
+                index_params={
+                    "index_type": "HNSW",
+                    "metric_type": "IP",
+                    "params": {"M": 8, "efConstruction": 64}
+                },
+                consistency_level="Strong",
+                drop_old=self.drop_old,
+                metadata_field="metadata"    # 自定义元数据字段名
             )
             
-            # 创建集合
-            self.collection = Collection(
-                name=self.collection_name,
-                schema=schema
-            )
-            
-            # 创建索引
-            index_params = {
-                "metric_type": "IP",  # 内积
-                "index_type": "HNSW",
-                "params": {"M": 8, "efConstruction": 64}
-            }
-            
-            self.collection.create_index(
-                field_name="vector",
-                index_params=index_params
-            )
-            
-            logger.info(f"成功创建集合: {self.collection_name}")
-            return True
+            logger.info(f"成功初始化 Milvus 向量存储: {self.collection_name}")
             
         except Exception as e:
-            logger.error(f"创建集合失败: {e}")
-            return False
+            logger.error(f"初始化 Milvus 向量存储失败: {e}")
+            raise
     
     def load_document(self, file_path: str) -> List[Document]:
         """
-        使用UnstructuredFileLoader加载文档
+        使用 UnstructuredFileLoader 加载文档
+        
         Args:
             file_path: 文件路径
             
         Returns:
-            Document列表
+            Document 列表
         """
         try:
             logger.info(f"加载文档: {file_path}")
+            
             # 检查文件是否存在
             if not os.path.exists(file_path):
                 raise FileNotFoundError(f"文件不存在: {file_path}")
             
-            # 使用UnstructuredFileLoader加载文档
+            # 使用 UnstructuredFileLoader 加载文档
             loader = UnstructuredFileLoader(file_path)
             documents = loader.load()
+
+            # 添加文件路径到元数据
+            for doc in documents:
+                doc.metadata["source"] = os.path.basename(file_path)
+                doc.metadata["filename"] = file_path
             
             logger.info(f"成功加载 {len(documents)} 个文档")
             return documents
@@ -530,108 +513,61 @@ class MilvusDocumentProcessor:
     
     def split_documents(self, documents: List[Document]) -> List[Document]:
         """
-        使用RecursiveTextSplitter分割文档
+        使用 RecursiveTextSplitter 分割文档
         
         Args:
             documents: 文档列表
             
         Returns:
-            分割后的文档chunk列表
+            分割后的文档 chunk 列表
         """
         try:
             logger.info(f"开始分割 {len(documents)} 个文档")
-            
+
             chunks = self.text_splitter.split_documents(documents)
+            # 为每个 chunk 添加唯一 ID
+            for i, chunk in enumerate(chunks):
+                chunk.metadata["chunk_id"] = str(uuid.uuid4())
+                chunk.metadata["chunk_index"] = i
             
-            logger.info(f"文档分割完成，共生成 {len(chunks)} 个chunk")
+            logger.info(f"文档分割完成，共生成 {len(chunks)} 个 chunk")
             return chunks
             
         except Exception as e:
             logger.error(f"文档分割失败: {e}")
             return []
     
-    def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    def add_documents(self, documents: List[Document], ids: Optional[List[str]] = None) -> List[str]:
         """
-        生成文本嵌入向量
+        添加文档到向量存储
         
         Args:
-            texts: 文本列表
+            documents: 文档列表
+            ids: 文档 ID 列表（可选）
             
         Returns:
-            嵌入向量列表
+            添加的文档 ID 列表
         """
         try:
-            logger.info(f"开始生成 {len(texts)} 个文本的嵌入向量")
+            if not documents:
+                logger.warning("没有文档需要添加")
+                return []
             
-            # 使用 OpenAI 客户端生成嵌入向量
-            response = self.openai_client.embeddings.create(
-                model=self.embedding_model,
-                input=texts,
-                dimensions=self.embedding_dim,
-                encoding_format="float"
-            )
+            logger.info(f"开始添加 {len(documents)} 个文档到向量存储")
             
-            # 提取嵌入向量
-            embeddings = [data.embedding for data in response.data]
+            # 如果没有提供 ID，则生成 UUID
+            if ids is None:
+                ids = [str(uuid.uuid4()) for _ in range(len(documents))]
             
-            logger.info(f"嵌入向量生成完成，向量维度: {len(embeddings[0]) if embeddings else 0}")
-            return embeddings
+            # 添加文档到向量存储
+            added_ids = self.vectorstore.add_documents(documents=documents, ids=ids)
+            
+            logger.info(f"成功添加 {len(added_ids)} 个文档到向量存储")
+            return added_ids
             
         except Exception as e:
-            logger.error(f"生成嵌入向量失败: {e}")
+            logger.error(f"添加文档到向量存储失败: {e}")
             return []
-    
-    def insert_chunks_to_milvus(self, chunks: List[Document]) -> bool:
-        """
-        将文档chunk插入到Milvus
-        
-        Args:
-            chunks: 文档chunk列表
-            
-        Returns:
-            是否成功
-        """
-        try:
-            if not chunks:
-                logger.warning("没有chunk需要插入")
-                return True
-            
-            logger.info(f"开始插入 {len(chunks)} 个chunk到Milvus")
-            
-            # 准备数据
-            ids = [str(uuid.uuid4()) for _ in range(len(chunks))]
-            texts = [chunk.page_content for chunk in chunks]
-            metadatas = [json.dumps(chunk.metadata, ensure_ascii=False) for chunk in chunks]
-            created_ats = [int(time.time()) for _ in range(len(chunks))]
-            
-            # 生成嵌入向量
-            embeddings = self.generate_embeddings(texts)
-            
-            if not embeddings:
-                logger.error("生成嵌入向量失败")
-                return False
-            
-            # 准备插入数据
-            data = [
-                ids,
-                texts,
-                embeddings,
-                metadatas,
-                created_ats
-            ]
-            
-            # 插入数据
-            mr = self.collection.insert(data)
-            
-            # 刷新集合以确保数据持久化
-            self.collection.flush()
-            
-            logger.info(f"成功插入 {len(chunks)} 个chunk，插入ID范围: {mr.primary_keys[0]} - {mr.primary_keys[-1]}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"插入chunk到Milvus失败: {e}")
-            return False
     
     def process_file(self, file_path: str) -> bool:
         """
@@ -656,15 +592,15 @@ class MilvusDocumentProcessor:
             if not chunks:
                 return False
             
-            # 3. 插入到Milvus
-            success = self.insert_chunks_to_milvus(chunks)
+            # 3. 添加到向量存储
+            added_ids = self.add_documents(chunks)
             
-            if success:
-                logger.info(f"文件处理完成: {file_path}")
+            if added_ids:
+                logger.info(f"文件处理完成: {file_path}，添加了 {len(added_ids)} 个 chunk")
+                return True
             else:
                 logger.error(f"文件处理失败: {file_path}")
-            
-            return success
+                return False
             
         except Exception as e:
             logger.error(f"处理文件失败: {e}")
@@ -676,7 +612,7 @@ class MilvusDocumentProcessor:
         
         Args:
             directory_path: 目录路径
-            file_extensions: 支持的文件扩展名列表，默认为常见文本文件
+            file_extensions: 支持的文件扩展名列表
             
         Returns:
             文件处理结果字典
@@ -709,56 +645,50 @@ class MilvusDocumentProcessor:
         
         return results
     
-    def search_similar(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def similarity_search(self, query: str, k: int = 5) -> List[Document]:
         """
-        搜索相似文档
+        相似性搜索
         
         Args:
             query: 查询文本
-            top_k: 返回结果数量
+            k: 返回结果数量
             
         Returns:
-            搜索结果列表
+            相似文档列表
         """
         try:
-            # 生成查询向量
-            query_embeddings = self.generate_embeddings([query])
-            if not query_embeddings:
-                logger.error("生成查询向量失败")
-                return []
-            query_embedding = query_embeddings[0]
+            logger.info(f"执行相似性搜索: {query}")
             
-            # 加载集合
-            self.collection.load()
-            # 搜索参数
-            search_params = {
-                "metric_type": "IP",
-                "params": {"efSearch": 64}
-            }
+            results = self.vectorstore.similarity_search(query, k=k)
             
-            # 执行搜索
-            results = self.collection.search(
-                data=[query_embedding],
-                anns_field="vector",
-                param=search_params,
-                limit=top_k,
-                output_fields=["id", "content", "metadata"]
-            )
-            
-            # 格式化结果
-            formatted_results = []
-            for hit in results[0]:
-                formatted_results.append({
-                    "id": hit.id,
-                    "score": hit.score,
-                    "content": hit.entity.get("content"),
-                    "metadata": json.loads(hit.entity.get("metadata", "{}"))
-                })
-            
-            return formatted_results
+            logger.info(f"搜索完成，返回 {len(results)} 个结果")
+            return results
             
         except Exception as e:
-            logger.error(f"搜索失败: {e}")
+            logger.error(f"相似性搜索失败: {e}")
+            return []
+    
+    def similarity_search_with_score(self, query: str, k: int = 5) -> List[tuple]:
+        """
+        带分数的相似性搜索
+        
+        Args:
+            query: 查询文本
+            k: 返回结果数量
+            
+        Returns:
+            (文档, 分数) 元组列表
+        """
+        try:
+            logger.info(f"执行带分数的相似性搜索: {query}")
+            
+            results = self.vectorstore.similarity_search_with_score(query, k=k)
+            
+            logger.info(f"搜索完成，返回 {len(results)} 个结果")
+            return results
+            
+        except Exception as e:
+            logger.error(f"带分数的相似性搜索失败: {e}")
             return []
     
     def get_collection_stats(self) -> Dict[str, Any]:
@@ -769,45 +699,16 @@ class MilvusDocumentProcessor:
             集合统计信息字典
         """
         try:
-            if not self.collection:
-                logger.warning("集合未初始化")
-                return {}
-            
-            # 加载集合
-            self.collection.load()
-            
-            # 获取集合信息
+            # 通过 vectorstore 获取基本信息
             stats = {
                 "collection_name": self.collection_name,
-                "num_entities": self.collection.num_entities,
-                "description": self.collection.description,
-                "schema": {
-                    "fields": [
-                        {
-                            "name": field.name,
-                            "type": str(field.dtype),
-                            "is_primary": field.is_primary,
-                            "auto_id": field.auto_id
-                        }
-                        for field in self.collection.schema.fields
-                    ]
-                }
+                "milvus_uri": self.milvus_uri,
+                "db_name": self.db_name,
+                "embedding_model": self.embedding_model,
+                "embedding_dim": self.embedding_dim,
+                "chunk_size": self.chunk_size,
+                "chunk_overlap": self.chunk_overlap
             }
-            
-            # 获取索引信息
-            try:
-                indexes = self.collection.indexes
-                stats["indexes"] = [
-                    {
-                        "field_name": index.field_name,
-                        "index_name": index.index_name,
-                        "params": index.params
-                    }
-                    for index in indexes
-                ]
-            except Exception as e:
-                logger.warning(f"获取索引信息失败: {e}")
-                stats["indexes"] = []
             
             logger.info(f"成功获取集合 {self.collection_name} 的统计信息")
             return stats
@@ -821,54 +722,63 @@ def main():
     """主函数 - 示例用法"""
     # 配置参数
     config = {
-        "milvus_host": "localhost",
-        "milvus_port": "19530",
-        "user_name": "",
-        "password": "",
+        "milvus_uri": "http://localhost:19530",
+        "milvus_token": "",
         "db_name": "default",
-        "collection_name": "test_rag",
+        "collection_name": "langchain_rag",
         "embedding_model": "text-embedding-v4",
-        "openai_api_key": "sk-xxxxxx",
-        "openai_api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",  # 可选，用于兼容其他服务
+        "openai_api_key": "sk-xxxx",
+        "openai_api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "chunk_size": 500,
         "chunk_overlap": 50,
         "embedding_dim": 1024,
+        "drop_old": False
     }
-    # 创建处理器
-    processor = MilvusDocumentProcessor(**config)
-    # 连接Milvus
-    if not processor.connect_milvus():
-        logger.error("无法连接到Milvus，退出程序")
-        return
     
-    # 创建集合
-    if not processor.create_collection():
-        logger.error("无法创建集合，退出程序")
-        return
+    # 创建处理器
+    processor = LangChainMilvusProcessor(**config)
     
     # 示例：处理单个文件
-    file_path = "path/to/your/documents/a.txt"
+    file_path = "/path/demo.txt"
     processor.process_file(file_path)
     
-    # 示例：处理目录
-    # directory_path = "path/to/your/documents"
-    # results = processor.process_directory(directory_path)
+    # 示例：添加一些测试文档
+    test_documents = [
+        Document(
+            page_content="人工智能是计算机科学的一个分支，致力于创建能够执行通常需要人类智能的任务的系统。",
+            metadata={"source": "test"}
+        ),
+        Document(
+            page_content="机器学习是人工智能的一个子集，它使计算机能够在没有明确编程的情况下学习和改进。",
+            metadata={"source": "test"}
+        ),
+        Document(
+            page_content="深度学习是机器学习的一个分支，使用神经网络来模拟人脑的工作方式。",
+            metadata={"source": "test"}
+        )
+    ]
+    
+    # 添加测试文档
+    processor.add_documents(test_documents)
     
     # 示例：搜索
     query = "人工智能"
-    search_results = processor.search_similar(query, top_k=5)
-    for result in search_results:
-        print(f"ID: {result['id']}")
-        print(f"Score: {result['score']:.4f}")
-        print(f"Content: {result['content'][:100]}...")
-        print(f"MetaData: {result['metadata']}")
-        print("-" * 50)
+    search_results = processor.similarity_search_with_score(query, k=3)
+    
+    print(f"\n搜索查询: {query}")
+    print("=" * 50)
+    for doc, score in search_results:
+        print(f"分数: {score:.4f}")
+        print(f"内容: {doc.page_content[:100]}...")
+        print(f"元数据: {doc.metadata}")
+        print("-" * 30)
     
     # 获取统计信息
     stats = processor.get_collection_stats()
-    print("集合统计信息:")
+    print("\n集合统计信息:")
+    print("=" * 50)
     for key, value in stats.items():
-        print(f"  {key}: {value}")
+        print(f"{key}: {value}")
 
 
 if __name__ == "__main__":
@@ -876,7 +786,7 @@ if __name__ == "__main__":
 
 ```
 
-python 参考 requirements.txt 如下：
+### 2. python 参考 requirements.txt 如下：
 
 ```
 # Milvus向量数据库文档处理系统依赖包
@@ -889,30 +799,68 @@ openai>=1.14.3
 
 # Milvus向量数据库
 pymilvus>=2.6.2
-
-# 基础依赖
-numpy>=1.24.0
-pandas>=2.0.0
+langchain-milvus>=0.2.1
 
 # 文档处理相关
 python-magic>=0.4.27
 python-magic-bin>=0.4.14  # Windows用户需要
 filetype>=1.2.0
-
-# 网络请求
-requests>=2.31.0
-urllib3>=2.0.0
-
-# 日志和配置
-pyyaml>=6.0
-python-dotenv>=1.0.0
-
-# 可选：如果需要处理特定文件格式
-# docx2txt>=0.8  # Word文档
-# pdfplumber>=0.9.0  # PDF文档
-# python-pptx>=0.6.21  # PowerPoint文档
-# openpyxl>=3.1.0  # Excel文档
-# markdown>=3.5.0  # Markdown文档
-
 ```
 
+### 3. Higress RAG mcp server config 配置
+
+```yaml
+rag:
+  splitter:
+    provider: "recursive"
+    chunk_size: 500
+    chunk_overlap: 50
+  threshold: 0.5
+  top_k: 10
+
+llm:
+  provider: "openai"
+  api_key: "sk-xxx"
+  base_url: "https://openrouter.ai/api/v1"
+  model: "openai/gpt-4o"
+
+embedding:
+  provider: "openai"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  api_key: "sk-xxx"
+  model: "text-embedding-v4"
+  dimensions: 1024
+
+vector_db:
+  provider: "milvus"
+  host: "localhost"
+  port: 19530
+  database: "default"
+  collection: "langchain_rag"
+  mapping:
+    fields:
+      - standard_name: "id"
+        raw_name: "pk"
+        properties:
+          max_length: 256
+          auto_id: false
+      - standard_name: "content"
+        raw_name: "text"
+        properties:
+          max_length: 8192
+      - standard_name: "vector"
+        raw_name: "vector"
+        properties: {}
+      - standard_name: "metadata"
+        raw_name: "metadata"
+        properties: {}
+    index:
+      index_type: "HNSW"
+      params:
+        M: 8
+        ef_construction: 64
+    search:
+      metric_type: "IP"
+      params:
+        ef_search: 64
+```
