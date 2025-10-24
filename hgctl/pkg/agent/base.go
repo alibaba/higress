@@ -16,7 +16,7 @@ const (
 // 1. npm install
 // 2. check the npm version
 // 3. install hgctl-agent
-func getClient() *AICore {
+func getClient() *AgenticCore {
 	if !checkAgentInstallStatus() {
 		fmt.Println("installing......")
 		if err := installAgent(); err != nil {
@@ -25,7 +25,7 @@ func getClient() *AICore {
 		}
 	}
 
-	return NewAICore("")
+	return NewAgenticCore("")
 
 }
 

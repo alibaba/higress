@@ -36,7 +36,7 @@ type MCPAddArg struct {
 }
 
 type MCPAddHandler struct {
-	c   *AICore
+	c   *AgenticCore
 	arg MCPAddArg
 	w   io.Writer
 }
@@ -78,7 +78,7 @@ func newMCPAddCmd() *cobra.Command {
 	return cmd
 }
 
-func newHanlder(c *AICore, arg MCPAddArg, w io.Writer) *MCPAddHandler {
+func newHanlder(c *AgenticCore, arg MCPAddArg, w io.Writer) *MCPAddHandler {
 	return &MCPAddHandler{c, arg, w}
 }
 

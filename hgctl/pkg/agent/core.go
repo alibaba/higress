@@ -5,18 +5,17 @@ import (
 	"os/exec"
 )
 
-// integration with kode
-type AICore struct {
+type AgenticCore struct {
 	path string
 }
 
-func NewAICore(execPath string) *AICore {
-	return &AICore{
+func NewAgenticCore(execPath string) *AgenticCore {
+	return &AgenticCore{
 		path: execPath,
 	}
 }
 
-func (c *AICore) run(args ...string) error {
+func (c *AgenticCore) run(args ...string) error {
 	cmd := exec.Command(AgentBinaryName, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -25,11 +24,11 @@ func (c *AICore) run(args ...string) error {
 
 }
 
-func (c *AICore) Start() error {
+func (c *AgenticCore) Start() error {
 	return c.run(AgentBinaryName)
 }
 
 // MCP Related
-func (c *AICore) AddMCPServer(name string, url string) error {
+func (c *AgenticCore) AddMCPServer(name string, url string) error {
 	return c.run("mcp", "add-sse", name, url)
 }
