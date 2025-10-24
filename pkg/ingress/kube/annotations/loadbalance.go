@@ -41,6 +41,9 @@ const (
 
 	defaultAffinityCookieName = "INGRESSCOOKIE"
 	defaultAffinityCookiePath = "/"
+
+	mcpSseStatefulKey        = "mcp-sse-stateful-param-name"
+	defaultMcpSseStatefulKey = "sessionId"
 )
 
 var (
@@ -66,10 +69,11 @@ type consistentHashByCookie struct {
 }
 
 type LoadBalanceConfig struct {
-	simple         networking.LoadBalancerSettings_SimpleLB
-	other          *consistentHashByOther
-	cookie         *consistentHashByCookie
-	McpSseStateful bool
+	simple            networking.LoadBalancerSettings_SimpleLB
+	other             *consistentHashByOther
+	cookie            *consistentHashByCookie
+	McpSseStateful    bool
+	McpSseStatefulKey string
 }
 
 type loadBalance struct{}
@@ -139,6 +143,11 @@ func (l loadBalance) Parse(annotations Annotations, config *Ingress, _ *GlobalCo
 			lb = strings.ToUpper(lb)
 			if lb == "MCP-SSE" {
 				loadBalanceConfig.McpSseStateful = true
+				if key, err := annotations.ParseStringASAP(mcpSseStatefulKey); err == nil {
+					loadBalanceConfig.McpSseStatefulKey = key
+				} else {
+					loadBalanceConfig.McpSseStatefulKey = defaultMcpSseStatefulKey
+				}
 			} else {
 				loadBalanceConfig.simple = networking.LoadBalancerSettings_SimpleLB(networking.LoadBalancerSettings_SimpleLB_value[lb])
 			}
