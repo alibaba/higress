@@ -20,5 +20,5 @@ func NewAgentCmd() *cobra.Command {
 }
 
 func handleAgentInvoke(w io.Writer) error {
-	return getClient().Start()
+	return getAgent().Start()
 }

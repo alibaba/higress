@@ -3,51 +3,45 @@ package agent
 import (
 	"fmt"
 	"os"
-	"os/exec"
 )
 
 const (
-	AgentBinaryName = "hgctl-agent"
-	BinaryVersion   = "0.1.0"
-	DevVersion      = "dev"
+	AgentBinaryName  = "claude"
+	BinaryVersion    = "0.1.0"
+	DevVersion       = "dev"
+	NodeLeastVersion = 18
+	AgentInstallCmd  = "npm install -g @anthropic-ai/claude-code"
+	AgentReleasePage = "https://docs.claude.com/en/docs/claude-code/setup"
 )
 
 // set up the core env
-// 1. npm install
+// 1. check if npm is installed
 // 2. check the npm version
 // 3. install hgctl-agent
-func getClient() *AgenticCore {
+func getAgent() *AgenticCore {
 	if !checkAgentInstallStatus() {
-		fmt.Println("installing......")
-		if err := installAgent(); err != nil {
-			fmt.Printf("failed to install agent: %s\n", err)
-			panic("failed to launch hgctl-agent, install failed")
-		}
+		fmt.Println("⚠️ Prerequisites not satisfied. Exiting...")
+		// exit directly
+		os.Exit(1)
 	}
 
-	return NewAgenticCore("")
-
-}
-
-func installAgent() error {
-	args := []string{"install", "--verbose", "-g", fmt.Sprintf("%s@%s", AgentBinaryName, DevVersion)}
-	cmd := exec.Command("npm", args...)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("npm install failed: %w", err)
-	}
-	return nil
+	return NewAgenticCore()
 }
 
 func checkAgentInstallStatus() bool {
 	// TODO: Support cross-platform:windows
-	cmd := exec.Command(AgentBinaryName, "--version")
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("failed to launch hgctl-agent output: %s due to: %v", string(output), err)
-		return false
+	if !checkNodeInstall() {
+		if err := promptNodeInstall(); err != nil {
+			return false
+		}
 	}
+
+	if !checkAgentInstall() {
+		if err := promptAgentInstall(); err != nil {
+			return false
+		}
+	}
+
 	return true
 }

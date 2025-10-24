@@ -15,6 +15,7 @@ type MCPType string
 
 const (
 	HTTP    string = "http"
+	SSE     string = "sse"
 	OPENAPI string = "openapi"
 )
 
@@ -26,7 +27,7 @@ type MCPAddArg struct {
 
 	name      string
 	url       string
-	typ       string
+	transport string
 	spec      string
 	scope     string
 	noPublish bool
@@ -66,7 +67,7 @@ func newMCPAddCmd() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 	}
 
-	cmd.PersistentFlags().StringVarP(&arg.typ, "type", "t", HTTP, "Determine the MCP Server's Type")
+	cmd.PersistentFlags().StringVarP(&arg.transport, "transport", "t", HTTP, "Determine the MCP Server's Type")
 	cmd.PersistentFlags().StringVarP(&arg.url, "url", "u", "", "MCP server URL")
 	cmd.PersistentFlags().StringVarP(&arg.scope, "scope", "s", "project", `Configuration scope (project or global)`)
 	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification of the openapi api")
@@ -95,7 +96,7 @@ func (h *MCPAddHandler) validateArg() error {
 
 func (h *MCPAddHandler) addHTTPMCP() error {
 
-	if err := h.c.AddMCPServer(h.arg.name, h.arg.url); err != nil {
+	if err := h.c.AddMCPServer(h.arg.name, h.arg.transport, h.arg.url); err != nil {
 		return fmt.Errorf("mcp add failed: %w", err)
 	}
 
@@ -107,14 +108,21 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 
 }
 
+// hgctl mcp add -t openapi --name test-name --spec openapi.json
 func (h *MCPAddHandler) addOpenAPIMCP() error {
 	fmt.Printf("get mcp server %s spec %s\n", h.arg.name, h.arg.spec)
-	// TODO: OpenAPI transfer
+	h.parseOpenapi3Spec()
+
+	return nil
+}
+
+func (h *MCPAddHandler) parseOpenapi3Spec() error {
+	parseOpenapi2MCP(h.arg)
 	return nil
 }
 
 func handleAddMCP(w io.Writer, arg MCPAddArg) error {
-	client := getClient()
+	client := getAgent()
 	h := newHanlder(client, arg, w)
 	if err := h.validateArg(); err != nil {
 		return err
@@ -122,7 +130,7 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 
 	// spec -> OPENAPI
 	// noPublish -> typ
-	switch arg.typ {
+	switch arg.transport {
 	case HTTP:
 		return h.addHTTPMCP()
 	case OPENAPI:

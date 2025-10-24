@@ -6,13 +6,10 @@ import (
 )
 
 type AgenticCore struct {
-	path string
 }
 
-func NewAgenticCore(execPath string) *AgenticCore {
-	return &AgenticCore{
-		path: execPath,
-	}
+func NewAgenticCore() *AgenticCore {
+	return &AgenticCore{}
 }
 
 func (c *AgenticCore) run(args ...string) error {
@@ -24,11 +21,12 @@ func (c *AgenticCore) run(args ...string) error {
 
 }
 
+// ------- Initialization  -------
 func (c *AgenticCore) Start() error {
 	return c.run(AgentBinaryName)
 }
 
-// MCP Related
-func (c *AgenticCore) AddMCPServer(name string, url string) error {
-	return c.run("mcp", "add-sse", name, url)
+// ------- MCP  -------
+func (c *AgenticCore) AddMCPServer(name string, transport string, url string) error {
+	return c.run("mcp", "add", "--transport", name, url)
 }
