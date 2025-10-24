@@ -17,7 +17,6 @@ package hgctl
 import (
 	"os"
 
-	"github.com/alibaba/higress/hgctl/pkg/agent"
 	"github.com/alibaba/higress/hgctl/pkg/plugin"
 	"github.com/spf13/cobra"
 )
@@ -43,8 +42,8 @@ func GetRootCommand() *cobra.Command {
 	rootCmd.AddCommand(plugin.NewCommand())
 	rootCmd.AddCommand(newCompletionCmd(os.Stdout))
 	rootCmd.AddCommand(newCodeDebugCmd())
-	rootCmd.AddCommand(agent.NewMCPCmd())
-	rootCmd.AddCommand(agent.NewAgentCmd())
+	// rootCmd.AddCommand(agent.NewMCPCmd())
+	// rootCmd.AddCommand(agent.NewAgentCmd())
 
 	return rootCmd
 }
