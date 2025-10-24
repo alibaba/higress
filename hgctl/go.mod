@@ -285,15 +285,15 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
 )
 
-replace istio.io/api => ../istio/api
+replace istio.io/api => ../external/api
 
-replace github.com/envoyproxy/go-control-plane => ../envoy/go-control-plane
+replace github.com/envoyproxy/go-control-plane => ../external/go-control-plane
 
-replace istio.io/pkg => ../istio/pkg
+replace istio.io/pkg => ../external/pkg
 
-replace istio.io/client-go => ../istio/client-go
+replace istio.io/client-go => ../external/client-go
 
-replace istio.io/istio => ../istio/istio
+replace istio.io/istio => ../external/istio
 
 replace github.com/alibaba/higress => ../
 
