@@ -2,7 +2,7 @@ name: Wasm Plugin Unit Tests(GO)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
     paths:
       - 'plugins/wasm-go/extensions/**'
       - '.github/workflows/wasm-plugin-unit-test.yml'
