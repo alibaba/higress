@@ -9,9 +9,20 @@ description: AI 代理插件配置参考
 `AI 代理`插件实现了基于 OpenAI API 契约的 AI 代理功能。目前支持 OpenAI、Azure OpenAI、月之暗面（Moonshot）和通义千问等 AI
 服务提供商。
 
-> **注意：**
+**🚀 自动协议兼容 (Auto Protocol Compatibility)**
+
+插件现在支持**自动协议检测**，无需配置即可同时兼容 OpenAI 和 Claude 两种协议格式：
+
+- **OpenAI 协议**: 请求路径 `/v1/chat/completions`，使用标准的 OpenAI Messages API 格式
+- **Claude 协议**: 请求路径 `/v1/messages`，使用 Anthropic Claude Messages API 格式  
+- **智能转换**: 自动检测请求协议，如果目标供应商不原生支持该协议，则自动进行协议转换
+- **零配置**: 用户无需设置 `protocol` 字段，插件自动处理
+
+> **协议支持说明：**
 
 > 请求路径后缀匹配 `/v1/chat/completions` 时，对应文生文场景，会用 OpenAI 的文生文协议解析请求 Body，再转换为对应 LLM 厂商的文生文协议
+
+> 请求路径后缀匹配 `/v1/messages` 时，对应 Claude 文生文场景，会自动检测供应商能力：如果支持原生 Claude 协议则直接转发，否则先转换为 OpenAI 协议再转发给供应商
 
 > 请求路径后缀匹配 `/v1/embeddings` 时，对应文本向量场景，会用 OpenAI 的文本向量协议解析请求 Body，再转换为对应 LLM 厂商的文本向量协议
 
@@ -118,7 +129,15 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 | ----------------- | -------- | -------- | ------ | -------------------------------------------------------- |
 | `azureServiceUrl` | string   | 必填     | -      | Azure OpenAI 服务的 URL，须包含 `api-version` 查询参数。 |
 
-**注意：** Azure OpenAI 只支持配置一个 API Token。
+**注意：**
+1. Azure OpenAI 只支持配置一个 API Token。
+2. `azureServiceUrl` 支持以下三种配置格式：
+   1. 完整路径格式，例如：`https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview`
+      - 插件会直接将请求转发至该 URL，不会参考实际的请求路径。
+   2. 部署名称格式，例如：`https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME?api-version=2024-02-15-preview`
+      - 插件会根据实际的请求路径拼接后续路径。路径中的部署名称会保留不变，不会按照模型映射规则进行修改。同时支持 URL 中不包含部署名称的接口。
+   3. 资源名称格式，例如：`https://YOUR_RESOURCE_NAME.openai.azure.com?api-version=2024-02-15-preview` 
+      - 插件会根据实际的请求路径拼接后续路径。路径中的部署名称会根据请求中的模型名称结合模型映射规则进行填入。同时支持 URL 中不包含部署名称的接口。
 
 #### 月之暗面（Moonshot）
 
@@ -161,6 +180,14 @@ Groq 所对应的 `type` 为 `groq`。它并无特有的配置字段。
 #### Grok
 
 Grok 所对应的 `type` 为 `grok`。它并无特有的配置字段。
+
+#### OpenRouter
+
+OpenRouter 所对应的 `type` 为 `openrouter`。它并无特有的配置字段。
+
+#### Fireworks AI
+
+Fireworks AI 所对应的 `type` 为 `fireworks`。它并无特有的配置字段。
 
 #### 文心一言（Baidu）
 
@@ -284,6 +311,15 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 #### AWS Bedrock
 
 AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
+
+| 名称            | 数据类型  | 填写要求 | 默认值 | 描述                           |
+|---------------------------|--------|------|-----|------------------------------|
+| `modelVersion` | string   | 非必填  | -   | 用于指定 Triton Server 中 model version           |
+| `tritonDomain` | string   | 非必填  | -   | Triton Server 部署的指定请求 Domain            |
+
+#### NVIDIA Triton Interference Server
+
+NVIDIA Triton Interference Server 所对应的 type 为 triton。它特有的配置字段如下：
 
 | 名称                        | 数据类型   | 填写要求 | 默认值 | 描述                           |
 |---------------------------|--------|------|-----|------------------------------|
@@ -937,19 +973,154 @@ provider:
 }
 ```
 
-### 使用 OpenAI 协议代理 Claude 服务
+### 使用 OpenAI 协议代理 OpenRouter 服务
 
 **配置信息**
 
 ```yaml
 provider:
-  type: claude
+  type: openrouter
+  apiTokens:
+    - 'YOUR_OPENROUTER_API_TOKEN'
+  modelMapping:
+    'gpt-4': 'openai/gpt-4-turbo-preview'
+    'gpt-3.5-turbo': 'openai/gpt-3.5-turbo'
+    'claude-3': 'anthropic/claude-3-opus'
+    '*': 'openai/gpt-3.5-turbo'
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.7
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "gen-1234567890abcdef",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "openai/gpt-4-turbo-preview",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是一个AI助手，通过OpenRouter平台提供服务。我可以帮助回答问题、协助创作、进行对话等。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 46,
+    "total_tokens": 58
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 Fireworks AI 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: fireworks
+  apiTokens:
+    - "YOUR_FIREWORKS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    "gpt-3.5-turbo": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+    "*": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "fw-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是一个由 Fireworks AI 提供的人工智能助手，基于 Llama 3.1 模型。我可以帮助回答问题、进行对话和提供各种信息。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 45,
+    "total_tokens": 60
+  }
+}
+```
+
+### 使用自动协议兼容功能
+
+插件现在支持自动协议检测，可以同时处理 OpenAI 和 Claude 两种协议格式的请求。
+
+**配置信息**
+
+```yaml
+provider:
+  type: claude  # 原生支持 Claude 协议的供应商
   apiTokens:
     - 'YOUR_CLAUDE_API_TOKEN'
   version: '2023-06-01'
 ```
 
-**请求示例**
+**OpenAI 协议请求示例**
+
+URL: `http://your-domain/v1/chat/completions`
+
+```json
+{
+  "model": "claude-3-opus-20240229",
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ]
+}
+```
+
+**Claude 协议请求示例**
+
+URL: `http://your-domain/v1/messages`
 
 ```json
 {
@@ -965,6 +1136,8 @@ provider:
 ```
 
 **响应示例**
+
+两种协议格式的请求都会返回相应格式的响应：
 
 ```json
 {
@@ -987,6 +1160,39 @@ provider:
     "completion_tokens": 126,
     "total_tokens": 142
   }
+}
+```
+
+### 使用智能协议转换
+
+当目标供应商不原生支持 Claude 协议时，插件会自动进行协议转换：
+
+**配置信息**
+
+```yaml
+provider:
+  type: qwen  # 不原生支持 Claude 协议，会自动转换
+  apiTokens:
+    - 'YOUR_QWEN_API_TOKEN'
+  modelMapping:
+    'claude-3-opus-20240229': 'qwen-max'
+    '*': 'qwen-turbo'
+```
+
+**Claude 协议请求**
+
+URL: `http://your-domain/v1/messages` (自动转换为 OpenAI 协议调用供应商)
+
+```json
+{
+  "model": "claude-3-opus-20240229",
+  "max_tokens": 1024,
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ]
 }
 ```
 
@@ -1845,6 +2051,59 @@ provider:
   }
 }
 ```
+
+### 使用 OpenAI 协议代理 NVIDIA Triton Interference Server 服务
+
+**配置信息**
+
+```yaml
+providers:
+  - type: triton
+    tritonDomain: <LOCAL_TRITON_DOMAIN>
+    tritonModelVersion: <MODEL_VERSION>
+    apiTokens:
+      - "****"
+    modelMapping:
+      "*": gpt2
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "我是一个AI模型"
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
+}
+```
+
+
+
+
+
 
 
 ## 完整配置示例

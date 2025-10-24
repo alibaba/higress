@@ -23,8 +23,8 @@ import (
 	"istio.io/istio/pkg/config/security"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 const (

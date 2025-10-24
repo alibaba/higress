@@ -21,8 +21,8 @@ import (
 	json "encoding/json"
 	"fmt"
 
-	v1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	networkingv1 "github.com/alibaba/higress/client/pkg/applyconfiguration/networking/v1"
+	v1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
+	networkingv1 "github.com/alibaba/higress/v2/client/pkg/applyconfiguration/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	types "k8s.io/apimachinery/pkg/types"
@@ -77,7 +77,6 @@ func (c *FakeMcpBridges) List(ctx context.Context, opts metav1.ListOptions) (res
 func (c *FakeMcpBridges) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(mcpbridgesResource, c.ns, opts))
-
 }
 
 // Create takes the representation of a mcpBridge and creates it.  Returns the server's representation of the mcpBridge, and an error, if there is any.

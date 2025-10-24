@@ -39,6 +39,7 @@ func init() {
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.WithRebuildAfterRequests[TransformerConfig](1000),
 	)
 }
 
@@ -1011,7 +1012,15 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
 						kvs[key] = vs[len(vs)-1:]
 					}
-
+				case "SPLIT_AND_RETAIN_FIRST":
+					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
+						kvs[key] = strings.Split(vs[0], ",")[:1]
+					}
+				case "SPLIT_AND_RETAIN_LAST":
+					if vs, ok := kvs[key]; ok && len(vs) >= 1 {
+						split := strings.Split(vs[0], ",")
+						kvs[key] = split[len(split)-1:]
+					}
 				case "RETAIN_FIRST":
 					fallthrough
 				default:
@@ -1202,7 +1211,20 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map
 
 				case "RETAIN_LAST":
 					dedupedVal = values[len(values)-1].Value() // key: last
-
+				case "SPLIT_AND_RETAIN_FIRST":
+					if len(values) > 0 {
+						split := strings.Split(values[0].String(), ",")
+						if len(split) > 0 {
+							dedupedVal = split[0]
+						}
+					}
+				case "SPLIT_AND_RETAIN_LAST":
+					if len(values) > 0 {
+						split := strings.Split(values[0].String(), ",")
+						if len(split) > 0 {
+							dedupedVal = split[len(split)-1]
+						}
+					}
 				case "RETAIN_FIRST":
 					fallthrough
 				default:
