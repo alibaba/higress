@@ -6,10 +6,12 @@ coverage:
       default:
         target: 50%
         threshold: 0%
+        base: main
         if_ci_failed: error # success, failure, error, ignore
       wasm-plugin-patch:
         target: 80%
         threshold: 0%
+        base: main
         flags:
           - wasm-go-plugin
         paths:
@@ -21,6 +23,7 @@ coverage:
       default:
         target: auto
         threshold: 1%
+        base: main
         if_not_found: success
     changes: no
   precision: 2
