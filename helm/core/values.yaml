@@ -531,7 +531,7 @@ gateway:
     # -- Selector for PodMonitor
     # When using monitoring.coreos.com/v1.PodMonitor, the selector must match
     # the label "release: kube-prome" is the default for kube-prometheus-stack
-    PodMonitorSelector:
+    podMonitorSelector:
       release: kube-prome
     # -- provider group name for CustomResourceDefinition, can be monitoring.coreos.com or operator.victoriametrics.com
     provider: monitoring.coreos.com

@@ -112,6 +112,7 @@ helm delete higress -n higress-system
 | gateway.metrics.rawSpec | object | `{}` | 额外的度量规范 |
 | gateway.metrics.relabelConfigs | list | `[]` | 重新标签配置 |
 | gateway.metrics.relabelings | list | `[]` | 重新标签项 |
+| gateway.metrics.podMonitorSelector | object | `{"release":"kube-prometheus-stack"}` | PodMonitor 选择器，当使用 prometheus stack 的podmonitor自动发现时，选择器必须匹配标签 "release: kube-prome"，这是 kube-prometheus-stack 的默认设置 |
 | gateway.metrics.scrapeTimeout | string | `""` | 抓取的超时时间 |
 | gateway.name | string | `"higress-gateway"` | 网关名称 |
 | gateway.networkGateway | string | `""` | 网络网关指定 |
