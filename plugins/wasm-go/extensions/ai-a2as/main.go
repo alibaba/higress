@@ -21,6 +21,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -30,7 +31,6 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-// Metrics counters
 const (
 	metricA2ASRequestsTotal               = "a2as_requests_total"
 	metricA2ASSignatureVerificationFailed = "a2as_signature_verification_failed"
@@ -53,21 +53,7 @@ func init() {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config A2ASConfig) types.Action {
 	ctx.DisableReroute()
-
-	if config.AuthenticatedPrompts.Enabled {
-		if err := verifySignature(config.AuthenticatedPrompts, config.MaxRequestBodySize); err != nil {
-			log.Errorf("[A2AS] Signature verification failed: %v", err)
-			config.incrementMetric(metricA2ASSignatureVerificationFailed, 1)
-			_ = proxywasm.SendHttpResponse(403, [][2]string{
-				{"content-type", "application/json"},
-			}, []byte(`{"error":"unauthorized","message":"Invalid or missing request signature"}`), -1)
-			return types.ActionPause
-		}
-		log.Debugf("[A2AS] Signature verification passed")
-	}
-
 	proxywasm.RemoveHttpRequestHeader("content-length")
-
 	return types.ActionContinue
 }
 
@@ -80,6 +66,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 	}
 
 	config := globalConfig.MergeConsumerConfig(consumer)
+
+	if config.AuthenticatedPrompts.Enabled {
+		if err := verifySignature(config.AuthenticatedPrompts, config.MaxRequestBodySize); err != nil {
+			log.Errorf("[A2AS] Signature verification failed: %v", err)
+			config.incrementMetric(metricA2ASSignatureVerificationFailed, 1)
+			_ = proxywasm.SendHttpResponse(403, [][2]string{
+				{"content-type", "application/json"},
+			}, []byte(`{"error":"unauthorized","message":"Invalid or missing request signature"}`), -1)
+			return types.ActionPause
+		}
+		log.Debugf("[A2AS] Signature verification passed")
+	}
 
 	if !isChatCompletionRequest(body) {
 		log.Debugf("[A2AS] Not a chat completion request, skipping A2AS processing")
@@ -322,7 +320,7 @@ func checkToolPermissions(config BehaviorCertificatesConfig, body []byte) (denie
 
 func isToolAllowed(permissions AgentPermissions, toolName string) bool {
 	for _, denied := range permissions.DeniedTools {
-		if denied == toolName || denied == "*" {
+		if matchesPattern(denied, toolName) {
 			return false
 		}
 	}
@@ -332,11 +330,33 @@ func isToolAllowed(permissions AgentPermissions, toolName string) bool {
 	}
 
 	for _, allowed := range permissions.AllowedTools {
-		if allowed == toolName || allowed == "*" {
+		if matchesPattern(allowed, toolName) {
 			return true
 		}
 	}
 
+	return false
+}
+
+func matchesPattern(pattern, toolName string) bool {
+	if pattern == toolName {
+		return true
+	}
+	
+	if pattern == "*" {
+		return true
+	}
+	
+	if strings.HasSuffix(pattern, "*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(toolName, prefix)
+	}
+	
+	if strings.HasPrefix(pattern, "*") {
+		suffix := strings.TrimPrefix(pattern, "*")
+		return strings.HasSuffix(toolName, suffix)
+	}
+	
 	return false
 }
 

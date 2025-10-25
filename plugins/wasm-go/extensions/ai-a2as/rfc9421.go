@@ -269,11 +269,8 @@ func getHeaderComponent(component string) (string, error) {
 }
 
 func getContentDigestValue() (string, error) {
-	digest, err := proxywasm.GetHttpRequestHeader("Content-Digest")
-	if err == nil && digest != "" {
-		return digest, nil
-	}
-
+	providedDigest, err := proxywasm.GetHttpRequestHeader("Content-Digest")
+	
 	body, err := proxywasm.GetHttpRequestBody(0, 10*1024*1024)
 	if err != nil {
 		return "", err
@@ -281,7 +278,16 @@ func getContentDigestValue() (string, error) {
 
 	hash := sha256.Sum256(body)
 	digestValue := base64.StdEncoding.EncodeToString(hash[:])
-	return fmt.Sprintf("sha-256=%s", digestValue), nil
+	actualDigest := fmt.Sprintf("sha-256=:%s:", digestValue)
+
+	if providedDigest != "" {
+		if providedDigest != actualDigest {
+			return "", fmt.Errorf("Content-Digest mismatch: provided=%s, actual=%s", providedDigest, actualDigest)
+		}
+		return providedDigest, nil
+	}
+
+	return actualDigest, nil
 }
 
 func buildSignatureParamsLine(params *RFC9421SignatureParams) string {
@@ -330,4 +336,3 @@ func validateSignature(signatureBase, signatureValue, sharedSecret string) error
 
 	return nil
 }
-

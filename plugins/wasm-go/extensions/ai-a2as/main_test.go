@@ -22,8 +22,37 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-a2as/test"
 	"github.com/tidwall/gjson"
 )
+
+func TestSecurityBoundaries(t *testing.T) {
+	test.RunSecurityBoundariesParseConfigTests(t)
+	test.RunSecurityBoundariesOnHttpRequestHeadersTests(t)
+	test.RunSecurityBoundariesOnHttpRequestBodyTests(t)
+}
+
+func TestAuthenticatedPrompts(t *testing.T) {
+	test.RunAuthenticatedPromptsParseConfigTests(t)
+	test.RunAuthenticatedPromptsOnHttpRequestHeadersTests(t)
+	test.RunAuthenticatedPromptsOnHttpRequestBodyTests(t)
+}
+
+func TestBehaviorCertificates(t *testing.T) {
+	test.RunBehaviorCertificatesParseConfigTests(t)
+	test.RunBehaviorCertificatesOnHttpRequestBodyTests(t)
+}
+
+func TestDefensesAndPolicies(t *testing.T) {
+	test.RunDefensesAndPoliciesParseConfigTests(t)
+	test.RunDefensesAndPoliciesOnHttpRequestBodyTests(t)
+}
+
+func TestPerConsumer(t *testing.T) {
+	test.RunPerConsumerParseConfigTests(t)
+	test.RunPerConsumerOnHttpRequestHeadersTests(t)
+	test.RunPerConsumerOnHttpRequestBodyTests(t)
+}
 
 func TestComputeContentDigest(t *testing.T) {
 	tests := []struct {
@@ -574,4 +603,30 @@ func TestHMACSignatureGeneration(t *testing.T) {
 	t.Logf("Example HMAC-SHA256 signatures for body: %s", body)
 	t.Logf("  Hex:    %s", hexSignature)
 	t.Logf("  Base64: %s", base64Signature)
+}
+
+func TestMatchesPattern(t *testing.T) {
+	tests := []struct {
+		name     string
+		pattern  string
+		toolName string
+		expected bool
+	}{
+		{"exact match", "read_email", "read_email", true},
+		{"full wildcard", "*", "anything", true},
+		{"prefix wildcard match", "read_*", "read_email", true},
+		{"prefix wildcard no match", "read_*", "send_email", false},
+		{"suffix wildcard match", "*_email", "read_email", true},
+		{"suffix wildcard no match", "*_email", "read_message", false},
+		{"no match", "read_email", "send_email", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := matchesPattern(tt.pattern, tt.toolName)
+			if result != tt.expected {
+				t.Errorf("matchesPattern(%q, %q) = %v, want %v", tt.pattern, tt.toolName, result, tt.expected)
+			}
+		})
+	}
 }
