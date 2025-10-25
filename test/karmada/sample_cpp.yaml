@@ -1,0 +1,12 @@
+apiVersion: policy.karmada.io/v1alpha1
+kind: ClusterPropagationPolicy
+metadata:
+  name: higress-sample-config
+spec:
+  resourceSelectors:
+    - apiVersion: v1
+      kind: ConfigMap
+      name: higress-config
+      namespace: higress-system
+  placement:
+    clusterAffinity: {}
