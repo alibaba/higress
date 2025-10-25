@@ -346,9 +346,9 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 # LangChain imports
-from langchain.document_loaders import UnstructuredFileLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.schema import Document
+from langchain_community.document_loaders import UnstructuredFileLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
 from langchain_milvus import Milvus
 from langchain_core.embeddings import Embeddings
 
@@ -789,22 +789,14 @@ if __name__ == "__main__":
 ### 2. python 参考 requirements.txt
 
 ```
-# Milvus向量数据库文档处理系统依赖包
-# 基于milvus.py文件生成
-# LangChain相关依赖
-langchain>=0.3.27
-langchain-community>=0.3.31
+langchain>=1.0.2
+langchain-community>=0.4
 unstructured[all-docs]
 openai>=1.14.3
 
 # Milvus向量数据库
 pymilvus>=2.6.2
-langchain-milvus>=0.2.1
-
-# 文档处理相关
-python-magic>=0.4.27
-python-magic-bin>=0.4.14  # Windows用户需要
-filetype>=1.2.0
+langchain-milvus>=0.2.2
 ```
 
 ### 3. Higress RAG mcp server config 配置
@@ -864,3 +856,44 @@ vector_db:
       params:
         ef_search: 64
 ```
+
+### 4. 关于 langchain-milvus 对 Document metadata 处理
+
+在使用 langchain-milvus 进行文档处理时，有两种处理 metadata 的方法：
+
+#### 方法一：JSON 字符串存储（推荐）
+- **特点**：metadata 会被转换为 JSON 字符串存储在 Milvus 中，查询时会将 JSON 字符串转换为 Python 字典
+- **优势**：可以动态添加字段
+- **支持**：Higress RAG 支持读写操作
+
+**配置步骤**：
+1. 初始化 Milvus 时，需要指定 `metadata_field` 参数为实际的字段名称（这里为 "metadata"）
+2. 在 mapping 配置中添加 metadata 字段
+
+**Python 代码示例**：
+```python
+Milvus(
+    ...
+    metadata_field="metadata"    # 自定义元数据字段名
+)
+```
+
+**YAML 配置示例**：
+```yaml
+mapping:
+  fields:
+    - standard_name: "metadata"
+      raw_name: "metadata"
+      properties: {}
+```
+
+#### 方法二：字段展开存储
+- **特点**：metadata 中的字段会直接展开，metadata 里的 key 会作为字段名存储在 Milvus 中
+- **限制**：不可以动态添加字段
+- **支持**：Higress RAG 只支持读操作
+
+**配置步骤**：
+1. 初始化 Milvus 时，不需要指定 `metadata_field` 参数
+2. 在 mapping 配置中移除 metadata 字段
+
+**推荐使用方法一**，因为它提供了更好的灵活性和完整的读写支持。
