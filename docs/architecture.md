@@ -96,6 +96,17 @@ Ingress Config 包含 6 个控制器，各自负责不同的功能：
 - Http2Rpc Controller：监听 Http2Rpc 资源，实现 HTTP 协议到 RPC 协议的转换。用户可以通过配置协议转换，将 RPC 服务以 HTTP 接口的形式暴露，从而使用 HTTP 请求调用 RPC 接口。
 - WasmPlugin Controller：监听 WasmPlugin 资源，将 Higress WasmPlugin 转化为 Istio WasmPlugin。Higress WasmPlugin 在 Istio WasmPlugin 的基础上进行了扩展，支持全局、路由、域名、服务级别的配置。
 - ConfigmapMgr：监听 Higress 的全局配置 `higress-config` ConfigMap，可以根据 tracing、gzip 等配置构造 EnvoyFilter。
+  `mcpServer.redis` 支持通过 Secret 引用保存敏感信息，密码字段可以使用 `passwordSecret` 指向 `higress-system` 命名空间下的 Kubernetes Secret，避免在 ConfigMap 中保存明文密码，例如：
+
+  ```yaml
+  higress: |-
+    mcpServer:
+      redis:
+        address: "redis:6379"
+        passwordSecret:
+          name: redis-credentials
+          key: password
+  ```
 
 #### 2.2.2 Cert Server
 
