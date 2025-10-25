@@ -2,10 +2,12 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -16,6 +18,11 @@ import (
 	"github.com/higress-group/openapi-to-mcpserver/pkg/converter"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/parser"
+	"github.com/manifoldco/promptui"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8s "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var binaryName = AgentBinaryName
@@ -324,4 +331,103 @@ func convertMCPConfigToStr(cfg *models.MCPConfig) string {
 	// 	os.Exit(1)
 	// }
 
+}
+
+func GetHigressGatewayServiceIP() (string, error) {
+	color.Cyan("🚀 Adding openapi MCP Server to agent, checking Higress Gateway Pod status...")
+
+	defaultKubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
+	config, err := clientcmd.BuildConfigFromFlags("", defaultKubeconfig)
+	if err != nil {
+		color.Yellow("⚠️ Failed to load default kubeconfig: %v", err)
+		return promptForServiceKubeSettingsAndRetry()
+	}
+
+	clientset, err := k8s.NewForConfig(config)
+	if err != nil {
+		color.Yellow("⚠️ Failed to create Kubernetes client: %v", err)
+		return promptForServiceKubeSettingsAndRetry()
+	}
+
+	namespace := "higress-system"
+	svc, err := clientset.CoreV1().Services(namespace).Get(context.Background(), "higress-gateway", metav1.GetOptions{})
+	if err != nil || svc == nil {
+		color.Yellow("⚠️ Could not find Higress Gateway Service in namespace '%s'.", namespace)
+		return promptForServiceKubeSettingsAndRetry()
+	}
+
+	ip, err := extractServiceIP(clientset, namespace, svc)
+	if err != nil {
+		return "", err
+	}
+
+	color.Green("✅ Found Higress Gateway Service IP: %s (namespace: %s)", ip, namespace)
+	return ip, nil
+}
+
+// higress-gateway should always be LoadBalancer
+func extractServiceIP(clientset *k8s.Clientset, namespace string, svc *v1.Service) (string, error) {
+	return svc.Spec.ClusterIP, nil
+
+	// // fallback to Pod IP
+	// if len(svc.Spec.Selector) > 0 {
+	// 	selector := metav1.FormatLabelSelector(&metav1.LabelSelector{MatchLabels: svc.Spec.Selector})
+	// 	pods, err := clientset.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+	// 		LabelSelector: selector,
+	// 	})
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("failed to list pods for selector: %v", err)
+	// 	}
+	// 	if len(pods.Items) > 0 {
+	// 		return pods.Items[0].Status.PodIP, nil
+	// 	}
+	// }
+
+}
+
+// prompt fallback for user input
+func promptForServiceKubeSettingsAndRetry() (string, error) {
+	color.Cyan("Let's fix it manually 👇")
+
+	kubeconfigPrompt := promptui.Prompt{
+		Label:   "Enter kubeconfig path",
+		Default: filepath.Join(os.Getenv("HOME"), ".kube", "config"),
+	}
+	kubeconfigPath, err := kubeconfigPrompt.Run()
+	if err != nil {
+		return "", fmt.Errorf("aborted: %v", err)
+	}
+
+	nsPrompt := promptui.Prompt{
+		Label:   "Enter Higress namespace",
+		Default: "higress-system",
+	}
+	namespace, err := nsPrompt.Run()
+	if err != nil {
+		return "", err
+	}
+
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to load kubeconfig: %v", err)
+	}
+
+	clientset, err := k8s.NewForConfig(config)
+	if err != nil {
+		return "", fmt.Errorf("failed to create kubernetes client: %v", err)
+	}
+
+	svc, err := clientset.CoreV1().Services(namespace).Get(context.Background(), "higress-gateway", metav1.GetOptions{})
+	if err != nil || svc == nil {
+		color.Red("❌ Higress Gateway Service not found in namespace '%s'", namespace)
+		return "", fmt.Errorf("service not found")
+	}
+
+	ip, err := extractServiceIP(clientset, namespace, svc)
+	if err != nil {
+		return "", err
+	}
+
+	color.Green("✅ Found Higress Gateway Service IP: %s (namespace: %s)", ip, namespace)
+	return ip, nil
 }

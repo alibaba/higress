@@ -27,6 +27,6 @@ func (c *AgenticCore) Start() error {
 }
 
 // ------- MCP  -------
-func (c *AgenticCore) AddMCPServer(name string, transport string, url string) error {
-	return c.run("mcp", "add", "--transport", name, url)
+func (c *AgenticCore) AddMCPServer(name string, url string) error {
+	return c.run("mcp", "add", "--transport", HTTP, name, url)
 }

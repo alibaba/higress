@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
+	"github.com/fatih/color"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -67,6 +68,7 @@ func newMCPAddCmd() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			arg.name = args[0]
 			cmdutil.CheckErr(handleAddMCP(cmd.OutOrStdout(), *arg))
+			color.Cyan("Tip: Try doing 'kubectl port-forward' and add the server to the agent manually, if MCP Server connection failed")
 		},
 		Args: cobra.ExactArgs(1),
 	}
@@ -99,7 +101,7 @@ func (h *MCPAddHandler) validateArg() error {
 }
 
 func (h *MCPAddHandler) addHTTPMCP() error {
-	if err := h.core.AddMCPServer(h.arg.name, h.arg.transport, h.arg.url); err != nil {
+	if err := h.core.AddMCPServer(h.arg.name, h.arg.url); err != nil {
 		return fmt.Errorf("mcp add failed: %w", err)
 	}
 
@@ -113,13 +115,25 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 
 // hgctl mcp add -t openapi --name test-name --spec openapi.json
 func (h *MCPAddHandler) addOpenAPIMCP() error {
-	fmt.Printf("get mcp server: %s openapi-spec-file: %s\n", h.arg.name, h.arg.spec)
+	// fmt.Printf("get mcp server: %s openapi-spec-file: %s\n", h.arg.name, h.arg.spec)
 	config := h.parseOpenapiSpec()
 
 	// fmt.Printf("get config struct: %v", config)
 
-	// add service source and mcp server config
-	return publishToHigress(h.arg, config)
+	// publish to higress
+	if err := publishToHigress(h.arg, config); err != nil {
+		return err
+	}
+
+	// add mcp server to agent
+	gatewayIP, err := GetHigressGatewayServiceIP()
+	if err != nil {
+		color.Red(
+			"failed to add mcp server [%s] while getting higress-gateway ip due to: %v \n You may try to do port-forward and add it to agent manually", h.arg.name, err)
+		return err
+	}
+	mcpURL := fmt.Sprintf("http://%s/mcp-servers/%s", gatewayIP, h.arg.name)
+	return h.core.AddMCPServer(h.arg.name, mcpURL)
 }
 
 func (h *MCPAddHandler) parseOpenapiSpec() *models.MCPConfig {
