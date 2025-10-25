@@ -17,6 +17,7 @@ Higress API MCP Server provides MCP tools to manage Higress routes, service sour
 - `update-service-source`: Update service source
 
 ### Plugin Management
+- `list-plugin-instances`: List all plugin instances for a specific scope (supports global, domain, service, and route levels)
 - `get-plugin`: Get plugin configuration
 - `delete-plugin`: Delete plugin
 - `update-request-block-plugin`: Update request block configuration
