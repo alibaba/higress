@@ -20,5 +20,13 @@ func NewAgentCmd() *cobra.Command {
 }
 
 func handleAgentInvoke(w io.Writer) error {
+
 	return getAgent().Start()
+}
+
+// Sub-Agent1:
+// 1. Parse the url provided by user to MCP server configuration.
+// 2. Publish the parsed MCP Server to Higress
+func addPrequisiteSubAgent() error {
+	return nil
 }
