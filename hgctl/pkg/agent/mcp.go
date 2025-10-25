@@ -5,8 +5,10 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
+	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -14,9 +16,11 @@ import (
 type MCPType string
 
 const (
-	HTTP    string = "http"
-	SSE     string = "sse"
-	OPENAPI string = "openapi"
+	HTTP         string = "http"
+	SSE          string = "sse"
+	OPENAPI      string = "openapi"
+	DIRECT_ROUTE string = "DIRECT_ROUTE"
+	OPEN_API     string = "OPEN_API"
 )
 
 type MCPAddArg struct {
@@ -37,9 +41,9 @@ type MCPAddArg struct {
 }
 
 type MCPAddHandler struct {
-	c   *AgenticCore
-	arg MCPAddArg
-	w   io.Writer
+	core *AgenticCore
+	arg  MCPAddArg
+	w    io.Writer
 }
 
 func NewMCPCmd() *cobra.Command {
@@ -86,7 +90,7 @@ func newHanlder(c *AgenticCore, arg MCPAddArg, w io.Writer) *MCPAddHandler {
 func (h *MCPAddHandler) validateArg() error {
 	if !h.arg.noPublish {
 		if h.arg.baseURL == "" || h.arg.username == "" || h.arg.password == "" {
-			fmt.Println("--username, --base-url, --password must be provided")
+			fmt.Println("--user, --base-url, --password must be provided")
 			return fmt.Errorf("invalid args")
 		}
 	}
@@ -95,8 +99,7 @@ func (h *MCPAddHandler) validateArg() error {
 }
 
 func (h *MCPAddHandler) addHTTPMCP() error {
-
-	if err := h.c.AddMCPServer(h.arg.name, h.arg.transport, h.arg.url); err != nil {
+	if err := h.core.AddMCPServer(h.arg.name, h.arg.transport, h.arg.url); err != nil {
 		return fmt.Errorf("mcp add failed: %w", err)
 	}
 
@@ -110,15 +113,17 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 
 // hgctl mcp add -t openapi --name test-name --spec openapi.json
 func (h *MCPAddHandler) addOpenAPIMCP() error {
-	fmt.Printf("get mcp server %s spec %s\n", h.arg.name, h.arg.spec)
-	h.parseOpenapi3Spec()
+	fmt.Printf("get mcp server: %s openapi-spec-file: %s\n", h.arg.name, h.arg.spec)
+	config := h.parseOpenapiSpec()
 
-	return nil
+	// fmt.Printf("get config struct: %v", config)
+
+	// add service source and mcp server config
+	return publishToHigress(h.arg, config)
 }
 
-func (h *MCPAddHandler) parseOpenapi3Spec() error {
-	parseOpenapi2MCP(h.arg)
-	return nil
+func (h *MCPAddHandler) parseOpenapiSpec() *models.MCPConfig {
+	return parseOpenapi2MCP(h.arg)
 }
 
 func handleAddMCP(w io.Writer, arg MCPAddArg) error {
@@ -149,15 +154,29 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 	}
 }
 
-func publishToHigress(arg MCPAddArg, config interface{}) error {
+func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
+	// 1. parse the raw http url
+	// 2. add service source
+	// 3. add MCP server request
 	client := services.NewHigressClient(arg.baseURL, arg.username, arg.password)
-	// add service
-	// handle the url
-	res, err := url.Parse(arg.url)
+
+	// mcp server's url
+	rawURL := arg.url
+	// DIRECT_ROUTE or OPEN_API
+	mcpType := DIRECT_ROUTE
+
+	if config != nil {
+		// TODO: here use tools's url directly, need to be considered
+		rawURL = config.Tools[0].RequestTemplate.URL
+		mcpType = OPEN_API
+	}
+
+	res, err := url.Parse(rawURL)
 	if err != nil {
 		return err
 	}
 
+	// add service source
 	srvType := ""
 	srvPort := ""
 	srvName := fmt.Sprintf("hgctl-%s", arg.name)
@@ -189,27 +208,51 @@ func publishToHigress(arg MCPAddArg, config interface{}) error {
 		return err
 	}
 
+	srvField := []map[string]interface{}{{
+		"name":    fmt.Sprintf("%s.%s", srvName, srvType),
+		"port":    srvPort,
+		"version": "1.0",
+		"weight":  100,
+	}}
+
+	// generete mcp server add request body
 	body := map[string]interface{}{
 		"name": arg.name,
 		//   "description": "",
-		"type":               "DIRECT_ROUTE",
+		"type":               mcpType,
 		"service":            fmt.Sprintf("%s.%s:%s", srvName, srvType, srvPort),
 		"upstreamPathPrefix": srvPath,
-		"services": []map[string]interface{}{{
-			"name":    fmt.Sprintf("%s.%s", srvName, srvType),
-			"port":    srvPort,
-			"version": "1.0",
-			"weight":  100,
-		}},
+		"services":           srvField,
 	}
 
-	fmt.Printf("request body: %v", body)
+	// fmt.Printf("request body: %v", body)
 
-	resp, err := services.HandleAddMCPServer(client, body)
+	_, err = services.HandleAddMCPServer(client, body)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%v", resp)
+
+	if mcpType == OPEN_API {
+		addMCPToolConfig(client, config, srvField)
+	}
 
 	return nil
+}
+
+func addMCPToolConfig(client *services.HigressClient, config *models.MCPConfig, srvField []map[string]interface{}) {
+	body := map[string]interface{}{
+		"name": config.Server.Name,
+		//	  "description": "",
+		"services":          srvField,
+		"type":              OPEN_API,
+		"rawConfigurations": convertMCPConfigToStr(config),
+		"mcpServerName":     config.Server.Name,
+	}
+
+	_, err := services.HandleAddOpenAPITool(client, body)
+	if err != nil {
+		fmt.Printf("add openapi tools failed: %v\n", err)
+		os.Exit(1)
+	}
+	// fmt.Println("get openapi tools add response: ", string(resp))
 }

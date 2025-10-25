@@ -6,7 +6,7 @@ import (
 
 func HandleAddServiceSource(client *HigressClient, body interface{}) ([]byte, error) {
 	data, ok := body.(map[string]interface{})
-	fmt.Printf("request body: %v\n", data)
+	// fmt.Printf("request body: %v\n", data)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse request body")
 	}
@@ -38,7 +38,7 @@ func HandleAddServiceSource(client *HigressClient, body interface{}) ([]byte, er
 //	{
 //	  "name": "mcp-deepwiki",
 //	  "description": "",
-//	  "type": "DIRECT_ROUTE",
+//	  "type": "DIRECT_ROUTE", // or OPEN_API
 //	  "service": "hgctl-deepwiki.dns:443",
 //	  "upstreamPathPrefix": "/mcp",
 //	  "services": [
@@ -65,9 +65,10 @@ func HandleAddMCPServer(client *HigressClient, body interface{}) ([]byte, error)
 	if _, ok := data["service"]; !ok {
 		return nil, fmt.Errorf("missing required field 'service' in body")
 	}
-	if _, ok := data["upstreamPathPrefix"]; !ok {
-		return nil, fmt.Errorf("missing required field 'upstreamPathPrefix' in body")
-	}
+
+	// if _, ok := data["upstreamPathPrefix"]; !ok {
+	// 	return nil, fmt.Errorf("missing required field 'upstreamPathPrefix' in body")
+	// }
 
 	_, ok = data["services"]
 	if !ok {
@@ -76,8 +77,39 @@ func HandleAddMCPServer(client *HigressClient, body interface{}) ([]byte, error)
 
 	resp, err := client.Put("/v1/mcpServer", data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add service source: %w", err)
+		return nil, fmt.Errorf("failed to add mcp server: %w", err)
 	}
 
 	return resp, nil
+}
+
+// add OpenAPI MCP tools to higress console, example request body:
+//
+//	{
+//	  "id": null,
+//	  "name": "openapi-name",
+//	  "description": "123",
+//	  "domains": [],
+//	  "services": [
+//	    {
+//	      "name": "kubernetes.default.svc.cluster.local",
+//	      "port": 443,
+//	      "version": null,
+//	      "weight": 100
+//	    }
+//	  ],
+//	  "type": "OPEN_API",
+//	  "consumerAuthInfo": {
+//	    "type": "key-auth",
+//	    "enable": false,
+//	    "allowedConsumers": []
+//	  },
+//	  "rawConfigurations": "", // MCP configuration str
+//	  "dsn": null,
+//	  "dbType": null,
+//	  "upstreamPathPrefix": null,
+//	  "mcpServerName": "openapi-name"
+//	}
+func HandleAddOpenAPITool(client *HigressClient, body interface{}) ([]byte, error) {
+	return client.Put("/v1/mcpServer", body)
 }

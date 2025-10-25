@@ -20,6 +20,7 @@ import (
 
 var binaryName = AgentBinaryName
 
+// ------ Prompt to install prequisite environment  ------
 func checkNodeInstall() bool {
 	cmd := exec.Command("node", "-v")
 	out, err := cmd.Output()
@@ -262,7 +263,8 @@ func showAgentManualInstallation() {
 	fmt.Println()
 }
 
-func parseOpenapi2MCP(arg MCPAddArg) {
+// ------ MCP convert utils function  ------
+func parseOpenapi2MCP(arg MCPAddArg) *models.MCPConfig {
 	path := arg.spec
 	serverName := arg.name
 
@@ -291,21 +293,25 @@ func parseOpenapi2MCP(arg MCPAddArg) {
 		os.Exit(1)
 	}
 
-	// Write the MCP configuration as YAML format
+	return config
+}
+
+func convertMCPConfigToStr(cfg *models.MCPConfig) string {
 	var data []byte
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
 
-	if err := encoder.Encode(config); err != nil {
+	if err := encoder.Encode(cfg); err != nil {
 		fmt.Printf("Error encoding YAML: %v\n", err)
-		return
+		os.Exit(1)
 	}
 	data = buffer.Bytes()
 	str := string(data)
 
-	fmt.Println("Successfully converted OpenAPI specification to MCP Server")
-	fmt.Printf("Get MCP server config string: %v", str)
+	// fmt.Println("Successfully converted OpenAPI specification to MCP Server")
+	// fmt.Printf("Get MCP server config string: %v", str)
+	return str
 
 	// if err != nil {
 	// 	fmt.Printf("Error marshaling MCP configuration: %v\n", err)
