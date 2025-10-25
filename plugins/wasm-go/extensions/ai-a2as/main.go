@@ -68,7 +68,11 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 	config := globalConfig.MergeConsumerConfig(consumer)
 
 	if config.AuthenticatedPrompts.Enabled {
-		if err := verifySignature(config.AuthenticatedPrompts, config.MaxRequestBodySize); err != nil {
+		maxRequestBodySize := config.MaxRequestBodySize
+		if config.AuthenticatedPrompts.MaxRequestBodySize > 0 {
+			maxRequestBodySize = config.AuthenticatedPrompts.MaxRequestBodySize
+		}
+		if err := verifySignature(config.AuthenticatedPrompts, maxRequestBodySize); err != nil {
 			log.Errorf("[A2AS] Signature verification failed: %v", err)
 			config.incrementMetric(metricA2ASSignatureVerificationFailed, 1)
 			_ = proxywasm.SendHttpResponse(403, [][2]string{

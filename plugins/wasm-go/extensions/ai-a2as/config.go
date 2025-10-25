@@ -142,6 +142,10 @@ type AuthenticatedPromptsConfig struct {
 	// @Description zh-CN 当设置为 true 时，允许没有签名的请求通过；为 false 时，缺少签名的请求将被拒绝
 	AllowUnsigned bool `json:"allowUnsigned"`
 
+	// @Title zh-CN 最大请求体大小
+	// @Description zh-CN 签名验证允许的最大请求体大小（字节）。设置为0表示使用全局配置，默认0。范围：1KB - 100MB
+	MaxRequestBodySize int `json:"maxRequestBodySize"`
+
 	// @Title zh-CN RFC 9421 特定配置
 	// @Description zh-CN RFC 9421 完整模式的特定配置项
 	RFC9421 RFC9421Config `json:"rfc9421,omitempty"`
@@ -324,6 +328,14 @@ func (c *A2ASConfig) Validate() error {
 			}
 			if c.AuthenticatedPrompts.RFC9421.MaxAge < 0 {
 				return errors.New("rfc9421.maxAge must be non-negative")
+			}
+		}
+		if c.AuthenticatedPrompts.MaxRequestBodySize > 0 {
+			if c.AuthenticatedPrompts.MaxRequestBodySize < 1024 {
+				return errors.New("authenticatedPrompts.maxRequestBodySize must be at least 1KB (1024)")
+			}
+			if c.AuthenticatedPrompts.MaxRequestBodySize > 100*1024*1024 {
+				return errors.New("authenticatedPrompts.maxRequestBodySize must not exceed 100MB (104857600)")
 			}
 		}
 	}

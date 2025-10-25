@@ -363,6 +363,47 @@ behaviorCertificates:
   denyMessage: "Email modification operations are not allowed. This is a read-only assistant."
 ```
 
+### Example 3: Configure Larger Request Body Limit for Signature Verification
+
+```yaml
+# Global limit 10MB (default)
+maxRequestBodySize: 10485760
+
+authenticatedPrompts:
+  enabled: true
+  signatureHeader: "Signature"
+  sharedSecret: "your-base64-encoded-secret-key"
+  algorithm: "hmac-sha256"
+  # Allow 50MB request body for signature verification
+  maxRequestBodySize: 52428800
+
+securityBoundaries:
+  enabled: true
+```
+
+### Example 4: Per-Consumer Configuration with Different Limits
+
+```yaml
+# Global default limit 10MB
+maxRequestBodySize: 10485760
+
+# Configure different request body limits for different consumers
+consumerConfigs:
+  premium_user:
+    authenticatedPrompts:
+      enabled: true
+      sharedSecret: "premium-secret"
+      # Premium users can upload 100MB
+      maxRequestBodySize: 104857600
+  
+  basic_user:
+    authenticatedPrompts:
+      enabled: true
+      sharedSecret: "basic-secret"
+      # Basic users limited to 5MB
+      maxRequestBodySize: 5242880
+```
+
 ## How It Works
 
 ### Request Processing Flow

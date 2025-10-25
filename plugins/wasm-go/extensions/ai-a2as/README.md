@@ -379,6 +379,47 @@ securityBoundaries:
   includeContentDigest: true
 ```
 
+### 示例 4：为签名验证配置更大的请求体限制
+
+```yaml
+# 全局限制 10MB（默认）
+maxRequestBodySize: 10485760
+
+authenticatedPrompts:
+  enabled: true
+  signatureHeader: "Signature"
+  sharedSecret: "your-base64-encoded-secret-key"
+  algorithm: "hmac-sha256"
+  # 签名验证允许 50MB 请求体
+  maxRequestBodySize: 52428800
+
+securityBoundaries:
+  enabled: true
+```
+
+### 示例 5：Per-Consumer 差异化配置
+
+```yaml
+# 全局默认限制 10MB
+maxRequestBodySize: 10485760
+
+# 为不同消费者配置不同的请求体限制
+consumerConfigs:
+  premium_user:
+    authenticatedPrompts:
+      enabled: true
+      sharedSecret: "premium-secret"
+      # 高级用户允许 100MB
+      maxRequestBodySize: 104857600
+  
+  basic_user:
+    authenticatedPrompts:
+      enabled: true
+      sharedSecret: "basic-secret"
+      # 基础用户限制 5MB
+      maxRequestBodySize: 5242880
+```
+
 ## 工作原理
 
 ### 请求处理流程
