@@ -142,8 +142,7 @@ func generateCallbackSummary(analysis AnalysisResultForAI) string {
 	return strings.Join(callbacks, ", ")
 }
 
-// ValidateWasmCode 验证生成的 Go WASM 代码（AI 驱动）
-// 该函数提取代码的基本信息，由 AI 进行智能分析
+// ValidateWasmCode 验证生成的 Go WASM 代码
 func ValidateWasmCode(goCode, pluginName string) ValidationReport {
 	report := ValidationReport{
 		Issues:         []ValidationIssue{},
@@ -155,9 +154,113 @@ func ValidateWasmCode(goCode, pluginName string) ValidationReport {
 	// 移除注释以避免误判
 	codeWithoutComments := removeComments(goCode)
 
-	// === 基础结构检测（提供给 AI 作为上下文）===
+	// 检查必要的包声明
+	packagePattern := regexp.MustCompile(`(?m)^package\s+main\s*$`)
+	if !packagePattern.MatchString(goCode) {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "required",
+			Type:       "syntax",
+			Message:    "缺少 'package main' 声明",
+			Suggestion: "在文件开头添加: package main",
+			Impact:     "WASM 插件必须使用 package main，否则无法编译",
+		})
+	}
 
-	// 检测回调函数
+	// 检查 main 函数
+	mainFuncPattern := regexp.MustCompile(`func\s+main\s*\(\s*\)`)
+	if !mainFuncPattern.MatchString(codeWithoutComments) {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "required",
+			Type:       "syntax",
+			Message:    "缺少 main() 函数",
+			Suggestion: "添加空的 main 函数: func main() {}",
+			Impact:     "WASM 插件必须有 main 函数，即使是空的",
+		})
+	}
+
+	// 检查 init 函数
+	initFuncPattern := regexp.MustCompile(`func\s+init\s*\(\s*\)`)
+	if !initFuncPattern.MatchString(codeWithoutComments) {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "required",
+			Type:       "api_usage",
+			Message:    "缺少 init() 函数",
+			Suggestion: "添加 init() 函数用于注册插件",
+			Impact:     "插件需要在 init() 中调用 wrapper.SetCtx 进行注册",
+		})
+	}
+
+	// 检查 wrapper.SetCtx 调用
+	setCtxPattern := regexp.MustCompile(`wrapper\.SetCtx\s*\(`)
+	if !setCtxPattern.MatchString(codeWithoutComments) {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "required",
+			Type:       "api_usage",
+			Message:    "缺少 wrapper.SetCtx 调用",
+			Suggestion: "在 init() 函数中调用 wrapper.SetCtx 注册插件上下文",
+			Impact:     "没有注册插件上下文将导致插件无法工作",
+		})
+	}
+
+	// 检查必要的 import
+	requiredImports := map[string]string{
+		"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types": "定义了 Action 等核心类型",
+		"github.com/higress-group/wasm-go/pkg/wrapper":               "提供了 Higress 插件开发的高级封装",
+	}
+
+	for importPath, reason := range requiredImports {
+		if !containsImport(goCode, importPath) {
+			report.MissingImports = append(report.MissingImports, importPath)
+			report.Issues = append(report.Issues, ValidationIssue{
+				Category:   "required",
+				Type:       "imports",
+				Message:    fmt.Sprintf("缺少必需的导入: %s", importPath),
+				Suggestion: fmt.Sprintf(`添加导入: import "%s"`, importPath),
+				Impact:     reason,
+			})
+		}
+	}
+
+	// 检查可选但推荐的 import
+	if !containsImport(goCode, "github.com/higress-group/proxy-wasm-go-sdk/proxywasm") {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "optional",
+			Type:       "imports",
+			Message:    "未导入 proxywasm 包",
+			Suggestion: "如需使用日志、HTTP 调用等底层 API，可导入 proxywasm 包",
+			Impact:     "proxywasm 提供了日志记录、外部 HTTP 调用等功能",
+		})
+	}
+
+	// 检查配置结构体
+	configPattern := regexp.MustCompile(`type\s+\w+Config\s+struct\s*\{`)
+	report.HasConfig = configPattern.MatchString(goCode)
+
+	if !report.HasConfig {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "optional",
+			Type:       "config",
+			Message:    "未定义配置结构体",
+			Suggestion: "如果插件需要配置参数，建议定义配置结构体（如 type MyPluginConfig struct { ... }）",
+			Impact:     "配置结构体用于接收和解析插件的配置参数，支持动态配置",
+		})
+	}
+
+	// 检查 parseConfig 函数
+	parseConfigPattern := regexp.MustCompile(`func\s+parseConfig\s*\(`)
+	hasParseConfig := parseConfigPattern.MatchString(codeWithoutComments)
+
+	if report.HasConfig && !hasParseConfig {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "recommended",
+			Type:       "config",
+			Message:    "定义了配置结构体但缺少 parseConfig 函数",
+			Suggestion: "实现 parseConfig 函数来解析配置: func parseConfig(json gjson.Result, config *MyPluginConfig, log wrapper.Log) error",
+			Impact:     "parseConfig 函数负责将 JSON 配置解析到结构体，是配置系统的核心",
+		})
+	}
+
+	// 检查回调函数
 	callbacks := map[string]*regexp.Regexp{
 		"onHttpRequestHeaders":  regexp.MustCompile(`func\s+onHttpRequestHeaders\s*\(`),
 		"onHttpRequestBody":     regexp.MustCompile(`func\s+onHttpRequestBody\s*\(`),
@@ -171,52 +274,51 @@ func ValidateWasmCode(goCode, pluginName string) ValidationReport {
 		}
 	}
 
-	// 检测配置结构体
-	configPattern := regexp.MustCompile(`type\s+\w+Config\s+struct\s*\{`)
-	report.HasConfig = configPattern.MatchString(goCode)
+	if len(report.FoundCallbacks) == 0 {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "required",
+			Type:       "api_usage",
+			Message:    "未找到任何 HTTP 回调函数实现",
+			Suggestion: "至少实现一个回调函数，如: func onHttpRequestHeaders(ctx wrapper.HttpContext, config MyPluginConfig, log wrapper.Log) types.Action",
+			Impact:     "回调函数是插件逻辑的核心，没有回调函数插件将不会执行任何操作",
+		})
+	}
 
-	// === 生成 AI 友好的总结 ===
-	report.Summary = fmt.Sprintf(`请作为 Higress WASM 插件开发专家，分析以下 Go 代码：
+	// 检查错误处理
+	errHandlingCount := strings.Count(codeWithoutComments, "if err != nil")
+	funcCount := strings.Count(codeWithoutComments, "func ")
+	if funcCount > 3 && errHandlingCount == 0 {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "best_practice",
+			Type:       "error_handling",
+			Message:    "代码中缺少错误处理",
+			Suggestion: "对可能返回错误的操作添加错误检查: if err != nil { ... }",
+			Impact:     "良好的错误处理可以提高插件的健壮性和可调试性",
+		})
+	}
 
-插件名称: %s
-代码行数: %d
-检测到的回调函数: %v
-是否有配置结构: %v
+	// 检查日志记录
+	hasLogging := strings.Contains(codeWithoutComments, "proxywasm.Log") ||
+		strings.Contains(codeWithoutComments, "log.Error") ||
+		strings.Contains(codeWithoutComments, "log.Warn") ||
+		strings.Contains(codeWithoutComments, "log.Info") ||
+		strings.Contains(codeWithoutComments, "log.Debug")
 
-请检查以下方面并给出专业建议：
+	if !hasLogging {
+		report.Issues = append(report.Issues, ValidationIssue{
+			Category:   "best_practice",
+			Type:       "logging",
+			Message:    "代码中没有日志记录",
+			Suggestion: "添加适当的日志记录，如: proxywasm.LogInfo(), log.Errorf() 等",
+			Impact:     "日志记录有助于调试、监控和问题排查",
+		})
+	}
 
-1. **必须修复的问题** (required):
-   - 是否有 package main 声明
-   - 是否有 main() 函数（即使为空）
-   - 是否有 init() 函数
-   - 是否在 init() 中调用了 wrapper.SetCtx 注册插件
-   - 导入的包是否完整（wrapper、types、proxywasm 等）
-   - 回调函数是否正确返回 types.Action
-   - 是否至少实现了一个回调函数
+	// 检查回调函数的返回值
+	checkCallbackReturnErrors(&report, codeWithoutComments, report.FoundCallbacks)
 
-2. **建议修复的问题** (recommended):
-   - 配置解析函数 parseConfig 是否正确实现
-   - 错误处理是否完善
-   - 回调函数签名是否正确
-
-3. **可选优化** (optional):
-   - 代码结构是否清晰
-   - 变量命名是否规范
-
-4. **最佳实践** (best_practice):
-   - 日志记录是否充分
-   - 性能考虑（避免不必要的内存分配）
-   - 安全性考虑
-
-请以结构化格式返回问题列表，每个问题包括：
-- category: required/recommended/optional/best_practice
-- type: syntax/api_usage/config/error_handling/logging/performance/security
-- message: 问题描述
-- suggestion: 具体的修复建议
-- impact: 为什么这个问题重要
-
-代码内容：
-%s`, pluginName, len(strings.Split(goCode, "\n")), report.FoundCallbacks, report.HasConfig, goCode)
+	// 生成总体评估摘要
+	report.Summary = generateValidationSummary(report)
 
 	return report
 }
@@ -232,6 +334,94 @@ func removeComments(code string) string {
 	code = multiLineComment.ReplaceAllString(code, "")
 
 	return code
+}
+
+// containsImport 检查是否包含特定的 import
+func containsImport(code, importPath string) bool {
+	// 匹配 import "path" 或 import ("path")
+	pattern := regexp.MustCompile(`import\s+(?:\([\s\S]*?)?["` + "`" + `]` +
+		regexp.QuoteMeta(importPath) + `["` + "`" + `]`)
+	return pattern.MatchString(code)
+}
+
+// checkCallbackReturnErrors 检查回调函数的返回值错误
+func checkCallbackReturnErrors(report *ValidationReport, code string, foundCallbacks []string) {
+	// 检查回调函数内是否有 return nil（应该返回 types.Action）
+	for _, callback := range foundCallbacks {
+		// 提取回调函数体（简化的检查）
+		funcPattern := regexp.MustCompile(
+			`func\s+` + callback + `\s*\([^)]*\)\s+types\.Action\s*\{[^}]*return\s+nil[^}]*\}`)
+		if funcPattern.MatchString(code) {
+			report.Issues = append(report.Issues, ValidationIssue{
+				Category:   "required",
+				Type:       "api_usage",
+				Message:    fmt.Sprintf("回调函数 %s 不应返回 nil", callback),
+				Suggestion: "回调函数应返回 types.Action，如: return types.ActionContinue",
+				Impact:     "返回 nil 会导致编译错误或运行时异常",
+			})
+			break // 只报告一次
+		}
+	}
+
+	// 检查是否正确返回 types.Action
+	if len(foundCallbacks) > 0 {
+		hasActionReturn := strings.Contains(code, "types.ActionContinue") ||
+			strings.Contains(code, "types.ActionPause") ||
+			strings.Contains(code, "types.ActionSuspend")
+
+		if !hasActionReturn {
+			report.Issues = append(report.Issues, ValidationIssue{
+				Category:   "recommended",
+				Type:       "api_usage",
+				Message:    "未找到明确的 Action 返回值",
+				Suggestion: "回调函数应返回明确的 types.Action 值（ActionContinue、ActionPause 等）",
+				Impact:     "明确的返回值有助于代码可读性和正确性",
+			})
+		}
+	}
+}
+
+// generateValidationSummary 生成验证摘要
+func generateValidationSummary(report ValidationReport) string {
+	requiredIssues := 0
+	recommendedIssues := 0
+	optionalIssues := 0
+	bestPracticeIssues := 0
+
+	for _, issue := range report.Issues {
+		switch issue.Category {
+		case "required":
+			requiredIssues++
+		case "recommended":
+			recommendedIssues++
+		case "optional":
+			optionalIssues++
+		case "best_practice":
+			bestPracticeIssues++
+		}
+	}
+
+	if requiredIssues > 0 {
+		return fmt.Sprintf("代码存在 %d 个必须修复的问题，%d 个建议修复的问题，%d 个可选优化项，%d 个最佳实践建议。请优先解决必须修复的问题。",
+			requiredIssues, recommendedIssues, optionalIssues, bestPracticeIssues)
+	}
+
+	if recommendedIssues > 0 {
+		return fmt.Sprintf("代码基本结构正确，但有 %d 个建议修复的问题，%d 个可选优化项，%d 个最佳实践建议。",
+			recommendedIssues, optionalIssues, bestPracticeIssues)
+	}
+
+	if optionalIssues > 0 || bestPracticeIssues > 0 {
+		return fmt.Sprintf("代码结构良好，有 %d 个可选优化项和 %d 个最佳实践建议可以考虑。",
+			optionalIssues, bestPracticeIssues)
+	}
+
+	callbacksInfo := ""
+	if len(report.FoundCallbacks) > 0 {
+		callbacksInfo = fmt.Sprintf("，实现了 %d 个回调函数", len(report.FoundCallbacks))
+	}
+
+	return fmt.Sprintf("代码验证通过，未发现明显问题%s。", callbacksInfo)
 }
 
 // GenerateDeploymentPackage 生成部署配置提示（由 LLM 根据代码生成具体内容）

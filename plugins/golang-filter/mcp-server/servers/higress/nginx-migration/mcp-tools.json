@@ -19,7 +19,7 @@
     },
     {
       "name": "convert_to_higress",
-      "description": "将 Nginx 配置转换为 Higress HTTPRoute 和 Service 资源",
+      "description": "智能解析 Nginx 配置并通过 AI 推理生成 Higress Ingress/HTTPRoute 配置。支持复杂配置（SSL、重写、重定向、upstream 等）的智能转换，结合 RAG 知识库提供准确的转换方案",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -31,6 +31,11 @@
             "type": "string",
             "description": "目标 Kubernetes 命名空间",
             "default": "default"
+          },
+          "use_gateway_api": {
+            "type": "boolean",
+            "description": "是否使用 Gateway API (HTTPRoute)。默认 false，使用 Ingress",
+            "default": false
           }
         },
         "required": ["config_content"]

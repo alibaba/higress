@@ -119,6 +119,19 @@ func (c *ServerConfig) GenerateRouteName(hostname string) string {
 	return fmt.Sprintf("%s-%s", c.Defaults.RoutePrefix, safeName)
 }
 
+// GenerateIngressName generates a unique ingress name
+func (c *ServerConfig) GenerateIngressName(hostname string) string {
+	if hostname == "" || hostname == c.Defaults.Hostname {
+		return fmt.Sprintf("%s-ingress", c.Defaults.RoutePrefix)
+	}
+	// Replace dots and special characters for valid k8s name
+	safeName := hostname
+	for _, char := range []string{".", "_", ":"} {
+		safeName = strings.ReplaceAll(safeName, char, "-")
+	}
+	return fmt.Sprintf("%s-%s", c.Defaults.RoutePrefix, safeName)
+}
+
 // GenerateServiceName generates service name based on hostname
 func (c *ServerConfig) GenerateServiceName(hostname string) string {
 	if hostname == "" || hostname == c.Defaults.Hostname {

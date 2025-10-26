@@ -3,7 +3,6 @@ package standalone
 
 import (
 	"nginx-migration-mcp/internal/rag"
-	"nginx-migration-mcp/tools"
 )
 
 // MCPMessage represents a Model Context Protocol message structure
@@ -31,19 +30,5 @@ type MCPServer struct {
 	ragManager *rag.RAGManager
 }
 
-// Implement the tools.MCPServer interface
-func (s *MCPServer) ParseNginxConfig(args map[string]interface{}) tools.ToolResult {
-	return s.parseNginxConfig(args)
-}
-
-func (s *MCPServer) ConvertToHigress(args map[string]interface{}) tools.ToolResult {
-	return s.convertToHigress(args)
-}
-
-func (s *MCPServer) AnalyzeLuaPlugin(args map[string]interface{}) tools.ToolResult {
-	return s.analyzeLuaPlugin(args)
-}
-
-func (s *MCPServer) ConvertLuaToWasm(args map[string]interface{}) tools.ToolResult {
-	return s.convertLuaToWasm(args)
-}
+// MCPServer implements the tools.MCPServer interface
+// Method implementations are in server.go

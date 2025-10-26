@@ -6,7 +6,7 @@
 
 ### 配置转换工具
 - **parse_nginx_config** - 解析和分析 Nginx 配置文件
-- **convert_to_higress** - 将 Nginx 配置转换为 Higress HTTPRoute
+- **convert_to_higress** - 将 Nginx 配置转换为 Higress Ingress（主要方式）或 HTTPRoute（可选）
 
 ### Lua 插件迁移工具链
 
@@ -73,7 +73,10 @@ cp config/rag.json.example config/rag.json
 
 ### 转换 Nginx 配置
 
-使用 `convert_to_higress` 工具，传入 Nginx 配置内容，自动生成 Higress HTTPRoute 和 Service 资源。
+使用 `convert_to_higress` 工具，传入 Nginx 配置内容：
+- **默认**：生成 Kubernetes Ingress 和 Service 资源
+- **可选**：设置 `use_gateway_api=true` 生成 Gateway API HTTPRoute（需确认已启用）
+
 
 ### 迁移 Lua 插件
 

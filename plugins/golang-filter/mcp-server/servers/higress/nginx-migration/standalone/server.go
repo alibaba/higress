@@ -1,10 +1,12 @@
-// MCP Server implementation for Nginx Migration Tools - Standalone Mode
+// Package standalone implements MCP Server for Nginx Migration Tools in standalone mode.
 package standalone
 
 import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"nginx-migration-mcp/internal/rag"
@@ -14,13 +16,44 @@ import (
 // NewMCPServer creates a new MCP server instance
 func NewMCPServer(config *ServerConfig) *MCPServer {
 	// 初始化 RAG 管理器
-	ragConfig, err := rag.LoadRAGConfig("config/rag.json")
+	// 获取可执行文件所在目录
+	execPath, err := os.Executable()
 	if err != nil {
-		log.Printf("⚠️  Failed to load RAG config: %v, RAG will be disabled", err)
+		log.Printf("WARNING: Failed to get executable path: %v", err)
+		execPath = "."
+	}
+	execDir := filepath.Dir(execPath)
+
+	// 尝试多个可能的配置文件路径（相对于可执行文件）
+	ragConfigPaths := []string{
+		filepath.Join(execDir, "config", "rag.json"),       // 同级 config 目录
+		filepath.Join(execDir, "..", "config", "rag.json"), // 上级 config 目录
+		"config/rag.json", // 当前工作目录
+	}
+
+	var ragConfig *rag.RAGConfig
+	var configErr error
+
+	for _, path := range ragConfigPaths {
+		ragConfig, configErr = rag.LoadRAGConfig(path)
+		if configErr == nil {
+			log.Printf("Loaded RAG config from: %s", path)
+			break
+		}
+	}
+
+	if configErr != nil {
+		log.Printf("WARNING: Failed to load RAG config: %v, RAG will be disabled", configErr)
 		ragConfig = &rag.RAGConfig{Enabled: false}
 	}
 
 	ragManager := rag.NewRAGManager(ragConfig)
+
+	if ragManager.IsEnabled() {
+		log.Printf("RAG Manager initialized and enabled")
+	} else {
+		log.Printf("RAG Manager disabled, using rule-based approach")
+	}
 
 	return &MCPServer{
 		config:     config,
@@ -107,7 +140,7 @@ func (s *MCPServer) errorResponse(id interface{}, code int, message string) MCPM
 
 // Tool implementations
 
-func (s *MCPServer) parseNginxConfig(args map[string]interface{}) tools.ToolResult {
+func (s *MCPServer) ParseNginxConfig(args map[string]interface{}) tools.ToolResult {
 	configContent, ok := args["config_content"].(string)
 	if !ok {
 		return tools.ToolResult{Content: []tools.Content{{Type: "text", Text: "Error: Missing config_content"}}}
@@ -140,19 +173,19 @@ func (s *MCPServer) parseNginxConfig(args map[string]interface{}) tools.ToolResu
 迁移建议:`, serverCount, locationCount, hasSSL, hasProxy, hasRewrite, complexity)
 
 	if hasProxy {
-		analysis += "\n- 反向代理将转换为HTTPRoute backendRefs"
+		analysis += "\n- 反向代理将转换为Ingress backend配置"
 	}
 	if hasRewrite {
-		analysis += "\n- URL重写将使用URLRewrite过滤器"
+		analysis += "\n- URL重写将使用Higress注解 (higress.io/rewrite-target)"
 	}
 	if hasSSL {
-		analysis += "\n- SSL配置需要迁移到Gateway资源"
+		analysis += "\n- SSL配置将转换为Ingress TLS配置"
 	}
 
 	return tools.ToolResult{Content: []tools.Content{{Type: "text", Text: analysis}}}
 }
 
-func (s *MCPServer) convertToHigress(args map[string]interface{}) tools.ToolResult {
+func (s *MCPServer) ConvertToHigress(args map[string]interface{}) tools.ToolResult {
 	configContent, ok := args["config_content"].(string)
 	if !ok {
 		return tools.ToolResult{Content: []tools.Content{{Type: "text", Text: "Error: Missing config_content"}}}
@@ -163,71 +196,139 @@ func (s *MCPServer) convertToHigress(args map[string]interface{}) tools.ToolResu
 		namespace = ns
 	}
 
-	hostname := s.config.Defaults.Hostname
-	lines := strings.Split(configContent, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, "server_name") && !strings.Contains(line, "#") {
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				hostname = strings.TrimSuffix(parts[1], ";")
-				break
+	// 检查是否使用 Gateway API
+	useGatewayAPI := false
+	if val, ok := args["use_gateway_api"].(bool); ok {
+		useGatewayAPI = val
+	}
+
+	// ===  使用增强的解析器解析 Nginx 配置 ===
+	nginxConfig, err := tools.ParseNginxConfig(configContent)
+	if err != nil {
+		return tools.ToolResult{Content: []tools.Content{{Type: "text", Text: fmt.Sprintf("Error parsing Nginx config: %v", err)}}}
+	}
+
+	// 分析配置
+	analysis := tools.AnalyzeNginxConfig(nginxConfig)
+
+	// === RAG 增强：查询转换示例和最佳实践 ===
+	var ragContext string
+	if s.ragManager != nil && s.ragManager.IsEnabled() {
+		// 构建查询关键词
+		queryBuilder := []string{"Nginx 配置转换到 Higress"}
+
+		if useGatewayAPI {
+			queryBuilder = append(queryBuilder, "Gateway API HTTPRoute")
+		} else {
+			queryBuilder = append(queryBuilder, "Kubernetes Ingress")
+		}
+
+		// 根据特性添加查询关键词
+		if analysis.Features["ssl"] {
+			queryBuilder = append(queryBuilder, "SSL TLS 证书配置")
+		}
+		if analysis.Features["rewrite"] {
+			queryBuilder = append(queryBuilder, "URL 重写 rewrite 规则")
+		}
+		if analysis.Features["redirect"] {
+			queryBuilder = append(queryBuilder, "重定向 redirect")
+		}
+		if analysis.Features["header_manipulation"] {
+			queryBuilder = append(queryBuilder, "请求头 响应头处理")
+		}
+		if len(nginxConfig.Upstreams) > 0 {
+			queryBuilder = append(queryBuilder, "负载均衡 upstream")
+		}
+
+		queryString := strings.Join(queryBuilder, " ")
+		log.Printf("RAG Query: %s", queryString)
+
+		ragResult, err := s.ragManager.QueryForTool(
+			"convert_to_higress",
+			queryString,
+			"nginx_to_higress",
+		)
+
+		if err == nil && ragResult.Enabled && len(ragResult.Documents) > 0 {
+			log.Printf("RAG: Found %d documents for conversion", len(ragResult.Documents))
+			ragContext = "\n\n## 参考文档（来自知识库）\n\n" + ragResult.FormatContextForAI()
+		} else {
+			if err != nil {
+				log.Printf("WARNING: RAG query failed: %v", err)
 			}
 		}
 	}
 
-	yamlConfig := fmt.Sprintf(`转换后的Higress配置
+	// === 将配置数据转换为 JSON 供 AI 使用 ===
+	configJSON, _ := json.MarshalIndent(nginxConfig, "", "  ")
+	analysisJSON, _ := json.MarshalIndent(analysis, "", "  ")
 
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: %s
-  namespace: %s
-  annotations:
-    higress.io/migrated-from: "nginx"
-spec:
-  parentRefs:
-  - name: %s
-    namespace: %s
-  hostnames:
-  - %s
-  rules:
-  - matches:
-    - path:
-        type: PathPrefix
-        value: %s
-    backendRefs:
-    - name: %s
-      port: %d
+	// === 构建返回消息 ===
+	userMessage := fmt.Sprintf(`📋 Nginx 配置解析完成
+
+## 配置概览
+- Server 块: %d
+- Location 块: %d
+- 域名: %d 个
+- 复杂度: %s
+- 目标格式: %s
+- 命名空间: %s
+
+## 检测到的特性
+%s
+
+## 迁移建议
+%s
+%s
 
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: %s
-  namespace: %s
-spec:
-  selector:
-    app: backend
-  ports:
-  - port: %d
-    targetPort: %d
 
-转换完成
+## Nginx 配置结构
 
-应用步骤:
-1. 保存为 higress-config.yaml
-2. 执行: kubectl apply -f higress-config.yaml
-3. 验证: kubectl get httproute -n %s`,
-		s.config.GenerateRouteName(hostname), namespace,
-		s.config.Gateway.Name, s.config.Gateway.Namespace, hostname, s.config.Defaults.PathPrefix,
-		s.config.GenerateServiceName(hostname), s.config.Service.DefaultPort,
-		s.config.GenerateServiceName(hostname), namespace,
-		s.config.Service.DefaultPort, s.config.Service.DefaultTarget, namespace)
+`+"```json"+`
+%s
+`+"```"+`
 
-	return tools.ToolResult{Content: []tools.Content{{Type: "text", Text: yamlConfig}}}
+## 分析结果
+
+`+"```json"+`
+%s
+`+"```"+`
+%s
+`,
+		analysis.ServerCount,
+		analysis.LocationCount,
+		analysis.DomainCount,
+		analysis.Complexity,
+		func() string {
+			if useGatewayAPI {
+				return "Gateway API (HTTPRoute)"
+			}
+			return "Kubernetes Ingress"
+		}(),
+		namespace,
+		formatFeatures(analysis.Features),
+		formatSuggestions(analysis.Suggestions),
+		func() string {
+			if ragContext != "" {
+				return "\n\n已加载知识库参考文档"
+			}
+			return ""
+		}(),
+		string(configJSON),
+		string(analysisJSON),
+		ragContext,
+	)
+
+	return tools.FormatToolResultWithAIContext(userMessage, "", map[string]interface{}{
+		"nginx_config":    nginxConfig,
+		"analysis":        analysis,
+		"namespace":       namespace,
+		"use_gateway_api": useGatewayAPI,
+	})
 }
 
-func (s *MCPServer) analyzeLuaPlugin(args map[string]interface{}) tools.ToolResult {
+func (s *MCPServer) AnalyzeLuaPlugin(args map[string]interface{}) tools.ToolResult {
 	luaCode, ok := args["lua_code"].(string)
 	if !ok {
 		return tools.ToolResult{Content: []tools.Content{{Type: "text", Text: "Error: Missing lua_code"}}}
@@ -236,89 +337,64 @@ func (s *MCPServer) analyzeLuaPlugin(args map[string]interface{}) tools.ToolResu
 	// 使用新的 AI 友好分析
 	analysis := tools.AnalyzeLuaPluginForAI(luaCode)
 
+	// === RAG 增强：查询知识库获取转换建议 ===
+	var ragContext string
+	if s.ragManager != nil && s.ragManager.IsEnabled() && len(analysis.APICalls) > 0 {
+		query := fmt.Sprintf("Nginx Lua API %s 在 Higress WASM 中的转换方法和最佳实践", strings.Join(analysis.APICalls, ", "))
+		log.Printf("🔍 RAG Query: %s", query)
+
+		ragResult, err := s.ragManager.QueryForTool("analyze_lua_plugin", query, "lua_migration")
+		if err == nil && ragResult.Enabled && len(ragResult.Documents) > 0 {
+			log.Printf("RAG: Found %d documents for Lua analysis", len(ragResult.Documents))
+			ragContext = "\n\n##  知识库参考资料\n\n" + ragResult.FormatContextForAI()
+		} else if err != nil {
+			log.Printf(" RAG query failed: %v", err)
+		}
+	}
+
 	// 生成用户友好的消息
 	features := []string{}
 	for feature := range analysis.Features {
 		features = append(features, fmt.Sprintf("- %s", feature))
 	}
 
-	userMessage := fmt.Sprintf(`✅ Lua 插件分析完成
+	userMessage := fmt.Sprintf(`Lua 插件分析完成
 
-📊 **检测到的特性**：
+## 检测到的特性
 %s
 
-⚠️ **兼容性警告**：
+## 基本信息
+- **复杂度**: %s
+- **兼容性**: %s
+
+## 兼容性警告
+%s
 %s
 
-📈 **复杂度**：%s
-🔄 **兼容性级别**：%s
+## 后续操作
+- 调用 generate_conversion_hints 获取转换提示
+- 或直接使用 convert_lua_to_wasm 一键转换
 
-💡 **迁移建议**：`,
-		strings.Join(features, "\n"),
-		strings.Join(analysis.Warnings, "\n- "),
-		analysis.Complexity,
-		analysis.Compatibility,
-	)
+## 分析结果
 
-	switch analysis.Compatibility {
-	case "full":
-		userMessage += "\n- 可直接迁移到 WASM 插件\n- 建议使用工具链进行转换"
-	case "partial":
-		userMessage += "\n- 需要部分重构\n- 强烈建议使用工具链并让 AI 参与代码生成"
-	case "manual":
-		userMessage += "\n- 需要手动重写\n- 建议分步骤进行，使用工具链辅助"
-	}
-
-	userMessage += "\n\n🔗 **后续操作**：\n"
-	userMessage += "1. 调用 `generate_conversion_hints` 工具获取详细的转换提示\n"
-	userMessage += "2. 基于提示生成 Go WASM 代码\n"
-	userMessage += "3. 调用 `validate_wasm_code` 工具验证生成的代码\n"
-	userMessage += "4. 调用 `generate_deployment_config` 工具生成部署配置\n"
-	userMessage += "\n或者直接使用 `convert_lua_to_wasm` 进行一键转换。"
-
-	// 生成 AI 指令
-	aiInstructions := fmt.Sprintf(`你现在已经获得了 Lua 插件的分析结果。基于这些信息，你可以：
-
-### 选项 1：使用工具链进行精细控制
-
-调用 generate_conversion_hints 工具，传入以下分析结果：
 `+"```json"+`
-{
-  "analysis_result": %s,
-  "plugin_name": "your-plugin-name"
-}
-`+"```"+`
-
-这将为你提供代码生成模板，然后基于模板生成 Go WASM 代码。
-
-### 选项 2：一键转换
-
-如果用户希望快速转换，可以直接调用 convert_lua_to_wasm 工具。
-
-### 建议的对话流程
-
-1. **询问用户**：是否需要详细的转换提示，还是直接生成代码？
-2. **如果需要提示**：调用 generate_conversion_hints
-3. **生成代码后**：询问是否需要验证（调用 validate_wasm_code）
-4. **验证通过后**：询问是否需要生成部署配置（调用 generate_deployment_config）
-
-### 关键注意事项
-
 %s
-
-### 代码生成要点
-
-- 检测到的 Nginx 变量需要映射到 HTTP 头部
-- 复杂度为 %s，请相应调整代码结构
-- 兼容性级别为 %s，注意处理警告中的问题
+`+"```"+`
 `,
-		string(mustMarshalJSON(analysis)),
-		formatWarningsForAI(analysis.Warnings),
+		strings.Join(features, "\n"),
 		analysis.Complexity,
 		analysis.Compatibility,
+		func() string {
+			if len(analysis.Warnings) > 0 {
+				return "- " + strings.Join(analysis.Warnings, "\n- ")
+			}
+			return "无"
+		}(),
+		ragContext,
+		string(mustMarshalJSON(analysis)),
 	)
 
-	return tools.FormatToolResultWithAIContext(userMessage, aiInstructions, analysis)
+	return tools.FormatToolResultWithAIContext(userMessage, "", analysis)
 }
 
 func mustMarshalJSON(v interface{}) []byte {
@@ -326,18 +402,7 @@ func mustMarshalJSON(v interface{}) []byte {
 	return data
 }
 
-func formatWarningsForAI(warnings []string) string {
-	if len(warnings) == 0 {
-		return "- 无特殊警告，可以直接转换"
-	}
-	result := []string{}
-	for _, w := range warnings {
-		result = append(result, fmt.Sprintf("- ⚠️ %s", w))
-	}
-	return strings.Join(result, "\n")
-}
-
-func (s *MCPServer) convertLuaToWasm(args map[string]interface{}) tools.ToolResult {
+func (s *MCPServer) ConvertLuaToWasm(args map[string]interface{}) tools.ToolResult {
 	luaCode, ok := args["lua_code"].(string)
 	if !ok {
 		return tools.ToolResult{Content: []tools.Content{{Type: "text", Text: "Error: Missing lua_code"}}}
@@ -453,125 +518,56 @@ func (s *MCPServer) GenerateConversionHints(args map[string]interface{}) tools.T
 
 	queryString := strings.Join(queryBuilder, " ")
 
-	ragContext, err := s.ragManager.QueryForTool(
-		"generate_conversion_hints",
-		queryString,
-		"lua_migration",
-	)
+	// 只有当 RAG 启用时才查询
+	if s.ragManager != nil && s.ragManager.IsEnabled() {
+		log.Printf(" RAG Query: %s", queryString)
 
-	if err == nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
-		log.Printf("✅ RAG: Found %d documents for conversion hints", len(ragContext.Documents))
-		ragDocs = "\n\n## 📚 参考文档（来自知识库）\n\n" + ragContext.FormatContextForAI()
-	} else {
-		if err != nil {
-			log.Printf("⚠️  RAG query failed: %v", err)
+		ragContext, err := s.ragManager.QueryForTool(
+			"generate_conversion_hints",
+			queryString,
+			"lua_migration",
+		)
+
+		if err == nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+			log.Printf("RAG: Found %d documents for conversion hints", len(ragContext.Documents))
+			ragDocs = "\n\n##  参考文档（来自知识库）\n\n" + ragContext.FormatContextForAI()
+		} else {
+			if err != nil {
+				log.Printf("  RAG query failed: %v", err)
+			}
+			ragDocs = ""
 		}
+	} else {
 		ragDocs = ""
 	}
 
 	// 格式化输出
-	userMessage := fmt.Sprintf(`🎯 代码转换提示
+	userMessage := fmt.Sprintf(` 代码转换提示
 
 **插件名称**: %s
-**代码模板**: %s
-**RAG 状态**: %s
-
-%s
-`,
-		pluginName,
-		hints.CodeTemplate,
-		func() string {
-			if ragContext != nil && ragContext.Enabled {
-				return fmt.Sprintf("✅ 已加载 %d 个参考文档", len(ragContext.Documents))
-			}
-			return "⚡ 使用规则库（RAG 未启用）"
-		}(),
-		func() string {
-			if len(hints.Warnings) > 0 {
-				return "⚠️ **警告**: " + formatWarningsListForUser(hints.Warnings)
-			}
-			return ""
-		}(),
-	)
-
-	// 生成详细的 AI 指令
-	aiInstructions := fmt.Sprintf(`现在你需要基于以下信息生成 Go WASM 插件代码。
-
-## 📋 任务概述
-
-**插件名称**: %s
-**原始 Lua 特性**: %s
 **复杂度**: %s
 **兼容性**: %s
+%s
 
-## 🎯 代码模板
+## 代码模板
 
 %s
 %s
-
-## ✅ 生成代码的要求
-
-### 必须实现
-1. **实现所需的回调函数**: %s
-2. **保持 Lua 代码的业务逻辑完全等价**
-3. **包含完整的错误处理逻辑**
-4. **实现配置解析函数（如果需要动态配置）**
-
-### 代码质量
-5. **添加清晰的注释**：标注每段代码对应的原始 Lua 逻辑
-6. **遵循 Go 代码规范**：使用驼峰命名，适当的包结构
-7. **添加日志记录**：关键步骤使用 log.Info/Warn/Error
-8. **错误返回规范**：失败时返回 types.ActionPause，成功返回 types.ActionContinue
-%s
-
-### 性能优化
-9. **避免不必要的内存分配**
-10. **合理使用缓存**（如果涉及重复查询）
-
-## 📚 参考资源
-
-- Higress WASM Go SDK 文档: https://higress.io/zh-cn/docs/user/wasm-go
-%s
-
-## 📤 输出格式
-
-请按以下格式输出代码：
-
-### main.go
-`+"```go"+`
-[完整的 Go 代码，包含所有必要的导入、配置结构体、init函数和回调函数]
-`+"```"+`
-
-### 代码说明
-简要说明：
-- 实现了哪些回调函数
-- 如何处理错误情况
-- 与原 Lua 代码的对应关系
-
-生成代码后，**强烈建议**调用 validate_wasm_code 工具进行验证。
 `,
 		pluginName,
-		formatFeaturesList(analysis.Features),
 		analysis.Complexity,
 		analysis.Compatibility,
-		hints.CodeTemplate,
-		ragDocs,
-		hints.CodeTemplate, // 再次显示模板作为提醒
 		func() string {
-			if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
-				return "\n\n### 知识库参考\n11. **优先参考上述知识库文档中的示例代码和最佳实践**\n12. **使用文档中推荐的 API 调用方式**"
+			if len(hints.Warnings) > 0 {
+				return "\n**警告**: " + formatWarningsListForUser(hints.Warnings)
 			}
 			return ""
 		}(),
-		func() string {
-			if ragContext != nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
-				return fmt.Sprintf("- 已从知识库检索到 %d 个相关文档（见上方）", len(ragContext.Documents))
-			}
-			return "- 使用基于规则的代码生成"
-		}(),
+		hints.CodeTemplate,
+		ragDocs,
 	)
 
-	return tools.FormatToolResultWithAIContext(userMessage, aiInstructions, hints)
+	return tools.FormatToolResultWithAIContext(userMessage, "", hints)
 }
 
 // ValidateWasmCode 验证生成的 Go WASM 代码
@@ -703,70 +699,38 @@ func (s *MCPServer) ValidateWasmCode(args map[string]interface{}) tools.ToolResu
 
 	queryString := strings.Join(queryBuilder, " ")
 
-	ragContext, err := s.ragManager.QueryForTool(
-		"validate_wasm_code",
-		queryString,
-		"best_practice",
-	)
+	// 只有当 RAG 启用时才查询
+	if s.ragManager != nil && s.ragManager.IsEnabled() {
+		log.Printf("RAG Query: %s", queryString)
 
-	if err == nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
-		log.Printf("✅ RAG: Found %d best practice documents", len(ragContext.Documents))
-		ragBestPractices = "\n\n### 📚 最佳实践建议（来自知识库）\n\n" + ragContext.FormatContextForAI()
-		userMessage += ragBestPractices
-	} else {
-		if err != nil {
-			log.Printf("⚠️  RAG query failed for validation: %v", err)
+		ragContext, err := s.ragManager.QueryForTool(
+			"validate_wasm_code",
+			queryString,
+			"best_practice",
+		)
+
+		if err == nil && ragContext.Enabled && len(ragContext.Documents) > 0 {
+			log.Printf("RAG: Found %d best practice documents", len(ragContext.Documents))
+			ragBestPractices = "\n\n###  最佳实践建议（来自知识库）\n\n" + ragContext.FormatContextForAI()
+			userMessage += ragBestPractices
+		} else {
+			if err != nil {
+				log.Printf("  RAG query failed for validation: %v", err)
+			}
 		}
 	}
 
 	// 根据问题级别给出建议
 	hasRequired := requiredCount > 0
 	if hasRequired {
-		userMessage += "\n **请优先修复 \"必须修复\" 的问题，否则代码可能无法编译或运行。**\n\n"
+		userMessage += "\n **请优先修复 \"必须修复\" 的问题**\n\n"
 	} else if recommendedCount > 0 {
-		userMessage += "\n **代码基本结构正确。** 建议修复 \"建议修复\" 的问题以提高代码质量。\n\n"
+		userMessage += "\n **代码基本结构正确**，建议修复 \"建议修复\" 的问题\n\n"
 	} else {
-		userMessage += "\n **代码验证通过！** 可以继续生成部署配置。\n\n"
-		userMessage += "**下一步**：调用 `generate_deployment_config` 工具生成部署配置。\n"
+		userMessage += "\n **代码验证通过！** 可以调用 `generate_deployment_config` 生成部署配置\n\n"
 	}
 
-	// AI 指令
-	aiInstructions := ""
-	if hasRequired {
-		aiInstructions = `代码验证发现必须修复的问题。
-
-## 修复指南
-
-` + formatIssuesForAI(report.Issues, "required") + `
-
-请修复上述问题后，再次调用 validate_wasm_code 工具进行验证。
-`
-	} else if recommendedCount > 0 {
-		aiInstructions = `代码基本结构正确，建议修复以下问题：
-
-` + formatIssuesForAI(report.Issues, "recommended") + `
-
-可以选择修复这些问题，或直接调用 generate_deployment_config 工具生成部署配置。
-`
-	} else {
-		aiInstructions = `代码验证通过！
-
-## 下一步
-
-调用 generate_deployment_config 工具，参数：
-` + "```json" + `
-{
-  "plugin_name": "` + pluginName + `",
-  "go_code": "[验证通过的代码]",
-  "namespace": "higress-system"
-}
-` + "```" + `
-
-这将生成完整的部署配置包。
-`
-	}
-
-	return tools.FormatToolResultWithAIContext(userMessage, aiInstructions, report)
+	return tools.FormatToolResultWithAIContext(userMessage, "", report)
 }
 
 // GenerateDeploymentConfig 生成部署配置
@@ -797,103 +761,62 @@ func (s *MCPServer) GenerateDeploymentConfig(args map[string]interface{}) tools.
 	// 格式化输出
 	userMessage := fmt.Sprintf(`🎉 部署配置生成完成！
 
-已为插件 **%s** 生成完整的部署配置包。
+插件 **%s** 的部署配置已生成（命名空间: %s）
 
-##  生成的文件
+## 生成的文件
 
-### 1. WasmPlugin 配置
-- 文件名：wasmplugin.yaml
-- 命名空间：%s
-- 包含默认配置和匹配规则
+1. **wasmplugin.yaml** - WasmPlugin 配置
+2. **Makefile** - 构建和部署脚本
+3. **Dockerfile** - 容器化打包
+4. **README.md** - 使用文档
+5. **test.sh** - 测试脚本
 
-### 2. 构建脚本
-- Makefile：自动化构建和部署
-- Dockerfile：容器化打包
-
-### 3. 文档
-- README.md：完整的使用说明
-- 包含快速开始、配置说明、问题排查
-
-### 4. 测试脚本
-- test.sh：自动化测试脚本
-
-### 5. 依赖清单
-- 列出了所有必需的 Go 模块
-
----
-
-##  快速部署
+## 快速部署
 
 `+"```bash"+`
-# 1. 保存文件
-# 保存 main.go
-# 保存 wasmplugin.yaml
-# 保存 Makefile
-# 保存 Dockerfile
-
-# 2. 构建插件
+# 构建插件
 make build
 
-# 3. 构建并推送镜像
+# 构建并推送镜像
 make docker-build docker-push
 
-# 4. 部署到 Kubernetes
+# 部署
 make deploy
 
-# 5. 验证部署
+# 验证
 kubectl get wasmplugin -n %s
 `+"```"+`
 
----
+## 配置文件
 
-**文件内容请见下方结构化数据部分。**
-`,
-		pluginName,
-		namespace,
-		namespace,
-	)
-
-	aiInstructions := fmt.Sprintf(`部署配置已生成完毕。
-
-## 向用户展示文件
-
-请将以下文件内容清晰地展示给用户：
-
-### 1. main.go
-用户已经有这个文件。
-
-### 2. wasmplugin.yaml
+### wasmplugin.yaml
 `+"```yaml"+`
 %s
 `+"```"+`
 
-### 3. Makefile
+### Makefile
 `+"```makefile"+`
 %s
 `+"```"+`
 
-### 4. Dockerfile
+### Dockerfile
 `+"```dockerfile"+`
 %s
 `+"```"+`
 
-### 5. README.md
+### README.md
 `+"```markdown"+`
 %s
 `+"```"+`
 
-### 6. test.sh
+### test.sh
 `+"```bash"+`
 %s
 `+"```"+`
-
-## 后续支持
-
-询问用户是否需要：
-1. 解释任何配置项的含义
-2. 自定义某些配置
-3. 帮助解决部署问题
 `,
+		pluginName,
+		namespace,
+		namespace,
 		pkg.WasmPluginYAML,
 		pkg.Makefile,
 		pkg.Dockerfile,
@@ -901,7 +824,7 @@ kubectl get wasmplugin -n %s
 		pkg.TestScript,
 	)
 
-	return tools.FormatToolResultWithAIContext(userMessage, aiInstructions, pkg)
+	return tools.FormatToolResultWithAIContext(userMessage, "", pkg)
 }
 
 // 辅助格式化函数
@@ -911,36 +834,6 @@ func formatWarningsListForUser(warnings []string) string {
 		return "无"
 	}
 	return strings.Join(warnings, "\n- ")
-}
-
-func formatFeaturesList(features map[string]bool) string {
-	featureNames := map[string]string{
-		"request_headers":     "请求头处理",
-		"response_headers":    "响应头处理",
-		"header_manipulation": "请求头修改",
-		"request_body":        "请求体处理",
-		"response_body":       "响应体处理",
-		"response_control":    "响应控制",
-		"upstream":            "上游服务",
-		"redirect":            "重定向",
-		"rewrite":             "URL重写",
-	}
-
-	var result []string
-	for key, enabled := range features {
-		if enabled {
-			if name, ok := featureNames[key]; ok {
-				result = append(result, name)
-			} else {
-				result = append(result, key)
-			}
-		}
-	}
-
-	if len(result) == 0 {
-		return "基础功能"
-	}
-	return strings.Join(result, ", ")
 }
 
 func formatCallbacksList(callbacks []string) string {
@@ -971,42 +864,51 @@ func formatIssuesByCategory(issues []tools.ValidationIssue, category string) str
 	return strings.Join(filtered, "\n\n")
 }
 
-func formatIssuesForAI(issues []tools.ValidationIssue, category string) string {
-	var filtered []tools.ValidationIssue
-	for _, issue := range issues {
-		if issue.Category == category {
-			filtered = append(filtered, issue)
-		}
-	}
-
-	if len(filtered) == 0 {
-		return "无问题"
-	}
-
-	result := []string{}
-	for i, issue := range filtered {
-		result = append(result, fmt.Sprintf(`
-### 问题 %d: %s
-
-**类型**: %s
-**建议**: %s
-**影响**: %s
-
-请根据建议修复此问题。
-`,
-			i+1,
-			issue.Message,
-			issue.Type,
-			issue.Suggestion,
-			issue.Impact,
-		))
-	}
-	return strings.Join(result, "\n")
-}
-
 func formatList(items []string) string {
 	if len(items) == 0 {
 		return "无"
 	}
 	return "- " + strings.Join(items, "\n- ")
+}
+
+// formatFeatures 格式化特性列表
+func formatFeatures(features map[string]bool) string {
+	featureNames := map[string]string{
+		"ssl":                 "SSL/TLS 加密",
+		"proxy":               "反向代理",
+		"rewrite":             "URL 重写",
+		"redirect":            "重定向",
+		"return":              "返回指令",
+		"complex_routing":     "复杂路由匹配",
+		"header_manipulation": "请求头操作",
+		"response_headers":    "响应头操作",
+	}
+
+	var result []string
+	for key, enabled := range features {
+		if enabled {
+			if name, ok := featureNames[key]; ok {
+				result = append(result, fmt.Sprintf("- %s", name))
+			} else {
+				result = append(result, fmt.Sprintf("- %s", key))
+			}
+		}
+	}
+
+	if len(result) == 0 {
+		return "- 基础配置（无特殊特性）"
+	}
+	return strings.Join(result, "\n")
+}
+
+// formatSuggestions 格式化建议列表
+func formatSuggestions(suggestions []string) string {
+	if len(suggestions) == 0 {
+		return "- 无特殊建议"
+	}
+	var result []string
+	for _, s := range suggestions {
+		result = append(result, fmt.Sprintf("- 💡 %s", s))
+	}
+	return strings.Join(result, "\n")
 }
