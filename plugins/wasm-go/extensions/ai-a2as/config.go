@@ -54,18 +54,18 @@ import (
 // @End
 
 type A2ASConfig struct {
-	SecurityBoundaries   SecurityBoundariesConfig            `json:"securityBoundaries"`
-	InContextDefenses    InContextDefensesConfig             `json:"inContextDefenses"`
-	AuthenticatedPrompts AuthenticatedPromptsConfig          `json:"authenticatedPrompts"`
-	BehaviorCertificates BehaviorCertificatesConfig          `json:"behaviorCertificates"`
-	CodifiedPolicies     CodifiedPoliciesConfig              `json:"codifiedPolicies"`
-	Protocol             string                              `json:"protocol"`
-	
+	SecurityBoundaries   SecurityBoundariesConfig   `json:"securityBoundaries"`
+	InContextDefenses    InContextDefensesConfig    `json:"inContextDefenses"`
+	AuthenticatedPrompts AuthenticatedPromptsConfig `json:"authenticatedPrompts"`
+	BehaviorCertificates BehaviorCertificatesConfig `json:"behaviorCertificates"`
+	CodifiedPolicies     CodifiedPoliciesConfig     `json:"codifiedPolicies"`
+	Protocol             string                     `json:"protocol"`
+
 	// @Title zh-CN 最大请求体大小
 	// @Description zh-CN 允许处理的最大请求体大小（字节），默认 10MB（10485760）。范围：1KB - 100MB
-	MaxRequestBodySize   int                                 `json:"maxRequestBodySize"`
-	
-	ConsumerConfigs map[string]*ConsumerA2ASConfig      `json:"consumerConfigs,omitempty"`
+	MaxRequestBodySize int `json:"maxRequestBodySize"`
+
+	ConsumerConfigs map[string]*ConsumerA2ASConfig `json:"consumerConfigs,omitempty"`
 	metrics         map[string]proxywasm.MetricCounter
 }
 
