@@ -361,11 +361,9 @@ func (c *A2ASConfig) Validate() error {
 	}
 
 	for _, policy := range c.CodifiedPolicies.Policies {
-		if policy.Severity != "" {
-			severity := policy.Severity
-			if severity != "critical" && severity != "high" && severity != "medium" && severity != "low" {
-				return errors.New("policy[" + policy.Name + "] severity must be one of: critical, high, medium, low")
-			}
+		severity := policy.Severity
+		if severity != "critical" && severity != "high" && severity != "medium" && severity != "low" {
+			return errors.New("policy[" + policy.Name + "] severity must be one of: critical, high, medium, low")
 		}
 	}
 
