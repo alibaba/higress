@@ -323,9 +323,9 @@ Open your browser and navigate to http://localhost:8000
 ```
 
 
-## Python 构建测试数据集
+## 如何对接已有的向量数据库
 
-### 1. 基于 langchain + langchain-milvus 代码样例，用于生成测试数据集。
+### 1. 基于 langchain + langchain-milvus 代码样例，用于生成测试向量数据库。
 
 ```python
 #!/usr/bin/env python3
@@ -649,6 +649,9 @@ class LangChainMilvusProcessor:
         """
         相似性搜索
         
+        注意：此方法仅用于原生 LangChain 检索示例，如果通过 Higress 网关进行检索，
+        请使用网关提供的 MCP 工具（如 search 工具），无需直接调用此方法。
+        
         Args:
             query: 查询文本
             k: 返回结果数量
@@ -804,7 +807,7 @@ langchain-milvus>=0.2.2
 ```yaml
 rag:
   splitter:
-    provider: "recursive"
+    provider: "nosplitter"
     chunk_size: 500
     chunk_overlap: 50
   threshold: 0.5
@@ -830,6 +833,9 @@ vector_db:
   database: "default"
   collection: "langchain_rag"
   mapping:
+    # 字段映射配置：当标准字段名与数据库中实际字段名不一致时，需要通过mapping进行映射
+    # standard_name: 系统内部使用的标准字段名（如 id, content, vector, metadata, created_at）
+    # raw_name: milvus collection 中的实际字段名
     fields:
       - standard_name: "id"
         raw_name: "pk"
