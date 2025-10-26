@@ -833,7 +833,7 @@ vector_db:
   database: "default"
   collection: "langchain_rag"
   mapping:
-    # 字段映射配置：当标准字段名与数据库中实际字段名不一致时，需要通过mapping进行映射
+    # 字段映射配置：当标准字段名与 Milvus Collection 中实际字段名不一致时，需要通过 mapping 进行映射
     # standard_name: 系统内部使用的标准字段名（如 id, content, vector, metadata, created_at）
     # raw_name: milvus collection 中的实际字段名
     fields:
