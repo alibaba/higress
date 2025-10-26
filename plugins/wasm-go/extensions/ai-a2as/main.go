@@ -109,7 +109,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 
 	if err := proxywasm.ReplaceHttpRequestBody(modifiedBody); err != nil {
 		log.Errorf("[A2AS] Failed to replace request body: %v", err)
-		return types.ActionContinue
+		_ = proxywasm.SendHttpResponse(500, [][2]string{
+			{"content-type", "application/json"},
+		}, []byte(`{"error":"internal_error","message":"Failed to apply security transformations"}`), -1)
+		return types.ActionPause
 	}
 
 	log.Debugf("[A2AS] Successfully applied A2AS transformations")
