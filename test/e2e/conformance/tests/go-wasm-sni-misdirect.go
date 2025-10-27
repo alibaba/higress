@@ -15,7 +15,11 @@
 package tests
 
 import (
+	"bytes"
+	"crypto/rsa"
+	"crypto/x509"
 	"testing"
+	"time"
 
 	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/cert"
 	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
@@ -28,19 +32,31 @@ func init() {
 	Register(WasmPluginsSniMisdirect)
 }
 
+// Shared certificates for use in both PreApplyHook and Test
+var (
+	wasmSharedCACertOut  *bytes.Buffer
+	wasmSharedCliCertOut *bytes.Buffer
+	wasmSharedCliKeyOut  *bytes.Buffer
+)
+
 var WasmPluginsSniMisdirect = suite.ConformanceTest{
 	ShortName:   "WasmPluginsSniMisdirect",
 	Description: "The Ingress in the higress-conformance-infra namespace test the sni-misdirect wasmplugins.",
 	Manifests:   []string{"tests/go-wasm-sni-misdirect.yaml"},
 	Features:    []suite.SupportedFeature{suite.WASMGoConformanceFeature},
-	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		// Prepare certificates and secrets for testcases
-		caCertOut, _, caCert, caKey := cert.MustGenerateCaCert(t)
+	PreApplyHook: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		// Prepare certificates and secrets to be created BEFORE manifests are applied
+		var caCert *x509.Certificate
+		var caKey *rsa.PrivateKey
+		wasmSharedCACertOut, _, caCert, caKey = cert.MustGenerateCaCert(t)
 		svcCertOut, svcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, caKey, []string{"foo.com"})
-		cliCertOut, cliKeyOut := cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, caKey, nil)
+		wasmSharedCliCertOut, wasmSharedCliKeyOut = cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, caKey, nil)
 		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", svcCertOut.Bytes(), svcKeyOut.Bytes())
-		fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", caCertOut.Bytes())
+		fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", wasmSharedCACertOut.Bytes())
 		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret, fooSecretCACert}, suite.Cleanup)
+		time.Sleep(time.Second * 5)
+	},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 
 		testcases := []http.Assertion{
 			{
@@ -74,11 +90,11 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 						TLSConfig: &http.TLSConfig{
 							SNI: "foo.com",
 							Certificates: http.Certificates{
-								CACerts: [][]byte{caCertOut.Bytes()},
+								CACerts: [][]byte{wasmSharedCACertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: cliCertOut.Bytes(),
-										ClientKey:  cliKeyOut.Bytes(),
+										ClientCert: wasmSharedCliCertOut.Bytes(),
+										ClientKey:  wasmSharedCliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -108,11 +124,11 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 						TLSConfig: &http.TLSConfig{
 							SNI: "foo.com",
 							Certificates: http.Certificates{
-								CACerts: [][]byte{caCertOut.Bytes()},
+								CACerts: [][]byte{wasmSharedCACertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: cliCertOut.Bytes(),
-										ClientKey:  cliKeyOut.Bytes(),
+										ClientCert: wasmSharedCliCertOut.Bytes(),
+										ClientKey:  wasmSharedCliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -142,11 +158,11 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 						TLSConfig: &http.TLSConfig{
 							SNI: "foo.com",
 							Certificates: http.Certificates{
-								CACerts: [][]byte{caCertOut.Bytes()},
+								CACerts: [][]byte{wasmSharedCACertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: cliCertOut.Bytes(),
-										ClientKey:  cliKeyOut.Bytes(),
+										ClientCert: wasmSharedCliCertOut.Bytes(),
+										ClientKey:  wasmSharedCliKeyOut.Bytes(),
 									},
 								},
 							},
