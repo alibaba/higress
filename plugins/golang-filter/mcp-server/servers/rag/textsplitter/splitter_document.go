@@ -2,7 +2,7 @@ package textsplitter
 
 import (
 	"errors"
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/schema"
@@ -112,7 +112,7 @@ func mergeSplits(splits []string, separator string, chunkSize int, chunkOverlap 
 
 func maybePrintWarning(total, chunkSize int) {
 	if total > chunkSize {
-		log.Printf(
+		fmt.Printf(
 			"[WARN] created a chunk with size of %v, which is longer then the specified %v\n",
 			total,
 			chunkSize,
