@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
+	"github.com/alibaba/higress/hgctl/pkg/helm"
 	"github.com/fatih/color"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/spf13/cobra"
@@ -100,7 +101,7 @@ func newMCPAddCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification of the openapi api")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the mcp server will not be plubished to higress")
 
-	flagHigressConsoleAuth(cmd, arg)
+	addHigressConsoleAuthFlag(cmd, arg)
 
 	return cmd
 }
@@ -290,14 +291,13 @@ func addMCPToolConfig(client *services.HigressClient, config *models.MCPConfig, 
 	// fmt.Println("get openapi tools add response: ", string(resp))
 }
 
-func flagHigressConsoleAuth(cmd *cobra.Command, arg *MCPAddArg) {
+func addHigressConsoleAuthFlag(cmd *cobra.Command, arg *MCPAddArg) {
 	cmd.PersistentFlags().StringVar(&arg.baseURL, HIGRESS_CONSOLE_URL, "", "The BaseURL of higress console")
 	cmd.PersistentFlags().StringVar(&arg.hgUser, HIGRESS_CONSOLE_USER, "", "The username of higress console")
 	cmd.PersistentFlags().StringVarP(&arg.hgPassword, HIGRESS_CONSOLE_PASSWORD, "p", "", "The password of higress console")
 
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
-	// TODO: if higress is installed by hgctl, then try to resolve auth arg in install profile
 }
 
 // resolve from viper
@@ -311,4 +311,38 @@ func resolveHigressConsoleAuth(arg *MCPAddArg) {
 	if arg.hgPassword == "" {
 		arg.hgPassword = viper.GetString(HIGRESS_CONSOLE_PASSWORD)
 	}
+
+	// fmt.Printf("arg: %v\n", arg)
+
+	if arg.hgUser == "" || arg.hgPassword == "" {
+		// Here we do not return this error, cause it will failed when validate arg
+		if err := tryToGetLocalCredential(arg); err != nil {
+			fmt.Printf("failed to get local higress console credential: %s\n", err)
+		}
+	}
+}
+
+func tryToGetLocalCredential(arg *MCPAddArg) error {
+	profileContexts, err := getAllProfiles()
+
+	// The higress is not installed by hgctl
+	if err != nil || len(profileContexts) == 0 {
+		return err
+	}
+
+	for _, ctx := range profileContexts {
+		installTyp := ctx.Install
+		if installTyp == helm.InstallK8s || installTyp == helm.InstallLocalK8s {
+			user, pwd, err := getConsoleCredentials(ctx.Profile)
+			if err != nil {
+				continue
+			}
+			// TODO: always use the first one profile
+			arg.hgUser = user
+			arg.hgPassword = pwd
+			return nil
+		}
+	}
+
+	return nil
 }

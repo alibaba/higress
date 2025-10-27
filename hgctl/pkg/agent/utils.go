@@ -27,6 +27,10 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/alibaba/higress/hgctl/pkg/helm"
+	"github.com/alibaba/higress/hgctl/pkg/installer"
+	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 	"github.com/braydonk/yaml"
 	"github.com/fatih/color"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/converter"
@@ -452,4 +456,53 @@ func promptForServiceKubeSettingsAndRetry() (string, error) {
 
 	color.Green("✅ Found Higress Gateway Service IP: %s (namespace: %s)", ip, namespace)
 	return ip, nil
+}
+
+func getConsoleCredentials(profile *helm.Profile) (username, password string, err error) {
+	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+
+	if err != nil {
+		return "", "", fmt.Errorf("failed to build kubernetes client: %w", err)
+	}
+
+	secret, err := cliClient.KubernetesInterface().CoreV1().Secrets(profile.Global.Namespace).Get(context.Background(), "higress-console", metav1.GetOptions{})
+	if err != nil {
+		return "", "", err
+	}
+	return string(secret.Data["adminUsername"]), string(secret.Data["adminPassword"]), nil
+}
+
+// This function will do following things:
+// 1. read the profile from local-file
+// 2. read the profile from k8s' configMap
+// 3. combine the two type profiles together and return
+func getAllProfiles() ([]*installer.ProfileContext, error) {
+	profileContexts := make([]*installer.ProfileContext, 0)
+	profileInstalledPath, err := installer.GetProfileInstalledPath()
+	if err != nil {
+		return profileContexts, nil
+	}
+	fileProfileStore, err := installer.NewFileDirProfileStore(profileInstalledPath)
+	if err != nil {
+		return profileContexts, nil
+	}
+	fileProfileContexts, err := fileProfileStore.List()
+	if err == nil {
+		profileContexts = append(profileContexts, fileProfileContexts...)
+	}
+
+	cliClient, err := kubernetes.NewCLIClient(options.DefaultConfigFlags.ToRawKubeConfigLoader())
+	if err != nil {
+		return profileContexts, nil
+	}
+	configmapProfileStore, err := installer.NewConfigmapProfileStore(cliClient)
+	if err != nil {
+		return profileContexts, nil
+	}
+
+	configmapProfileContexts, err := configmapProfileStore.List()
+	if err == nil {
+		profileContexts = append(profileContexts, configmapProfileContexts...)
+	}
+	return profileContexts, nil
 }
