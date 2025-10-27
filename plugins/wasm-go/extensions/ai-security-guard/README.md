@@ -37,8 +37,9 @@ description: 阿里云内容安全检测
 | `sensitiveDataLevelBar` | string | optional | S4 | 敏感内容检测拦截风险等级，取值为  `S4`, `S3`, `S2` or `S1` |
 | `timeout` | int | optional | 2000 | 调用内容安全服务时的超时时间 |
 | `bufferLimit` | int | optional | 1000 | 调用内容安全服务时每段文本的长度限制 |
-| `consumerSpecificRequestCheckService` | map | optional | - | 为不同消费者指定特定的请求检测服务 |
-| `consumerSpecificResponseCheckService` | map | optional | - | 为不同消费者指定特定的响应检测服务 |
+| `consumerRequestCheckService` | map | optional | - | 为不同消费者指定特定的请求检测服务 |
+| `consumerResponseCheckService` | map | optional | - | 为不同消费者指定特定的响应检测服务 |
+| `consumerRiskLevel` | map | optional | - | 为不同消费者指定各维度的拦截风险等级 |
 
 补充说明一下 `denyMessage`，对非法请求的处理逻辑为：
 - 如果配置了 `denyMessage`，返回内容为 `denyMessage` 配置内容，格式为openai格式的流式/非流式响应
