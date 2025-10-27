@@ -829,7 +829,7 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 							"db": 0
 						},
 						"rate_limit": null,
-						"sse_path_suffix": "/sse",
+						"sse_path_suffix": "",
 						"match_list": [],
 						"enable_user_level_server": false
 					}
