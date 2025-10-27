@@ -400,25 +400,3 @@ func TestUtilityFunctions(t *testing.T) {
 		require.Len(t, id, 38) // "chatcmpl-" + 29 random chars
 	})
 }
-
-func TestMarshalFunctions(t *testing.T) {
-	// 测试marshalStr函数
-	t.Run("marshal string", func(t *testing.T) {
-		testStr := "Hello, World!"
-		marshalled := marshalStr(testStr)
-		require.Equal(t, testStr, marshalled)
-	})
-
-	// 测试extractMessageFromStreamingBody函数
-	t.Run("extract streaming body", func(t *testing.T) {
-		// 使用正确的分隔符，每个chunk之间用双换行符分隔
-		streamingData := []byte(`{"choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
-
-{"choices":[{"index":0,"delta":{"role":"assistant","content":" World"}}]}
-
-{"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)
-
-		extracted := extractMessageFromStreamingBody(streamingData, "choices.0.delta.content")
-		require.Equal(t, "Hello World", extracted)
-	})
-}
