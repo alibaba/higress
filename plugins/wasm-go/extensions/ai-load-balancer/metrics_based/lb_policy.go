@@ -1,7 +1,7 @@
 package least_busy
 
 import (
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/scheduling"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/scheduling"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -49,7 +49,7 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 			hostMetrics[hostInfo[0]] = gjson.Get(hostInfo[1], "metrics").String()
 		}
 	}
-	scheduler, err := scheduling.GetScheduler(hostMetrics)
+	scheduler, err := scheduling.GetScheduler(hostMetrics, scheduling.DefaultFilter)
 	if err != nil {
 		log.Debugf("initial scheduler failed: %v", err)
 		return types.ActionContinue

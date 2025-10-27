@@ -23,8 +23,8 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend/vllm"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/backend"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/backend/vllm"
 
 	"github.com/prometheus/common/expfmt"
 )
@@ -41,13 +41,20 @@ const (
 )
 
 var (
-	defaultFilter = &filter{
+	DefaultFilter = &filter{
 		name:          "critical request",
 		filter:        toFilterFunc(criticalRequestPredicate),
 		nextOnSuccess: lowLatencyFilter,
 		nextOnFailure: sheddableRequestFilter,
 	}
 
+	LeastWaitingQueueFilter = &filter{
+		name:   "least queuing",
+		filter: leastQueuingFilterFunc,
+	}
+)
+
+var (
 	// queueLoRAAndKVCacheFilter applied least queue -> low cost lora ->  least KV Cache filter
 	queueLoRAAndKVCacheFilter = &filter{
 		name:   "least queuing",
@@ -107,11 +114,11 @@ var (
 	}
 )
 
-func NewScheduler(pm []*backend.PodMetrics) *Scheduler {
+func NewScheduler(pm []*backend.PodMetrics, filter Filter) *Scheduler {
 
 	return &Scheduler{
 		podMetrics: pm,
-		filter:     defaultFilter,
+		filter:     filter,
 	}
 }
 
@@ -130,7 +137,7 @@ func (s *Scheduler) Schedule(req *LLMRequest) (targetPod backend.Pod, err error)
 	return pods[i].Pod, nil
 }
 
-func GetScheduler(hostMetrics map[string]string) (*Scheduler, error) {
+func GetScheduler(hostMetrics map[string]string, filter Filter) (*Scheduler, error) {
 	if len(hostMetrics) == 0 {
 		return nil, errors.New("backend is not support llm scheduling")
 	}
@@ -154,5 +161,5 @@ func GetScheduler(hostMetrics map[string]string) (*Scheduler, error) {
 		}
 		pms = append(pms, pm)
 	}
-	return NewScheduler(pms), nil
+	return NewScheduler(pms, filter), nil
 }
