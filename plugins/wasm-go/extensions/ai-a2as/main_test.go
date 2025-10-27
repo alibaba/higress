@@ -587,7 +587,7 @@ func TestHMACSignatureGeneration(t *testing.T) {
 	// 生成 HMAC-SHA256 签名
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
-	
+
 	hexSignature := hex.EncodeToString(mac.Sum(nil))
 	base64Signature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
