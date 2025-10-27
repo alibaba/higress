@@ -19,6 +19,8 @@ import (
 	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/parser"
 	"github.com/manifoldco/promptui"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8s "k8s.io/client-go/kubernetes"
@@ -26,6 +28,12 @@ import (
 )
 
 var binaryName = AgentBinaryName
+
+// ------ cmd related  ------
+func BindFlagToEnv(cmd *cobra.Command, flagName, envName string) {
+	_ = viper.BindPFlag(flagName, cmd.PersistentFlags().Lookup(flagName))
+	_ = viper.BindEnv(flagName, envName)
+}
 
 // ------ Prompt to install prequisite environment  ------
 func checkNodeInstall() bool {

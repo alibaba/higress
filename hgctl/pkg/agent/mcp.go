@@ -6,11 +6,13 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/fatih/color"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -22,13 +24,17 @@ const (
 	OPENAPI      string = "openapi"
 	DIRECT_ROUTE string = "DIRECT_ROUTE"
 	OPEN_API     string = "OPEN_API"
+
+	HIGRESS_CONSOLE_URL      = "higress-console-url"
+	HIGRESS_CONSOLE_USER     = "higress-console-user"
+	HIGRESS_CONSOLE_PASSWORD = "higress-console-password"
 )
 
 type MCPAddArg struct {
 	// higress console auth arg
-	baseURL  string
-	username string
-	password string
+	baseURL    string
+	hgUser     string
+	hgPassword string
 
 	name      string
 	url       string
@@ -67,6 +73,7 @@ func newMCPAddCmd() *cobra.Command {
 		Short: "add mcp server including http and openapi",
 		Run: func(cmd *cobra.Command, args []string) {
 			arg.name = args[0]
+			resolveHigressConsoleAuth(arg)
 			cmdutil.CheckErr(handleAddMCP(cmd.OutOrStdout(), *arg))
 			color.Cyan("Tip: Try doing 'kubectl port-forward' and add the server to the agent manually, if MCP Server connection failed")
 		},
@@ -79,9 +86,8 @@ func newMCPAddCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification of the openapi api")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the mcp server will not be plubished to higress")
 
-	cmd.PersistentFlags().StringVar(&arg.baseURL, "base-url", "", "The BaseURL of higress console")
-	cmd.PersistentFlags().StringVar(&arg.username, "user", "", "The username of higress console")
-	cmd.PersistentFlags().StringVarP(&arg.password, "password", "p", "", "The password of higress console")
+	flagHigressConsoleAuth(cmd, arg)
+
 	return cmd
 }
 
@@ -91,8 +97,8 @@ func newHanlder(c *AgenticCore, arg MCPAddArg, w io.Writer) *MCPAddHandler {
 
 func (h *MCPAddHandler) validateArg() error {
 	if !h.arg.noPublish {
-		if h.arg.baseURL == "" || h.arg.username == "" || h.arg.password == "" {
-			fmt.Println("--user, --base-url, --password must be provided")
+		if h.arg.baseURL == "" || h.arg.hgUser == "" || h.arg.hgPassword == "" {
+			fmt.Println("--higress-console-user, --higress-console-url, --higress-console-password must be provided")
 			return fmt.Errorf("invalid args")
 		}
 	}
@@ -106,7 +112,6 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 	}
 
 	if !h.arg.noPublish {
-		fmt.Printf("%s is set to not be noPublish\n", h.arg.name)
 		return publishToHigress(h.arg, nil)
 	}
 	return nil
@@ -172,7 +177,7 @@ func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
 	// 1. parse the raw http url
 	// 2. add service source
 	// 3. add MCP server request
-	client := services.NewHigressClient(arg.baseURL, arg.username, arg.password)
+	client := services.NewHigressClient(arg.baseURL, arg.hgUser, arg.hgPassword)
 
 	// mcp server's url
 	rawURL := arg.url
@@ -269,4 +274,27 @@ func addMCPToolConfig(client *services.HigressClient, config *models.MCPConfig, 
 		os.Exit(1)
 	}
 	// fmt.Println("get openapi tools add response: ", string(resp))
+}
+
+func flagHigressConsoleAuth(cmd *cobra.Command, arg *MCPAddArg) {
+	cmd.PersistentFlags().StringVar(&arg.baseURL, HIGRESS_CONSOLE_URL, "", "The BaseURL of higress console")
+	cmd.PersistentFlags().StringVar(&arg.hgUser, HIGRESS_CONSOLE_USER, "", "The username of higress console")
+	cmd.PersistentFlags().StringVarP(&arg.hgPassword, HIGRESS_CONSOLE_PASSWORD, "p", "", "The password of higress console")
+
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
+	// TODO: if higress is installed by hgctl, then try to resolve auth arg in install profile
+}
+
+// resolve from viper
+func resolveHigressConsoleAuth(arg *MCPAddArg) {
+	if arg.baseURL == "" {
+		arg.baseURL = viper.GetString(HIGRESS_CONSOLE_URL)
+	}
+	if arg.hgUser == "" {
+		arg.hgUser = viper.GetString(HIGRESS_CONSOLE_USER)
+	}
+	if arg.hgPassword == "" {
+		arg.hgPassword = viper.GetString(HIGRESS_CONSOLE_PASSWORD)
+	}
 }
