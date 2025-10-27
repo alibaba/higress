@@ -57,7 +57,11 @@ data:
       redis:
         address: redis-stack-server.higress-system.svc.cluster.local:6379 # Redis服务地址
         username: "" # Redis用户名（可选）
-        password: "" # Redis密码（可选）
+        password: "" # Redis密码（可选，明文方式）
+        passwordSecret: # 从 Secret 引用密码（推荐，优先级高于 password）
+          name: redis-credentials # Secret 名称
+          key: password # Secret 中的 key
+          namespace: higress-system # Secret 所在命名空间（可选，默认为 higress-system）
         db: 0 # Redis数据库（可选）
       match_list: # MCP Server 会话保持路由规则（当匹配下面路径时，将被识别为一个 MCP 会话，通过 SSE 等机制进行会话保持）
         - match_rule_domain: "*"
