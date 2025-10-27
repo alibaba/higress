@@ -91,7 +91,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 	modifiedBody, err := applyA2ASTransformations(config, body)
 	if err != nil {
 		log.Errorf("[A2AS] Failed to apply transformations: %v", err)
-		_ = proxywasm.SendHttpResponse(500, [][2]string{{"content-type", "application/json"}}, 
+		_ = proxywasm.SendHttpResponse(500, [][2]string{{"content-type", "application/json"}},
 			[]byte(`{"error":"A2AS transformation failed"}`), -1)
 		return types.ActionPause
 	}
@@ -349,21 +349,21 @@ func matchesPattern(pattern, toolName string) bool {
 	if pattern == toolName {
 		return true
 	}
-	
+
 	if pattern == "*" {
 		return true
 	}
-	
+
 	if strings.HasSuffix(pattern, "*") {
 		prefix := strings.TrimSuffix(pattern, "*")
 		return strings.HasPrefix(toolName, prefix)
 	}
-	
+
 	if strings.HasPrefix(pattern, "*") {
 		suffix := strings.TrimPrefix(pattern, "*")
 		return strings.HasSuffix(toolName, suffix)
 	}
-	
+
 	return false
 }
 
@@ -372,11 +372,11 @@ func verifySignature(config AuthenticatedPromptsConfig, maxBodySize int) error {
 	case "rfc9421":
 		log.Debugf("[A2AS] Using RFC 9421 signature verification mode")
 		return verifyRFC9421Signature(config)
-	
+
 	case "simple":
 		log.Debugf("[A2AS] Using simple HMAC signature verification mode")
 		return verifySimpleSignature(config, maxBodySize)
-	
+
 	default:
 		return fmt.Errorf("unsupported signature mode: %s", config.Mode)
 	}
@@ -384,7 +384,7 @@ func verifySignature(config AuthenticatedPromptsConfig, maxBodySize int) error {
 
 func verifySimpleSignature(config AuthenticatedPromptsConfig, maxBodySize int) error {
 	signatureHeader, err := proxywasm.GetHttpRequestHeader(config.SignatureHeader)
-	
+
 	if err != nil || signatureHeader == "" {
 		if config.AllowUnsigned {
 			log.Debugf("[A2AS] No signature found, but allowUnsigned=true, continuing")
