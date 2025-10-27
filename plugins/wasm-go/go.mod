@@ -13,6 +13,8 @@ require (
 	github.com/tidwall/sjson v1.2.5
 )
 
+replace github.com/higress-group/proxy-wasm-go-sdk => github.com/007gzs/proxy-wasm-go-sdk v0.0.0-20251027103205-fa1448d99baa
+
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

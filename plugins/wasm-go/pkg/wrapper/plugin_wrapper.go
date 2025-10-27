@@ -83,14 +83,14 @@ type oldParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global Plu
 type oldOnHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) types.Action
 type oldOnHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte, log Log) types.Action
 type oldOnHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log Log) []byte
-type oldOnHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log)
+type oldOnHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig, log Log) bool
 
 type ParseConfigFunc[PluginConfig any] func(json gjson.Result, config *PluginConfig) error
 type ParseRuleConfigFunc[PluginConfig any] func(json gjson.Result, global PluginConfig, config *PluginConfig) error
 type onHttpHeadersFunc[PluginConfig any] func(context HttpContext, config PluginConfig) types.Action
 type onHttpBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, body []byte) types.Action
 type onHttpStreamingBodyFunc[PluginConfig any] func(context HttpContext, config PluginConfig, chunk []byte, isLastChunk bool) []byte
-type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig)
+type onHttpStreamDoneFunc[PluginConfig any] func(context HttpContext, config PluginConfig) bool
 
 type CommonVmCtx[PluginConfig any] struct {
 	types.DefaultVMContext
@@ -354,7 +354,7 @@ func (o *onProcessStreamDoneOption[PluginConfig]) Apply(ctx *CommonVmCtx[PluginC
 	if o.f != nil {
 		ctx.onHttpStreamDone = o.f
 	} else {
-		ctx.onHttpStreamDone = func(context HttpContext, config PluginConfig) { o.oldF(context, config, ctx.log) }
+		ctx.onHttpStreamDone = func(context HttpContext, config PluginConfig) bool { return o.oldF(context, config, ctx.log) }
 	}
 
 }
@@ -780,12 +780,12 @@ func (ctx *CommonHttpCtx[PluginConfig]) OnHttpResponseBody(bodySize int, endOfSt
 	return types.ActionContinue
 }
 
-func (ctx *CommonHttpCtx[PluginConfig]) OnHttpStreamDone() {
+func (ctx *CommonHttpCtx[PluginConfig]) OnHttpStreamDone() bool {
 	if ctx.config == nil {
-		return
+		return true
 	}
 	if ctx.plugin.vm.onHttpStreamDone == nil {
-		return
+		return true
 	}
-	ctx.plugin.vm.onHttpStreamDone(ctx, *ctx.config)
+	return ctx.plugin.vm.onHttpStreamDone(ctx, *ctx.config)
 }
