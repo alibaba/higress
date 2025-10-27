@@ -135,7 +135,9 @@ type AISecurityConfig struct {
 	timeout                       uint32
 	bufferLimit                   int
 	metrics                       map[string]proxywasm.MetricCounter
-	consumerSpecificConfig        []map[string]interface{}
+	consumerRequestCheckService   []map[string]interface{}
+	consumerResponseCheckService  []map[string]interface{}
+	consumerRiskLevel             []map[string]interface{}
 }
 
 type Matcher struct {
@@ -167,7 +169,7 @@ func (config *AISecurityConfig) incrementCounter(metricName string, inc uint64) 
 
 func (config *AISecurityConfig) getRequestCheckService(consumer string) string {
 	result := config.requestCheckService
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerRequestCheckService {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if requestCheckService, ok := obj["requestCheckService"]; ok {
@@ -182,7 +184,7 @@ func (config *AISecurityConfig) getRequestCheckService(consumer string) string {
 
 func (config *AISecurityConfig) getResponseCheckService(consumer string) string {
 	result := config.responseCheckService
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerResponseCheckService {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if responseCheckService, ok := obj["responseCheckService"]; ok {
@@ -197,7 +199,7 @@ func (config *AISecurityConfig) getResponseCheckService(consumer string) string 
 
 func (config *AISecurityConfig) getRiskLevelBar(consumer string) string {
 	result := config.riskLevelBar
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerRiskLevel {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if riskLevelBar, ok := obj["riskLevelBar"]; ok {
@@ -212,7 +214,7 @@ func (config *AISecurityConfig) getRiskLevelBar(consumer string) string {
 
 func (config *AISecurityConfig) getContentModerationLevelBar(consumer string) string {
 	result := config.contentModerationLevelBar
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerRiskLevel {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if contentModerationLevelBar, ok := obj["contentModerationLevelBar"]; ok {
@@ -227,7 +229,7 @@ func (config *AISecurityConfig) getContentModerationLevelBar(consumer string) st
 
 func (config *AISecurityConfig) getPromptAttackLevelBar(consumer string) string {
 	result := config.promptAttackLevelBar
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerRiskLevel {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if promptAttackLevelBar, ok := obj["promptAttackLevelBar"]; ok {
@@ -242,7 +244,7 @@ func (config *AISecurityConfig) getPromptAttackLevelBar(consumer string) string 
 
 func (config *AISecurityConfig) getSensitiveDataLevelBar(consumer string) string {
 	result := config.sensitiveDataLevelBar
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerRiskLevel {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if sensitiveDataLevelBar, ok := obj["sensitiveDataLevelBar"]; ok {
@@ -257,7 +259,7 @@ func (config *AISecurityConfig) getSensitiveDataLevelBar(consumer string) string
 
 func (config *AISecurityConfig) getMaliciousUrlLevelBar(consumer string) string {
 	result := config.maliciousUrlLevelBar
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerRiskLevel {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if maliciousUrlLevelBar, ok := obj["maliciousUrlLevelBar"]; ok {
@@ -272,7 +274,7 @@ func (config *AISecurityConfig) getMaliciousUrlLevelBar(consumer string) string 
 
 func (config *AISecurityConfig) getModelHallucinationLevelBar(consumer string) string {
 	result := config.modelHallucinationLevelBar
-	for _, obj := range config.consumerSpecificConfig {
+	for _, obj := range config.consumerRiskLevel {
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if modelHallucinationLevelBar, ok := obj["modelHallucinationLevelBar"]; ok {
@@ -527,8 +529,8 @@ func parseConfig(json gjson.Result, config *AISecurityConfig) error {
 	} else {
 		config.bufferLimit = 1000
 	}
-	if obj := json.Get("consumerSpecificConfig"); obj.Exists() {
-		for _, item := range json.Get("consumerSpecificConfig").Array() {
+	if obj := json.Get("consumerRequestCheckService"); obj.Exists() {
+		for _, item := range json.Get("consumerRequestCheckService").Array() {
 			m := make(map[string]interface{})
 			for k, v := range item.Map() {
 				m[k] = v.Value()
@@ -546,7 +548,51 @@ func parseConfig(json gjson.Result, config *AISecurityConfig) error {
 			case "regexp":
 				m["matcher"] = Matcher{Re: regexp.MustCompile(fmt.Sprint(consumerName))}
 			}
-			config.consumerSpecificConfig = append(config.consumerSpecificConfig, m)
+			config.consumerRequestCheckService = append(config.consumerRequestCheckService, m)
+		}
+	}
+	if obj := json.Get("consumerResponseCheckService"); obj.Exists() {
+		for _, item := range json.Get("consumerResponseCheckService").Array() {
+			m := make(map[string]interface{})
+			for k, v := range item.Map() {
+				m[k] = v.Value()
+			}
+			consumerName, ok1 := m["name"]
+			matchType, ok2 := m["matchType"]
+			if !ok1 || !ok2 {
+				continue
+			}
+			switch fmt.Sprint(matchType) {
+			case "exact":
+				m["matcher"] = Matcher{Exact: fmt.Sprint(consumerName)}
+			case "prefix":
+				m["matcher"] = Matcher{Prefix: fmt.Sprint(consumerName)}
+			case "regexp":
+				m["matcher"] = Matcher{Re: regexp.MustCompile(fmt.Sprint(consumerName))}
+			}
+			config.consumerResponseCheckService = append(config.consumerResponseCheckService, m)
+		}
+	}
+	if obj := json.Get("consumerRiskLevel"); obj.Exists() {
+		for _, item := range json.Get("consumerRiskLevel").Array() {
+			m := make(map[string]interface{})
+			for k, v := range item.Map() {
+				m[k] = v.Value()
+			}
+			consumerName, ok1 := m["name"]
+			matchType, ok2 := m["matchType"]
+			if !ok1 || !ok2 {
+				continue
+			}
+			switch fmt.Sprint(matchType) {
+			case "exact":
+				m["matcher"] = Matcher{Exact: fmt.Sprint(consumerName)}
+			case "prefix":
+				m["matcher"] = Matcher{Prefix: fmt.Sprint(consumerName)}
+			case "regexp":
+				m["matcher"] = Matcher{Re: regexp.MustCompile(fmt.Sprint(consumerName))}
+			}
+			config.consumerRiskLevel = append(config.consumerRiskLevel, m)
 		}
 	}
 	config.client = wrapper.NewClusterClient(wrapper.FQDNCluster{
