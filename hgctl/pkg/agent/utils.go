@@ -45,6 +45,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+const (
+	SecretConsoleUser = "adminUsername"
+	SecretConsolePwd  = "adminPassword"
+)
+
 var binaryName = AgentBinaryName
 
 // ------ cmd related  ------
@@ -469,7 +474,7 @@ func getConsoleCredentials(profile *helm.Profile) (username, password string, er
 	if err != nil {
 		return "", "", err
 	}
-	return string(secret.Data["adminUsername"]), string(secret.Data["adminPassword"]), nil
+	return string(secret.Data[SecretConsoleUser]), string(secret.Data[SecretConsolePwd]), nil
 }
 
 // This function will do following things:
