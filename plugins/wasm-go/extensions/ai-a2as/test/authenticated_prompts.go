@@ -76,7 +76,6 @@ func computeHMACSignature(secret string, body []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// Runauthenticated prompts tests
 func RunAuthenticatedPromptsParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		t.Run("simple signature config", func(t *testing.T) {
@@ -111,7 +110,6 @@ func RunAuthenticatedPromptsParseConfigTests(t *testing.T) {
 	})
 }
 
-// Runauthenticated prompts tests
 func RunAuthenticatedPromptsOnHttpRequestHeadersTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		t.Run("missing signature - should reject", func(t *testing.T) {
@@ -173,7 +171,6 @@ func RunAuthenticatedPromptsOnHttpRequestHeadersTests(t *testing.T) {
 	})
 }
 
-// Runauthenticated prompts tests
 func RunAuthenticatedPromptsOnHttpRequestBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		t.Run("valid simple HMAC signature", func(t *testing.T) {

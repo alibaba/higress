@@ -40,7 +40,6 @@ var wildcardBehaviorCertificatesConfig = func() json.RawMessage {
 	return data
 }()
 
-// Runbehavior certificates tests
 func RunBehaviorCertificatesParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		t.Run("basic behavior certificates config", func(t *testing.T) {
@@ -65,7 +64,6 @@ func RunBehaviorCertificatesParseConfigTests(t *testing.T) {
 	})
 }
 
-// Runbehavior certificates tests
 func RunBehaviorCertificatesOnHttpRequestBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		t.Run("allowed tool - should pass", func(t *testing.T) {
@@ -116,10 +114,10 @@ func RunBehaviorCertificatesOnHttpRequestBodyTests(t *testing.T) {
 				]
 			}`
 
-		action := host.CallOnHttpRequestBody([]byte(requestBody))
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
 
-		// email.send_message 在 deniedTools 中，应该被拒绝
-		require.Equal(t, types.ActionPause, action)
+			// email.send_message 在 deniedTools 中，应该被拒绝
+			require.Equal(t, types.ActionPause, action)
 		})
 
 		t.Run("wildcard allowed tool - should pass", func(t *testing.T) {

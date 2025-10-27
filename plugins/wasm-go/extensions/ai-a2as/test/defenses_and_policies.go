@@ -78,7 +78,6 @@ var combinedDefensesAndPoliciesConfig = func() json.RawMessage {
 	return data
 }()
 
-// Rundefenses and policies tests
 func RunDefensesAndPoliciesParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		t.Run("in-context defenses config", func(t *testing.T) {
@@ -113,7 +112,6 @@ func RunDefensesAndPoliciesParseConfigTests(t *testing.T) {
 	})
 }
 
-// Rundefenses and policies tests
 func RunDefensesAndPoliciesOnHttpRequestBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		t.Run("inject in-context defenses as system message", func(t *testing.T) {
@@ -183,8 +181,8 @@ func RunDefensesAndPoliciesOnHttpRequestBodyTests(t *testing.T) {
 			bodyStr := string(modifiedBody)
 
 			// 验证是否同时注入了防御和策略
-		require.True(t, containsDefenseOrPolicyTag(bodyStr, "<a2as:defense>"), "Should inject defense")
-		require.True(t, containsDefenseOrPolicyTag(bodyStr, "<a2as:policy>"), "Should inject policy")
+			require.True(t, containsDefenseOrPolicyTag(bodyStr, "<a2as:defense>"), "Should inject defense")
+			require.True(t, containsDefenseOrPolicyTag(bodyStr, "<a2as:policy>"), "Should inject policy")
 		})
 
 		t.Run("defense position before_user", func(t *testing.T) {
@@ -217,7 +215,7 @@ func RunDefensesAndPoliciesOnHttpRequestBodyTests(t *testing.T) {
 			// 验证注入位置
 			defenseIndex := strings.Index(bodyStr, "Security warning")
 			userIndex := strings.Index(bodyStr, "\"role\":\"user\"")
-			
+
 			// 防御指令应该在用户消息之�?
 			require.True(t, defenseIndex < userIndex, "Defense should be before user message")
 		})

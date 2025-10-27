@@ -57,7 +57,6 @@ var perConsumerConfig = func() json.RawMessage {
 	return data
 }()
 
-// Runper consumer tests
 func RunPerConsumerParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		t.Run("per-consumer config with multiple consumers", func(t *testing.T) {
@@ -72,7 +71,6 @@ func RunPerConsumerParseConfigTests(t *testing.T) {
 	})
 }
 
-// Runper consumer tests
 func RunPerConsumerOnHttpRequestHeadersTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		t.Run("identify consumer from X-Mse-Consumer header", func(t *testing.T) {
@@ -123,7 +121,6 @@ func RunPerConsumerOnHttpRequestHeadersTests(t *testing.T) {
 	})
 }
 
-// Runper consumer tests
 func RunPerConsumerOnHttpRequestBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		t.Run("high-risk consumer - apply strict security boundaries", func(t *testing.T) {
@@ -150,11 +147,11 @@ func RunPerConsumerOnHttpRequestBodyTests(t *testing.T) {
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
-		modifiedBody := host.GetRequestBody()
-		bodyStr := string(modifiedBody)
+			modifiedBody := host.GetRequestBody()
+			bodyStr := string(modifiedBody)
 
-		// 高风险消费者应该启用安全边界（全局配置是 disabled）
-		require.True(t, containsTag(bodyStr, "<a2as:user"), "High-risk consumer should have security boundaries")
+			// 高风险消费者应该启用安全边界（全局配置是 disabled）
+			require.True(t, containsTag(bodyStr, "<a2as:user"), "High-risk consumer should have security boundaries")
 		})
 
 		t.Run("trusted consumer - no security boundaries", func(t *testing.T) {
@@ -180,11 +177,11 @@ func RunPerConsumerOnHttpRequestBodyTests(t *testing.T) {
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
-		modifiedBody := host.GetRequestBody()
-		bodyStr := string(modifiedBody)
+			modifiedBody := host.GetRequestBody()
+			bodyStr := string(modifiedBody)
 
-		// 受信任消费者禁用了安全边界
-		require.False(t, containsTag(bodyStr, "<a2as:user"), "Trusted consumer should not have security boundaries")
+			// 受信任消费者禁用了安全边界
+			require.False(t, containsTag(bodyStr, "<a2as:user"), "Trusted consumer should not have security boundaries")
 		})
 
 		t.Run("high-risk consumer - restricted tool permissions", func(t *testing.T) {

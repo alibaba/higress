@@ -39,6 +39,11 @@ type RFC9421SignatureParams struct {
 }
 
 func verifyRFC9421Signature(config AuthenticatedPromptsConfig) error {
+	// 自动添加Content-Digest头（如果客户端没有提供）
+	if err := ensureContentDigest(); err != nil {
+		return fmt.Errorf("failed to ensure Content-Digest: %v", err)
+	}
+
 	signatureInputHeader, err := proxywasm.GetHttpRequestHeader("Signature-Input")
 	if err != nil || signatureInputHeader == "" {
 		return fmt.Errorf("missing Signature-Input header")
@@ -268,9 +273,32 @@ func getHeaderComponent(component string) (string, error) {
 	return value, nil
 }
 
+// ensureContentDigest 自动添加Content-Digest头（如果客户端未提供）
+func ensureContentDigest() error {
+	existingDigest, err := proxywasm.GetHttpRequestHeader("Content-Digest")
+	if err == nil && existingDigest != "" {
+		return nil
+	}
+
+	body, err := proxywasm.GetHttpRequestBody(0, 10*1024*1024)
+	if err != nil {
+		return fmt.Errorf("failed to read request body: %v", err)
+	}
+
+	hash := sha256.Sum256(body)
+	digestValue := base64.StdEncoding.EncodeToString(hash[:])
+	contentDigest := fmt.Sprintf("sha-256=:%s:", digestValue)
+
+	if err := proxywasm.AddHttpRequestHeader("Content-Digest", contentDigest); err != nil {
+		return fmt.Errorf("failed to add Content-Digest header: %v", err)
+	}
+
+	return nil
+}
+
 func getContentDigestValue() (string, error) {
 	providedDigest, err := proxywasm.GetHttpRequestHeader("Content-Digest")
-	
+
 	body, err := proxywasm.GetHttpRequestBody(0, 10*1024*1024)
 	if err != nil {
 		return "", err

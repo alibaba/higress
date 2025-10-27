@@ -190,12 +190,40 @@ curl -X POST https://your-gateway/v1/chat/completions \
   -d "$BODY"
 ```
 
+**自动Content-Digest功能** (v1.1.0+)：
+- 🚀 **客户端无需手动计算Content-Digest**：插件会自动为没有Content-Digest头的请求计算并添加
+- ✅ **简化RFC 9421集成**：客户端只需发送签名，无需额外计算Content-Digest
+- 🔄 **向后兼容**：如果客户端已提供Content-Digest，插件会验证而不是覆盖
+
+**简化的RFC 9421示例**（无需手动计算Content-Digest）：
+```bash
+# 简化版：插件会自动添加Content-Digest
+BODY='{"messages":[{"role":"user","content":"test"}]}'
+SECRET="your-shared-secret"
+
+# 1. 构建签名基字符串（无需手动计算Content-Digest）
+CREATED=$(date +%s)
+SIG_BASE="\"@method\": POST
+\"@path\": /v1/chat/completions
+\"@signature-params\": (\"@method\" \"@path\");created=$CREATED"
+
+# 2. 计算签名
+SIGNATURE=$(echo -n "$SIG_BASE" | openssl dgst -sha256 -hmac "$SECRET" -binary | base64)
+
+# 3. 发送请求（无需Content-Digest头）
+curl -X POST https://your-gateway/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Signature: sig1=:$SIGNATURE:" \
+  -H "Signature-Input: sig1=(\"@method\" \"@path\");created=$CREATED" \
+  -d "$BODY"
+```
+
 **安全建议**：
 - ✅ 生产环境推荐使用 `rfc9421` 模式以获得更强的安全性
 - ✅ 在生产环境中设置 `allowUnsigned: false`
 - ✅ 定期轮换 `sharedSecret`
 - ✅ 使用强随机密钥（至少 32 字节）
-- ✅ RFC 9421 模式下启用 `Content-Digest` 验证
+- ✅ RFC 9421 模式下会自动添加 `Content-Digest`
 
 ### Behavior Certificates (B) - 行为证书
 
