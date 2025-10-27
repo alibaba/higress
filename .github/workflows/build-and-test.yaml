@@ -121,14 +121,17 @@ jobs:
           path: |-
             ~/.cache/go-build
             ~/go/pkg/mod
-          # key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ github.run_id }}
-          key: ${{ runner.os }}-go-${{ env.GO_VERSION }}
+          key: ${{ runner.os }}-go-${{ github.run_id }}
+          # key: ${{ runner.os }}-go-${{ env.GO_VERSION }}
 
           restore-keys: ${{ runner.os }}-go
 
       - run: git stash # restore patch
 
-      - run: go mod tidy # update go mod
+      - name: update go mod
+        run: |-
+          make prebuild
+          go mod tidy
 
       - name: "Run Higress E2E Conformance Tests"
         run: GOPROXY="https://proxy.golang.org,direct" make higress-conformance-test
