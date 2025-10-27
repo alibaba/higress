@@ -298,7 +298,7 @@ func generateDeploymentConfig(args map[string]interface{}, ctx *MigrationContext
 4. README.md
 5. 测试脚本
 
-参考文档: https://higress.io/zh-cn/docs/user/wasm-go`, pluginName, namespace)
+参考文档: https://higress.cn/docs/latest/user/wasm-go/`, pluginName, namespace)
 
 	return result, nil
 }

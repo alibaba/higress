@@ -95,7 +95,7 @@ func GenerateConversionHints(analysis AnalysisResultForAI, pluginName string) Co
 func generateCodeTemplate(analysis AnalysisResultForAI, pluginName string) string {
 	callbacks := generateCallbackSummary(analysis)
 	return fmt.Sprintf(`生成 Go WASM 插件 %s，实现回调: %s
-参考文档: https://higress.io/zh-cn/docs/user/wasm-go`,
+参考文档: https://higress.cn/docs/latest/user/wasm-go/`,
 		pluginName, callbacks)
 }
 
