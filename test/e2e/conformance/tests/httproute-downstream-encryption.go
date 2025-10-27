@@ -15,8 +15,12 @@
 package tests
 
 import (
+	"bytes"
+	"crypto/rsa"
 	"crypto/tls"
+	"crypto/x509"
 	"testing"
+	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -30,19 +34,36 @@ func init() {
 	Register(HTTPRouteDownstreamEncryption)
 }
 
+// Shared certificates for use in both PreApplyHook and Test
+// This is necessary because certificates need to be generated once and used in both places
+var (
+	sharedCAKey      *rsa.PrivateKey
+	sharedCACertOut  *bytes.Buffer
+	sharedCliCertOut *bytes.Buffer
+	sharedCliKeyOut  *bytes.Buffer
+	sharedSvcCertOut *bytes.Buffer
+	sharedSvcKeyOut  *bytes.Buffer
+)
+
 var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 	ShortName:   "HTTPRouteDownstreamEncryption",
 	Description: "A single Ingress in the higress-conformance-infra namespace for downstream encryption.",
 	Manifests:   []string{"tests/httproute-downstream-encryption.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
-	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		// Prepare certificates and secrets for testcases
-		caCertOut, _, caCert, caKey := cert.MustGenerateCaCert(t)
-		svcCertOut, svcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, caKey, []string{"foo.com"})
-		cliCertOut, cliKeyOut := cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, caKey, nil)
-		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", svcCertOut.Bytes(), svcKeyOut.Bytes())
-		fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", caCertOut.Bytes())
+	PreApplyHook: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		// Prepare certificates and secrets to be created BEFORE manifests are applied
+		// This ensures secrets exist when the Ingress resources reference them
+		var caCert *x509.Certificate
+		sharedCACertOut, _, caCert, sharedCAKey = cert.MustGenerateCaCert(t)
+		sharedSvcCertOut, sharedSvcKeyOut = cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, sharedCAKey, []string{"foo.com"})
+		sharedCliCertOut, sharedCliKeyOut = cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, sharedCAKey, nil)
+		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", sharedSvcCertOut.Bytes(), sharedSvcKeyOut.Bytes())
+		fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", sharedCACertOut.Bytes())
 		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret, fooSecretCACert}, suite.Cleanup)
+		time.Sleep(time.Second * 5)
+	},
+	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		// Use the certificates that were already generated in PreApplyHook
 
 		testcases := []http.Assertion{
 			{
@@ -59,11 +80,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 						TLSConfig: &http.TLSConfig{
 							SNI: "foo1.com",
 							Certificates: http.Certificates{
-								CACerts: [][]byte{caCertOut.Bytes()},
+								CACerts: [][]byte{sharedCACertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: cliCertOut.Bytes(),
-										ClientKey:  cliKeyOut.Bytes(),
+										ClientCert: sharedCliCertOut.Bytes(),
+										ClientKey:  sharedCliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -99,11 +120,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							MaxVersion:   tls.VersionTLS12,
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA},
 							Certificates: http.Certificates{
-								CACerts: [][]byte{caCertOut.Bytes()},
+								CACerts: [][]byte{sharedCACertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: cliCertOut.Bytes(),
-										ClientKey:  cliKeyOut.Bytes(),
+										ClientCert: sharedCliCertOut.Bytes(),
+										ClientKey:  sharedCliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -139,11 +160,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							MaxVersion:   tls.VersionTLS12,
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305},
 							Certificates: http.Certificates{
-								CACerts: [][]byte{caCertOut.Bytes()},
+								CACerts: [][]byte{sharedCACertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: cliCertOut.Bytes(),
-										ClientKey:  cliKeyOut.Bytes(),
+										ClientCert: sharedCliCertOut.Bytes(),
+										ClientKey:  sharedCliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -180,11 +201,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							MaxVersion:   tls.VersionTLS13,
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
 							Certificates: http.Certificates{
-								CACerts: [][]byte{caCertOut.Bytes()},
+								CACerts: [][]byte{sharedCACertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: cliCertOut.Bytes(),
-										ClientKey:  cliKeyOut.Bytes(),
+										ClientCert: sharedCliCertOut.Bytes(),
+										ClientKey:  sharedCliKeyOut.Bytes(),
 									},
 								},
 							},
