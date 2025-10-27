@@ -50,6 +50,7 @@ var ConfigMapMcpRedisSecret = suite.ConformanceTest{
 		higressCfg := &configmap.HigressConfig{
 			McpServer: &configmap.McpServer{
 				Enable: true,
+				SSEPathSuffix: "/sse",
 				Redis: &configmap.RedisConfig{
 					Address: "redis:6379",
 					PasswordSecret: &configmap.SecretKeyReference{
