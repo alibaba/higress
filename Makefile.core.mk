@@ -56,8 +56,27 @@ $(OUT):
 	@mkdir -p $@
 
 submodule:
-	git submodule update --init
-#	git submodule update --remote
+	@echo "Initializing submodules..."
+	@git submodule init || true
+	@git submodule foreach -q ' \
+		branch="$$(git config -f $${toplevel}/.gitmodules submodule.$${name}.branch)"; \
+		if [ -n "$$branch" ]; then \
+			echo "Updating $$name to branch $$branch"; \
+			git fetch origin "$$branch" 2>/dev/null || true; \
+			if git show-ref --verify --quiet "refs/remotes/origin/$$branch" 2>/dev/null; then \
+				git checkout "$$branch" 2>/dev/null || git checkout -b "$$branch" "origin/$$branch" 2>/dev/null || true; \
+				git pull origin "$$branch" 2>/dev/null || true; \
+				echo "✓ $$name is now on branch $$branch"; \
+			elif git show-ref --verify --quiet "refs/heads/$$branch" 2>/dev/null; then \
+				git checkout "$$branch" && git pull origin "$$branch" 2>/dev/null || true; \
+				echo "✓ $$name is now on branch $$branch (local)"; \
+			else \
+				echo "⚠ Warning: branch $$branch not found for $$name, keeping current state"; \
+			fi; \
+		else \
+			echo "No branch specified for $$name, keeping current commit"; \
+		fi \
+	'
 
 .PHONY: prebuild
 prebuild: submodule
