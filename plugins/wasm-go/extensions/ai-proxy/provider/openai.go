@@ -50,7 +50,7 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNamePauseFineTuningJob):                   PathOpenAIPauseFineTuningJob,
 		string(ApiNameFineTuningCheckpointPermissions):      PathOpenAIFineTuningCheckpointPermissions,
 		string(ApiNameDeleteFineTuningCheckpointPermission): PathOpenAIFineDeleteTuningCheckpointPermission,
-		string(ApiNameRerank):                               PathOpenAIRerank,
+		string(ApiNameRerank):                               PathVLLMRerank,
 	}
 }
 
