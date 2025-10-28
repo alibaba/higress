@@ -16,7 +16,7 @@ const (
 
 // isVllmDirectPath checks if the path is a known standard vLLM interface path.
 func isVllmDirectPath(path string) bool {
-	return strings.HasSuffix(path, "/chat/completions") ||
+	return strings.HasSuffix(path, "/completions") ||
 		strings.HasSuffix(path, "/rerank")
 }
 
@@ -32,6 +32,9 @@ func (m *vllmProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 func (m *vllmProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameCompletion):     PathOpenAICompletions,
+		string(ApiNameModels):         PathOpenAIModels,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
 		string(ApiNameCohereV1Rerank): PathCohereV1Rerank,
 	}
 }
@@ -138,6 +141,15 @@ func (m *vllmProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName Api
 func (m *vllmProvider) GetApiName(path string) ApiName {
 	if strings.Contains(path, PathOpenAIChatCompletions) {
 		return ApiNameChatCompletion
+	}
+	if strings.Contains(path, PathOpenAICompletions) {
+		return ApiNameCompletion
+	}
+	if strings.Contains(path, PathOpenAIModels) {
+		return ApiNameModels
+	}
+	if strings.Contains(path, PathOpenAIEmbeddings) {
+		return ApiNameEmbeddings
 	}
 	if strings.Contains(path, PathCohereV1Rerank) {
 		return ApiNameCohereV1Rerank
