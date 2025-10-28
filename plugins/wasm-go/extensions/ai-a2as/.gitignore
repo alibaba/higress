@@ -9,6 +9,7 @@
 !go.mod
 
 !LICENSE
+!VERSION
 !*.md
 !*.yaml
 !*.yml
@@ -16,5 +17,7 @@
 !*/
 
 /out
+
+
 
 
