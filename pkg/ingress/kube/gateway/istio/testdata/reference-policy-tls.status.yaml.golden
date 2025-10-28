@@ -2,13 +2,12 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
   creationTimestamp: null
-  name: higress
-  namespace: default
+  name: istio
 spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Handled by Higress controller
+    message: Handled by Istio controller
     reason: Accepted
     status: "True"
     type: Accepted
@@ -18,9 +17,12 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
+  addresses:
+  - type: IPAddress
+    value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
     message: Resource accepted
@@ -28,10 +30,9 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: 'Failed to assign to any requested addresses: port 443 not found for
-      hostname "higress-gateway.higress-system.svc.domain.suffix"'
-    reason: Invalid
-    status: "False"
+    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:443
+    reason: Programmed
+    status: "True"
     type: Programmed
   listeners:
   - attachedRoutes: 1
@@ -60,6 +61,8 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -81,8 +84,8 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
 ---

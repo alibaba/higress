@@ -1,20 +1,20 @@
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  name: higress
+  name: istio
 spec:
-  controllerName: higress.io/gateway-controller
+  controllerName: istio.io/gateway-controller
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec:
   addresses:
-  - value: higress-gateway
+  - value: istio-ingressgateway
     type: Hostname
-  gatewayClassName: higress
+  gatewayClassName: istio
   listeners:
   - name: default
     hostname: "*.domain.example"
@@ -27,7 +27,7 @@ spec:
           matchLabels:
             istio.io/test-name-part: allowed
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: http
@@ -35,7 +35,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   - group: ""
     kind: Service
     name: a-example
@@ -63,7 +63,7 @@ spec:
     - name: svc2
       port: 80
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: http
@@ -71,7 +71,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   - group: ""
     kind: Service
     name: a-example
@@ -118,7 +118,7 @@ spec:
     - name: svc2
       port: 80
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: http
@@ -126,7 +126,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   hostnames: ["a.domain.example", "b.domain.example"]
   rules:
   - matches:
