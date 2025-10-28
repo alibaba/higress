@@ -93,7 +93,7 @@ const (
 	PathOpenAIPauseFineTuningJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
 	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
 	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
-	PathOpenAIRerank                               = "/v1/rerank"
+	PathVLLMRerank                               = "/v1/rerank"
 
 	// Anthropic
 	PathAnthropicMessages = "/v1/messages"
