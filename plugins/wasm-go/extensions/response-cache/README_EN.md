@@ -33,16 +33,18 @@ Plugin Execution Priority: `10`
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
 | cacheResponseCode | array of number | optional | 200 | Indicates the list of response status codes that support caching; the default is 200.|
-| cacheKeyFromHeader | string | required | "" | Extracts a fixed field's value from headers as the cache key; **only one of cacheKeyFromHeader and cacheKeyFromBody can be configured when both are non-empty**|
-| cacheKeyFromBody | string | required | "" | If empty, extracts all body as the cache key; otherwise, extracts a string from the request body based on [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) |
-| cacheValueFromBodyType | string | optional | "application/json" | Indicates the type of cached body; the content-type returned on cache hit will be this value; default is JSON |
-| cacheValueFromBody | string | optional | "" | If empty, caches all body; when cacheValueFromBodyType is JSON, supports extracting a string from the response body based on [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) |
+| cacheKeyFromHeader | string | optional | "" | Extracts a fixed field's value from headers as the cache key; when configured, extracts key from request headers without reading the request body; **only one of cacheKeyFromHeader and cacheKeyFromBody can be configured when both are non-empty**|
+| cacheKeyFromBody | string | optional | "" | If empty, extracts all body as the cache key; otherwise, extracts a string from the request body in JSON format based on [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md); only takes effect when cacheKeyFromHeader is empty or not configured |
+| cacheValueFromBodyType | string | optional | "application/json" | Indicates the type of cached body; the content-type returned on cache hit will be this value; default is "application/json" |
+| cacheValueFromBody | string | optional | "" | If empty, caches all body; when cacheValueFromBodyType is "application/json", supports extracting a string from the response body based on [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) |
 
 
 The logic for concatenating the cache key is one of the following:
 
 1. `cacheKeyPrefix` + content extracted from the field corresponding to `cacheKeyFromHeader` in the request header
 2. `cacheKeyPrefix` + content extracted from the field corresponding to `cacheKeyFromBody` in the request body
+
+**Note**: `cacheKeyFromHeader` and `cacheKeyFromBody` cannot be configured at the same time (only one of them can be configured when both are non-empty). If both are configured, the plugin will return an error during the configuration parsing phase.
 
 In the case of hitting the cache plugin, there are three statuses in the returned response headers:
 
@@ -114,4 +116,6 @@ Pipeline syntax is also supported. For example, to take the second content where
 Refer to the [official documentation](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) for more usage examples, and test the syntax using the [GJSON Playground](https://gjson.dev/).
 
 ## Common Issues
-If the error `error status returned by host: bad argument occurs`, check whether `serviceName` correctly includes the service type suffix (.dns, etc.).
+If the error `error status returned by host: bad argument` occurs, check:
+- Whether `serviceName` correctly includes the service type suffix (.dns, etc.)
+- Whether `servicePort` is configured correctly, especially that `static` type services now use a fixed port of 80

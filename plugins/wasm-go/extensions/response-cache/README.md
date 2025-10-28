@@ -5,12 +5,6 @@ keywords: [higress,response cache]
 description: 通用响应缓存插件配置参考
 ---
 
-**Note**
-
-> 需要数据面的proxy wasm版本大于等于0.2.100
-> 编译时，需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
->
-
 ## 功能说明
 
 通用响应缓存插件，支持从请求头/请求体中提取key，从响应体中提取value并缓存起来；下次请求时，如果请求头/请求体中携带了相同的key，则直接返回缓存中的value，而不会请求后端服务。
@@ -47,14 +41,16 @@ description: 通用响应缓存插件配置参考
 | Name | Type | Requirement | Default | Description |
 | --- | --- | --- | --- | --- |
 | cacheResponseCode | array of number | optional | 200 | 表示支持缓存的响应状态码列表；默认为200|
-| cacheKeyFromHeader | string | required | "" | 表示提取header中的固定字段的值作为缓存key；cacheKeyFromHeader和cacheKeyFromBody**非空情况下只支持配置一项**|
-| cacheKeyFromBody | string | required | "" | 配置为空时，表示提取所有body作为缓存key；否则按json响应格式，从请求 Body 中基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串 |
-| cacheValueFromBodyType | string | optional | "application/json" | 表示缓存body的类型，命中cache时content-type会返回该值；默认为json |
-| cacheValueFromBody | string | optional | "" | 配置为空时，表示缓存所有body；当cacheValueFromBodyType为json时，支持从响应 Body 中基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串 |
+| cacheKeyFromHeader | string | optional | "" | 表示提取header中的固定字段的值作为缓存key；配置此项时会从请求头提取key，不会读取请求body；cacheKeyFromHeader和cacheKeyFromBody**非空情况下只支持配置一项**|
+| cacheKeyFromBody | string | optional | "" | 配置为空时，表示提取所有body作为缓存key；否则按JSON响应格式，从请求 Body 中基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串；仅在cacheKeyFromHeader为空或未配置时生效 |
+| cacheValueFromBodyType | string | optional | "application/json" | 表示缓存body的类型，命中cache时content-type会返回该值；默认为"application/json" |
+| cacheValueFromBody | string | optional | "" | 配置为空时，表示缓存所有body；当cacheValueFromBodyType为"application/json"时，支持从响应 Body 中基于 [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) 语法提取字符串 |
 
 其中，缓存key的拼接逻辑为以下中一个： 
 1. `cacheKeyPrefix` + 从请求头中`cacheKeyFromHeader`对应字段提取的内容
 2. `cacheKeyPrefix` + 从请求体中`cacheKeyFromBody`对应字段提取的内容
+
+**注意**：`cacheKeyFromHeader` 和 `cacheKeyFromBody` 不能同时配置（非空情况下只支持配置一项）。如果同时配置，插件在配置解析阶段会报错。
 
 
 命中缓存插件的情况下，返回的响应头中有三种状态：
@@ -66,7 +62,6 @@ description: 通用响应缓存插件配置参考
 ## 配置示例
 ### 基础配置
 ```yaml
-
 cache:
   type: redis
   serviceName: my-redis.dns
@@ -77,7 +72,6 @@ cacheKeyFromHeader: "x-http-cache-key"
 
 cacheValueFromBodyType: "application/json"
 cacheValueFromBody: "messages.@reverse.0.content"
-
 ```
 
 假设请求为
@@ -132,4 +126,6 @@ GJSON PATH 也支持条件判断语法，例如希望取最后一个 role 为 us
 
 ## 常见问题
 
-1. 如果返回的错误为 `error status returned by host: bad argument`，请检查`serviceName`是否正确包含了服务的类型后缀(.dns等)。
+1. 如果返回的错误为 `error status returned by host: bad argument`，请检查：
+   - `serviceName`是否正确包含了服务的类型后缀(.dns等)
+   - `servicePort`配置是否正确，尤其是 `static` 类型的服务端口现在固定为 80
