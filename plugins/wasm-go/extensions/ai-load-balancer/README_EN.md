@@ -22,7 +22,7 @@ Current supported load balance policies are:
 
 - `global_least_request`: global least request based on redis
 - `prefix_cache`: Select the backend node based on the prompt prefix match. If the node cannot be matched by prefix matching, the service node is selected based on the global minimum number of requests.
-- `least_busy`: implementation for [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md)
+- `metrics_based`: Load balancing based on metrics exposed by the llm service
 
 # Global Least Request
 ## Introduction
@@ -164,14 +164,33 @@ sequenceDiagram
 
 | Name                | Type         | Required          | default       | description                                 |
 |--------------------|-----------------|------------------|-------------|-------------------------------------|
-| `criticalModels`      | []string          | required              |             | critical model names    |
+| `metricPolicy`      | string | required | | How to use the metrics exposed by LLM for load balancing, currently supporting `[default, least, most]` |
+| `targetMetric`      | string | optional | | The metric name to use. This is valid only when `metricPolicy` is `least` or `most` |
 
 ## Configuration Example
 
+Use the algorithm of [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md):
+
 ```yaml
-lb_policy: least_busy
+lb_policy: metrics_based
 lb_config:
-  criticalModels:
-  - meta-llama/Llama-2-7b-hf
-  - sql-lora
+  metricPolicy: default
+```
+
+Load balancing based on the current number of queued requests: 
+
+```yaml
+lb_policy: metrics_based
+lb_config:
+  metricPolicy: least
+  targetMetric: vllm:num_requests_waiting
+```
+
+Load balancing based on the number of requests currently being processed by the GPU:
+
+```yaml
+lb_policy: metrics_based
+lb_config:
+  metricPolicy: least
+  targetMetric: vllm:num_requests_running
 ```
