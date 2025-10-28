@@ -55,7 +55,7 @@ const (
 	ApiNamePauseFineTuningJob                   ApiName = "openai/v1/pausefine-tuningjob"
 	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
 	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
-	ApiNameRerank                               ApiName = "openai/v1/rerank"
+	ApiNameRerank                               ApiName = "vllm/v1/rerank"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
