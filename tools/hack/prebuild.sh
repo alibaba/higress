@@ -19,7 +19,7 @@ for repo in ${envoy_repos[@]}; do
     cd external/$repo
     echo "gitdir: /parent/.git/modules/envoy/$repo" > .git
     if [ -f "go.mod" ]; then
-        go mod tidy -go=${GO_VERSION}
+        go mod tidy
     fi
     cd $WORK_DIR
 done
@@ -34,9 +34,10 @@ for repo in ${istio_repos[@]}; do
     cd external/$repo
     echo "gitdir: /parent/.git/modules/istio/$repo" > .git
     if [ -f "go.mod" ]; then
-        go mod tidy -go=${GO_VERSION}
+        go mod tidy
     fi
     cd $WORK_DIR
 done
 
-go mod tidy -go=${GO_VERSION}
+# Update root go.mod after all external dependencies are ready
+go mod tidy
