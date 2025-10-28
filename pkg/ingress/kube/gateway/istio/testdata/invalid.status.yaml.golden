@@ -2,13 +2,12 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
   creationTimestamp: null
-  name: higress
-  namespace: default
+  name: istio
 spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Handled by Higress controller
+    message: Handled by Istio controller
     reason: Accepted
     status: "True"
     type: Accepted
@@ -17,8 +16,28 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   creationTimestamp: null
+  name: invalid-gateway-address
+  namespace: invalid-gateway-address
+spec: null
+status:
+  conditions:
+  - lastTransitionTime: fake
+    message: only Hostname is supported, ignoring [1.2.3.4]
+    reason: UnsupportedAddress
+    status: "False"
+    type: Accepted
+  - lastTransitionTime: fake
+    message: Failed to assign to any requested addresses
+    reason: UnsupportedAddress
+    status: "False"
+    type: Programmed
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  creationTimestamp: null
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   addresses:
@@ -31,7 +50,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:80
+    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
     reason: Programmed
     status: "True"
     type: Programmed
@@ -62,112 +81,20 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
----
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: Gateway
-metadata:
-  creationTimestamp: null
-  name: invalid-service
-  namespace: higress-system
-spec: null
-status:
-  conditions:
-  - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
-    type: Accepted
-  - lastTransitionTime: fake
-    message: 'Failed to assign to any requested addresses: hostname "fake-service.com"
-      not found'
-    reason: Invalid
-    status: "False"
-    type: Programmed
-  listeners:
-  - attachedRoutes: 0
-    conditions:
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: Accepted
-      status: "True"
-      type: Accepted
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: NoConflicts
-      status: "False"
-      type: Conflicted
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: Programmed
-      status: "True"
-      type: Programmed
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: ResolvedRefs
-      status: "True"
-      type: ResolvedRefs
-    name: default
-    supportedKinds:
     - group: gateway.networking.k8s.io
-      kind: HTTPRoute
----
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: Gateway
-metadata:
-  creationTimestamp: null
-  name: target-port-reference
-  namespace: higress-system
-spec: null
-status:
-  conditions:
-  - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
-    type: Accepted
-  - lastTransitionTime: fake
-    message: 'Failed to assign to any requested addresses: port 8080 not found for
-      hostname "higress-gateway.higress-system.svc.domain.suffix" (hint: the service
-      port should be specified, not the workload port'
-    reason: Invalid
-    status: "False"
-    type: Programmed
-  listeners:
-  - attachedRoutes: 0
-    conditions:
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: Accepted
-      status: "True"
-      type: Accepted
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: NoConflicts
-      status: "False"
-      type: Conflicted
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: Programmed
-      status: "True"
-      type: Programmed
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: ResolvedRefs
-      status: "True"
-      type: ResolvedRefs
-    name: default
-    supportedKinds:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
+      kind: GRPCRoute
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   creationTimestamp: null
   name: invalid-cert-kind
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
+  addresses:
+  - type: IPAddress
+    value: 1.2.3.4
   conditions:
   - lastTransitionTime: fake
     message: Resource accepted
@@ -175,7 +102,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed
+    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34000
     reason: Programmed
     status: "True"
     type: Programmed
@@ -193,9 +120,9 @@ status:
       status: "False"
       type: Conflicted
     - lastTransitionTime: fake
-      message: No errors found
-      reason: Programmed
-      status: "True"
+      message: Bad TLS configuration
+      reason: Invalid
+      status: "False"
       type: Programmed
     - lastTransitionTime: fake
       message: invalid certificate reference core/unknown/my-cert-http., only secret
@@ -207,61 +134,15 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
----
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: Gateway
-metadata:
-  creationTimestamp: null
-  name: invalid-cert-notfound
-  namespace: higress-system
-spec: null
-status:
-  conditions:
-  - lastTransitionTime: fake
-    message: Resource accepted
-    reason: Accepted
-    status: "True"
-    type: Accepted
-  - lastTransitionTime: fake
-    message: Resource programmed
-    reason: Programmed
-    status: "True"
-    type: Programmed
-  listeners:
-  - attachedRoutes: 0
-    conditions:
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: Accepted
-      status: "True"
-      type: Accepted
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: NoConflicts
-      status: "False"
-      type: Conflicted
-    - lastTransitionTime: fake
-      message: No errors found
-      reason: Programmed
-      status: "True"
-      type: Programmed
-    - lastTransitionTime: fake
-      message: invalid certificate reference /Secret/nonexistent., secret higress-system/nonexistent
-        not found
-      reason: InvalidCertificateRef
-      status: "False"
-      type: ResolvedRefs
-    name: default
-    supportedKinds:
     - group: gateway.networking.k8s.io
-      kind: HTTPRoute
+      kind: GRPCRoute
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   creationTimestamp: null
   name: invalid-cert-malformed
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   conditions:
@@ -271,9 +152,10 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed
-    reason: Programmed
-    status: "True"
+    message: 'Failed to assign to any requested addresses: port 34002 not found for
+      hostname "istio-ingressgateway.istio-system.svc.domain.suffix"'
+    reason: AddressNotUsable
+    status: "False"
     type: Programmed
   listeners:
   - attachedRoutes: 0
@@ -289,9 +171,9 @@ status:
       status: "False"
       type: Conflicted
     - lastTransitionTime: fake
-      message: No errors found
-      reason: Programmed
-      status: "True"
+      message: Bad TLS configuration
+      reason: Invalid
+      status: "False"
       type: Programmed
     - lastTransitionTime: fake
       message: 'invalid certificate reference /Secret/malformed., the certificate
@@ -303,6 +185,327 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  creationTimestamp: null
+  name: invalid-cert-notfound
+  namespace: istio-system
+spec: null
+status:
+  addresses:
+  - type: IPAddress
+    value: 1.2.3.4
+  conditions:
+  - lastTransitionTime: fake
+    message: Resource accepted
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: fake
+    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34001
+    reason: Programmed
+    status: "True"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: Bad TLS configuration
+      reason: Invalid
+      status: "False"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: invalid certificate reference /Secret/nonexistent., secret istio-system/nonexistent
+        not found
+      reason: InvalidCertificateRef
+      status: "False"
+      type: ResolvedRefs
+    name: default
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  creationTimestamp: null
+  name: invalid-service
+  namespace: istio-system
+spec: null
+status:
+  conditions:
+  - lastTransitionTime: fake
+    message: Resource accepted
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: fake
+    message: 'Failed to assign to any requested addresses: hostname "fake-service.com"
+      not found'
+    reason: AddressNotUsable
+    status: "False"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: default
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  creationTimestamp: null
+  name: protocol-lower-case
+  namespace: istio-system
+spec: null
+status:
+  conditions:
+  - lastTransitionTime: fake
+    message: Resource accepted
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: fake
+    message: 'Failed to assign to any requested addresses: hostname "protocol-lower-case-istio.istio-system.svc.domain.suffix"
+      not found'
+    reason: AddressNotUsable
+    status: "False"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: 'protocol "http" is unsupported. hint: "HTTP" (uppercase) may be supported'
+      reason: UnsupportedProtocol
+      status: "False"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: http
+    supportedKinds: []
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  creationTimestamp: null
+  name: target-port-reference
+  namespace: istio-system
+spec: null
+status:
+  conditions:
+  - lastTransitionTime: fake
+    message: Resource accepted
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: fake
+    message: 'Failed to assign to any requested addresses: port 8080 not found for
+      hostname "istio-ingressgateway.istio-system.svc.domain.suffix" (hint: the service
+      port should be specified, not the workload port. Did you mean one of these ports:
+      [80]?)'
+    reason: AddressNotUsable
+    status: "False"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: default
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  creationTimestamp: null
+  name: udp-protocol
+  namespace: istio-system
+spec: null
+status:
+  conditions:
+  - lastTransitionTime: fake
+    message: Resource accepted
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: fake
+    message: 'Failed to assign to any requested addresses: hostname "udp-protocol-istio.istio-system.svc.domain.suffix"
+      not found'
+    reason: AddressNotUsable
+    status: "False"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: protocol "UDP" is unsupported
+      reason: UnsupportedProtocol
+      status: "False"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: udp
+    supportedKinds: []
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  creationTimestamp: null
+  name: unknown-protocol
+  namespace: istio-system
+spec: null
+status:
+  conditions:
+  - lastTransitionTime: fake
+    message: Resource accepted
+    reason: Accepted
+    status: "True"
+    type: Accepted
+  - lastTransitionTime: fake
+    message: 'Failed to assign to any requested addresses: hostname "unknown-protocol-istio.istio-system.svc.domain.suffix"
+      not found'
+    reason: AddressNotUsable
+    status: "False"
+    type: Programmed
+  listeners:
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: protocol "unknown" is unsupported
+      reason: UnsupportedProtocol
+      status: "False"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: unknown
+    supportedKinds: []
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  creationTimestamp: null
+  name: invalid-backendRef-hostname
+  namespace: default
+spec: null
+status:
+  parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: Route was valid
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: backend(unknown.example.com) not found
+      reason: BackendNotFound
+      status: "False"
+      type: ResolvedRefs
+    controllerName: istio.io/gateway-controller
+    parentRef:
+      group: ""
+      kind: Service
+      name: httpbin
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -324,10 +527,36 @@ status:
       reason: InvalidKind
       status: "False"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  creationTimestamp: null
+  name: invalid-backendRef-mirror
+  namespace: default
+spec: null
+status:
+  parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: Route was valid
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: backend(does-not-exist.default.svc.domain.suffix) not found
+      reason: BackendNotFound
+      status: "False"
+      type: ResolvedRefs
+    controllerName: istio.io/gateway-controller
+    parentRef:
+      group: ""
+      kind: Service
+      name: httpbin
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -349,10 +578,10 @@ status:
       reason: InvalidKind
       status: "False"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -374,10 +603,36 @@ status:
       reason: BackendNotFound
       status: "False"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  creationTimestamp: null
+  name: invalid-backendRef-serviceimport
+  namespace: default
+spec: null
+status:
+  parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: Route was valid
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: backend(unknown-service-import.default.svc.domain.suffix) not found
+      reason: BackendNotFound
+      status: "False"
+      type: ResolvedRefs
+    controllerName: istio.io/gateway-controller
+    parentRef:
+      group: ""
+      kind: Service
+      name: httpbin
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -399,10 +654,10 @@ status:
       reason: InvalidKind
       status: "False"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -424,11 +679,63 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
       port: 1234
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  creationTimestamp: null
+  name: invalid-parentRef-service
+  namespace: default
+spec: null
+status:
+  parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: Route was valid
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: All references resolved
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    controllerName: istio.io/gateway-controller
+    parentRef:
+      group: ""
+      kind: Service
+      name: not-found
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  creationTimestamp: null
+  name: invalid-parentRef-service-entry
+  namespace: default
+spec: null
+status:
+  parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: 'parent service entry: "not-found" not found'
+      reason: NoMatchingParent
+      status: "False"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: All references resolved
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    controllerName: istio.io/gateway-controller
+    parentRef:
+      group: networking.istio.io
+      kind: ServiceEntry
+      name: not-found
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -450,10 +757,10 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
       sectionName: fake
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -476,7 +783,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       group: ""
       kind: Service

@@ -16,20 +16,20 @@ package config
 
 import (
 	"fmt"
+	"istio.io/istio/pkg/config/schema/gvk"
 	"sync"
 
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	istiomodel "istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pkg/config"
-	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/util/sets"
 )
 
 // toConfigKey converts config.Config to istiomodel.ConfigKey
 func toConfigKey(cfg *config.Config) (istiomodel.ConfigKey, error) {
 	return istiomodel.ConfigKey{
-		Kind:      kind.MustFromGVK(cfg.GroupVersionKind),
+		Kind:      gvk.MustToKind(cfg.GroupVersionKind),
 		Name:      cfg.Name,
 		Namespace: cfg.Namespace,
 	}, nil

@@ -1,20 +1,20 @@
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  name: higress
+  name: istio
 spec:
-  controllerName: higress.io/gateway-controller
+  controllerName: istio.io/gateway-controller
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec:
   addresses:
-  - value: higress-gateway
+  - value: istio-ingressgateway
     type: Hostname
-  gatewayClassName: higress
+  gatewayClassName: istio
   listeners:
   - name: default
     hostname: "*.domain.example"
@@ -24,7 +24,7 @@ spec:
       namespaces:
         from: All
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: http
@@ -32,7 +32,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   hostnames: ["first.domain.example", "another.domain.example"]
   rules:
   - matches:
@@ -60,7 +60,7 @@ spec:
     - name: httpbin
       port: 80
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: http2
@@ -68,7 +68,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   hostnames: ["second.domain.example"]
   rules:
   - matches:
@@ -86,7 +86,7 @@ spec:
     - name: httpbin-wildcard
       port: 80
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: redirect
@@ -94,7 +94,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   rules:
   - filters:
     - type: RequestRedirect
@@ -106,7 +106,7 @@ spec:
           type: ReplaceFullPath
           replaceFullPath: /replace-full
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: redirect-prefix-replace
@@ -114,7 +114,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   hostnames: ["redirect.domain.example"]
   rules:
   - matches:
@@ -131,7 +131,7 @@ spec:
           type: ReplacePrefixMatch
           replacePrefixMatch: /replacement
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: rewrite
@@ -139,13 +139,13 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   rules:
-  - matches:
+  - name: route1
+    matches:
     - path:
         type: PathPrefix
         value: /prefix-original
-    name: prefix-path-rewrite
     filters:
     - type: URLRewrite
       urlRewrite:
@@ -159,8 +159,20 @@ spec:
   - matches:
     - path:
         type: PathPrefix
+        value: /prefix-to-be-removed
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: ""
+    backendRefs:
+    - name: httpbin
+      port: 80
+  - matches:
+    - path:
+        type: PathPrefix
         value: /full-original
-    name: full-path-rewrite
     filters:
     - type: URLRewrite
       urlRewrite:
@@ -172,7 +184,7 @@ spec:
     - name: httpbin
       port: 80
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: mirror
@@ -180,19 +192,28 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   rules:
   - filters:
     - type: RequestMirror
       requestMirror:
+        fraction:
+          numerator: 4
+          denominator: 8
         backendRef:
           name: httpbin-mirror
+          port: 80
+    - type: RequestMirror
+      requestMirror:
+        percent: 80
+        backendRef:
+          name: httpbin-second
           port: 80
     backendRefs:
     - name: httpbin
       port: 80
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   name: http-not-selected
@@ -200,7 +221,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
   hostnames: ["should.not.select"]
   rules:
   - matches:
@@ -210,3 +231,185 @@ spec:
     backendRefs:
     - name: httpbin-bad
       port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: http-timeout-request
+  namespace: default
+spec:
+  parentRefs:
+  - name: gateway
+    namespace: istio-system
+  hostnames: ["timeout.domain.example"]
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /get
+    backendRefs:
+    - name: httpbin
+      port: 80
+    timeouts:
+      request: 1ms
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: http-timeout-backend-request
+  namespace: default
+spec:
+  parentRefs:
+  - name: gateway
+    namespace: istio-system
+  hostnames: ["timeout-backend.domain.example"]
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /get
+    backendRefs:
+    - name: httpbin
+      port: 80
+    timeouts:
+      request: 2ms
+      backendRequest: 1ms
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: http-retry-request
+  namespace: default
+spec:
+  parentRefs:
+    - name: gateway
+      namespace: istio-system
+  hostnames: ["retry.domain.example"]
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /explicit
+      backendRefs:
+        - name: httpbin
+          port: 80
+      retry:
+        attempts: 3
+        backoff: 3ms
+        codes:
+        - 503
+        - 429
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /empty
+      backendRefs:
+        - name: httpbin
+          port: 80
+      retry: {}
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /disable
+      backendRefs:
+        - name: httpbin
+          port: 80
+      retry:
+        attempts: 0
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: http-route-cors
+  namespace: default
+spec:
+  hostnames:
+  - "cors.domain.example"
+  parentRefs:
+    - name: gateway
+      namespace: istio-system
+  rules:
+    - backendRefs:
+        - kind: Service
+          name: httpbin
+          port: 80
+      filters:
+        - cors:
+            allowCredentials: true
+            allowOrigins:
+            # - '*' # This will be allowed in the future, probably https://github.com/kubernetes-sigs/gateway-api/issues/3648#issuecomment-2735208553
+            # - '*.com'
+              - "https://example.com"
+            allowMethods:
+              - GET
+              - HEAD
+              - POST
+            allowHeaders:
+              - Accept
+              - Accept-Language
+              - Content-Language
+              - Content-Type
+              - Range
+          type: CORS
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: multiple-inferencepool-backend-refs
+  namespace: default
+spec:
+  parentRefs:
+    - name: gateway
+      namespace: istio-system
+  hostnames: ["infpool-multi.domain.example"]
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /infpool
+          headers:
+          - name: my-header
+            value: some-value
+            type: Exact
+      backendRefs:
+        - name: infpool-gen
+          group: inference.networking.x-k8s.io
+          kind: InferencePool
+          port: 80
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /infpool
+          headers:
+          - name: my-header
+            value: some-value-2
+            type: Exact
+      backendRefs:
+        - name: infpool-gen2
+          group: inference.networking.x-k8s.io
+          kind: InferencePool
+          port: 80
+---
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferencePool
+metadata:
+  name: infpool-gen
+  namespace: default
+spec:
+  targetPortNumber: 8000
+  selector:
+    app: vllm-llama3-8b-instruct
+  extensionRef:
+    name: vllm-llama3-8b-instruct-epp
+---
+apiVersion: inference.networking.x-k8s.io/v1alpha2
+kind: InferencePool
+metadata:
+  name: infpool-gen2
+  namespace: default
+spec:
+  targetPortNumber: 8000
+  selector:
+    app: vllm-llama3-8b-instruct
+  extensionRef:
+    name: vllm-llama3-8b-instruct-epp

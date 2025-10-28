@@ -1,20 +1,39 @@
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  name: higress
+  name: istio
 spec:
-  controllerName: higress.io/gateway-controller
+  controllerName: istio.io/gateway-controller
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec:
   addresses:
-  - value: higress-gateway
+  - value: istio-ingressgateway
     type: Hostname
-  gatewayClassName: higress
+  gatewayClassName: istio
+  listeners:
+  - name: default
+    port: 34000
+    protocol: TCP
+    allowedRoutes:
+      namespaces:
+        from: All
+---
+# Test we can bind to two parents
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: gateway2
+  namespace: istio-system
+spec:
+  addresses:
+  - value: istio-ingressgateway
+    type: Hostname
+  gatewayClassName: istio
   listeners:
   - name: default
     port: 34000
@@ -31,7 +50,9 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: higress-system
+    namespace: istio-system
+  - name: gateway2
+    namespace: istio-system
   rules:
   - backendRefs:
     - name: httpbin

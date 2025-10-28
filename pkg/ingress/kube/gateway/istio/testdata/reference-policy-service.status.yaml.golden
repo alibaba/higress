@@ -3,7 +3,7 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   addresses:
@@ -16,7 +16,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:80
+    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
     reason: Programmed
     status: "True"
     type: Programmed
@@ -47,13 +47,15 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   creationTimestamp: null
   name: backend-not-allowed
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   parents:
@@ -64,22 +66,22 @@ status:
       status: "True"
       type: Accepted
     - lastTransitionTime: fake
-      message: backendRef httpbin/default not accessible to a route in namespace "higress-system"
-        (missing a ReferenceGrant?)
+      message: backendRef httpbin/default not accessible to a HTTPRoute in namespace
+        "istio-system" (missing a ReferenceGrant?)
       reason: RefNotPermitted
       status: "False"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   creationTimestamp: null
   name: http
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   parents:
@@ -94,8 +96,8 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
 ---
