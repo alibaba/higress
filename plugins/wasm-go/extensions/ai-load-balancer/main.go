@@ -8,7 +8,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	global_least_request "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/global_least_request"
-	least_busy "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based"
 	prefix_cache "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/prefix_cache"
 )
 
@@ -42,18 +42,18 @@ type Config struct {
 }
 
 const (
-	LeastBusyLoadBalancerPolicy          = "least_busy"
-	GlobalLeastRequestLoadBalancerPolicy = "global_least_request"
-	PrefixCache                          = "prefix_cache"
+	MetricsBased       = "metrics_based"
+	GlobalLeastRequest = "global_least_request"
+	PrefixCache        = "prefix_cache"
 )
 
 func parseConfig(json gjson.Result, config *Config) error {
 	config.policy = json.Get("lb_policy").String()
 	var err error
 	switch config.policy {
-	case LeastBusyLoadBalancerPolicy:
-		config.lb, err = least_busy.NewLeastBusyLoadBalancer(json.Get("lb_config"))
-	case GlobalLeastRequestLoadBalancerPolicy:
+	case MetricsBased:
+		config.lb, err = metrics_based.NewMetricsBasedLoadBalancer(json.Get("lb_config"))
+	case GlobalLeastRequest:
 		config.lb, err = global_least_request.NewGlobalLeastRequestLoadBalancer(json.Get("lb_config"))
 	case PrefixCache:
 		config.lb, err = prefix_cache.NewPrefixCacheLoadBalancer(json.Get("lb_config"))

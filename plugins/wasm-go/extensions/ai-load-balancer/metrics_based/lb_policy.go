@@ -1,8 +1,7 @@
-package least_busy
+package metrics_based
 
 import (
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/scheduling"
-
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -11,14 +10,19 @@ import (
 )
 
 type LeastBusyLoadBalancer struct {
-	criticalModels map[string]struct{}
+	metricPolicy string
+	targetMetric string
 }
 
-func NewLeastBusyLoadBalancer(json gjson.Result) (LeastBusyLoadBalancer, error) {
+func NewMetricsBasedLoadBalancer(json gjson.Result) (LeastBusyLoadBalancer, error) {
 	lb := LeastBusyLoadBalancer{}
-	lb.criticalModels = make(map[string]struct{})
-	for _, model := range json.Get("criticalModels").Array() {
-		lb.criticalModels[model.String()] = struct{}{}
+	if json.Get("metricPolicy").Exists() {
+		lb.metricPolicy = json.Get("metricPolicy").String()
+	} else {
+		lb.metricPolicy = scheduling.MetricPolicyDefault
+	}
+	if json.Get("targetMetric").Exists() {
+		lb.targetMetric = json.Get("targetMetric").String()
 	}
 	return lb, nil
 }
@@ -34,10 +38,9 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 	if !requestModel.Exists() {
 		return types.ActionContinue
 	}
-	_, isCritical := lb.criticalModels[requestModel.String()]
 	llmReq := &scheduling.LLMRequest{
 		Model:    requestModel.String(),
-		Critical: isCritical,
+		Critical: true,
 	}
 	hostInfos, err := proxywasm.GetUpstreamHosts()
 	if err != nil {
@@ -49,7 +52,7 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 			hostMetrics[hostInfo[0]] = gjson.Get(hostInfo[1], "metrics").String()
 		}
 	}
-	scheduler, err := scheduling.GetScheduler(hostMetrics, scheduling.DefaultFilter)
+	scheduler, err := scheduling.GetScheduler(hostMetrics, lb.metricPolicy, lb.targetMetric)
 	if err != nil {
 		log.Debugf("initial scheduler failed: %v", err)
 		return types.ActionContinue

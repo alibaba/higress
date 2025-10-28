@@ -53,6 +53,16 @@ func PromToPodMetrics(
 ) (*backend.PodMetrics, error) {
 	var errs error
 	updated := existing.Clone()
+	// User selected metric
+	if updated.MetricName != "" {
+		metricValue, err := getLatestMetric(metricFamilies, updated.MetricName)
+		errs = multierr.Append(errs, err)
+		if err == nil {
+			updated.MetricValue = metricValue.GetGauge().GetValue()
+		}
+		return updated, errs
+	}
+	// Default metric
 	runningQueueSize, err := getLatestMetric(metricFamilies, RunningQueueSizeMetricName)
 	errs = multierr.Append(errs, err)
 	if err == nil {

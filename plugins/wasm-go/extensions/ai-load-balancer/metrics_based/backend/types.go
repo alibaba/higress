@@ -40,13 +40,19 @@ type Metrics struct {
 	KvCacheMaxTokenCapacity int
 }
 
+type UserSelectedMetric struct {
+	MetricName  string
+	MetricValue float64
+}
+
 type PodMetrics struct {
 	Pod
 	Metrics
+	UserSelectedMetric
 }
 
 func (pm *PodMetrics) String() string {
-	return fmt.Sprintf("Pod: %+v; Metrics: %+v", pm.Pod, pm.Metrics)
+	return fmt.Sprintf("Pod: %+v; Metrics: %+v, UserSelectedMetric: %+v", pm.Pod, pm.Metrics, pm.UserSelectedMetric)
 }
 
 func (pm *PodMetrics) Clone() *PodMetrics {
@@ -62,6 +68,10 @@ func (pm *PodMetrics) Clone() *PodMetrics {
 			WaitingQueueSize:        pm.WaitingQueueSize,
 			KVCacheUsagePercent:     pm.KVCacheUsagePercent,
 			KvCacheMaxTokenCapacity: pm.KvCacheMaxTokenCapacity,
+		},
+		UserSelectedMetric: UserSelectedMetric{
+			MetricName:  pm.MetricName,
+			MetricValue: pm.MetricValue,
 		},
 	}
 	return clone
