@@ -39,5 +39,4 @@ for repo in ${istio_repos[@]}; do
     cd $WORK_DIR
 done
 
-# Update root go.mod after all external dependencies are ready
 go mod tidy -go=${GO_VERSION}
