@@ -72,13 +72,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	}
 	c.serviceHost = json.Get("serviceHost").String()
 	c.username = json.Get("username").String()
-	if !json.Get("username").Exists() {
-		c.username = ""
-	}
 	c.password = json.Get("password").String()
-	if !json.Get("password").Exists() {
-		c.password = ""
-	}
 	c.timeout = uint32(json.Get("timeout").Int())
 	if !json.Get("timeout").Exists() {
 		c.timeout = 10000

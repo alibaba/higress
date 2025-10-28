@@ -5,12 +5,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/response-cache/cache"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/response-cache/config"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/resp"
 )
+
+// buildCacheKey constructs the full cache key by combining the prefix with the actual key.
+func buildCacheKey(provider cache.Provider, key string) string {
+	return provider.GetCacheKeyPrefix() + key
+}
 
 // CheckCacheForKey checks if the key is in the cache, or triggers similarity search if not found.
 func CheckCacheForKey(key string, ctx wrapper.HttpContext, c config.PluginConfig) error {
@@ -19,7 +25,7 @@ func CheckCacheForKey(key string, ctx wrapper.HttpContext, c config.PluginConfig
 		return logAndReturnError("[CheckCacheForKey] no cache provider configured")
 	}
 
-	queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
+	queryKey := buildCacheKey(activeCacheProvider, key)
 	log.Debugf("[%s] [CheckCacheForKey] querying cache with key: %s", PLUGIN_NAME, queryKey)
 
 	err := activeCacheProvider.Get(queryKey, func(response resp.Value) {
@@ -61,7 +67,7 @@ func processCacheHit(key string, response string, ctx wrapper.HttpContext, c con
 
 	ctx.SetContext(CACHE_KEY_CONTEXT_KEY, nil)
 
-	contentType := fmt.Sprintf("%s", c.CacheValueFromBodyType)
+	contentType := c.CacheValueFromBodyType
 	headers := [][2]string{
 		{"content-type", contentType},
 		{"x-cache-status", "hit"},
@@ -87,7 +93,7 @@ func cacheResponse(ctx wrapper.HttpContext, c config.PluginConfig, key string, v
 
 	activeCacheProvider := c.GetCacheProvider()
 	if activeCacheProvider != nil {
-		queryKey := activeCacheProvider.GetCacheKeyPrefix() + key
+		queryKey := buildCacheKey(activeCacheProvider, key)
 		_ = activeCacheProvider.Set(queryKey, value, nil)
 		log.Debugf("[%s] [cacheResponse] cache set success, key: %s, length of value: %d", PLUGIN_NAME, queryKey, len(value))
 	}
