@@ -1,4 +1,4 @@
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -17,7 +17,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -36,7 +36,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -55,7 +55,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -74,7 +74,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -93,7 +93,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -113,7 +113,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -132,7 +132,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -154,7 +154,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -173,7 +173,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -195,7 +195,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -214,7 +214,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -234,7 +234,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -254,7 +254,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -276,7 +276,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -296,7 +296,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -318,7 +318,7 @@ spec:
         port:
           number: 85
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -346,7 +346,7 @@ spec:
         port:
           number: 81
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -368,7 +368,7 @@ spec:
         port:
           number: 80
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -396,7 +396,7 @@ spec:
         port:
           number: 86
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -424,7 +424,7 @@ spec:
         port:
           number: 86
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -446,7 +446,7 @@ spec:
         port:
           number: 85
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -474,7 +474,7 @@ spec:
         port:
           number: 86
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -496,7 +496,7 @@ spec:
         port:
           number: 86
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -518,7 +518,7 @@ spec:
         port:
           number: 86
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -546,7 +546,7 @@ spec:
         port:
           number: 87
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:

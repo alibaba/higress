@@ -1,4 +1,4 @@
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   annotations:
@@ -14,7 +14,7 @@ spec:
       mode: SIMPLE
       sni: auth.example.com
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   annotations:
@@ -30,7 +30,7 @@ spec:
       mode: SIMPLE
       sni: auth.example.com
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   annotations:
@@ -46,7 +46,7 @@ spec:
       mode: SIMPLE
       sni: auth.example.com
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   annotations:
@@ -62,7 +62,7 @@ spec:
       mode: SIMPLE
       sni: auth.example.com
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: DestinationRule
 metadata:
   annotations:
