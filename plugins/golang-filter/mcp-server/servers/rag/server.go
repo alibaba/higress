@@ -100,8 +100,9 @@ func init() {
 }
 
 func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
-	// Parse RAG configuration
-	api.LogDebugf("RAG start ParseConfig: %+v", cfg)
+	api.LogDebugf("RAG start tp parse config: %+v", cfg)
+	// Parse RAG con
+	api.LogDebugf("RAG parse rag config")
 	if ragConfig, ok := cfg["rag"].(map[string]any); ok {
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
 			if splitterType, exists := splitter["provider"].(string); exists {
@@ -123,7 +124,7 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 	}
 
 	// Parse Embedding configuration
-	api.LogDebugf("RAG ParseConfig embedding config")
+	api.LogDebugf("RAG parse embedding config")
 	if embeddingConfig, ok := cfg["embedding"].(map[string]any); ok {
 		if provider, exists := embeddingConfig["provider"].(string); exists {
 			c.config.Embedding.Provider = provider
@@ -146,7 +147,7 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 	}
 
 	// Parse llm configuration
-	api.LogDebugf("RAG ParseConfig llm config")
+	api.LogDebugf("RAG parse llm config")
 	if llmConfig, ok := cfg["llm"].(map[string]any); ok {
 		if provider, exists := llmConfig["provider"].(string); exists {
 			c.config.LLM.Provider = provider
@@ -169,7 +170,7 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 	}
 
 	// Parse VectorDB configuration
-	api.LogDebugf("RAG ParseConfig vectordb config")
+	api.LogDebugf("RAG parse vectordb config")
 	if vectordbConfig, ok := cfg["vectordb"].(map[string]any); ok {
 		if provider, exists := vectordbConfig["provider"].(string); exists {
 			c.config.VectorDB.Provider = provider
@@ -248,7 +249,7 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 		}
 	}
 
-	api.LogDebugf("RAG ParseConfig successful with config:%+v", c.config)
+	api.LogDebugf("RAG parse config successful with config:%+v", c.config)
 	return nil
 }
 
