@@ -58,6 +58,7 @@ func (c *HigressConfig) NewServer(serverName string) (*common.MCPServer, error) 
 	tools.RegisterMcpServerTools(mcpServer, client)
 	plugins.RegisterCommonPluginTools(mcpServer, client)
 	plugins.RegisterRequestBlockPluginTools(mcpServer, client)
+	plugins.RegisterCustomResponsePluginTools(mcpServer, client)
 
 	api.LogInfof("Higress MCP Server initialized: %s", serverName)
 
