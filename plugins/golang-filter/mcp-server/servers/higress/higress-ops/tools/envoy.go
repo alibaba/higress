@@ -174,9 +174,9 @@ func handleEnvoyConfigDump(client OpsClient) common.ToolHandlerFunc {
 		var err error
 
 		if len(params) > 0 {
-			data, err = client.GetEnvoyAdminWithParams(path, params)
+			data, err = client.GetEnvoyAdminWithParams(ctx, path, params)
 		} else {
-			data, err = client.GetEnvoyAdmin(path)
+			data, err = client.GetEnvoyAdmin(ctx, path)
 		}
 
 		if err != nil {
@@ -202,9 +202,9 @@ func handleEnvoyClusters(client OpsClient) common.ToolHandlerFunc {
 		var err error
 
 		if len(params) > 0 {
-			data, err = client.GetEnvoyAdminWithParams(path, params)
+			data, err = client.GetEnvoyAdminWithParams(ctx, path, params)
 		} else {
-			data, err = client.GetEnvoyAdmin(path)
+			data, err = client.GetEnvoyAdmin(ctx, path)
 		}
 
 		if err != nil {
@@ -230,9 +230,9 @@ func handleEnvoyListeners(client OpsClient) common.ToolHandlerFunc {
 		var err error
 
 		if len(params) > 0 {
-			data, err = client.GetEnvoyAdminWithParams(path, params)
+			data, err = client.GetEnvoyAdminWithParams(ctx, path, params)
 		} else {
-			data, err = client.GetEnvoyAdmin(path)
+			data, err = client.GetEnvoyAdmin(ctx, path)
 		}
 
 		if err != nil {
@@ -264,9 +264,9 @@ func handleEnvoyRoutes(client OpsClient) common.ToolHandlerFunc {
 		var err error
 
 		if len(params) > 0 {
-			data, err = client.GetEnvoyAdminWithParams(path, params)
+			data, err = client.GetEnvoyAdminWithParams(ctx, path, params)
 		} else {
-			data, err = client.GetEnvoyAdmin(path)
+			data, err = client.GetEnvoyAdmin(ctx, path)
 		}
 
 		if err != nil {
@@ -301,9 +301,9 @@ func handleEnvoyStats(client OpsClient) common.ToolHandlerFunc {
 		var err error
 
 		if len(params) > 0 {
-			data, err = client.GetEnvoyAdminWithParams(path, params)
+			data, err = client.GetEnvoyAdminWithParams(ctx, path, params)
 		} else {
-			data, err = client.GetEnvoyAdmin(path)
+			data, err = client.GetEnvoyAdmin(ctx, path)
 		}
 
 		if err != nil {
@@ -315,7 +315,7 @@ func handleEnvoyStats(client OpsClient) common.ToolHandlerFunc {
 
 func handleEnvoyServerInfo(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetEnvoyAdmin("/server_info")
+		data, err := client.GetEnvoyAdmin(ctx, "/server_info")
 		if err != nil {
 			return CreateErrorResult("failed to get Envoy server info: " + err.Error())
 		}
@@ -325,7 +325,7 @@ func handleEnvoyServerInfo(client OpsClient) common.ToolHandlerFunc {
 
 func handleEnvoyReady(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetEnvoyAdmin("/ready")
+		data, err := client.GetEnvoyAdmin(ctx, "/ready")
 		if err != nil {
 			return CreateErrorResult("failed to get Envoy ready status: " + err.Error())
 		}
@@ -335,7 +335,7 @@ func handleEnvoyReady(client OpsClient) common.ToolHandlerFunc {
 
 func handleEnvoyHotRestartVersion(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetEnvoyAdmin("/hot_restart_version")
+		data, err := client.GetEnvoyAdmin(ctx, "/hot_restart_version")
 		if err != nil {
 			return CreateErrorResult("failed to get Envoy hot restart version: " + err.Error())
 		}
@@ -345,7 +345,7 @@ func handleEnvoyHotRestartVersion(client OpsClient) common.ToolHandlerFunc {
 
 func handleEnvoyCerts(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetEnvoyAdmin("/certs")
+		data, err := client.GetEnvoyAdmin(ctx, "/certs")
 		if err != nil {
 			return CreateErrorResult("failed to get Envoy certs: " + err.Error())
 		}

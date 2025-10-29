@@ -72,7 +72,7 @@ func RegisterIstiodTools(mcpServer *common.MCPServer, client OpsClient) {
 
 func handleIstiodSyncz(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetIstiodDebug("/debug/syncz")
+		data, err := client.GetIstiodDebug(ctx, "/debug/syncz")
 		if err != nil {
 			return CreateErrorResult("failed to get Istiod sync status: " + err.Error())
 		}
@@ -82,7 +82,7 @@ func handleIstiodSyncz(client OpsClient) common.ToolHandlerFunc {
 
 func handleIstiodEndpointz(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetIstiodDebug("/debug/endpointz")
+		data, err := client.GetIstiodDebug(ctx, "/debug/endpointz")
 		if err != nil {
 			return CreateErrorResult("failed to get Istiod endpoints: " + err.Error())
 		}
@@ -92,7 +92,7 @@ func handleIstiodEndpointz(client OpsClient) common.ToolHandlerFunc {
 
 func handleIstiodConfigz(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetIstiodDebug("/debug/configz")
+		data, err := client.GetIstiodDebug(ctx, "/debug/configz")
 		if err != nil {
 			return CreateErrorResult("failed to get Istiod config status: " + err.Error())
 		}
@@ -102,7 +102,7 @@ func handleIstiodConfigz(client OpsClient) common.ToolHandlerFunc {
 
 func handleIstiodClusters(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetIstiodDebug("/debug/clusterz")
+		data, err := client.GetIstiodDebug(ctx, "/debug/clusterz")
 		if err != nil {
 			return CreateErrorResult("failed to get Istiod clusters: " + err.Error())
 		}
@@ -112,7 +112,7 @@ func handleIstiodClusters(client OpsClient) common.ToolHandlerFunc {
 
 func handleIstiodVersion(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetIstiodDebug("/version")
+		data, err := client.GetIstiodDebug(ctx, "/version")
 		if err != nil {
 			return CreateErrorResult("failed to get Istiod version: " + err.Error())
 		}
@@ -122,7 +122,7 @@ func handleIstiodVersion(client OpsClient) common.ToolHandlerFunc {
 
 func handleIstiodRegistryz(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		data, err := client.GetIstiodDebug("/debug/registryz")
+		data, err := client.GetIstiodDebug(ctx, "/debug/registryz")
 		if err != nil {
 			return CreateErrorResult("failed to get Istiod registry: " + err.Error())
 		}

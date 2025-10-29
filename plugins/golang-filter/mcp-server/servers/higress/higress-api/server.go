@@ -18,8 +18,6 @@ func init() {
 
 type HigressConfig struct {
 	higressURL  string
-	username    string
-	password    string
 	description string
 }
 
@@ -30,26 +28,14 @@ func (c *HigressConfig) ParseConfig(config map[string]interface{}) error {
 	}
 	c.higressURL = higressURL
 
-	username, ok := config["username"].(string)
-	if !ok {
-		return errors.New("missing username")
-	}
-	c.username = username
-
-	password, ok := config["password"].(string)
-	if !ok {
-		return errors.New("missing password")
-	}
-	c.password = password
-
 	if desc, ok := config["description"].(string); ok {
 		c.description = desc
 	} else {
 		c.description = "Higress API MCP Server, which invokes Higress Console APIs to manage resources such as routes, services, and plugins."
 	}
 
-	api.LogInfof("Higress MCP Server configuration parsed successfully. URL: %s, Username: %s, Description: %s",
-		c.higressURL, c.username, c.description)
+	api.LogInfof("Higress MCP Server configuration parsed successfully. URL: %s",
+		c.higressURL)
 
 	return nil
 }
@@ -62,7 +48,7 @@ func (c *HigressConfig) NewServer(serverName string) (*common.MCPServer, error) 
 	)
 
 	// Initialize Higress API client
-	client := higress.NewHigressClient(c.higressURL, c.username, c.password)
+	client := higress.NewHigressClient(c.higressURL)
 
 	// Register all tools
 	tools.RegisterRouteTools(mcpServer, client)

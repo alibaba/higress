@@ -147,7 +147,7 @@ func handleListMcpServers(client *higress.HigressClient) common.ToolHandlerFunc 
 			}
 		}
 
-		respBody, err := client.Get("/v1/mcpServer" + queryParams)
+		respBody, err := client.Get(ctx, "/v1/mcpServer"+queryParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list MCP servers: %w", err)
 		}
@@ -171,7 +171,7 @@ func handleGetMcpServer(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Get(fmt.Sprintf("/v1/mcpServer/%s", name))
+		respBody, err := client.Get(ctx, fmt.Sprintf("/v1/mcpServer/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get MCP server '%s': %w", name, err)
 		}
@@ -222,7 +222,7 @@ func handleAddOrUpdateMcpServer(client *higress.HigressClient) common.ToolHandle
 						}
 
 						// Check if service source exists
-						_, err := client.Get(fmt.Sprintf("/v1/service-sources/%s", serviceSourceName))
+						_, err := client.Get(ctx, fmt.Sprintf("/v1/service-sources/%s", serviceSourceName))
 						if err != nil {
 							return nil, fmt.Errorf("Please create the service source '%s' first and then create the mcpserver", serviceSourceName)
 						}
@@ -231,7 +231,7 @@ func handleAddOrUpdateMcpServer(client *higress.HigressClient) common.ToolHandle
 			}
 		}
 
-		respBody, err := client.Put("/v1/mcpServer", configurations)
+		respBody, err := client.Put(ctx, "/v1/mcpServer", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add or update MCP server: %w", err)
 		}
@@ -255,7 +255,7 @@ func handleDeleteMcpServer(client *higress.HigressClient) common.ToolHandlerFunc
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Delete(fmt.Sprintf("/v1/mcpServer/%s", name))
+		respBody, err := client.Delete(ctx, fmt.Sprintf("/v1/mcpServer/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete MCP server '%s': %w", name, err)
 		}
@@ -302,7 +302,7 @@ func handleListMcpServerConsumers(client *higress.HigressClient) common.ToolHand
 			}
 		}
 
-		respBody, err := client.Get("/v1/mcpServer/consumers" + queryParams)
+		respBody, err := client.Get(ctx, "/v1/mcpServer/consumers"+queryParams)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list MCP server consumers: %w", err)
 		}
@@ -334,7 +334,7 @@ func handleAddMcpServerConsumers(client *higress.HigressClient) common.ToolHandl
 			return nil, fmt.Errorf("missing required field 'consumers' in configurations")
 		}
 
-		respBody, err := client.Put("/v1/mcpServer/consumers", configurations)
+		respBody, err := client.Put(ctx, "/v1/mcpServer/consumers", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add MCP server consumers: %w", err)
 		}
@@ -366,7 +366,7 @@ func handleDeleteMcpServerConsumers(client *higress.HigressClient) common.ToolHa
 			return nil, fmt.Errorf("missing required field 'consumers' in configurations")
 		}
 
-		respBody, err := client.DeleteWithBody("/v1/mcpServer/consumers", configurations)
+		respBody, err := client.DeleteWithBody(ctx, "/v1/mcpServer/consumers", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete MCP server consumers: %w", err)
 		}
@@ -395,7 +395,7 @@ func handleSwaggerToMcpConfig(client *higress.HigressClient) common.ToolHandlerF
 			return nil, fmt.Errorf("missing required field 'content' in configurations")
 		}
 
-		respBody, err := client.Post("/v1/mcpServer/swaggerToMcpConfig", configurations)
+		respBody, err := client.Post(ctx, "/v1/mcpServer/swaggerToMcpConfig", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert swagger to MCP config: %w", err)
 		}

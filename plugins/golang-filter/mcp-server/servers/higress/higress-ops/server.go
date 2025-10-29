@@ -69,7 +69,7 @@ func (c *HigressOpsConfig) NewServer(serverName string) (*common.MCPServer, erro
 	)
 
 	// Initialize Ops client with istiodToken
-	client := NewOpsClient(c.istiodURL, c.envoyAdminURL, c.namespace, c.istiodToken)
+	client := NewOpsClient(c.istiodURL, c.envoyAdminURL, c.namespace)
 
 	// Register all tools with the client as an interface
 	tools.RegisterIstiodTools(mcpServer, tools.OpsClient(client))

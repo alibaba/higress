@@ -89,7 +89,7 @@ func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClie
 
 func handleListRoutes(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		respBody, err := client.Get("/v1/routes")
+		respBody, err := client.Get(ctx, "/v1/routes")
 		if err != nil {
 			return nil, fmt.Errorf("failed to list routes: %w", err)
 		}
@@ -113,7 +113,7 @@ func handleGetRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Get(fmt.Sprintf("/v1/routes/%s", name))
+		respBody, err := client.Get(ctx, fmt.Sprintf("/v1/routes/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get route '%s': %w", name, err)
 		}
@@ -148,7 +148,7 @@ func handleAddRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing required field 'services' in configurations")
 		}
 
-		respBody, err := client.Post("/v1/routes", configurations)
+		respBody, err := client.Post(ctx, "/v1/routes", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add route: %w", err)
 		}
@@ -178,7 +178,7 @@ func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 		}
 
 		// Get current route configuration to merge with updates
-		currentBody, err := client.Get(fmt.Sprintf("/v1/routes/%s", name))
+		currentBody, err := client.Get(ctx, fmt.Sprintf("/v1/routes/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current route configuration: %w", err)
 		}
@@ -227,7 +227,7 @@ func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			currentConfig.CustomConfigs = newConfig.CustomConfigs
 		}
 
-		respBody, err := client.Put(fmt.Sprintf("/v1/routes/%s", name), currentConfig)
+		respBody, err := client.Put(ctx, fmt.Sprintf("/v1/routes/%s", name), currentConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update route '%s': %w", name, err)
 		}
@@ -251,7 +251,7 @@ func handleDeleteRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Delete(fmt.Sprintf("/v1/routes/%s", name))
+		respBody, err := client.Delete(ctx, fmt.Sprintf("/v1/routes/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete route '%s': %w", name, err)
 		}
@@ -285,7 +285,7 @@ func getRouteSchema() json.RawMessage {
 				"description": "The name of the route"
 			}
 		},
-		"required": [],
+		"required": ["name"],
 		"additionalProperties": false
 	}`)
 }

@@ -68,7 +68,7 @@ func RegisterAiProviderTools(mcpServer *common.MCPServer, client *higress.Higres
 
 func handleListAiProviders(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		respBody, err := client.Get("/v1/ai/providers")
+		respBody, err := client.Get(ctx, "/v1/ai/providers")
 		if err != nil {
 			return nil, fmt.Errorf("failed to list LLM providers: %w", err)
 		}
@@ -92,7 +92,7 @@ func handleGetAiProvider(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Get(fmt.Sprintf("/v1/ai/providers/%s", name))
+		respBody, err := client.Get(ctx, fmt.Sprintf("/v1/ai/providers/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get LLM provider '%s': %w", name, err)
 		}
@@ -127,7 +127,7 @@ func handleAddAiProvider(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing required field 'protocol' in configurations")
 		}
 
-		respBody, err := client.Post("/v1/ai/providers", configurations)
+		respBody, err := client.Post(ctx, "/v1/ai/providers", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add LLM provider: %w", err)
 		}
@@ -157,7 +157,7 @@ func handleUpdateAiProvider(client *higress.HigressClient) common.ToolHandlerFun
 		}
 
 		// Get current LLM provider configuration to merge with updates
-		currentBody, err := client.Get(fmt.Sprintf("/v1/ai/providers/%s", name))
+		currentBody, err := client.Get(ctx, fmt.Sprintf("/v1/ai/providers/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current LLM provider configuration: %w", err)
 		}
@@ -197,7 +197,7 @@ func handleUpdateAiProvider(client *higress.HigressClient) common.ToolHandlerFun
 			currentConfig.RawConfigs = newConfig.RawConfigs
 		}
 
-		respBody, err := client.Put(fmt.Sprintf("/v1/ai/providers/%s", name), currentConfig)
+		respBody, err := client.Put(ctx, fmt.Sprintf("/v1/ai/providers/%s", name), currentConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update LLM provider '%s': %w", name, err)
 		}
@@ -221,7 +221,7 @@ func handleDeleteAiProvider(client *higress.HigressClient) common.ToolHandlerFun
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Delete(fmt.Sprintf("/v1/ai/providers/%s", name))
+		respBody, err := client.Delete(ctx, fmt.Sprintf("/v1/ai/providers/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete LLM provider '%s': %w", name, err)
 		}

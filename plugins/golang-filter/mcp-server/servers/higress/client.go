@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
@@ -20,11 +21,9 @@ type HigressClient struct {
 	httpClient *http.Client
 }
 
-func NewHigressClient(baseURL, username, password string) *HigressClient {
+func NewHigressClient(baseURL string) *HigressClient {
 	client := &HigressClient{
-		baseURL:  baseURL,
-		username: username,
-		password: password,
+		baseURL: baseURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -35,28 +34,28 @@ func NewHigressClient(baseURL, username, password string) *HigressClient {
 	return client
 }
 
-func (c *HigressClient) Get(path string) ([]byte, error) {
-	return c.request("GET", path, nil)
+func (c *HigressClient) Get(ctx context.Context, path string) ([]byte, error) {
+	return c.request(ctx, "GET", path, nil)
 }
 
-func (c *HigressClient) Post(path string, data interface{}) ([]byte, error) {
-	return c.request("POST", path, data)
+func (c *HigressClient) Post(ctx context.Context, path string, data interface{}) ([]byte, error) {
+	return c.request(ctx, "POST", path, data)
 }
 
-func (c *HigressClient) Put(path string, data interface{}) ([]byte, error) {
-	return c.request("PUT", path, data)
+func (c *HigressClient) Put(ctx context.Context, path string, data interface{}) ([]byte, error) {
+	return c.request(ctx, "PUT", path, data)
 }
 
-func (c *HigressClient) Delete(path string) ([]byte, error) {
-	return c.request("DELETE", path, nil)
+func (c *HigressClient) Delete(ctx context.Context, path string) ([]byte, error) {
+	return c.request(ctx, "DELETE", path, nil)
 }
 
 // DeleteWithBody performs a DELETE request with a request body
-func (c *HigressClient) DeleteWithBody(path string, data interface{}) ([]byte, error) {
-	return c.request("DELETE", path, data)
+func (c *HigressClient) DeleteWithBody(ctx context.Context, path string, data interface{}) ([]byte, error) {
+	return c.request(ctx, "DELETE", path, data)
 }
 
-func (c *HigressClient) request(method, path string, data interface{}) ([]byte, error) {
+func (c *HigressClient) request(ctx context.Context, method, path string, data interface{}) ([]byte, error) {
 	url := c.baseURL + path
 
 	var body io.Reader
@@ -71,15 +70,27 @@ func (c *HigressClient) request(method, path string, data interface{}) ([]byte, 
 		api.LogDebugf("Higress API %s %s", method, url)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Create context with timeout if not already set
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	req, err := http.NewRequestWithContext(reqCtx, method, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.SetBasicAuth(c.username, c.password)
+	// Try to get Authorization header from context first (passthrough from MCP client)
+	if authHeader, ok := common.GetAuthHeader(ctx); ok && authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+		api.LogDebugf("Higress API request: Using Authorization header from context for %s %s", method, path)
+	} else {
+		api.LogWarnf("Higress API request: No authentication credentials available for %s %s", method, path)
+		return nil, fmt.Errorf("no authentication credentials available for %s %s", method, path)
+	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)

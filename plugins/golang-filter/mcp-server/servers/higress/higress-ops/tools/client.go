@@ -1,18 +1,22 @@
 package tools
 
+import (
+	"context"
+)
+
 // OpsClient defines the interface for operations client
 type OpsClient interface {
 	// GetIstiodDebug calls Istiod debug endpoints
-	GetIstiodDebug(path string) ([]byte, error)
+	GetIstiodDebug(ctx context.Context, path string) ([]byte, error)
 
 	// GetEnvoyAdmin calls Envoy admin endpoints
-	GetEnvoyAdmin(path string) ([]byte, error)
+	GetEnvoyAdmin(ctx context.Context, path string) ([]byte, error)
 
 	// GetIstiodDebugWithParams calls Istiod debug endpoints with query parameters
-	GetIstiodDebugWithParams(path string, params map[string]string) ([]byte, error)
+	GetIstiodDebugWithParams(ctx context.Context, path string, params map[string]string) ([]byte, error)
 
 	// GetEnvoyAdminWithParams calls Envoy admin endpoints with query parameters
-	GetEnvoyAdminWithParams(path string, params map[string]string) ([]byte, error)
+	GetEnvoyAdminWithParams(ctx context.Context, path string, params map[string]string) ([]byte, error)
 
 	// GetNamespace returns the configured namespace
 	GetNamespace() string
