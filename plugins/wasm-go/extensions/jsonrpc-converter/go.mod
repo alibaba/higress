@@ -3,8 +3,8 @@ module jsonrpc-converter
 go 1.24.3
 
 require (
-	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250611100342-5654e89a7a80
-	github.com/higress-group/wasm-go v1.0.2-0.20250911113549-cbf1cfcce774
+	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250822030947-8345453fddd0
+	github.com/higress-group/wasm-go v1.0.4
 	github.com/tidwall/gjson v1.18.0
 )
 
