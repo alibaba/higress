@@ -1,4 +1,4 @@
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
   annotations:
@@ -17,7 +17,7 @@ spec:
       number: 80
       protocol: HTTP
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -95,7 +95,7 @@ spec:
       scheme: https
       uri: /replace-full
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -134,7 +134,7 @@ spec:
         port:
           number: 80
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -170,7 +170,7 @@ spec:
         port:
           number: 80
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -209,7 +209,7 @@ spec:
         port:
           number: 80
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -245,7 +245,7 @@ spec:
     - destination:
         host: infpool-gen2-ip-97b729d1.default.svc.domain.suffix
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -270,7 +270,7 @@ spec:
       scheme: https
       uri: '%PREFIX()%/replacement'
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -321,7 +321,7 @@ spec:
         port:
           number: 80
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -355,7 +355,7 @@ spec:
         port:
           number: 80
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
@@ -381,7 +381,7 @@ spec:
           number: 80
     timeout: 0.001s
 ---
-apiVersion: networking.istio.io/v1
+apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
   annotations:
