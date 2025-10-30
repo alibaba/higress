@@ -15,7 +15,6 @@ import (
 	"time"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/utils"
 	"github.com/google/uuid"
 )
 
@@ -201,7 +200,7 @@ func GenerateRequestForText(config cfg.AISecurityConfig, checkAction, checkServi
 	serviceParameters := make(map[string]interface{})
 	serviceParameters["content"] = text
 	serviceParameters["sessionId"] = sessionID
-	serviceParameters["requestFrom"] = utils.AliyunUserAgent
+	serviceParameters["requestFrom"] = cfg.AliyunUserAgent
 	serviceParametersJSON, _ := json.Marshal(serviceParameters)
 	body["ServiceParameters"] = serviceParametersJSON
 	str := formDataToString(body)
@@ -239,7 +238,7 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 	body := make(map[string]interface{})
 	serviceParameters := make(map[string]interface{})
 	if imgUrl != "" {
-		serviceParameters["imageUrls"] = imgUrl
+		serviceParameters["imageUrls"] = []string{imgUrl}
 	}
 	serviceParametersJSON, _ := json.Marshal(serviceParameters)
 	body["ServiceParameters"] = serviceParametersJSON
@@ -262,6 +261,7 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 		q.Set(k, fmt.Sprintf("%v", v))
 	}
 	for k, v := range req.headers {
+		// host will be added by envoy automatically
 		if k != "host" {
 			headers = append(headers, [2]string{k, v})
 		}
