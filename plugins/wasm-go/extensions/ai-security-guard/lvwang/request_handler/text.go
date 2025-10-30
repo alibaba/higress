@@ -94,7 +94,7 @@ func HandleTextRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig,
 		contentPiece := content[contentIndex:nextContentIndex]
 		contentIndex = nextContentIndex
 		checkService := config.GetRequestCheckService(consumer)
-		path, headers, body := lvwang.GenerateRequestForText(config, config.Action, checkService, contentPiece, sessionID)
+		path, headers, body := lvwang.GenerateRequestForText(config, cfg.TextModerationPlus, checkService, contentPiece, sessionID)
 		err := config.Client.Post(path, headers, body, callback, config.Timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)

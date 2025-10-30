@@ -118,7 +118,7 @@ func HandleTextAndImageRequestBody(ctx wrapper.HttpContext, config cfg.AISecurit
 		contentPiece := content[contentIndex:nextContentIndex]
 		contentIndex = nextContentIndex
 		log.Debugf("current content piece: %s", contentPiece)
-		path, headers, body := lvwang.GenerateRequestForText(config, config.Action, checkService, contentPiece, sessionID)
+		path, headers, body := lvwang.GenerateRequestForText(config, cfg.MultiModalGuard, checkService, contentPiece, sessionID)
 		err := config.Client.Post(path, headers, body, callback, config.Timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
@@ -128,7 +128,7 @@ func HandleTextAndImageRequestBody(ctx wrapper.HttpContext, config cfg.AISecurit
 	// check image
 	if imgUrl != "" || imgBase64 != "" {
 		checkService := config.GetRequestCheckService(consumer)
-		path, headers, body := lvwang.GenerateRequestForImage(config, config.Action, checkService, imgUrl, imgBase64)
+		path, headers, body := lvwang.GenerateRequestForImage(config, cfg.MultiModalGuardForBase64, checkService, imgUrl, imgBase64)
 		err := config.Client.Post(path, headers, body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			log.Info(string(responseBody))
 			if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
