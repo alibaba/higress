@@ -13,6 +13,7 @@ import (
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/textsplitter"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/vectordb"
 	"github.com/distribution/distribution/v3/uuid"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 const (
@@ -31,6 +32,7 @@ type RAGClient struct {
 
 // NewRAGClient creates a new RAG client instance
 func NewRAGClient(config *config.Config) (*RAGClient, error) {
+	api.LogDebugf("RAG NewRAGClient: %+v", config)
 	ragclient := &RAGClient{
 		config: config,
 	}
@@ -40,12 +42,14 @@ func NewRAGClient(config *config.Config) (*RAGClient, error) {
 	}
 	ragclient.textSplitter = textSplitter
 
+	api.LogDebugf("RAG New Embedding Provider: %+v", ragclient.config.Embedding)
 	embeddingProvider, err := embedding.NewEmbeddingProvider(ragclient.config.Embedding)
 	if err != nil {
 		return nil, fmt.Errorf("create embedding provider failed, err: %w", err)
 	}
 	ragclient.embeddingProvider = embeddingProvider
 
+	api.LogDebugf("RAG New LLM Provider: %+v", ragclient.config.LLM)
 	if ragclient.config.LLM.Provider == "" {
 		ragclient.llmProvider = nil
 	} else {
@@ -56,6 +60,7 @@ func NewRAGClient(config *config.Config) (*RAGClient, error) {
 		ragclient.llmProvider = llmProvider
 	}
 
+	api.LogDebugf("RAG New VectorDB Provider: %+v", ragclient.config.VectorDB)
 	dim := ragclient.config.Embedding.Dimensions
 	provider, err := vectordb.NewVectorDBProvider(&ragclient.config.VectorDB, dim)
 	if err != nil {
