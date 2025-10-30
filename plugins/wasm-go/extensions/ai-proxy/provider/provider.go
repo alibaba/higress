@@ -135,6 +135,7 @@ const (
 	providerTypeOpenRouter = "openrouter"
 	providerTypeLongcat    = "longcat"
 	providerTypeFireworks  = "fireworks"
+	providerTypeVllm       = "vllm"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -217,6 +218,7 @@ var (
 		providerTypeOpenRouter: &openrouterProviderInitializer{},
 		providerTypeLongcat:    &longcatProviderInitializer{},
 		providerTypeFireworks:  &fireworksProviderInitializer{},
+		providerTypeVllm:       &vllmProviderInitializer{},
 	}
 )
 
@@ -408,6 +410,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Triton Server 部署的 Domain
 	// @Description 仅适用于 NVIDIA Triton Interference Server :path 中的 modelVersion 参考："https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/protocol/extension_generate.html"
 	tritonDomain string `required:"false" yaml:"tritonDomain" json:"tritonDomain"`
+	// @Title zh-CN vLLM自定义后端URL
+	// @Description zh-CN 仅适用于vLLM服务。vLLM服务的完整URL，包含协议、域名、端口等
+	vllmCustomUrl string `required:"false" yaml:"vllmCustomUrl" json:"vllmCustomUrl"`
+	// @Title zh-CN vLLM主机地址
+	// @Description zh-CN 仅适用于vLLM服务，指定vLLM服务器的主机地址，例如：vllm-service.cluster.local
+	vllmServerHost string `required:"false" yaml:"vllmServerHost" json:"vllmServerHost"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -420,6 +428,14 @@ func (c *ProviderConfig) GetType() string {
 
 func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
+}
+
+func (c *ProviderConfig) GetVllmCustomUrl() string {
+	return c.vllmCustomUrl
+}
+
+func (c *ProviderConfig) GetVllmServerHost() string {
+	return c.vllmServerHost
 }
 
 func (c *ProviderConfig) IsOpenAIProtocol() bool {
@@ -447,7 +463,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.qwenFileIds = append(c.qwenFileIds, fileId.String())
 	}
 	c.qwenEnableSearch = json.Get("qwenEnableSearch").Bool()
-	c.qwenEnableCompatible = json.Get("qwenEnableCompatible").Bool()
+	if compatible := json.Get("qwenEnableCompatible"); compatible.Exists() {
+		c.qwenEnableCompatible = compatible.Bool()
+	} else {
+		// Default use official compatiable mode
+		c.qwenEnableCompatible = true
+	}
 	c.qwenDomain = json.Get("qwenDomain").String()
 	if c.qwenDomain != "" {
 		// TODO: validate the domain, if not valid, set to default
@@ -586,6 +607,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.basePath != "" && c.basePathHandling == "" {
 		c.basePathHandling = basePathHandlingRemovePrefix
 	}
+	c.vllmServerHost = json.Get("vllmServerHost").String()
+	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 }
 
 func (c *ProviderConfig) Validate() error {
