@@ -52,11 +52,9 @@ func NewRequest(httpMethod, canonicalUri, host, xAcsAction, xAcsVersion string) 
 }
 
 func getAuthorization(req *Request, AccessKeyId, AccessKeySecret, SecurityToken string) {
-	// 处理queryParam中参数值为List、Map类型的参数，将参数平铺
 	newQueryParams := make(map[string]interface{})
 	processObject(newQueryParams, "", req.queryParam)
 	req.queryParam = newQueryParams
-	// 步骤 1：拼接规范请求串
 	canonicalQueryString := ""
 	keys := maps.Keys(req.queryParam)
 	sort.Strings(keys)
@@ -65,7 +63,6 @@ func getAuthorization(req *Request, AccessKeyId, AccessKeySecret, SecurityToken 
 		canonicalQueryString += percentCode(url.QueryEscape(k)) + "=" + percentCode(url.QueryEscape(fmt.Sprintf("%v", v))) + "&"
 	}
 	canonicalQueryString = strings.TrimSuffix(canonicalQueryString, "&")
-	// fmt.Printf("canonicalQueryString========>%s\n", canonicalQueryString)
 
 	var bodyContent []byte
 	if req.body == nil {
@@ -94,14 +91,10 @@ func getAuthorization(req *Request, AccessKeyId, AccessKeySecret, SecurityToken 
 	signedHeaders = strings.TrimSuffix(signedHeaders, ";")
 
 	canonicalRequest := req.httpMethod + "\n" + req.canonicalUri + "\n" + canonicalQueryString + "\n" + canonicalHeaders + "\n" + signedHeaders + "\n" + hashedRequestPayload
-	// fmt.Printf("canonicalRequest========>\n%s\n", canonicalRequest)
 
-	// 步骤 2：拼接待签名字符串
 	hashedCanonicalRequest := sha256Hex([]byte(canonicalRequest))
 	stringToSign := ALGORITHM + "\n" + hashedCanonicalRequest
-	// fmt.Printf("stringToSign========>\n%s\n", stringToSign)
 
-	// 步骤 3：计算签名
 	byteData, err := hmac256([]byte(AccessKeySecret), stringToSign)
 	if err != nil {
 		fmt.Println(err)
@@ -109,36 +102,27 @@ func getAuthorization(req *Request, AccessKeyId, AccessKeySecret, SecurityToken 
 	}
 	signature := strings.ToLower(hex.EncodeToString(byteData))
 
-	// 步骤 4：拼接Authorization
 	authorization := ALGORITHM + " Credential=" + AccessKeyId + ",SignedHeaders=" + signedHeaders + ",Signature=" + signature
 	req.headers["Authorization"] = authorization
 }
 
 func hmac256(key []byte, toSignString string) ([]byte, error) {
-	// 实例化HMAC-SHA256哈希
 	h := hmac.New(sha256.New, key)
-	// 写入待签名的字符串
 	_, err := h.Write([]byte(toSignString))
 	if err != nil {
 		return nil, err
 	}
-	// 计算签名并返回
 	return h.Sum(nil), nil
 }
 
 func sha256Hex(byteArray []byte) string {
-	// 实例化SHA-256哈希函数
 	hash := sha256.New()
-	// 将字符串写入哈希函数
 	_, _ = hash.Write(byteArray)
-	// 计算SHA-256哈希值并转换为小写的十六进制字符串
 	hexString := hex.EncodeToString(hash.Sum(nil))
-
 	return hexString
 }
 
 func percentCode(str string) string {
-	// 替换特定的编码字符
 	str = strings.ReplaceAll(str, "+", "%20")
 	str = strings.ReplaceAll(str, "*", "%2A")
 	str = strings.ReplaceAll(str, "%7E", "~")
@@ -188,9 +172,6 @@ func processObject(mapResult map[string]interface{}, key string, value interface
 func GenerateRequestForText(config cfg.AISecurityConfig, checkAction, checkService, text, sessionID string) (path string, headers [][2]string, reqBody []byte) {
 	httpMethod := "POST"
 	canonicalUri := "/"
-	// xAcsAction := "MultiModalGuardForBase64"
-	// xAcsAction := "TextModerationPlus"
-	// xAcsAction := "MultiModalGuard"
 	xAcsVersion := "2022-03-02"
 	req := NewRequest(httpMethod, canonicalUri, config.Host, checkAction, xAcsVersion)
 
@@ -207,9 +188,7 @@ func GenerateRequestForText(config cfg.AISecurityConfig, checkAction, checkServi
 	req.body = []byte(*str)
 	req.headers["content-type"] = "application/x-www-form-urlencoded"
 
-	// 签名过程
 	getAuthorization(req, config.AK, config.SK, config.Token)
-	// fmt.Printf("req Headers: %+v\n", req.headers)
 
 	q := url.Values{}
 	keys := maps.Keys(req.queryParam)
@@ -229,7 +208,6 @@ func GenerateRequestForText(config cfg.AISecurityConfig, checkAction, checkServi
 func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkService, imgUrl, imgBase64 string) (path string, headers [][2]string, reqBody []byte) {
 	httpMethod := "POST"
 	canonicalUri := "/"
-	// xAcsAction := "MultiModalGuardForBase64"
 	xAcsVersion := "2022-03-02"
 	req := NewRequest(httpMethod, canonicalUri, config.Host, checkAction, xAcsVersion)
 
@@ -249,9 +227,7 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 	req.body = []byte(*str)
 	req.headers["content-type"] = "application/x-www-form-urlencoded"
 
-	// 签名过程
 	getAuthorization(req, config.AK, config.SK, config.Token)
-	// fmt.Printf("req Headers: %+v\n", req.headers)
 
 	q := url.Values{}
 	keys := maps.Keys(req.queryParam)

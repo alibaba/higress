@@ -1,9 +1,5 @@
 package multi_modal_guard
 
-// https://help.aliyun.com/document_detail/2937221.html?spm=a2c4g.11186623.help-menu-28415.d_4_3.5e66340d38SMdd
-// https://help.aliyun.com/document_detail/2875414.html?spm=a2c4g.11186623.help-menu-28415.d_4_1.186e62f7CCPSV7&scm=20140722.H_2875414._.OR_help-T_cn~zh-V_1
-// https://help.aliyun.com/document_detail/2671445.html?spm=a2c4g.11186623.help-menu-28415.d_2_6_3.33bc6facmV89wy&scm=20140722.H_2671445._.OR_help-T_cn~zh-V_1#p-vh8-zaz-5xl
-
 import (
 	"bytes"
 	"encoding/json"
