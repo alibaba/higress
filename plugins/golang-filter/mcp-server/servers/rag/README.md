@@ -916,9 +916,9 @@ mapping:
 **推荐使用方法一**，因为它提供了更好的灵活性和完整的读写支持。
 
 
-### 5. Higress RAG 和 CherryStudio 集成
+### 5. Higress RAG MCP 插件和 CherryStudio 集成
 
-Higress RAG 插件可以与 CherryStudio 集成，实现基于 RAG 的智能问答功能。
+Higress RAG MCP 插件和 CherryStudio 集成，实现基于 RAG 的智能问答功能。
 
 **配置步骤**：
 
