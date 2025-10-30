@@ -36,11 +36,11 @@ func init() {
 				MaxTokens:   2048,
 			},
 			Embedding: config.EmbeddingConfig{
-				Provider:  "dashscope",
-				APIKey:    "",
-				BaseURL:   "",
-				Model:     "text-embedding-v4",
-				Dimension: 1024,
+				Provider:   "openai",
+				APIKey:     "",
+				BaseURL:    "",
+				Model:      "text-embedding-ada-002",
+				Dimensions: 1536,
 			},
 			VectorDB: config.VectorDBConfig{
 				Provider:   "milvus",
@@ -50,14 +50,56 @@ func init() {
 				Collection: "rag",
 				Username:   "",
 				Password:   "",
+				Mapping: config.MappingConfig{
+					Fields: []config.FieldMapping{
+						{
+							StandardName: "id",
+							RawName:      "id",
+							Properties: map[string]interface{}{
+								"max_length": 256,
+								"auto_id":    false,
+							},
+						},
+						{
+							StandardName: "content",
+							RawName:      "content",
+							Properties: map[string]interface{}{
+								"max_length": 8192,
+							},
+						},
+						{
+							StandardName: "vector",
+							RawName:      "vector",
+							Properties:   make(map[string]interface{}),
+						},
+						{
+							StandardName: "metadata",
+							RawName:      "metadata",
+							Properties:   make(map[string]interface{}),
+						},
+						{
+							StandardName: "created_at",
+							RawName:      "created_at",
+							Properties:   make(map[string]interface{}),
+						},
+					},
+					Index: config.IndexConfig{
+						IndexType: "HNSW",
+						Params:    map[string]interface{}{"M": 8, "efConstruction": 64},
+					},
+					Search: config.SearchConfig{
+						MetricType: "IP",
+						Params:     make(map[string]interface{}),
+					},
+				},
 			},
 		},
 	})
 }
 
-func (c *RAGConfig) ParseConfig(config map[string]any) error {
+func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 	// Parse RAG configuration
-	if ragConfig, ok := config["rag"].(map[string]any); ok {
+	if ragConfig, ok := cfg["rag"].(map[string]any); ok {
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
 			if splitterType, exists := splitter["provider"].(string); exists {
 				c.config.RAG.Splitter.Provider = splitterType
@@ -78,7 +120,7 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 	}
 
 	// Parse Embedding configuration
-	if embeddingConfig, ok := config["embedding"].(map[string]any); ok {
+	if embeddingConfig, ok := cfg["embedding"].(map[string]any); ok {
 		if provider, exists := embeddingConfig["provider"].(string); exists {
 			c.config.Embedding.Provider = provider
 		} else {
@@ -94,13 +136,13 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		if model, exists := embeddingConfig["model"].(string); exists {
 			c.config.Embedding.Model = model
 		}
-		if dimension, exists := embeddingConfig["dimension"].(float64); exists {
-			c.config.Embedding.Dimension = int(dimension)
+		if dimensions, exists := embeddingConfig["dimensions"].(float64); exists {
+			c.config.Embedding.Dimensions = int(dimensions)
 		}
 	}
 
 	// Parse llm configuration
-	if llmConfig, ok := config["llm"].(map[string]any); ok {
+	if llmConfig, ok := cfg["llm"].(map[string]any); ok {
 		if provider, exists := llmConfig["provider"].(string); exists {
 			c.config.LLM.Provider = provider
 		}
@@ -122,7 +164,7 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 	}
 
 	// Parse VectorDB configuration
-	if vectordbConfig, ok := config["vectordb"].(map[string]any); ok {
+	if vectordbConfig, ok := cfg["vectordb"].(map[string]any); ok {
 		if provider, exists := vectordbConfig["provider"].(string); exists {
 			c.config.VectorDB.Provider = provider
 		} else {
@@ -146,8 +188,59 @@ func (c *RAGConfig) ParseConfig(config map[string]any) error {
 		if password, exists := vectordbConfig["password"].(string); exists {
 			c.config.VectorDB.Password = password
 		}
-	}
 
+		// Parse mapping here
+		if mapping, exists := vectordbConfig["mapping"].(map[string]any); exists {
+			// Parse field mappings
+			if fields, ok := mapping["fields"].([]any); ok {
+				c.config.VectorDB.Mapping.Fields = []config.FieldMapping{}
+				for _, field := range fields {
+					if fieldMap, ok := field.(map[string]any); ok {
+						fieldMapping := config.FieldMapping{
+							Properties: make(map[string]interface{}),
+						}
+						if standardName, ok := fieldMap["standard_name"].(string); ok {
+							fieldMapping.StandardName = standardName
+						}
+
+						if rawName, ok := fieldMap["raw_name"].(string); ok {
+							fieldMapping.RawName = rawName
+						}
+						// Parse properties
+						if properties, ok := fieldMap["properties"].(map[string]any); ok {
+							for key, value := range properties {
+								fieldMapping.Properties[key] = value
+							}
+						}
+						c.config.VectorDB.Mapping.Fields = append(c.config.VectorDB.Mapping.Fields, fieldMapping)
+					}
+				}
+			}
+
+			// Parse index configuration
+			if index, ok := mapping["index"].(map[string]any); ok {
+				if indexType, ok := index["index_type"].(string); ok {
+					c.config.VectorDB.Mapping.Index.IndexType = indexType
+				}
+
+				// Parse index parameters
+				if params, ok := index["params"].(map[string]any); ok {
+					c.config.VectorDB.Mapping.Index.Params = params
+				}
+			}
+
+			// Parse search configuration
+			if search, ok := mapping["search"].(map[string]any); ok {
+				if metricType, ok := search["metric_type"].(string); ok {
+					c.config.VectorDB.Mapping.Search.MetricType = metricType
+				}
+				// Parse search parameters
+				if params, ok := search["params"].(map[string]any); ok {
+					c.config.VectorDB.Mapping.Search.Params = params
+				}
+			}
+		}
+	}
 	return nil
 }
 

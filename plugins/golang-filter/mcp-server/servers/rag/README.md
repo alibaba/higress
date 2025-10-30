@@ -84,10 +84,11 @@ Higress RAG MCP Server 提供以下工具，根据配置不同，可用工具也
 | llm.max_tokens             | integer | 可选 | 2048 | 最大令牌数 |
 | llm.temperature            | float | 可选 | 0.5 | 温度参数 |
 | **embedding**              | object | 必填 | - | 嵌入配置（所有工具必需） |
-| embedding.provider         | string | 必填 | dashscope | 嵌入提供商：openai或dashscope |
+| embedding.provider         | string | 必填 | openai | 嵌入提供商：支持openai协议的任意供应商 |
 | embedding.api_key          | string | 必填 | - | 嵌入API密钥 |
 | embedding.base_url         | string | 可选 |  | 嵌入API基础URL |
-| embedding.model            | string | 必填 | text-embedding-v4 | 嵌入模型名称 |
+| embedding.model            | string | 必填 | text-embedding-ada-002 | 嵌入模型名称 |
+| embedding.dimensions       | integer | 可选 | 1536 | 嵌入维度 |
 | **vectordb**               | object | 必填 | - | 向量数据库配置（所有工具必需） |
 | vectordb.provider          | string | 必填 | milvus | 向量数据库提供商 |
 | vectordb.host              | string | 必填 | localhost | 数据库主机地址 |
@@ -96,6 +97,17 @@ Higress RAG MCP Server 提供以下工具，根据配置不同，可用工具也
 | vectordb.collection        | string | 必填 | test_collection | 集合名称 |
 | vectordb.username          | string | 可选 | - | 数据库用户名 |
 | vectordb.password          | string | 可选 | - | 数据库密码 |
+| **vectordb.mapping**       | object | 可选 | - | 字段映射配置 |
+| vectordb.mapping.fields    | array | 可选 | - | 字段映射列表 |
+| vectordb.mapping.fields[].standard_name | string | 必填 | - | 标准字段名称（如 id, content, vector 等） |
+| vectordb.mapping.fields[].raw_name | string | 必填 | - | 原始字段名称（数据库中的实际字段名） |
+| vectordb.mapping.fields[].properties | object | 可选 | - | 字段属性（如 auto_id, max_length 等） |
+| vectordb.mapping.index     | object | 可选 | - | 索引配置 |
+| vectordb.mapping.index.index_type | string | 必填 | - | 索引类型（如 FLAT, IVF_FLAT, HNSW 等） |
+| vectordb.mapping.index.params | object | 可选 | - | 索引参数（根据索引类型不同而异） |
+| vectordb.mapping.search    | object | 可选 | - | 搜索配置 |
+| vectordb.mapping.search.metric_type | string | 可选 | L2 | 度量类型（如 L2, IP, COSINE 等） |
+| vectordb.mapping.search.params | object | 可选 | - | 搜索参数（如 nprobe, ef_search 等）
 
 
 ### higress-config 配置样例
@@ -143,27 +155,54 @@ data:
             temperature: 0.5
             max_tokens: 2048
           embedding:
-            provider: dashscope
+            provider: openai
+            base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
             api_key: sk-xxx
             model: text-embedding-v4
+            dimensions: 1536
           vectordb:
             provider: milvus
-            host: <milvus IP>
+            host: localhost
             port: 19530
             database: default
-            collection: test_collection
-```
+            collection: test_rag
+            mapping:
+              fields:
+              - standard_name: id
+                raw_name: id
+                properties:
+                  auto_id: false
+                  max_length: 256
+              - standard_name: content
+                raw_name: content
+                properties:
+                  max_length: 8192
+              - standard_name: vector
+                raw_name: vector
+              - standard_name: metadata
+                raw_name: metadata
+              - standard_name: created_at
+                raw_name: created_at
+              index:
+                index_type: HNSW
+                params:
+                  M: 4
+                  efConstruction: 32
+              search:
+                metric_type: IP
+                params:
+                  ef: 32
 
+```
 ### 支持的提供商
 #### Embedding
-- **OpenAI**
-- **DashScope**
+- **OpenAI 兼容**
 
 #### Vector Database
 - **Milvus**
 
 #### LLM 
-- **OpenAI**
+- **OpenAI 兼容**
 
 ## 如何测试数据集的效果
 
