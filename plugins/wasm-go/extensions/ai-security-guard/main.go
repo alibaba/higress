@@ -55,6 +55,7 @@ func parseConfig(json gjson.Result, config *cfg.AISecurityConfig) error {
 	if serviceName == "" || servicePort == 0 || serviceHost == "" {
 		return errors.New("invalid service config")
 	}
+	config.Host = serviceHost
 	config.AK = json.Get("accessKey").String()
 	config.SK = json.Get("secretKey").String()
 	if config.AK == "" || config.SK == "" {
@@ -234,6 +235,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) 
 	consumer, _ := proxywasm.GetHttpRequestHeader("x-mse-consumer")
 	ctx.SetContext("consumer", consumer)
 	ctx.DisableReroute()
+	log.Infof("config: %+v", config)
 	if !config.CheckRequest {
 		log.Debugf("request checking is disabled")
 		ctx.DontReadRequestBody()
@@ -243,7 +245,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) 
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	log.Debugf("checking request body...")
-	return request_handler.HandleTextRequestBody(ctx, config, body)
+	switch config.Action {
+	case cfg.MultiModalGuard:
+		return request_handler.HandleTextAndImageRequestBody(ctx, config, body)
+	case cfg.TextModerationPlus:
+		return request_handler.HandleTextRequestBody(ctx, config, body)
+	default:
+		log.Warnf("Unknown action %s", config.Action)
+		return types.ActionContinue
+	}
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {

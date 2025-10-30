@@ -26,6 +26,11 @@ const (
 	SensitiveDataType          = "sensitiveData"
 	MaliciousUrlDataType       = "maliciousUrl"
 	ModelHallucinationDataType = "modelHallucination"
+
+	// Actions
+	MultiModalGuard          = "MultiModalGuard"
+	MultiModalGuardForBase64 = "MultiModalGuardForBase64"
+	TextModerationPlus       = "TextModerationPlus"
 )
 
 type Response struct {
@@ -259,7 +264,7 @@ func LevelToInt(riskLevel string) int {
 }
 
 func IsRiskLevelAcceptable(action string, data Data, config AISecurityConfig, consumer string) bool {
-	if action == "MultiModalGuard" || action == "MultiModalGuardForBase64" {
+	if action == MultiModalGuard || action == MultiModalGuardForBase64 {
 		// Check top-level risk levels for MultiModalGuard
 		if LevelToInt(data.RiskLevel) >= LevelToInt(config.GetContentModerationLevelBar(consumer)) {
 			return false

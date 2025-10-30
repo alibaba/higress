@@ -220,7 +220,9 @@ func GenerateRequestForText(config cfg.AISecurityConfig, checkAction, checkServi
 		q.Set(k, fmt.Sprintf("%v", v))
 	}
 	for k, v := range req.headers {
-		headers = append(headers, [2]string{k, v})
+		if k != "host" {
+			headers = append(headers, [2]string{k, v})
+		}
 	}
 	return "?" + q.Encode(), headers, req.body
 }
@@ -260,7 +262,9 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 		q.Set(k, fmt.Sprintf("%v", v))
 	}
 	for k, v := range req.headers {
-		headers = append(headers, [2]string{k, v})
+		if k != "host" {
+			headers = append(headers, [2]string{k, v})
+		}
 	}
 	return "?" + q.Encode(), headers, req.body
 }
