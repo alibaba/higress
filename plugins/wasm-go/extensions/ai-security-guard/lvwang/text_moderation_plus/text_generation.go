@@ -1,4 +1,4 @@
-package response_handler
+package text_moderation_plus
 
 import (
 	"bytes"
@@ -18,20 +18,94 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// https://help.aliyun.com/document_detail/2875414.html?spm=a2c4g.11186623.help-menu-28415.d_4_1.186e62f7CCPSV7&scm=20140722.H_2875414._.OR_help-T_cn~zh-V_1
+func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+	consumer, _ := ctx.GetContext("consumer").(string)
+	startTime := time.Now().UnixMilli()
+	content := gjson.GetBytes(body, config.RequestContentJsonPath).String()
+	log.Debugf("Raw request content is: %s", content)
+	if len(content) == 0 {
+		log.Info("request content is empty. skip")
+		return types.ActionContinue
+	}
+	contentIndex := 0
+	sessionID, _ := utils.GenerateHexID(20)
+	var singleCall func()
+	callback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		log.Info(string(responseBody))
+		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+		var response cfg.Response
+		err := json.Unmarshal(responseBody, &response)
+		if err != nil {
+			log.Error("failed to unmarshal aliyun content security response at request phase")
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+		if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
+			if contentIndex >= len(content) {
+				endTime := time.Now().UnixMilli()
+				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+				ctx.SetUserAttribute("safecheck_status", "request pass")
+				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+				proxywasm.ResumeHttpRequest()
+			} else {
+				singleCall()
+			}
+			return
+		}
+		denyMessage := cfg.DefaultDenyMessage
+		if config.DenyMessage != "" {
+			denyMessage = config.DenyMessage
+		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
+			denyMessage = response.Data.Advice[0].Answer
+		}
+		marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
+		if config.ProtocolOriginal {
+			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
+		} else if gjson.GetBytes(body, "stream").Bool() {
+			randomID := utils.GenerateRandomChatID()
+			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
+			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+		} else {
+			randomID := utils.GenerateRandomChatID()
+			jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
+			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+		}
+		ctx.DontReadResponseBody()
+		config.IncrementCounter("ai_sec_request_deny", 1)
+		endTime := time.Now().UnixMilli()
+		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
+		if response.Data.Advice != nil {
+			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
+			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
+		}
+		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	}
+	singleCall = func() {
+		var nextContentIndex int
+		if contentIndex+cfg.LengthLimit >= len(content) {
+			nextContentIndex = len(content)
+		} else {
+			nextContentIndex = contentIndex + cfg.LengthLimit
+		}
+		contentPiece := content[contentIndex:nextContentIndex]
+		contentIndex = nextContentIndex
+		checkService := config.GetRequestCheckService(consumer)
+		path, headers, body := lvwang.GenerateRequestForText(config, cfg.TextModerationPlus, checkService, contentPiece, sessionID)
+		err := config.Client.Post(path, headers, body, callback, config.Timeout)
+		if err != nil {
+			log.Errorf("failed call the safe check service: %v", err)
+			proxywasm.ResumeHttpRequest()
+		}
+	}
+	singleCall()
+	return types.ActionPause
+}
 
-func HandleTextResponseHeader(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {
-	if !config.CheckResponse {
-		log.Debugf("response checking is disabled")
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	}
-	statusCode, _ := proxywasm.GetHttpResponseHeader(":status")
-	if statusCode != "200" {
-		log.Debugf("response is not 200, skip response body check")
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	}
+func HandleTextGenerationResponseHeader(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	ctx.SetContext("end_of_stream_received", false)
 	ctx.SetContext("during_call", false)
@@ -47,7 +121,7 @@ func HandleTextResponseHeader(ctx wrapper.HttpContext, config cfg.AISecurityConf
 	}
 }
 
-func HandleTextStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, data []byte, endOfStream bool) []byte {
+func HandleTextGenerationStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, data []byte, endOfStream bool) []byte {
 	consumer, _ := ctx.GetContext("consumer").(string)
 	var sessionID string
 	if ctx.GetContext("sessionID") == nil {
@@ -78,7 +152,7 @@ func HandleTextStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecur
 			return
 		}
 		if !cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
-			denyMessage := utils.DefaultDenyMessage
+			denyMessage := cfg.DefaultDenyMessage
 			if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
 				denyMessage = "\n" + response.Data.Advice[0].Answer
 			} else if config.DenyMessage != "" {
@@ -86,7 +160,7 @@ func HandleTextStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecur
 			}
 			marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
 			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(utils.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
+			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
 			proxywasm.InjectEncodedDataToFilterChain(jsonData, true)
 			return
 		}
@@ -145,7 +219,7 @@ func HandleTextStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecur
 	return []byte{}
 }
 
-func HandleTextResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+func HandleTextGenerationResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	consumer, _ := ctx.GetContext("consumer").(string)
 	log.Debugf("checking response body...")
 	startTime := time.Now().UnixMilli()
@@ -153,7 +227,7 @@ func HandleTextResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig
 	isStreamingResponse := strings.Contains(contentType, "event-stream")
 	var content string
 	if isStreamingResponse {
-		content = extractMessageFromStreamingBody(body, config.ResponseStreamContentJsonPath)
+		content = utils.ExtractMessageFromStreamingBody(body, config.ResponseStreamContentJsonPath)
 	} else {
 		content = gjson.GetBytes(body, config.ResponseContentJsonPath).String()
 	}
@@ -190,7 +264,7 @@ func HandleTextResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig
 			}
 			return
 		}
-		denyMessage := utils.DefaultDenyMessage
+		denyMessage := cfg.DefaultDenyMessage
 		if config.DenyMessage != "" {
 			denyMessage = config.DenyMessage
 		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
@@ -201,11 +275,11 @@ func HandleTextResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig
 			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
 		} else if isStreamingResponse {
 			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(utils.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
+			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
 			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 		} else {
 			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(utils.OpenAIResponseFormat, randomID, marshalledDenyMessage))
+			jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
 			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 		}
 		config.IncrementCounter("ai_sec_response_deny", 1)
@@ -220,10 +294,10 @@ func HandleTextResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig
 	}
 	singleCall = func() {
 		var nextContentIndex int
-		if contentIndex+utils.LengthLimit >= len(content) {
+		if contentIndex+cfg.LengthLimit >= len(content) {
 			nextContentIndex = len(content)
 		} else {
-			nextContentIndex = contentIndex + utils.LengthLimit
+			nextContentIndex = contentIndex + cfg.LengthLimit
 		}
 		contentPiece := content[contentIndex:nextContentIndex]
 		contentIndex = nextContentIndex
@@ -238,14 +312,4 @@ func HandleTextResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig
 	}
 	singleCall()
 	return types.ActionPause
-}
-
-func extractMessageFromStreamingBody(data []byte, jsonPath string) string {
-	chunks := bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n"))
-	strChunks := []string{}
-	for _, chunk := range chunks {
-		// Example: "choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"logprobs":null,"finish_reason":null}]
-		strChunks = append(strChunks, gjson.GetBytes(chunk, jsonPath).String())
-	}
-	return strings.Join(strChunks, "")
 }
