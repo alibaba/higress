@@ -132,7 +132,7 @@ data:
       - path_rewrite_prefix: ""
         upstream_type: ""
         enable_path_rewrite: false
-        match_rule_domain: ""
+        match_rule_domain: "*"
         match_rule_path: "/mcp-servers/rag"
         match_rule_type: "prefix"
       servers:
@@ -748,16 +748,33 @@ def main():
     # 示例：添加一些测试文档
     test_documents = [
         Document(
-            page_content="人工智能是计算机科学的一个分支，致力于创建能够执行通常需要人类智能的任务的系统。",
-            metadata={"source": "test"}
+            page_content="""Istio 介绍
+服务网格是一个基础设施层，它为应用程序提供零信任安全、可观察性和高级流量管理等功能， 而无需更改代码。Istio 是最受欢迎、最强大、最值得信赖的服务网格。 Istio 由 Google、IBM 和 Lyft 于 2016 年创立，是云原生计算基金会的一个毕业项目， 与 Kubernetes 和 Prometheus 等项目并列。
+Istio 可确保云原生和分布式系统具有弹性，帮助现代企业在保持连接和保护的同时跨不同平台维护其工作负载。 它启用安全和治理控制，包括 mTLS 加密、策略管理和访问控制、 支持网络功能，例如金丝雀部署、A/B 测试、负载平衡、故障恢复， 并增加对整个资产流量的可观察性。
+Istio 并不局限于单个集群、网络或运行时的边界——在 Kubernetes 或 VM、多云、混合或本地上运行的服务都可以包含在单个网格中。
+Istio 经过精心设计，具有可扩展性，并受到贡献者和合作伙伴的广泛生态系统的支持， 它为各种用例提供​​打包的集成和分发。您可以独立安装 Istio，也可以选择由提供基于 Istio 的解决方案的商业供应商提供的托管支持。""",
+            metadata={"source": "istio introduction"}
         ),
         Document(
-            page_content="机器学习是人工智能的一个子集，它使计算机能够在没有明确编程的情况下学习和改进。",
-            metadata={"source": "test"}
+            page_content="""Istio 安全概述
+Istio 安全功能提供了强大的身份、强大的策略、透明的 TLS 加密、 认证/授权/审计（AAA）工具来保护您的服务和数据。Istio 安全功能提供了强大的身份、强大的策略、透明的 TLS 加密、 认证/授权/审计（AAA）工具来保护您的服务和数据。
+Istio 中的安全性涉及多个组件：
+- 用于密钥和证书管理的证书颁发机构（CA）
+- 配置 API 服务器分发给代理：
+  - 认证策略
+  - 授权策略
+  - 安全命名信息
+- Sidecar 和边缘代理作为策略执行点（PEP） 以保护客户端和服务器之间的通信安全。
+- 一组 Envoy 代理扩展，用于管理遥测和审计。""",
+            metadata={"source": "istio security"}
         ),
         Document(
-            page_content="深度学习是机器学习的一个分支，使用神经网络来模拟人脑的工作方式。",
-            metadata={"source": "test"}
+            page_content="""Istio 流量管理介绍
+为了在网格中导流，Istio 需要知道所有的 endpoint 在哪以及它们属于哪些服务。 为了定位到 service registry（服务注册中心）， Istio 会连接到一个服务发现系统。例如，如果您在 Kubernetes 集群上安装了 Istio， 那么它将自动检测该集群中的服务和 endpoint。
+使用此服务注册中心，Envoy 代理可以将流量定向到相关服务。大多数基于微服务的应用程序， 每个服务的工作负载都有多个实例来处理流量，称为负载均衡池。默认情况下， Envoy 代理基于轮询调度模型在服务的负载均衡池内分发流量，按顺序将请求发送给池中每个成员， 一旦所有服务实例均接收过一次请求后，就重新回到第一个池成员。
+Istio 基本的服务发现和负载均衡能力为您提供了一个可用的服务网格， 但它能做到的远比这多的多。在许多情况下，您可能希望对网格的流量情况进行更细粒度的控制。 作为 A/B 测试的一部分，您可能想将特定百分比的流量定向到新版本的服务， 或者为特定的服务实例子集应用不同的负载均衡策略。您可能还想对进出网格的流量应用特殊的规则， 或者将网格的外部依赖项添加到服务注册中心。通过使用 Istio 的流量管理 API 将流量配置添加到 Istio， 就可以完成所有这些甚至更多的工作。
+和其他 Istio 配置一样，这些 API 也使用 Kubernetes 的自定义资源定义 （CRD）来声明，您可以像示例中看到的那样使用 YAML 进行配置。""",
+            metadata={"source": "istio traffic management"}
         )
     ]
     
@@ -765,7 +782,7 @@ def main():
     processor.add_documents(test_documents)
     
     # 示例：搜索
-    query = "人工智能"
+    query = "Istio 安全功能"
     search_results = processor.similarity_search_with_score(query, k=3)
     
     print(f"\n搜索查询: {query}")
@@ -813,12 +830,6 @@ rag:
   threshold: 0.5
   top_k: 10
 
-llm:
-  provider: "openai"
-  api_key: "sk-xxx"
-  base_url: "https://openrouter.ai/api/v1"
-  model: "openai/gpt-4o"
-
 embedding:
   provider: "openai"
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -860,7 +871,7 @@ vector_db:
     search:
       metric_type: "IP"
       params:
-        ef_search: 64
+        ef: 32
 ```
 
 ### 4. 关于 langchain-milvus 对 Document metadata 处理
@@ -903,3 +914,24 @@ mapping:
 2. 在 mapping 配置中移除 metadata 字段
 
 **推荐使用方法一**，因为它提供了更好的灵活性和完整的读写支持。
+
+
+### 5. Higress RAG 和 CherryStudio 集成
+
+Higress RAG 插件可以与 CherryStudio 集成，实现基于 RAG 的智能问答功能。
+
+**配置步骤**：
+
+1. 在 CherryStudio 中配置 Higress RAG MCP 插件的 endpoint： `http://<higress-gateway>:<port>/mcp-servers/rag/sse`, 如下图：
+
+![cherrystudio_config](./docs/cherrystudio_config.png)
+
+2. 查看 CherryStudio 中配置 Higress RAG MCP 插件的 Tools 列表， 如下图：
+
+![cherrystudio_tools](./docs/cherrystudio_tools.png)
+
+**对话**：
+
+在 CherryStudio 对话中， 添加 Higress RAG MCP 插件。然后在对话中就可以调用 Higress RAG MCP 插件的提供工具方法。如下图：
+
+![cherrystudio_dialog](./docs/cherrystudio_chat.png)
