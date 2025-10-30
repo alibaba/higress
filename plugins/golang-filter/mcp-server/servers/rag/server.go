@@ -100,7 +100,7 @@ func init() {
 }
 
 func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
-	api.LogDebugf("RAG start tp parse config: %+v", cfg)
+	api.LogDebugf("RAG start to parse config: %+v", cfg)
 	// Parse RAG con
 	api.LogDebugf("RAG parse rag config")
 	if ragConfig, ok := cfg["rag"].(map[string]any); ok {
