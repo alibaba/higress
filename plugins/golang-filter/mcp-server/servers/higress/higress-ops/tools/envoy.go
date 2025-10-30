@@ -14,19 +14,7 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 		mcp.NewToolWithRawSchema(
 			"get-envoy-config-dump",
 			"Get complete Envoy configuration snapshot, including all listeners, clusters, routes, etc.",
-			CreateParameterSchema(
-				map[string]interface{}{
-					"resource": map[string]interface{}{
-						"type":        "string",
-						"description": "Specify resource type: listeners, clusters, routes, endpoints, secrets, etc. (optional)",
-					},
-					"mask": map[string]interface{}{
-						"type":        "string",
-						"description": "Configuration mask for filtering sensitive information (optional)",
-					},
-				},
-				[]string{},
-			),
+			CreateSimpleSchema(),
 		),
 		handleEnvoyConfigDump(client),
 	)
@@ -67,29 +55,6 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 			),
 		),
 		handleEnvoyListeners(client),
-	)
-
-	// Routes info tool
-	mcpServer.AddTool(
-		mcp.NewToolWithRawSchema(
-			"get-envoy-routes",
-			"Get Envoy route configuration information",
-			CreateParameterSchema(
-				map[string]interface{}{
-					"name": map[string]interface{}{
-						"type":        "string",
-						"description": "Specific route table name (optional)",
-					},
-					"format": map[string]interface{}{
-						"type":        "string",
-						"description": "Output format: json or text (default text)",
-						"enum":        []string{"json", "text"},
-					},
-				},
-				[]string{},
-			),
-		),
-		handleEnvoyRoutes(client),
 	)
 
 	// Stats tool
@@ -158,27 +123,8 @@ func RegisterEnvoyTools(mcpServer *common.MCPServer, client OpsClient) {
 
 func handleEnvoyConfigDump(client OpsClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		arguments := request.Params.Arguments
-
-		path := "/config_dump"
-		params := make(map[string]string)
-
-		if resource := GetStringParam(arguments, "resource", ""); resource != "" {
-			params["resource"] = resource
-		}
-		if mask := GetStringParam(arguments, "mask", ""); mask != "" {
-			params["mask"] = mask
-		}
-
-		var data []byte
-		var err error
-
-		if len(params) > 0 {
-			data, err = client.GetEnvoyAdminWithParams(ctx, path, params)
-		} else {
-			data, err = client.GetEnvoyAdmin(ctx, path)
-		}
-
+		// Get complete config dump without any filters
+		data, err := client.GetEnvoyAdmin(ctx, "/config_dump")
 		if err != nil {
 			return CreateErrorResult("failed to get Envoy config dump: " + err.Error())
 		}
@@ -237,40 +183,6 @@ func handleEnvoyListeners(client OpsClient) common.ToolHandlerFunc {
 
 		if err != nil {
 			return CreateErrorResult("failed to get Envoy listeners: " + err.Error())
-		}
-		return CreateToolResult(data, format)
-	}
-}
-
-func handleEnvoyRoutes(client OpsClient) common.ToolHandlerFunc {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		arguments := request.Params.Arguments
-		name := GetStringParam(arguments, "name", "")
-		format := GetStringParam(arguments, "format", "text")
-
-		var path string
-		if name != "" {
-			path = "/routes/" + name
-		} else {
-			path = "/routes"
-		}
-
-		params := make(map[string]string)
-		if format == "json" {
-			params["format"] = "json"
-		}
-
-		var data []byte
-		var err error
-
-		if len(params) > 0 {
-			data, err = client.GetEnvoyAdminWithParams(ctx, path, params)
-		} else {
-			data, err = client.GetEnvoyAdmin(ctx, path)
-		}
-
-		if err != nil {
-			return CreateErrorResult("failed to get Envoy routes: " + err.Error())
 		}
 		return CreateToolResult(data, format)
 	}

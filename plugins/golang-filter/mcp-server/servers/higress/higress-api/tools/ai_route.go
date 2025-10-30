@@ -155,6 +155,38 @@ func handleAddAiRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing required field 'upstreams' in configurations")
 		}
 
+		// Validate AI providers exist in upstreams
+		if upstreams, ok := configurations["upstreams"].([]interface{}); ok && len(upstreams) > 0 {
+			for _, upstream := range upstreams {
+				if upstreamMap, ok := upstream.(map[string]interface{}); ok {
+					if providerName, ok := upstreamMap["provider"].(string); ok {
+						// Check if AI provider exists
+						_, err := client.Get(ctx, fmt.Sprintf("/v1/ai/providers/%s", providerName))
+						if err != nil {
+							return nil, fmt.Errorf("Please create the AI provider '%s' first and then create the AI route", providerName)
+						}
+					}
+				}
+			}
+		}
+
+		// Validate AI providers exist in fallback upstreams
+		if fallbackConfig, ok := configurations["fallbackConfig"].(map[string]interface{}); ok {
+			if fallbackUpstreams, ok := fallbackConfig["upstreams"].([]interface{}); ok && len(fallbackUpstreams) > 0 {
+				for _, upstream := range fallbackUpstreams {
+					if upstreamMap, ok := upstream.(map[string]interface{}); ok {
+						if providerName, ok := upstreamMap["provider"].(string); ok {
+							// Check if AI provider exists
+							_, err := client.Get(ctx, fmt.Sprintf("/v1/ai/providers/%s", providerName))
+							if err != nil {
+								return nil, fmt.Errorf("Please create the AI provider '%s' first and then create the AI route", providerName)
+							}
+						}
+					}
+				}
+			}
+		}
+
 		respBody, err := client.Post(ctx, "/v1/ai/routes", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add AI route: %w", err)
