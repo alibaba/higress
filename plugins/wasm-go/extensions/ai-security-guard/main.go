@@ -4,11 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/text"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/utils"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/request_handler"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/response_handler"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -244,40 +243,19 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) 
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	log.Debugf("checking request body...")
-	return text.HandleRequestBody(ctx, config, body)
+	return request_handler.HandleTextRequestBody(ctx, config, body)
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {
-	if !config.CheckResponse {
-		log.Debugf("response checking is disabled")
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	}
-	statusCode, _ := proxywasm.GetHttpResponseHeader(":status")
-	if statusCode != "200" {
-		log.Debugf("response is not 200, skip response body check")
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	}
-	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
-	ctx.SetContext("end_of_stream_received", false)
-	ctx.SetContext("during_call", false)
-	ctx.SetContext("risk_detected", false)
-	sessionID, _ := utils.GenerateHexID(20)
-	ctx.SetContext("sessionID", sessionID)
-	if strings.Contains(contentType, "text/event-stream") {
-		ctx.NeedPauseStreamingResponse()
-		return types.ActionContinue
-	} else {
-		ctx.BufferResponseBody()
-		return types.HeaderStopIteration
-	}
+	return response_handler.HandleTextResponseHeader(ctx, config)
 }
 
 func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, data []byte, endOfStream bool) []byte {
-	return text.HandlerStreamingResponseBody(ctx, config, data, endOfStream)
+	log.Debugf("checking streaming response body...")
+	return response_handler.HandleTextStreamingResponseBody(ctx, config, data, endOfStream)
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
-	return text.HandlerResponseBody(ctx, config, body)
+	log.Debugf("checking response body...")
+	return response_handler.HandleTextResponseBody(ctx, config, body)
 }

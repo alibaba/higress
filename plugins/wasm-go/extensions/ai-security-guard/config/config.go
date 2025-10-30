@@ -64,6 +64,7 @@ type Detail struct {
 
 type AISecurityConfig struct {
 	Client                        wrapper.HttpClient
+	Host                          string
 	AK                            string
 	SK                            string
 	Token                         string
@@ -258,7 +259,7 @@ func LevelToInt(riskLevel string) int {
 }
 
 func IsRiskLevelAcceptable(action string, data Data, config AISecurityConfig, consumer string) bool {
-	if action == "MultiModalGuard" {
+	if action == "MultiModalGuard" || action == "MultiModalGuardForBase64" {
 		// Check top-level risk levels for MultiModalGuard
 		if LevelToInt(data.RiskLevel) >= LevelToInt(config.GetContentModerationLevelBar(consumer)) {
 			return false
