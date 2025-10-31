@@ -82,31 +82,6 @@ data:
             envoyAdminURL: http://127.0.0.1:15000 # envoy url 填127.0.0.1就行，和 gateway 于同一容器
             namespace: higress-system
             description: "Higress Ops MCP Server for Istio and Envoy debugging"
-  mesh: |-
-    accessLogEncoding: TEXT
-    accessLogFile: /dev/stdout
-    accessLogFormat: '{"ai_log":"%FILTER_STATE(wasm.ai_log:PLAIN)%","authority":"%REQ(X-ENVOY-ORIGINAL-HOST?:AUTHORITY)%","bytes_received":"%BYTES_RECEIVED%","bytes_sent":"%BYTES_SENT%","downstream_local_address":"%DOWNSTREAM_LOCAL_ADDRESS%","downstream_remote_address":"%DOWNSTREAM_REMOTE_ADDRESS%","duration":"%DURATION%","istio_policy_status":"%DYNAMIC_METADATA(istio.mixer:status)%","method":"%REQ(:METHOD)%","path":"%REQ(X-ENVOY-ORIGINAL-PATH?:PATH)%","protocol":"%PROTOCOL%","request_id":"%REQ(X-REQUEST-ID)%","requested_server_name":"%REQUESTED_SERVER_NAME%","response_code":"%RESPONSE_CODE%","response_flags":"%RESPONSE_FLAGS%","route_name":"%ROUTE_NAME%","start_time":"%START_TIME%","trace_id":"%REQ(X-B3-TRACEID)%","upstream_cluster":"%UPSTREAM_CLUSTER%","upstream_host":"%UPSTREAM_HOST%","upstream_local_address":"%UPSTREAM_LOCAL_ADDRESS%","upstream_service_time":"%RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)%","upstream_transport_failure_reason":"%UPSTREAM_TRANSPORT_FAILURE_REASON%","user_agent":"%REQ(USER-AGENT)%","x_forwarded_for":"%REQ(X-FORWARDED-FOR)%","response_code_details":"%RESPONSE_CODE_DETAILS%"}'
-    configSources:
-    - address: xds://127.0.0.1:15051
-    - address: k8s://
-    defaultConfig:
-      discoveryAddress: higress-controller.higress-system.svc:15012
-      proxyStatsMatcher:
-        inclusionRegexps:
-        - .*
-      tracing: {}
-    dnsRefreshRate: 200s
-    enableAutoMtls: false
-    enablePrometheusMerge: true
-    ingressControllerMode: "OFF"
-    mseIngressGlobalConfig:
-      enableH3: false
-      enableProxyProtocol: false
-    protocolDetectionTimeout: 100ms
-    rootNamespace: higress-system
-    trustDomain: cluster.local
-  meshNetworks: 'networks: {}'
-
 ```
 
 ## 鉴权配置
