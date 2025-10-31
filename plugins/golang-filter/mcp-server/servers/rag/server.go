@@ -6,6 +6,7 @@ import (
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
+	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -16,6 +17,7 @@ type RAGConfig struct {
 }
 
 func init() {
+	api.LogDebugf("RAG init")
 	common.GlobalRegistry.RegisterServer("rag", &RAGConfig{
 		config: &config.Config{
 			RAG: config.RAGConfig{
@@ -45,7 +47,7 @@ func init() {
 			VectorDB: config.VectorDBConfig{
 				Provider:   "milvus",
 				Host:       "localhost",
-				Port:       6379,
+				Port:       19530,
 				Database:   "default",
 				Collection: "rag",
 				Username:   "",
@@ -98,7 +100,9 @@ func init() {
 }
 
 func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
-	// Parse RAG configuration
+	api.LogDebugf("RAG start to parse config: %+v", cfg)
+	// Parse RAG con
+	api.LogDebugf("RAG parse rag config")
 	if ragConfig, ok := cfg["rag"].(map[string]any); ok {
 		if splitter, exists := ragConfig["splitter"].(map[string]any); exists {
 			if splitterType, exists := splitter["provider"].(string); exists {
@@ -120,6 +124,7 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 	}
 
 	// Parse Embedding configuration
+	api.LogDebugf("RAG parse embedding config")
 	if embeddingConfig, ok := cfg["embedding"].(map[string]any); ok {
 		if provider, exists := embeddingConfig["provider"].(string); exists {
 			c.config.Embedding.Provider = provider
@@ -142,6 +147,7 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 	}
 
 	// Parse llm configuration
+	api.LogDebugf("RAG parse llm config")
 	if llmConfig, ok := cfg["llm"].(map[string]any); ok {
 		if provider, exists := llmConfig["provider"].(string); exists {
 			c.config.LLM.Provider = provider
@@ -164,6 +170,7 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 	}
 
 	// Parse VectorDB configuration
+	api.LogDebugf("RAG parse vectordb config")
 	if vectordbConfig, ok := cfg["vectordb"].(map[string]any); ok {
 		if provider, exists := vectordbConfig["provider"].(string); exists {
 			c.config.VectorDB.Provider = provider
@@ -241,10 +248,13 @@ func (c *RAGConfig) ParseConfig(cfg map[string]any) error {
 			}
 		}
 	}
+
+	api.LogDebugf("RAG parse config successful with config:%+v", c.config)
 	return nil
 }
 
 func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
+	api.LogDebugf("RAG NewServer: %s", serverName)
 	mcpServer := common.NewMCPServer(
 		serverName,
 		Version,
@@ -252,11 +262,13 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 	)
 
 	// Initialize RAG client with configuration
+	api.LogDebugf("RAG NewRAGClient: %+v", c.config)
 	ragClient, err := NewRAGClient(c.config)
 	if err != nil {
 		return nil, fmt.Errorf("create rag client failed, err: %w", err)
 	}
 
+	api.LogDebugf("RAG start add tool")
 	// Knowledge Base Management Tools
 	mcpServer.AddTool(
 		mcp.NewToolWithRawSchema("create-chunks-from-text", "Process and segment input text into semantic chunks for knowledge base ingestion", GetCreateChunkFromTextSchema()),
@@ -284,6 +296,6 @@ func (c *RAGConfig) NewServer(serverName string) (*common.MCPServer, error) {
 		mcp.NewToolWithRawSchema("chat", "Answer user questions by retrieving relevant knowledge from the database and generating responses using RAG-enhanced LLM", GetChatSchema()),
 		HandleChat(ragClient),
 	)
-
+	api.LogDebugf("RAG NewServer successful")
 	return mcpServer, nil
 }

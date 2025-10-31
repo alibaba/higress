@@ -74,7 +74,7 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 		path := BuildPluginPath(RequestBlockPluginName, scope, resourceName)
 
 		// Get current request block configuration to merge with updates
-		currentBody, err := client.Get(path)
+		currentBody, err := client.Get(ctx, path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current request block configuration: %w", err)
 		}
@@ -114,7 +114,7 @@ func handleAddOrUpdateRequestBlockConfig(client *higress.HigressClient) common.T
 		}
 		currentConfig.Configurations.CaseSensitive = newConfig.CaseSensitive
 
-		respBody, err := client.Put(path, currentConfig)
+		respBody, err := client.Put(ctx, path, currentConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update request block config at scope '%s': %w", scope, err)
 		}
