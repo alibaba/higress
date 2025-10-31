@@ -1,0 +1,105 @@
+---
+# Redis service for context compression testing
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-memory-service
+  namespace: higress-system
+spec:
+  selector:
+    app: redis-memory
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-memory
+  namespace: higress-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-memory
+  template:
+    metadata:
+      labels:
+        app: redis-memory
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+---
+# Mock LLM service for testing
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-llm-service
+  namespace: higress-system
+spec:
+  selector:
+    app: mock-llm
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mock-llm
+  namespace: higress-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mock-llm
+  template:
+    metadata:
+      labels:
+        app: mock-llm
+    spec:
+      containers:
+      - name: mock-llm
+        image: python:3.9-slim
+        command: ["python", "-m", "http.server", "8000"]
+        ports:
+        - containerPort: 8000
+---
+# AI Proxy configuration with context compression
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy-context-compression
+  namespace: higress-system
+spec:
+  defaultConfig:
+    provider:
+      type: openai
+      apiTokens:
+        - "test-api-key"
+      contextCompression:
+        enabled: true
+        redis:
+          serviceName: redis-memory-service.higress-system.svc.cluster.local
+          servicePort: 6379
+          timeout: 1000
+          database: 0
+        compressionBytesThreshold: 1000
+        memoryTTL: 3600
+  url: oci://registry.cn-hangzhou.aliyuncs.com/higress/ai-proxy:latest
+  phase: UNSPECIFIED_PHASE
+  priority: 100

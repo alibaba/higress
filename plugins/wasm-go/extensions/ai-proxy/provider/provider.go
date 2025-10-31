@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -299,6 +300,10 @@ type ProviderConfig struct {
 	// @Title zh-CN 额外支持的ai能力
 	// @Description zh-CN 开放的ai能力和urlpath映射，例如： {"openai/v1/chatcompletions": "/v1/chat/completions"}
 	capabilities map[string]string
+	// @Title zh-CN 上下文压缩配置
+	// @Description zh-CN 对Agent透明的上下文压缩功能配置
+	contextCompression *ContextCompressionConfig `required:"false" yaml:"contextCompression" json:"contextCompression"`
+	memoryService MemoryService `yaml:"-" json:"-"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -444,6 +449,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.capabilities[capability] = pathJson.String()
 		}
 	}
+
+	// 解析上下文压缩配置
+	contextCompressionJson := json.Get("contextCompression")
+	if contextCompressionJson.Exists() {
+		c.contextCompression = ParseContextCompressionConfig(contextCompressionJson)
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -472,6 +483,16 @@ func (c *ProviderConfig) Validate() error {
 	if err := initializer.ValidateConfig(c); err != nil {
 		return err
 	}
+
+	// 初始化内存服务
+	if c.contextCompression != nil {
+		memoryService, err := NewMemoryService(c.contextCompression)
+		if err != nil {
+			return fmt.Errorf("failed to initialize memory service: %v", err)
+		}
+		c.memoryService = memoryService
+	}
+
 	return nil
 }
 

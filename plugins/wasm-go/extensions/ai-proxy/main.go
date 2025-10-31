@@ -153,17 +153,33 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		providerConfig := pluginConfig.GetProviderConfig()
-		// If retryOnFailure is enabled, save the transformed body to the context in case of retry
+		
+		// If retryOnFailure is enabled, save the original body to the context in case of retry
 		if providerConfig.IsRetryOnFailureEnabled() {
 			ctx.SetContext(provider.CtxRequestBody, body)
 		}
+		
+		// Apply custom settings
 		newBody, settingErr := providerConfig.ReplaceByCustomSettings(body)
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
+		
 		if providerConfig.IsOpenAIProtocol() {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
+		
+		// Apply context compression if enabled and for chat completion API
+		if apiName == provider.ApiNameChatCompletion && providerConfig.IsCompressionEnabled() {
+			compressedBody, err := providerConfig.CompressContextInRequest(ctx, newBody)
+			if err != nil {
+				log.Warnf("[onHttpRequestBody] failed to compress context: %v", err)
+			} else {
+				newBody = compressedBody
+				log.Debugf("[onHttpRequestBody] applied context compression")
+			}
+		}
+		
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
 		body = newBody
 		action, err := handler.OnRequestBody(ctx, apiName, body)
@@ -298,8 +314,33 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 
 	log.Debugf("[onHttpResponseBody] provider=%s", activeProvider.GetProviderType())
 
+	// Check if we need to handle memory tool calls for auto-retrieval
+	providerConfig := pluginConfig.GetProviderConfig()
+	apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
+	
+	if apiName == provider.ApiNameChatCompletion && providerConfig.IsCompressionEnabled() {
+		// Get the original request body for re-request
+		originalBodyI := ctx.GetContext(provider.CtxRequestBody)
+		if originalBodyI != nil {
+			originalBody := originalBodyI.([]byte)
+			
+			// Process response to check if memory retrieval is needed
+			newRequestBody, needRetrieval, err := providerConfig.ProcessResponseWithMemoryRetrieval(ctx, body, originalBody)
+			if err != nil {
+				log.Errorf("[onHttpResponseBody] failed to process memory retrieval: %v", err)
+			} else if needRetrieval {
+				log.Infof("[onHttpResponseBody] auto-retrieving context and re-requesting LLM")
+				
+				// TODO: Implement re-request to LLM with retrieved context
+				// This requires async HTTP call capability which needs further implementation
+				log.Warnf("[onHttpResponseBody] auto-retrieval detected but re-request not yet implemented")
+				// For now, we'll just log the new request body
+				log.Debugf("[onHttpResponseBody] new request body for re-request: %s", string(newRequestBody))
+			}
+		}
+	}
+
 	if handler, ok := activeProvider.(provider.TransformResponseBodyHandler); ok {
-		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		body, err := handler.TransformResponseBody(ctx, apiName, body)
 		if err != nil {
 			_ = util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
