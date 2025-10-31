@@ -7,7 +7,7 @@ import (
 	"time"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/common"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/utils"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -92,7 +92,7 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 		contentPiece := content[contentIndex:nextContentIndex]
 		contentIndex = nextContentIndex
 		checkService := config.GetRequestCheckService(consumer)
-		path, headers, body := lvwang.GenerateRequestForText(config, cfg.TextModerationPlus, checkService, contentPiece, sessionID)
+		path, headers, body := common.GenerateRequestForText(config, cfg.TextModerationPlus, checkService, contentPiece, sessionID)
 		err := config.Client.Post(path, headers, body, callback, config.Timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
