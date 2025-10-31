@@ -59,7 +59,6 @@ kind: ConfigMap
 metadata:
   name: higress-config
   namespace: higress-system
-  resourceVersion: '107160'
 data:
   higress: |
     mcpServer:
