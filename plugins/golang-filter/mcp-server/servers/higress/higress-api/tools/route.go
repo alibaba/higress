@@ -58,7 +58,7 @@ type RouteResponse = higress.APIResponse[Route]
 func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClient) {
 	// List all routes
 	mcpServer.AddTool(
-		mcp.NewTool("list-routes", mcp.WithDescription("List all available routes")),
+		mcp.NewToolWithRawSchema("list-routes", "List all available routes", listRouteSchema()),
 		handleListRoutes(client),
 	)
 
@@ -89,7 +89,7 @@ func RegisterRouteTools(mcpServer *common.MCPServer, client *higress.HigressClie
 
 func handleListRoutes(client *higress.HigressClient) common.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		respBody, err := client.Get("/v1/routes")
+		respBody, err := client.Get(ctx, "/v1/routes")
 		if err != nil {
 			return nil, fmt.Errorf("failed to list routes: %w", err)
 		}
@@ -113,7 +113,7 @@ func handleGetRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Get(fmt.Sprintf("/v1/routes/%s", name))
+		respBody, err := client.Get(ctx, fmt.Sprintf("/v1/routes/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get route '%s': %w", name, err)
 		}
@@ -148,7 +148,35 @@ func handleAddRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing required field 'services' in configurations")
 		}
 
-		respBody, err := client.Post("/v1/routes", configurations)
+		// Validate service sources exist
+		if services, ok := configurations["services"].([]interface{}); ok && len(services) > 0 {
+			for _, svc := range services {
+				if serviceMap, ok := svc.(map[string]interface{}); ok {
+					if serviceName, ok := serviceMap["name"].(string); ok {
+						// Extract service source name from "serviceName.serviceType" format
+						var serviceSourceName string
+						for i := len(serviceName) - 1; i >= 0; i-- {
+							if serviceName[i] == '.' {
+								serviceSourceName = serviceName[:i]
+								break
+							}
+						}
+
+						if serviceSourceName == "" {
+							return nil, fmt.Errorf("invalid service name format '%s', expected 'serviceName.serviceType'", serviceName)
+						}
+
+						// Check if service source exists
+						_, err := client.Get(ctx, fmt.Sprintf("/v1/service-sources/%s", serviceSourceName))
+						if err != nil {
+							return nil, fmt.Errorf("Please create the service source '%s' first and then create the route", serviceSourceName)
+						}
+					}
+				}
+			}
+		}
+
+		respBody, err := client.Post(ctx, "/v1/routes", configurations)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add route: %w", err)
 		}
@@ -178,7 +206,7 @@ func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 		}
 
 		// Get current route configuration to merge with updates
-		currentBody, err := client.Get(fmt.Sprintf("/v1/routes/%s", name))
+		currentBody, err := client.Get(ctx, fmt.Sprintf("/v1/routes/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current route configuration: %w", err)
 		}
@@ -227,7 +255,7 @@ func handleUpdateRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			currentConfig.CustomConfigs = newConfig.CustomConfigs
 		}
 
-		respBody, err := client.Put(fmt.Sprintf("/v1/routes/%s", name), currentConfig)
+		respBody, err := client.Put(ctx, fmt.Sprintf("/v1/routes/%s", name), currentConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update route '%s': %w", name, err)
 		}
@@ -251,7 +279,7 @@ func handleDeleteRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			return nil, fmt.Errorf("missing or invalid 'name' argument")
 		}
 
-		respBody, err := client.Delete(fmt.Sprintf("/v1/routes/%s", name))
+		respBody, err := client.Delete(ctx, fmt.Sprintf("/v1/routes/%s", name))
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete route '%s': %w", name, err)
 		}
@@ -265,6 +293,15 @@ func handleDeleteRoute(client *higress.HigressClient) common.ToolHandlerFunc {
 			},
 		}, nil
 	}
+}
+
+func listRouteSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {},
+		"required": [],
+		"additionalProperties": false
+	}`)
 }
 
 func getRouteSchema() json.RawMessage {
@@ -295,7 +332,7 @@ func getAddRouteSchema() json.RawMessage {
 					"domains": {
 						"type": "array",
 						"items": {"type": "string"},
-						"description": "List of domain names, but only one domain is allowed"
+						"description": "List of domain names, but only one domain is allowed,Do not fill in the code to match all"
 					},
 					"path": {
 						"type": "object",
