@@ -48,6 +48,8 @@ You can click the button below to install the enterprise version of Higress:
 [![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i1/O1CN01e6vwe71EWTHoZEcpK_!!6000000000359-55-tps-170-40.svg)](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
 
 
+If you use open-source Higress and wish to obtain enterprise-level support, you can contact the project maintainer johnlanni's email: **zty98751@alibaba-inc.com** or social media accounts (WeChat ID: **nomadao**, DingTalk ID: **chengtanzty**). Please note **Higress** when adding as a friend :)
+
 ## Summary
 
 - [**Quick Start**](#quick-start)    
