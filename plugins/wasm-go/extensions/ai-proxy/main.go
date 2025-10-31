@@ -314,32 +314,42 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 
 	log.Debugf("[onHttpResponseBody] provider=%s", activeProvider.GetProviderType())
 
-	// Check if we need to handle memory tool calls for auto-retrieval
+	// 检查是否需要处理内存工具调用的自动检索
 	providerConfig := pluginConfig.GetProviderConfig()
 	apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 	
 	if apiName == provider.ApiNameChatCompletion && providerConfig.IsCompressionEnabled() {
-		// Get the original request body for re-request
+		// 获取原始请求体
 		originalBodyI := ctx.GetContext(provider.CtxRequestBody)
 		if originalBodyI != nil {
 			originalBody := originalBodyI.([]byte)
 			
-			// Process response to check if memory retrieval is needed
-			newRequestBody, needRetrieval, err := providerConfig.ProcessResponseWithMemoryRetrieval(ctx, body, originalBody)
+			// 处理响应，检查是否需要检索内存
+			needRetrieval, err := providerConfig.ProcessResponseForMemoryRetrieval(ctx, body, originalBody)
 			if err != nil {
 				log.Errorf("[onHttpResponseBody] failed to process memory retrieval: %v", err)
 			} else if needRetrieval {
-				log.Infof("[onHttpResponseBody] auto-retrieving context and re-requesting LLM")
+				log.Infof("[onHttpResponseBody] detected read_memory call, initiating re-request")
 				
-				// TODO: Implement re-request to LLM with retrieved context
-				// This requires async HTTP call capability which needs further implementation
-				log.Warnf("[onHttpResponseBody] auto-retrieval detected but re-request not yet implemented")
-				// For now, we'll just log the new request body
-				log.Debugf("[onHttpResponseBody] new request body for re-request: %s", string(newRequestBody))
+				// 获取重新请求体
+				reRequestBodyI := ctx.GetContext("re_request_body")
+				if reRequestBodyI != nil {
+					reRequestBody := reRequestBodyI.([]byte)
+					
+					// 发起异步HTTP调用到上游LLM
+					if err := reRequestToLLM(ctx, activeProvider, reRequestBody); err != nil {
+						log.Errorf("[onHttpResponseBody] failed to re-request LLM: %v", err)
+					} else {
+						// 成功发起重新请求，暂停响应传递
+						log.Infof("[onHttpResponseBody] re-request initiated, response will be replaced")
+						return types.ActionPause
+					}
+				}
 			}
 		}
 	}
 
+	// 处理响应体转换
 	if handler, ok := activeProvider.(provider.TransformResponseBodyHandler); ok {
 		body, err := handler.TransformResponseBody(ctx, apiName, body)
 		if err != nil {
@@ -351,6 +361,95 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 		}
 	}
 	return types.ActionContinue
+}
+
+// reRequestToLLM 发起异步HTTP调用到上游LLM服务
+func reRequestToLLM(ctx wrapper.HttpContext, activeProvider provider.Provider, requestBody []byte) error {
+	// 获取上游集群信息
+	clusterName, err := proxywasm.GetProperty([]string{"cluster_name"})
+	if err != nil {
+		return fmt.Errorf("failed to get cluster name: %v", err)
+	}
+
+	// 获取原始请求路径
+	path, err := proxywasm.GetHttpRequestHeader(":path")
+	if err != nil {
+		return fmt.Errorf("failed to get request path: %v", err)
+	}
+
+	// 构建请求头
+	headers := [][2]string{
+		{":method", "POST"},
+		{":path", path},
+		{":authority", string(clusterName)},
+		{"content-type", "application/json"},
+	}
+
+	// 添加认证头
+	if authHeader, err := proxywasm.GetHttpRequestHeader("authorization"); err == nil {
+		headers = append(headers, [2]string{"authorization", authHeader})
+	}
+	if apiKeyHeader, err := proxywasm.GetHttpRequestHeader("x-api-key"); err == nil {
+		headers = append(headers, [2]string{"x-api-key", apiKeyHeader})
+	}
+
+	log.Infof("[reRequestToLLM] dispatching re-request to cluster: %s, path: %s, body length: %d",
+		string(clusterName), path, len(requestBody))
+
+	// 发起异步HTTP调用
+	_, err = proxywasm.DispatchHttpCall(
+		string(clusterName),
+		headers,
+		requestBody,
+		nil,  // trailers
+		30000, // 30秒超时
+		onLLMReRequestResponse,
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to dispatch HTTP call: %v", err)
+	}
+
+	return nil
+}
+
+// onLLMReRequestResponse LLM重新请求的回调函数
+func onLLMReRequestResponse(numHeaders, bodySize, numTrailers int) {
+	// 获取响应体
+	responseBody, err := proxywasm.GetHttpCallResponseBody(0, bodySize)
+	if err != nil {
+		log.Errorf("[onLLMReRequestResponse] failed to get response body: %v", err)
+		proxywasm.ResumeHttpResponse()
+		return
+	}
+
+	// 获取响应头
+	respHeaders, err := proxywasm.GetHttpCallResponseHeaders()
+	if err != nil {
+		log.Errorf("[onLLMReRequestResponse] failed to get response headers: %v", err)
+		proxywasm.ResumeHttpResponse()
+		return
+	}
+
+	// 解析状态码
+	var statusCode string
+	for _, h := range respHeaders {
+		if h[0] == ":status" {
+			statusCode = h[1]
+			break
+		}
+	}
+
+	log.Infof("[onLLMReRequestResponse] received re-request response, status: %s, body length: %d",
+		statusCode, len(responseBody))
+
+	// 替换响应体
+	if err := proxywasm.ReplaceHttpResponseBody(responseBody); err != nil {
+		log.Errorf("[onLLMReRequestResponse] failed to replace response body: %v", err)
+	}
+
+	// 继续响应流程
+	proxywasm.ResumeHttpResponse()
 }
 
 func normalizeOpenAiRequestBody(body []byte) []byte {
