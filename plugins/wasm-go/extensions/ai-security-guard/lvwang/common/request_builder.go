@@ -1,4 +1,4 @@
-package lvwang
+package common
 
 import (
 	"crypto/hmac"
@@ -33,7 +33,7 @@ type Request struct {
 	queryParam   map[string]interface{}
 }
 
-func NewRequest(httpMethod, canonicalUri, host, xAcsAction, xAcsVersion string) *Request {
+func newRequest(httpMethod, canonicalUri, host, xAcsAction, xAcsVersion string) *Request {
 	req := &Request{
 		httpMethod:   httpMethod,
 		canonicalUri: canonicalUri,
@@ -173,7 +173,7 @@ func GenerateRequestForText(config cfg.AISecurityConfig, checkAction, checkServi
 	httpMethod := "POST"
 	canonicalUri := "/"
 	xAcsVersion := "2022-03-02"
-	req := NewRequest(httpMethod, canonicalUri, config.Host, checkAction, xAcsVersion)
+	req := newRequest(httpMethod, canonicalUri, config.Host, checkAction, xAcsVersion)
 
 	req.queryParam["Service"] = checkService
 
@@ -209,7 +209,7 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 	httpMethod := "POST"
 	canonicalUri := "/"
 	xAcsVersion := "2022-03-02"
-	req := NewRequest(httpMethod, canonicalUri, config.Host, checkAction, xAcsVersion)
+	req := newRequest(httpMethod, canonicalUri, config.Host, checkAction, xAcsVersion)
 
 	req.queryParam["Service"] = checkService
 
