@@ -72,20 +72,9 @@ data:
         db: 0                # Redis database (optional)
       match_list:            # MCP Server session persistence routing rules
         - match_rule_domain: "*"
-          match_rule_path: /higress-api
-          match_rule_type: "prefix"
-        - match_rule_domain: "*"
           match_rule_path: /higress-ops
           match_rule_type: "prefix"
-        - match_rule_domain: "*"
-          match_rule_path: /mysql
-          match_rule_type: "prefix"
       servers:
-        - name: higress-api-mcp-server     # MCP Server name
-          path: /higress-api               # Access path, must match match_list configuration
-          type: higress-api                # Type consistent with RegisterServer
-          config:
-            higressURL: http://higress-console.higress-system.svc.cluster.local:8080
         - name: higress-ops-mcp-server
           path: /higress-ops
           type: higress-ops

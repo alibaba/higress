@@ -72,20 +72,9 @@ data:
         db: 0                # Redis数据库（可选）
       match_list:            # MCP Server 会话保持路由规则
         - match_rule_domain: "*"
-          match_rule_path: /higress-api
-          match_rule_type: "prefix"
-        - match_rule_domain: "*"
           match_rule_path: /higress-ops
           match_rule_type: "prefix"
-        - match_rule_domain: "*"
-          match_rule_path: /mysql
-          match_rule_type: "prefix"
       servers:
-        - name: higress-api-mcp-server     # MCP Server 名称
-          path: /higress-api               # 访问路径，需要与 match_list 中的配置匹配
-          type: higress-api                # 类型和 RegisterServer 一致
-          config:
-            higressURL: http://higress-console.higress-system.svc.cluster.local:8080
         - name: higress-ops-mcp-server
           path: /higress-ops
           type: higress-ops
