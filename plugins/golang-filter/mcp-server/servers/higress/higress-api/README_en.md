@@ -53,8 +53,6 @@ Higress API MCP Server provides MCP tools to manage Higress routes, service sour
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `higressURL` | string | Required | Higress Console URL address |
-| `username` | string | Required | Higress Console login username |
-| `password` | string | Required | Higress Console login password |
 | `description` | string | Optional | MCP Server description |
 
 Configuration Example:
@@ -99,6 +97,49 @@ data:
           type: higress-api # Type defined in RegisterServer function
           config:
             higressURL: http://higress-console.higress-system.svc.cluster.local:8080
-            username: admin
-            password: admin
 ```
+
+## Authentication Configuration
+
+Higress API MCP Server uses HTTP Basic Authentication for authorization. Clients need to include an `Authorization` header in their requests.
+
+### Configuration Example
+
+```json
+{
+  "mcpServers": {
+    "higress_api_mcp": {
+      "url": "http://127.0.0.1:80/higress-api/sse",
+      "headers": {
+        "Authorization": "Basic YWRtaW46YWRtaW4="
+      }
+    }
+  }
+}
+```
+
+**Notes:**
+- The `Authorization` header uses Basic Authentication format: `Basic base64(username:password)`
+- The example `YWRtaW46YWRtaW4=` is the Base64 encoding of `admin:admin`
+- You need to generate the appropriate Base64 encoding based on your actual Higress Console username and password
+
+### Generating Authorization Header
+
+Use the following command to generate the Basic Auth Authorization header:
+
+```bash
+echo -n "username:password" | base64
+```
+
+Replace `username` and `password` with your actual Higress Console credentials.
+
+## Demo
+
+1. create openapi-mcp-server
+https://private-user-images.githubusercontent.com/153273766/507768507-42077ff3-731e-42fe-8b10-ccae0d1b3378.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY4NTA3LTQyMDc3ZmYzLTczMWUtNDJmZS04YjEwLWNjYWUwZDFiMzM3OC5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT0xODVlY2QzYTBmODY0YzRlMzFjNWI1NGE3MGIyZDAxMGRmZjczNTNhMDZmNjdhMGYxMjM2NzVjMjEyYzdlNWFkJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.qzpx2W52Zl9WuWidgEMTYP1sMfrqcgsXtNbNvYK39wE
+
+2. create ai-route
+https://private-user-images.githubusercontent.com/153273766/507769175-96b6002f-389d-46e8-b696-c5bcf518a1c6.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY5MTc1LTk2YjYwMDJmLTM4OWQtNDZlOC1iNjk2LWM1YmNmNTE4YTFjNi5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1mYTFiZjY0Zjg0NWVhYzA3NzhiODc2NzUwMDg3MDZiYjI4ZTQ4YWRkNmIwMzEyMWI5ZjE0MTQ3NTZlZmU5NTEwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.XW6eJxjCpcblQCCtidYoNCwn2yUkXt3d9zuDYxDIF8Q
+
+3. create http-bin + custom response
+https://private-user-images.githubusercontent.com/153273766/507769227-73b624d5-70b8-4c94-aa87-42b3ff8b094d.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY5MjI3LTczYjYyNGQ1LTcwYjgtNGM5NC1hYTg3LTQyYjNmZjhiMDk0ZC5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1jMjc1N2MyZTE2N2RlYjJkZThhZWMwZTc5YWM1ODI3ODgyYjM1Yzk3Mzk1ZjVlMDljZGM4NGJhM2MwZTE5N2E5JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.R4h7AmTKadKxd6qr7m-i8JPsxoJHcrN49eVbB0ixYyU

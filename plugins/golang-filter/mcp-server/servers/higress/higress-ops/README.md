@@ -27,7 +27,6 @@ Higress Ops MCP Server 提供了 MCP 工具来调试和监控 Istio 和 Envoy �
 #### 配置相关
 - `get-envoy-config-dump`: 获取 Envoy 的完整配置快照，支持资源过滤和敏感信息掩码
 - `get-envoy-listeners`: 获取 Envoy 的所有监听器信息
-- `get-envoy-routes`: 获取 Envoy 的路由配置信息
 - `get-envoy-clusters`: 获取 Envoy 的所有集群信息和健康状态
 
 #### 运行时相关
@@ -50,31 +49,7 @@ Higress Ops MCP Server 提供了 MCP 工具来调试和监控 Istio 和 Envoy �
 | `istiodURL` | string | 必填 | Istiod 调试接口的 URL 地址 |
 | `envoyAdminURL` | string | 必填 | Envoy Admin 接口的 URL 地址 |
 | `namespace` | string | 可选 | Kubernetes 命名空间，默认为 `higress-system` |
-| `istiodToken` | string | **强烈推荐** | Istiod 认证 Token（跨 Pod 访问必需） |
 | `description` | string | 可选 | 服务器描述信息，默认为 "Higress Ops MCP Server, which provides debug interfaces for Istio and Envoy components." |
-
-### ⚠️ 重要：Istiod Token 配置
-
-**跨 Pod 访问 Istiod 接口时必须配置 `istiodToken`**，否则会遇到 401 认证错误。
-
-#### Token 生成方式
-
-使用以下命令生成长期有效的 Istiod 认证 Token：
-
-```bash
-kubectl create token higress-gateway -n higress-system --audience istio-ca --duration 87600h
-```
-
-**参数说明：**
-- `higress-gateway`: ServiceAccount 名称（与 Higress Gateway Pod 使用的 ServiceAccount 一致）
-- `-n higress-system`: 命名空间（需要与配置参数 `namespace` 一致）
-- `--audience istio-ca`: Token 的受众，必须为 `istio-ca`
-- `--duration 87600h`: Token 有效期（87600小时 ≈ 10年）
-
-#### 配置说明
-
-- **已配置 Token**: 日志会显示 "Istiod authentication token configured"，可以正常访问 Istiod 接口
-- **未配置 Token**: 日志会显示警告 "No istiodToken configured. Cross-pod Istiod API requests may fail with 401 errors."，跨 Pod 访问将会失败
 
 ## 配置示例
 
@@ -111,14 +86,11 @@ data:
           type: higress-api                # 类型和 RegisterServer 一致
           config:
             higressURL: http://higress-console.higress-system.svc.cluster.local:8080
-            username: admin
-            password: admin
         - name: higress-ops-mcp-server
           path: /higress-ops
           type: higress-ops
           config:
             istiodURL: http://higress-controller.higress-system.svc.cluster.local:15014   # istiod url
-            istiodToken: "your token"  # 生成方式：kubectl create token higress-gateway -n higress-system --audience istio-ca --duration 87600h
             envoyAdminURL: http://127.0.0.1:15000 # envoy url 填127.0.0.1就行，和 gateway 于同一容器
             namespace: higress-system
             description: "Higress Ops MCP Server for Istio and Envoy debugging"
@@ -149,6 +121,54 @@ data:
 
 ```
 
+## 鉴权配置
+
+Higress Ops MCP Server 使用自定义 HTTP Header 进行鉴权。客户端需要在请求头中携带 Istiod 认证 Token。
+
+### Token 生成方式
+
+使用以下命令生成长期有效的 Istiod 认证 Token：
+
+```bash
+kubectl create token higress-gateway -n higress-system --audience istio-ca --duration 87600h
+```
+
+**参数说明：**
+- `higress-gateway`: ServiceAccount 名称（与 Higress Gateway Pod 使用的 ServiceAccount 一致）
+- `-n higress-system`: 命名空间（需要与配置参数 `namespace` 一致）
+- `--audience istio-ca`: Token 的受众，必须为 `istio-ca`
+- `--duration 87600h`: Token 有效期（87600小时 ≈ 10年）
+
+### 配置示例
+
+```json
+{
+  "mcpServers": {
+    "higress_ops_mcp": {
+      "url": "http://127.0.0.1:80/higress-ops/sse",
+      "headers": {
+        "X-Istiod-Token": "eyJhbGciOiJSUzI1NiIsImtpZCI6Im1IUlI0Z01ISUNBNVlZbDBHcVVBMjFhMklwQ3hFaHIxSlVlamtzTFRLOTQifQ..."
+      }
+    }
+  }
+}
+```
+
+**说明：**
+- `X-Istiod-Token` 头用于携带 Istiod 认证 Token
+- Token 值由上述 `kubectl create token` 命令生成
+- 如果未配置 Token，跨 Pod 访问 Istiod 接口时会遇到 401 认证错误
+
+## 演示
+
+1. get envoy route information
+https://private-user-images.githubusercontent.com/153273766/507769115-d8e20b70-db1a-4a82-b89a-9eefeb3c8982.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY5MTE1LWQ4ZTIwYjcwLWRiMWEtNGE4Mi1iODlhLTllZWZlYjNjODk4Mi5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1kYzg1Y2FiOTdiN2FiOTNkMmQ0OTc1NzEyZGMyMTlkNDQ4YjQ0NGYyOGUwNTlhYzYyYzA1ODJhOWM0M2Y3ZTQyJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.Uz-HfM9tOzl7zrhGsPP1suunGg_K9ZbUN1BzAU5Oquo
+
+2. get istiod cluster information
+https://private-user-images.githubusercontent.com/153273766/507769013-9f598593-1251-4304-8e41-8bf4d1588897.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY5MDEzLTlmNTk4NTkzLTEyNTEtNDMwNC04ZTQxLThiZjRkMTU4ODg5Ny5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1hZDQwYWE3MjM5OTU1NGNkMDcwNTgzNDMzZGI4NDRkYzdiNWRlNGJhODMwNjFlYjZiZjUzNzM3YWFhYzIyMjBjJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.g19-rxOHSLIIszdGYAI7CmRzLTlrbA1fJ0hB6duuDBI
+
+
+
 ## 使用场景
 
 ### 1. 故障诊断
@@ -164,7 +184,6 @@ data:
 ### 3. 配置验证
 - 使用 `get-istiod-configz` 验证 Istiod 配置状态
 - 使用 `get-envoy-config-dump` 验证 Envoy 配置
-- 使用 `get-envoy-routes` 检查路由配置
 
 ### 4. 安全审计
 - 使用 `get-envoy-certs` 检查证书状态
@@ -196,9 +215,6 @@ get-envoy-clusters --format="json"
 
 # 获取统计信息，只显示包含 "cluster" 的统计项
 get-envoy-stats --filter="cluster.*" --format="json"
-
-# 获取特定路由表信息
-get-envoy-routes --name="80" --format="json"
 ```
 
 ## 常见问题
@@ -210,7 +226,7 @@ A: 使用 `get-envoy-clusters` 工具，然后使用 `get-envoy-config-dump --re
 A: 使用 `get-istiod-syncz` 查看整体同步状态，使用 `get-istiod-configz` 查看配置状态和错误信息。
 
 ### Q: 如何排查路由问题？
-A: 使用 `get-envoy-routes` 查看路由配置，使用 `get-envoy-config-dump --resource="routes"` 获取详细路由信息。
+A: 使用 `get-envoy-config-dump` 获取详细路由信息。
 
 ### Q: 支持哪些输出格式？
 A: 大部分工具支持 text 和 json 格式，统计信息还支持 prometheus 格式。
