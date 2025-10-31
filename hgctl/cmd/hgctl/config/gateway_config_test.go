@@ -148,7 +148,8 @@ func TestExtractSubResourcesConfigDump(t *testing.T) {
 			output:       "yaml",
 			resourceType: BootstrapEnvoyConfigType,
 			expected:     "out.bootstrap.yaml",
-		}, {
+		},
+		{
 			output:       "json",
 			resourceType: ClusterEnvoyConfigType,
 			expected:     "out.cluster.json",
@@ -157,7 +158,8 @@ func TestExtractSubResourcesConfigDump(t *testing.T) {
 			output:       "yaml",
 			resourceType: ClusterEnvoyConfigType,
 			expected:     "out.cluster.yaml",
-		}, {
+		},
+		{
 			output:       "json",
 			resourceType: ListenerEnvoyConfigType,
 			expected:     "out.listener.json",
@@ -166,7 +168,8 @@ func TestExtractSubResourcesConfigDump(t *testing.T) {
 			output:       "yaml",
 			resourceType: ListenerEnvoyConfigType,
 			expected:     "out.listener.yaml",
-		}, {
+		},
+		{
 			output:       "json",
 			resourceType: RouteEnvoyConfigType,
 			expected:     "out.route.json",

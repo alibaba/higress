@@ -29,7 +29,18 @@ type ClaudeToOpenAIConverter struct {
 	toolBlockStarted     bool
 	toolBlockStopped     bool
 	// Tool call state tracking
-	toolCallStates map[string]*toolCallState
+	toolCallStates  map[int]*toolCallInfo // Map of OpenAI index to tool call state
+	activeToolIndex *int                  // Currently active tool call index (for Claude serialization)
+}
+
+// toolCallInfo tracks tool call state
+type toolCallInfo struct {
+	id                  string // Tool call ID
+	name                string // Tool call name
+	claudeContentIndex  int    // Claude content block index
+	contentBlockStarted bool   // Whether content_block_start has been sent
+	contentBlockStopped bool   // Whether content_block_stop has been sent
+	cachedArguments     string // Cache arguments for this tool call
 }
 
 // contentConversionResult represents the result of converting Claude content to OpenAI format
@@ -39,14 +50,6 @@ type contentConversionResult struct {
 	toolResults       []claudeChatMessageContent
 	openaiContents    []chatMessageContent
 	hasNonTextContent bool
-}
-
-// toolCallState tracks the state of a tool call during streaming
-type toolCallState struct {
-	id              string
-	name            string
-	argumentsBuffer string
-	isComplete      bool
 }
 
 // ConvertClaudeRequestToOpenAI converts a Claude chat completion request to OpenAI format
@@ -105,7 +108,7 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 				for _, toolResult := range conversionResult.toolResults {
 					toolMsg := chatMessage{
 						Role:       "tool",
-						Content:    toolResult.Content,
+						Content:    toolResult.Content.GetStringValue(),
 						ToolCallId: toolResult.ToolUseId,
 					}
 					openaiRequest.Messages = append(openaiRequest.Messages, toolMsg)
@@ -114,18 +117,9 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 
 			// Handle regular content if no tool calls or tool results
 			if len(conversionResult.toolCalls) == 0 && len(conversionResult.toolResults) == 0 {
-				var content interface{}
-				if !conversionResult.hasNonTextContent && len(conversionResult.textParts) > 0 {
-					// Simple text content
-					content = strings.Join(conversionResult.textParts, "\n\n")
-				} else {
-					// Multi-modal content or empty content
-					content = conversionResult.openaiContents
-				}
-
 				openaiMsg := chatMessage{
 					Role:    claudeMsg.Role,
-					Content: content,
+					Content: conversionResult.openaiContents,
 				}
 				openaiRequest.Messages = append(openaiRequest.Messages, openaiMsg)
 			}
@@ -133,11 +127,13 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 	}
 
 	// Handle system message - Claude has separate system field
-	systemStr := claudeRequest.System.String()
-	if systemStr != "" {
-		systemMsg := chatMessage{
-			Role:    roleSystem,
-			Content: systemStr,
+	if claudeRequest.System != nil {
+		systemMsg := chatMessage{Role: roleSystem}
+		if !claudeRequest.System.IsArray {
+			systemMsg.Content = claudeRequest.System.StringValue
+		} else {
+			conversionResult := c.convertContentArray(claudeRequest.System.ArrayValue)
+			systemMsg.Content = conversionResult.openaiContents
 		}
 		// Insert system message at the beginning
 		openaiRequest.Messages = append([]chatMessage{systemMsg}, openaiRequest.Messages...)
@@ -231,6 +227,9 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 			InputTokens:  openaiResponse.Usage.PromptTokens,
 			OutputTokens: openaiResponse.Usage.CompletionTokens,
 		}
+		if openaiResponse.Usage.PromptTokensDetails != nil {
+			claudeResponse.Usage.CacheReadInputTokens = openaiResponse.Usage.PromptTokensDetails.CachedTokens
+		}
 	}
 
 	// Convert the first choice content
@@ -272,7 +271,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 						var input map[string]interface{}
 						if toolCall.Function.Arguments != "" {
 							if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &input); err != nil {
-								log.Errorf("Failed to parse tool call arguments: %v", err)
+								log.Errorf("Failed to parse tool call arguments: %v, arguments: %s", err, toolCall.Function.Arguments)
 								input = map[string]interface{}{}
 							}
 						} else {
@@ -312,11 +311,6 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrapper.HttpContext, chunk []byte) ([]byte, error) {
 	log.Debugf("[OpenAI->Claude] Original OpenAI streaming chunk: %s", string(chunk))
 
-	// Initialize tool call states if needed
-	if c.toolCallStates == nil {
-		c.toolCallStates = make(map[string]*toolCallState)
-	}
-
 	// For streaming responses, we need to handle the Server-Sent Events format
 	lines := strings.Split(string(chunk), "\n")
 	var result strings.Builder
@@ -350,15 +344,18 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 					stopData, _ := json.Marshal(stopEvent)
 					result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
 				}
-				if c.toolBlockStarted && !c.toolBlockStopped {
-					c.toolBlockStopped = true
-					log.Debugf("[OpenAI->Claude] Sending final tool content_block_stop event at index %d", c.toolBlockIndex)
-					stopEvent := &claudeTextGenStreamResponse{
-						Type:  "content_block_stop",
-						Index: &c.toolBlockIndex,
+				// Send final content_block_stop events for any remaining unclosed tool calls
+				for index, toolCall := range c.toolCallStates {
+					if toolCall.contentBlockStarted && !toolCall.contentBlockStopped {
+						log.Debugf("[OpenAI->Claude] Sending final tool content_block_stop event for index %d at Claude index %d",
+							index, toolCall.claudeContentIndex)
+						stopEvent := &claudeTextGenStreamResponse{
+							Type:  "content_block_stop",
+							Index: &toolCall.claudeContentIndex,
+						}
+						stopData, _ := json.Marshal(stopEvent)
+						result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
 					}
-					stopData, _ := json.Marshal(stopEvent)
-					result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
 				}
 
 				// If we have a pending stop_reason but no usage, send message_delta with just stop_reason
@@ -401,7 +398,8 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 				c.toolBlockIndex = -1
 				c.toolBlockStarted = false
 				c.toolBlockStopped = false
-				c.toolCallStates = make(map[string]*toolCallState)
+				c.toolCallStates = make(map[int]*toolCallInfo)
+				c.activeToolIndex = nil
 				log.Debugf("[OpenAI->Claude] Reset converter state for next request")
 
 				continue
@@ -424,7 +422,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 					continue
 				}
 				log.Debugf("[OpenAI->Claude] Stream event [%d/%d]: %s", i+1, len(claudeStreamResponses), string(responseData))
-				result.WriteString(fmt.Sprintf("data: %s\n\n", responseData))
+				result.WriteString(fmt.Sprintf("event: %s\ndata: %s\n\n", claudeStreamResponse.Type, responseData))
 			}
 		}
 	}
@@ -579,79 +577,60 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 
 	// Handle tool calls in streaming response
 	if choice.Delta != nil && len(choice.Delta.ToolCalls) > 0 {
+		// Initialize toolCallStates if needed
+		if c.toolCallStates == nil {
+			c.toolCallStates = make(map[int]*toolCallInfo)
+		}
+
 		for _, toolCall := range choice.Delta.ToolCalls {
-			if !toolCall.Function.IsEmpty() {
-				log.Debugf("[OpenAI->Claude] Processing tool call delta")
+			log.Debugf("[OpenAI->Claude] Processing tool call delta: index=%d, id=%s, name=%s, args=%s",
+				toolCall.Index, toolCall.Id, toolCall.Function.Name, toolCall.Function.Arguments)
 
-				// Get or create tool call state
-				state := c.toolCallStates[toolCall.Id]
-				if state == nil {
-					state = &toolCallState{
-						id:              toolCall.Id,
-						name:            toolCall.Function.Name,
-						argumentsBuffer: "",
-						isComplete:      false,
+			// Handle new tool call (has id and name)
+			if toolCall.Id != "" && toolCall.Function.Name != "" {
+				// Create or update tool call state
+				if _, exists := c.toolCallStates[toolCall.Index]; !exists {
+					c.toolCallStates[toolCall.Index] = &toolCallInfo{
+						id:                  toolCall.Id,
+						name:                toolCall.Function.Name,
+						contentBlockStarted: false,
+						contentBlockStopped: false,
+						cachedArguments:     "",
 					}
-					c.toolCallStates[toolCall.Id] = state
-					log.Debugf("[OpenAI->Claude] Created new tool call state for id: %s, name: %s", toolCall.Id, toolCall.Function.Name)
 				}
 
-				// Accumulate arguments
-				if toolCall.Function.Arguments != "" {
-					state.argumentsBuffer += toolCall.Function.Arguments
-					log.Debugf("[OpenAI->Claude] Accumulated tool arguments: %s", state.argumentsBuffer)
+				toolState := c.toolCallStates[toolCall.Index]
+
+				// Check if we can start this tool call (Claude requires serialization)
+				if c.activeToolIndex == nil {
+					// No active tool call, start this one
+					c.activeToolIndex = &toolCall.Index
+					toolCallResponses := c.startToolCall(toolState)
+					responses = append(responses, toolCallResponses...)
 				}
+				// If there's already an active tool call, we'll start this one when the current one finishes
+			}
 
-				// Try to parse accumulated arguments as JSON to check if complete
-				var input map[string]interface{}
-				if state.argumentsBuffer != "" {
-					if err := json.Unmarshal([]byte(state.argumentsBuffer), &input); err == nil {
-						// Successfully parsed - arguments are complete
-						if !state.isComplete {
-							state.isComplete = true
-							log.Debugf("[OpenAI->Claude] Tool call arguments complete for %s: %s", state.name, state.argumentsBuffer)
+			// Handle arguments for any tool call - cache all arguments regardless of active state
+			if toolCall.Function.Arguments != "" {
+				if toolState, exists := c.toolCallStates[toolCall.Index]; exists {
+					// Always cache arguments for this tool call
+					toolState.cachedArguments += toolCall.Function.Arguments
+					log.Debugf("[OpenAI->Claude] Cached arguments for tool index %d: %s (total: %s)",
+						toolCall.Index, toolCall.Function.Arguments, toolState.cachedArguments)
 
-							// Close thinking content block if it's still open
-							if c.thinkingBlockStarted && !c.thinkingBlockStopped {
-								c.thinkingBlockStopped = true
-								log.Debugf("[OpenAI->Claude] Closing thinking content block before tool use")
-								responses = append(responses, &claudeTextGenStreamResponse{
-									Type:  "content_block_stop",
-									Index: &c.thinkingBlockIndex,
-								})
-							}
-
-							// Close text content block if it's still open
-							if c.textBlockStarted && !c.textBlockStopped {
-								c.textBlockStopped = true
-								log.Debugf("[OpenAI->Claude] Closing text content block before tool use")
-								responses = append(responses, &claudeTextGenStreamResponse{
-									Type:  "content_block_stop",
-									Index: &c.textBlockIndex,
-								})
-							}
-
-							// Send content_block_start for tool_use only when we have complete arguments with dynamic index
-							if !c.toolBlockStarted {
-								c.toolBlockIndex = c.nextContentIndex
-								c.nextContentIndex++
-								c.toolBlockStarted = true
-								log.Debugf("[OpenAI->Claude] Generated content_block_start event for tool_use at index %d", c.toolBlockIndex)
-								responses = append(responses, &claudeTextGenStreamResponse{
-									Type:  "content_block_start",
-									Index: &c.toolBlockIndex,
-									ContentBlock: &claudeTextGenContent{
-										Type:  "tool_use",
-										Id:    toolCall.Id,
-										Name:  state.name,
-										Input: input,
-									},
-								})
-							}
-						}
-					} else {
-						// Still accumulating arguments
-						log.Debugf("[OpenAI->Claude] Tool arguments not yet complete, continuing to accumulate: %v", err)
+					// Send input_json_delta event only if this tool is currently active and content block started
+					if c.activeToolIndex != nil && *c.activeToolIndex == toolCall.Index && toolState.contentBlockStarted {
+						log.Debugf("[OpenAI->Claude] Generated input_json_delta event for active tool index %d: %s",
+							toolCall.Index, toolCall.Function.Arguments)
+						responses = append(responses, &claudeTextGenStreamResponse{
+							Type:  "content_block_delta",
+							Index: &toolState.claudeContentIndex,
+							Delta: &claudeTextGenDelta{
+								Type:        "input_json_delta",
+								PartialJson: toolCall.Function.Arguments,
+							},
+						})
 					}
 				}
 			}
@@ -680,14 +659,51 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 				Index: &c.textBlockIndex,
 			})
 		}
-		if c.toolBlockStarted && !c.toolBlockStopped {
-			c.toolBlockStopped = true
-			log.Debugf("[OpenAI->Claude] Generated tool content_block_stop event at index %d", c.toolBlockIndex)
-			responses = append(responses, &claudeTextGenStreamResponse{
-				Type:  "content_block_stop",
-				Index: &c.toolBlockIndex,
-			})
+
+		// First, start any remaining unstarted tool calls (they may have no arguments)
+		// Process in order to maintain Claude's sequential requirement
+		var sortedIndices []int
+		for index := range c.toolCallStates {
+			sortedIndices = append(sortedIndices, index)
 		}
+
+		// Sort indices to process in order
+		for i := 0; i < len(sortedIndices)-1; i++ {
+			for j := i + 1; j < len(sortedIndices); j++ {
+				if sortedIndices[i] > sortedIndices[j] {
+					sortedIndices[i], sortedIndices[j] = sortedIndices[j], sortedIndices[i]
+				}
+			}
+		}
+
+		for _, index := range sortedIndices {
+			toolCall := c.toolCallStates[index]
+			if !toolCall.contentBlockStarted {
+				log.Debugf("[OpenAI->Claude] Starting remaining tool call at finish: index=%d, id=%s, name=%s",
+					index, toolCall.id, toolCall.name)
+				c.activeToolIndex = &index
+				toolCallResponses := c.startToolCall(toolCall)
+				responses = append(responses, toolCallResponses...)
+				c.activeToolIndex = nil // Clear immediately since tool is now fully started
+			}
+		}
+
+		// Then send content_block_stop for all started tool calls in order
+		for _, index := range sortedIndices {
+			toolCall := c.toolCallStates[index]
+			if toolCall.contentBlockStarted && !toolCall.contentBlockStopped {
+				log.Debugf("[OpenAI->Claude] Generated content_block_stop for tool at index %d, Claude index %d",
+					index, toolCall.claudeContentIndex)
+				responses = append(responses, &claudeTextGenStreamResponse{
+					Type:  "content_block_stop",
+					Index: &toolCall.claudeContentIndex,
+				})
+				toolCall.contentBlockStopped = true
+			}
+		}
+
+		// Clear active tool index
+		c.activeToolIndex = nil
 
 		// Cache stop_reason until we get usage info (Claude protocol requires them together)
 		c.pendingStopReason = &claudeFinishReason
@@ -764,8 +780,9 @@ func (c *ClaudeToOpenAIConverter) convertContentArray(claudeContents []claudeCha
 			if claudeContent.Text != "" {
 				result.textParts = append(result.textParts, claudeContent.Text)
 				result.openaiContents = append(result.openaiContents, chatMessageContent{
-					Type: contentTypeText,
-					Text: claudeContent.Text,
+					Type:         contentTypeText,
+					Text:         claudeContent.Text,
+					CacheControl: claudeContent.CacheControl,
 				})
 			}
 		case "image":
@@ -821,4 +838,64 @@ func (c *ClaudeToOpenAIConverter) convertContentArray(claudeContents []claudeCha
 	}
 
 	return result
+}
+
+// startToolCall starts a new tool call content block
+func (c *ClaudeToOpenAIConverter) startToolCall(toolState *toolCallInfo) []*claudeTextGenStreamResponse {
+	var responses []*claudeTextGenStreamResponse
+
+	// Close thinking content block if it's still open
+	if c.thinkingBlockStarted && !c.thinkingBlockStopped {
+		c.thinkingBlockStopped = true
+		log.Debugf("[OpenAI->Claude] Closing thinking content block before tool use")
+		responses = append(responses, &claudeTextGenStreamResponse{
+			Type:  "content_block_stop",
+			Index: &c.thinkingBlockIndex,
+		})
+	}
+
+	// Close text content block if it's still open
+	if c.textBlockStarted && !c.textBlockStopped {
+		c.textBlockStopped = true
+		log.Debugf("[OpenAI->Claude] Closing text content block before tool use")
+		responses = append(responses, &claudeTextGenStreamResponse{
+			Type:  "content_block_stop",
+			Index: &c.textBlockIndex,
+		})
+	}
+
+	// Assign Claude content index
+	toolState.claudeContentIndex = c.nextContentIndex
+	c.nextContentIndex++
+	toolState.contentBlockStarted = true
+
+	log.Debugf("[OpenAI->Claude] Started tool call: Claude index=%d, id=%s, name=%s",
+		toolState.claudeContentIndex, toolState.id, toolState.name)
+
+	// Send content_block_start
+	responses = append(responses, &claudeTextGenStreamResponse{
+		Type:  "content_block_start",
+		Index: &toolState.claudeContentIndex,
+		ContentBlock: &claudeTextGenContent{
+			Type:  "tool_use",
+			Id:    toolState.id,
+			Name:  toolState.name,
+			Input: map[string]interface{}{}, // Empty input as per Claude spec
+		},
+	})
+
+	// Send any cached arguments as input_json_delta events
+	if toolState.cachedArguments != "" {
+		log.Debugf("[OpenAI->Claude] Outputting cached arguments for tool: %s", toolState.cachedArguments)
+		responses = append(responses, &claudeTextGenStreamResponse{
+			Type:  "content_block_delta",
+			Index: &toolState.claudeContentIndex,
+			Delta: &claudeTextGenDelta{
+				Type:        "input_json_delta",
+				PartialJson: toolState.cachedArguments,
+			},
+		})
+	}
+
+	return responses
 }

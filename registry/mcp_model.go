@@ -63,7 +63,7 @@ type McpTool struct {
 }
 
 type ToolSecurity struct {
-	Id          string `json:"type,omitempty"`
+	Id          string `json:"id,omitempty"`
 	PassThrough bool   `json:"passthrough,omitempty"`
 	Credential  string `json:"credential"`
 }

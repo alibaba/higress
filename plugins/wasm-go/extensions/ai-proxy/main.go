@@ -39,14 +39,12 @@ type pair[K, V any] struct {
 
 var (
 	headersCtxKeyMapping = map[string]string{
-		util.HeaderAuthority:     ctxOriginalHost,
-		util.HeaderPath:          ctxOriginalPath,
-		util.HeaderAuthorization: ctxOriginalAuth,
+		util.HeaderAuthority: ctxOriginalHost,
+		util.HeaderPath:      ctxOriginalPath,
 	}
 	headerToOriginalHeaderMapping = map[string]string{
-		util.HeaderAuthority:     util.HeaderOriginalHost,
-		util.HeaderPath:          util.HeaderOriginalPath,
-		util.HeaderAuthorization: util.HeaderOriginalAuth,
+		util.HeaderAuthority: util.HeaderOriginalHost,
+		util.HeaderPath:      util.HeaderOriginalPath,
 	}
 	pathSuffixToApiName = []pair[string, provider.ApiName]{
 		// OpenAI style
@@ -99,6 +97,7 @@ func init() {
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
+		wrapper.WithRebuildAfterRequests[config.PluginConfig](1000),
 	)
 }
 
@@ -144,6 +143,11 @@ func initContext(ctx wrapper.HttpContext) {
 	for _, originHeader := range headerToOriginalHeaderMapping {
 		proxywasm.RemoveHttpRequestHeader(originHeader)
 	}
+	originalAuth, _ := proxywasm.GetHttpRequestHeader(util.HeaderOriginalAuth)
+	if originalAuth == "" {
+		value, _ := proxywasm.GetHttpRequestHeader(util.HeaderAuthorization)
+		ctx.SetContext(ctxOriginalAuth, value)
+	}
 }
 
 func saveContextsToHeaders(ctx wrapper.HttpContext) {
@@ -160,6 +164,10 @@ func saveContextsToHeaders(ctx wrapper.HttpContext) {
 		if originalHeader != "" {
 			_ = proxywasm.ReplaceHttpRequestHeader(originalHeader, originalValue)
 		}
+	}
+	originalValue := ctx.GetStringContext(ctxOriginalAuth, "")
+	if originalValue != "" {
+		_ = proxywasm.ReplaceHttpRequestHeader(util.HeaderOriginalAuth, originalValue)
 	}
 }
 
@@ -406,7 +414,8 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 				return chunk
 			}
 			if len(outputEvents) == 0 {
-				responseBuilder.WriteString(event.ToHttpString())
+				// no need convert, keep original events
+				responseBuilder.WriteString(event.RawEvent)
 			} else {
 				for _, outputEvent := range outputEvents {
 					responseBuilder.WriteString(outputEvent.ToHttpString())
@@ -422,6 +431,10 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 			return result
 		}
 		return claudeChunk
+	}
+
+	if !needsClaudeResponseConversion(ctx) {
+		return chunk
 	}
 
 	// If provider doesn't implement any streaming handlers but we need Claude conversion

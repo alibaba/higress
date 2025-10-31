@@ -66,6 +66,40 @@ jobs:
               "https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/tag/${RELEASE_VERSION}" \
               -o release_page.html
 
+          # Extract system prompt content from HTML
+          echo "Extracting system prompt content..."
+          pip install beautifulsoup4 markdownify
+          SYSTEM_PROMPT=$(python3 -c "
+          import sys
+          from bs4 import BeautifulSoup
+          from markdownify import markdownify
+
+          with open('release_page.html', 'r') as f:
+              soup = BeautifulSoup(f, 'html.parser')
+          
+          system_prompt_header = soup.find('h2', string='system prompt')
+          if system_prompt_header:
+              content = []
+              for sibling in system_prompt_header.next_siblings:
+                  if sibling.name == 'h2':
+                      break
+                  content.append(str(sibling))
+              html_content = ''.join(content).strip()
+              # Convert HTML to Markdown
+              if html_content:
+                  markdown_content = markdownify(html_content)
+                  print(markdown_content.strip())
+              else:
+                  print('')
+          else:
+              print('')
+          ")
+          if [ -z "${SYSTEM_PROMPT}" ]; then
+              echo "No system prompt found in release notes."
+          else
+              echo "System prompt content: ${SYSTEM_PROMPT}"
+          fi
+
           echo "Extracting PR numbers from ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME} release notes..."
           PR_NUMS=$(cat release_page.html | grep -o "/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/pull/[0-9]*" | grep -o "[0-9]*$" | sort -n | uniq | tr '\n' ',')
           PR_NUMS=${PR_NUMS%,}
@@ -88,11 +122,24 @@ jobs:
           cd higress-report-agent
           pip install uv
           uv sync
+
+          # Build command
+          CMD_ARGS="--mode 2 --choice 2 --pr_nums ${PR_NUMS}"
           if [ -n "${IMPORTANT_PR_NUMS}" ]; then
-              uv run report_main.py --mode 2 --choice 2 --pr_nums ${PR_NUMS} --important_prs ${IMPORTANT_PR_NUMS}
-          else
-              uv run report_main.py --mode 2 --choice 2 --pr_nums ${PR_NUMS}
+              CMD_ARGS="${CMD_ARGS} --important_prs ${IMPORTANT_PR_NUMS}"
           fi
+          if [ -n "${SYSTEM_PROMPT}" ]; then
+              echo "${SYSTEM_PROMPT}" > temp_system_prompt.txt
+              CMD_ARGS="${CMD_ARGS} --sys_prompt_file temp_system_prompt.txt"
+          fi
+
+          uv run report_main.py ${CMD_ARGS}
+
+          # Clean up temporary file
+          if [ -f "temp_system_prompt.txt" ]; then
+              rm temp_system_prompt.txt
+          fi
+
           cp report.md ../
           cp report.EN.md ../
           cd ..

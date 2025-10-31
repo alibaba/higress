@@ -10,7 +10,7 @@ export BASE_VERSION ?= $(HIGRESS_BASE_VERSION)
 
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
-VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/lversion
+VERSION_PACKAGE := github.com/alibaba/higress/v2/pkg/cmd/lversion
 
 GIT_COMMIT:=$(shell git rev-parse HEAD)
 
@@ -137,9 +137,9 @@ endif
 # for now docker is limited to Linux compiles - why ?
 include docker/docker.mk
 
-docker-build-amd64: docker.higress-amd64 ## Build and push amdd64 docker images to registry defined by $HUB and $TAG
+docker-build-amd64: clean-higress docker.higress-amd64 ## Build and push amdd64 docker images to registry defined by $HUB and $TAG
 
-docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
+docker-build: clean-higress docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
 docker-buildx-push: clean-env docker.higress-buildx
 

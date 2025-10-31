@@ -17,6 +17,7 @@ Higress API MCP Server provides MCP tools to manage Higress routes, service sour
 - `update-service-source`: Update service source
 
 ### Plugin Management
+- `list-plugin-instances`: List all plugin instances for a specific scope (supports global, domain, service, and route levels)
 - `get-plugin`: Get plugin configuration
 - `delete-plugin`: Delete plugin
 - `update-request-block-plugin`: Update request block configuration
@@ -56,7 +57,11 @@ data:
       redis:
         address: redis-stack-server.higress-system.svc.cluster.local:6379 # Redis service address
         username: "" # Redis username (optional)
-        password: "" # Redis password (optional)
+        password: "" # Redis password (optional, plaintext)
+        passwordSecret: # Reference password from Secret (recommended, higher priority than password)
+          name: redis-credentials # Secret name
+          key: password # Key in Secret
+          namespace: higress-system # Secret namespace (optional, defaults to higress-system)
         db: 0 # Redis database (optional)
       match_list: # MCP Server session persistence routing rules (when matching the following paths, it will be recognized as an MCP session and maintained through SSE)
         - match_rule_domain: "*"

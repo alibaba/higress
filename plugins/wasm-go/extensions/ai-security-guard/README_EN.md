@@ -21,6 +21,7 @@ Plugin Priority: `300`
 | `serviceHost` | string | requried | - | Host of Aliyun content security service endpoint |
 | `accessKey` | string | requried | - | Aliyun accesskey |
 | `secretKey` | string | requried | - | Aliyun secretkey |
+| `action` | string | requried | - | Aliyun ai guardrails business interface |
 | `checkRequest` | bool | optional | false | check if the input is legal |
 | `checkResponse` | bool | optional | false | check if the output is legal |
 | `requestCheckService` | string | optional | llm_query_moderation | Aliyun yundun service name for input check |
@@ -31,9 +32,14 @@ Plugin Priority: `300`
 | `denyCode` | int | optional | 200 | Response status code when the specified content is illegal |
 | `denyMessage` | string | optional | Drainage/non-streaming response in openai format, the answer content is the suggested answer from Alibaba Cloud content security | Response content when the specified content is illegal |
 | `protocol` | string | optional | openai | protocol format, `openai` or `original` |
-| `riskLevelBar` | string | optional | high | risk level threshold, `max`, `high`, `medium` or `low` |
+| `contentModerationLevelBar` | string | optional | max | contentModeration risk level threshold, `max`, `high`, `medium` or `low` |
+| `promptAttackLevelBar` | string | optional | max | promptAttack risk level threshold， `max`, `high`, `medium` or `low` |
+| `sensitiveDataLevelBar` | string | optional | S4 | sensitiveData risk level threshold,  `S4`, `S3`, `S2` or `S1` |
 | `timeout` | int | optional | 2000 | timeout for lvwang service |
 | `bufferLimit` | int | optional | 1000 | Limit the length of each text when calling the lvwang service |
+| `consumerRequestCheckService` | map | optional | - | Specify specific request detection services for different consumers |
+| `consumerResponseCheckService` | map | optional | - | Specify specific response detection services for different consumers |
+| `consumerRiskLevel` | map | optional | - | Specify interception risk levels for different consumers in different dimensions |
 
 
 ## Examples of configuration

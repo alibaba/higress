@@ -17,11 +17,11 @@
 package applyconfiguration
 
 import (
-	v1alpha1 "github.com/alibaba/higress/client/pkg/apis/extensions/v1alpha1"
-	networkingv1 "github.com/alibaba/higress/client/pkg/apis/networking/v1"
-	extensionsv1alpha1 "github.com/alibaba/higress/client/pkg/applyconfiguration/extensions/v1alpha1"
-	metav1 "github.com/alibaba/higress/client/pkg/applyconfiguration/meta/v1"
-	applyconfigurationnetworkingv1 "github.com/alibaba/higress/client/pkg/applyconfiguration/networking/v1"
+	v1alpha1 "github.com/alibaba/higress/v2/client/pkg/apis/extensions/v1alpha1"
+	networkingv1 "github.com/alibaba/higress/v2/client/pkg/apis/networking/v1"
+	extensionsv1alpha1 "github.com/alibaba/higress/v2/client/pkg/applyconfiguration/extensions/v1alpha1"
+	metav1 "github.com/alibaba/higress/v2/client/pkg/applyconfiguration/meta/v1"
+	applyconfigurationnetworkingv1 "github.com/alibaba/higress/v2/client/pkg/applyconfiguration/networking/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 )

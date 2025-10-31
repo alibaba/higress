@@ -129,7 +129,15 @@ Azure OpenAI 所对应的 `type` 为 `azure`。它特有的配置字段如下：
 | ----------------- | -------- | -------- | ------ | -------------------------------------------------------- |
 | `azureServiceUrl` | string   | 必填     | -      | Azure OpenAI 服务的 URL，须包含 `api-version` 查询参数。 |
 
-**注意：** Azure OpenAI 只支持配置一个 API Token。
+**注意：**
+1. Azure OpenAI 只支持配置一个 API Token。
+2. `azureServiceUrl` 支持以下三种配置格式：
+   1. 完整路径格式，例如：`https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview`
+      - 插件会直接将请求转发至该 URL，不会参考实际的请求路径。
+   2. 部署名称格式，例如：`https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME?api-version=2024-02-15-preview`
+      - 插件会根据实际的请求路径拼接后续路径。路径中的部署名称会保留不变，不会按照模型映射规则进行修改。同时支持 URL 中不包含部署名称的接口。
+   3. 资源名称格式，例如：`https://YOUR_RESOURCE_NAME.openai.azure.com?api-version=2024-02-15-preview` 
+      - 插件会根据实际的请求路径拼接后续路径。路径中的部署名称会根据请求中的模型名称结合模型映射规则进行填入。同时支持 URL 中不包含部署名称的接口。
 
 #### 月之暗面（Moonshot）
 
@@ -176,6 +184,10 @@ Grok 所对应的 `type` 为 `grok`。它并无特有的配置字段。
 #### OpenRouter
 
 OpenRouter 所对应的 `type` 为 `openrouter`。它并无特有的配置字段。
+
+#### Fireworks AI
+
+Fireworks AI 所对应的 `type` 为 `fireworks`。它并无特有的配置字段。
 
 #### 文心一言（Baidu）
 
@@ -299,6 +311,15 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 #### AWS Bedrock
 
 AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
+
+| 名称            | 数据类型  | 填写要求 | 默认值 | 描述                           |
+|---------------------------|--------|------|-----|------------------------------|
+| `modelVersion` | string   | 非必填  | -   | 用于指定 Triton Server 中 model version           |
+| `tritonDomain` | string   | 非必填  | -   | Triton Server 部署的指定请求 Domain            |
+
+#### NVIDIA Triton Interference Server
+
+NVIDIA Triton Interference Server 所对应的 type 为 triton。它特有的配置字段如下：
 
 | 名称                        | 数据类型   | 填写要求 | 默认值 | 描述                           |
 |---------------------------|--------|------|-----|------------------------------|
@@ -1005,6 +1026,63 @@ provider:
     "prompt_tokens": 12,
     "completion_tokens": 46,
     "total_tokens": 58
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 Fireworks AI 服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: fireworks
+  apiTokens:
+    - "YOUR_FIREWORKS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "accounts/fireworks/models/llama-v3p1-70b-instruct"
+    "gpt-3.5-turbo": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+    "*": "accounts/fireworks/models/llama-v3p1-8b-instruct"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "fw-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "accounts/fireworks/models/llama-v3p1-70b-instruct",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是一个由 Fireworks AI 提供的人工智能助手，基于 Llama 3.1 模型。我可以帮助回答问题、进行对话和提供各种信息。有什么我可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 45,
+    "total_tokens": 60
   }
 }
 ```
@@ -1973,6 +2051,59 @@ provider:
   }
 }
 ```
+
+### 使用 OpenAI 协议代理 NVIDIA Triton Interference Server 服务
+
+**配置信息**
+
+```yaml
+providers:
+  - type: triton
+    tritonDomain: <LOCAL_TRITON_DOMAIN>
+    tritonModelVersion: <MODEL_VERSION>
+    apiTokens:
+      - "****"
+    modelMapping:
+      "*": gpt2
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt2",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "我是一个AI模型"
+            },
+            "finish_reason": "stop",
+        }
+    ],
+    "model": "gpt2",
+}
+```
+
+
+
+
+
 
 
 ## 完整配置示例

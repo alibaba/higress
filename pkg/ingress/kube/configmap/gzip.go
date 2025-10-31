@@ -21,8 +21,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -144,7 +144,7 @@ func deepCopyGzip(gzip *Gzip) (*Gzip, error) {
 
 func NewDefaultGzip() *Gzip {
 	gzip := &Gzip{
-		Enable:              false,
+		Enable:              true,
 		MinContentLength:    1024,
 		ContentType:         []string{"text/html", "text/css", "text/plain", "text/xml", "application/json", "application/javascript", "application/xhtml+xml", "image/svg+xml"},
 		DisableOnEtagHeader: true,

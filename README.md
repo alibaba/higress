@@ -17,11 +17,14 @@
 </div>
 
 [**Official Site**](https://higress.ai/en/) &nbsp; |
+&nbsp; [**Docs**](https://higress.cn/en/docs/latest/overview/what-is-higress/) &nbsp; |
+&nbsp; [**Blog**](https://higress.cn/en/blog/) &nbsp; |
 &nbsp; [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/) &nbsp; |
+&nbsp; [**Developer Guide**](https://higress.cn/en/docs/latest/dev/architecture/) &nbsp; |
 &nbsp; [**Wasm Plugin Hub**](https://higress.cn/en/plugin/) &nbsp; |
 
 <p>
-   English | <a href="README_ZH.md">中文<a/> | <a href="README_JP.md">日本語<a/>
+   English | <a href="README_ZH.md">中文</a> | <a href="README_JP.md">日本語</a>
 </p>
 
 ## What is Higress?
@@ -39,6 +42,13 @@ Higress's AI gateway capabilities support all [mainstream model providers](https
 ### Enterprise Adoption
 
 Higress was born within Alibaba to solve the issues of Tengine reload affecting long-connection services and insufficient load balancing capabilities for gRPC/Dubbo. Within Alibaba Cloud, Higress's AI gateway capabilities support core AI applications such as Tongyi Bailian model studio, machine learning PAI platform, and other critical AI services. Alibaba Cloud has built its cloud-native API gateway product based on Higress, providing 99.99% gateway high availability guarantee service capabilities for a large number of enterprise customers.
+
+You can click the button below to install the enterprise version of Higress:
+
+[![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i1/O1CN01e6vwe71EWTHoZEcpK_!!6000000000359-55-tps-170-40.svg)](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
+
+
+If you use open-source Higress and wish to obtain enterprise-level support, you can contact the project maintainer johnlanni's email: **zty98751@alibaba-inc.com** or social media accounts (WeChat ID: **nomadao**, DingTalk ID: **chengtanzty**). Please note **Higress** when adding as a friend :)
 
 ## Summary
 
@@ -75,6 +85,9 @@ Port descriptions:
 > **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
 
 For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
+
+If you are deploying on the cloud, it is recommended to use the [Enterprise Edition](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
+
 
 ## Use Cases
 

@@ -68,8 +68,8 @@ type claudeChatMessageContent struct {
 	Name  string                 `json:"name,omitempty"`  // For tool_use
 	Input map[string]interface{} `json:"input,omitempty"` // For tool_use
 	// Tool result fields
-	ToolUseId string `json:"tool_use_id,omitempty"` // For tool_result
-	Content   string `json:"content,omitempty"`     // For tool_result
+	ToolUseId string                     `json:"tool_use_id,omitempty"` // For tool_result
+	Content   claudeChatMessageContentWr `json:"content,omitempty"`     // For tool_result - can be string or array
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for claudeChatMessageContentWr
@@ -88,6 +88,8 @@ func (ccw *claudeChatMessageContentWr) UnmarshalJSON(data []byte) error {
 		ccw.ArrayValue = arrayValue
 		ccw.IsString = false
 		return nil
+	} else {
+		log.Errorf("claude chat message unmarshal failed, data:%s, err:%v", data, err)
 	}
 
 	return fmt.Errorf("content field must be either a string or an array of content blocks")
@@ -101,12 +103,19 @@ func (ccw claudeChatMessageContentWr) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ccw.ArrayValue)
 }
 
-// GetStringValue returns the string representation if it's a string, empty string otherwise
+// GetStringValue returns the string representation if it's a string, or concatenated text from array blocks
 func (ccw claudeChatMessageContentWr) GetStringValue() string {
 	if ccw.IsString {
 		return ccw.StringValue
 	}
-	return ""
+	// If it's an array, concatenate text content from all blocks
+	var parts []string
+	for _, block := range ccw.ArrayValue {
+		if block.Text != "" {
+			parts = append(parts, block.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 // GetArrayValue returns the array representation if it's an array, empty slice otherwise
@@ -138,7 +147,7 @@ type claudeSystemPrompt struct {
 	// Will be set to the string value if system is a simple string
 	StringValue string
 	// Will be set to the array value if system is an array of text blocks
-	ArrayValue []claudeTextGenContent
+	ArrayValue []claudeChatMessageContent
 	// Indicates which type this represents
 	IsArray bool
 }
@@ -154,7 +163,7 @@ func (csp *claudeSystemPrompt) UnmarshalJSON(data []byte) error {
 	}
 
 	// Try to unmarshal as array of text blocks
-	var arrayValue []claudeTextGenContent
+	var arrayValue []claudeChatMessageContent
 	if err := json.Unmarshal(data, &arrayValue); err == nil {
 		csp.ArrayValue = arrayValue
 		csp.IsArray = true
@@ -196,7 +205,7 @@ type claudeThinkingConfig struct {
 type claudeTextGenRequest struct {
 	Model         string                `json:"model"`
 	Messages      []claudeChatMessage   `json:"messages"`
-	System        claudeSystemPrompt    `json:"system,omitempty"`
+	System        *claudeSystemPrompt   `json:"system,omitempty"`
 	MaxTokens     int                   `json:"max_tokens,omitempty"`
 	StopSequences []string              `json:"stop_sequences,omitempty"`
 	Stream        bool                  `json:"stream,omitempty"`
@@ -232,9 +241,11 @@ type claudeTextGenContent struct {
 }
 
 type claudeTextGenUsage struct {
-	InputTokens  int    `json:"input_tokens,omitempty"`
-	OutputTokens int    `json:"output_tokens,omitempty"`
-	ServiceTier  string `json:"service_tier,omitempty"`
+	InputTokens              int    `json:"input_tokens,omitempty"`
+	OutputTokens             int    `json:"output_tokens,omitempty"`
+	CacheReadInputTokens     int    `json:"cache_read_input_tokens,omitempty"`
+	CacheCreationInputTokens int    `json:"cache_creation_input_tokens,omitempty"`
+	ServiceTier              string `json:"service_tier,omitempty"`
 }
 
 type claudeTextGenError struct {
@@ -254,6 +265,7 @@ type claudeTextGenStreamResponse struct {
 type claudeTextGenDelta struct {
 	Type         string  `json:"type"`
 	Text         string  `json:"text,omitempty"`
+	PartialJson  string  `json:"partial_json,omitempty"`
 	StopReason   *string `json:"stop_reason,omitempty"`
 	StopSequence *string `json:"stop_sequence,omitempty"`
 }
@@ -267,8 +279,9 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (c *claudeProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): PathAnthropicMessages,
-		string(ApiNameCompletion):     PathAnthropicComplete,
+		string(ApiNameChatCompletion):    PathAnthropicMessages,
+		string(ApiNameCompletion):        PathAnthropicComplete,
+		string(ApiNameAnthropicMessages): PathAnthropicMessages,
 		// docs: https://docs.anthropic.com/en/docs/build-with-claude/embeddings#voyage-http-api
 		string(ApiNameEmbeddings): PathOpenAIEmbeddings,
 		string(ApiNameModels):     PathOpenAIModels,
@@ -401,7 +414,7 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 
 	for _, message := range origRequest.Messages {
 		if message.Role == roleSystem {
-			claudeRequest.System = claudeSystemPrompt{
+			claudeRequest.System = &claudeSystemPrompt{
 				StringValue: message.StringContent(),
 				IsArray:     false,
 			}
@@ -622,12 +635,12 @@ func (c *claudeProvider) insertHttpContextMessage(body []byte, content string, o
 
 	systemStr := request.System.String()
 	if systemStr == "" {
-		request.System = claudeSystemPrompt{
+		request.System = &claudeSystemPrompt{
 			StringValue: content,
 			IsArray:     false,
 		}
 	} else {
-		request.System = claudeSystemPrompt{
+		request.System = &claudeSystemPrompt{
 			StringValue: content + "\n" + systemStr,
 			IsArray:     false,
 		}
