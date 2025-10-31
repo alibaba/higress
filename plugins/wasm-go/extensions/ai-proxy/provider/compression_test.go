@@ -6,7 +6,7 @@ import (
 )
 
 func TestCompressContextInRequest(t *testing.T) {
-	// 创建mock配置
+	// Create mock config
 	config := &ProviderConfig{
 		contextCompression: &ContextCompressionConfig{
 			Enabled:                   true,
@@ -15,10 +15,10 @@ func TestCompressContextInRequest(t *testing.T) {
 		},
 	}
 
-	// 创建禁用的内存服务用于测试
+	// Create disabled memory service for testing
 	config.memoryService = &disabledMemoryService{}
 
-	// 创建测试请求
+	// Create test request
 	requestBody := `{
 		"model": "gpt-4",
 		"messages": [
@@ -33,13 +33,13 @@ func TestCompressContextInRequest(t *testing.T) {
 		]
 	}`
 
-	// 测试压缩功能（应该跳过因为服务被禁用）
+	// Test compression functionality (should skip because service is disabled)
 	result, err := config.CompressContextInRequest(nil, []byte(requestBody))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// 验证返回的是原始body
+	// Verify original body is returned
 	if string(result) != requestBody {
 		t.Error("expected original body when service is disabled")
 	}
@@ -95,12 +95,12 @@ func TestInjectMemoryTools(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// 验证工具已注入
+	// Verify tools injected
 	if len(request.Tools) != 2 {
 		t.Errorf("expected 2 tools, got %d", len(request.Tools))
 	}
 
-	// 验证工具名称
+	// Verify tool names
 	hasReadMemory := false
 	hasSaveContext := false
 	for _, tool := range request.Tools {
@@ -125,7 +125,7 @@ func TestHandleMemoryToolCall(t *testing.T) {
 		memoryService: &disabledMemoryService{},
 	}
 
-	// 测试非read_memory调用
+	// Test non-read_memory call
 	otherToolCall := toolCall{
 		Function: functionCall{
 			Name:      "other_tool",
@@ -144,7 +144,7 @@ func TestHandleMemoryToolCall(t *testing.T) {
 		t.Error("expected empty content for non-memory tool call")
 	}
 
-	// 测试read_memory调用
+	// Test read_memory call
 	readMemoryCall := toolCall{
 		Function: functionCall{
 			Name:      MemoryToolReadMemory,
@@ -156,14 +156,14 @@ func TestHandleMemoryToolCall(t *testing.T) {
 	if !isMemoryCall {
 		t.Error("expected true for read_memory tool call")
 	}
-	// 应该返回错误因为服务被禁用
+	// Should return error because service is disabled
 	if err == nil {
 		t.Error("expected error when service is disabled")
 	}
 }
 
 func TestCompressContextFullWorkflow(t *testing.T) {
-	// 创建完整的请求体
+	// Create complete request body
 	request := chatCompletionRequest{
 		Model: "gpt-4",
 		Messages: []chatMessage{
@@ -201,7 +201,7 @@ func TestCompressContextFullWorkflow(t *testing.T) {
 		memoryService: &disabledMemoryService{},
 	}
 
-	// 测试提取压缩的context ID
+	// Test extracting compressed context IDs
 	ids := config.extractCompressedContextIds(request.Messages)
 	if len(ids) != 1 {
 		t.Errorf("expected 1 compressed context ID, got %d", len(ids))
@@ -210,7 +210,7 @@ func TestCompressContextFullWorkflow(t *testing.T) {
 		t.Errorf("expected context ID 'compressed123', got '%s'", ids[0])
 	}
 
-	// 验证请求可以被正确序列化
+	// Verify request can be serialized correctly
 	_, err := json.Marshal(request)
 	if err != nil {
 		t.Fatalf("failed to marshal request: %v", err)
@@ -222,7 +222,7 @@ func TestProcessResponseForMemoryRetrieval(t *testing.T) {
 		memoryService: &disabledMemoryService{},
 	}
 
-	// 测试无工具调用的响应
+	// Test response without tool calls
 	responseNoToolCall := `{
 		"id": "chatcmpl-123",
 		"choices": [
@@ -246,7 +246,7 @@ func TestProcessResponseForMemoryRetrieval(t *testing.T) {
 		t.Error("expected false for response without tool calls")
 	}
 
-	// 测试有read_memory调用的响应
+	// Test response with read_memory call
 	responseWithMemoryCall := `{
 		"id": "chatcmpl-456",
 		"choices": [
@@ -270,9 +270,9 @@ func TestProcessResponseForMemoryRetrieval(t *testing.T) {
 		]
 	}`
 
-	// 这个测试会失败因为服务被禁用，但应该检测到需要检索
+	// This test will fail because service is disabled, but should detect need for retrieval
 	needRetrieval, err = config.ProcessResponseForMemoryRetrieval(nil, []byte(responseWithMemoryCall), requestBody)
-	// 服务禁用时应该返回false
+	// Should return false when service is disabled
 	if needRetrieval {
 		t.Error("expected false when service is disabled")
 	}

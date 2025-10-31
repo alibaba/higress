@@ -25,7 +25,7 @@ const (
 	MemoryToolReadMemory  = "read_memory"
 )
 
-// CompressContextInRequest 在请求中压缩上下文并智能预检索
+// CompressContextInRequest compresses context in request with intelligent pre-retrieval
 func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	if c.memoryService == nil || !c.memoryService.IsEnabled() {
 		return body, nil
@@ -38,7 +38,7 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		return body, fmt.Errorf("failed to unmarshal request: %v", err)
 	}
 
-	// 第一步：检查是否有需要恢复的压缩引用
+	// Step 1: Check if there are compressed references that need to be restored
 	needRetrievalIds := c.extractCompressedContextIds(request.Messages)
 	if len(needRetrievalIds) > 0 {
 		log.Infof("[CompressContext] found %d compressed context references, pre-retrieving...", len(needRetrievalIds))
@@ -47,13 +47,13 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		}
 	}
 
-	// 第二步：查找需要压缩的tool调用结果
+	// Step 2: Find tool call results that need to be compressed
 	compressedIds := make(map[string]string) // message index -> context_id
 	var newMessages []chatMessage
 	totalSavedBytes := 0
 
 	for i, msg := range request.Messages {
-		// 只压缩 tool 或 function 角色的消息
+		// Only compress messages with tool or function role
 		if msg.Role != "tool" && msg.Role != "function" {
 			newMessages = append(newMessages, msg)
 			continue
@@ -62,7 +62,7 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		contentStr := msg.StringContent()
 		contentSize := len(contentStr)
 
-		// 检查是否应该压缩
+		// Check if compression should be applied
 		if redisService, ok := c.memoryService.(*redisMemoryService); ok {
 			if !redisService.ShouldCompress(contentSize) {
 				log.Debugf("[CompressContext] skipping message %d, size %d below threshold", i, contentSize)
@@ -71,7 +71,7 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 			}
 		}
 
-		// 保存上下文到Redis
+		// Save context to Redis
 		contextId, err := c.memoryService.SaveContext(ctx, contentStr)
 		if err != nil {
 			log.Errorf("[CompressContext] failed to save context for message %d: %v", i, err)
@@ -79,7 +79,7 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 			continue
 		}
 
-		// 替换消息内容为上下文引用
+		// Replace message content with context reference
 		compressedMsg := chatMessage{
 			Role:    msg.Role,
 			Content: fmt.Sprintf("[Context stored with ID: %s]", contextId),
@@ -104,24 +104,24 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		return body, nil
 	}
 
-	// 存储压缩的上下文ID以供后续使用
+	// Store compressed context IDs for later use
 	if len(compressedIds) > 0 {
 		ctx.SetContext(ctxKeyCompressedContextIds, compressedIds)
 		ctx.SetContext(ctxKeyCompressionEnabled, true)
 		log.Infof("[CompressContext] total saved bytes: %d, compressed %d messages", totalSavedBytes, len(compressedIds))
 	}
 
-	// 更新request的messages
+	// Update request messages
 	request.Messages = newMessages
 
-	// 注入内存工具定义
+	// Inject memory tool definitions
 	if err := c.InjectMemoryTools(request); err != nil {
 		log.Warnf("[CompressContext] failed to inject memory tools: %v", err)
 	} else {
 		ctx.SetContext(ctxKeyMemoryToolInjected, true)
 	}
 
-	// 重新序列化请求
+	// Re-serialize request
 	modifiedBody, err := json.Marshal(request)
 	if err != nil {
 		return body, fmt.Errorf("failed to marshal modified request: %v", err)
@@ -130,9 +130,9 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 	return modifiedBody, nil
 }
 
-// InjectMemoryTools 注入内存管理工具定义
+// InjectMemoryTools injects memory management tool definitions
 func (c *ProviderConfig) InjectMemoryTools(request *chatCompletionRequest) error {
-	// 定义 save_context 工具
+	// Define save_context tool
 	saveContextTool := tool{
 		Type: "function",
 		Function: function{
@@ -151,7 +151,7 @@ func (c *ProviderConfig) InjectMemoryTools(request *chatCompletionRequest) error
 		},
 	}
 
-	// 定义 read_memory 工具
+	// Define read_memory tool
 	readMemoryTool := tool{
 		Type: "function",
 		Function: function{
@@ -170,12 +170,12 @@ func (c *ProviderConfig) InjectMemoryTools(request *chatCompletionRequest) error
 		},
 	}
 
-	// 将工具添加到请求中
+	// Add tools to request
 	if request.Tools == nil {
 		request.Tools = make([]tool, 0)
 	}
 
-	// 检查工具是否已存在
+	// Check if tools already exist
 	hasReadMemory := false
 	for _, t := range request.Tools {
 		if t.Function.Name == MemoryToolReadMemory {
@@ -192,7 +192,7 @@ func (c *ProviderConfig) InjectMemoryTools(request *chatCompletionRequest) error
 	return nil
 }
 
-// HandleMemoryToolCall 处理LLM返回的内存工具调用
+// HandleMemoryToolCall handles memory tool calls returned by LLM
 func (c *ProviderConfig) HandleMemoryToolCall(ctx wrapper.HttpContext, toolCall toolCall) (string, bool, error) {
 	if toolCall.Function.Name != MemoryToolReadMemory {
 		return "", false, nil
@@ -200,14 +200,14 @@ func (c *ProviderConfig) HandleMemoryToolCall(ctx wrapper.HttpContext, toolCall 
 
 	log.Debugf("[HandleMemoryToolCall] detected read_memory call: %s", toolCall.Function.Arguments)
 
-	// 解析参数获取context_id
+	// Parse arguments to get context_id
 	args := gjson.Parse(toolCall.Function.Arguments)
 	contextId := args.Get("context_id").String()
 	if contextId == "" {
 		return "", true, fmt.Errorf("missing context_id in read_memory call")
 	}
 
-	// 从Redis读取上下文
+	// Read context from Redis
 	content, err := c.memoryService.ReadContext(ctx, contextId)
 	if err != nil {
 		return "", true, fmt.Errorf("failed to read context %s: %v", contextId, err)
@@ -217,18 +217,18 @@ func (c *ProviderConfig) HandleMemoryToolCall(ctx wrapper.HttpContext, toolCall 
 	return content, true, nil
 }
 
-// GetMemoryService 获取内存服务
+// GetMemoryService returns the memory service
 func (c *ProviderConfig) GetMemoryService() MemoryService {
 	return c.memoryService
 }
 
-// IsCompressionEnabled 检查压缩是否启用
+// IsCompressionEnabled checks if compression is enabled
 func (c *ProviderConfig) IsCompressionEnabled() bool {
 	return c.memoryService != nil && c.memoryService.IsEnabled()
 }
 
-// ProcessResponseForMemoryRetrieval 处理需要自动检索内存的响应
-// 这是生产级实现：检测到read_memory调用后，触发异步重新请求
+// ProcessResponseForMemoryRetrieval processes responses that require automatic memory retrieval
+// Production-grade implementation: triggers async re-request when read_memory call is detected
 func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 	ctx wrapper.HttpContext,
 	body []byte,
@@ -243,7 +243,7 @@ func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 		return false, fmt.Errorf("failed to unmarshal response: %v", err)
 	}
 
-	// 检查是否有 read_memory 工具调用
+	// Check for read_memory tool calls
 	var memoryToolCalls []toolCall
 	for _, choice := range response.Choices {
 		if choice.Message != nil {
@@ -261,7 +261,7 @@ func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 
 	log.Infof("[ProcessResponseForMemoryRetrieval] detected %d read_memory calls, initiating auto-retrieval", len(memoryToolCalls))
 
-	// 存储助手的工具调用消息
+	// Store assistant's tool call message
 	assistantMsg := chatMessage{
 		Role:      roleAssistant,
 		ToolCalls: response.Choices[0].Message.ToolCalls,
@@ -270,7 +270,7 @@ func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 		assistantMsg.Content = response.Choices[0].Message.Content
 	}
 
-	// 批量检索上下文
+	// Batch retrieve contexts
 	toolResponses := make([]chatMessage, 0, len(memoryToolCalls))
 	for _, toolCall := range memoryToolCalls {
 		args := gjson.Parse(toolCall.Function.Arguments)
@@ -280,40 +280,40 @@ func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 			continue
 		}
 
-		// 从Redis读取上下文
+		// Read context from Redis
 		content, err := c.memoryService.ReadContext(ctx, contextId)
 		if err != nil {
 			log.Errorf("[ProcessResponseForMemoryRetrieval] failed to retrieve context %s: %v", contextId, err)
 			content = fmt.Sprintf("Error: Failed to retrieve context %s", contextId)
 		}
 
-		// 构建工具响应消息
+		// Build tool response message
 		toolMsg := chatMessage{
 			Role:    "tool",
 			Content: content,
-			Id:      toolCall.Id, // 使用Id字段关联工具调用
+			Id:      toolCall.Id, // Use Id field to associate with tool call
 		}
 		toolResponses = append(toolResponses, toolMsg)
 		log.Infof("[ProcessResponseForMemoryRetrieval] retrieved context %s, length: %d", contextId, len(content))
 	}
 
-	// 构建新请求
+	// Build new request
 	request := &chatCompletionRequest{}
 	if err := json.Unmarshal(originalRequestBody, request); err != nil {
 		return false, fmt.Errorf("failed to unmarshal original request: %v", err)
 	}
 
-	// 添加助手消息和工具响应
+	// Add assistant message and tool responses
 	request.Messages = append(request.Messages, assistantMsg)
 	request.Messages = append(request.Messages, toolResponses...)
 
-	// 序列化新请求
+	// Serialize new request
 	newRequestBody, err := json.Marshal(request)
 	if err != nil {
 		return false, fmt.Errorf("failed to marshal new request: %v", err)
 	}
 
-	// 存储新请求体以供重新请求使用
+	// Store new request body for re-request use
 	ctx.SetContext(ctxKeyReRequestBody, newRequestBody)
 	ctx.SetContext(ctxKeyNeedAutoRetrieve, true)
 
@@ -321,14 +321,14 @@ func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 	return true, nil
 }
 
-// extractCompressedContextIds 从消息中提取压缩的上下文ID引用
+// extractCompressedContextIds extracts compressed context ID references from messages
 func (c *ProviderConfig) extractCompressedContextIds(messages []chatMessage) []string {
 	var contextIds []string
 	pattern := "[Context stored with ID: "
 
 	for _, msg := range messages {
 		content := msg.StringContent()
-		// 查找压缩引用模式
+		// Find compressed reference pattern
 		if idx := strings.Index(content, pattern); idx != -1 {
 			start := idx + len(pattern)
 			end := strings.Index(content[start:], "]")
@@ -343,9 +343,9 @@ func (c *ProviderConfig) extractCompressedContextIds(messages []chatMessage) []s
 	return contextIds
 }
 
-// preRetrieveContexts 预先检索压缩的上下文并恢复到消息中
+// preRetrieveContexts pre-retrieves compressed contexts and restores them to messages
 func (c *ProviderConfig) preRetrieveContexts(ctx wrapper.HttpContext, request *chatCompletionRequest, contextIds []string) error {
-	// 批量检索上下文
+	// Batch retrieve contexts
 	contextMap := make(map[string]string)
 	for _, contextId := range contextIds {
 		content, err := c.memoryService.ReadContext(ctx, contextId)
@@ -357,7 +357,7 @@ func (c *ProviderConfig) preRetrieveContexts(ctx wrapper.HttpContext, request *c
 		log.Infof("[preRetrieveContexts] retrieved context %s, length: %d", contextId, len(content))
 	}
 
-	// 恢复消息内容
+	// Restore message content
 	for i := range request.Messages {
 		content := request.Messages[i].StringContent()
 		pattern := "[Context stored with ID: "
@@ -368,7 +368,7 @@ func (c *ProviderConfig) preRetrieveContexts(ctx wrapper.HttpContext, request *c
 			if end != -1 {
 				contextId := content[start : start+end]
 				if retrievedContent, ok := contextMap[contextId]; ok {
-					// 恢复原始内容
+					// Restore original content
 					request.Messages[i].Content = retrievedContent
 					log.Infof("[preRetrieveContexts] restored message %d with context %s", i, contextId)
 				}
