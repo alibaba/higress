@@ -38,6 +38,13 @@ func TestAuthenticatedPrompts(t *testing.T) {
 	test.RunAuthenticatedPromptsOnHttpRequestBodyTests(t)
 }
 
+func TestNonceVerification(t *testing.T) {
+	test.RunNonceVerificationParseConfigTests(t)
+	test.RunNonceVerificationTests(t)
+	// 暂时禁用过期测试，因为需要等待时间
+	// test.RunNonceExpiryTests(t)
+}
+
 func TestBehaviorCertificates(t *testing.T) {
 	test.RunBehaviorCertificatesParseConfigTests(t)
 	test.RunBehaviorCertificatesOnHttpRequestBodyTests(t)

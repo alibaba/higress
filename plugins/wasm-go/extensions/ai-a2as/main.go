@@ -38,6 +38,20 @@ const (
 	metricA2ASBoundariesApplied           = "a2as_security_boundaries_applied"
 	metricA2ASDefensesInjected            = "a2as_defenses_injected"
 	metricA2ASPoliciesInjected            = "a2as_policies_injected"
+
+	// Nonce验证指标
+	metricA2ASNonceVerificationSuccess = "a2as_nonce_verification_success"
+	metricA2ASNonceVerificationFailed  = "a2as_nonce_verification_failed"
+	metricA2ASNonceReplayDetected      = "a2as_nonce_replay_detected"
+	metricA2ASNonceStoreSize           = "a2as_nonce_store_size"
+
+	// 密钥轮换指标
+	metricA2ASKeyRotationAttempts = "a2as_key_rotation_attempts"
+	metricA2ASActiveKeysCount     = "a2as_active_keys_count"
+
+	// 审计日志指标
+	metricA2ASAuditEventsTotal   = "a2as_audit_events_total"
+	metricA2ASAuditEventsDropped = "a2as_audit_events_dropped"
 )
 
 func main() {}
@@ -72,8 +86,21 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 		if config.AuthenticatedPrompts.MaxRequestBodySize > 0 {
 			maxRequestBodySize = config.AuthenticatedPrompts.MaxRequestBodySize
 		}
+
+		if len(config.AuthenticatedPrompts.SecretKeys) > 0 {
+			config.incrementMetric(metricA2ASKeyRotationAttempts, 1)
+			activeKeysCount := 0
+			for _, key := range config.AuthenticatedPrompts.SecretKeys {
+				if key.Status != "deprecated" {
+					activeKeysCount++
+				}
+			}
+			config.setGaugeMetric(metricA2ASActiveKeysCount, uint64(activeKeysCount))
+		}
+
 		if err := verifySignature(config.AuthenticatedPrompts, maxRequestBodySize); err != nil {
 			log.Errorf("[A2AS] Signature verification failed: %v", err)
+			config.logSignatureVerificationFailure(config.AuthenticatedPrompts.Mode, err.Error())
 			config.incrementMetric(metricA2ASSignatureVerificationFailed, 1)
 			_ = proxywasm.SendHttpResponse(403, [][2]string{
 				{"content-type", "application/json"},
@@ -81,6 +108,27 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 			return types.ActionPause
 		}
 		log.Debugf("[A2AS] Signature verification passed")
+		config.logSignatureVerificationSuccess(config.AuthenticatedPrompts.Mode)
+
+		if err := config.verifyNonce(config.AuthenticatedPrompts); err != nil {
+			log.Errorf("[A2AS] Nonce verification failed: %v", err)
+			config.incrementMetric(metricA2ASNonceVerificationFailed, 1)
+
+			if strings.Contains(err.Error(), "replay detected") {
+				config.incrementMetric(metricA2ASNonceReplayDetected, 1)
+			}
+
+			config.logAuditEvent("NonceVerification", "warn", fmt.Sprintf("Nonce verification failed: %v", err), nil)
+			_ = proxywasm.SendHttpResponse(403, [][2]string{
+				{"content-type", "application/json"},
+			}, []byte(`{"error":"unauthorized","message":"Invalid or replay nonce detected"}`), -1)
+			return types.ActionPause
+		}
+		if config.AuthenticatedPrompts.EnableNonceVerification {
+			log.Debugf("[A2AS] Nonce verification passed")
+			config.incrementMetric(metricA2ASNonceVerificationSuccess, 1)
+			config.logAuditEvent("NonceVerification", "info", "Nonce verification passed", nil)
+		}
 	}
 
 	if !isChatCompletionRequest(body) {
@@ -99,6 +147,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 	if config.BehaviorCertificates.Enabled {
 		if denied, tool := checkToolPermissions(config.BehaviorCertificates, modifiedBody); denied {
 			log.Warnf("[A2AS] Tool call denied by behavior certificate: %s", tool)
+			config.logToolCallDenied(tool, "Not permitted by behavior certificate")
 			config.incrementMetric(metricA2ASToolCallDenied, 1)
 			_ = proxywasm.SendHttpResponse(403, [][2]string{
 				{"content-type", "application/json"},
@@ -139,6 +188,7 @@ func applyA2ASTransformations(config A2ASConfig, body []byte) ([]byte, error) {
 		}
 		newMessages = append(newMessages, defenseMsg)
 		config.incrementMetric(metricA2ASDefensesInjected, 1)
+		config.logDefenseInjection("as_system")
 		log.Debugf("[A2AS] Added in-context defense as system message")
 	}
 
@@ -149,6 +199,7 @@ func applyA2ASTransformations(config A2ASConfig, body []byte) ([]byte, error) {
 		}
 		newMessages = append(newMessages, policyMsg)
 		config.incrementMetric(metricA2ASPoliciesInjected, 1)
+		config.logPolicyInjection(len(config.CodifiedPolicies.Policies), "as_system")
 		log.Debugf("[A2AS] Added %d codified policies as system message", len(config.CodifiedPolicies.Policies))
 	}
 
@@ -162,6 +213,12 @@ func applyA2ASTransformations(config A2ASConfig, body []byte) ([]byte, error) {
 		if config.SecurityBoundaries.Enabled {
 			message = applySecurityBoundaries(config.SecurityBoundaries, message)
 			boundariesApplied = true
+			if role, ok := message["role"].(string); ok {
+				tagType := getTagType(role, config.SecurityBoundaries)
+				if tagType != "" {
+					config.logSecurityBoundariesApplied(role, tagType)
+				}
+			}
 		}
 
 		newMessages = append(newMessages, message)
@@ -173,11 +230,13 @@ func applyA2ASTransformations(config A2ASConfig, body []byte) ([]byte, error) {
 
 	if config.InContextDefenses.Enabled && config.InContextDefenses.Position == "before_user" {
 		newMessages = insertBeforeUserMessages(newMessages, BuildDefenseBlock(config.InContextDefenses.Template))
+		config.logDefenseInjection("before_user")
 		log.Debugf("[A2AS] Inserted in-context defense before user messages")
 	}
 
 	if config.CodifiedPolicies.Enabled && config.CodifiedPolicies.Position == "before_user" && len(config.CodifiedPolicies.Policies) > 0 {
 		newMessages = insertBeforeUserMessages(newMessages, BuildPolicyBlock(config.CodifiedPolicies.Policies))
+		config.logPolicyInjection(len(config.CodifiedPolicies.Policies), "before_user")
 		log.Debugf("[A2AS] Inserted codified policies before user messages")
 	}
 
@@ -393,8 +452,8 @@ func verifySimpleSignature(config AuthenticatedPromptsConfig, maxBodySize int) e
 		return fmt.Errorf("missing signature header '%s'", config.SignatureHeader)
 	}
 
-	if config.SharedSecret == "" {
-		log.Warnf("[A2AS] Signature header present but no sharedSecret configured, skipping verification")
+	if len(config.SecretKeys) == 0 && config.SharedSecret == "" {
+		log.Warnf("[A2AS] Signature header present but no secret configured, skipping verification")
 		return nil
 	}
 
@@ -403,9 +462,33 @@ func verifySimpleSignature(config AuthenticatedPromptsConfig, maxBodySize int) e
 		return fmt.Errorf("failed to get request body for signature verification: %v", err)
 	}
 
-	secretBytes, err := base64.StdEncoding.DecodeString(config.SharedSecret)
+	if len(config.SecretKeys) > 0 {
+		for _, key := range config.SecretKeys {
+			if key.Status == "deprecated" {
+				continue
+			}
+			if verifyWithSecret(body, signatureHeader, key.Secret, key.KeyID) {
+				log.Debugf("[A2AS] Signature verification passed with key: %s", key.KeyID)
+				return nil
+			}
+		}
+		log.Errorf("[A2AS] Signature verification failed with all configured keys")
+		return fmt.Errorf("invalid signature: no matching key found")
+	}
+
+	if verifyWithSecret(body, signatureHeader, config.SharedSecret, "default") {
+		log.Debugf("[A2AS] Signature verification passed")
+		return nil
+	}
+
+	log.Errorf("[A2AS] Signature verification failed")
+	return fmt.Errorf("invalid signature")
+}
+
+func verifyWithSecret(body []byte, signature, secret, keyID string) bool {
+	secretBytes, err := base64.StdEncoding.DecodeString(secret)
 	if err != nil {
-		secretBytes = []byte(config.SharedSecret)
+		secretBytes = []byte(secret)
 	}
 
 	mac := hmac.New(sha256.New, secretBytes)
@@ -413,11 +496,23 @@ func verifySimpleSignature(config AuthenticatedPromptsConfig, maxBodySize int) e
 	expectedSignature := hex.EncodeToString(mac.Sum(nil))
 	expectedSignatureBase64 := base64.StdEncoding.EncodeToString(mac.Sum(nil))
 
-	if signatureHeader != expectedSignature && signatureHeader != expectedSignatureBase64 {
-		log.Errorf("[A2AS] Signature verification failed")
-		return fmt.Errorf("invalid signature")
-	}
+	return signature == expectedSignature || signature == expectedSignatureBase64
+}
 
-	log.Debugf("[A2AS] Signature verification passed")
-	return nil
+func getTagType(role string, config SecurityBoundariesConfig) string {
+	switch role {
+	case "user":
+		if config.WrapUserMessages {
+			return "user"
+		}
+	case "system":
+		if config.WrapSystemMessages {
+			return "system"
+		}
+	case "tool", "function":
+		if config.WrapToolOutputs {
+			return "tool"
+		}
+	}
+	return ""
 }

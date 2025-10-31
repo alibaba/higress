@@ -132,10 +132,10 @@ func TestMatchesPatternAdditional(t *testing.T) {
 		{"", "anything", false},
 		{"test", "", false},
 		{"*", "", true},
-		
+
 		// Multiple wildcards (should not match - only single wildcard supported)
 		{"*_test_*", "prefix_test_suffix", false},
-		
+
 		// Case sensitivity
 		{"Read_*", "read_email", false},
 		{"read_*", "Read_Email", false},

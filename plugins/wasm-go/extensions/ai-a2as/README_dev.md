@@ -39,17 +39,36 @@ go test -v .
 运行特定测试套件：
 
 ```bash
+# 认证提示测试
 go test -v . -run TestAuthenticatedPrompts
+
+# 安全边界测试
 go test -v . -run TestSecurityBoundaries
+
+# 行为证书测试
 go test -v . -run TestBehaviorCertificates
+
+# Nonce 验证集成测试（v1.2.0+）
+go test -v . -run TestNonceVerification
+
+# Nonce 单元测试（v1.2.0+）
+go test -v . -run TestNonceStore
+go test -v . -run TestNonceLength
 ```
 
 生成测试覆盖率报告：
 
 ```bash
-go test -v -coverprofile=coverage.out .
+go test -v -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out -o coverage.html
 ```
+
+## 测试覆盖率统计 (v1.2.0)
+
+- **单元测试**: 7 个（Nonce 存储逻辑）
+- **集成测试**: 14 个（完整的 Nonce 验证流程）
+- **总测试用例**: 21 个
+- **测试模式**: Go 模式 + WASM 模式（双模式验证）
 
 ## 测试须知
 

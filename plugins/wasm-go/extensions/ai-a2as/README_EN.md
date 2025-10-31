@@ -140,8 +140,40 @@ Cryptographic signature verification for all prompts to ensure integrity and ena
 | `authenticatedPrompts.rfc9421.maxAge` | int | No | 300 | Maximum signature age (seconds) |
 | `authenticatedPrompts.rfc9421.enforceExpires` | bool | No | true | Enforce expires parameter validation |
 | `authenticatedPrompts.rfc9421.requireContentDigest` | bool | No | true | Require Content-Digest header |
+| `authenticatedPrompts.maxRequestBodySize` | int | No | - | Maximum request body size for this feature (bytes), uses global `maxRequestBodySize` if not set |
 
-*Required when `enabled=true` and `allowUnsigned=false`
+**🔐 Nonce Verification Configuration (Replay Attack Prevention)** (v1.2.0+):
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `authenticatedPrompts.enableNonceVerification` | bool | No | false | Enable nonce verification |
+| `authenticatedPrompts.nonceHeader` | string | No | "X-A2AS-Nonce" | Nonce request header name |
+| `authenticatedPrompts.nonceExpiry` | int | No | 300 | Nonce expiry time (seconds) |
+| `authenticatedPrompts.nonceMinLength` | int | No | 16 | Minimum nonce length (characters) |
+
+**🔄 Key Rotation Configuration** (v1.2.0+):
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `authenticatedPrompts.secretKeys` | array | No | [] | Key list (supports multi-key verification and rotation) |
+| `authenticatedPrompts.secretKeys[].keyId` | string | Yes | - | Unique key identifier |
+| `authenticatedPrompts.secretKeys[].secret` | string | Yes | - | Key value (base64 or raw string) |
+| `authenticatedPrompts.secretKeys[].isPrimary` | bool | No | false | Whether this is the primary key (for signing) |
+| `authenticatedPrompts.secretKeys[].status` | string | No | "active" | Key status: active, deprecated, revoked |
+
+**📋 Audit Log Configuration** (v1.2.0+):
+
+| Name | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `auditLog.enabled` | bool | No | false | Enable audit logging |
+| `auditLog.level` | string | No | "info" | Log level: debug, info, warn, error |
+| `auditLog.logSuccessEvents` | bool | No | true | Log success events |
+| `auditLog.logFailureEvents` | bool | No | true | Log failure events |
+| `auditLog.logToolCalls` | bool | No | false | Log tool calls |
+| `auditLog.logBoundaryApplication` | bool | No | false | Log security boundary application |
+| `auditLog.includeRequestDetails` | bool | No | false | Include request details |
+
+*Required when `enabled=true` and `allowUnsigned=false`: `sharedSecret` or `secretKeys`
 
 #### Simple Mode Signature Example
 
@@ -196,6 +228,155 @@ curl -X POST https://your-gateway/v1/chat/completions \
 - ✅ Rotate `sharedSecret` regularly
 - ✅ Use strong random keys (at least 32 bytes)
 - ✅ Enable `Content-Digest` validation in RFC 9421 mode
+- 🔐 Enable Nonce verification to prevent replay attacks
+- 🔄 Use key rotation for zero-downtime key updates
+
+#### Nonce Verification Example (Replay Attack Prevention)
+
+**Basic Configuration**:
+```yaml
+authenticatedPrompts:
+  enabled: true
+  mode: simple
+  sharedSecret: "your-shared-secret"
+  enableNonceVerification: true
+  nonceHeader: "X-A2AS-Nonce"
+  nonceExpiry: 300  # Nonce expires after 5 minutes
+  nonceMinLength: 16  # Minimum 16 characters
+```
+
+**Client Request Example**:
+```bash
+# Generate unique nonce (recommended: UUID or random string)
+NONCE=$(uuidgen)  # Or: NONCE=$(openssl rand -hex 16)
+
+# Calculate signature
+BODY='{"messages":[{"role":"user","content":"test"}]}'
+SECRET="your-shared-secret"
+SIGNATURE=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | cut -d' ' -f2)
+
+# Send request with nonce
+curl -X POST https://your-gateway/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Signature: $SIGNATURE" \
+  -H "X-A2AS-Nonce: $NONCE" \
+  -d "$BODY"
+```
+
+**Nonce Verification Flow**:
+1. ✅ Client generates unique nonce (different for each request)
+2. ✅ Plugin validates nonce length ≥ `nonceMinLength`
+3. ✅ Plugin checks if nonce has been used (anti-replay)
+4. ✅ Plugin stores nonce for `nonceExpiry` seconds
+5. ❌ Duplicate nonce is rejected (403 Forbidden)
+
+**Error Example - Replay Attack Blocked**:
+```bash
+# First request - Success
+curl -X POST https://your-gateway/v1/chat/completions \
+  -H "X-A2AS-Nonce: nonce-12345678901234" \
+  -H "Signature: xxx" \
+  -d "$BODY"
+# Response: 200 OK
+
+# Second request with same nonce - Rejected
+curl -X POST https://your-gateway/v1/chat/completions \
+  -H "X-A2AS-Nonce: nonce-12345678901234" \
+  -H "Signature: xxx" \
+  -d "$BODY"
+# Response: 403 Forbidden
+# {"error":"unauthorized","message":"Invalid or replay nonce detected"}
+```
+
+#### Key Rotation Example (Zero-Downtime Updates)
+
+**Scenario**: Need to replace keys without service interruption
+
+**Step 1: Add new key (dual-key coexistence)**
+```yaml
+authenticatedPrompts:
+  enabled: true
+  mode: simple
+  # Old method (backward compatible)
+  sharedSecret: "old-secret-key"
+  
+  # New method: Multi-key support
+  secretKeys:
+    - keyId: "key-2025-01"  # Old key
+      secret: "old-secret-key"
+      isPrimary: false
+      status: "deprecated"  # Mark as to-be-deprecated
+    
+    - keyId: "key-2025-02"  # New key
+      secret: "new-secret-key"
+      isPrimary: true  # Set as primary
+      status: "active"
+```
+
+**Step 2: Clients gradually migrate to new key**
+- Old clients continue using `old-secret-key` ✅ Still valid
+- New clients start using `new-secret-key` ✅ Also valid
+- Plugin tries all `active` and `deprecated` status keys
+
+**Step 3: Revoke old key (after all clients migrated)**
+```yaml
+secretKeys:
+  - keyId: "key-2025-01"
+    secret: "old-secret-key"
+    status: "revoked"  # Revoke old key, no longer verified
+  
+  - keyId: "key-2025-02"
+    secret: "new-secret-key"
+    isPrimary: true
+    status: "active"
+```
+
+**Key Status Description**:
+- `active`: Active key, used for verification
+- `deprecated`: To-be-deprecated, still verifies but migration recommended
+- `revoked`: Revoked, no longer verified (directly rejected)
+
+#### Audit Log Example
+
+**Configuration to enable audit logging**:
+```yaml
+auditLog:
+  enabled: true
+  level: info
+  logSuccessEvents: true  # Log successful signature verifications
+  logFailureEvents: true  # Log failed verifications
+  logToolCalls: true      # Log tool calls
+  logBoundaryApplication: true  # Log security boundary applications
+  includeRequestDetails: false  # Don't include sensitive request details
+```
+
+**Audit Log Output Examples**:
+```json
+{
+  "time": "2025-01-30T10:15:30Z",
+  "level": "info",
+  "event": "SignatureVerificationSuccess",
+  "message": "Signature verified successfully",
+  "keyId": "key-2025-02",
+  "consumer": "app-client-001"
+}
+
+{
+  "time": "2025-01-30T10:16:45Z",
+  "level": "warn",
+  "event": "NonceReplayDetected",
+  "message": "Nonce replay detected: nonce 'xxx' has already been used",
+  "nonce": "nonce-12345678901234"
+}
+
+{
+  "time": "2025-01-30T10:17:20Z",
+  "level": "error",
+  "event": "SignatureVerificationFailed",
+  "message": "Signature verification failed: invalid signature",
+  "reason": "HMAC mismatch"
+}
+```
 
 ### Behavior Certificates (B)
 
@@ -515,6 +696,8 @@ inContextDefenses:
 
 The ai-a2as plugin provides the following metrics:
 
+### Base Metrics
+
 | Metric Name | Type | Description |
 |-------------|------|-------------|
 | `a2as_requests_total` | Counter | Total number of requests processed |
@@ -523,6 +706,29 @@ The ai-a2as plugin provides the following metrics:
 | `a2as_security_boundaries_applied` | Counter | Number of times security boundaries were applied |
 | `a2as_defenses_injected` | Counter | Number of times defenses were injected |
 | `a2as_policies_injected` | Counter | Number of times policies were injected |
+
+### Nonce Verification Metrics (v1.2.0+)
+
+| Metric Name | Type | Description |
+|-------------|------|-------------|
+| `a2as_nonce_verification_success` | Counter | Number of successful nonce verifications |
+| `a2as_nonce_verification_failed` | Counter | Number of failed nonce verifications |
+| `a2as_nonce_replay_detected` | Counter | Number of replay attacks detected |
+| `a2as_nonce_store_size` | Gauge | Current nonce store size |
+
+### Key Rotation Metrics (v1.2.0+)
+
+| Metric Name | Type | Description |
+|-------------|------|-------------|
+| `a2as_key_rotation_attempts` | Counter | Number of key rotation attempts |
+| `a2as_active_keys_count` | Gauge | Current number of active keys |
+
+### Audit Log Metrics (v1.2.0+)
+
+| Metric Name | Type | Description |
+|-------------|------|-------------|
+| `a2as_audit_events_total` | Counter | Total number of audit events |
+| `a2as_audit_events_dropped` | Counter | Number of dropped audit events |
 
 **Example Prometheus Queries**:
 
@@ -535,6 +741,46 @@ rate(a2as_tool_call_denied[5m]) / rate(a2as_requests_total[5m])
 
 # Security boundaries application rate
 sum(rate(a2as_security_boundaries_applied[5m]))
+
+# Nonce replay attack detection rate (important security metric) ⚠️
+rate(a2as_nonce_replay_detected[5m])
+
+# Nonce verification failure rate
+rate(a2as_nonce_verification_failed[5m]) / rate(a2as_requests_total[5m])
+
+# Nonce store size monitoring
+a2as_nonce_store_size
+
+# Key rotation activity
+rate(a2as_key_rotation_attempts[1h])
+
+# Active keys count
+a2as_active_keys_count
+
+# Audit event drop rate (should be close to 0)
+rate(a2as_audit_events_dropped[5m]) / rate(a2as_audit_events_total[5m])
+```
+
+**Recommended Grafana Dashboard Panels**:
+
+1. **Security Overview**
+   - Total requests trend
+   - Signature verification failure rate
+   - Replay attack detection count ⚠️
+   - Tool call denial rate
+
+2. **Nonce Verification**
+   - Nonce verification success/failure trend
+   - Replay attack detection heatmap
+   - Nonce store size
+
+3. **Key Management**
+   - Active keys count
+   - Key rotation activity
+
+4. **Audit Logs**
+   - Total audit events
+   - Audit event drop rate (alert threshold: > 1%)
 ```
 
 ## Troubleshooting
@@ -566,6 +812,106 @@ sum(rate(a2as_security_boundaries_applied[5m]))
 2. Check if LLM supports XML tags (GPT-4, Claude, etc. all support them)
 3. Use with `inContextDefenses` to explicitly tell LLM about tag meanings
 
+### Nonce Verification Failed
+
+**Problem**: Receiving 403 response with "Invalid or replay nonce detected"
+
+**Possible Causes and Solutions**:
+
+1. **Nonce too short**
+   - Error: `nonce too short (minimum X characters)`
+   - Solution: Ensure nonce length ≥ `nonceMinLength` (default 16)
+   - Recommendation: Use UUID (36 chars) or `openssl rand -hex 16` (32 chars)
+
+2. **Missing nonce**
+   - Error: `missing nonce header 'X-A2AS-Nonce'`
+   - Solution: Check if request includes correct nonce header
+   - Note: Header name configurable via `nonceHeader`
+
+3. **Replay attack detected**
+   - Error: `nonce replay detected: nonce 'xxx' has already been used`
+   - Cause: Using a previously used nonce
+   - Solution: **Each request must use a unique nonce**
+   - Debug: Check if client is correctly generating new nonces
+
+4. **Nonce expired**
+   - Nonces are auto-deleted from storage after expiry and can be reused
+   - Default expiry: 300 seconds (5 minutes)
+   - Configurable via `nonceExpiry`
+
+**Debug Example**:
+```bash
+# Correct: Use new nonce for each request
+for i in {1..3}; do
+  NONCE=$(uuidgen)
+  echo "Request $i with Nonce: $NONCE"
+  curl -H "X-A2AS-Nonce: $NONCE" ...
+done
+
+# Wrong: Reusing same nonce
+NONCE="fixed-nonce-12345678"  # ❌ Wrong!
+for i in {1..3}; do
+  curl -H "X-A2AS-Nonce: $NONCE" ...  # 2nd and 3rd requests will fail
+done
+```
+
+### Key Rotation Issues
+
+**Problem**: Some clients fail verification after changing keys
+
+**Solution**:
+
+1. **Progressive rotation process**
+   ```yaml
+   # Step 1: Add new key (dual-key coexistence)
+   secretKeys:
+     - keyId: "old-key"
+       secret: "old-secret"
+       status: "deprecated"  # Mark as to-be-deprecated
+     - keyId: "new-key"
+       secret: "new-secret"
+       status: "active"       # New key
+   
+   # Step 2: Wait for all clients to migrate to new key
+   # Monitor metric: a2as_key_rotation_attempts
+   
+   # Step 3: Revoke old key
+   secretKeys:
+     - keyId: "old-key"
+       status: "revoked"      # No longer verified
+     - keyId: "new-key"
+       status: "active"
+   ```
+
+2. **Verify key status**
+   - Check `a2as_active_keys_count` metric
+   - Ensure at least one `active` status key
+   - `revoked` status keys won't participate in verification
+
+3. **Compatibility**
+   - `secretKeys` and `sharedSecret` can be used together
+   - `secretKeys` has higher priority
+   - Recommend migrating to `secretKeys` for rotation support
+
+### Audit Log Loss
+
+**Problem**: `a2as_audit_events_dropped` metric increasing
+
+**Causes**:
+- Log system overload
+- Log level too verbose
+- Buffer full
+
+**Solutions**:
+1. Adjust log level: `info` → `warn` → `error`
+2. Disable unnecessary logs:
+   ```yaml
+   auditLog:
+     logSuccessEvents: false  # Only log failures
+     logBoundaryApplication: false  # Don't log boundary applications
+   ```
+3. Monitor and alert: `rate(a2as_audit_events_dropped[5m]) > 0`
+
 ## Future Enhancements
 
 ### MCP (Model Context Protocol) Integration
@@ -583,11 +929,33 @@ sum(rate(a2as_security_boundaries_applied[5m]))
 
 ## Version History
 
+- **v1.2.0** (2025-01): Security Enhancement Release 🔐
+  - ✅ **Nonce Verification**: Replay Attack Prevention
+    - Configurable nonce header, expiry time, and minimum length
+    - Automatic nonce storage and expiry cleanup
+    - Real-time replay attack detection and blocking
+  - ✅ **Key Rotation**: Zero-downtime key updates
+    - Support for multi-key coexistence verification
+    - Key status management (active, deprecated, revoked)
+    - Progressive key rotation process
+  - ✅ **Audit Logging**: Complete security event auditing
+    - Configurable log level and event filtering
+    - Signature verification, tool call, and boundary application auditing
+    - Audit event statistics and monitoring
+  - ✅ **Enhanced Metrics**: Added 8 new monitoring metrics
+    - Nonce verification metrics (success/failure/replay detection/store size)
+    - Key rotation metrics (attempt count/active key count)
+    - Audit log metrics (total events/dropped events)
+  - ✅ **Improved Error Handling**: More detailed error messages and troubleshooting guides
+  - ✅ **Complete Test Coverage**: 21 unit/integration test cases
+  
 - **v1.1.0** (2025-01): Feature Enhancement Release
   - ✅ Full RFC 9421 HTTP Message Signatures implementation (dual-mode: Simple + RFC 9421)
   - ✅ Per-Consumer configuration support (differentiated security policies for different consumers)
   - ✅ Enhanced configuration validation and error handling
   - ✅ Added Prometheus observability metrics
+  - ✅ Automatic Content-Digest calculation (simplifies RFC 9421 integration)
+  - ✅ Tag Injection Prevention
 
 - **v1.0.0** (2025-01): Initial release
   - Implemented Security Boundaries (S)

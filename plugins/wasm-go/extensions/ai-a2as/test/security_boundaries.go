@@ -21,10 +21,10 @@ var basicSecurityBoundariesConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"protocol": "openai",
 		"securityBoundaries": map[string]interface{}{
-			"enabled":          true,
-			"wrapUserMessages": true,
-			"wrapToolOutputs":  true,
-			"wrapSystemMessages": false,
+			"enabled":              true,
+			"wrapUserMessages":     true,
+			"wrapToolOutputs":      true,
+			"wrapSystemMessages":   false,
 			"includeContentDigest": false,
 		},
 	})
@@ -105,12 +105,12 @@ func RunSecurityBoundariesOnHttpRequestBodyTests(t *testing.T) {
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
-		modifiedBody := host.GetRequestBody()
-		require.NotNil(t, modifiedBody)
+			modifiedBody := host.GetRequestBody()
+			require.NotNil(t, modifiedBody)
 
-		bodyStr := string(modifiedBody)
-		require.True(t, containsTag(bodyStr, "<a2as:user>"))
-		require.True(t, containsTag(bodyStr, "</a2as:user>"))
+			bodyStr := string(modifiedBody)
+			require.True(t, containsTag(bodyStr, "<a2as:user>"))
+			require.True(t, containsTag(bodyStr, "</a2as:user>"))
 		})
 
 		t.Run("wrap user messages with content digest", func(t *testing.T) {
@@ -128,12 +128,12 @@ func RunSecurityBoundariesOnHttpRequestBodyTests(t *testing.T) {
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
-		modifiedBody := host.GetRequestBody()
-		bodyStr := string(modifiedBody)
+			modifiedBody := host.GetRequestBody()
+			bodyStr := string(modifiedBody)
 
-		// Check for content digest tag format <a2as:user:DIGEST>
-		require.True(t, 
-			containsTag(bodyStr, "<a2as:user:") || strings.Contains(bodyStr, "\\u003ca2as:user:"))
+			// Check for content digest tag format <a2as:user:DIGEST>
+			require.True(t,
+				containsTag(bodyStr, "<a2as:user:") || strings.Contains(bodyStr, "\\u003ca2as:user:"))
 		})
 
 		t.Run("handle multiple user messages", func(t *testing.T) {
@@ -153,12 +153,12 @@ func RunSecurityBoundariesOnHttpRequestBodyTests(t *testing.T) {
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
-		modifiedBody := host.GetRequestBody()
-		bodyStr := string(modifiedBody)
+			modifiedBody := host.GetRequestBody()
+			bodyStr := string(modifiedBody)
 
-		// Count both escaped and unescaped tags
-		userTagCount := strings.Count(bodyStr, "<a2as:user>") + strings.Count(bodyStr, "\\u003ca2as:user\\u003e")
-		require.Equal(t, 2, userTagCount)
+			// Count both escaped and unescaped tags
+			userTagCount := strings.Count(bodyStr, "<a2as:user>") + strings.Count(bodyStr, "\\u003ca2as:user\\u003e")
+			require.Equal(t, 2, userTagCount)
 		})
 	})
 }
