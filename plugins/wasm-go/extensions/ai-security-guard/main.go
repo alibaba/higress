@@ -2,6 +2,7 @@ package main
 
 import (
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/common"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/multi_modal_guard"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/text_moderation_plus"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -66,10 +67,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig)
 		return types.ActionContinue
 	}
 	switch config.Action {
-	case cfg.MultiModalGuard:
-		return multi_modal_guard.HandleTextGenerationResponseHeader(ctx, config)
-	case cfg.TextModerationPlus:
-		return text_moderation_plus.HandleTextGenerationResponseHeader(ctx, config)
+	case cfg.MultiModalGuard, cfg.TextModerationPlus:
+		return common.HandleTextGenerationResponseHeader(ctx, config)
 	default:
 		log.Warnf("Unknown action %s", config.Action)
 		return types.ActionContinue
@@ -79,10 +78,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig)
 func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, data []byte, endOfStream bool) []byte {
 	log.Debugf("checking streaming response body...")
 	switch config.Action {
-	case cfg.MultiModalGuard:
-		return multi_modal_guard.HandleTextGenerationStreamingResponseBody(ctx, config, data, endOfStream)
-	case cfg.TextModerationPlus:
-		return text_moderation_plus.HandleTextGenerationStreamingResponseBody(ctx, config, data, endOfStream)
+	case cfg.MultiModalGuard, cfg.TextModerationPlus:
+		return common.HandleTextGenerationStreamingResponseBody(ctx, config, data, endOfStream)
 	default:
 		log.Warnf("Unknown action %s", config.Action)
 		return data
@@ -92,10 +89,8 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityC
 func onHttpResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	log.Debugf("checking response body...")
 	switch config.Action {
-	case cfg.MultiModalGuard:
-		return multi_modal_guard.HandleTextGenerationResponseBody(ctx, config, body)
-	case cfg.TextModerationPlus:
-		return text_moderation_plus.HandleTextGenerationResponseBody(ctx, config, body)
+	case cfg.MultiModalGuard, cfg.TextModerationPlus:
+		return common.HandleTextGenerationResponseBody(ctx, config, body)
 	default:
 		log.Warnf("Unknown action %s", config.Action)
 		return types.ActionContinue
