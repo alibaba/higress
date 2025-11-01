@@ -45,13 +45,18 @@ ai-security-guard (Content detection, Priority 300)
 
 Automatically wrap untrusted user input with XML-style tags to help LLMs distinguish trusted vs. untrusted content.
 
+> **💡 Difference from Authenticated Prompts**:
+> - **Authenticated Prompts**: Client signs requests with a secret key, gateway verifies signature (for authentication & tamper detection)
+> - **Security Boundaries**: Gateway adds XML tags to isolate content (for content isolation, NOT signature-based)
+> - `includeContentDigest` only adds a content identifier to tags, **NOT a signature mechanism**, used solely for audit tracking
+
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `securityBoundaries.enabled` | bool | No | false | Enable security boundaries |
 | `securityBoundaries.wrapUserMessages` | bool | No | true | Wrap user input with `<a2as:user>` tags |
 | `securityBoundaries.wrapToolOutputs` | bool | No | true | Wrap tool outputs with `<a2as:tool>` tags |
 | `securityBoundaries.wrapSystemMessages` | bool | No | false | Wrap system messages with `<a2as:system>` tags |
-| `securityBoundaries.includeContentDigest` | bool | No | false | Include content digest (first 8 chars of SHA-256) in tags |
+| `securityBoundaries.includeContentDigest` | bool | No | false | Include content identifier (first 8 chars of SHA-256, for audit only, NOT signature) |
 
 **Example transformation:**
 

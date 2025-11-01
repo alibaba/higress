@@ -45,13 +45,18 @@ ai-security-guard（内容检测，Priority 300）
 
 通过 XML 风格的标签自动包裹不可信的用户输入，帮助 LLM 区分可信和不可信内容。
 
+> **💡 与 Authenticated Prompts 的区别**：
+> - **Authenticated Prompts**：Client 使用密钥对请求进行签名，网关验证签名（用于认证和防篡改）
+> - **Security Boundaries**：网关添加 XML 标签隔离内容（用于内容隔离，不涉及签名认证）
+> - `includeContentDigest` 仅在标签中添加内容标识符，**不是签名机制**，仅用于审计追踪
+
 | 名称 | 数据类型 | 填写要求 | 默认值 | 描述 |
 |------|---------|---------|--------|------|
 | `securityBoundaries.enabled` | bool | 非必填 | false | 是否启用安全边界 |
 | `securityBoundaries.wrapUserMessages` | bool | 非必填 | true | 是否用 `<a2as:user>` 标签包裹用户输入 |
 | `securityBoundaries.wrapToolOutputs` | bool | 非必填 | true | 是否用 `<a2as:tool>` 标签包裹工具输出 |
 | `securityBoundaries.wrapSystemMessages` | bool | 非必填 | false | 是否用 `<a2as:system>` 标签包裹系统消息 |
-| `securityBoundaries.includeContentDigest` | bool | 非必填 | false | 是否在标签中包含内容摘要（SHA-256前8字符）|
+| `securityBoundaries.includeContentDigest` | bool | 非必填 | false | 是否在标签中包含内容标识符（SHA-256前8字符，仅用于审计追踪，非签名）|
 
 **示例转换：**
 
