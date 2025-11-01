@@ -9,32 +9,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 测试配置：基本行为证书配置
+// 基本行为证书配置
 var basicBehaviorCertificatesConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
-		"protocol": "openai",
 		"behaviorCertificates": map[string]interface{}{
-			"enabled": true,
-			"permissions": map[string]interface{}{
-				"allowedTools": []string{"email.read_message", "email.search"},
-				"deniedTools":  []string{"email.send_message", "email.delete_message"},
-			},
-			"denyMessage": "This operation is not permitted",
+			"enabled":     true,
+			"allowedTools": []string{"read_email", "search_documents"},
+			"denyMessage": "Tool not permitted",
 		},
 	})
 	return data
 }()
 
-// 测试配置：通配符行为证书配置
-var wildcardBehaviorCertificatesConfig = func() json.RawMessage {
+// 空白名单配置（拒绝所有）
+var emptyWhitelistConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
-		"protocol": "openai",
 		"behaviorCertificates": map[string]interface{}{
-			"enabled": true,
-			"permissions": map[string]interface{}{
-				"allowedTools": []string{"read_*", "search_*"},
-				"deniedTools":  []string{"delete_*", "write_*"},
-			},
+			"enabled":     true,
+			"allowedTools": []string{},
 		},
 	})
 	return data
@@ -44,16 +36,6 @@ func RunBehaviorCertificatesParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		t.Run("basic behavior certificates config", func(t *testing.T) {
 			host, status := test.NewTestHost(basicBehaviorCertificatesConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-
-			config, err := host.GetMatchConfig()
-			require.NoError(t, err)
-			require.NotNil(t, config)
-		})
-
-		t.Run("wildcard behavior certificates config", func(t *testing.T) {
-			host, status := test.NewTestHost(wildcardBehaviorCertificatesConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
@@ -80,7 +62,7 @@ func RunBehaviorCertificatesOnHttpRequestBodyTests(t *testing.T) {
 					{
 						"type": "function",
 						"function": {
-							"name": "email.read_message",
+							"name": "read_email",
 							"description": "Read an email message"
 						}
 					}
@@ -88,8 +70,6 @@ func RunBehaviorCertificatesOnHttpRequestBodyTests(t *testing.T) {
 			}`
 
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
-
-			// email.read_message �?allowedTools 中，应该允许
 			require.Equal(t, types.ActionContinue, action)
 		})
 
@@ -107,104 +87,14 @@ func RunBehaviorCertificatesOnHttpRequestBodyTests(t *testing.T) {
 					{
 						"type": "function",
 						"function": {
-							"name": "email.send_message",
-							"description": "Send an email"
+							"name": "delete_file",
+							"description": "Delete a file"
 						}
 					}
 				]
 			}`
 
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
-
-			// email.send_message 在 deniedTools 中，应该被拒绝
-			require.Equal(t, types.ActionPause, action)
-		})
-
-		t.Run("wildcard allowed tool - should pass", func(t *testing.T) {
-			host, status := test.NewTestHost(wildcardBehaviorCertificatesConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-
-			requestBody := `{
-				"model": "gpt-4",
-				"messages": [
-					{"role": "user", "content": "test"}
-				],
-				"tools": [
-					{
-						"type": "function",
-						"function": {
-							"name": "read_email",
-							"description": "Read email"
-						}
-					}
-				]
-			}`
-
-			action := host.CallOnHttpRequestBody([]byte(requestBody))
-
-			// read_email 匹配 read_* 通配符，应该允许
-			require.Equal(t, types.ActionContinue, action)
-		})
-
-		t.Run("wildcard denied tool - should reject", func(t *testing.T) {
-			host, status := test.NewTestHost(wildcardBehaviorCertificatesConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-
-			requestBody := `{
-				"model": "gpt-4",
-				"messages": [
-					{"role": "user", "content": "test"}
-				],
-				"tools": [
-					{
-						"type": "function",
-						"function": {
-							"name": "delete_email",
-							"description": "Delete email"
-						}
-					}
-				]
-			}`
-
-			action := host.CallOnHttpRequestBody([]byte(requestBody))
-
-			// delete_email 匹配 delete_* 通配符，应该被拒�?
-			require.Equal(t, types.ActionPause, action)
-		})
-
-		t.Run("multiple tools - one denied - should reject", func(t *testing.T) {
-			host, status := test.NewTestHost(basicBehaviorCertificatesConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-
-			requestBody := `{
-				"model": "gpt-4",
-				"messages": [
-					{"role": "user", "content": "test"}
-				],
-				"tools": [
-					{
-						"type": "function",
-						"function": {
-							"name": "email.read_message",
-							"description": "Read email"
-						}
-					},
-					{
-						"type": "function",
-						"function": {
-							"name": "email.send_message",
-							"description": "Send email"
-						}
-					}
-				]
-			}`
-
-			action := host.CallOnHttpRequestBody([]byte(requestBody))
-
-			// 即使有一个工具被拒绝，整个请求也应该被拒�?
 			require.Equal(t, types.ActionPause, action)
 		})
 
@@ -221,9 +111,32 @@ func RunBehaviorCertificatesOnHttpRequestBodyTests(t *testing.T) {
 			}`
 
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
-
-			// 没有工具调用，应该允�?
 			require.Equal(t, types.ActionContinue, action)
+		})
+
+		t.Run("empty whitelist - deny all tools", func(t *testing.T) {
+			host, status := test.NewTestHost(emptyWhitelistConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"messages": [
+					{"role": "user", "content": "test"}
+				],
+				"tools": [
+					{
+						"type": "function",
+						"function": {
+							"name": "any_tool"
+						}
+					}
+				]
+			}`
+
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionPause, action)
 		})
 	})
 }
+

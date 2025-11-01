@@ -15,13 +15,7 @@
 package main
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -29,29 +23,6 @@ import (
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-)
-
-const (
-	metricA2ASRequestsTotal               = "a2as_requests_total"
-	metricA2ASSignatureVerificationFailed = "a2as_signature_verification_failed"
-	metricA2ASToolCallDenied              = "a2as_tool_call_denied"
-	metricA2ASBoundariesApplied           = "a2as_security_boundaries_applied"
-	metricA2ASDefensesInjected            = "a2as_defenses_injected"
-	metricA2ASPoliciesInjected            = "a2as_policies_injected"
-
-	// Nonce验证指标
-	metricA2ASNonceVerificationSuccess = "a2as_nonce_verification_success"
-	metricA2ASNonceVerificationFailed  = "a2as_nonce_verification_failed"
-	metricA2ASNonceReplayDetected      = "a2as_nonce_replay_detected"
-	metricA2ASNonceStoreSize           = "a2as_nonce_store_size"
-
-	// 密钥轮换指标
-	metricA2ASKeyRotationAttempts = "a2as_key_rotation_attempts"
-	metricA2ASActiveKeysCount     = "a2as_active_keys_count"
-
-	// 审计日志指标
-	metricA2ASAuditEventsTotal   = "a2as_audit_events_total"
-	metricA2ASAuditEventsDropped = "a2as_audit_events_dropped"
 )
 
 func main() {}
@@ -72,64 +43,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config A2ASConfig) types.Acti
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []byte) types.Action {
-	globalConfig.incrementMetric(metricA2ASRequestsTotal, 1)
-
 	consumer, err := proxywasm.GetHttpRequestHeader("X-Mse-Consumer")
 	if err == nil && consumer != "" {
 		log.Debugf("[A2AS] Request from consumer: %s", consumer)
 	}
 
 	config := globalConfig.MergeConsumerConfig(consumer)
-
-	if config.AuthenticatedPrompts.Enabled {
-		maxRequestBodySize := config.MaxRequestBodySize
-		if config.AuthenticatedPrompts.MaxRequestBodySize > 0 {
-			maxRequestBodySize = config.AuthenticatedPrompts.MaxRequestBodySize
-		}
-
-		if len(config.AuthenticatedPrompts.SecretKeys) > 0 {
-			config.incrementMetric(metricA2ASKeyRotationAttempts, 1)
-			activeKeysCount := 0
-			for _, key := range config.AuthenticatedPrompts.SecretKeys {
-				if key.Status != "deprecated" {
-					activeKeysCount++
-				}
-			}
-			config.setGaugeMetric(metricA2ASActiveKeysCount, uint64(activeKeysCount))
-		}
-
-		if err := verifySignature(config.AuthenticatedPrompts, maxRequestBodySize); err != nil {
-			log.Errorf("[A2AS] Signature verification failed: %v", err)
-			config.logSignatureVerificationFailure(config.AuthenticatedPrompts.Mode, err.Error())
-			config.incrementMetric(metricA2ASSignatureVerificationFailed, 1)
-			_ = proxywasm.SendHttpResponse(403, [][2]string{
-				{"content-type", "application/json"},
-			}, []byte(`{"error":"unauthorized","message":"Invalid or missing request signature"}`), -1)
-			return types.ActionPause
-		}
-		log.Debugf("[A2AS] Signature verification passed")
-		config.logSignatureVerificationSuccess(config.AuthenticatedPrompts.Mode)
-
-		if err := config.verifyNonce(config.AuthenticatedPrompts); err != nil {
-			log.Errorf("[A2AS] Nonce verification failed: %v", err)
-			config.incrementMetric(metricA2ASNonceVerificationFailed, 1)
-
-			if strings.Contains(err.Error(), "replay detected") {
-				config.incrementMetric(metricA2ASNonceReplayDetected, 1)
-			}
-
-			config.logAuditEvent("NonceVerification", "warn", fmt.Sprintf("Nonce verification failed: %v", err), nil)
-			_ = proxywasm.SendHttpResponse(403, [][2]string{
-				{"content-type", "application/json"},
-			}, []byte(`{"error":"unauthorized","message":"Invalid or replay nonce detected"}`), -1)
-			return types.ActionPause
-		}
-		if config.AuthenticatedPrompts.EnableNonceVerification {
-			log.Debugf("[A2AS] Nonce verification passed")
-			config.incrementMetric(metricA2ASNonceVerificationSuccess, 1)
-			config.logAuditEvent("NonceVerification", "info", "Nonce verification passed", nil)
-		}
-	}
 
 	if !isChatCompletionRequest(body) {
 		log.Debugf("[A2AS] Not a chat completion request, skipping A2AS processing")
@@ -140,15 +59,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 	if err != nil {
 		log.Errorf("[A2AS] Failed to apply transformations: %v", err)
 		_ = proxywasm.SendHttpResponse(500, [][2]string{{"content-type", "application/json"}},
-			[]byte(`{"error":"A2AS transformation failed"}`), -1)
+			[]byte(`{"error":"internal_error","message":"A2AS transformation failed"}`), -1)
 		return types.ActionPause
 	}
 
 	if config.BehaviorCertificates.Enabled {
 		if denied, tool := checkToolPermissions(config.BehaviorCertificates, modifiedBody); denied {
 			log.Warnf("[A2AS] Tool call denied by behavior certificate: %s", tool)
-			config.logToolCallDenied(tool, "Not permitted by behavior certificate")
-			config.incrementMetric(metricA2ASToolCallDenied, 1)
 			_ = proxywasm.SendHttpResponse(403, [][2]string{
 				{"content-type", "application/json"},
 			}, []byte(`{"error":"forbidden","message":"`+config.BehaviorCertificates.DenyMessage+`","denied_tool":"`+tool+`"}`), -1)
@@ -181,62 +98,52 @@ func applyA2ASTransformations(config A2ASConfig, body []byte) ([]byte, error) {
 
 	newMessages := make([]map[string]interface{}, 0)
 
+	// 注入 In-Context Defenses 作为系统消息
 	if config.InContextDefenses.Enabled && config.InContextDefenses.Position == "as_system" {
+		defenseContent := BuildDefenseBlock(config.InContextDefenses.Template)
+		if config.InContextDefenses.Template == "custom" && config.InContextDefenses.CustomPrompt != "" {
+			defenseContent = config.InContextDefenses.CustomPrompt
+		}
 		defenseMsg := map[string]interface{}{
 			"role":    "system",
-			"content": BuildDefenseBlock(config.InContextDefenses.Template),
+			"content": defenseContent,
 		}
 		newMessages = append(newMessages, defenseMsg)
-		config.incrementMetric(metricA2ASDefensesInjected, 1)
-		config.logDefenseInjection("as_system")
 		log.Debugf("[A2AS] Added in-context defense as system message")
 	}
 
+	// 注入 Codified Policies 作为系统消息
 	if config.CodifiedPolicies.Enabled && config.CodifiedPolicies.Position == "as_system" && len(config.CodifiedPolicies.Policies) > 0 {
 		policyMsg := map[string]interface{}{
 			"role":    "system",
 			"content": BuildPolicyBlock(config.CodifiedPolicies.Policies),
 		}
 		newMessages = append(newMessages, policyMsg)
-		config.incrementMetric(metricA2ASPoliciesInjected, 1)
-		config.logPolicyInjection(len(config.CodifiedPolicies.Policies), "as_system")
 		log.Debugf("[A2AS] Added %d codified policies as system message", len(config.CodifiedPolicies.Policies))
 	}
 
-	boundariesApplied := false
+	// 保留原始消息
 	for _, msg := range rawMessages.Array() {
 		message := parseMessage(msg)
 		if message == nil {
 			continue
 		}
-
-		if config.SecurityBoundaries.Enabled {
-			message = applySecurityBoundaries(config.SecurityBoundaries, message)
-			boundariesApplied = true
-			if role, ok := message["role"].(string); ok {
-				tagType := getTagType(role, config.SecurityBoundaries)
-				if tagType != "" {
-					config.logSecurityBoundariesApplied(role, tagType)
-				}
-			}
-		}
-
 		newMessages = append(newMessages, message)
 	}
 
-	if boundariesApplied {
-		config.incrementMetric(metricA2ASBoundariesApplied, 1)
-	}
-
+	// 在用户消息前注入 In-Context Defenses
 	if config.InContextDefenses.Enabled && config.InContextDefenses.Position == "before_user" {
-		newMessages = insertBeforeUserMessages(newMessages, BuildDefenseBlock(config.InContextDefenses.Template))
-		config.logDefenseInjection("before_user")
+		defenseContent := BuildDefenseBlock(config.InContextDefenses.Template)
+		if config.InContextDefenses.Template == "custom" && config.InContextDefenses.CustomPrompt != "" {
+			defenseContent = config.InContextDefenses.CustomPrompt
+		}
+		newMessages = insertBeforeUserMessages(newMessages, defenseContent)
 		log.Debugf("[A2AS] Inserted in-context defense before user messages")
 	}
 
+	// 在用户消息前注入 Codified Policies
 	if config.CodifiedPolicies.Enabled && config.CodifiedPolicies.Position == "before_user" && len(config.CodifiedPolicies.Policies) > 0 {
 		newMessages = insertBeforeUserMessages(newMessages, BuildPolicyBlock(config.CodifiedPolicies.Policies))
-		config.logPolicyInjection(len(config.CodifiedPolicies.Policies), "before_user")
 		log.Debugf("[A2AS] Inserted codified policies before user messages")
 	}
 
@@ -274,6 +181,7 @@ func parseMessage(msg gjson.Result) map[string]interface{} {
 		}
 	}
 
+	// 保留其他字段（如 name, function_call, tool_calls 等）
 	msg.ForEach(func(key, value gjson.Result) bool {
 		k := key.String()
 		if k != "role" && k != "content" {
@@ -284,47 +192,6 @@ func parseMessage(msg gjson.Result) map[string]interface{} {
 		}
 		return true
 	})
-
-	return message
-}
-
-func applySecurityBoundaries(config SecurityBoundariesConfig, message map[string]interface{}) map[string]interface{} {
-	role, ok := message["role"].(string)
-	if !ok {
-		return message
-	}
-
-	content, ok := message["content"].(string)
-	if !ok || content == "" {
-		return message
-	}
-
-	var tagType string
-	shouldWrap := false
-
-	switch role {
-	case "user":
-		if config.WrapUserMessages {
-			tagType = "user"
-			shouldWrap = true
-		}
-	case "system":
-		if config.WrapSystemMessages {
-			tagType = "system"
-			shouldWrap = true
-		}
-	case "tool", "function":
-		if config.WrapToolOutputs {
-			tagType = "tool"
-			shouldWrap = true
-		}
-	}
-
-	if shouldWrap {
-		wrappedContent := WrapWithSecurityTag(content, tagType, config.IncludeContentDigest)
-		message["content"] = wrappedContent
-		log.Debugf("[A2AS] Wrapped %s message with security tag", role)
-	}
 
 	return message
 }
@@ -357,162 +224,4 @@ func insertBeforeUserMessages(messages []map[string]interface{}, contentToInsert
 	result = append(result, messages[firstUserIndex:]...)
 
 	return result
-}
-
-func checkToolPermissions(config BehaviorCertificatesConfig, body []byte) (denied bool, toolName string) {
-	toolChoice := gjson.GetBytes(body, "tool_choice")
-	tools := gjson.GetBytes(body, "tools")
-
-	if toolChoice.Exists() {
-		if toolChoice.IsObject() {
-			name := toolChoice.Get("function.name").String()
-			if name != "" && !isToolAllowed(config.Permissions, name) {
-				return true, name
-			}
-		}
-	}
-
-	if tools.Exists() && tools.IsArray() {
-		for _, tool := range tools.Array() {
-			name := tool.Get("function.name").String()
-			if name != "" && !isToolAllowed(config.Permissions, name) {
-				return true, name
-			}
-		}
-	}
-
-	return false, ""
-}
-
-func isToolAllowed(permissions AgentPermissions, toolName string) bool {
-	for _, denied := range permissions.DeniedTools {
-		if matchesPattern(denied, toolName) {
-			return false
-		}
-	}
-
-	if len(permissions.AllowedTools) == 0 {
-		return true
-	}
-
-	for _, allowed := range permissions.AllowedTools {
-		if matchesPattern(allowed, toolName) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func matchesPattern(pattern, toolName string) bool {
-	if pattern == toolName {
-		return true
-	}
-
-	if pattern == "*" {
-		return true
-	}
-
-	if strings.HasSuffix(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(toolName, prefix)
-	}
-
-	if strings.HasPrefix(pattern, "*") {
-		suffix := strings.TrimPrefix(pattern, "*")
-		return strings.HasSuffix(toolName, suffix)
-	}
-
-	return false
-}
-
-func verifySignature(config AuthenticatedPromptsConfig, maxBodySize int) error {
-	switch config.Mode {
-	case "rfc9421":
-		log.Debugf("[A2AS] Using RFC 9421 signature verification mode")
-		return verifyRFC9421Signature(config)
-
-	case "simple":
-		log.Debugf("[A2AS] Using simple HMAC signature verification mode")
-		return verifySimpleSignature(config, maxBodySize)
-
-	default:
-		return fmt.Errorf("unsupported signature mode: %s", config.Mode)
-	}
-}
-
-func verifySimpleSignature(config AuthenticatedPromptsConfig, maxBodySize int) error {
-	signatureHeader, err := proxywasm.GetHttpRequestHeader(config.SignatureHeader)
-
-	if err != nil || signatureHeader == "" {
-		if config.AllowUnsigned {
-			log.Debugf("[A2AS] No signature found, but allowUnsigned=true, continuing")
-			return nil
-		}
-		return fmt.Errorf("missing signature header '%s'", config.SignatureHeader)
-	}
-
-	if len(config.SecretKeys) == 0 && config.SharedSecret == "" {
-		log.Warnf("[A2AS] Signature header present but no secret configured, skipping verification")
-		return nil
-	}
-
-	body, err := proxywasm.GetHttpRequestBody(0, maxBodySize)
-	if err != nil {
-		return fmt.Errorf("failed to get request body for signature verification: %v", err)
-	}
-
-	if len(config.SecretKeys) > 0 {
-		for _, key := range config.SecretKeys {
-			if key.Status == "deprecated" {
-				continue
-			}
-			if verifyWithSecret(body, signatureHeader, key.Secret, key.KeyID) {
-				log.Debugf("[A2AS] Signature verification passed with key: %s", key.KeyID)
-				return nil
-			}
-		}
-		log.Errorf("[A2AS] Signature verification failed with all configured keys")
-		return fmt.Errorf("invalid signature: no matching key found")
-	}
-
-	if verifyWithSecret(body, signatureHeader, config.SharedSecret, "default") {
-		log.Debugf("[A2AS] Signature verification passed")
-		return nil
-	}
-
-	log.Errorf("[A2AS] Signature verification failed")
-	return fmt.Errorf("invalid signature")
-}
-
-func verifyWithSecret(body []byte, signature, secret, keyID string) bool {
-	secretBytes, err := base64.StdEncoding.DecodeString(secret)
-	if err != nil {
-		secretBytes = []byte(secret)
-	}
-
-	mac := hmac.New(sha256.New, secretBytes)
-	mac.Write(body)
-	expectedSignature := hex.EncodeToString(mac.Sum(nil))
-	expectedSignatureBase64 := base64.StdEncoding.EncodeToString(mac.Sum(nil))
-
-	return signature == expectedSignature || signature == expectedSignatureBase64
-}
-
-func getTagType(role string, config SecurityBoundariesConfig) string {
-	switch role {
-	case "user":
-		if config.WrapUserMessages {
-			return "user"
-		}
-	case "system":
-		if config.WrapSystemMessages {
-			return "system"
-		}
-	case "tool", "function":
-		if config.WrapToolOutputs {
-			return "tool"
-		}
-	}
-	return ""
 }
