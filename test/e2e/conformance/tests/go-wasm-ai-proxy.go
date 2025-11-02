@@ -1028,6 +1028,7 @@ data: [DONE]
 					TestCaseName:  "ollama case 1: non-streaming request",
 					CompareTarget: http.CompareTargetResponse,
 				},
+
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:        "ollama.com",
@@ -1037,6 +1038,7 @@ data: [DONE]
 						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":false}`),
 					},
 				},
+
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
@@ -1050,6 +1052,7 @@ data: [DONE]
 					TestCaseName:  "ollama case 2: streaming request",
 					CompareTarget: http.CompareTargetResponse,
 				},
+
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
 						Host:        "ollama.com",
@@ -1059,6 +1062,7 @@ data: [DONE]
 						Body:        []byte(`{"model":"gpt-3","messages":[{"role":"user","content":"你好，你是谁？"}],"stream":true}`),
 					},
 				},
+				
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
