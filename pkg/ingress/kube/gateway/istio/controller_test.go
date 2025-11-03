@@ -23,8 +23,8 @@ import (
 	k8s "sigs.k8s.io/gateway-api/apis/v1"
 	k8sbeta "sigs.k8s.io/gateway-api/apis/v1beta1"
 
+	higressconstant "github.com/alibaba/higress/v2/pkg/config/constants"
 	networking "istio.io/api/networking/v1alpha3"
-	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pilot/pkg/networking/core"
 	"istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
 	"istio.io/istio/pkg/config"
@@ -38,10 +38,10 @@ import (
 
 var (
 	gatewayClassSpec = &k8s.GatewayClassSpec{
-		ControllerName: k8s.GatewayController(features.ManagedGatewayController),
+		ControllerName: higressconstant.ManagedGatewayController,
 	}
 	gatewaySpec = &k8s.GatewaySpec{
-		GatewayClassName: "gwclass",
+		GatewayClassName: "higress",
 		Listeners: []k8s.Listener{
 			{
 				Name:          "default",
@@ -106,7 +106,7 @@ func TestListGatewayResourceType(t *testing.T) {
 	controller := setupController(t,
 		&k8sbeta.GatewayClass{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "gwclass",
+				Name: "higress",
 			},
 			Spec: *gatewayClassSpec,
 		},
