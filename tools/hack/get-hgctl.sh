@@ -23,6 +23,10 @@ export VERSION
 HAS_CURL="$(type "curl" &>/dev/null && echo true || echo false)"
 HAS_WGET="$(type "wget" &>/dev/null && echo true || echo false)"
 HAS_GIT="$(type "git" &>/dev/null && echo true || echo false)"
+HAS_NODE="$(type "node" &>/dev/null && echo true || echo false)"
+
+# the lowest node version required
+REQUIRED_NODE_VERSION="20.18.1"  
 
 # initArch discovers the architecture for this system.
 initArch() {
@@ -76,7 +80,120 @@ verifySupported() {
   if [ "${HAS_GIT}" != "true" ]; then
     echo "[WARNING] Could not find git. It is required for plugin installation."
   fi
+
+  if [ "${HAS_NODE}" != "true" ]; then
+    echo "[ERROR] Could not find node. It is required for hgctl agent support."
+    echo "Node.js >= ${REQUIRED_NODE_VERSION} is required."  
+    echo "Start to install node..."
+    installNode
+  else 
+    checkNodeVersion
+  fi
+  
 }
+
+checkNodeVersion() {  
+  local current_version=$(node -v | sed 's/v//')  
+    
+  if ! verifyNodeVersion "$current_version" "$REQUIRED_NODE_VERSION"; then  
+    echo "[ERROR] Node.js version $current_version is installed, but >= ${REQUIRED_NODE_VERSION} is required."  
+    echo "Please upgrade Node.js or install a newer version."  
+    echo "Visit: https://nodejs.org/ or use nvm: https://github.com/nvm-sh/nvm"  
+    exit 1  
+  else  
+    echo "[INFO] Node.js version $current_version meets the requirement (>= ${REQUIRED_NODE_VERSION})"  
+  fi  
+}  
+
+verifyNodeVersion() {  
+  local current=$1  
+  local required=$2  
+    
+  local current_major=$(echo "$current" | cut -d. -f1)  
+  local current_minor=$(echo "$current" | cut -d. -f2)  
+  local current_patch=$(echo "$current" | cut -d. -f3)  
+    
+  local required_major=$(echo "$required" | cut -d. -f1)  
+  local required_minor=$(echo "$required" | cut -d. -f2)  
+  local required_patch=$(echo "$required" | cut -d. -f3)  
+    
+  if [ "$current_major" -gt "$required_major" ]; then  
+    return 0  
+  elif [ "$current_major" -lt "$required_major" ]; then  
+    return 1  
+  fi  
+    
+  if [ "$current_minor" -gt "$required_minor" ]; then  
+    return 0  
+  elif [ "$current_minor" -lt "$required_minor" ]; then  
+    return 1  
+  fi  
+    
+  if [ "$current_patch" -ge "$required_patch" ]; then  
+    return 0  
+  else  
+    return 1  
+  fi  
+}  
+  
+installNode() {  
+  echo "Installing Node.js ${REQUIRED_NODE_VERSION}..."  
+    
+  case "$OS" in  
+    darwin)  
+      installNodeMacOS  
+      ;;  
+    linux)  
+      installNodeLinux  
+      ;;  
+    windows)  
+      installNodeWindows  
+      ;;  
+    *)  
+      echo "[ERROR] Unsupported OS: $OS"  
+      echo "Please install Node.js manually from https://nodejs.org/"  
+      exit 1  
+      ;;  
+  esac  
+}  
+  
+installNodeMacOS() {  
+  if type "brew" &>/dev/null; then  
+    echo "Using Homebrew to install Node.js..."  
+    brew install node@20  
+  else  
+    echo "[ERROR] Homebrew not found. Please install Homebrew first:"  
+    echo "  /bin/bash -c \\"\\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\\""  
+    echo "Or install Node.js manually from https://nodejs.org/"  
+    exit 1  
+  fi  
+}  
+  
+installNodeLinux() {  
+  echo "Installing Node.js via NodeSource repository..."  
+    
+  if [ "${HAS_CURL}" == "true" ]; then  
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -  
+    sudo apt-get install -y nodejs  
+  elif [ "${HAS_WGET}" == "true" ]; then  
+    wget -qO- https://deb.nodesource.com/setup_20.x | sudo -E bash -  
+    sudo apt-get install -y nodejs  
+  else  
+    echo "[ERROR] Neither curl nor wget found. Cannot install Node.js."  
+    echo "Please install Node.js manually from https://nodejs.org/"  
+    exit 1  
+  fi  
+}  
+  
+installNodeWindows() {  
+  echo "[ERROR] Automatic Node.js installation on Windows is not supported."  
+  echo "Please download and install Node.js manually from:"  
+  echo "  https://nodejs.org/dist/v${REQUIRED_NODE_VERSION}/node-v${REQUIRED_NODE_VERSION}-x64.msi"  
+  echo "Or use a package manager like Chocolatey:"  
+  echo "  choco install nodejs --version=${REQUIRED_NODE_VERSION}"  
+  exit 1  
+}
+  
 
 # checkDesiredVersion checks if the desired version is available.
 checkDesiredVersion() {
@@ -87,6 +204,11 @@ checkDesiredVersion() {
       VERSION=$(curl -Ls $latest_release_url | grep 'href="/alibaba/higress/releases/tag/v[0-9]*.[0-9]*.[0-9]*\"' | sed -E 's/.*\/alibaba\/higress\/releases\/tag\/(v[0-9\.]+)".*/\1/g' | head -1)
     elif [ "${HAS_WGET}" == "true" ]; then
       VERSION=$(wget $latest_release_url -O - 2>&1 | grep 'href="/alibaba/higress/releases/tag/v[0-9]*.[0-9]*.[0-9]*\"' | sed -E 's/.*\/alibaba\/higress\/releases\/tag\/(v[0-9\.]+)".*/\1/g' | head -1)
+    fi
+    
+    if [ "$VERSION" == "" ]; then 
+      echo "Failed to determine latest version. Please check network or set VERSION manually."
+      exit 1
     fi
   fi
 }

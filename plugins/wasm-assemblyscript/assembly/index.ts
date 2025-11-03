@@ -14,5 +14,5 @@ export {SetCtx,
         ProcessRequestHeadersBy, 
         ProcessResponseBodyBy, 
         ProcessResponseHeadersBy, 
-        Logger, RegisteTickFunc} from "./plugin_wrapper"
+        Logger, RegisterTickFunc} from "./plugin_wrapper"
 export {ParseResult} from "./rule_matcher"

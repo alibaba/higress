@@ -11,22 +11,29 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-agent/dashscope"
 	prompttpl "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-agent/promptTpl"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
 // 用于统计函数的递归调用次数
-const ToolCallsCount = "ToolCallsCount"
-const StreamContextKey = "Stream"
+const (
+	ToolCallsCount   = "ToolCallsCount"
+	StreamContextKey = "Stream"
+)
 
 // react的正则规则
-const ActionPattern = `Action:\s*(.*?)[.\n]`
-const ActionInputPattern = `Action Input:\s*(.*)`
-const FinalAnswerPattern = `Final Answer:(.*)`
+const (
+	ActionPattern      = `Action:\s*(.*?)[.\n]`
+	ActionInputPattern = `Action Input:\s*(.*)`
+	FinalAnswerPattern = `Final Answer:(.*)`
+)
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-agent",
 		wrapper.ParseConfigBy(parseConfig),
@@ -37,7 +44,7 @@ func main() {
 	)
 }
 
-func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
+func parseConfig(gjson gjson.Result, c *PluginConfig, log log.Log) error {
 	initResponsePromptTpl(gjson, c)
 
 	err := initAPIs(gjson, c)
@@ -54,11 +61,12 @@ func parseConfig(gjson gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	return types.ActionContinue
 }
 
-func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRequest Request, log wrapper.Log) types.Action {
+func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRequest Request, log log.Log) types.Action {
 	log.Debugf("[onHttpRequestBody] firstreq:%s", prompt)
 
 	var userMessage Message
@@ -72,7 +80,7 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 		rawRequest.Stream = false
 	}
 
-	//replace old message and resume request qwen
+	// replace old message and resume request qwen
 	newbody, err := json.Marshal(rawRequest)
 	if err != nil {
 		return types.ActionContinue
@@ -88,11 +96,11 @@ func firstReq(ctx wrapper.HttpContext, config PluginConfig, prompt string, rawRe
 	}
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	log.Debug("onHttpRequestBody start")
 	defer log.Debug("onHttpRequestBody end")
 
-	//拿到请求
+	// 拿到请求
 	var rawRequest Request
 	err := json.Unmarshal(body, &rawRequest)
 	if err != nil {
@@ -101,7 +109,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 	}
 	log.Debugf("onHttpRequestBody rawRequest: %v", rawRequest)
 
-	//获取用户query
+	// 获取用户query
 	var query string
 	var history string
 	messageLength := len(rawRequest.Messages)
@@ -125,7 +133,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		return types.ActionContinue
 	}
 
-	//拼装agent prompt模板
+	// 拼装agent prompt模板
 	tool_desc := make([]string, 0)
 	tool_names := make([]string, 0)
 	for _, apisParam := range config.APIsParam {
@@ -160,19 +168,19 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 	ctx.SetContext(ToolCallsCount, 0)
 
-	//清理历史对话记录
+	// 清理历史对话记录
 	dashscope.MessageStore.Clear()
 
-	//将请求加入到历史对话存储器中
+	// 将请求加入到历史对话存储器中
 	dashscope.MessageStore.AddForUser(prompt)
 
-	//开始第一次请求
+	// 开始第一次请求
 	ret := firstReq(ctx, config, prompt, rawRequest, log)
 
 	return ret
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	log.Debug("onHttpResponseHeaders start")
 	defer log.Debug("onHttpResponseHeaders end")
 
@@ -200,7 +208,7 @@ func extractJson(bodyStr string) (string, error) {
 	return jsonStr, nil
 }
 
-func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[string]interface{}, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log wrapper.Log) string {
+func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[string]interface{}, assistantMessage Message, actionInput string, headers [][2]string, streamMode bool, rawResponse Response, log log.Log) string {
 	prompt := fmt.Sprintf(prompttpl.Json_Resp_Template, jsonSchema, actionInput)
 
 	messages := []dashscope.Message{{Role: "user", Content: prompt}}
@@ -217,7 +225,7 @@ func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[st
 		headers,
 		completionSerialized,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			//得到gpt的返回结果
+			// 得到gpt的返回结果
 			var responseCompletion dashscope.CompletionResponse
 			_ = json.Unmarshal(responseBody, &responseCompletion)
 			log.Infof("[jsonFormat] content: %s", responseCompletion.Choices[0].Message.Content)
@@ -241,7 +249,7 @@ func jsonFormat(llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonSchema map[st
 	return content
 }
 
-func noneStream(assistantMessage Message, actionInput string, rawResponse Response, log wrapper.Log) {
+func noneStream(assistantMessage Message, actionInput string, rawResponse Response, log log.Log) {
 	assistantMessage.Role = "assistant"
 	assistantMessage.Content = actionInput
 	rawResponse.Choices[0].Message = assistantMessage
@@ -257,7 +265,7 @@ func noneStream(assistantMessage Message, actionInput string, rawResponse Respon
 	}
 }
 
-func stream(actionInput string, rawResponse Response, log wrapper.Log) {
+func stream(actionInput string, rawResponse Response, log log.Log) {
 	headers := [][2]string{{"content-type", "text/event-stream; charset=utf-8"}}
 	proxywasm.ReplaceHttpResponseHeaders(headers)
 	// Remove quotes from actionInput
@@ -271,7 +279,7 @@ func stream(actionInput string, rawResponse Response, log wrapper.Log) {
 	proxywasm.ResumeHttpResponse()
 }
 
-func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log, statusCode int, responseBody []byte) {
+func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log log.Log, statusCode int, responseBody []byte) {
 	if statusCode != http.StatusOK {
 		log.Debugf("statusCode: %d", statusCode)
 	}
@@ -295,7 +303,7 @@ func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmI
 		headers,
 		completionSerialized,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			//得到gpt的返回结果
+			// 得到gpt的返回结果
 			var responseCompletion dashscope.CompletionResponse
 			_ = json.Unmarshal(responseBody, &responseCompletion)
 			log.Infof("[toolsCall] content: %s", responseCompletion.Choices[0].Message.Content)
@@ -303,7 +311,7 @@ func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmI
 			if responseCompletion.Choices[0].Message.Content != "" {
 				retType, actionInput := toolsCall(ctx, llmClient, llmInfo, jsonResp, aPIsParam, aPIClient, responseCompletion.Choices[0].Message.Content, rawResponse, log)
 				if retType == types.ActionContinue {
-					//得到了Final Answer
+					// 得到了Final Answer
 					var assistantMessage Message
 					var streamMode bool
 					if ctx.GetContext(StreamContextKey) == nil {
@@ -332,7 +340,7 @@ func toolsCallResult(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmI
 	}
 }
 
-func outputParser(response string, log wrapper.Log) (string, string) {
+func outputParser(response string, log log.Log) (string, string) {
 	log.Debugf("Raw response:%s", response)
 
 	start := strings.Index(response, "```")
@@ -379,19 +387,19 @@ func outputParser(response string, log wrapper.Log) (string, string) {
 	return "", ""
 }
 
-func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log wrapper.Log) (types.Action, string) {
+func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LLMInfo, jsonResp JsonResp, aPIsParam []APIsParam, aPIClient []wrapper.HttpClient, content string, rawResponse Response, log log.Log) (types.Action, string) {
 	dashscope.MessageStore.AddForAssistant(content)
 
 	action, actionInput := outputParser(content, log)
 
-	//得到最终答案
+	// 得到最终答案
 	if action == "Final Answer" {
 		return types.ActionContinue, actionInput
 	}
 	count := ctx.GetContext(ToolCallsCount).(int)
 	count++
 	log.Debugf("toolCallsCount:%d, config.LLMInfo.MaxIterations=%d", count, llmInfo.MaxIterations)
-	//函数递归调用次数，达到了预设的循环次数，强制结束
+	// 函数递归调用次数，达到了预设的循环次数，强制结束
 	if int64(count) > llmInfo.MaxIterations {
 		ctx.SetContext(ToolCallsCount, 0)
 		return types.ActionContinue, ""
@@ -399,7 +407,7 @@ func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LL
 		ctx.SetContext(ToolCallsCount, count)
 	}
 
-	//没得到最终答案
+	// 没得到最终答案
 
 	var urlStr string
 	var headers [][2]string
@@ -415,7 +423,7 @@ func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LL
 				log.Infof("calls %s", tools_param.ToolName)
 				log.Infof("actionInput: %s", actionInput)
 
-				//将大模型需要的参数反序列化
+				// 将大模型需要的参数反序列化
 				var data map[string]interface{}
 				if err := json.Unmarshal([]byte(actionInput), &data); err != nil {
 					log.Debugf("Error: %s", err.Error())
@@ -514,11 +522,11 @@ func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LL
 }
 
 // 从response接收到firstreq的大模型返回
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	log.Debugf("onHttpResponseBody start")
 	defer log.Debugf("onHttpResponseBody end")
 
-	//初始化接收gpt返回内容的结构体
+	// 初始化接收gpt返回内容的结构体
 	var rawResponse Response
 	err := json.Unmarshal(body, &rawResponse)
 	if err != nil {
@@ -526,9 +534,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		return types.ActionContinue
 	}
 	log.Infof("first content: %s", rawResponse.Choices[0].Message.Content)
-	//如果gpt返回的内容不是空的
+	// 如果gpt返回的内容不是空的
 	if rawResponse.Choices[0].Message.Content != "" {
-		//进入agent的循环思考，工具调用的过程中
+		// 进入agent的循环思考，工具调用的过程中
 		retType, _ := toolsCall(ctx, config.LLMClient, config.LLMInfo, config.JsonResp, config.APIsParam, config.APIClient, rawResponse.Choices[0].Message.Content, rawResponse, log)
 		return retType
 	} else {

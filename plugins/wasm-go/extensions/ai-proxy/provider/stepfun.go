@@ -5,17 +5,15 @@ import (
 	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
-	stepfunDomain             = "api.stepfun.com"
-	stepfunChatCompletionPath = "/v1/chat/completions"
+	stepfunDomain = "api.stepfun.com"
 )
 
-type stepfunProviderInitializer struct {
-}
+type stepfunProviderInitializer struct{}
 
 func (m *stepfunProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
@@ -27,7 +25,7 @@ func (m *stepfunProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 func (m *stepfunProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
 		// stepfun的chat接口path和OpenAI的chat接口一样
-		string(ApiNameChatCompletion): stepfunChatCompletionPath,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 	}
 }
 

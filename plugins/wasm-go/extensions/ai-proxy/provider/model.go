@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 const (
@@ -20,14 +20,21 @@ const (
 
 	httpStatus200 = "200"
 
-	contentTypeText     = "text"
-	contentTypeImageUrl = "image_url"
+	contentTypeText       = "text"
+	contentTypeImageUrl   = "image_url"
+	contentTypeInputAudio = "input_audio"
+	contentTypeFile       = "file"
 
 	reasoningStartTag = "<think>"
 	reasoningEndTag   = "</think>"
 )
 
+type NonOpenAIStyleOptions struct {
+	ReasoningMaxTokens int `json:"reasoning_max_tokens,omitempty"`
+}
+
 type chatCompletionRequest struct {
+	NonOpenAIStyleOptions
 	Messages            []chatMessage          `json:"messages"`
 	Model               string                 `json:"model"`
 	Store               bool                   `json:"store,omitempty"`
@@ -53,9 +60,38 @@ type chatCompletionRequest struct {
 	Temperature         float64                `json:"temperature,omitempty"`
 	TopP                float64                `json:"top_p,omitempty"`
 	Tools               []tool                 `json:"tools,omitempty"`
-	ToolChoice          *toolChoice            `json:"tool_choice,omitempty"`
+	ToolChoice          interface{}            `json:"tool_choice,omitempty"`
 	ParallelToolCalls   bool                   `json:"parallel_tool_calls,omitempty"`
 	User                string                 `json:"user,omitempty"`
+}
+
+func (c *chatCompletionRequest) getMaxTokens() int {
+	if c.MaxCompletionTokens > 0 {
+		return c.MaxCompletionTokens
+	}
+	return c.MaxTokens
+}
+
+func (c *chatCompletionRequest) getToolChoiceString() string {
+	if c.ToolChoice == nil {
+		return ""
+	}
+
+	if tc, ok := c.ToolChoice.(string); ok {
+		return tc
+	}
+	return ""
+}
+
+func (c *chatCompletionRequest) getToolChoiceObject() *toolChoice {
+	if c.ToolChoice == nil {
+		return nil
+	}
+
+	if tc, ok := c.ToolChoice.(*toolChoice); ok {
+		return tc
+	}
+	return nil
 }
 
 type CompletionRequest struct {
@@ -107,15 +143,15 @@ type chatCompletionResponse struct {
 	ServiceTier       string                 `json:"service_tier,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
 	Object            string                 `json:"object,omitempty"`
-	Usage             usage                  `json:"usage,omitempty"`
+	Usage             *usage                 `json:"usage"`
 }
 
 type chatCompletionChoice struct {
 	Index        int                    `json:"index"`
 	Message      *chatMessage           `json:"message,omitempty"`
 	Delta        *chatMessage           `json:"delta,omitempty"`
-	FinishReason string                 `json:"finish_reason,omitempty"`
-	Logprobs     map[string]interface{} `json:"logprobs,omitempty"`
+	FinishReason *string                `json:"finish_reason"`
+	Logprobs     map[string]interface{} `json:"logprobs"`
 }
 
 type usage struct {
@@ -123,10 +159,17 @@ type usage struct {
 	CompletionTokens        int                      `json:"completion_tokens,omitempty"`
 	TotalTokens             int                      `json:"total_tokens,omitempty"`
 	CompletionTokensDetails *completionTokensDetails `json:"completion_tokens_details,omitempty"`
+	PromptTokensDetails     *promptTokensDetails     `json:"prompt_tokens_details,omitempty"`
+}
+
+type promptTokensDetails struct {
+	AudioTokens  int `json:"audio_tokens,omitempty"`
+	CachedTokens int `json:"cached_tokens,omitempty"`
 }
 
 type completionTokensDetails struct {
 	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
+	AudioTokens              int `json:"audio_tokens,omitempty"`
 	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
 	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 }
@@ -138,8 +181,11 @@ type chatMessage struct {
 	Role             string                 `json:"role,omitempty"`
 	Content          any                    `json:"content,omitempty"`
 	ReasoningContent string                 `json:"reasoning_content,omitempty"`
+	Reasoning        string                 `json:"reasoning,omitempty"` // For streaming responses
 	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
+	FunctionCall     *functionCall          `json:"function_call,omitempty"` // For legacy OpenAI format
 	Refusal          string                 `json:"refusal,omitempty"`
+	ToolCallId       string                 `json:"tool_call_id,omitempty"`
 }
 
 func (m *chatMessage) handleNonStreamingReasoningContent(reasoningContentMode string) {
@@ -200,13 +246,27 @@ func (m *chatMessage) handleStreamingReasoningContent(ctx wrapper.HttpContext, r
 	}
 }
 
-type messageContent struct {
-	Type     string    `json:"type,omitempty"`
-	Text     string    `json:"text"`
-	ImageUrl *imageUrl `json:"image_url,omitempty"`
+type chatMessageContent struct {
+	CacheControl map[string]interface{}      `json:"cache_control,omitempty"`
+	Type         string                      `json:"type,omitempty"`
+	Text         string                      `json:"text"`
+	ImageUrl     *chatMessageContentImageUrl `json:"image_url,omitempty"`
+	File         *chatMessageContentFile     `json:"file,omitempty"`
+	InputAudio   *chatMessageContentAudio    `json:"input_audio,omitempty"`
 }
 
-type imageUrl struct {
+type chatMessageContentAudio struct {
+	Data   string `json:"data"`
+	Format string `json:"format"`
+}
+
+type chatMessageContentFile struct {
+	FileData string `json:"file_data,omitempty"`
+	FileId   string `json:"file_id,omitempty"`
+	FileName string `json:"file_name,omitempty"`
+}
+
+type chatMessageContentImageUrl struct {
 	Url    string `json:"url,omitempty"`
 	Detail string `json:"detail,omitempty"`
 }
@@ -266,11 +326,11 @@ func (m *chatMessage) StringContent() string {
 	return ""
 }
 
-func (m *chatMessage) ParseContent() []messageContent {
-	var contentList []messageContent
+func (m *chatMessage) ParseContent() []chatMessageContent {
+	var contentList []chatMessageContent
 	content, ok := m.Content.(string)
 	if ok {
-		contentList = append(contentList, messageContent{
+		contentList = append(contentList, chatMessageContent{
 			Type: contentTypeText,
 			Text: content,
 		})
@@ -286,17 +346,42 @@ func (m *chatMessage) ParseContent() []messageContent {
 			switch contentMap["type"] {
 			case contentTypeText:
 				if subStr, ok := contentMap[contentTypeText].(string); ok {
-					contentList = append(contentList, messageContent{
+					contentList = append(contentList, chatMessageContent{
 						Type: contentTypeText,
 						Text: subStr,
 					})
 				}
 			case contentTypeImageUrl:
 				if subObj, ok := contentMap[contentTypeImageUrl].(map[string]any); ok {
-					contentList = append(contentList, messageContent{
+					msg := chatMessageContent{
 						Type: contentTypeImageUrl,
-						ImageUrl: &imageUrl{
+						ImageUrl: &chatMessageContentImageUrl{
 							Url: subObj["url"].(string),
+						},
+					}
+					if detail, ok := subObj["detail"].(string); ok {
+						msg.ImageUrl.Detail = detail
+					}
+					contentList = append(contentList, msg)
+				}
+			case contentTypeInputAudio:
+				if subObj, ok := contentMap[contentTypeInputAudio].(map[string]any); ok {
+					contentList = append(contentList, chatMessageContent{
+						Type: contentTypeInputAudio,
+						InputAudio: &chatMessageContentAudio{
+							Data:   subObj["data"].(string),
+							Format: subObj["format"].(string),
+						},
+					})
+				}
+			case contentTypeFile:
+				if subObj, ok := contentMap[contentTypeFile].(map[string]any); ok {
+					contentList = append(contentList, chatMessageContent{
+						Type: contentTypeFile,
+						File: &chatMessageContentFile{
+							FileId: subObj["file_id"].(string),
+							// FileName: subObj["file_name"].(string),
+							// FileData: subObj["file_data"].(string),
 						},
 					})
 				}
@@ -308,14 +393,14 @@ func (m *chatMessage) ParseContent() []messageContent {
 }
 
 type toolCall struct {
-	Index    int          `json:"index"`
-	Id       string       `json:"id"`
+	Index    int          `json:"index,omitempty"`
+	Id       string       `json:"id,omitempty"`
 	Type     string       `json:"type"`
 	Function functionCall `json:"function"`
 }
 
 type functionCall struct {
-	Id        string `json:"id"`
+	Id        string `json:"id,omitempty"`
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
@@ -325,6 +410,7 @@ func (m *functionCall) IsEmpty() bool {
 }
 
 type StreamEvent struct {
+	RawEvent   string `json:"-"`
 	Id         string `json:"id"`
 	Event      string `json:"event"`
 	Data       string `json:"data"`

@@ -49,7 +49,8 @@ struct ModelRouterConfigRule {
   std::string model_to_header_;
   std::vector<std::string> enable_on_path_suffix_ = {
       "/completions",  "/embeddings",       "/images/generations",
-      "/audio/speech", "/fine_tuning/jobs", "/moderations"};
+      "/audio/speech", "/fine_tuning/jobs", "/moderations",
+      "/image-synthesis", "/video-synthesis"};
 };
 
 class PluginContext;

@@ -3,23 +3,27 @@ package main
 import (
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/tidwall/resp"
 	"replay-protection/config"
 	"replay-protection/util"
+
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+	"github.com/tidwall/resp"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"replay-protection",
-		wrapper.ParseConfigBy(config.ParseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
+		wrapper.ParseConfig(config.ParseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 	)
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ReplayProtectionConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.ReplayProtectionConfig) types.Action {
 	nonce, _ := proxywasm.GetHttpRequestHeader(cfg.NonceHeader)
 	if cfg.ForceNonce && nonce == "" {
 		// In force mode, reject the request if a required header is missing.

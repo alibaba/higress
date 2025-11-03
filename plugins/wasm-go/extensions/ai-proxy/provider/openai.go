@@ -7,25 +7,18 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 // openaiProvider is the provider for OpenAI service.
 
 const (
-	defaultOpenaiDomain             = "api.openai.com"
-	defaultOpenaiChatCompletionPath = "/v1/chat/completions"
-	defaultOpenaiCompletionPath     = "/v1/completions"
-	defaultOpenaiEmbeddingsPath     = "/v1/embeddings"
-	defaultOpenaiAudioSpeech        = "/v1/audio/speech"
-	defaultOpenaiImageGeneration    = "/v1/images/generations"
-	defaultOpenaiModels             = "/v1/models"
+	defaultOpenaiDomain = "api.openai.com"
 )
 
-type openaiProviderInitializer struct {
-}
+type openaiProviderInitializer struct{}
 
 func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	return nil
@@ -33,20 +26,45 @@ func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameCompletion):      defaultOpenaiCompletionPath,
-		string(ApiNameChatCompletion):  defaultOpenaiChatCompletionPath,
-		string(ApiNameEmbeddings):      defaultOpenaiEmbeddingsPath,
-		string(ApiNameImageGeneration): defaultOpenaiImageGeneration,
-		string(ApiNameAudioSpeech):     defaultOpenaiAudioSpeech,
-		string(ApiNameModels):          defaultOpenaiModels,
+		string(ApiNameCompletion):                           PathOpenAICompletions,
+		string(ApiNameChatCompletion):                       PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):                           PathOpenAIEmbeddings,
+		string(ApiNameImageGeneration):                      PathOpenAIImageGeneration,
+		string(ApiNameImageEdit):                            PathOpenAIImageEdit,
+		string(ApiNameImageVariation):                       PathOpenAIImageVariation,
+		string(ApiNameAudioSpeech):                          PathOpenAIAudioSpeech,
+		string(ApiNameModels):                               PathOpenAIModels,
+		string(ApiNameFiles):                                PathOpenAIFiles,
+		string(ApiNameRetrieveFile):                         PathOpenAIRetrieveFile,
+		string(ApiNameRetrieveFileContent):                  PathOpenAIRetrieveFileContent,
+		string(ApiNameBatches):                              PathOpenAIBatches,
+		string(ApiNameRetrieveBatch):                        PathOpenAIRetrieveBatch,
+		string(ApiNameCancelBatch):                          PathOpenAICancelBatch,
+		string(ApiNameResponses):                            PathOpenAIResponses,
+		string(ApiNameFineTuningJobs):                       PathOpenAIFineTuningJobs,
+		string(ApiNameRetrieveFineTuningJob):                PathOpenAIRetrieveFineTuningJob,
+		string(ApiNameFineTuningJobEvents):                  PathOpenAIFineTuningJobEvents,
+		string(ApiNameFineTuningJobCheckpoints):             PathOpenAIFineTuningJobCheckpoints,
+		string(ApiNameCancelFineTuningJob):                  PathOpenAICancelFineTuningJob,
+		string(ApiNameResumeFineTuningJob):                  PathOpenAIResumeFineTuningJob,
+		string(ApiNamePauseFineTuningJob):                   PathOpenAIPauseFineTuningJob,
+		string(ApiNameFineTuningCheckpointPermissions):      PathOpenAIFineTuningCheckpointPermissions,
+		string(ApiNameDeleteFineTuningCheckpointPermission): PathOpenAIFineDeleteTuningCheckpointPermission,
 	}
 }
 
+// isDirectPath checks if the path is a known standard OpenAI interface path.
 func isDirectPath(path string) bool {
 	return strings.HasSuffix(path, "/completions") ||
 		strings.HasSuffix(path, "/embeddings") ||
 		strings.HasSuffix(path, "/audio/speech") ||
-		strings.HasSuffix(path, "/images/generations")
+		strings.HasSuffix(path, "/images/generations") ||
+		strings.HasSuffix(path, "/images/variations") ||
+		strings.HasSuffix(path, "/images/edits") ||
+		strings.HasSuffix(path, "/models") ||
+		strings.HasSuffix(path, "/responses") ||
+		strings.HasSuffix(path, "/fine_tuning/jobs") ||
+		strings.HasSuffix(path, "/fine_tuning/checkpoints")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
@@ -100,15 +118,12 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	if m.customPath != "" {
-		if m.isDirectCustomPath || apiName == "" {
-			util.OverwriteRequestPathHeader(headers, m.customPath)
-		} else {
-			util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
-		}
-	} else {
+	if m.isDirectCustomPath {
+		util.OverwriteRequestPathHeader(headers, m.customPath)
+	} else if apiName != "" {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
+
 	if m.customDomain != "" {
 		util.OverwriteRequestHostHeader(headers, m.customDomain)
 	} else {
@@ -121,7 +136,7 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 }
 
 func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+	if !m.config.needToProcessRequestBody(apiName) {
 		// We don't need to process the request body for other APIs.
 		return types.ActionContinue, nil
 	}

@@ -6,13 +6,16 @@ package main
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
@@ -23,9 +26,69 @@ const (
 	pluginName = "ai-proxy"
 
 	defaultMaxBodyBytes uint32 = 100 * 1024 * 1024
+
+	ctxOriginalPath = "original_path"
+	ctxOriginalHost = "original_host"
+	ctxOriginalAuth = "original_auth"
 )
 
-func main() {
+type pair[K, V any] struct {
+	key   K
+	value V
+}
+
+var (
+	headersCtxKeyMapping = map[string]string{
+		util.HeaderAuthority: ctxOriginalHost,
+		util.HeaderPath:      ctxOriginalPath,
+	}
+	headerToOriginalHeaderMapping = map[string]string{
+		util.HeaderAuthority: util.HeaderOriginalHost,
+		util.HeaderPath:      util.HeaderOriginalPath,
+	}
+	pathSuffixToApiName = []pair[string, provider.ApiName]{
+		// OpenAI style
+		{provider.PathOpenAIChatCompletions, provider.ApiNameChatCompletion},
+		{provider.PathOpenAICompletions, provider.ApiNameCompletion},
+		{provider.PathOpenAIEmbeddings, provider.ApiNameEmbeddings},
+		{provider.PathOpenAIAudioSpeech, provider.ApiNameAudioSpeech},
+		{provider.PathOpenAIImageGeneration, provider.ApiNameImageGeneration},
+		{provider.PathOpenAIImageVariation, provider.ApiNameImageVariation},
+		{provider.PathOpenAIImageEdit, provider.ApiNameImageEdit},
+		{provider.PathOpenAIBatches, provider.ApiNameBatches},
+		{provider.PathOpenAIFiles, provider.ApiNameFiles},
+		{provider.PathOpenAIModels, provider.ApiNameModels},
+		{provider.PathOpenAIFineTuningJobs, provider.ApiNameFineTuningJobs},
+		{provider.PathOpenAIResponses, provider.ApiNameResponses},
+		// Anthropic style
+		{provider.PathAnthropicMessages, provider.ApiNameAnthropicMessages},
+		{provider.PathAnthropicComplete, provider.ApiNameAnthropicComplete},
+		// Cohere style
+		{provider.PathCohereV1Rerank, provider.ApiNameCohereV1Rerank},
+	}
+	pathPatternToApiName = []pair[*regexp.Regexp, provider.ApiName]{
+		// OpenAI style
+		{util.RegRetrieveBatchPath, provider.ApiNameRetrieveBatch},
+		{util.RegCancelBatchPath, provider.ApiNameCancelBatch},
+		{util.RegRetrieveFilePath, provider.ApiNameRetrieveFile},
+		{util.RegRetrieveFileContentPath, provider.ApiNameRetrieveFileContent},
+		{util.RegRetrieveFineTuningJobPath, provider.ApiNameRetrieveFineTuningJob},
+		{util.RegRetrieveFineTuningJobEventsPath, provider.ApiNameFineTuningJobEvents},
+		{util.RegRetrieveFineTuningJobCheckpointsPath, provider.ApiNameFineTuningJobCheckpoints},
+		{util.RegCancelFineTuningJobPath, provider.ApiNameCancelFineTuningJob},
+		{util.RegResumeFineTuningJobPath, provider.ApiNameResumeFineTuningJob},
+		{util.RegPauseFineTuningJobPath, provider.ApiNamePauseFineTuningJob},
+		{util.RegFineTuningCheckpointPermissionPath, provider.ApiNameFineTuningCheckpointPermissions},
+		{util.RegDeleteFineTuningCheckpointPermissionPath, provider.ApiNameDeleteFineTuningCheckpointPermission},
+		// Gemini style
+		{util.RegGeminiGenerateContent, provider.ApiNameGeminiGenerateContent},
+		{util.RegGeminiStreamGenerateContent, provider.ApiNameGeminiStreamGenerateContent},
+	}
+)
+
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		pluginName,
 		wrapper.ParseOverrideConfig(parseGlobalConfig, parseOverrideRuleConfig),
@@ -34,6 +97,7 @@ func main() {
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
+		wrapper.WithRebuildAfterRequests[config.PluginConfig](1000),
 	)
 }
 
@@ -71,6 +135,42 @@ func parseOverrideRuleConfig(json gjson.Result, global config.PluginConfig, plug
 	return nil
 }
 
+func initContext(ctx wrapper.HttpContext) {
+	for header, ctxKey := range headersCtxKeyMapping {
+		value, _ := proxywasm.GetHttpRequestHeader(header)
+		ctx.SetContext(ctxKey, value)
+	}
+	for _, originHeader := range headerToOriginalHeaderMapping {
+		proxywasm.RemoveHttpRequestHeader(originHeader)
+	}
+	originalAuth, _ := proxywasm.GetHttpRequestHeader(util.HeaderOriginalAuth)
+	if originalAuth == "" {
+		value, _ := proxywasm.GetHttpRequestHeader(util.HeaderAuthorization)
+		ctx.SetContext(ctxOriginalAuth, value)
+	}
+}
+
+func saveContextsToHeaders(ctx wrapper.HttpContext) {
+	for header, ctxKey := range headersCtxKeyMapping {
+		originalValue := ctx.GetStringContext(ctxKey, "")
+		if originalValue == "" {
+			continue
+		}
+		currentValue, _ := proxywasm.GetHttpRequestHeader(header)
+		if currentValue == "" || originalValue == currentValue {
+			continue
+		}
+		originalHeader := headerToOriginalHeaderMapping[header]
+		if originalHeader != "" {
+			_ = proxywasm.ReplaceHttpRequestHeader(originalHeader, originalValue)
+		}
+	}
+	originalValue := ctx.GetStringContext(ctxOriginalAuth, "")
+	if originalValue != "" {
+		_ = proxywasm.ReplaceHttpRequestHeader(util.HeaderOriginalAuth, originalValue)
+	}
+}
+
 func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConfig) types.Action {
 	activeProvider := pluginConfig.GetProvider()
 
@@ -82,7 +182,17 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 
 	log.Debugf("[onHttpRequestHeader] provider=%s", activeProvider.GetProviderType())
 
+	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+	ctx.DisableReroute()
+
+	initContext(ctx)
+
 	rawPath := ctx.Path()
+
+	defer func() {
+		saveContextsToHeaders(ctx)
+	}()
+
 	path, _ := url.Parse(rawPath)
 	apiName := getApiName(path.Path)
 	providerConfig := pluginConfig.GetProviderConfig()
@@ -90,6 +200,23 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
 			apiName = handler.GetApiName(path.Path)
 		}
+	}
+
+	// Auto-detect protocol based on request path and handle conversion if needed
+	// If request is Claude format (/v1/messages) but provider doesn't support it natively,
+	// convert to OpenAI format (/v1/chat/completions)
+	if apiName == provider.ApiNameAnthropicMessages && !providerConfig.IsSupportedAPI(provider.ApiNameAnthropicMessages) {
+		// Provider doesn't support Claude protocol natively, convert to OpenAI format
+		newPath := strings.Replace(path.Path, provider.PathAnthropicMessages, provider.PathOpenAIChatCompletions, 1)
+		_ = proxywasm.ReplaceHttpRequestHeader(":path", newPath)
+		// Update apiName to match the new path
+		apiName = provider.ApiNameChatCompletion
+		// Mark that we need to convert response back to Claude format
+		ctx.SetContext("needClaudeResponseConversion", true)
+		log.Debugf("[Auto Protocol] Claude request detected, provider doesn't support natively, converted path from %s to %s, apiName: %s", path.Path, newPath, apiName)
+	} else if apiName == provider.ApiNameAnthropicMessages {
+		// Provider supports Claude protocol natively, no conversion needed
+		log.Debugf("[Auto Protocol] Claude request detected, provider supports natively, keeping original path: %s, apiName: %s", path.Path, apiName)
 	}
 
 	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !strings.Contains(contentType, util.MimeTypeApplicationJson) {
@@ -104,8 +231,6 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 	}
 
 	ctx.SetContext(provider.CtxKeyApiName, apiName)
-	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
-	ctx.DisableReroute()
 
 	// Always remove the Accept-Encoding header to prevent the LLM from sending compressed responses,
 	// allowing plugins to inspect or modify the response correctly
@@ -150,6 +275,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 	}
 	log.Debugf("[onHttpRequestBody] provider=%s", activeProvider.GetProviderType())
 
+	defer func() {
+		saveContextsToHeaders(ctx)
+	}()
+
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		providerConfig := pluginConfig.GetProviderConfig()
@@ -164,8 +293,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
-		
-		if providerConfig.IsOpenAIProtocol() {
+		// 仅 /v1/chat/completions 和 /v1/completions 接口支持 stream_options 参数
+		if providerConfig.IsOpenAIProtocol() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
 		
@@ -225,7 +354,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	// the apiToken is removed only when the number of consecutive request failures exceeds the threshold.
 	providerConfig.ResetApiTokenRequestFailureCount(apiTokenInUse)
 
-	headers := util.GetOriginalResponseHeaders()
+	headers := util.GetResponseHeaders()
 	if handler, ok := activeProvider.(provider.TransformResponseHeadersHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		handler.TransformResponseHeaders(ctx, apiName, headers)
@@ -234,17 +363,20 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	}
 	util.ReplaceResponseHeaders(headers)
 
-	checkStream(ctx)
 	_, needHandleBody := activeProvider.(provider.TransformResponseBodyHandler)
 	var needHandleStreamingBody bool
 	_, needHandleStreamingBody = activeProvider.(provider.StreamingResponseBodyHandler)
 	if !needHandleStreamingBody {
 		_, needHandleStreamingBody = activeProvider.(provider.StreamingEventHandler)
 	}
-	if !needHandleBody && !needHandleStreamingBody {
+
+	// Check if we need to read body for Claude response conversion
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+
+	if !needHandleBody && !needHandleStreamingBody && !needClaudeConversion {
 		ctx.DontReadResponseBody()
-	} else if !needHandleStreamingBody {
-		ctx.BufferResponseBody()
+	} else {
+		checkStream(ctx)
 	}
 
 	return types.ActionContinue
@@ -265,7 +397,12 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk)
 		if err == nil && modifiedChunk != nil {
-			return modifiedChunk
+			// Convert to Claude format if needed
+			claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, modifiedChunk)
+			if convertErr != nil {
+				return modifiedChunk
+			}
+			return claudeChunk
 		}
 		return chunk
 	}
@@ -274,8 +411,8 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		events := provider.ExtractStreamingEvents(ctx, chunk)
 		log.Debugf("[onStreamingResponseBody] %d events received", len(events))
 		if len(events) == 0 {
-			// No events are extracted, return the original chunk
-			return chunk
+			// No events are extracted, return empty bytes slice
+			return []byte("")
 		}
 		var responseBuilder strings.Builder
 		for _, event := range events {
@@ -291,17 +428,53 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 				log.Errorf("[onStreamingResponseBody] failed to process streaming event: %v\n%s", err, chunk)
 				return chunk
 			}
-			if outputEvents == nil || len(outputEvents) == 0 {
-				responseBuilder.WriteString(event.ToHttpString())
+			if len(outputEvents) == 0 {
+				// no need convert, keep original events
+				responseBuilder.WriteString(event.RawEvent)
 			} else {
 				for _, outputEvent := range outputEvents {
 					responseBuilder.WriteString(outputEvent.ToHttpString())
 				}
 			}
 		}
-		return []byte(responseBuilder.String())
+
+		result := []byte(responseBuilder.String())
+
+		// Convert to Claude format if needed
+		claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, result)
+		if convertErr != nil {
+			return result
+		}
+		return claudeChunk
 	}
-	return chunk
+
+	if !needsClaudeResponseConversion(ctx) {
+		return chunk
+	}
+
+	// If provider doesn't implement any streaming handlers but we need Claude conversion
+	// First extract complete events from the chunk
+	events := provider.ExtractStreamingEvents(ctx, chunk)
+	log.Debugf("[onStreamingResponseBody] %d events received (no handler)", len(events))
+	if len(events) == 0 {
+		// No events are extracted, return empty bytes slice
+		return []byte("")
+	}
+
+	// Build response from extracted events (without handler processing)
+	var responseBuilder strings.Builder
+	for _, event := range events {
+		responseBuilder.WriteString(event.ToHttpString())
+	}
+
+	result := []byte(responseBuilder.String())
+
+	// Convert to Claude format if needed
+	claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, result)
+	if convertErr != nil {
+		return result
+	}
+	return claudeChunk
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte) types.Action {
@@ -314,148 +487,86 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 
 	log.Debugf("[onHttpResponseBody] provider=%s", activeProvider.GetProviderType())
 
-	// Check if we need to handle automatic retrieval for memory tool calls
-	providerConfig := pluginConfig.GetProviderConfig()
-	apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
-	
-	if apiName == provider.ApiNameChatCompletion && providerConfig.IsCompressionEnabled() {
-		// Get original request body
-		originalBodyI := ctx.GetContext(provider.CtxRequestBody)
-		if originalBodyI != nil {
-			originalBody := originalBodyI.([]byte)
-			
-			// Process response to check if memory retrieval is needed
-			needRetrieval, err := providerConfig.ProcessResponseForMemoryRetrieval(ctx, body, originalBody)
-			if err != nil {
-				log.Errorf("[onHttpResponseBody] failed to process memory retrieval: %v", err)
-			} else if needRetrieval {
-				log.Infof("[onHttpResponseBody] detected read_memory call, initiating re-request")
-				
-				// Get re-request body
-				reRequestBodyI := ctx.GetContext("re_request_body")
-				if reRequestBodyI != nil {
-					reRequestBody := reRequestBodyI.([]byte)
-					
-					// Send async HTTP call to upstream LLM
-					if err := reRequestToLLM(ctx, activeProvider, reRequestBody); err != nil {
-						log.Errorf("[onHttpResponseBody] failed to re-request LLM: %v", err)
-					} else {
-						// Re-request initiated successfully, pause response delivery
-						log.Infof("[onHttpResponseBody] re-request initiated, response will be replaced")
-						return types.ActionPause
-					}
-				}
-			}
-		}
-	}
+	var finalBody []byte
 
-	// Process response body transformation
 	if handler, ok := activeProvider.(provider.TransformResponseBodyHandler); ok {
-		body, err := handler.TransformResponseBody(ctx, apiName, body)
+		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
+		transformedBody, err := handler.TransformResponseBody(ctx, apiName, body)
 		if err != nil {
 			_ = util.ErrorHandler("ai-proxy.proc_resp_body_failed", fmt.Errorf("failed to process response body: %v", err))
 			return types.ActionContinue
 		}
-		if err = provider.ReplaceResponseBody(body); err != nil {
-			_ = util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
-		}
+		finalBody = transformedBody
+	} else {
+		finalBody = body
+	}
+
+	// Convert to Claude format if needed (applies to both branches)
+	convertedBody, err := convertResponseBodyToClaude(ctx, finalBody)
+	if err != nil {
+		_ = util.ErrorHandler("ai-proxy.convert_resp_to_claude_failed", err)
+		return types.ActionContinue
+	}
+
+	if err = provider.ReplaceResponseBody(convertedBody); err != nil {
+		_ = util.ErrorHandler("ai-proxy.replace_resp_body_failed", fmt.Errorf("failed to replace response body: %v", err))
 	}
 	return types.ActionContinue
 }
 
-// reRequestToLLM sends async HTTP call to upstream LLM service
-func reRequestToLLM(ctx wrapper.HttpContext, activeProvider provider.Provider, requestBody []byte) error {
-	// Get upstream cluster info
-	clusterName, err := proxywasm.GetProperty([]string{"cluster_name"})
-	if err != nil {
-		return fmt.Errorf("failed to get cluster name: %v", err)
-	}
-
-	// Get original request path
-	path, err := proxywasm.GetHttpRequestHeader(":path")
-	if err != nil {
-		return fmt.Errorf("failed to get request path: %v", err)
-	}
-
-	// Build request headers
-	headers := [][2]string{
-		{":method", "POST"},
-		{":path", path},
-		{":authority", string(clusterName)},
-		{"content-type", "application/json"},
-	}
-
-	// Add authentication headers
-	if authHeader, err := proxywasm.GetHttpRequestHeader("authorization"); err == nil {
-		headers = append(headers, [2]string{"authorization", authHeader})
-	}
-	if apiKeyHeader, err := proxywasm.GetHttpRequestHeader("x-api-key"); err == nil {
-		headers = append(headers, [2]string{"x-api-key", apiKeyHeader})
-	}
-
-	log.Infof("[reRequestToLLM] dispatching re-request to cluster: %s, path: %s, body length: %d",
-		string(clusterName), path, len(requestBody))
-
-	// Send async HTTP call
-	_, err = proxywasm.DispatchHttpCall(
-		string(clusterName),
-		headers,
-		requestBody,
-		nil,  // trailers
-		30000, // 30 second timeout
-		onLLMReRequestResponse,
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to dispatch HTTP call: %v", err)
-	}
-
-	return nil
+// Helper function to check if Claude response conversion is needed
+func needsClaudeResponseConversion(ctx wrapper.HttpContext) bool {
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+	return needClaudeConversion
 }
 
-// onLLMReRequestResponse callback function for LLM re-request
-func onLLMReRequestResponse(numHeaders, bodySize, numTrailers int) {
-	// Get response body
-	responseBody, err := proxywasm.GetHttpCallResponseBody(0, bodySize)
-	if err != nil {
-		log.Errorf("[onLLMReRequestResponse] failed to get response body: %v", err)
-		proxywasm.ResumeHttpResponse()
-		return
+// Helper function to convert OpenAI streaming response to Claude format
+func convertStreamingResponseToClaude(ctx wrapper.HttpContext, data []byte) ([]byte, error) {
+	if !needsClaudeResponseConversion(ctx) {
+		return data, nil
 	}
 
-	// Get response headers
-	respHeaders, err := proxywasm.GetHttpCallResponseHeaders()
-	if err != nil {
-		log.Errorf("[onLLMReRequestResponse] failed to get response headers: %v", err)
-		proxywasm.ResumeHttpResponse()
-		return
-	}
+	// Get or create converter instance from context to maintain state
+	const claudeConverterKey = "claudeConverter"
+	var converter *provider.ClaudeToOpenAIConverter
 
-	// Parse status code
-	var statusCode string
-	for _, h := range respHeaders {
-		if h[0] == ":status" {
-			statusCode = h[1]
-			break
+	if converterData := ctx.GetContext(claudeConverterKey); converterData != nil {
+		if c, ok := converterData.(*provider.ClaudeToOpenAIConverter); ok {
+			converter = c
 		}
 	}
 
-	log.Infof("[onLLMReRequestResponse] received re-request response, status: %s, body length: %d",
-		statusCode, len(responseBody))
-
-	// Replace response body
-	if err := proxywasm.ReplaceHttpResponseBody(responseBody); err != nil {
-		log.Errorf("[onLLMReRequestResponse] failed to replace response body: %v", err)
+	if converter == nil {
+		converter = &provider.ClaudeToOpenAIConverter{}
+		ctx.SetContext(claudeConverterKey, converter)
 	}
 
-	// Resume response flow
-	proxywasm.ResumeHttpResponse()
+	claudeChunk, err := converter.ConvertOpenAIStreamResponseToClaude(ctx, data)
+	if err != nil {
+		log.Errorf("failed to convert streaming response to claude format: %v", err)
+		return data, err
+	}
+	return claudeChunk, nil
+}
+
+// Helper function to convert OpenAI response body to Claude format
+func convertResponseBodyToClaude(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
+	if !needsClaudeResponseConversion(ctx) {
+		return body, nil
+	}
+
+	converter := &provider.ClaudeToOpenAIConverter{}
+	convertedBody, err := converter.ConvertOpenAIResponseToClaude(ctx, body)
+	if err != nil {
+		return body, fmt.Errorf("failed to convert response to claude format: %v", err)
+	}
+	return convertedBody, nil
 }
 
 func normalizeOpenAiRequestBody(body []byte) []byte {
 	var err error
 	// Default setting include_usage.
-	if gjson.GetBytes(body, "stream").Bool() {
+	if gjson.GetBytes(body, "stream").Bool() && (!gjson.GetBytes(body, "stream_options").Exists() || !gjson.GetBytes(body, "stream_options.include_usage").Exists()) {
 		body, err = sjson.SetBytes(body, "stream_options.include_usage", true)
 		if err != nil {
 			log.Errorf("set include_usage failed, err:%s", err)
@@ -476,34 +587,19 @@ func checkStream(ctx wrapper.HttpContext) {
 }
 
 func getApiName(path string) provider.ApiName {
-	// openai style
-	if strings.HasSuffix(path, "/v1/chat/completions") {
-		return provider.ApiNameChatCompletion
+	// Check path suffix matches first
+	for _, p := range pathSuffixToApiName {
+		if strings.HasSuffix(path, p.key) {
+			return p.value
+		}
 	}
-	if strings.HasSuffix(path, "/v1/completions") {
-		return provider.ApiNameCompletion
+
+	// Check path pattern matches
+	for _, p := range pathPatternToApiName {
+		if p.key.MatchString(path) {
+			return p.value
+		}
 	}
-	if strings.HasSuffix(path, "/v1/embeddings") {
-		return provider.ApiNameEmbeddings
-	}
-	if strings.HasSuffix(path, "/v1/audio/speech") {
-		return provider.ApiNameAudioSpeech
-	}
-	if strings.HasSuffix(path, "/v1/images/generations") {
-		return provider.ApiNameImageGeneration
-	}
-	if strings.HasSuffix(path, "/v1/batches") {
-		return provider.ApiNameBatches
-	}
-	if strings.HasSuffix(path, "/v1/files") {
-		return provider.ApiNameFiles
-	}
-	if strings.HasSuffix(path, "/v1/models") {
-		return provider.ApiNameModels
-	}
-	// cohere style
-	if strings.HasSuffix(path, "/v1/rerank") {
-		return provider.ApiNameCohereV1Rerank
-	}
+
 	return ""
 }

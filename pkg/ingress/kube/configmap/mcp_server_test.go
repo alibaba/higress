@@ -19,7 +19,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -121,6 +121,30 @@ func Test_validMcpServer(t *testing.T) {
 			wantErr: errors.New("redis config cannot be empty when user level server is enabled"),
 		},
 		{
+			name: "redis config with password secret missing name",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					PasswordSecret: &SecretKeyReference{
+						Key: "password",
+					},
+				},
+			},
+			wantErr: errors.New("redis passwordSecret.name cannot be empty"),
+		},
+		{
+			name: "redis config with password secret missing key",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+					},
+				},
+			},
+			wantErr: errors.New("redis passwordSecret.key cannot be empty"),
+		},
+		{
 			name: "valid config with redis",
 			mcp: &McpServer{
 				Enable:                true,
@@ -147,6 +171,20 @@ func Test_validMcpServer(t *testing.T) {
 						Config: map[string]interface{}{
 							"key": "value",
 						},
+					},
+				},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "valid config with redis password secret",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address: "localhost:6379",
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
 					},
 				},
 			},
@@ -265,7 +303,11 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
+					},
+					DB: 0,
 				},
 				MatchList: []*MatchRule{},
 				Servers:   []*SSEServer{},
@@ -276,7 +318,11 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
+					},
+					DB: 0,
 				},
 				MatchList: []*MatchRule{},
 				Servers:   []*SSEServer{},
@@ -291,7 +337,12 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name:      "redis-credentials",
+						Namespace: "custom-ns",
+						Key:       "password",
+					},
+					DB: 0,
 				},
 				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
@@ -318,7 +369,12 @@ func Test_deepCopyMcpServer(t *testing.T) {
 					Address:  "localhost:6379",
 					Username: "default",
 					Password: "password",
-					DB:       0,
+					PasswordSecret: &SecretKeyReference{
+						Name:      "redis-credentials",
+						Namespace: "custom-ns",
+						Key:       "password",
+					},
+					DB: 0,
 				},
 				SSEPathSuffix: "/sse",
 				MatchList: []*MatchRule{
@@ -566,7 +622,7 @@ func TestMcpServerController_ConstructEnvoyFilters(t *testing.T) {
 				MatchList: []*MatchRule{},
 				Servers:   []*SSEServer{},
 			},
-			wantConfigs: 2, // Both session and server filters
+			wantConfigs: 1, // Only session filter when no servers configured
 			wantErr:     nil,
 		},
 	}
@@ -599,29 +655,23 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 				Servers:   []*SSEServer{},
 			},
 			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 					"value": {
-						"library_id": "mcp-session",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-session",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"redis": {
-									"address": "localhost:6379",
-									"username": "",
-									"password": "",
-									"db": 0
-								},
-								"rate_limit": null,
-								"sse_path_suffix": "",
-								"match_list": [],
-								"enable_user_level_server": false
-							}
-						}
+						"redis": {
+							"address": "localhost:6379",
+							"username": "",
+							"password": "",
+							"db": 0
+						},
+						"rate_limit": null,
+						"sse_path_suffix": "",
+						"match_list": [],
+						"enable_user_level_server": false
 					}
 				}
 			}`,
@@ -666,54 +716,122 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 				},
 			},
 			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 					"value": {
-						"library_id": "mcp-session",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-session",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"redis": {
-									"address": "localhost:6379",
-									"username": "user",
-									"password": "pass",
-									"db": 1
-								},
-								"rate_limit": {
-									"limit": 100,
-									"window": 3600,
-									"white_list": ["user1","user2"]
-								},
-								"sse_path_suffix": "/sse",
-								"match_list": [{
-									"match_rule_domain": "*",
-									"match_rule_path": "/test",
-									"match_rule_type": "exact",
-									"upstream_type": "",
-									"enable_path_rewrite": false,
-									"path_rewrite_prefix": ""
-								},{
-									"match_rule_domain": "*",
-									"match_rule_path": "/sse-test-1",
-									"match_rule_type": "prefix",
-									"upstream_type": "sse",
-									"enable_path_rewrite": false,
-									"path_rewrite_prefix": ""
-								},{
-									"match_rule_domain": "*",
-									"match_rule_path": "/sse-test-2",
-									"match_rule_type": "prefix",
-									"upstream_type": "sse",
-									"enable_path_rewrite": true,
-									"path_rewrite_prefix": "/mcp"
-								}],
-								"enable_user_level_server": true
-							}
-						}
+						"redis": {
+							"address": "localhost:6379",
+							"username": "user",
+							"password": "pass",
+							"db": 1
+						},
+						"rate_limit": {
+							"limit": 100,
+							"window": 3600,
+							"white_list": ["user1","user2"]
+						},
+						"sse_path_suffix": "/sse",
+						"match_list": [{
+							"match_rule_domain": "*",
+							"match_rule_path": "/test",
+							"match_rule_type": "exact",
+							"upstream_type": "",
+							"enable_path_rewrite": false,
+							"path_rewrite_prefix": ""
+						},{
+							"match_rule_domain": "*",
+							"match_rule_path": "/sse-test-1",
+							"match_rule_type": "prefix",
+							"upstream_type": "sse",
+							"enable_path_rewrite": false,
+							"path_rewrite_prefix": ""
+						},{
+							"match_rule_domain": "*",
+							"match_rule_path": "/sse-test-2",
+							"match_rule_type": "prefix",
+							"upstream_type": "sse",
+							"enable_path_rewrite": true,
+							"path_rewrite_prefix": "/mcp"
+						}],
+						"enable_user_level_server": true
+					}
+				}
+			}`,
+		},
+		{
+			name: "config with password secret",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address:  "localhost:6379",
+					Password: "ignored",
+					PasswordSecret: &SecretKeyReference{
+						Name: "redis-credentials",
+						Key:  "password",
+					},
+				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
+			},
+			wantJSON: `{
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+					"value": {
+						"redis": {
+							"address": "localhost:6379",
+							"username": "",
+							"password": "${secret.test-namespace/redis-credentials.password}",
+							"db": 0
+						},
+						"rate_limit": null,
+						"sse_path_suffix": "",
+						"match_list": [],
+						"enable_user_level_server": false
+					}
+				}
+			}`,
+		},
+		{
+			name: "config with password secret and namespace",
+			mcp: &McpServer{
+				Enable: true,
+				Redis: &RedisConfig{
+					Address: "localhost:6379",
+					PasswordSecret: &SecretKeyReference{
+						Namespace: "other-ns",
+						Name:      "redis-credentials",
+						Key:       "password",
+					},
+				},
+				MatchList: []*MatchRule{},
+				Servers:   []*SSEServer{},
+			},
+			wantJSON: `{
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-session",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-session",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
+					"value": {
+						"redis": {
+							"address": "localhost:6379",
+							"username": "",
+							"password": "${secret.other-ns/redis-credentials.password}",
+							"db": 0
+						},
+						"rate_limit": null,
+						"sse_path_suffix": "",
+						"match_list": [],
+						"enable_user_level_server": false
 					}
 				}
 			}`,
@@ -744,24 +862,7 @@ func TestMcpServerController_constructMcpServerStruct(t *testing.T) {
 			mcp: &McpServer{
 				Servers: []*SSEServer{},
 			},
-			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
-					"value": {
-						"library_id": "mcp-server",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-server",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"servers": []
-							}
-						}
-					}
-				}
-			}`,
+			wantJSON: "", // Return empty string when no servers configured
 		},
 		{
 			name: "with servers",
@@ -779,26 +880,20 @@ func TestMcpServerController_constructMcpServerStruct(t *testing.T) {
 				},
 			},
 			wantJSON: `{
-				"name": "envoy.filters.http.golang",
-				"typed_config": {
-					"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-					"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+				"library_id": "mcp-server",
+				"library_path": "/var/lib/istio/envoy/golang-filter.so",
+				"plugin_name": "mcp-server",
+				"plugin_config": {
+					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 					"value": {
-						"library_id": "mcp-server",
-						"library_path": "/var/lib/istio/envoy/golang-filter.so",
-						"plugin_name": "mcp-server",
-						"plugin_config": {
-							"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-							"value": {
-								"servers": [{
-									"name": "test-server",
-									"path": "/test",
-									"type": "test",
-									"domain_list": ["example.com"],
-									"config": {"key":"value"}
-								}]
-							}
-						}
+						"servers": [{
+							"name": "test-server",
+							"path": "/test",
+							"type": "test",
+							"domain_list": ["example.com"],
+							"config": {"key":"value"}
+						}]
 					}
 				}
 			}`,

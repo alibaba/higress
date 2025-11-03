@@ -28,7 +28,7 @@ import (
 	"github.com/alibaba/higress/hgctl/pkg/plugin/option"
 	"github.com/alibaba/higress/hgctl/pkg/plugin/types"
 	"github.com/alibaba/higress/hgctl/pkg/plugin/utils"
-	"github.com/alibaba/higress/pkg/cmd/options"
+	"github.com/alibaba/higress/v2/pkg/cmd/options"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/pkg/errors"

@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -146,7 +146,7 @@ func (c *ProviderConfig) SetApiTokensFailover(activeProvider Provider) error {
 			return fmt.Errorf("failed to init apiTokens: %v", err)
 		}
 
-		wrapper.RegisteTickFunc(c.failover.healthCheckInterval, func() {
+		wrapper.RegisterTickFunc(c.failover.healthCheckInterval, func() {
 			// Only the Wasm VM that successfully acquires the lease will perform health check
 			if c.isFailoverEnabled() && c.tryAcquireOrRenewLease(vmID) {
 				log.Debugf("Successfully acquired or renewed lease for %v: %v", vmID, c.GetType())

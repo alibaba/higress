@@ -63,7 +63,7 @@ func runInit(w io.Writer, target string) (err error) {
 		return errors.Wrap(err, "invalid target directory")
 	}
 	dir := fmt.Sprintf("%s/%s", target, ans.Name)
-	err = os.MkdirAll(dir, 0755)
+	err = os.MkdirAll(dir, 0o755)
 	defer func() {
 		if err != nil {
 			os.RemoveAll(dir)

@@ -22,12 +22,13 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/registry/reconcile"
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
+
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 // RedisConfig defines the configuration for Redis connection
@@ -38,8 +39,20 @@ type RedisConfig struct {
 	Username string `json:"username,omitempty"`
 	// The password for Redis authentication
 	Password string `json:"password,omitempty"`
+	// Reference to a secret containing the password
+	PasswordSecret *SecretKeyReference `json:"passwordSecret,omitempty"`
 	// The database index to use
 	DB int `json:"db,omitempty"`
+}
+
+// SecretKeyReference defines a reference to a key within a Kubernetes secret
+type SecretKeyReference struct {
+	// The namespace of the secret. Defaults to the higress system namespace.
+	Namespace string `json:"namespace,omitempty"`
+	// The name of the secret
+	Name string `json:"name,omitempty"`
+	// The key within the secret data
+	Key string `json:"key,omitempty"`
 }
 
 // MCPRatelimitConfig defines the configuration for rate limit
@@ -118,6 +131,15 @@ func validMcpServer(m *McpServer) error {
 		return nil
 	}
 
+	if m.Redis != nil && m.Redis.PasswordSecret != nil {
+		if m.Redis.PasswordSecret.Name == "" {
+			return errors.New("redis passwordSecret.name cannot be empty")
+		}
+		if m.Redis.PasswordSecret.Key == "" {
+			return errors.New("redis passwordSecret.key cannot be empty")
+		}
+	}
+
 	if m.EnableUserLevelServer && m.Redis == nil {
 		return errors.New("redis config cannot be empty when user level server is enabled")
 	}
@@ -183,6 +205,13 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 			Password: mcp.Redis.Password,
 			DB:       mcp.Redis.DB,
 		}
+		if mcp.Redis.PasswordSecret != nil {
+			newMcp.Redis.PasswordSecret = &SecretKeyReference{
+				Namespace: mcp.Redis.PasswordSecret.Namespace,
+				Name:      mcp.Redis.PasswordSecret.Name,
+				Key:       mcp.Redis.PasswordSecret.Key,
+			}
+		}
 	}
 	if mcp.Ratelimit != nil {
 		newMcp.Ratelimit = &MCPRatelimitConfig{
@@ -232,18 +261,19 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 }
 
 type McpServerController struct {
-	Namespace    string
-	mcpServer    atomic.Value
-	Name         string
-	eventHandler ItemEventHandler
-	reconciler   *reconcile.Reconciler
+	Namespace          string
+	mcpServer          atomic.Value
+	Name               string
+	eventHandler       ItemEventHandler
+	mcpServerProviders map[mcpserver.McpServerProvider]bool
 }
 
 func NewMcpServerController(namespace string) *McpServerController {
 	mcpController := &McpServerController{
-		Namespace: namespace,
-		mcpServer: atomic.Value{},
-		Name:      "mcpServer",
+		Namespace:          namespace,
+		Name:               "mcpServer",
+		mcpServer:          atomic.Value{},
+		mcpServerProviders: make(map[mcpserver.McpServerProvider]bool),
 	}
 	mcpController.SetMcpServer(NewDefaultMcpServer())
 	return mcpController
@@ -310,8 +340,11 @@ func (m *McpServerController) RegisterItemEventHandler(eventHandler ItemEventHan
 	m.eventHandler = eventHandler
 }
 
-func (m *McpServerController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
-	m.reconciler = reconciler
+func (m *McpServerController) RegisterMcpServerProvider(provider mcpserver.McpServerProvider) {
+	if m.mcpServerProviders == nil {
+		m.mcpServerProviders = make(map[mcpserver.McpServerProvider]bool)
+	}
+	m.mcpServerProviders[provider] = true
 }
 
 func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) {
@@ -323,9 +356,26 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 		return configs, nil
 	}
 
-	// mcp-session envoy filter
+	// mcp-session envoy filter with ECDS
 	mcpSessionStruct := m.constructMcpSessionStruct(mcpServer)
 	if mcpSessionStruct != "" {
+		// HTTP_FILTER configuration with config_discovery reference
+		sessionFilterRef := `{
+			"name": "golang-filter-mcp-session",
+			"config_discovery": {
+				"config_source": {
+					"ads": {}
+				},
+				"type_urls": ["type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config"]
+			}
+		}`
+
+		// EXTENSION_CONFIG configuration with actual filter config
+		sessionExtensionConfig := fmt.Sprintf(`{
+			"name": "golang-filter-mcp-session",
+			"typed_config": %s
+		}`, mcpSessionStruct)
+
 		sessionConfig := &config.Config{
 			Meta: config.Meta{
 				GroupVersionKind: gvk.EnvoyFilter,
@@ -353,7 +403,14 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 						},
 						Patch: &networking.EnvoyFilter_Patch{
 							Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
-							Value:     util.BuildPatchStruct(mcpSessionStruct),
+							Value:     util.BuildPatchStruct(sessionFilterRef),
+						},
+					},
+					{
+						ApplyTo: networking.EnvoyFilter_EXTENSION_CONFIG,
+						Patch: &networking.EnvoyFilter_Patch{
+							Operation: networking.EnvoyFilter_Patch_ADD,
+							Value:     util.BuildPatchStruct(sessionExtensionConfig),
 						},
 					},
 				},
@@ -362,9 +419,26 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 		configs = append(configs, sessionConfig)
 	}
 
-	// mcp-server envoy filter
+	// mcp-server envoy filter with ECDS
 	mcpServerStruct := m.constructMcpServerStruct(mcpServer)
 	if mcpServerStruct != "" {
+		// HTTP_FILTER configuration with config_discovery reference
+		serverFilterRef := `{
+			"name": "golang-filter-mcp-server",
+			"config_discovery": {
+				"config_source": {
+					"ads": {}
+				},
+				"type_urls": ["type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config"]
+			}
+		}`
+
+		// EXTENSION_CONFIG configuration with actual filter config
+		serverExtensionConfig := fmt.Sprintf(`{
+			"name": "golang-filter-mcp-server",
+			"typed_config": %s
+		}`, mcpServerStruct)
+
 		serverConfig := &config.Config{
 			Meta: config.Meta{
 				GroupVersionKind: gvk.EnvoyFilter,
@@ -392,7 +466,14 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 						},
 						Patch: &networking.EnvoyFilter_Patch{
 							Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
-							Value:     util.BuildPatchStruct(mcpServerStruct),
+							Value:     util.BuildPatchStruct(serverFilterRef),
+						},
+					},
+					{
+						ApplyTo: networking.EnvoyFilter_EXTENSION_CONFIG,
+						Patch: &networking.EnvoyFilter_Patch{
+							Operation: networking.EnvoyFilter_Patch_ADD,
+							Value:     util.BuildPatchStruct(serverExtensionConfig),
 						},
 					},
 				},
@@ -406,10 +487,36 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 
 func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 	// Build match_list configuration
-	matchList := "[]"
-	var matchConfigs []string
-	if len(mcp.MatchList) > 0 {
-		for _, rule := range mcp.MatchList {
+	var matchList []*MatchRule
+	matchList = append(matchList, mcp.MatchList...)
+	for provider := range m.mcpServerProviders {
+		servers := provider.GetMcpServers()
+		if len(servers) == 0 {
+			continue
+		}
+		for _, server := range servers {
+			matchRuleDomain := ""
+			if len(server.Domains) != 0 {
+				if len(server.Domains) > 1 {
+					matchRuleDomain = fmt.Sprintf("(%s)", strings.Join(server.Domains, "|"))
+				} else {
+					matchRuleDomain = server.Domains[0]
+				}
+			}
+			matchList = append(matchList, &MatchRule{
+				MatchRuleDomain:   matchRuleDomain,
+				MatchRuleType:     server.PathMatchType,
+				MatchRulePath:     server.PathMatchValue,
+				UpstreamType:      server.UpstreamType,
+				EnablePathRewrite: server.EnablePathRewrite,
+				PathRewritePrefix: server.PathRewritePrefix,
+			})
+		}
+	}
+	matchListConfig := "[]"
+	if len(matchList) > 0 {
+		matchConfigs := make([]string, 0, len(matchList))
+		for _, rule := range matchList {
 			matchConfigs = append(matchConfigs, fmt.Sprintf(`{
 				"match_rule_domain": "%s",
 				"match_rule_path": "%s",
@@ -419,37 +526,30 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 				"path_rewrite_prefix": "%s"
 			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType, rule.UpstreamType, rule.EnablePathRewrite, rule.PathRewritePrefix))
 		}
+		matchListConfig = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
 	}
-
-	if m.reconciler != nil {
-		vsFromMcp := m.reconciler.GetAllConfigs(gvk.VirtualService)
-		for _, c := range vsFromMcp {
-			vs := c.Spec.(*networking.VirtualService)
-			var host string
-			if len(vs.Hosts) > 1 {
-				host = fmt.Sprintf("(%s)", strings.Join(vs.Hosts, "|"))
-			} else {
-				host = vs.Hosts[0]
-			}
-			path := vs.Http[0].Match[0].Uri.GetPrefix()
-			matchConfigs = append(matchConfigs, fmt.Sprintf(`{
-				"match_rule_domain": "%s",
-				"match_rule_path": "%s",
-				"match_rule_type": "prefix"
-			}`, host, path))
-		}
-	}
-	matchList = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
 
 	// Build redis configuration
 	redisConfig := "null"
 	if mcp.Redis != nil {
+		passwordValue := mcp.Redis.Password
+		if mcp.Redis.PasswordSecret != nil && mcp.Redis.PasswordSecret.Name != "" && mcp.Redis.PasswordSecret.Key != "" {
+			ns := mcp.Redis.PasswordSecret.Namespace
+			if ns == "" {
+				ns = m.Namespace
+			}
+			if ns != "" {
+				passwordValue = fmt.Sprintf("${secret.%s/%s.%s}", ns, mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
+			} else {
+				passwordValue = fmt.Sprintf("${secret.%s.%s}", mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
+			}
+		}
 		redisConfig = fmt.Sprintf(`{
 							"address": "%s",
 							"username": "%s",
 							"password": "%s",
 							"db": %d
-						}`, mcp.Redis.Address, mcp.Redis.Username, mcp.Redis.Password, mcp.Redis.DB)
+						}`, mcp.Redis.Address, mcp.Redis.Username, passwordValue, mcp.Redis.DB)
 	}
 
 	// Build rate limit configuration
@@ -466,37 +566,36 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 						}`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window, whiteList)
 	}
 
-	// Build complete configuration structure
+	// Build complete configuration structure for EXTENSION_CONFIG
 	return fmt.Sprintf(`{
-		"name": "envoy.filters.http.golang",
-		"typed_config": {
-			"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-			"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+		"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+		"library_id": "mcp-session",
+		"library_path": "/var/lib/istio/envoy/golang-filter.so",
+		"plugin_name": "mcp-session",
+		"plugin_config": {
+			"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 			"value": {
-				"library_id": "mcp-session",
-				"library_path": "/var/lib/istio/envoy/golang-filter.so",
-				"plugin_name": "mcp-session",
-				"plugin_config": {
-					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-					"value": {
-						"redis": %s,
-						"rate_limit": %s,
-						"sse_path_suffix": "%s",
-						"match_list": %s,
-						"enable_user_level_server": %t
-					}
-				}
+				"redis": %s,
+				"rate_limit": %s,
+				"sse_path_suffix": "%s",
+				"match_list": %s,
+				"enable_user_level_server": %t
 			}
 		}
 	}`,
 		redisConfig,
 		rateLimitConfig,
 		mcp.SSEPathSuffix,
-		matchList,
+		matchListConfig,
 		mcp.EnableUserLevelServer)
 }
 
 func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
+	// if no servers, return empty string
+	if mcp == nil || len(mcp.Servers) == 0 {
+		return ""
+	}
+
 	// Build servers configuration
 	servers := "[]"
 	if len(mcp.Servers) > 0 {
@@ -523,22 +622,16 @@ func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
 		servers = fmt.Sprintf("[%s]", strings.Join(serverConfigs, ","))
 	}
 
-	// Build complete configuration structure
+	// Build complete configuration structure for EXTENSION_CONFIG
 	return fmt.Sprintf(`{
-		"name": "envoy.filters.http.golang",
-		"typed_config": {
-			"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
-			"type_url": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+		"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
+		"library_id": "mcp-server",
+		"library_path": "/var/lib/istio/envoy/golang-filter.so",
+		"plugin_name": "mcp-server",
+		"plugin_config": {
+			"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 			"value": {
-				"library_id": "mcp-server",
-				"library_path": "/var/lib/istio/envoy/golang-filter.so",
-				"plugin_name": "mcp-server",
-				"plugin_config": {
-					"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-					"value": {
-						"servers": %s
-					}
-				}
+				"servers": %s
 			}
 		}
 	}`, servers)

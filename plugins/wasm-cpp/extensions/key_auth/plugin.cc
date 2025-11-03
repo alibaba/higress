@@ -202,7 +202,7 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
           }
           item = consumer.find("keys");
           if (item == consumer.end()) {
-            LOG_WARN("not found keys configuration for consumer " + c.name + ", will use global configuration to extract keys");
+            LOG_DEBUG("not found keys configuration for consumer " + c.name + ", will use global configuration to extract keys");
             need_global_keys = true;
           } else {
             c.keys = std::vector<std::string>{OriginalAuthKey};
@@ -310,6 +310,7 @@ bool PluginRootContext::checkPlugin(
 
       auto credential_to_name_iter = rule.credential_to_name.find(credential);
       if (credential_to_name_iter != rule.credential_to_name.end()) {
+        addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
         if (allow_set && !allow_set->empty()) {
           if (allow_set->find(credential_to_name_iter->second) ==
               allow_set->end()) {
@@ -319,7 +320,6 @@ bool PluginRootContext::checkPlugin(
             return false;
           }
         }
-        addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
       }
       return true;
     }
@@ -350,6 +350,7 @@ bool PluginRootContext::checkPlugin(
 
         auto credential_to_name_iter = rule.credential_to_name.find(credential);
         if (credential_to_name_iter != rule.credential_to_name.end()) {
+          addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
           if (allow_set) {
             if (allow_set->empty()) {
               LOG_DEBUG("allow set is empty, nobody is allowed");
@@ -363,7 +364,6 @@ bool PluginRootContext::checkPlugin(
               return false;
             }
           }
-          addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
         }
         return true;
       }

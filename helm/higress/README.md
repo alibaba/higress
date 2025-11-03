@@ -165,6 +165,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.enableIPv6 | bool | `false` |  |
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
 | global.enableLDSCache | bool | `false` |  |
+| global.enablePluginServer | bool | `false` |  |
 | global.enableProxyProtocol | bool | `false` |  |
 | global.enablePushAllMCPClusters | bool | `true` |  |
 | global.enableRedis | bool | `false` | Whether to enable Redis(redis-stack-server) for Higress, default is false. |
@@ -241,6 +242,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.useMCP | bool | `false` | Use the Mesh Control Protocol (MCP) for configuring Istiod. Requires an MCP source. |
 | global.watchNamespace | string | `""` | If not empty, Higress Controller will only watch resources in the specified namespace. When isolating different business systems using K8s namespace, if each namespace requires a standalone gateway instance, this parameter can be used to confine the Ingress watching of Higress within the given namespace. |
 | global.xdsMaxRecvMsgSize | string | `"104857600"` |  |
+| gzip | object | `{"chunkSize":4096,"compressionLevel":"BEST_COMPRESSION","compressionStrategy":"DEFAULT_STRATEGY","contentType":["text/html","text/css","text/plain","text/xml","application/json","application/javascript","application/xhtml+xml","image/svg+xml"],"disableOnEtagHeader":true,"enable":true,"memoryLevel":5,"minContentLength":1024,"windowBits":12}` | Gzip compression settings |
 | hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
 | meshConfig | object | `{"enablePrometheusMerge":true,"rootNamespace":null,"trustDomain":"cluster.local"}` | meshConfig defines runtime configuration of components, including Istiod and istio-agent behavior See https://istio.io/docs/reference/config/istio.mesh.v1alpha1/ for all available options |
 | meshConfig.rootNamespace | string | `nil` | The namespace to treat as the administrative root namespace for Istio configuration. When processing a leaf namespace Istio will search for declarations in that namespace first and if none are found it will search in the root namespace. Any matching declaration found in the root namespace is processed as if it were declared in the leaf namespace. |
@@ -273,6 +275,19 @@ The command removes all the Kubernetes components associated with the chart and 
 | pilot.serviceAnnotations | object | `{}` |  |
 | pilot.tag | string | `""` |  |
 | pilot.traceSampling | float | `1` |  |
+| pluginServer.hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
+| pluginServer.image | string | `"plugin-server"` |  |
+| pluginServer.imagePullSecrets | list | `[]` |  |
+| pluginServer.labels | object | `{}` |  |
+| pluginServer.name | string | `"higress-plugin-server"` |  |
+| pluginServer.podLabels | object | `{}` | Labels to apply to the pod |
+| pluginServer.replicas | int | `2` | Number of Higress Plugin Server pods, 2 recommended for high availability |
+| pluginServer.resources.limits.cpu | string | `"500m"` |  |
+| pluginServer.resources.limits.memory | string | `"256Mi"` |  |
+| pluginServer.resources.requests.cpu | string | `"200m"` |  |
+| pluginServer.resources.requests.memory | string | `"128Mi"` |  |
+| pluginServer.service.port | int | `80` |  |
+| pluginServer.tag | string | `""` |  |
 | redis.redis.affinity | object | `{}` | Affinity for Redis |
 | redis.redis.image | string | `"redis-stack-server"` | Specify the image |
 | redis.redis.name | string | `"redis-stack-server"` |  |
@@ -292,7 +307,5 @@ The command removes all the Kubernetes components associated with the chart and 
 | revision | string | `""` |  |
 | tracing.enable | bool | `false` |  |
 | tracing.sampling | int | `100` |  |
-| tracing.skywalking.port | int | `11800` |  |
-| tracing.skywalking.service | string | `""` |  |
 | tracing.timeout | int | `500` |  |
 | upstream | object | `{"connectionBufferLimits":10485760,"idleTimeout":10}` | Upstream config settings |

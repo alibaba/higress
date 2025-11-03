@@ -71,14 +71,14 @@ spec:
   defaultConfig:
     headers:
       - key1=value1
-    "body": "{\"hello\":\"foo\"}"
+    "body": '{"hello":"foo"}'
   matchRules:
     - domain:
         - bar.com
       config:
         headers:
           - key2=value2
-        "body": "{\"hello\":\"bar\"}"
+        "body": '{"hello":"bar"}'
     - domain:
         - baz.com
       config:
@@ -86,15 +86,15 @@ spec:
           - 401
         headers:
           - key3=value3
-        "body": "{\"hello\":\"baz\"}"
+        "body": '{"hello":"baz"}'
     - domain:
         - qux.com
       config:
         status_code: 201
         headers:
           - key5=value5
-        "body": "{\"hello\":\"qux\"}"
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-custom-response:1.0.0
+        "body": '{"hello":"qux"}'
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-custom-response:2.0.0
 ---
 # test enable_on_status 401
 apiVersion: extensions.higress.io/v1alpha1
@@ -115,4 +115,4 @@ spec:
           - consumer1
       domain:
         - baz.com
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/basic-auth:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/basic-auth:2.0.0

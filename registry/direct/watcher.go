@@ -24,12 +24,12 @@ import (
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	ingress "github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/registry"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/registry"
+	provider "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/memory"
 	"github.com/go-errors/errors"
 )
 
@@ -94,6 +94,12 @@ func WithSNI(sni string) WatcherOption {
 	}
 }
 
+func WithProxyName(proxyName string) WatcherOption {
+	return func(w *watcher) {
+		w.ProxyName = proxyName
+	}
+}
+
 func (w *watcher) Run() {
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
@@ -108,12 +114,14 @@ func (w *watcher) Run() {
 				ServiceKey:      ingress.CreateMcpServiceKey(host, int32(w.Port)),
 			}
 		}
-		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+		proxyConfig := w.generateProxyConfig(serviceEntry)
+		w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 			ServiceName:            w.Name,
 			ServiceEntry:           serviceEntry,
 			Suffix:                 w.Type,
 			RegistryType:           w.Type,
 			RegistryName:           w.Name,
+			ProxyConfig:            proxyConfig,
 			DestinationRuleWrapper: destinationRuleWrapper,
 		})
 		w.UpdateService()
@@ -129,7 +137,7 @@ func (w *watcher) Stop() {
 	w.Ready(false)
 }
 
-var domainRegex = regexp.MustCompile(`^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6}$`)
+var domainRegex = regexp.MustCompile(`^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$`)
 
 func (w *watcher) generateServiceEntry(host string) *v1alpha3.ServiceEntry {
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
@@ -197,16 +205,12 @@ func (w *watcher) generateDestinationRule(se *v1alpha3.ServiceEntry) *v1alpha3.D
 	if !common.Protocol(se.Ports[0].Protocol).IsHTTPS() {
 		return nil
 	}
-	sni := w.Sni
-	// DNS type, automatically sets SNI based on domain name.
-	if sni == "" && w.Type == string(registry.DNS) && len(se.Endpoints) == 1 {
-		sni = w.Domain
-	}
+	sni := w.getSni(se)
 	return &v1alpha3.DestinationRule{
 		Host: se.Hosts[0],
 		TrafficPolicy: &v1alpha3.TrafficPolicy{
 			PortLevelSettings: []*v1alpha3.TrafficPolicy_PortTrafficPolicy{
-				&v1alpha3.TrafficPolicy_PortTrafficPolicy{
+				{
 					Port: &v1alpha3.PortSelector{
 						Number: se.Ports[0].Number,
 					},
@@ -218,7 +222,26 @@ func (w *watcher) generateDestinationRule(se *v1alpha3.ServiceEntry) *v1alpha3.D
 			},
 		},
 	}
+}
 
+func (w *watcher) generateProxyConfig(entry *v1alpha3.ServiceEntry) *ingress.ServiceProxyConfig {
+	if w.ProxyName == "" {
+		return nil
+	}
+	return &ingress.ServiceProxyConfig{
+		ProxyName:        w.ProxyName,
+		UpstreamProtocol: common.ParseProtocol(entry.Ports[0].Protocol),
+		UpstreamSni:      w.getSni(entry),
+	}
+}
+
+func (w *watcher) getSni(se *v1alpha3.ServiceEntry) string {
+	sni := w.Sni
+	// DNS type, automatically sets SNI based on domain name.
+	if sni == "" && w.Type == string(registry.DNS) && len(se.Endpoints) == 1 {
+		sni = w.Domain
+	}
+	return sni
 }
 
 func (w *watcher) GetRegistryType() string {

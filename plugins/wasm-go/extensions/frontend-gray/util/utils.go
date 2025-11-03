@@ -304,7 +304,10 @@ func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookie str
 }
 
 func GetGrayWeightUniqueId(cookie string, uniqueGrayTag string) string {
-	uniqueId := GetCookieValue(cookie, uniqueGrayTag)
+	uniqueId, _ := proxywasm.GetHttpRequestHeader(uniqueGrayTag)
+	if uniqueId == "" {
+		uniqueId = GetCookieValue(cookie, uniqueGrayTag)
+	}
 	if uniqueId == "" {
 		uniqueId = strings.ReplaceAll(uuid.NewString(), "-", "")
 	}

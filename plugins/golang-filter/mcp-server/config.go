@@ -5,6 +5,10 @@ import (
 
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/registry/nacos"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/gorm"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/higress-api"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/higress-ops"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/nginx-migration"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag"
 	mcp_session "github.com/alibaba/higress/plugins/golang-filter/mcp-session"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	xds "github.com/cncf/xds/go/xds/type/v3"
@@ -12,12 +16,14 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-const Name = "mcp-server"
-const Version = "1.0.0"
+const (
+	Name    = "mcp-server"
+	Version = "1.0.0"
+)
 
 type SSEServerWrapper struct {
-	BaseServer *common.SSEServer
-	DomainList []string
+	BaseServer   *common.SSEServer
+	HostMatchers []common.HostMatcher // Pre-parsed host matchers for efficient matching
 }
 
 type config struct {
@@ -30,8 +36,7 @@ func (c *config) Destroy() {
 	}
 }
 
-type Parser struct {
-}
+type Parser struct{}
 
 func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (interface{}, error) {
 	configStruct := &xds.TypedStruct{}
@@ -66,15 +71,18 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 			return nil, fmt.Errorf("server %s path is not set", serverType)
 		}
 
-		serverDomainList := []string{}
+		// Parse domain list directly into HostMatchers for efficient matching
+		var hostMatchers []common.HostMatcher
 		if domainList, ok := serverConfigMap["domain_list"].([]interface{}); ok {
+			hostMatchers = make([]common.HostMatcher, 0, len(domainList))
 			for _, domain := range domainList {
 				if domainStr, ok := domain.(string); ok {
-					serverDomainList = append(serverDomainList, domainStr)
+					hostMatchers = append(hostMatchers, common.ParseHostPattern(domainStr))
 				}
 			}
 		} else {
-			serverDomainList = []string{"*"}
+			// Default to match all domains
+			hostMatchers = []common.HostMatcher{common.ParseHostPattern("*")}
 		}
 
 		serverName, ok := serverConfigMap["name"].(string)
@@ -99,14 +107,14 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 		serverInstance, err := server.NewServer(serverName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to initialize DBServer: %w", err)
+			return nil, fmt.Errorf("failed to initialize MCP Server: %w", err)
 		}
 
 		conf.servers = append(conf.servers, &SSEServerWrapper{
 			BaseServer: common.NewSSEServer(serverInstance,
 				common.WithSSEEndpoint(fmt.Sprintf("%s%s", serverPath, mcp_session.GlobalSSEPathSuffix)),
 				common.WithMessageEndpoint(serverPath)),
-			DomainList: serverDomainList,
+			HostMatchers: hostMatchers,
 		})
 		api.LogDebug(fmt.Sprintf("Registered MCP Server: %s", serverType))
 	}

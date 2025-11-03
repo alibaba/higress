@@ -35,12 +35,12 @@ func (l *McpServerToolsChangeListener) OnToolChanged(reg registry.McpServerRegis
 	resetToolsToMcpServer(l.mcpServer, reg)
 }
 
-func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
+func CreateNacosMcpRegistry(config *NacosConfig) (*NacosMcpRegistry, error) {
 	sc := []constant.ServerConfig{
 		*constant.NewServerConfig(*config.ServerAddr, 8848, constant.WithContextPath("/nacos")),
 	}
 
-	//create ClientConfig
+	// create ClientConfig
 	cc := *constant.NewClientConfig(
 		constant.WithTimeoutMs(5000),
 		constant.WithNotLoadCacheAtStart(true),
@@ -74,7 +74,6 @@ func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
 			ServerConfigs: sc,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to initial nacos config client: %w", err)
 	}
@@ -85,12 +84,11 @@ func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
 			ServerConfigs: sc,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to initial naming config client: %w", err)
 	}
 
-	return &NacosMcpRegsitry{
+	return &NacosMcpRegistry{
 		configClient:             configClient,
 		namingClient:             namingClient,
 		serviceMatcher:           *config.ServiceMatcher,
@@ -100,7 +98,6 @@ func CreateNacosMcpRegsitry(config *NacosConfig) (*NacosMcpRegsitry, error) {
 }
 
 func (c *NacosConfig) ParseConfig(config map[string]any) error {
-
 	serverAddr, ok := config["serverAddr"].(string)
 	if !ok {
 		return errors.New("missing serverAddr")
@@ -143,7 +140,7 @@ func (c *NacosConfig) NewServer(serverName string) (*common.MCPServer, error) {
 		"1.0.0",
 	)
 
-	nacosRegistry, err := CreateNacosMcpRegsitry(c)
+	nacosRegistry, err := CreateNacosMcpRegistry(c)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize NacosMcpRegistry: %w", err)
 	}
@@ -172,7 +169,7 @@ func (c *NacosConfig) NewServer(serverName string) (*common.MCPServer, error) {
 
 func resetToolsToMcpServer(mcpServer *common.MCPServer, reg registry.McpServerRegistry) {
 	wrappedTools := []common.ServerTool{}
-	tools := reg.ListToolsDesciption()
+	tools := reg.ListToolsDescription()
 	for _, tool := range tools {
 		wrappedTools = append(wrappedTools, common.ServerTool{
 			Tool:    mcp.NewToolWithRawSchema(tool.Name, tool.Description, tool.InputSchema),

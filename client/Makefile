@@ -29,12 +29,12 @@ comma := ,
 
 # source packages to scan for kubetype-gen tags
 kube_source_packages = $(subst $(space),$(empty), \
-	github.com/alibaba/higress/api/networking/v1, \
-	github.com/alibaba/higress/api/extensions/v1alpha1 \
+	github.com/alibaba/higress/v2/api/networking/v1, \
+	github.com/alibaba/higress/v2/api/extensions/v1alpha1 \
 	)
 
 # base output package for generated files
-kube_base_output_package = github.com/alibaba/higress/client/pkg
+kube_base_output_package = github.com/alibaba/higress/v2/client/pkg
 # base output package for kubernetes types, register, etc...
 kube_api_base_package = $(kube_base_output_package)/apis
 # source packages to scan for kubernetes generator tags, e.g. deepcopy-gen, client-gen, etc.
@@ -72,7 +72,7 @@ else
 endif
 
 rename_generated_files=\
-	find $(subst github.com/alibaba/higress/client/, $(empty), $(subst $(comma), $(space), $(kube_api_packages)) $(kube_clientset_package) $(kube_listers_package) $(kube_informers_package)) \
+	find $(subst github.com/alibaba/higress/v2/client/, $(empty), $(subst $(comma), $(space), $(kube_api_packages)) $(kube_clientset_package) $(kube_listers_package) $(kube_informers_package)) \
 	-name '*.go' -and -not -name 'doc.go' -and -not -name '*.gen.go' -type f -exec sh -c 'mv "$$1" "$${1%.go}".gen.go' - '{}' \;
 
 .PHONY: generate-k8s-client
@@ -95,6 +95,6 @@ generate-k8s-client:
 
 
 .PHONY: clean-k8s-client
-clean-k8s-cliennt:
+clean-k8s-client:
     # remove generated code
 	@rm -rf pkg/

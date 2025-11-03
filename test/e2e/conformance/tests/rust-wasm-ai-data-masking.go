@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -62,7 +62,7 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 	Features:    []suite.SupportedFeature{suite.WASMRustConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
 		var testcases []http.Assertion
-		//openai
+		// openai
 		testcases = append(testcases, gen_assertion(
 			"replace.openai.com",
 			true,
@@ -113,7 +113,7 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			[]byte("{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"costom_word\"}}],\"usage\":{}}"),
 		))
 
-		//raw
+		// raw
 		testcases = append(testcases, gen_assertion(
 			"replace.raw.com",
 			false,
@@ -172,7 +172,7 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			[]byte("{\"res\":\"costom_word\"}"),
 		))
 
-		//jsonpath
+		// jsonpath
 		testcases = append(testcases, gen_assertion(
 			"replace.raw.com",
 			true,
@@ -183,7 +183,7 @@ var RustWasmPluginsAiDataMasking = suite.ConformanceTest{
 			"replace.raw.com",
 			true,
 			[]byte("{\"test\":[{\"test\":\"test\", \"test1\":\"127.0.0.1 admin@gmail.com sk-12345\"}]}"),
-			[]byte("{\"res\":\"***.***.***.*** 48a7e98a91d93896d8dac522c5853948 ****@gmail.com\"}"),
+			[]byte("{\"res\":\"***.***.***.*** c11e7177eb60c80cf983ddf8ca98f2dc1272d4c612204ce9bedd2460b18939cc ****@gmail.com\"}"),
 		))
 
 		t.Run("WasmPlugins ai-data-masking", func(t *testing.T) {

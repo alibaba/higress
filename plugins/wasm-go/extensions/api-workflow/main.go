@@ -24,9 +24,10 @@ import (
 	"api-workflow/utils"
 	. "api-workflow/workflow"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -36,7 +37,9 @@ const (
 	DefaultTimeout     uint32 = 5000
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"api-workflow",
 		wrapper.ParseConfigBy(parseConfig),
@@ -44,7 +47,7 @@ func main() {
 	)
 }
 
-func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, c *PluginConfig, log log.Log) error {
 
 	edges := make([]Edge, 0)
 	nodes := make(map[string]Node)
@@ -174,7 +177,7 @@ func initWorkflowExecStatus(config *PluginConfig) (map[string]int, error) {
 	return result, nil
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 
 	initHeader := make([][2]string, 0)
 	// 初始化运行状态
@@ -199,7 +202,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 // 放入符合条件的edge
-func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config PluginConfig, log wrapper.Log, ctx wrapper.HttpContext) error {
+func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config PluginConfig, log log.Log, ctx wrapper.HttpContext) error {
 
 	var err error
 	// 防止递归次数太多
@@ -252,7 +255,7 @@ func recursive(edge Edge, headers [][2]string, body []byte, depth uint32, config
 					if next.Target != TaskContinue && next.Target != TaskEnd {
 
 						nextStatus[next.Target] = nextStatus[next.Target] - 1
-						log.Debugf("source is %s,target is %s,stauts is %v", next.Source, next.Target, nextStatus)
+						log.Debugf("source is %s,target is %s,status is %v", next.Source, next.Target, nextStatus)
 						// 还有没执行完的边
 						if nextStatus[next.Target] > 0 {
 							ctx.SetContext(WorkflowExecStatus, nextStatus)

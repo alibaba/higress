@@ -13,10 +13,12 @@ import (
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
-const Name = "mcp-session"
-const Version = "1.0.0"
-const ConfigPathSuffix = "/config"
-const DefaultServerName = "higress-mcp-server"
+const (
+	Name              = "mcp-session"
+	Version           = "1.0.0"
+	ConfigPathSuffix  = "/config"
+	DefaultServerName = "higress-mcp-server"
+)
 
 var GlobalSSEPathSuffix = "/sse"
 
@@ -35,8 +37,7 @@ func (c *config) Destroy() {
 	}
 }
 
-type Parser struct {
-}
+type Parser struct{}
 
 // Parse the filter configuration
 func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (interface{}, error) {
@@ -64,7 +65,7 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 
 		redisClient, err := common.NewRedisClient(redisConfig)
 		if err != nil {
-			api.LogErrorf("Failed to initialize Redis client: %w", err)
+			api.LogErrorf("Failed to initialize Redis client: %v", err)
 		} else {
 			api.LogDebug("Redis client initialized")
 		}
