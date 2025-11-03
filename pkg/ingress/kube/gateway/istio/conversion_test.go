@@ -80,8 +80,8 @@ var ports = []*model.Port{
 var services = []*model.Service{
 	{
 		Attributes: model.ServiceAttributes{
-			Name:      "istio-ingressgateway",
-			Namespace: "istio-system",
+			Name:      "higress-gateway",
+			Namespace: "higress-system",
 			ClusterExternalAddresses: &model.AddressMap{
 				Addresses: map[cluster.ID][]string{
 					constants.DefaultClusterName: {"1.2.3.4"},
@@ -130,25 +130,31 @@ var services = []*model.Service{
 		Attributes: model.ServiceAttributes{
 			Namespace: "default",
 			Labels: map[string]string{
-				InferencePoolExtensionRefSvc:         "ext-proc-svc",
-				InferencePoolExtensionRefPort:        "9002",
-				InferencePoolExtensionRefFailureMode: "FailClose",
+				"istio.io/inferencepool-extension-service":      "ext-proc-svc",
+				"istio.io/inferencepool-extension-port":         "9002",
+				"istio.io/inferencepool-extension-failure-mode": "FailClose",
 			},
 		},
-		Ports:    ports,
-		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", firstValue(InferencePoolServiceName("infpool-gen")))),
+		Ports: ports,
+		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", func() string {
+			name, _ := InferencePoolServiceName("infpool-gen")
+			return name
+		}())),
 	},
 	{
 		Attributes: model.ServiceAttributes{
 			Namespace: "default",
 			Labels: map[string]string{
-				InferencePoolExtensionRefSvc:         "ext-proc-svc-2",
-				InferencePoolExtensionRefPort:        "9002",
-				InferencePoolExtensionRefFailureMode: "FailClose",
+				"istio.io/inferencepool-extension-service":      "ext-proc-svc-2",
+				"istio.io/inferencepool-extension-port":         "9002",
+				"istio.io/inferencepool-extension-failure-mode": "FailClose",
 			},
 		},
-		Ports:    ports,
-		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", firstValue(InferencePoolServiceName("infpool-gen2")))),
+		Ports: ports,
+		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", func() string {
+			name, _ := InferencePoolServiceName("infpool-gen2")
+			return name
+		}())),
 	},
 
 	{
@@ -818,7 +824,7 @@ func TestSortHTTPRoutes(t *testing.T) {
 			},
 		},
 		{
-			"path matching exact > prefix  > regex",
+			"path matching exact > regex > prefix",
 			[]*istio.HTTPRoute{
 				{
 					Match: []*istio.HTTPMatchRequest{
@@ -870,8 +876,8 @@ func TestSortHTTPRoutes(t *testing.T) {
 					Match: []*istio.HTTPMatchRequest{
 						{
 							Uri: &istio.StringMatch{
-								MatchType: &istio.StringMatch_Prefix{
-									Prefix: "/",
+								MatchType: &istio.StringMatch_Regex{
+									Regex: ".*foo",
 								},
 							},
 						},
@@ -881,8 +887,8 @@ func TestSortHTTPRoutes(t *testing.T) {
 					Match: []*istio.HTTPMatchRequest{
 						{
 							Uri: &istio.StringMatch{
-								MatchType: &istio.StringMatch_Regex{
-									Regex: ".*foo",
+								MatchType: &istio.StringMatch_Prefix{
+									Prefix: "/",
 								},
 							},
 						},
@@ -1153,7 +1159,7 @@ func TestSortHTTPRoutes(t *testing.T) {
 			},
 		},
 		{
-			"path > method > header > query params",
+			"method > header > query params > path",
 			[]*istio.HTTPRoute{
 				{
 					Match: []*istio.HTTPMatchRequest{
@@ -1206,17 +1212,6 @@ func TestSortHTTPRoutes(t *testing.T) {
 				{
 					Match: []*istio.HTTPMatchRequest{
 						{
-							Uri: &istio.StringMatch{
-								MatchType: &istio.StringMatch_Prefix{
-									Prefix: "/",
-								},
-							},
-						},
-					},
-				},
-				{
-					Match: []*istio.HTTPMatchRequest{
-						{
 							Method: &istio.StringMatch{
 								MatchType: &istio.StringMatch_Exact{Exact: "GET"},
 							},
@@ -1244,6 +1239,17 @@ func TestSortHTTPRoutes(t *testing.T) {
 									MatchType: &istio.StringMatch_Exact{
 										Exact: "value1",
 									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Match: []*istio.HTTPMatchRequest{
+						{
+							Uri: &istio.StringMatch{
+								MatchType: &istio.StringMatch_Prefix{
+									Prefix: "/",
 								},
 							},
 						},
