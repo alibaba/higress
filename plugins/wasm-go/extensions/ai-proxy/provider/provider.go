@@ -419,7 +419,7 @@ type ProviderConfig struct {
 	// @Title zh-CN 上下文压缩配置
 	// @Description zh-CN 对Agent透明的上下文压缩功能配置
 	contextCompression *ContextCompressionConfig `required:"false" yaml:"contextCompression" json:"contextCompression"`
-	memoryService MemoryService `yaml:"-" json:"-"`
+	memoryService      MemoryService             `yaml:"-" json:"-"`
 }
 
 func (c *ProviderConfig) GetId() string {
