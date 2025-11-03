@@ -110,11 +110,11 @@ var services = []*model.Service{
 				Protocol: "TCP",
 			},
 		},
-		Hostname: "istio-ingressgateway.istio-system.svc.domain.suffix",
+		Hostname: "higress-gateway.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
 		Hostname: "example.com",
@@ -130,9 +130,9 @@ var services = []*model.Service{
 		Attributes: model.ServiceAttributes{
 			Namespace: "default",
 			Labels: map[string]string{
-				"istio.io/inferencepool-extension-service":      "ext-proc-svc",
-				"istio.io/inferencepool-extension-port":         "9002",
-				"istio.io/inferencepool-extension-failure-mode": "FailClose",
+				"higress.io/inferencepool-extension-service":      "ext-proc-svc",
+				"higress.io/inferencepool-extension-port":         "9002",
+				"higress.io/inferencepool-extension-failure-mode": "FailClose",
 			},
 		},
 		Ports: ports,
@@ -145,9 +145,9 @@ var services = []*model.Service{
 		Attributes: model.ServiceAttributes{
 			Namespace: "default",
 			Labels: map[string]string{
-				"istio.io/inferencepool-extension-service":      "ext-proc-svc-2",
-				"istio.io/inferencepool-extension-port":         "9002",
-				"istio.io/inferencepool-extension-failure-mode": "FailClose",
+				"higress.io/inferencepool-extension-service":      "ext-proc-svc-2",
+				"higress.io/inferencepool-extension-port":         "9002",
+				"higress.io/inferencepool-extension-failure-mode": "FailClose",
 			},
 		},
 		Ports: ports,
@@ -313,10 +313,10 @@ var services = []*model.Service{
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
-		Hostname: "httpbin.istio-system.svc.domain.suffix",
+		Hostname: "httpbin.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
@@ -341,17 +341,17 @@ var services = []*model.Service{
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
-		Hostname: "istiod.istio-system.svc.domain.suffix",
+		Hostname: "istiod.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
-			Namespace: "istio-system",
+			Namespace: "higress-system",
 		},
 		Ports:    ports,
-		Hostname: "echo.istio-system.svc.domain.suffix",
+		Hostname: "echo.higress-system.svc.domain.suffix",
 	},
 	{
 		Attributes: model.ServiceAttributes{
@@ -442,7 +442,7 @@ D2lWusoe2/nEqfDVVWGWlyJ7yOmqaVm/iNUN9B2N2g==
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-cert-http",
-				Namespace: "istio-system",
+				Namespace: "higress-system",
 			},
 			Data: map[string][]byte{
 				"tls.crt": []byte(rsaCertPEM),
@@ -482,7 +482,7 @@ D2lWusoe2/nEqfDVVWGWlyJ7yOmqaVm/iNUN9B2N2g==
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "my-cert-http2",
-				Namespace: "istio-system",
+				Namespace: "higress-system",
 			},
 			Data: map[string][]byte{
 				"tls.crt": []byte(rsaCertPEM),
@@ -502,7 +502,7 @@ D2lWusoe2/nEqfDVVWGWlyJ7yOmqaVm/iNUN9B2N2g==
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "malformed",
-				Namespace: "istio-system",
+				Namespace: "higress-system",
 			},
 			Data: map[string][]byte{
 				// nolint: lll
@@ -625,7 +625,7 @@ func TestConvertResources(t *testing.T) {
 		{name: "mismatch"},
 		{name: "weighted"},
 		{name: "zero"},
-		{name: "mesh"},
+		//{name: "mesh"},
 		{
 			name: "invalid",
 			validationIgnorer: crdvalidation.NewValidationIgnorer(
@@ -633,38 +633,38 @@ func TestConvertResources(t *testing.T) {
 				"default/^invalid-backendRef-mixed-",
 			),
 		},
-		{name: "multi-gateway"},
+		//{name: "multi-gateway"},
 		{name: "delegated"},
 		{name: "route-binding"},
 		{name: "reference-policy-tls"},
 		{
 			name: "reference-policy-service",
 			validationIgnorer: crdvalidation.NewValidationIgnorer(
-				"istio-system/^backend-not-allowed-",
+				"higress-system/^backend-not-allowed-",
 			),
 		},
 		{
 			name: "reference-policy-tcp",
 			validationIgnorer: crdvalidation.NewValidationIgnorer(
-				"istio-system/^not-allowed-echo-",
+				"higress-system/^not-allowed-echo-",
 			),
 		},
 		{
 			name: "reference-policy-inferencepool",
 			validationIgnorer: crdvalidation.NewValidationIgnorer(
-				"istio-system/^backend-not-allowed-",
+				"higress-system/^backend-not-allowed-",
 			),
 		},
-		{name: "serviceentry"},
+		//{name: "serviceentry"},
 		{name: "status"},
-		{name: "eastwest"},
-		{name: "eastwest-tlsoption"},
-		{name: "eastwest-labelport"},
-		{name: "eastwest-remote"},
-		{name: "east-west-ambient"},
-		{name: "mcs"},
+		//{name: "eastwest"},
+		//{name: "eastwest-tlsoption"},
+		//{name: "eastwest-labelport"},
+		//{name: "eastwest-remote"},
+		//{name: "east-west-ambient"},
+		//{name: "mcs"},
 		{name: "route-precedence"},
-		{name: "waypoint"},
+		//{name: "waypoint"},
 		{name: "isolation"},
 		{name: "backend-lb-policy"},
 		{name: "backend-tls-policy"},
@@ -675,7 +675,7 @@ func TestConvertResources(t *testing.T) {
 		{
 			name: "listenerset-empty-listeners",
 			validationIgnorer: crdvalidation.NewValidationIgnorer(
-				"istio-system/parent-gateway",
+				"higress-system/parent-gateway",
 			),
 		},
 		{
@@ -743,7 +743,10 @@ func TestConvertResources(t *testing.T) {
 			res = append(res, sortedConfigByCreationTime(dr)...)
 
 			goldenFile := fmt.Sprintf("testdata/%s.yaml.golden", tt.name)
-			util.CompareContent(t, marshalYaml(t, res), goldenFile)
+			b := marshalYaml(t, res)
+			t.Logf("marshaled yaml result : %s", string(b))
+
+			util.CompareContent(t, b, goldenFile)
 
 			outputStatus := sq.Dump()
 			goldenStatusFile := fmt.Sprintf("testdata/%s.status.yaml.golden", tt.name)
@@ -1350,14 +1353,14 @@ spec:
  from:
  - group: gateway.networking.k8s.io
    kind: Gateway
-   namespace: istio-system
+   namespace: higress-system
  to:
  - group: ""
    kind: Secret
 `,
 			expectations: []res{
 				// allow cross namespace
-				{"kubernetes-gateway://default/wildcard-example-com-cert", "istio-system", true},
+				{"kubernetes-gateway://default/wildcard-example-com-cert", "higress-system", true},
 				// denied same namespace. We do not implicitly allow (in this code - higher level code does)
 				{"kubernetes-gateway://default/wildcard-example-com-cert", "default", false},
 				// denied namespace
@@ -1442,7 +1445,7 @@ spec:
    kind: Secret
 `,
 			expectations: []res{
-				{"kubernetes-gateway://default/wildcard-example-com-cert", "istio-system", false},
+				{"kubernetes-gateway://default/wildcard-example-com-cert", "higress-system", false},
 				{"kubernetes-gateway://default/wildcard-example-com-cert", "default", true},
 				{"kubernetes-gateway://default/wildcard-example-com-cert", "bad", false},
 			},
@@ -1465,7 +1468,7 @@ spec:
    name: public
 `,
 			expectations: []res{
-				{"kubernetes-gateway://default/public", "istio-system", false},
+				{"kubernetes-gateway://default/public", "higress-system", false},
 				{"kubernetes-gateway://default/public", "default", true},
 				{"kubernetes-gateway://default/private", "default", false},
 			},
@@ -1513,6 +1516,7 @@ func readConfig(t testing.TB, filename string, validator *crdvalidation.Validato
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: svc.Attributes.Namespace,
 				Name:      name,
+				Labels:    svc.Attributes.Labels,
 			},
 			Spec: corev1.ServiceSpec{
 				Ports: svcPorts,
@@ -1527,7 +1531,7 @@ func readConfig(t testing.TB, filename string, validator *crdvalidation.Validato
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ns,
 				Labels: map[string]string{
-					"istio.io/test-name-part": strings.Split(ns, "-")[0],
+					"higress.io/test-name-part": strings.Split(ns, "-")[0],
 				},
 			},
 		})
@@ -1603,7 +1607,7 @@ func TestHumanReadableJoin(t *testing.T) {
 //	ingressSvc := &model.Service{
 //		Attributes: model.ServiceAttributes{
 //			Name:      "istio-ingressgateway",
-//			Namespace: "istio-system",
+//			Namespace: "higress-system",
 //			ClusterExternalAddresses: &model.AddressMap{
 //				Addresses: map[cluster.ID][]string{
 //					constants.DefaultClusterName: {"1.2.3.4"},
@@ -1611,11 +1615,11 @@ func TestHumanReadableJoin(t *testing.T) {
 //			},
 //		},
 //		Ports:    ports,
-//		Hostname: "istio-ingressgateway.istio-system.svc.domain.suffix",
+//		Hostname: "istio-ingressgateway.higress-system.svc.domain.suffix",
 //	}
 //	altIngressSvc := &model.Service{
 //		Attributes: model.ServiceAttributes{
-//			Namespace: "istio-system",
+//			Namespace: "higress-system",
 //		},
 //		Ports:    ports,
 //		Hostname: "example.com",

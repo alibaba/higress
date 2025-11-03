@@ -295,6 +295,7 @@ func GatewayCollection(
 				continue
 			}
 			meta := parentMeta(obj, &l.Name)
+			meta[constants.InternalGatewaySemantics] = constants.GatewaySemanticsGateway
 			// Start - Updated by Higress
 			var selector map[string]string
 			if len(gatewayServices) != 0 {
