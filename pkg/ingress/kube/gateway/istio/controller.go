@@ -108,6 +108,10 @@ type Controller struct {
 	domainSuffix string // the domain suffix to use for generated resources
 
 	shadowServiceReconciler controllers.Queue
+
+	// Start - Added by Higress
+	DefaultGatewaySelector map[string]string
+	// End - Added by Higress
 }
 
 type ParentInfo struct {
@@ -253,6 +257,7 @@ func NewController(
 		c.gatewayContext,
 		c.tagWatcher,
 		opts,
+		c.DefaultGatewaySelector,
 	)
 	status.RegisterStatus(c.status, ListenerSetStatus, GetStatus)
 
@@ -278,6 +283,7 @@ func NewController(
 		c.gatewayContext,
 		c.tagWatcher,
 		opts,
+		c.DefaultGatewaySelector,
 	)
 
 	InferencePoolStatus, InferencePools := InferencePoolCollection(
@@ -511,7 +517,7 @@ func (c *Controller) SetStatusWrite(enabled bool, statusManager *status.Manager)
 
 // Reconcile is called each time the `gatewayContext` may change. We use this to mark it as updated.
 func (c *Controller) Reconcile(ps *model.PushContext) {
-	ctx := NewGatewayContext(ps, c.cluster)
+	ctx := NewGatewayContext(ps, c.cluster, c.client, c.domainSuffix)
 	c.gatewayContext.Modify(func(i **atomic.Pointer[GatewayContext]) {
 		(*i).Store(&ctx)
 	})

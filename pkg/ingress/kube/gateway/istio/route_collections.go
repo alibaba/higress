@@ -549,9 +549,9 @@ type RouteContext struct {
 	RouteContextInputs
 }
 
-func (r RouteContext) LookupHostname(hostname string, namespace string) *model.Service {
+func (r RouteContext) LookupHostname(hostname string, namespace string, kind string) *model.Service {
 	if c := r.internalContext.Get(r.Krt).Load(); c != nil {
-		return c.GetService(hostname, namespace)
+		return c.GetService(hostname, namespace, kind)
 	}
 	return nil
 }

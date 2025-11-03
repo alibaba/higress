@@ -82,6 +82,7 @@ func ListenerSetCollection(
 	gatewayContext krt.RecomputeProtected[*atomic.Pointer[GatewayContext]],
 	tagWatcher krt.RecomputeProtected[revisions.TagWatcher],
 	opts krt.OptionsBuilder,
+	defaultGatewaySelector map[string]string,
 ) (
 	krt.StatusCollection[*gatewayx.XListenerSet, gatewayx.ListenerSetStatus],
 	krt.Collection[ListenerSet],
@@ -137,8 +138,8 @@ func ListenerSetCollection(
 				return status, nil
 			}
 
-			gatewayServices, err := extractGatewayServices(domainSuffix, parentGwObj, classInfo)
-			if len(gatewayServices) == 0 && err != nil {
+			gatewayServices, useDefaultService, err := extractGatewayServices(domainSuffix, parentGwObj, classInfo)
+			if len(gatewayServices) == 0 && !useDefaultService && err != nil {
 				// Short circuit if it's a hard failure
 				reportListenerSetStatus(context, parentGwObj, obj, status, gatewayServices, nil, err)
 				return status, nil
@@ -160,8 +161,20 @@ func ListenerSetCollection(
 				}
 				meta := parentMeta(obj, &l.Name)
 				meta[constants.InternalGatewaySemantics] = constants.GatewaySemanticsGateway
-				meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
+				//meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
 				meta[constants.InternalParentNamespace] = parentGwObj.Namespace
+
+				// Start - Updated by Higress
+				var selector map[string]string
+				if len(gatewayServices) != 0 {
+					meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
+				} else if useDefaultService {
+					selector = defaultGatewaySelector
+				} else {
+					// Protective programming. This shouldn't happen.
+					continue
+				}
+				// End - Updated by Higress
 
 				// Each listener generates an Istio Gateway with a single Server. This allows binding to a specific listener.
 				gatewayConfig := config.Config{
@@ -175,6 +188,9 @@ func ListenerSetCollection(
 					},
 					Spec: &istio.Gateway{
 						Servers: []*istio.Server{server},
+						// Start - Added by Higress
+						Selector: selector,
+						// End - Added by Higress
 					},
 				}
 
@@ -222,6 +238,7 @@ func GatewayCollection(
 	gatewayContext krt.RecomputeProtected[*atomic.Pointer[GatewayContext]],
 	tagWatcher krt.RecomputeProtected[revisions.TagWatcher],
 	opts krt.OptionsBuilder,
+	defaultGatewaySelector map[string]string,
 ) (
 	krt.StatusCollection[*gateway.Gateway, gateway.GatewayStatus],
 	krt.Collection[Gateway],
@@ -257,13 +274,15 @@ func GatewayCollection(
 		}
 		servers := []*istio.Server{}
 
+		// Start - Updated by Higress
 		// Extract the addresses. A gateway will bind to a specific Service
-		gatewayServices, err := extractGatewayServices(domainSuffix, obj, classInfo)
-		if len(gatewayServices) == 0 && err != nil {
+		gatewayServices, useDefaultService, err := extractGatewayServices(domainSuffix, obj, classInfo)
+		if len(gatewayServices) == 0 && !useDefaultService && err != nil {
 			// Short circuit if its a hard failure
-			reportGatewayStatus(context, obj, status, classInfo, gatewayServices, servers, 0, err)
+			reportGatewayStatus(context, obj, status, gatewayServices, servers, 0, err)
 			return status, nil
 		}
+		// End - Updated by Higress
 
 		for i, l := range kgw.Listeners {
 			server, updatedStatus, programmed := buildListener(ctx, secrets, grants, namespaces, obj, status.Listeners, l, i, controllerName, nil)
@@ -276,8 +295,17 @@ func GatewayCollection(
 				continue
 			}
 			meta := parentMeta(obj, &l.Name)
-			meta[constants.InternalGatewaySemantics] = constants.GatewaySemanticsGateway
-			meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
+			// Start - Updated by Higress
+			var selector map[string]string
+			if len(gatewayServices) != 0 {
+				meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
+			} else if useDefaultService {
+				selector = defaultGatewaySelector
+			} else {
+				// Protective programming. This shouldn't happen.
+				continue
+			}
+			// End - Updated by Higress
 
 			// Each listener generates an Istio Gateway with a single Server. This allows binding to a specific listener.
 			gatewayConfig := config.Config{
@@ -291,6 +319,9 @@ func GatewayCollection(
 				},
 				Spec: &istio.Gateway{
 					Servers: []*istio.Server{server},
+					// Start - Added by Higress
+					Selector: selector,
+					// End - Added by Higress
 				},
 			}
 
@@ -329,7 +360,7 @@ func GatewayCollection(
 			})
 		}
 
-		reportGatewayStatus(context, obj, status, classInfo, gatewayServices, servers, len(listenersFromSets), err)
+		reportGatewayStatus(context, obj, status, gatewayServices, servers, len(listenersFromSets), err)
 		return status, result
 	}, opts.WithName("KubernetesGateway")...)
 

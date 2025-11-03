@@ -18,8 +18,9 @@ import (
 	"cmp"
 	"crypto/tls"
 	"fmt"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 	"net"
-	"net/netip"
 	"sort"
 	"strconv"
 	"strings"
@@ -37,7 +38,6 @@ import (
 	k8sbeta "sigs.k8s.io/gateway-api/apis/v1beta1"
 	gatewayx "sigs.k8s.io/gateway-api/apisx/v1alpha1"
 
-	"istio.io/api/annotation"
 	"istio.io/api/label"
 	istio "istio.io/api/networking/v1alpha3"
 	kubecreds "istio.io/istio/pilot/pkg/credentials/kube"
@@ -62,9 +62,11 @@ import (
 )
 
 const (
-	gatewayTLSTerminateModeKey = "gateway.istio.io/tls-terminate-mode"
-	addressTypeOverride        = "networking.istio.io/address-type"
-	gatewayClassDefaults       = "gateway.istio.io/defaults-for-class"
+	gatewayTLSTerminateModeKey = "gateway.higress.io/tls-terminate-mode"
+	addressTypeOverride        = "networking.higress.io/address-type"
+	gatewayClassDefaults       = "gateway.higress.io/defaults-for-class"
+	gatewayNameOverride        = "gateway.higress.io/name-override"
+	serviceTypeOverride        = "networking.istio.io/service-type"
 )
 
 func sortConfigByCreationTime(configs []config.Config) {
@@ -419,6 +421,15 @@ func sortHTTPRoutes(routes []*istio.HTTPRoute) {
 		} else if len(routes[j].Match) == 0 {
 			return true
 		}
+
+		// Start - Added by Higress
+		if isCatchAllMatch(routes[i].Match[0]) {
+			return false
+		} else if isCatchAllMatch(routes[j].Match[0]) {
+			return true
+		}
+		// End - Added by Higress
+
 		// Only look at match[0], we always generate only one match
 		m1, m2 := routes[i].Match[0], routes[j].Match[0]
 		r1, r2 := getURIRank(m1), getURIRank(m2)
@@ -1042,8 +1053,11 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 			return nil, nil, &ConfigError{Reason: InvalidDestination, Message: "service name invalid; the name of the Service must be used, not the hostname."}
 		}
 		hostname = fmt.Sprintf("%s.%s.svc.%s", to.Name, namespace, ctx.DomainSuffix)
-		key := namespace + "/" + string(to.Name)
-		svc := ptr.Flatten(krt.FetchOne(ctx.Krt, ctx.Services, krt.FilterKey(key)))
+		// Start - Updated by Higress
+		//key := namespace + "/" + string(to.Name)
+		//svc := ptr.Flatten(krt.FetchOne(ctx.Krt, ctx.Services, krt.FilterKey(key)))
+		svc := ctx.LookupHostname(hostname, namespace, "Service")
+		// End - Updated by Higress
 		if svc == nil {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestinationNotFound, Message: fmt.Sprintf("backend(%s) not found", hostname)}
 		}
@@ -1052,7 +1066,9 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 			return nil, nil, &ConfigError{Reason: InvalidDestination, Message: "namespace may not be set with Hostname type"}
 		}
 		hostname = string(to.Name)
-		if ctx.LookupHostname(hostname, namespace) == nil {
+		// Start - Updated by Higress
+		if ctx.LookupHostname(hostname, namespace, "Hostname") == nil {
+			// End - Updated by Higress
 			invalidBackendErr = &ConfigError{Reason: InvalidDestinationNotFound, Message: fmt.Sprintf("backend(%s) not found", hostname)}
 		}
 	case config.GroupVersionKind{Group: features.MCSAPIGroup, Kind: "ServiceImport"}:
@@ -1063,8 +1079,11 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 			hostname = fmt.Sprintf("%s.%s.svc.%s", to.Name, namespace, ctx.DomainSuffix)
 		}
 		// TODO: currently we are always looking for Service. We should be looking for ServiceImport when features.EnableMCSHost
-		key := namespace + "/" + string(to.Name)
-		svc := ptr.Flatten(krt.FetchOne(ctx.Krt, ctx.Services, krt.FilterKey(key)))
+		// Start - Updated by Higress
+		//key := namespace + "/" + string(to.Name)
+		//svc := ptr.Flatten(krt.FetchOne(ctx.Krt, ctx.Services, krt.FilterKey(key)))
+		svc := ctx.LookupHostname(hostname, namespace, "ServiceImport")
+		// End - Updated by Higress
 		if svc == nil {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestinationNotFound, Message: fmt.Sprintf("backend(%s) not found", hostname)}
 		}
@@ -1089,7 +1108,7 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 		}
 		inferencePoolServiceName, _ := InferencePoolServiceName(string(to.Name))
 		hostname := fmt.Sprintf("%s.%s.svc.%s", inferencePoolServiceName, namespace, ctx.DomainSuffix)
-		svc := ctx.LookupHostname(hostname, namespace)
+		svc := ctx.LookupHostname(hostname, namespace, "InferencePool")
 		if svc == nil {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestinationNotFound, Message: fmt.Sprintf("backend(%s) not found", hostname)}
 			return &istio.Destination{}, nil, invalidBackendErr
@@ -1124,6 +1143,19 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 			Message: fmt.Sprintf("referencing unsupported backendRef: group %q kind %q", ptr.OrEmpty(to.Group), ptr.OrEmpty(to.Kind)),
 		}
 	}
+	// Start - Added by Higress
+	if equal((*string)(to.Group), "networking.higress.io") && nilOrEqual((*string)(to.Kind), "Service") {
+		var port *istio.PortSelector
+		if to.Port != nil {
+			port = &istio.PortSelector{Number: uint32(*to.Port)}
+		}
+		return &istio.Destination{
+			Host: string(to.Name),
+			Port: port,
+		}, nil, nil
+	}
+	// End - Added by Higress
+
 	// All types currently require a Port, so we do this for everything; consider making this per-type if we have future types
 	// that do not require port.
 	if to.Port == nil {
@@ -1642,14 +1674,13 @@ func reportGatewayStatus(
 	r *GatewayContext,
 	obj *k8sbeta.Gateway,
 	gs *k8sbeta.GatewayStatus,
-	classInfo classInfo,
 	gatewayServices []string,
 	servers []*istio.Server,
 	listenerSetCount int,
 	gatewayErr *ConfigError,
 ) {
 	// TODO: we lose address if servers is empty due to an error
-	internal, internalIP, external, pending, warnings, allUsable := r.ResolveGatewayInstances(obj.Namespace, gatewayServices, servers)
+	internal, external, pending, warnings, allUsable := r.ResolveGatewayInstances(obj.Namespace, gatewayServices, servers)
 
 	// Setup initial conditions to the success state. If we encounter errors, we will update this.
 	// We have two status
@@ -1694,40 +1725,22 @@ func reportGatewayStatus(
 	setProgrammedCondition(gatewayConditions, internal, gatewayServices, warnings, allUsable)
 
 	addressesToReport := external
+	addrType := k8s.IPAddressType
 	if len(addressesToReport) == 0 {
-		wantAddressType := classInfo.addressType
-		if override, ok := obj.Annotations[addressTypeOverride]; ok {
-			wantAddressType = k8s.AddressType(override)
-		}
-		// There are no external addresses, so report the internal ones
-		// This can be IP, Hostname, or both (indicated by empty wantAddressType)
-		if wantAddressType != k8s.HostnameAddressType {
-			addressesToReport = internalIP
-		}
-		if wantAddressType != k8s.IPAddressType {
-			for _, hostport := range internal {
-				svchost, _, _ := net.SplitHostPort(hostport)
-				if !slices.Contains(pending, svchost) && !slices.Contains(addressesToReport, svchost) {
-					addressesToReport = append(addressesToReport, svchost)
-				}
+		addrType = k8s.HostnameAddressType
+		for _, hostport := range internal {
+			svchost, _, _ := net.SplitHostPort(hostport)
+			if !slices.Contains(pending, svchost) && !slices.Contains(addressesToReport, svchost) {
+				addressesToReport = append(addressesToReport, svchost)
 			}
 		}
 	}
-	// Do not report an address until we are ready. But once we are ready, never remove the address.
-	if len(addressesToReport) > 0 {
-		gs.Addresses = make([]k8s.GatewayStatusAddress, 0, len(addressesToReport))
-		for _, addr := range addressesToReport {
-			var addrType k8s.AddressType
-			if _, err := netip.ParseAddr(addr); err == nil {
-				addrType = k8s.IPAddressType
-			} else {
-				addrType = k8s.HostnameAddressType
-			}
-			gs.Addresses = append(gs.Addresses, k8s.GatewayStatusAddress{
-				Value: addr,
-				Type:  &addrType,
-			})
-		}
+	gs.Addresses = make([]k8s.GatewayStatusAddress, 0, len(addressesToReport))
+	for _, addr := range addressesToReport {
+		gs.Addresses = append(gs.Addresses, k8s.GatewayStatusAddress{
+			Value: addr,
+			Type:  &addrType,
+		})
 	}
 	// Prune listeners that have been removed
 	haveListeners := getListenerNames(&obj.Spec)
@@ -1751,7 +1764,7 @@ func reportListenerSetStatus(
 	servers []*istio.Server,
 	gatewayErr *ConfigError,
 ) {
-	internal, _, _, _, warnings, allUsable := r.ResolveGatewayInstances(parentGwObj.Namespace, gatewayServices, servers)
+	internal, _, _, warnings, allUsable := r.ResolveGatewayInstances(parentGwObj.Namespace, gatewayServices, servers)
 
 	// Setup initial conditions to the success state. If we encounter errors, we will update this.
 	// We have two status
@@ -1790,22 +1803,25 @@ func setProgrammedCondition(gatewayConditions map[string]*condition, internal []
 			Message: "Failed to assign to any requested addresses",
 		}
 	} else if len(warnings) > 0 {
+		// Start - Updated by Higress
 		var msg string
-		var reason string
+		//var reason string
 		if len(internal) != 0 {
 			msg = fmt.Sprintf("Assigned to service(s) %s, but failed to assign to all requested addresses: %s",
 				humanReadableJoin(internal), strings.Join(warnings, "; "))
 		} else {
 			msg = fmt.Sprintf("Failed to assign to any requested addresses: %s", strings.Join(warnings, "; "))
 		}
-		if allUsable {
-			reason = string(k8s.GatewayReasonAddressNotAssigned)
-		} else {
-			reason = string(k8s.GatewayReasonAddressNotUsable)
-		}
+		//
+		//if allUsable {
+		//	reason = string(k8s.GatewayReasonAddressNotAssigned)
+		//} else {
+		//	reason = string(k8s.GatewayReasonAddressNotUsable)
+		//}
+		// End - Updated by Higress
 		gatewayConditions[string(k8s.GatewayConditionProgrammed)].error = &ConfigError{
 			// TODO: this only checks Service ready, we should also check Deployment ready?
-			Reason:  reason,
+			Reason:  string(k8s.GatewayReasonInvalid),
 			Message: msg,
 		}
 	}
@@ -1918,10 +1934,37 @@ func IsManaged(gw *k8s.GatewaySpec) bool {
 	return false
 }
 
-func extractGatewayServices(domainSuffix string, kgw *k8sbeta.Gateway, info classInfo) ([]string, *ConfigError) {
-	if IsManaged(&kgw.Spec) {
-		name := model.GetOrDefault(kgw.Annotations[annotation.GatewayNameOverride.Name], getDefaultName(kgw.Name, &kgw.Spec, info.disableNameSuffix))
-		return []string{fmt.Sprintf("%s.%s.svc.%v", name, kgw.Namespace, domainSuffix)}, nil
+// Start - Added by Higress
+// UseDefaultService checks if a Gateway shall be bound to the default gateway service
+// This is based on the addresses field of the spec
+// If addresses field contains any item with a Hostname type, it should point to the existing
+// Services that handles the gateway traffic
+// If it is not set, or all items refer to only a single IP, we will consider it pointed to the default data plane service.
+// While there is no defined standard for this in the API yet, it is tracked in https://github.com/kubernetes-sigs/gateway-api/issues/892.
+func UseDefaultService(gw *k8s.GatewaySpec) bool {
+	if len(gw.Addresses) == 0 {
+		return true
+	}
+	for _, addr := range gw.Addresses {
+		if t := addr.Type; t == nil || *t == k8s.HostnameAddressType {
+			return false
+		}
+	}
+	return true
+}
+
+// End - Added by Higress
+
+func extractGatewayServices(domainSuffix string, kgw *k8sbeta.Gateway, info classInfo) ([]string, bool, *ConfigError) {
+	// Start - Updated by Higress
+	if UseDefaultService(&kgw.Spec) {
+		// name := model.GetOrDefault(obj.Annotations[gatewayNameOverride], getDefaultName(obj.Name, kgw))
+		// return []string{fmt.Sprintf("%s.%s.svc.%v", name, obj.Namespace, r.Domain)}, true, nil
+		name := kgw.Annotations[gatewayNameOverride]
+		if len(name) > 0 {
+			return []string{fmt.Sprintf("%s.%s.svc.%v", name, kgw.Namespace, domainSuffix)}, false, nil
+		}
+		return []string{fmt.Sprintf("%s.%s.svc.%s", higressconfig.GatewayName, higressconfig.PodNamespace, util.GetDomainSuffix())}, true, nil
 	}
 	gatewayServices := []string{}
 	skippedAddresses := []string{}
@@ -1943,20 +1986,20 @@ func extractGatewayServices(domainSuffix string, kgw *k8sbeta.Gateway, info clas
 	}
 	if len(skippedAddresses) > 0 {
 		// Give error but return services, this is a soft failure
-		return gatewayServices, &ConfigError{
+		return gatewayServices, false, &ConfigError{
 			Reason:  InvalidAddress,
 			Message: fmt.Sprintf("only Hostname is supported, ignoring %v", skippedAddresses),
 		}
 	}
-	if _, f := kgw.Annotations[annotation.NetworkingServiceType.Name]; f {
+	if _, f := kgw.Annotations[serviceTypeOverride]; f {
 		// Give error but return services, this is a soft failure
 		// Remove entirely in 1.20
-		return gatewayServices, &ConfigError{
+		return gatewayServices, false, &ConfigError{
 			Reason:  DeprecateFieldUsage,
-			Message: fmt.Sprintf("annotation %v is deprecated, use Spec.Infrastructure.Routeability", annotation.NetworkingServiceType.Name),
+			Message: fmt.Sprintf("annotation %v is deprecated, use Spec.Infrastructure.Routeability", serviceTypeOverride),
 		}
 	}
-	return gatewayServices, nil
+	return gatewayServices, false, nil
 }
 
 func buildListener(
@@ -2459,3 +2502,49 @@ func GetStatus[I, IS any](spec I) IS {
 		return ptr.Empty[IS]()
 	}
 }
+
+// Start - Added by Higress
+// isCatchAll returns true if HTTPMatchRequest is a catchall match otherwise
+// false. Note - this may not be exactly "catch all" as we don't know the full
+// class of possible inputs As such, this is used only for optimization.
+func isCatchAllMatch(m *istio.HTTPMatchRequest) bool {
+	catchall := false
+	if m.Uri != nil {
+		switch m := m.Uri.MatchType.(type) {
+		case *istio.StringMatch_Prefix:
+			catchall = m.Prefix == "/"
+		case *istio.StringMatch_Regex:
+			catchall = m.Regex == "*"
+		}
+	}
+	// A Match is catch all if and only if it has no match set
+	// and URI has a prefix / or regex *.
+	return catchall &&
+		len(m.Headers) == 0 &&
+		len(m.QueryParams) == 0 &&
+		len(m.SourceLabels) == 0 &&
+		len(m.WithoutHeaders) == 0 &&
+		len(m.Gateways) == 0 &&
+		m.Method == nil &&
+		m.Scheme == nil &&
+		m.Port == 0 &&
+		m.Authority == nil &&
+		m.SourceNamespace == ""
+}
+
+func equal(have *string, expected string) bool {
+	return have != nil && *have == expected
+}
+
+func nilOrEqual(have *string, expected string) bool {
+	return have == nil || *have == expected
+}
+
+//func generateRouteName(obj config.Namer) string {
+//	if obj.GetNamespace() == higressconfig.PodNamespace {
+//		return obj.GetName()
+//	}
+//	return path.Join(obj.GetNamespace(), obj.GetName())
+//}
+
+// End - Added by Higress
