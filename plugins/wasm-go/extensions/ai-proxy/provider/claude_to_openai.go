@@ -71,6 +71,12 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 		Stop:        claudeRequest.StopSequences,
 	}
 
+	if openaiRequest.Stream {
+		openaiRequest.StreamOptions = &streamOptions{
+			IncludeUsage: true,
+		}
+	}
+
 	// Convert messages from Claude format to OpenAI format
 	for _, claudeMsg := range claudeRequest.Messages {
 		// Handle different content types using the type-safe wrapper
