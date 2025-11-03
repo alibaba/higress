@@ -40,10 +40,10 @@ import (
 const (
 	maxServiceNameLength                 = 63
 	hashSize                             = 8
-	InferencePoolRefLabel                = "istio.io/inferencepool-name"
-	InferencePoolExtensionRefSvc         = "istio.io/inferencepool-extension-service"
-	InferencePoolExtensionRefPort        = "istio.io/inferencepool-extension-port"
-	InferencePoolExtensionRefFailureMode = "istio.io/inferencepool-extension-failure-mode"
+	InferencePoolRefLabel                = "higress.io/inferencepool-name"
+	InferencePoolExtensionRefSvc         = "higress.io/inferencepool-extension-service"
+	InferencePoolExtensionRefPort        = "higress.io/inferencepool-extension-port"
+	InferencePoolExtensionRefFailureMode = "higress.io/inferencepool-extension-failure-mode"
 )
 
 // // ManagedLabel is the label used to identify resources managed by this controller
