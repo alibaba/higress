@@ -58,6 +58,7 @@ import (
 // @End
 
 type A2ASConfig struct {
+	AuthenticatedPrompts AuthenticatedPromptsConfig `json:"authenticatedPrompts"`
 	InContextDefenses    InContextDefensesConfig    `json:"inContextDefenses"`
 	BehaviorCertificates BehaviorCertificatesConfig `json:"behaviorCertificates"`
 	CodifiedPolicies     CodifiedPoliciesConfig     `json:"codifiedPolicies"`
@@ -66,9 +67,24 @@ type A2ASConfig struct {
 }
 
 type ConsumerA2ASConfig struct {
+	AuthenticatedPrompts *AuthenticatedPromptsConfig `json:"authenticatedPrompts,omitempty"`
 	InContextDefenses    *InContextDefensesConfig    `json:"inContextDefenses,omitempty"`
 	BehaviorCertificates *BehaviorCertificatesConfig `json:"behaviorCertificates,omitempty"`
 	CodifiedPolicies     *CodifiedPoliciesConfig     `json:"codifiedPolicies,omitempty"`
+}
+
+type AuthenticatedPromptsConfig struct {
+	// @Title zh-CN 启用签名验证
+	// @Description zh-CN 是否启用 Prompt 内容的签名验证功能
+	Enabled bool `json:"enabled"`
+
+	// @Title zh-CN 共享密钥
+	// @Description zh-CN 用于 HMAC-SHA256 签名验证的共享密钥（支持 base64 或原始字符串）
+	SharedSecret string `json:"sharedSecret"`
+
+	// @Title zh-CN Hash长度
+	// @Description zh-CN 嵌入Hash的截取长度（十六进制字符数），默认8
+	HashLength int `json:"hashLength,omitempty"`
 }
 
 type BehaviorCertificatesConfig struct {
@@ -130,6 +146,16 @@ type Policy struct {
 }
 
 func ParseConfig(json gjson.Result, config *A2ASConfig) error {
+	// 解析 Authenticated Prompts
+	config.AuthenticatedPrompts.Enabled = json.Get("authenticatedPrompts.enabled").Bool()
+	if config.AuthenticatedPrompts.Enabled {
+		config.AuthenticatedPrompts.SharedSecret = json.Get("authenticatedPrompts.sharedSecret").String()
+		config.AuthenticatedPrompts.HashLength = int(json.Get("authenticatedPrompts.hashLength").Int())
+		if config.AuthenticatedPrompts.HashLength == 0 {
+			config.AuthenticatedPrompts.HashLength = 8 // 默认8位十六进制
+		}
+	}
+
 	// 解析 Behavior Certificates
 	config.BehaviorCertificates.Enabled = json.Get("behaviorCertificates.enabled").Bool()
 	if config.BehaviorCertificates.Enabled {
@@ -191,6 +217,17 @@ func ParseConfig(json gjson.Result, config *A2ASConfig) error {
 		consumerConfigs.ForEach(func(consumer, value gjson.Result) bool {
 			consumerConfig := &ConsumerA2ASConfig{}
 
+			if ap := value.Get("authenticatedPrompts"); ap.Exists() {
+				consumerConfig.AuthenticatedPrompts = &AuthenticatedPromptsConfig{
+					Enabled:      ap.Get("enabled").Bool(),
+					SharedSecret: ap.Get("sharedSecret").String(),
+					HashLength:   int(ap.Get("hashLength").Int()),
+				}
+				if consumerConfig.AuthenticatedPrompts.HashLength == 0 {
+					consumerConfig.AuthenticatedPrompts.HashLength = 8
+				}
+			}
+
 			if bc := value.Get("behaviorCertificates"); bc.Exists() {
 				consumerConfig.BehaviorCertificates = &BehaviorCertificatesConfig{
 					Enabled:     bc.Get("enabled").Bool(),
@@ -247,6 +284,17 @@ func ParseConfig(json gjson.Result, config *A2ASConfig) error {
 }
 
 func (config *A2ASConfig) Validate() error {
+	// 验证 Authenticated Prompts
+	if config.AuthenticatedPrompts.Enabled {
+		if config.AuthenticatedPrompts.SharedSecret == "" {
+			return errors.New("authenticatedPrompts.sharedSecret is required when enabled")
+		}
+		if config.AuthenticatedPrompts.HashLength < 4 || config.AuthenticatedPrompts.HashLength > 64 {
+			return fmt.Errorf("authenticatedPrompts.hashLength must be between 4 and 64, got: %d",
+				config.AuthenticatedPrompts.HashLength)
+		}
+	}
+
 	// 验证 Position 值
 	if config.InContextDefenses.Enabled {
 		if config.InContextDefenses.Position != "" &&

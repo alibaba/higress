@@ -15,7 +15,14 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -53,6 +60,20 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 	if !isChatCompletionRequest(body) {
 		log.Debugf("[A2AS] Not a chat completion request, skipping A2AS processing")
 		return types.ActionContinue
+	}
+
+	// 签名验证（如果启用）
+	if config.AuthenticatedPrompts.Enabled {
+		verifiedBody, err := verifyAndRemoveEmbeddedHashes(config.AuthenticatedPrompts, body)
+		if err != nil {
+			log.Errorf("[A2AS] Signature verification failed: %v", err)
+			_ = proxywasm.SendHttpResponse(403, [][2]string{
+				{"content-type", "application/json"},
+			}, []byte(`{"error":"unauthorized","message":"Invalid or missing prompt signature"}`), -1)
+			return types.ActionPause
+		}
+		body = verifiedBody
+		log.Debugf("[A2AS] Signature verification passed and hashes removed")
 	}
 
 	modifiedBody, err := applyA2ASTransformations(config, body)
@@ -224,4 +245,144 @@ func insertBeforeUserMessages(messages []map[string]interface{}, contentToInsert
 	result = append(result, messages[firstUserIndex:]...)
 
 	return result
+}
+
+// verifyAndRemoveEmbeddedHashes 验证并移除 Prompt 中嵌入的 Hash 标记
+// 格式：<a2as:TYPE:HASH>content</a2as:TYPE:HASH>
+func verifyAndRemoveEmbeddedHashes(config AuthenticatedPromptsConfig, body []byte) ([]byte, error) {
+	messages := gjson.GetBytes(body, "messages")
+	if !messages.Exists() || !messages.IsArray() {
+		return body, nil
+	}
+
+	var modifiedMessages []interface{}
+	hasSignedMessage := false
+
+	for _, msg := range messages.Array() {
+		role := msg.Get("role").String()
+		content := msg.Get("content").String()
+
+		if content == "" {
+			// 保留非文本消息
+			var m interface{}
+			if err := json.Unmarshal([]byte(msg.Raw), &m); err == nil {
+				modifiedMessages = append(modifiedMessages, m)
+			}
+			continue
+		}
+
+		// 检查是否有嵌入的 Hash 标记
+		verified, newContent, err := verifyEmbeddedHash(config, content)
+		if err != nil {
+			return nil, fmt.Errorf("message verification failed (role=%s): %w", role, err)
+		}
+
+		if verified {
+			hasSignedMessage = true
+		}
+
+		// 构建修改后的消息
+		message := make(map[string]interface{})
+		message["role"] = role
+		message["content"] = newContent
+
+		// 保留其他字段
+		msg.ForEach(func(key, value gjson.Result) bool {
+			k := key.String()
+			if k != "role" && k != "content" {
+				var v interface{}
+				if err := json.Unmarshal([]byte(value.Raw), &v); err == nil {
+					message[k] = v
+				}
+			}
+			return true
+		})
+
+		modifiedMessages = append(modifiedMessages, message)
+	}
+
+	// 如果启用了验签但没有找到任何签名，返回错误
+	if !hasSignedMessage {
+		return nil, fmt.Errorf("no signed messages found, but signature verification is enabled")
+	}
+
+	// 重建 JSON
+	modifiedBody, err := sjson.SetBytes(body, "messages", modifiedMessages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to rebuild request body: %w", err)
+	}
+
+	return modifiedBody, nil
+}
+
+// verifyEmbeddedHash 验证单个内容中的嵌入 Hash
+// 返回：(是否包含签名, 移除Hash后的内容, 错误)
+func verifyEmbeddedHash(config AuthenticatedPromptsConfig, content string) (bool, string, error) {
+	// 正则表达式匹配：<a2as:TYPE:HASH>content</a2as:TYPE:HASH>
+	// TYPE 可以是 user, tool, system 等
+	// HASH 是十六进制字符串
+	// 注意：Go 不支持反向引用，所以需要手动验证闭合标签
+	pattern := regexp.MustCompile(`<a2as:(\w+):([0-9a-fA-F]+)>(.*?)</a2as:(\w+):([0-9a-fA-F]+)>`)
+	matches := pattern.FindStringSubmatch(content)
+
+	if len(matches) == 0 {
+		// 没有嵌入的 Hash，返回原内容
+		return false, content, nil
+	}
+
+	if len(matches) != 6 {
+		return false, "", fmt.Errorf("invalid a2as tag format")
+	}
+
+	openTagType := matches[1]
+	openHash := matches[2]
+	innerContent := matches[3]
+	closeTagType := matches[4]
+	closeHash := matches[5]
+
+	// 验证开始和结束标签匹配
+	if openTagType != closeTagType {
+		return false, "", fmt.Errorf("tag type mismatch: open=%s, close=%s", openTagType, closeTagType)
+	}
+	if openHash != closeHash {
+		return false, "", fmt.Errorf("hash mismatch in tags: open=%s, close=%s", openHash, closeHash)
+	}
+
+	// 计算期望的 Hash
+	expectedHash := computeContentHash(config, innerContent)
+
+	// 对比 Hash（不区分大小写）
+	if !strings.EqualFold(openHash, expectedHash) {
+		return false, "", fmt.Errorf("hash mismatch for type=%s (expected=%s, got=%s)",
+			openTagType, expectedHash, openHash)
+	}
+
+	// 验证通过，返回移除 Hash 后的内容
+	// 替换整个标记为内部内容
+	newContent := pattern.ReplaceAllString(content, "$3")
+
+	log.Debugf("[A2AS] Hash verified for type=%s, hash=%s", openTagType, openHash)
+
+	return true, newContent, nil
+}
+
+// computeContentHash 计算内容的 HMAC-SHA256 Hash（截取配置的长度）
+func computeContentHash(config AuthenticatedPromptsConfig, content string) string {
+	// 解析 secret（支持 base64 或原始字符串）
+	secretBytes, err := base64.StdEncoding.DecodeString(config.SharedSecret)
+	if err != nil {
+		secretBytes = []byte(config.SharedSecret)
+	}
+
+	// 计算 HMAC-SHA256
+	mac := hmac.New(sha256.New, secretBytes)
+	mac.Write([]byte(content))
+	fullHash := hex.EncodeToString(mac.Sum(nil))
+
+	// 截取指定长度
+	if len(fullHash) > config.HashLength {
+		return fullHash[:config.HashLength]
+	}
+
+	return fullHash
 }

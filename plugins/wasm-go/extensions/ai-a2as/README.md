@@ -4,8 +4,9 @@
 
 AI Agent-to-Agent Security (A2AS) 插件实现了 OWASP A2AS 框架的核心功能，为 AI 应用提供基础安全防护，防范提示注入攻击。
 
-本插件专注于网关层面的三个核心安全控制：
+本插件专注于网关层面的四个核心安全控制：
 - **Behavior Certificates**（行为证书）：限制 AI Agent 可调用的工具
+- **Authenticated Prompts**（提示词验签）：验证 Prompt 内容的完整性和真实性
 - **In-Context Defenses**（上下文防御）：在 LLM 上下文中注入防御指令
 - **Codified Policies**（编码策略）：在 LLM 上下文中注入策略规则
 
@@ -22,7 +23,27 @@ AI Agent-to-Agent Security (A2AS) 插件实现了 OWASP A2AS 框架的核心功�
 - 防止权限滥用
 - 工具调用审计
 
-### 2. In-Context Defenses（上下文防御）
+### 2. Authenticated Prompts（提示词验签）
+
+验证 Prompt 内容的完整性和真实性，防止内容被篡改。Agent 侧对 Prompt 进行签名，网关侧进行验签并移除签名信息。
+
+**签名格式**：
+```
+<a2as:user:HASH>原始内容</a2as:user:HASH>
+```
+
+**适用场景**：
+- 防止 Prompt 内容被中间人篡改
+- 确保 Agent 发送的内容完整传递给 LLM
+- 验证关键指令的真实性
+
+**工作流程**：
+1. Agent 侧：使用共享密钥（HMAC-SHA256）计算内容哈希，嵌入到 `<a2as:TYPE:HASH>` 标签中
+2. 网关侧：验证嵌入的哈希是否匹配内容
+3. 验签成功后：移除标签和哈希，将原始内容传递给 LLM
+4. 验签失败：返回 403 错误
+
+### 3. In-Context Defenses（上下文防御）
 
 在 LLM 的上下文窗口中注入防御指令，增强模型对恶意指令的抵抗能力。
 
@@ -31,7 +52,7 @@ AI Agent-to-Agent Security (A2AS) 插件实现了 OWASP A2AS 框架的核心功�
 - 增强模型安全意识
 - 保护系统指令
 
-### 3. Codified Policies（编码策略）
+### 4. Codified Policies（编码策略）
 
 将企业策略和合规要求以编码形式注入到 LLM 上下文中。
 
@@ -51,6 +72,11 @@ behaviorCertificates:
     - "read_email"
     - "search_documents"
   denyMessage: "该工具未被授权"
+
+authenticatedPrompts:
+  enabled: true
+  sharedSecret: "your-secret-key-here"
+  hashLength: 8
 
 inContextDefenses:
   enabled: true
@@ -109,6 +135,23 @@ consumerConfigs:
 - 白名单模式：只有 `allowedTools` 列表中的工具可以被调用
 - 如果 `allowedTools` 为空，则拒绝所有工具调用
 - 工具名称必须与 OpenAI `tool_choice` 或 `tools` 中的 `function.name` 匹配
+
+### Authenticated Prompts
+
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `enabled` | bool | 是 | false | 是否启用提示词签名验证 |
+| `sharedSecret` | string | 是* | "" | 用于 HMAC-SHA256 签名验证的共享密钥 |
+| `hashLength` | int | 否 | 8 | 哈希截取长度（4-64 位十六进制字符） |
+
+**说明**：
+- Agent 侧和网关侧必须使用相同的 `sharedSecret`
+- `sharedSecret` 支持 Base64 编码或原始字符串
+- `hashLength` 控制嵌入哈希的长度，值越大安全性越高但标签越长
+- 签名格式：`<a2as:TYPE:HASH>content</a2as:TYPE:HASH>`
+- 支持的 TYPE：`user`、`tool`、`system` 等
+- 验签成功后会自动移除标签和哈希，传递原始内容给 LLM
+- 验签失败返回 403 错误
 
 ### In-Context Defenses
 
@@ -203,7 +246,43 @@ codifiedPolicies:
       severity: "high"
 ```
 
-### 示例 4：组合使用
+### 示例 4：启用提示词验签
+
+```yaml
+authenticatedPrompts:
+  enabled: true
+  sharedSecret: "my-secure-secret-key-2024"
+  hashLength: 16  # 使用16位哈希（更高安全性）
+
+behaviorCertificates:
+  enabled: true
+  allowedTools:
+    - "read_file"
+    - "write_file"
+```
+
+**Agent 侧签名示例**（Python）：
+```python
+import hmac
+import hashlib
+
+def sign_content(content, secret, hash_length=16):
+    # 计算 HMAC-SHA256
+    mac = hmac.new(secret.encode(), content.encode(), hashlib.sha256)
+    hash_value = mac.hexdigest()[:hash_length]
+    
+    # 返回带签名的内容
+    return f"<a2as:user:{hash_value}>{content}</a2as:user:{hash_value}>"
+
+# 使用示例
+secret = "my-secure-secret-key-2024"
+original = "请读取 config.yaml 文件"
+signed = sign_content(original, secret, 16)
+
+# 发送到 LLM: {"messages": [{"role": "user", "content": signed}]}
+```
+
+### 示例 5：组合使用
 
 ```yaml
 behaviorCertificates:
@@ -212,6 +291,11 @@ behaviorCertificates:
     - "send_email"
     - "create_calendar_event"
   denyMessage: "此操作需要更高权限"
+
+authenticatedPrompts:
+  enabled: true
+  sharedSecret: "gateway-secret-2024"
+  hashLength: 8
 
 inContextDefenses:
   enabled: true
@@ -228,6 +312,36 @@ codifiedPolicies:
 ```
 
 ## 故障排查
+
+### 签名验证失败
+
+**现象**：返回 403 错误，提示 "Invalid or missing prompt signature"
+
+**可能原因**：
+1. Agent 侧和网关侧使用的 `sharedSecret` 不一致
+2. Hash 计算方法不正确（必须使用 HMAC-SHA256）
+3. 签名格式错误（标签格式必须为 `<a2as:TYPE:HASH>content</a2as:TYPE:HASH>`）
+4. `hashLength` 配置不匹配
+5. 消息中没有包含签名（但配置中启用了验签）
+
+**解决方法**：
+```bash
+# 1. 检查日志
+grep "Signature verification failed" /var/log/higress/wasm.log
+
+# 2. 验证 Hash 计算
+# Agent 侧 Python 示例：
+import hmac, hashlib
+secret = "your-secret"
+content = "test content"
+hash_value = hmac.new(secret.encode(), content.encode(), hashlib.sha256).hexdigest()[:8]
+print(f"Expected hash: {hash_value}")
+
+# 3. 验证标签格式
+# 正确: <a2as:user:HASH>content</a2as:user:HASH>
+# 错误: <a2as:user:HASH>content</a2as:user:DIFFERENT_HASH>
+# 错误: <a2as:user:HASH>content</a2as:tool:HASH>
+```
 
 ### 工具调用被拒绝
 
@@ -341,30 +455,39 @@ consumerConfigs:
 
 ## 版本历史
 
-### v1.0.0-simplified (2025-11-01)
+### v1.0.0-simplified (2025-11-03)
 
-**简化版本发布**
+**简化版本发布 + 提示词验签恢复**
 
 根据维护者反馈，专注于网关适合实现的核心功能：
 
-**保留功能**：
+**核心功能**：
 - ✅ Behavior Certificates（行为证书）
+- ✅ Authenticated Prompts（提示词验签，简化版）
 - ✅ In-Context Defenses（上下文防御）
 - ✅ Codified Policies（编码策略）
 - ✅ Per-Consumer 配置
 
+**Authenticated Prompts 实现说明**：
+- ✅ 采用嵌入式 Hash 验签（`<a2as:TYPE:HASH>content</a2as:TYPE:HASH>`）
+- ✅ HMAC-SHA256 算法
+- ✅ 验签成功后自动移除标签
+- ✅ 支持大小写不敏感的 Hash 比对
+- ❌ 不使用 HTTP Header 签名（RFC 9421）
+- ❌ 不使用 Nonce 防重放
+- ❌ 不使用密钥轮换
+
 **移除功能**：
-- ❌ Authenticated Prompts（签名验证） - 应由客户端实现
-- ❌ Security Boundaries（安全边界） - 应由 Agent 侧实现
-- ❌ RFC 9421 签名验证
+- ❌ Security Boundaries（安全边界）- 应由 Agent 侧实现
+- ❌ RFC 9421 HTTP 签名验证
 - ❌ Nonce 验证
 - ❌ 密钥轮换
 - ❌ 详细审计日志
 
 **代码统计**：
-- 代码量减少：69% (5120 行 → 1580 行)
-- 配置项减少：60% (25+ 项 → 10 项)
-- 文件数减少：9 个测试文件
+- 核心代码：~2100 行
+- 测试代码：13 个测试用例（Authenticated Prompts）+ 现有测试
+- 测试通过率：100%
 
 ## 参考资料
 

@@ -4,8 +4,9 @@
 
 The AI Agent-to-Agent Security (A2AS) plugin implements the core features of the OWASP A2AS framework, providing fundamental security protection for AI applications against prompt injection attacks.
 
-This plugin focuses on three core security controls at the gateway level:
+This plugin focuses on four core security controls at the gateway level:
 - **Behavior Certificates**: Restrict tools that AI Agents can invoke
+- **Authenticated Prompts**: Verify the integrity and authenticity of prompt content
 - **In-Context Defenses**: Inject defense instructions into LLM context
 - **Codified Policies**: Inject policy rules into LLM context
 
@@ -22,7 +23,27 @@ Restrict tools that AI Agents can invoke through whitelist mechanism, preventing
 - Prevent privilege abuse
 - Tool call auditing
 
-### 2. In-Context Defenses
+### 2. Authenticated Prompts
+
+Verify the integrity and authenticity of prompt content to prevent tampering. Agent signs prompts, gateway verifies signatures and removes signing information.
+
+**Signature Format**:
+```
+<a2as:user:HASH>original content</a2as:user:HASH>
+```
+
+**Use Cases**:
+- Prevent man-in-the-middle tampering of prompt content
+- Ensure content from Agent is delivered intact to LLM
+- Verify authenticity of critical instructions
+
+**Workflow**:
+1. Agent Side: Calculate content hash using shared secret (HMAC-SHA256), embed in `<a2as:TYPE:HASH>` tags
+2. Gateway Side: Verify embedded hash matches content
+3. On Success: Remove tags and hash, pass original content to LLM
+4. On Failure: Return 403 error
+
+### 3. In-Context Defenses
 
 Inject defense instructions into the LLM's context window to enhance the model's resistance to malicious instructions.
 
@@ -31,7 +52,7 @@ Inject defense instructions into the LLM's context window to enhance the model's
 - Enhance model security awareness
 - Protect system instructions
 
-### 3. Codified Policies
+### 4. Codified Policies
 
 Inject enterprise policies and compliance requirements into the LLM context in a codified form.
 
@@ -51,6 +72,11 @@ behaviorCertificates:
     - "read_email"
     - "search_documents"
   denyMessage: "Tool not authorized"
+
+authenticatedPrompts:
+  enabled: true
+  sharedSecret: "your-secret-key-here"
+  hashLength: 8
 
 inContextDefenses:
   enabled: true
@@ -109,6 +135,23 @@ consumerConfigs:
 - Whitelist mode: Only tools in `allowedTools` list can be invoked
 - If `allowedTools` is empty, all tool calls are denied
 - Tool names must match `function.name` in OpenAI `tool_choice` or `tools`
+
+### Authenticated Prompts
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `enabled` | bool | Yes | false | Enable prompt signature verification |
+| `sharedSecret` | string | Yes* | "" | Shared secret for HMAC-SHA256 signature verification |
+| `hashLength` | int | No | 8 | Hash truncation length (4-64 hex characters) |
+
+**Notes**:
+- Agent side and gateway side must use the same `sharedSecret`
+- `sharedSecret` supports Base64 encoding or raw string
+- `hashLength` controls embedded hash length; larger values provide higher security but longer tags
+- Signature format: `<a2as:TYPE:HASH>content</a2as:TYPE:HASH>`
+- Supported TYPEs: `user`, `tool`, `system`, etc.
+- Tags and hashes are automatically removed after successful verification; original content is passed to LLM
+- Returns 403 error on verification failure
 
 ### In-Context Defenses
 
@@ -203,7 +246,43 @@ codifiedPolicies:
       severity: "high"
 ```
 
-### Example 4: Combined Usage
+### Example 4: Enable Authenticated Prompts
+
+```yaml
+authenticatedPrompts:
+  enabled: true
+  sharedSecret: "my-secure-secret-key-2024"
+  hashLength: 16  # Use 16-bit hash for higher security
+
+behaviorCertificates:
+  enabled: true
+  allowedTools:
+    - "read_file"
+    - "write_file"
+```
+
+**Agent-Side Signing Example** (Python):
+```python
+import hmac
+import hashlib
+
+def sign_content(content, secret, hash_length=16):
+    # Calculate HMAC-SHA256
+    mac = hmac.new(secret.encode(), content.encode(), hashlib.sha256)
+    hash_value = mac.hexdigest()[:hash_length]
+    
+    # Return signed content
+    return f"<a2as:user:{hash_value}>{content}</a2as:user:{hash_value}>"
+
+# Usage example
+secret = "my-secure-secret-key-2024"
+original = "Please read the config.yaml file"
+signed = sign_content(original, secret, 16)
+
+# Send to LLM: {"messages": [{"role": "user", "content": signed}]}
+```
+
+### Example 5: Combined Usage
 
 ```yaml
 behaviorCertificates:
@@ -212,6 +291,11 @@ behaviorCertificates:
     - "send_email"
     - "create_calendar_event"
   denyMessage: "This operation requires higher privileges"
+
+authenticatedPrompts:
+  enabled: true
+  sharedSecret: "gateway-secret-2024"
+  hashLength: 8
 
 inContextDefenses:
   enabled: true
@@ -228,6 +312,36 @@ codifiedPolicies:
 ```
 
 ## Troubleshooting
+
+### Signature Verification Failed
+
+**Symptom**: Returns 403 error with message "Invalid or missing prompt signature"
+
+**Possible Causes**:
+1. `sharedSecret` inconsistent between Agent side and gateway side
+2. Incorrect hash calculation method (must use HMAC-SHA256)
+3. Invalid signature format (must be `<a2as:TYPE:HASH>content</a2as:TYPE:HASH>`)
+4. Mismatched `hashLength` configuration
+5. No signature in message (but verification is enabled in config)
+
+**Solution**:
+```bash
+# 1. Check logs
+grep "Signature verification failed" /var/log/higress/wasm.log
+
+# 2. Verify hash calculation
+# Agent-side Python example:
+import hmac, hashlib
+secret = "your-secret"
+content = "test content"
+hash_value = hmac.new(secret.encode(), content.encode(), hashlib.sha256).hexdigest()[:8]
+print(f"Expected hash: {hash_value}")
+
+# 3. Verify tag format
+# Correct: <a2as:user:HASH>content</a2as:user:HASH>
+# Wrong: <a2as:user:HASH>content</a2as:user:DIFFERENT_HASH>
+# Wrong: <a2as:user:HASH>content</a2as:tool:HASH>
+```
 
 ### Tool Calls Denied
 
@@ -341,30 +455,39 @@ consumerConfigs:
 
 ## Version History
 
-### v1.0.0-simplified (2025-11-01)
+### v1.0.0-simplified (2025-11-03)
 
-**Simplified Version Release**
+**Simplified Version Release + Authenticated Prompts Restored**
 
 Based on maintainer feedback, focusing on core features suitable for gateway implementation:
 
-**Retained Features**:
+**Core Features**:
 - ✅ Behavior Certificates
+- ✅ Authenticated Prompts (simplified version)
 - ✅ In-Context Defenses
 - ✅ Codified Policies
 - ✅ Per-Consumer Configuration
 
+**Authenticated Prompts Implementation**:
+- ✅ Embedded hash verification (`<a2as:TYPE:HASH>content</a2as:TYPE:HASH>`)
+- ✅ HMAC-SHA256 algorithm
+- ✅ Automatic tag removal after successful verification
+- ✅ Case-insensitive hash comparison
+- ❌ No HTTP Header signatures (RFC 9421)
+- ❌ No Nonce anti-replay
+- ❌ No key rotation
+
 **Removed Features**:
-- ❌ Authenticated Prompts (signature verification) - Should be implemented by client
 - ❌ Security Boundaries - Should be implemented by Agent side
-- ❌ RFC 9421 signature verification
+- ❌ RFC 9421 HTTP signature verification
 - ❌ Nonce verification
 - ❌ Key rotation
 - ❌ Detailed audit logging
 
 **Code Statistics**:
-- Code reduced: 69% (5120 lines → 1580 lines)
-- Configuration items reduced: 60% (25+ items → 10 items)
-- Files reduced: 9 test files
+- Core code: ~2100 lines
+- Test code: 13 test cases (Authenticated Prompts) + existing tests
+- Test pass rate: 100%
 
 ## References
 

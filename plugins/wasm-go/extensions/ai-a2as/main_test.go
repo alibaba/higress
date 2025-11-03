@@ -21,6 +21,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// 测试 Authenticated Prompts 功能
+func TestAuthenticatedPrompts(t *testing.T) {
+	test.RunAuthenticatedPromptsParseConfigTests(t)
+	test.RunAuthenticatedPromptsOnHttpRequestBodyTests(t)
+	test.RunAuthenticatedPromptsConfigValidationTests(t)
+}
+
 // 测试 Behavior Certificates 功能
 func TestBehaviorCertificates(t *testing.T) {
 	test.RunBehaviorCertificatesParseConfigTests(t)
