@@ -16,6 +16,7 @@ package istio
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/v2/pkg/config/constants"
 	"strings"
 	"testing"
 	"time"
@@ -39,11 +40,11 @@ import (
 )
 
 const (
-	IstioController = "istio.io/gateway-controller"
-	DefaultTestNS   = "default"
-	GatewayTestNS   = "gateway-ns"
-	AppTestNS       = "app-ns"
-	EmptyTestNS     = ""
+	HigressController = constants.ManagedGatewayController
+	DefaultTestNS     = "default"
+	GatewayTestNS     = "gateway-ns"
+	AppTestNS         = "app-ns"
+	EmptyTestNS       = ""
 )
 
 func TestInferencePoolStatusReconciliation(t *testing.T) {
@@ -60,9 +61,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should add gateway parentRef to inferencepool status",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					WithRouteParentCondition(string(gatewayv1.RouteConditionAccepted), metav1.ConditionTrue, "Accepted", "Accepted"),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
@@ -82,10 +83,10 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should add only 1 gateway parentRef to status for multiple routes on different gateways with different controllers",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("other")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithParentRefAndStatus("gateway-2", DefaultTestNS, "other-controller"),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
@@ -99,10 +100,10 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should keep the status of the gateway parentRefs from antoher controller",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("other-class")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 				NewHTTPRoute("route-2", InNamespace(DefaultTestNS),
 					WithParentRefAndStatus("gateway-2", DefaultTestNS, "other-class"),
@@ -120,13 +121,13 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should add multiple gateway parentRefs to status for multiple routes",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
-				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 				NewHTTPRoute("route-2", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-2", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-2", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
@@ -141,10 +142,10 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should remove our status from previous reconciliation that is no longer referenced by any HTTPRoute",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
-				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS),
@@ -159,9 +160,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should update/recreate our status from previous reconciliation",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS),
@@ -177,10 +178,10 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should keep others status from previous reconciliation",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("other-class")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithParentStatus("gateway-2", DefaultTestNS, WithAcceptedConditions())),
@@ -195,9 +196,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should remove default parent 'waiting for controller' status",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithParentStatus("default", DefaultTestNS, AsDefaultStatus())),
@@ -209,9 +210,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should remove unknown condition types from controlled parents",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS),
@@ -232,9 +233,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should handle cross-namespace gateway references correctly",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", GatewayTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", GatewayTestNS, HigressController),
 					WithBackendRef("test-pool", AppTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(AppTestNS)),
@@ -247,9 +248,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should handle cross-namespace httproute references correctly",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", GatewayTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", GatewayTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
@@ -262,9 +263,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should handle HTTPRoute in same namespace (empty)",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", GatewayTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", GatewayTestNS, HigressController),
 					WithBackendRef("test-pool", EmptyTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(AppTestNS)),
@@ -277,9 +278,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should handle Gateway in same namespace (empty)",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(AppTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(AppTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", EmptyTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", EmptyTestNS, HigressController),
 					WithBackendRef("test-pool", AppTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(AppTestNS)),
@@ -292,12 +293,12 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should add only one parentRef for multiple routes on same gateway",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("route-a", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 				NewHTTPRoute("route-b", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
@@ -310,9 +311,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 			name: "should report ResolvedRef true when ExtensioNRef found",
 			givens: []runtime.Object{
 				NewService("test-epp", InNamespace(DefaultTestNS)),
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithExtensionRef("Service", "test-epp")),
@@ -330,9 +331,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should report HTTPRoute not accepted when parent gateway rejects HTTPRoute",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					WithRouteParentCondition(string(gatewayv1.RouteConditionAccepted), metav1.ConditionFalse, "GatewayNotReady", "Gateway not ready"),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
@@ -352,9 +353,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should report unknown status when HTTPRoute parent status has no Accepted condition",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					// Note: No WithRouteParentCondition for Accepted - parent is listed but has no conditions
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
@@ -391,9 +392,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should not add parentRef if httproute has no backendref",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController)), // No BackendRef
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController)), // No BackendRef
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
 			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
@@ -414,9 +415,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should report ExtensionRef not found if no matching service found",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
@@ -434,9 +435,9 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should report unsupported ExtensionRef if kind is not service",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithExtensionRef("Gateway", "main-gateway")),

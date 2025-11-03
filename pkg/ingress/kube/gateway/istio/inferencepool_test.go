@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	inferencev1alpha2 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha2"
 
+	higressconstants "github.com/alibaba/higress/v2/pkg/config/constants"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/kube/krt"
@@ -54,9 +55,9 @@ func TestReconcileInferencePool(t *testing.T) {
 	}
 	controller := setupController(t,
 		&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}},
-		NewGateway("test-gw", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+		NewGateway("test-gw", InNamespace(DefaultTestNS), WithGatewayClass(higressconstants.DefaultGatewayClass)),
 		NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-			WithParentRefAndStatus("test-gw", DefaultTestNS, IstioController),
+			WithParentRefAndStatus("test-gw", DefaultTestNS, HigressController),
 			WithBackendRef("test-pool", DefaultTestNS),
 		),
 		pool,
