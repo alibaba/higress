@@ -112,7 +112,9 @@ func GetClassStatus(existing *k8sv1.GatewayClassStatus, gen int64) *k8sv1.Gatewa
 		ObservedGeneration: gen,
 		LastTransitionTime: metav1.Now(),
 		Reason:             string(k8sv1.GatewayClassConditionStatusAccepted),
-		Message:            "Handled by Istio controller",
+		// Start - Updated by Higress
+		Message: "Handled by Higress controller",
+		// End - Updated by Higress
 	})
 	return existing
 }

@@ -15,6 +15,7 @@
 package gateway
 
 import (
+	"istio.io/istio/pilot/pkg/features"
 	"sync/atomic"
 
 	"istio.io/istio/pilot/pkg/config/kube/crdclient"
@@ -64,6 +65,10 @@ func NewController(client kube.Client, options common.Options, xdsUpdater model.
 		}
 		return false
 	})
+	// Add gateway api inference schema if enabled
+	if features.EnableGatewayAPIInferenceExtension {
+		schemasBuilder.MustAdd(collections.InferencePool)
+	}
 	store := crdclient.NewForSchemas(client, opts, schemasBuilder.Build())
 
 	clusterId := options.ClusterId
@@ -73,9 +78,9 @@ func NewController(client kube.Client, options common.Options, xdsUpdater model.
 		Revision:     higressconfig.Revision,
 	}
 	istioController := istiogateway.NewController(client, client.CrdWatcher().WaitForCRD, opt, xdsUpdater)
-	//if options.GatewaySelectorKey != "" {
-	//	istioController.DefaultGatewaySelector = map[string]string{options.GatewaySelectorKey: options.GatewaySelectorValue}
-	//}
+	if options.GatewaySelectorKey != "" {
+		istioController.DefaultGatewaySelector = map[string]string{options.GatewaySelectorKey: options.GatewaySelectorValue}
+	}
 
 	var statusManager *status.Manager = nil
 	if options.EnableStatus {
