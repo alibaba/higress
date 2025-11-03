@@ -16,13 +16,13 @@ package istio
 
 import (
 	"fmt"
+	"github.com/alibaba/higress/v2/pkg/config/constants"
 	"testing"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/kclient/clienttest"
 	"istio.io/istio/pkg/test"
@@ -71,19 +71,19 @@ func TestClassController(t *testing.T) {
 	}
 
 	// Class should be created initially
-	expectClass(features.GatewayAPIDefaultGatewayClass, features.ManagedGatewayController)
+	expectClass(constants.DefaultGatewayClass, constants.ManagedGatewayController)
 
 	// Once we delete it, it should be added back
-	deleteClass(features.GatewayAPIDefaultGatewayClass)
-	expectClass(features.GatewayAPIDefaultGatewayClass, features.ManagedGatewayController)
+	deleteClass(constants.DefaultGatewayClass)
+	expectClass(constants.DefaultGatewayClass, constants.ManagedGatewayController)
 
 	// Overwrite the class, controller should not reconcile it back
-	createClass(features.GatewayAPIDefaultGatewayClass, "different-controller")
-	expectClass(features.GatewayAPIDefaultGatewayClass, "different-controller")
+	createClass(constants.DefaultGatewayClass, "different-controller")
+	expectClass(constants.DefaultGatewayClass, "different-controller")
 
 	// Once we delete it, it should be added back
-	deleteClass(features.GatewayAPIDefaultGatewayClass)
-	expectClass(features.GatewayAPIDefaultGatewayClass, features.ManagedGatewayController)
+	deleteClass(constants.DefaultGatewayClass)
+	expectClass(constants.DefaultGatewayClass, constants.ManagedGatewayController)
 
 	// Create an unrelated GatewayClass, we should not do anything to it
 	createClass("something-else", "different-controller")
