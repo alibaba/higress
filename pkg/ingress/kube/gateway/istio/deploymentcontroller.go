@@ -56,7 +56,7 @@ func getBuiltinClasses() map[gateway.ObjectName]gateway.GatewayController {
 	res := map[gateway.ObjectName]gateway.GatewayController{
 		// Start - Updated by Higress
 		//gateway.ObjectName(features.GatewayAPIDefaultGatewayClass): gateway.GatewayController(features.ManagedGatewayController),
-		"higress": higressconstants.ManagedGatewayController,
+		higressconstants.DefaultGatewayClass: higressconstants.ManagedGatewayController,
 		// End - Updated by Higress
 	}
 	// Start - Commented by Higress
