@@ -19,6 +19,8 @@ spec:
         allowedCapabilities: ["cap.text.summarize"]
       - pathPrefix: "/v1/text:translate"
         allowedCapabilities: ["cap.text.translate"]
+      - pathPrefix: "/v1/chat/completions"
+        allowedCapabilities: ["cap.text.summarize"]
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -39,4 +41,3 @@ spec:
         # 可按需映射：统一对外仍是OpenAI chat.completions风格
         modelMapping:
           "*": "deepseek-chat"
-

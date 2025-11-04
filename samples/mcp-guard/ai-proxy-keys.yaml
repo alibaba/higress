@@ -1,0 +1,35 @@
+## Fill your API key below and apply with:
+##   kubectl apply -f samples/mcp-guard/ai-proxy-keys.yaml
+## This will update the WasmPlugin `ai-proxy` in `higress-system` namespace.
+
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy
+  namespace: higress-system
+spec:
+  # Ensure the plugin URL points to the local volume-mounted wasm file
+  url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
+  phase: UNSPECIFIED_PHASE
+  priority: 100
+  defaultConfig:
+    providers:
+      # DeepSeek provider (default). Replace the key below, then apply.
+      - id: deepseek-main
+        type: deepseek
+        protocol: original
+        apiTokens:
+          - "sk-10517ab371c542a7941d875ecfec3a83"
+        modelMapping:
+          "*": "deepseek-chat"
+
+      # --- OpenAI provider (alternative). To use OpenAI instead of DeepSeek,
+      # uncomment the block below, fill your key, and (optionally) remove the DeepSeek block above.
+      # - id: openai-main
+      #   type: openai
+      #   protocol: openai
+      #   apiTokens:
+      #     - "PASTE_YOUR_OPENAI_API_KEY_HERE"
+      #   modelMapping:
+      #     "*": "gpt-4o-mini"
+

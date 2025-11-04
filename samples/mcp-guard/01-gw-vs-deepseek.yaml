@@ -5,7 +5,7 @@ metadata:
   namespace: higress-system
 spec:
   selector:
-    istio: ingressgateway
+    app: higress-gateway
   servers:
   - port:
       number: 80
@@ -25,13 +25,23 @@ spec:
   gateways:
   - demo-gw
   http:
-  - match:
+  - name: summarize
+    match:
     - uri:
-        prefix: /v1/text:
+        prefix: "/v1/text:summarize"
     route:
     - destination:
         host: api.deepseek.com
         port:
           number: 443
       weight: 100
-
+  - name: translate
+    match:
+    - uri:
+        prefix: "/v1/text:translate"
+    route:
+    - destination:
+        host: api.deepseek.com
+        port:
+          number: 443
+      weight: 100

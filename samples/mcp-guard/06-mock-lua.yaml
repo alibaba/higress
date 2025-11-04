@@ -1,0 +1,31 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: mock-lua-direct
+  namespace: higress-system
+spec:
+  configPatches:
+  - applyTo: HTTP_FILTER
+    match:
+      context: GATEWAY
+      listener:
+        filterChain:
+          filter:
+            name: envoy.filters.network.http_connection_manager
+            subFilter:
+              name: envoy.filters.http.router
+    patch:
+      operation: INSERT_BEFORE
+      value:
+        name: envoy.filters.http.lua
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+          inline_code: |
+            function envoy_on_request(handle)
+              local path = handle:headers():get(":path") or ""
+              if string.sub(path, 1, string.len("/v1/text:summarize")) == "/v1/text:summarize" then
+                local body = '{"result":"这是一个摘要（mock）"}'
+                handle:respond({[":status"] = "200", ["content-type"] = "application/json; charset=utf-8"}, body)
+                return
+              end
+            end
