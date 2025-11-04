@@ -401,6 +401,11 @@ var svcPorts = []corev1.ServicePort{
 		Protocol: "HTTP",
 	},
 	{
+		Name:     "https",
+		Port:     443,
+		Protocol: "HTTPS",
+	},
+	{
 		Name:     "tcp",
 		Port:     34000,
 		Protocol: "TCP",
