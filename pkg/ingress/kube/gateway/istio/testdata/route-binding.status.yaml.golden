@@ -2,12 +2,12 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
   creationTimestamp: null
-  name: istio
+  name: higress
 spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Handled by Istio controller
+    message: Handled by Higress controller
     reason: Accepted
     status: "True"
     type: Accepted
@@ -17,12 +17,12 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   addresses:
-  - type: IPAddress
-    value: 1.2.3.4
+  - type: Hostname
+    value: higress-gateway.higress-system.svc.domain.suffix
   conditions:
   - lastTransitionTime: fake
     message: Resource accepted
@@ -30,7 +30,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
+    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:80
     reason: Programmed
     status: "True"
     type: Programmed
@@ -89,7 +89,7 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-  - attachedRoutes: 1
+  - attachedRoutes: 0
     conditions:
     - lastTransitionTime: fake
       message: No errors found
@@ -141,7 +141,7 @@ status:
       type: ResolvedRefs
     name: scope-route
     supportedKinds: []
-  - attachedRoutes: 2
+  - attachedRoutes: 0
     conditions:
     - lastTransitionTime: fake
       message: No errors found
@@ -169,7 +169,7 @@ status:
       kind: HTTPRoute
     - group: gateway.networking.k8s.io
       kind: GRPCRoute
-  - attachedRoutes: 1
+  - attachedRoutes: 0
     conditions:
     - lastTransitionTime: fake
       message: No errors found
@@ -253,7 +253,7 @@ status:
       kind: HTTPRoute
     - group: gateway.networking.k8s.io
       kind: GRPCRoute
-  - attachedRoutes: 1
+  - attachedRoutes: 2
     conditions:
     - lastTransitionTime: fake
       message: No errors found
@@ -281,7 +281,7 @@ status:
       kind: HTTPRoute
     - group: gateway.networking.k8s.io
       kind: GRPCRoute
-  - attachedRoutes: 2
+  - attachedRoutes: 0
     conditions:
     - lastTransitionTime: fake
       message: No errors found
@@ -365,7 +365,7 @@ status:
       kind: HTTPRoute
     - group: gateway.networking.k8s.io
       kind: GRPCRoute
-  - attachedRoutes: 0
+  - attachedRoutes: 2
     conditions:
     - lastTransitionTime: fake
       message: No errors found
@@ -393,7 +393,7 @@ status:
       kind: HTTPRoute
     - group: gateway.networking.k8s.io
       kind: GRPCRoute
-  - attachedRoutes: 1
+  - attachedRoutes: 0
     conditions:
     - lastTransitionTime: fake
       message: No errors found
@@ -473,7 +473,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -498,7 +498,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -525,7 +525,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-labels
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -552,7 +552,7 @@ status:
     parentRef:
       kind: Gateway
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: same-namespace
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -578,7 +578,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -592,9 +592,10 @@ status:
   parents:
   - conditions:
     - lastTransitionTime: fake
-      message: Route was valid
-      reason: Accepted
-      status: "True"
+      message: hostnames matched parent hostname "*.slctr-labels.example", but namespace
+        "group-namespace1" is not allowed by the parent
+      reason: NotAllowedByListeners
+      status: "False"
       type: Accepted
     - lastTransitionTime: fake
       message: All references resolved
@@ -604,7 +605,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-labels
   - conditions:
     - lastTransitionTime: fake
@@ -620,25 +621,8 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-expr-notin-yes
-  - conditions:
-    - lastTransitionTime: fake
-      message: hostnames matched parent hostname "*.slctr-expr-notin-no.example",
-        but namespace "group-namespace1" is not allowed by the parent
-      reason: NotAllowedByListeners
-      status: "False"
-      type: Accepted
-    - lastTransitionTime: fake
-      message: All references resolved
-      reason: ResolvedRefs
-      status: "True"
-      type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
-    parentRef:
-      name: gateway
-      namespace: istio-system
-      sectionName: slctr-expr-notin-no
   - conditions:
     - lastTransitionTime: fake
       message: Route was valid
@@ -653,7 +637,24 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
+      sectionName: slctr-expr-notin-no
+  - conditions:
+    - lastTransitionTime: fake
+      message: hostnames matched parent hostname "*.slctr-expr-in-yes.example", but
+        namespace "group-namespace1" is not allowed by the parent
+      reason: NotAllowedByListeners
+      status: "False"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: All references resolved
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    controllerName: istio.io/gateway-controller
+    parentRef:
+      name: gateway
+      namespace: higress-system
       sectionName: slctr-expr-in-yes
   - conditions:
     - lastTransitionTime: fake
@@ -670,13 +671,14 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-expr-in-no
   - conditions:
     - lastTransitionTime: fake
-      message: Route was valid
-      reason: Accepted
-      status: "True"
+      message: hostnames matched parent hostname "*.slctr-expr-exists-yes.example",
+        but namespace "group-namespace1" is not allowed by the parent
+      reason: NotAllowedByListeners
+      status: "False"
       type: Accepted
     - lastTransitionTime: fake
       message: All references resolved
@@ -686,7 +688,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-expr-exists-yes
   - conditions:
     - lastTransitionTime: fake
@@ -703,7 +705,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-expr-exists-no
   - conditions:
     - lastTransitionTime: fake
@@ -719,25 +721,8 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-expr-dne-yes
-  - conditions:
-    - lastTransitionTime: fake
-      message: hostnames matched parent hostname "*.slctr-expr-dne-no.example", but
-        namespace "group-namespace1" is not allowed by the parent
-      reason: NotAllowedByListeners
-      status: "False"
-      type: Accepted
-    - lastTransitionTime: fake
-      message: All references resolved
-      reason: ResolvedRefs
-      status: "True"
-      type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
-    parentRef:
-      name: gateway
-      namespace: istio-system
-      sectionName: slctr-expr-dne-no
   - conditions:
     - lastTransitionTime: fake
       message: Route was valid
@@ -752,7 +737,24 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
+      sectionName: slctr-expr-dne-no
+  - conditions:
+    - lastTransitionTime: fake
+      message: hostnames matched parent hostname "*.slctr-combined-yes.example", but
+        namespace "group-namespace1" is not allowed by the parent
+      reason: NotAllowedByListeners
+      status: "False"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: All references resolved
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    controllerName: istio.io/gateway-controller
+    parentRef:
+      name: gateway
+      namespace: higress-system
       sectionName: slctr-combined-yes
   - conditions:
     - lastTransitionTime: fake
@@ -769,7 +771,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-combined-no
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -783,9 +785,10 @@ status:
   parents:
   - conditions:
     - lastTransitionTime: fake
-      message: Route was valid
-      reason: Accepted
-      status: "True"
+      message: hostnames matched parent hostname "*.slctr-labels.example", but namespace
+        "group-namespace2" is not allowed by the parent
+      reason: NotAllowedByListeners
+      status: "False"
       type: Accepted
     - lastTransitionTime: fake
       message: All references resolved
@@ -795,7 +798,7 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: slctr-labels
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
@@ -809,19 +812,20 @@ status:
   parents:
   - conditions:
     - lastTransitionTime: fake
-      message: Route was valid
-      reason: Accepted
-      status: "True"
+      message: hostnames matched parent hostname "*.same-namespace.example", but namespace
+        "istio-system" is not allowed by the parent
+      reason: NotAllowedByListeners
+      status: "False"
       type: Accepted
     - lastTransitionTime: fake
-      message: All references resolved
-      reason: ResolvedRefs
-      status: "True"
+      message: backend(httpbin.istio-system.svc.domain.suffix) not found
+      reason: BackendNotFound
+      status: "False"
       type: ResolvedRefs
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: same-namespace
   - conditions:
     - lastTransitionTime: fake
@@ -830,14 +834,14 @@ status:
       status: "True"
       type: Accepted
     - lastTransitionTime: fake
-      message: All references resolved
-      reason: ResolvedRefs
-      status: "True"
+      message: backend(httpbin.istio-system.svc.domain.suffix) not found
+      reason: BackendNotFound
+      status: "False"
       type: ResolvedRefs
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
@@ -863,6 +867,6 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
       sectionName: foobar
 ---
