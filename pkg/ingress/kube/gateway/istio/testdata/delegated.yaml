@@ -1,20 +1,20 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  name: istio
+  name: higress
 spec:
-  controllerName: istio.io/gateway-controller
+  controllerName: higress.io/gateway-controller
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec:
   addresses:
-  - value: istio-ingressgateway
+  - value: higress-gateway
     type: Hostname
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: apple
     hostname: "apple.example"
@@ -45,7 +45,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
   rules:
   - backendRefs:
     - name: httpbin-apple
@@ -59,7 +59,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
   rules:
   - backendRefs:
     - name: httpbin-banana

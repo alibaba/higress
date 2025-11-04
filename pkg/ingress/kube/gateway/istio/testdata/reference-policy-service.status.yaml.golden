@@ -3,12 +3,12 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   addresses:
-  - type: IPAddress
-    value: 1.2.3.4
+  - type: Hostname
+    value: higress-gateway.higress-system.svc.domain.suffix
   conditions:
   - lastTransitionTime: fake
     message: Resource accepted
@@ -16,7 +16,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
+    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:80
     reason: Programmed
     status: "True"
     type: Programmed
@@ -55,7 +55,7 @@ kind: HTTPRoute
 metadata:
   creationTimestamp: null
   name: backend-not-allowed
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   parents:
@@ -67,21 +67,21 @@ status:
       type: Accepted
     - lastTransitionTime: fake
       message: backendRef httpbin/default not accessible to a HTTPRoute in namespace
-        "istio-system" (missing a ReferenceGrant?)
+        "higress-system" (missing a ReferenceGrant?)
       reason: RefNotPermitted
       status: "False"
       type: ResolvedRefs
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
   creationTimestamp: null
   name: http
-  namespace: istio-system
+  namespace: higress-system
 spec: null
 status:
   parents:
@@ -99,5 +99,5 @@ status:
     controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: istio-system
+      namespace: higress-system
 ---

@@ -1,20 +1,20 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  name: istio
+  name: higress
 spec:
-  controllerName: istio.io/gateway-controller
+  controllerName: higress.io/gateway-controller
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: gateway
-  namespace: istio-system
+  namespace: higress-system
 spec:
   addresses:
-  - value: istio-ingressgateway
+  - value: higress-gateway
     type: Hostname
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: default
     hostname: "*.domain.example"
@@ -28,9 +28,9 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: invalid-service
-  namespace: istio-system
+  namespace: higress-system
 spec:
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: default
     hostname: "*.example"
@@ -44,12 +44,12 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: target-port-reference
-  namespace: istio-system
+  namespace: higress-system
 spec:
   addresses:
-  - value: istio-ingressgateway
+  - value: higress-gateway
     type: Hostname
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: default
     hostname: "*.example"
@@ -62,7 +62,7 @@ metadata:
   name: invalid-gateway-address
   namespace: invalid-gateway-address
 spec:
-  gatewayClassName: istio
+  gatewayClassName: higress
   addresses:
   - value: 1.2.3.4
     type: istio.io/FakeType
@@ -76,12 +76,12 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: invalid-cert-kind
-  namespace: istio-system
+  namespace: higress-system
 spec:
   addresses:
-  - value: istio-ingressgateway
+  - value: higress-gateway
     type: Hostname
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: default
     hostname: "domain.example"
@@ -98,12 +98,12 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: invalid-cert-notfound
-  namespace: istio-system
+  namespace: higress-system
 spec:
   addresses:
-  - value: istio-ingressgateway
+  - value: higress-gateway
     type: Hostname
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: default
     hostname: "domain.example"
@@ -119,12 +119,12 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: invalid-cert-malformed
-  namespace: istio-system
+  namespace: higress-system
 spec:
   addresses:
-  - value: istio-ingressgateway
+  - value: higress-gateway
     type: Hostname
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
   - name: default
     hostname: "domain.example"
@@ -140,9 +140,9 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: udp-protocol
-  namespace: istio-system
+  namespace: higress-system
 spec:
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
     - name: udp
       port: 1234
@@ -152,9 +152,9 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: unknown-protocol
-  namespace: istio-system
+  namespace: higress-system
 spec:
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
     - name: unknown
       port: 1234
@@ -164,9 +164,9 @@ apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: protocol-lower-case
-  namespace: istio-system
+  namespace: higress-system
 spec:
-  gatewayClassName: istio
+  gatewayClassName: higress
   listeners:
     - name: http
       port: 1234
@@ -180,7 +180,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
   hostnames: ["first.domain.example"]
   rules:
   - backendRefs:
@@ -195,7 +195,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
   hostnames: ["second.domain.example"]
   rules:
   - backendRefs:
@@ -210,7 +210,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
   hostnames: ["third.domain.example"]
   rules:
   - backendRefs:
@@ -232,7 +232,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
   rules:
   - filters:
     - type: RequestMirror
@@ -271,7 +271,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
     port: 1234
   hostnames: ["first.domain.example"]
   rules:
@@ -288,7 +288,7 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
-    namespace: istio-system
+    namespace: higress-system
     sectionName: fake
   hostnames: ["first.domain.example"]
   rules:
