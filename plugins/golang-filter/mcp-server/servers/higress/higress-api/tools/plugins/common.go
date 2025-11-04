@@ -70,7 +70,7 @@ func handleListPluginInstances(client *higress.HigressClient) common.ToolHandler
 			path = "/v1/global/plugin-instances"
 		}
 
-		respBody, err := client.Get(path)
+		respBody, err := client.Get(context.TODO(), path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list plugin instances at scope '%s': %w", scope, err)
 		}
