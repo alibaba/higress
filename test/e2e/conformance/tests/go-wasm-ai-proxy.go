@@ -1021,8 +1021,6 @@ data: [DONE]
 					},
 				},
 			},
-
-
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:  "ollama case 1: non-streaming request",
@@ -1031,7 +1029,7 @@ data: [DONE]
 
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "ollama.com",
+						Host:        "localhost:11434",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
@@ -1053,9 +1051,10 @@ data: [DONE]
 					CompareTarget: http.CompareTargetResponse,
 				},
 
+
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "ollama.com",
+						Host:        "localhost:11434",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
@@ -1063,6 +1062,8 @@ data: [DONE]
 					},
 				},
 				
+
+
 				Response: http.AssertionResponse{
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
@@ -1087,8 +1088,6 @@ data: [DONE]
 					},
 				},
 			},
-
-
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:  "dify case 1: non-streaming completion request",
