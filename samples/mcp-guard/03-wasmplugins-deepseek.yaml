@@ -1,0 +1,42 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: mcp-guard
+  namespace: higress-system
+spec:
+  url: file:///opt/plugins/wasm-go/extensions/mcp-guard/plugin.wasm
+  phase: UNSPECIFIED_PHASE
+  priority: 0
+  defaultConfig:
+    requestedCapabilityFrom:
+      header: X-MCP-Capability
+    shadow: false
+    subjectPolicy:
+      tenantA: ["cap.text.summarize", "cap.text.translate"]
+      tenantB: ["cap.text.summarize"]
+    rules:
+      - pathPrefix: "/v1/text:summarize"
+        allowedCapabilities: ["cap.text.summarize"]
+      - pathPrefix: "/v1/text:translate"
+        allowedCapabilities: ["cap.text.translate"]
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy
+  namespace: higress-system
+spec:
+  url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm
+  phase: UNSPECIFIED_PHASE
+  priority: 100
+  defaultConfig:
+    providers:
+      - id: deepseek-main
+        type: deepseek
+        protocol: original
+        apiTokens:
+          - "REPLACE_WITH_YOUR_DEEPSEEK_API_KEY"
+        # 可按需映射：统一对外仍是OpenAI chat.completions风格
+        modelMapping:
+          "*": "deepseek-chat"
+

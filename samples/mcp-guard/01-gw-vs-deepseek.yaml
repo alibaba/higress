@@ -1,0 +1,37 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: demo-gw
+  namespace: higress-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - api.example.com
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: demo-vs
+  namespace: higress-system
+spec:
+  hosts:
+  - api.example.com
+  gateways:
+  - demo-gw
+  http:
+  - match:
+    - uri:
+        prefix: /v1/text:
+    route:
+    - destination:
+        host: api.deepseek.com
+        port:
+          number: 443
+      weight: 100
+

@@ -1,0 +1,27 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: deepseek-external
+  namespace: higress-system
+spec:
+  hosts:
+  - api.deepseek.com
+  location: MESH_EXTERNAL
+  ports:
+  - number: 443
+    name: https
+    protocol: TLS
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: deepseek-tls
+  namespace: higress-system
+spec:
+  host: api.deepseek.com
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: api.deepseek.com
+

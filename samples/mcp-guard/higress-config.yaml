@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: higress-config
+  namespace: higress-system
+data:
+  higress: |
+    mcpGuard:
+      enable: true
+      requestedCapabilityHeader: X-MCP-Capability
+      shadow: false
+      subjectPolicy:
+        tenantA: ["cap.image.moderate", "cap.text.summarize"]
+        tenantB: ["cap.text.summarize"]
+      rules:
+        - pathPrefix: "/v1/images:moderate"
+          allowedCapabilities: ["cap.image.moderate"]
+        - pathPrefix: "/v1/text:summarize"
+          allowedCapabilities: ["cap.text.summarize"]
+

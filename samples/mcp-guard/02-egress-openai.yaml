@@ -1,0 +1,27 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: openai-external
+  namespace: higress-system
+spec:
+  hosts:
+  - api.openai.com
+  location: MESH_EXTERNAL
+  ports:
+  - number: 443
+    name: https
+    protocol: TLS
+  resolution: DNS
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: openai-tls
+  namespace: higress-system
+spec:
+  host: api.openai.com
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: api.openai.com
+
