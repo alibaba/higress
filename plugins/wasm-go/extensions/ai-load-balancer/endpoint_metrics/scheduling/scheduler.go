@@ -24,8 +24,8 @@ import (
 	"math/rand"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/backend"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/backend/vllm"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/backend"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/backend/vllm"
 
 	"github.com/prometheus/common/expfmt"
 )

@@ -1,7 +1,7 @@
-package metrics_based
+package endpoint_metrics
 
 import (
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/scheduling"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/scheduling"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -9,13 +9,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type LeastBusyLoadBalancer struct {
+type MetricsEndpointLoadBalancer struct {
 	metricPolicy string
 	targetMetric string
 }
 
-func NewMetricsBasedLoadBalancer(json gjson.Result) (LeastBusyLoadBalancer, error) {
-	lb := LeastBusyLoadBalancer{}
+func NewMetricsEndpointLoadBalancer(json gjson.Result) (MetricsEndpointLoadBalancer, error) {
+	lb := MetricsEndpointLoadBalancer{}
 	if json.Get("metricPolicy").Exists() {
 		lb.metricPolicy = json.Get("metricPolicy").String()
 	} else {
@@ -28,12 +28,12 @@ func NewMetricsBasedLoadBalancer(json gjson.Result) (LeastBusyLoadBalancer, erro
 }
 
 // Callbacks which are called in request path
-func (lb LeastBusyLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpContext) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpContext) types.Action {
 	// If return types.ActionContinue, SetUpstreamOverrideHost will not take effect
 	return types.HeaderStopIteration
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, body []byte) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	requestModel := gjson.GetBytes(body, "model")
 	if !requestModel.Exists() {
 		return types.ActionContinue
@@ -68,17 +68,17 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 	return types.ActionContinue
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action {
 	ctx.DontReadResponseBody()
 	return types.ActionContinue
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
+func (lb MetricsEndpointLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
 	return data
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	return types.ActionContinue
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {}
+func (lb MetricsEndpointLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {}

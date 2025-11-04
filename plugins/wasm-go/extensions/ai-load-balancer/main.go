@@ -7,9 +7,10 @@ import (
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 
-	global_least_request "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/global_least_request"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based"
-	prefix_cache "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/prefix_cache"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/cluster_metrics"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/global_least_request"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/prefix_cache"
 )
 
 func main() {}
@@ -37,28 +38,47 @@ type LoadBalancer interface {
 }
 
 type Config struct {
-	policy string
-	lb     LoadBalancer
+	lbType   string
+	lbPolicy string
+	lb       LoadBalancer
 }
 
 const (
-	MetricsBased       = "metrics_based"
-	GlobalLeastRequest = "global_least_request"
-	PrefixCache        = "prefix_cache"
+	ClusterLoadBalancerType  = "cluster"
+	EndpointLoadBalancerType = "endpoint"
+	// Cluster load balancer policies
+	MetricsBasedCluster = "cluster_metrics"
+	// Endpoint load balancer policies
+	MetricsBasedEndpoint       = "endpoint_metrics"
+	GlobalLeastRequestEndpoint = "global_least_request"
+	PrefixCacheEndpoint        = "prefix_cache"
 )
 
 func parseConfig(json gjson.Result, config *Config) error {
-	config.policy = json.Get("lb_policy").String()
+	config.lbType = json.Get("lb_type").String()
+	config.lbPolicy = json.Get("lb_policy").String()
 	var err error
-	switch config.policy {
-	case MetricsBased:
-		config.lb, err = metrics_based.NewMetricsBasedLoadBalancer(json.Get("lb_config"))
-	case GlobalLeastRequest:
-		config.lb, err = global_least_request.NewGlobalLeastRequestLoadBalancer(json.Get("lb_config"))
-	case PrefixCache:
-		config.lb, err = prefix_cache.NewPrefixCacheLoadBalancer(json.Get("lb_config"))
+	switch config.lbType {
+	case ClusterLoadBalancerType:
+		switch config.lbPolicy {
+		case MetricsBasedCluster:
+			config.lb, err = cluster_metrics.NewClusterEndpointLoadBalancer(json.Get("lb_config"))
+		default:
+			err = fmt.Errorf("lb_policy %s is not supported", config.lbPolicy)
+		}
+	case EndpointLoadBalancerType:
+		switch config.lbPolicy {
+		case MetricsBasedEndpoint:
+			config.lb, err = endpoint_metrics.NewMetricsEndpointLoadBalancer(json.Get("lb_config"))
+		case GlobalLeastRequestEndpoint:
+			config.lb, err = global_least_request.NewGlobalLeastRequestLoadBalancer(json.Get("lb_config"))
+		case PrefixCacheEndpoint:
+			config.lb, err = prefix_cache.NewPrefixCacheLoadBalancer(json.Get("lb_config"))
+		default:
+			err = fmt.Errorf("lb_policy %s is not supported", config.lbPolicy)
+		}
 	default:
-		err = fmt.Errorf("lb_policy %s is not supported", config.policy)
+		err = fmt.Errorf("lb_type %s is not supported", config.lbType)
 	}
 	return err
 }

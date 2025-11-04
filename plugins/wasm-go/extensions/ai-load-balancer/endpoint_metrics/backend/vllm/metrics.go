@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/metrics_based/backend"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/backend"
 
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/multierr"
