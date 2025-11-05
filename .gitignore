@@ -49,3 +49,8 @@ coverage.xml
 
 # Vendor
 vendor/
+
+# Wasm plugin binaries (large files, should be built during deployment)
+**/plugin.wasm
+**/main.wasm
+**/*.wasm
