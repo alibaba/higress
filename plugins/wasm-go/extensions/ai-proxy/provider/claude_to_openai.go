@@ -440,12 +440,17 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 
 // buildClaudeStreamResponse builds Claude streaming responses from OpenAI streaming response
 func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpContext, openaiResponse *chatCompletionResponse) []*claudeTextGenStreamResponse {
+	var choice chatCompletionChoice
 	if len(openaiResponse.Choices) == 0 {
-		log.Debugf("[OpenAI->Claude] No choices in OpenAI response, skipping")
-		return nil
+		choice = chatCompletionChoice{
+			Index: 0,
+			Delta: &chatMessage{
+				Content: "",
+			},
+		}
+	} else {
+		choice = openaiResponse.Choices[0]
 	}
-
-	choice := openaiResponse.Choices[0]
 	var responses []*claudeTextGenStreamResponse
 
 	// Log what we're processing
