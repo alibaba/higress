@@ -93,6 +93,10 @@ func NewConfigmapMgr(XDSUpdater model.XDSUpdater, namespace string, higressConfi
 	mcpServerController := NewMcpServerController(namespace)
 	configmapMgr.AddItemControllers(mcpServerController)
 
+	// MCP Guard controller (capability authorization guard)
+	mcpGuardController := NewMcpGuardController(namespace)
+	configmapMgr.AddItemControllers(mcpGuardController)
+
 	configmapMgr.initEventHandlers()
 
 	return configmapMgr

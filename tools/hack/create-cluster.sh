@@ -19,11 +19,30 @@ set -euo pipefail
 # Setup default values
 CLUSTER_NAME=${CLUSTER_NAME:-"higress"}
 METALLB_VERSION=${METALLB_VERSION:-"v0.13.7"}
+# Two ways to choose cluster node image:
+# - KIND_NODE_IMAGE: full image reference, e.g. docker.m.daocloud.io/kindest/node:v1.25.3
+# - KIND_NODE_TAG:   short tag used with default image "kindest/node:<tag>" (kept for compatibility)
+KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-""}
 KIND_NODE_TAG=${KIND_NODE_TAG:-"v1.25.3"}
 PROJECT_DIR=$(pwd)
 
-echo ${KIND_NODE_TAG}
-echo ${CLUSTER_NAME}
+echo "KIND_NODE_TAG=${KIND_NODE_TAG}"
+echo "KIND_NODE_IMAGE=${KIND_NODE_IMAGE}"
+echo "CLUSTER_NAME=${CLUSTER_NAME}"
+
+# Resolve final node image, prefer KIND_NODE_IMAGE if set
+NODE_IMAGE=""
+if [[ -n "${KIND_NODE_IMAGE}" ]]; then
+  NODE_IMAGE="${KIND_NODE_IMAGE}"
+elif [[ -n "${KIND_NODE_TAG}" ]]; then
+  NODE_IMAGE="kindest/node:${KIND_NODE_TAG}"
+fi
+
+# If ONLY_PRINT_NODE_IMAGE=1, just print and exit (for dry-run/CI param check)
+if [[ "${ONLY_PRINT_NODE_IMAGE:-}" == "1" ]]; then
+  echo "Resolved NODE_IMAGE=${NODE_IMAGE}"
+  exit 0
+fi
 
 cat <<EOF > "tools/hack/cluster.conf"
 # Copyright (c) 2022 Alibaba Group Holding Ltd.
@@ -66,8 +85,10 @@ nodes:
 EOF
 
 ## Create kind cluster.
-if [[ -z "${KIND_NODE_TAG}" ]]; then
-  tools/bin/kind create cluster --name "${CLUSTER_NAME}" --config=tools/hack/cluster.conf
+if [[ -n "${NODE_IMAGE}" ]]; then
+  echo "Creating kind cluster with image: ${NODE_IMAGE}"
+  tools/bin/kind create cluster --image "${NODE_IMAGE}" --name "${CLUSTER_NAME}" --config=tools/hack/cluster.conf
 else
-  tools/bin/kind create cluster --image "kindest/node:${KIND_NODE_TAG}" --name "${CLUSTER_NAME}" --config=tools/hack/cluster.conf
+  echo "Creating kind cluster with default kindest/node image"
+  tools/bin/kind create cluster --name "${CLUSTER_NAME}" --config=tools/hack/cluster.conf
 fi

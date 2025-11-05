@@ -296,6 +296,11 @@ higress-wasmplugin-test-skip-docker-build: $(tools/kind) delete-cluster create-c
 higress-wasmplugin-test-clean: $(tools/kind) delete-cluster
 
 # create-cluster creates a kube cluster with kind.
+# Usage (choose one):
+#   - KIND_NODE_TAG=v1.25.3 make create-cluster
+#       Uses default image reference "kindest/node:${KIND_NODE_TAG}" (backward compatible)
+#   - KIND_NODE_IMAGE=docker.m.daocloud.io/kindest/node:v1.25.3 make create-cluster
+#       Uses the full image reference from a custom registry (preferred behind firewalls)
 .PHONY: create-cluster
 create-cluster: $(tools/kind)
 	tools/hack/create-cluster.sh
