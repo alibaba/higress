@@ -1,11 +1,10 @@
 package cluster_metrics
 
 import (
-	"bytes"
-	"fmt"
 	"math/rand"
 	"time"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/utils"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -13,41 +12,24 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type ClusterEndpointLoadBalancer struct {
-	Mode          string
-	ClusterHeader string
-	ServiceList   []string
-}
-
-const ()
-
 var (
 	globalIndex    int
+	OnGoingSum     int
 	GaugeMetrics   map[string]proxywasm.MetricGauge
 	ServiceToken   map[string]int
 	ServiceOngoing map[string]int
 	ServiceAvgRT   map[string]float64
 	ServiceCount   map[string]int
-	Service        map[string]int
 )
 
-func generateMetricName(route, cluster, model, consumer, metricName string) string {
-	return fmt.Sprintf("route.%s.upstream.%s.model.%s.consumer.%s.metric.%s", route, cluster, model, consumer, metricName)
-}
-
-func GaudeAdd(GaugeMetrics map[string]proxywasm.MetricGauge, metricName string, delta int64) {
-	if _, exists := GaugeMetrics[metricName]; !exists {
-		GaugeMetrics[metricName] = proxywasm.DefineGaugeMetric(metricName)
-	}
-	GaugeMetrics[metricName].Add(delta)
-}
-
-func getRouteName() (string, error) {
-	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
-		return "-", err
-	} else {
-		return string(raw), nil
-	}
+type ClusterEndpointLoadBalancer struct {
+	Mode                      string
+	ClusterHeader             string
+	ServiceList               []string
+	OnGoingLimit              float64
+	FirstTokenLatencyRequests map[string]*utils.FixedQueue[float64]
+	TotalLatencyRequests      map[string]*utils.FixedQueue[float64]
+	UpperLimit                map[string]int
 }
 
 func NewClusterEndpointLoadBalancer(json gjson.Result) (ClusterEndpointLoadBalancer, error) {
@@ -61,6 +43,10 @@ func NewClusterEndpointLoadBalancer(json gjson.Result) (ClusterEndpointLoadBalan
 	lb := ClusterEndpointLoadBalancer{}
 	lb.Mode = json.Get("mode").String()
 	lb.ClusterHeader = json.Get("clusterHeader").String()
+	lb.OnGoingLimit = json.Get("ongoingLimit").Float()
+	queueSize := int(json.Get("queueSize").Int())
+	lb.FirstTokenLatencyRequests = make(map[string]*utils.FixedQueue[float64])
+	lb.TotalLatencyRequests = make(map[string]*utils.FixedQueue[float64])
 
 	for _, svc := range json.Get("serviceList").Array() {
 		serviceName := svc.String()
@@ -69,14 +55,38 @@ func NewClusterEndpointLoadBalancer(json gjson.Result) (ClusterEndpointLoadBalan
 		ServiceOngoing[serviceName] = 0
 		ServiceAvgRT[serviceName] = 0
 		ServiceCount[serviceName] = 0
+		lb.FirstTokenLatencyRequests[serviceName] = utils.NewFixedQueue[float64](queueSize)
+		lb.TotalLatencyRequests[serviceName] = utils.NewFixedQueue[float64](queueSize)
 	}
 	return lb, nil
 }
 
+func (lb ClusterEndpointLoadBalancer) getServiceTTFT(serviceName string) float64 {
+	queue, ok := lb.FirstTokenLatencyRequests[serviceName]
+	if !ok || queue.Size() == 0 {
+		return 0
+	}
+	value := 0.0
+	queue.ForEach(func(i int, item float64) {
+		value += float64(item)
+	})
+	return value / float64(queue.Size())
+}
+
+func (lb ClusterEndpointLoadBalancer) getServiceTotalRT(serviceName string) float64 {
+	queue, ok := lb.TotalLatencyRequests[serviceName]
+	if !ok || queue.Size() == 0 {
+		return 0
+	}
+	value := 0.0
+	queue.ForEach(func(i int, item float64) {
+		value += float64(item)
+	})
+	return value / float64(queue.Size())
+}
+
 // Callbacks which are called in request path
 func (lb ClusterEndpointLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpContext) types.Action {
-	route, _ := getRouteName()
-	ctx.SetContext("route_name", route)
 	ctx.SetContext("request_start", time.Now().UnixMilli())
 	candidate := lb.ServiceList[rand.Int()%len(lb.ServiceList)]
 	switch lb.Mode {
@@ -89,14 +99,13 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpC
 				candidate = svc
 			}
 		}
-	case "RTAndOngoing":
+	case "LeastFirstTokenLatency":
 		for svc := range ServiceOngoing {
-			// log.Infof("candidate ongoing: %d, candidate rt(avg): %.2f, svc ongoing: %d, svc rt(avg): %.2f", ServiceOngoing[candidate], ServiceAvgRT[candidate], ServiceOngoing[svc], ServiceAvgRT[svc])
-			if float64(ServiceOngoing[svc])*ServiceAvgRT[svc] < float64(ServiceOngoing[candidate])*ServiceAvgRT[candidate] {
+			if ServiceAvgRT[svc] < ServiceAvgRT[candidate] {
 				candidate = svc
 			}
 		}
-	case "LeastToken":
+	case "LeastTotalLatency":
 		for svc, tokenUsage := range ServiceToken {
 			if tokenUsage < ServiceToken[candidate] {
 				candidate = svc
@@ -106,9 +115,8 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpC
 	log.Infof("candidate: %s, candidate ongoing: %d, candidate rt(avg): %.2f", candidate, ServiceOngoing[candidate], ServiceAvgRT[candidate])
 	proxywasm.ReplaceHttpRequestHeader(lb.ClusterHeader, candidate)
 	ctx.SetContext(lb.ClusterHeader, candidate)
-	metricName := generateMetricName(route, candidate, "none", "none", "ongoing")
-	GaudeAdd(GaugeMetrics, metricName, 1)
 	ServiceOngoing[candidate] += 1
+	OnGoingSum += 1
 	return types.ActionContinue
 }
 
@@ -117,18 +125,12 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpCont
 }
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action {
-	ctx.DontReadResponseBody()
 	return types.ActionContinue
 }
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
 	candidate := ctx.GetContext(lb.ClusterHeader).(string)
-	if _, inputToken, outputToken, ok := getUsage(data); ok {
-		ServiceToken[candidate] += int(inputToken + outputToken)
-	}
 	if endOfStream {
-		metricName := generateMetricName(ctx.GetContext("route_name").(string), candidate, "none", "none", "ongoing")
-		GaudeAdd(GaugeMetrics, metricName, -1)
 		duration := time.Now().UnixMilli() - ctx.GetContext("request_start").(int64)
 		oldDuration := ServiceAvgRT[candidate]
 		count := ServiceCount[candidate]
@@ -140,46 +142,9 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpStreamingResponseBody(ctx wrappe
 }
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
-	candidate := ctx.GetContext(lb.ClusterHeader).(string)
-	if _, inputToken, outputToken, ok := getUsage(body); ok {
-		ServiceToken[candidate] += int(inputToken + outputToken)
-	}
-
-	metricName := generateMetricName(ctx.GetContext("route_name").(string), candidate, "none", "none", "ongoing")
-	GaudeAdd(GaugeMetrics, metricName, -1)
-
-	duration := time.Now().UnixMilli() - ctx.GetContext("request_start").(int64)
-	oldDuration := ServiceAvgRT[candidate]
-	count := ServiceCount[candidate]
-	ServiceAvgRT[candidate] = float64(oldDuration*float64(count)+float64(duration)) / float64(count+1)
-	ServiceCount[candidate] += 1
-	ServiceOngoing[candidate] -= 1
 	return types.ActionContinue
 }
 
-func (lb ClusterEndpointLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {}
+func (lb ClusterEndpointLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {
 
-func getUsage(data []byte) (model string, inputTokenUsage int64, outputTokenUsage int64, ok bool) {
-	chunks := bytes.Split(bytes.TrimSpace(data), []byte("\n\n"))
-	for _, chunk := range chunks {
-		// the feature strings are used to identify the usage data, like:
-		// {"model":"gpt2","usage":{"prompt_tokens":1,"completion_tokens":1}}
-		if !bytes.Contains(chunk, []byte("prompt_tokens")) {
-			continue
-		}
-		if !bytes.Contains(chunk, []byte("completion_tokens")) {
-			continue
-		}
-		modelObj := gjson.GetBytes(chunk, "model")
-		inputTokenObj := gjson.GetBytes(chunk, "usage.prompt_tokens")
-		outputTokenObj := gjson.GetBytes(chunk, "usage.completion_tokens")
-		if modelObj.Exists() && inputTokenObj.Exists() && outputTokenObj.Exists() {
-			model = modelObj.String()
-			inputTokenUsage = inputTokenObj.Int()
-			outputTokenUsage = outputTokenObj.Int()
-			ok = true
-			return
-		}
-	}
-	return
 }
