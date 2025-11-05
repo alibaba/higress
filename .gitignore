@@ -1,0 +1,51 @@
+# Build outputs
+out/
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Wasm build artifacts
+wasm-go/extensions/*/main.wasm
+wasm-go/extensions/*/plugin.wasm
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Generated files
+*.gen.go
+*_pb2.py
+
+# Test coverage
+coverage.xml
+*.coverprofile
+
+# Vendor
+vendor/

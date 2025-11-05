@@ -37,7 +37,7 @@ spec:
         type: deepseek
         protocol: original
         apiTokens:
-          - "REPLACE_WITH_YOUR_DEEPSEEK_API_KEY"
+          - "YOUR_DEEPSEEK_API_KEY_HERE"
         # 可按需映射：统一对外仍是OpenAI chat.completions风格
         modelMapping:
           "*": "deepseek-chat"

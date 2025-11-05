@@ -40,7 +40,7 @@ kubectl -n higress-system rollout status deploy/higress-controller --timeout=180
 kubectl -n higress-system rollout status deploy/higress-gateway --timeout=180s || true
 
 # ===== 4) Apply demo manifests =====
-PROVIDER=${PROVIDER:-openai}
+PROVIDER=${PROVIDER:-deepseek}
 if [[ "${PROVIDER}" == "deepseek" ]]; then
   echo "Using DeepSeek provider manifests"
   kubectl apply -f samples/mcp-guard/02-egress-deepseek.yaml
