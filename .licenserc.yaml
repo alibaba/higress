@@ -1,0 +1,42 @@
+header:
+  license:
+    spdx-id: Apache-2.0
+    copyright-owner: alibaba
+
+  paths-ignore:
+    - '.gitignore'
+    - '*.md'
+    - '*.yml'
+    - '*.yaml'
+    - '*.golden'
+    - 'LICENSE'
+    - 'api/**'
+    - 'samples/**'
+    - 'docs/**'
+    - '.github/**'
+    - '.licenserc.yaml'
+    - 'helm/**'
+    - 'envoy/**'
+    - 'istio/**'
+    - 'go.mod'
+    - 'go.sum'
+    - 'docker/**'
+    - 'Makefile*'
+    - 'script/**'
+    - '.gitmodules'
+    - 'plugins/**'
+    - 'CODEOWNERS'
+    - 'VERSION'
+    - 'DEP_VERSION'
+    - 'tools/'
+    - 'test/README.md'
+    - 'test/README_CN.md'
+    - 'hgctl/cmd/hgctl/config/testdata/config'
+    - 'hgctl/pkg/manifests'
+    - 'pkg/ingress/kube/gateway/istio/testdata'
+    - 'release-notes/**'
+
+  comment: on-failure
+dependency:
+  files:
+    - go.mod

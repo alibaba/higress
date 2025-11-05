@@ -1,0 +1,85 @@
+name: "Build and Test Plugins"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "plugins/**"
+      - "test/**"
+      - "helm/**"
+      - "Makefile.core.mk"
+  pull_request:
+    branches: ["*"]
+    paths:
+      - "plugins/**"
+      - "test/**"
+      - "helm/**"
+      - "Makefile.core.mk"
+  workflow_dispatch: ~
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.24
+    # There are too many lint errors in current code bases
+    # uncomment when we decide what lint should be addressed or ignored.
+    # - run: make lint
+
+  higress-wasmplugin-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # TODO(Xunzhuo): Enable C WASM Filters in CI
+        wasmPluginType: [GO, RUST]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free Up GitHub Actions Ubuntu Runner Disk Space 🔧
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+
+      - name: "Setup Go"
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+        if: matrix.wasmPluginType == 'RUST'
+      - name: Setup Golang Caches
+        uses: actions/cache@v4
+        with:
+          path: |-
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-go
+
+      - run: git stash # restore patch
+
+      - name: "Run Ingress WasmPlugins Tests"
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 25
+          max_attempts: 3
+          retry_on: error
+          command: GOPROXY="https://proxy.golang.org,direct" PLUGIN_TYPE=${{ matrix.wasmPluginType }} make higress-wasmplugin-test
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [higress-wasmplugin-test]
+    steps:
+      - uses: actions/checkout@v4

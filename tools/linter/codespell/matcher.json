@@ -1,0 +1,26 @@
+{
+	"problemMatcher": [
+		{
+			"owner": "codespell-matcher-default",
+			"pattern": [
+				{
+					"regexp": "^(.+):(\\d+):\\s+(.+)$",
+					"file": 1,
+					"line": 2,
+					"message": 3
+				}
+			]
+		},
+		{
+			"owner": "codespell-matcher-specified",
+			"pattern": [
+				{
+					"regexp": "^(ERROR|WARNING):\\s+(.+):\\s+(.+?)\\s*$",
+					"file": 3,
+					"severity": 1,
+					"message": 2
+				}
+			]
+		}
+	]
+}

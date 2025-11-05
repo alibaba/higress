@@ -1,0 +1,30 @@
+apiVersion: extensions.istio.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: gw-error-format
+  namespace: higress-system
+spec:
+  selector:
+    matchLabels:
+      higress: higress-system-higress-gateway
+  pluginConfig:
+    rules:
+    - match:
+        statuscode: "200"
+        responsebody: "bar"
+      replace:
+        statuscode: "401"
+        responsebody: "{\"code\":401,\"message\":\"User is not authenticated\"}"
+    - match:
+        statuscode: "503"
+        responsebody: "no healthy upstream"
+      replace:
+        statuscode: "200"
+        responsebody: "{\"code\":404,\"message\":\"No Healthy Service\"}"
+    set_header:
+    - access-control-allow-credentials: "true"
+    - access-control-allow-origin: "*"
+    - access-control-expose-headers: "*"
+    - content-type:  "application/json;charset=UTF-8"
+    - custom-header: "HelloWorld"
+  url: oci://docker.io/zhangjiahaol/envoy-plugin:gw-error-format-2.0.0

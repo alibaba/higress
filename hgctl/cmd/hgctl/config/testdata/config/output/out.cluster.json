@@ -1,0 +1,98 @@
+{
+	"@type": "type.googleapis.com/envoy.admin.v3.ClustersConfigDump",
+	"version_info": "2",
+	"static_clusters": [{
+		"cluster": {
+			"@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+			"name": "xds_cluster",
+			"type": "STRICT_DNS",
+			"connect_timeout": "1s",
+			"transport_socket": {
+				"name": "envoy.transport_sockets.tls",
+				"typed_config": {
+					"@type": "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext",
+					"common_tls_context": {
+						"tls_params": {
+							"tls_maximum_protocol_version": "TLSv1_3"
+						},
+						"tls_certificate_sds_secret_configs": [{
+							"name": "xds_certificate",
+							"sds_config": {
+								"resource_api_version": "V3",
+								"path_config_source": {
+									"path": "/sds/xds-certificate.json"
+								}
+							}
+						}],
+						"validation_context_sds_secret_config": {
+							"name": "xds_trusted_ca",
+							"sds_config": {
+								"resource_api_version": "V3",
+								"path_config_source": {
+									"path": "/sds/xds-trusted-ca.json"
+								}
+							}
+						}
+					}
+				}
+			},
+			"load_assignment": {
+				"cluster_name": "xds_cluster",
+				"endpoints": [{
+					"lb_endpoints": [{
+						"endpoint": {
+							"address": {
+								"socket_address": {
+									"address": "higress",
+									"port_value": 18000
+								}
+							}
+						}
+					}]
+				}]
+			},
+			"typed_extension_protocol_options": {
+				"envoy.extensions.upstreams.http.v3.HttpProtocolOptions": {
+					"@type": "type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions",
+					"explicit_http_config": {
+						"http2_protocol_options": {}
+					}
+				}
+			}
+		},
+		"last_updated": "2023-02-23T09:05:23.436Z"
+	}],
+	"dynamic_active_clusters": [{
+		"version_info": "2a0a1698a9d3e05b802047b0cd36b52a070afa49042e1ba267168c5265c7cabf",
+		"cluster": {
+			"@type": "type.googleapis.com/envoy.config.cluster.v3.Cluster",
+			"name": "default-backend-rule-0-match-0-www.example.com",
+			"type": "STATIC",
+			"connect_timeout": "5s",
+			"dns_lookup_family": "V4_ONLY",
+			"outlier_detection": {},
+			"common_lb_config": {
+				"locality_weighted_lb_config": {}
+			},
+			"load_assignment": {
+				"cluster_name": "default-backend-rule-0-match-0-www.example.com",
+				"endpoints": [{
+					"locality": {},
+					"lb_endpoints": [{
+						"endpoint": {
+							"address": {
+								"socket_address": {
+									"address": "0.0.0.0",
+									"port_value": 3000
+								}
+							}
+						},
+						"load_balancing_weight": 1
+					}],
+					"load_balancing_weight": 1
+				}]
+			}
+		},
+		"last_updated": "2023-02-23T09:05:38.443Z"
+	}]
+}

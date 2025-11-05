@@ -1,0 +1,79 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+import "google/api/field_behavior.proto";
+
+// $schema: higress.networking.v1.Http2Rpc
+// $title: Http2Rpc
+// $description: Configuration affecting service discovery from multi registries
+// $mode: none
+
+package higress.networking.v1;
+
+option go_package = "github.com/alibaba/higress/v2/api/networking/v1";
+
+// <!-- crd generation tags
+// +cue-gen:Http2Rpc:groupName:networking.higress.io
+// +cue-gen:Http2Rpc:version:v1
+// +cue-gen:Http2Rpc:storageVersion
+// +cue-gen:Http2Rpc:annotations:helm.sh/resource-policy=keep
+// +cue-gen:Http2Rpc:subresource:status
+// +cue-gen:Http2Rpc:scope:Namespaced
+// +cue-gen:Http2Rpc:resource:categories=higress-io,plural=http2rpcs
+// +cue-gen:Http2Rpc:preserveUnknownFields:false
+// -->
+//
+// <!-- go code generation tags
+// +kubetype-gen
+// +kubetype-gen:groupVersion=networking.higress.io/v1
+// +genclient
+// +k8s:deepcopy-gen=true
+// -->
+message Http2Rpc {
+  oneof destination {
+    DubboService dubbo = 1;
+    GrpcService  grpc = 2;
+ }
+}
+
+message DubboService {
+  string service = 1 [(google.api.field_behavior) = REQUIRED];
+  string version = 2 [(google.api.field_behavior) = REQUIRED];
+  string group = 3 [(google.api.field_behavior) = OPTIONAL];
+  repeated Method methods = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+message Method {
+  string service_method = 1 [(google.api.field_behavior) = REQUIRED];
+  string headers_attach = 2 [(google.api.field_behavior) = OPTIONAL];
+  string http_path = 3 [(google.api.field_behavior) = REQUIRED];
+  repeated string http_methods = 4 [(google.api.field_behavior) = REQUIRED];
+  repeated Param params = 5;
+  ParamFromEntireBody paramFromEntireBody = 6 [(google.api.field_behavior) = OPTIONAL];
+}
+
+message Param {
+  string param_source = 1 [(google.api.field_behavior) = REQUIRED];
+  string param_key = 2 [(google.api.field_behavior) = REQUIRED];
+  string param_type = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+message ParamFromEntireBody {
+  string param_type = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GrpcService {
+}

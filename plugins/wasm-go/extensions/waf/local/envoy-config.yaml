@@ -1,0 +1,143 @@
+stats_config:
+  stats_tags:
+    # Envoy extracts the first matching group as a value.
+    # See https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/metrics/v3/stats.proto#config-metrics-v3-statsconfig.
+    - tag_name: phase
+      regex: "(_phase=([a-z_]+))"
+    - tag_name: rule_id
+      regex: "(_ruleid=([0-9]+))"
+
+static_resources:
+  listeners:
+    - address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 8080
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: auto
+                route_config:
+                  virtual_hosts:
+                    - name: local_route
+                      domains:
+                        - "*"
+                      routes:
+                        - name: "route_1"
+                          match:
+                            path: "/headers"
+                          route:
+                            cluster: httpbin_server
+                        - name: "route_2"
+                          match:
+                            path: "/user-agent"
+                          route:
+                            cluster: httpbin_server
+                        - name: "route_flask"
+                          match:
+                            prefix: "/flask"
+                          route:
+                            cluster: flask_server
+                        - name: "route_httpbin"
+                          match:
+                            prefix: "/"
+                          route:
+                            cluster: httpbin_server
+                        # - name: "route_mock"
+                        #   match:
+                        #     prefix: "/"
+                        #   direct_response:
+                        #     status: 200
+                        #     body:
+                        #       inline_string: "mock response\n"
+                http_filters:
+                  - name: envoy.filters.http.wasm
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+                      config:
+                        name: "coraza-filter"
+                        root_id: ""
+                        configuration:
+                          "@type": "type.googleapis.com/google.protobuf.StringValue"
+                          value: |
+                            {
+                              "useCRS": true,
+                              "secRules": [
+                                "SecDebugLogLevel 3",
+                                "SecRuleEngine DetectionOnly",
+                                "SecRule REQUEST_URI \"@streq /admin\" \"id:101,phase:1,t:lowercase,deny\"",
+                                "SecRule REQUEST_BODY \"@rx maliciouspayload\" \"id:102,phase:2,t:lowercase,deny\"",
+                                "SecRule RESPONSE_HEADERS::status \"@rx 406\" \"id:103,phase:3,t:lowercase,deny\"",
+                                "SecRule RESPONSE_HEADERS:test-header \"@streq hahaha\" \"id:104,phase:3,t:lowercase,deny\"",
+                                "SecRule RESPONSE_BODY \"@rx attack\" \"id:105,phase:4,t:lowercase,deny\""
+                              ],
+                              "_rules_": [
+                                {
+                                  "_match_route_": [
+                                    "route_1"
+                                  ],
+                                  "secRules": [
+                                    "SecDebugLogLevel 3",
+                                    "SecRuleEngine On",
+                                    "SecAction \"id:102,phase:1,deny\""
+                                  ]
+                                },
+                                {
+                                  "_match_route_": [
+                                    "route_2"
+                                  ],
+                                  "secRules": [
+                                    "SecDebugLogLevel 3",
+                                    "SecRuleEngine On",
+                                    "SecAction \"id:102,phase:1,pass\""
+                                  ]
+                                }
+                              ]
+                            }
+                        vm_config:
+                          runtime: "envoy.wasm.runtime.v8"
+                          vm_id: "10086"
+                          code:
+                            local:
+                              filename: "build/main.wasm"
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: httpbin_server
+      connect_timeout: 6000s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: httpbin_server
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: httpbin
+                      port_value: 8080
+    - name: flask_server
+      connect_timeout: 6000s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: flask_server
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: flask
+                      port_value: 5000
+
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8082

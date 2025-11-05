@@ -1,0 +1,96 @@
+services:
+  httpbin:
+    image: kennethreitz/httpbin
+    environment:
+      - MAX_BODY_SIZE=15728640 # 15 MiB
+    ports:
+      - 8083:8080
+    command:
+      - "gunicorn"
+      - "-b"
+      - "0.0.0.0:8080"
+      - "httpbin:app"
+      - "-k"
+      - "gevent"
+      - --log-file
+      - /home/envoy/logs/httpbin.log
+    volumes:
+      - logs:/home/envoy/logs:rw
+
+  flask:
+    # image: liuxr25/flask-helloworld:latest
+    build: .
+    environment:
+      - MAX_BODY_SIZE=15728640 # 15 MiB
+    ports:
+      - 8084:5000
+
+  chown:
+    image: alpine:3.16
+    command:
+      - /bin/sh
+      - -c
+      - chown -R 101:101 /home/envoy/logs
+    volumes:
+      - logs:/home/envoy/logs:rw
+
+  envoy:
+    depends_on:
+      - chown
+      - httpbin
+      - flask
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/envoy:1.20
+    command:
+      - -c
+      - /conf/envoy-config.yaml
+      - --log-level
+      - info
+      - --component-log-level
+      - wasm:debug
+      - --log-format [%Y-%m-%d %T.%f][%t][%l][%n] [%g:%#] %v
+      - --log-path
+      - /home/envoy/logs/envoy.log
+    volumes:
+      - .:/build
+      - .:/conf
+      - logs:/home/envoy/logs:rw
+    ports:
+      - 8080:8080
+      - 8082:8082
+
+  # envoy-logs:
+  #   depends_on:
+  #     - envoy
+  #     - wasm-logs
+  #   image: debian:11-slim
+  #   entrypoint: bash
+  #   command:
+  #     - -c
+  #     - tail -c +0 -f /home/envoy/logs/envoy.log
+  #   volumes:
+  #     - logs:/home/envoy/logs:ro
+
+  wasm-logs:
+    depends_on:
+      - envoy
+    image: debian:11-slim
+    entrypoint: bash
+    command:
+      - -c
+      - tail -c +0 -f /home/envoy/logs/envoy.log | grep --line-buffered "[critical][wasm]"
+    volumes:
+      - logs:/home/envoy/logs:ro
+
+  # debug-logs:
+  #   depends_on:
+  #     - envoy
+  #   image: debian:11-slim
+  #   entrypoint: bash
+  #   command:
+  #     - -c
+  #     - tail -c +0 -f /home/envoy/logs/envoy.log | grep --line-buffered "unreachable"
+  #   volumes:
+  #     - logs:/home/envoy/logs:ro
+
+volumes:
+  logs:

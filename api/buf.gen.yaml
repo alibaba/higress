@@ -1,0 +1,17 @@
+# buf.gen.yaml sets up the generation configuration for all of our plugins.
+# Note: buf does not allow multi roots that are within each other; as a result, the common-protos folders are
+# symlinked into the top level directory.
+version: v1
+plugins:
+- name: go
+  out: .
+  opt: paths=source_relative
+- name: go-grpc
+  out: .
+  opt: paths=source_relative
+- name: golang-deepcopy
+  out: .
+  opt: paths=source_relative
+- name: golang-jsonshim
+  out: .
+  opt: paths=source_relative

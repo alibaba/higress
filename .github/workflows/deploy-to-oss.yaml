@@ -1,0 +1,54 @@
+name: Deploy Artifacts to OSS
+
+on:
+  push:
+    tags:
+    - "v*.*.*"
+  workflow_dispatch: ~
+
+jobs:
+  deploy-to-oss:
+    runs-on: ubuntu-latest
+    environment:
+      name: oss
+    steps:
+      # Step 1
+      - name: Checkout
+        uses: actions/checkout@v4
+      # Step 2
+      - name: Download Helm Charts Index
+        uses: go-choppy/ossutil-github-action@master
+        with:
+          ossArgs: 'cp oss://higress-website-cn-hongkong/helm-charts/index.yaml ./artifact/'
+          accessKey: ${{ secrets.ACCESS_KEYID }}
+          accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
+          endpoint: oss-cn-hongkong.aliyuncs.com
+      # Step 3
+      - id: calc-version
+        name: Calculate Version Number
+        run: |
+          version=$(echo ${{ github.ref_name }} | cut -c2-)
+          echo "Version=$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
+      # Step 4
+      - name: Build Artifact
+        uses: stefanprodan/kube-tools@v1
+        with:
+          helmv3: 3.7.2
+          command: |
+            cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
+            helmv3 repo add higress.io https://higress.io/helm-charts
+            helmv3 package helm/core --debug --app-version ${{steps.calc-version.outputs.version}} --version ${{steps.calc-version.outputs.version}} -d ./artifact
+            helmv3 dependency build helm/higress
+            helmv3 package helm/higress --debug --app-version ${{steps.calc-version.outputs.version}} --version ${{steps.calc-version.outputs.version}} -d ./artifact
+            helmv3 repo index --url https://higress.io/helm-charts/ --merge ./artifact/index.yaml ./artifact
+            cp ./artifact/index.yaml ./artifact/cn-index.yaml
+            sed -i 's/higress\.io/higress\.cn/g' ./artifact/cn-index.yaml
+      # Step 5
+      - name: Upload to OSS
+        uses: go-choppy/ossutil-github-action@master
+        with:
+          ossArgs: 'cp -r -u ./artifact/ oss://higress-website-cn-hongkong/helm-charts/'
+          accessKey: ${{ secrets.ACCESS_KEYID }}
+          accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
+          endpoint: oss-cn-hongkong.aliyuncs.com

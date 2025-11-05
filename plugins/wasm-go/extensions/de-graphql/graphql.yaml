@@ -1,0 +1,59 @@
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: default
+  namespace: higress-system
+spec:
+  registries:
+    - domain: api.github.com
+      name: github
+      port: 443
+      type: dns
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: github.dns
+    higress.io/upstream-vhost: "api.github.com"
+    higress.io/backend-protocol: HTTPS
+  name: github-api
+  namespace: higress-system
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - backend:
+              resource:
+                apiGroup: networking.higress.io
+                kind: McpBridge
+                name: default
+            path: /api
+            pathType: Prefix
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: de-graphql-github-api
+  namespace: higress-system
+spec:
+  defaultConfigDisable: true
+  matchRules:
+    - config:
+        domain: api.github.com
+        endpoint: /graphql
+        gql: |-
+          query ($owner:String! $name:String!){
+             repository(owner:$owner, name:$name) {
+               name
+               forkCount
+               description
+            }
+          }
+        timeout: 5000
+      configDisable: false
+      ingress:
+        - github-api
+  url: oci://docker.io/2456868764/de-graphql:1.0.0
+

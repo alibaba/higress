@@ -1,0 +1,35 @@
+ARG BASE_IMAGE=docker.io/ubuntu
+FROM $BASE_IMAGE
+
+ARG GO_VERSION=1.24.4
+ARG ORAS_VERSION=1.0.0
+ARG HIGRESS_VERSION=1.0.0-rc
+
+LABEL go_version=$GO_VERSION oras_version=$ORAS_VERSION
+
+RUN apt-get update && apt-get install -y wget tar && rm -rf /var/lib/apt/lists/*
+
+RUN set -e; \
+    arch="$(dpkg --print-architecture)"; arch="${arch##*-}"; \
+    echo "arch: $arch"; \
+    go_url=""; tinygo_url=""; \
+    case "$arch" in \
+      'amd64') \
+        go_url="https://golang.google.cn/dl/go${GO_VERSION}.linux-amd64.tar.gz"; \
+        oras_url="https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz"; \
+        ;; \
+      'arm64') \
+        go_url="https://golang.google.cn/dl/go${GO_VERSION}.linux-arm64.tar.gz"; \
+        oras_url="https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_arm64.tar.gz"; \
+        ;; \
+      *) echo >&2 "unsupported architecture: $arch"; exit 1 ;; \
+    esac; \
+    echo "go_url: $go_url"; \
+    wget -O go.tgz "$go_url" --progress=dot:giga || (echo "Failed to download Go" && exit 1); \
+    tar -C /usr/local -xzf go.tgz && rm go.tgz; \
+    echo "oras_url: $oras_url"; \
+    wget -O oras.tgz "$oras_url" --progress=dot:giga || (echo "Failed to download ORAS" && exit 1); \
+    tar -C /usr/local/bin -xzf oras.tgz && rm oras.tgz; \
+    echo "done";
+
+ENV PATH=$PATH:/usr/local/go/bin:/usr/local/bin

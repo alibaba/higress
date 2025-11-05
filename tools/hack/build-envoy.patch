@@ -1,0 +1,49 @@
+diff -Naur proxy-old/WORKSPACE proxy/WORKSPACE
+--- proxy-old/WORKSPACE	2024-08-15 14:23:44.000000000 +0800
++++ proxy/WORKSPACE	2024-08-15 14:47:49.000000000 +0800
+@@ -45,11 +45,16 @@
+ 
+ # To override with local envoy, just pass `--override_repository=envoy=/PATH/TO/ENVOY` to Bazel or
+ # persist the option in `user.bazelrc`.
+-http_archive(
++# http_archive(
++#     name = "envoy",
++#     sha256 = ENVOY_SHA256,
++#     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
++#     url = "https://github.com/" + ENVOY_ORG + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
++# )
++
++local_repository(
+     name = "envoy",
+-    sha256 = ENVOY_SHA256,
+-    strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
+-    url = "https://github.com/" + ENVOY_ORG + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
++    path = "/home/envoy",
+ )
+ 
+ load("@envoy//bazel:api_binding.bzl", "envoy_api_binding")
+diff -Naur proxy-old/scripts/release-binary.sh proxy/scripts/release-binary.sh
+--- proxy-old/scripts/release-binary.sh	2024-08-15 14:23:44.000000000 +0800
++++ proxy/scripts/release-binary.sh	2024-08-15 14:24:06.000000000 +0800
+@@ -113,7 +113,7 @@
+ # See: https://github.com/istio/istio/issues/15714 for details.
+ # k8-opt is the output directory for x86_64 optimized builds (-c opt, so --config=release-symbol and --config=release).
+ # k8-dbg is the output directory for -c dbg builds.
+-for config in release release-symbol asan debug
++for config in release release-symbol
+ do
+   case $config in
+     "release" )
+@@ -146,9 +146,9 @@
+   export BUILD_CONFIG=${config}
+ 
+   echo "Building ${config} proxy"
+-  BINARY_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.tar.gz"
+-  DWP_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.dwp"
+-  SHA256_NAME="${HOME}/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.sha256"
++  BINARY_NAME="${HOME}/package/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.tar.gz"
++  DWP_NAME="${HOME}/package/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.dwp"
++  SHA256_NAME="${HOME}/package/${BINARY_BASE_NAME}-${SHA}${ARCH_SUFFIX}.sha256"
+   # shellcheck disable=SC2086
+   bazel build ${BAZEL_BUILD_ARGS} ${CONFIG_PARAMS} //:envoy_tar //:envoy.dwp
+   BAZEL_TARGET="${BAZEL_OUT}/envoy_tar.tar.gz"

@@ -1,0 +1,31 @@
+profile: local-docker
+global:
+  install: local-docker
+
+console:
+  port: 8080
+
+gateway:
+  httpPort: 80
+  httpsPort: 443
+  metricsPort: 15020
+
+controller:
+
+storage:
+  url: file://${INSTALLPACKAGEPATH}/conf
+  ns: higress-system
+  username:
+  password:
+  dataEncKey:
+
+charts:
+  higress:
+    url: https://higress.io/helm-charts
+    name: higress
+    version: latest
+  standalone:
+    url: https://higress.io/standalone/get-higress.sh
+    name: standalone
+    version: latest
+

@@ -5,6 +5,7 @@ out/
 *.dll
 *.so
 *.dylib
+*.tgz
 
 # IDE files
 .vscode/
@@ -54,3 +55,24 @@ vendor/
 **/plugin.wasm
 **/main.wasm
 **/*.wasm
+
+# Bazel build outputs
+bazel-bin
+bazel-out
+bazel-testlogs
+bazel-wasm-cpp
+external/
+
+# Build tools
+tools/bin/
+tools/hack/cluster.conf
+
+# Helm charts
+helm/**/charts/**.tgz
+
+# Build targets
+target/
+
+# Versioned directories
+envoy/1.20
+istio/1.12

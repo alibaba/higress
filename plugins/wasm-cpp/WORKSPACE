@@ -1,0 +1,66 @@
+workspace(name = "istio_ecosystem_wasm_extensions")
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "platforms",
+    url = "https://github.com/bazelbuild/platforms/releases/download/0.0.9/platforms-0.0.9.tar.gz",
+    sha256 = "5eda539c841265031c2f82d8ae7a3a6490bd62176e0c038fc469eabf91f6149b",
+)
+
+load("//bazel:third_party.bzl", "wasm_extension_dependency")
+
+wasm_extension_dependency()
+
+load(
+    "@io_bazel_rules_docker//repositories:repositories.bzl",
+    container_repositories = "repositories",
+)
+
+container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()
+
+PROXY_WASM_CPP_SDK_SHA = "0ceca8c81dddc4c9875cf0cb997454764905658c"
+
+PROXY_WASM_CPP_SDK_SHA256 = "cb010b242d49fb02b39124421b6acb69bd4ece64fb6299ba3f98f3b36eef7004"
+
+http_archive(
+    name = "proxy_wasm_cpp_sdk",
+    sha256 = PROXY_WASM_CPP_SDK_SHA256,
+    strip_prefix = "proxy-wasm-cpp-sdk-" + PROXY_WASM_CPP_SDK_SHA,
+    url = "https://github.com/higress-group/proxy-wasm-cpp-sdk/archive/" + PROXY_WASM_CPP_SDK_SHA + ".tar.gz",
+)
+
+load("@proxy_wasm_cpp_sdk//bazel:repositories.bzl", "proxy_wasm_cpp_sdk_repositories")
+
+proxy_wasm_cpp_sdk_repositories()
+
+load("@proxy_wasm_cpp_sdk//bazel:dependencies.bzl", "proxy_wasm_cpp_sdk_dependencies")
+
+proxy_wasm_cpp_sdk_dependencies()
+
+load("@proxy_wasm_cpp_sdk//bazel:dependencies_extra.bzl", "proxy_wasm_cpp_sdk_dependencies_extra")
+
+proxy_wasm_cpp_sdk_dependencies_extra()
+
+load("@istio_ecosystem_wasm_extensions//bazel:wasm.bzl", "wasm_libraries")
+
+wasm_libraries()
+
+# To import proxy wasm cpp host, which will be used in unit testing.
+load("@proxy_wasm_cpp_host//bazel:repositories.bzl", "proxy_wasm_cpp_host_repositories")
+
+proxy_wasm_cpp_host_repositories()
+
+load("@proxy_wasm_cpp_host//bazel:dependencies.bzl", "proxy_wasm_cpp_host_dependencies")
+
+proxy_wasm_cpp_host_dependencies()
+
+http_archive(
+    name = "bazel_compdb",
+    strip_prefix = "bazel-compilation-database-0.5.2",
+    urls = ["https://github.com/grailbio/bazel-compilation-database/archive/0.5.2.tar.gz"],
+)

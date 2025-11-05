@@ -1,91 +1,71 @@
-# Higress AI Capability Auth (MCP-GUARD)
+# Higress
 
-AI能力授权系统 - 基于Higress和Wasm插件的多租户权限管理解决方案
+<div align="center">
+    <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
+  <br>
+  AI Gateway
+</div>
 
-## 项目结构
+Higress is a cloud-native AI Native API Gateway based on Istio and Envoy.
 
-```
-/home/ink/1103/
-├── higress/                    # Higress 核心代码
-│   ├── plugins/wasm-go/        # Wasm 插件开发
-│   │   └── extensions/mcp-guard/  # MCP-GUARD 插件
-├── samples/mcp-guard/          # 演示配置和脚本
-├── docs/mcp-guard/             # 📚 完整文档
-└── scripts/                    # 工具脚本
-```
+[**Official Site**](https://higress.ai/en/) &nbsp; |
+&nbsp; [**Docs**](https://higress.cn/en/docs/latest/overview/what-is-higress/) &nbsp; |
+&nbsp; [**Developer Guide**](https://higress.cn/en/docs/latest/dev/architecture/) &nbsp; |
+&nbsp; [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/)
 
-## 📚 文档导航
+---
 
-### 快速开始
-- **[演示总结](docs/mcp-guard/PROJECT-SUMMARY.txt)** - 项目概述和成果展示
-- **[汇报PPT](docs/mcp-guard/MCP-GUARD-Presentation-Summary.md)** - 领导汇报摘要
-- **[使用指南](docs/mcp-guard/README-FOR-REPORT.md)** - 文档索引和使用说明
+## MCP-GUARD AI Capability Authorization
 
-### 技术文档
-- **[架构报告](docs/mcp-guard/MCP-GUARD-Architecture-Report.md)** - 详细技术报告
-- **[架构图集](docs/mcp-guard/MCP-GUARD-Architecture-Diagrams.md)** - 9张专业架构图
-- **[开发指南](docs/mcp-guard/CLAUDE.md)** - 为Claude Code提供的开发指导
+This repository contains the **MCP-GUARD** capability authorization system - a multi-tenant permission management solution based on Higress and Wasm plugins.
 
-### 演示配置
-- **[演示脚本](samples/mcp-guard/04-demo-script.sh)** - 一键部署脚本
-- **[插件配置](samples/mcp-guard/03-wasmplugins-deepseek.yaml)** - WasmPlugin配置
-- **[授权配置](samples/mcp-guard/higress-config.yaml)** - 权限策略配置
+### 📚 Documentation
 
-## 🎯 核心特性
+- **[Project Summary](docs/mcp-guard/PROJECT-SUMMARY.txt)** - Project overview and achievements
+- **[Architecture Report](docs/mcp-guard/MCP-GUARD-Architecture-Report.md)** - Detailed technical report
+- **[Architecture Diagrams](docs/mcp-guard/MCP-GUARD-Architecture-Diagrams.md)** - 9 professional architecture diagrams
+- **[Presentation Summary](docs/mcp-guard/MCP-GUARD-Presentation-Summary.md)** - Executive briefing summary
+- **[Development Guide](docs/mcp-guard/CLAUDE.md)** - Development guide for Claude Code
 
-✅ **多租户治理** - 基于能力集的差异化授权
-✅ **毫秒级判定** - 数据面本地权限判定
-✅ **零改造接入** - ai-proxy统一协议适配
-✅ **生产就绪** - Wasm沙箱隔离，热更新无中断
+### 🎯 Key Features
 
-## 🚀 快速开始
+✅ **Multi-tenant Governance** - Capability-based differentiated authorization  
+✅ **Millisecond Response** - Data plane local authorization  
+✅ **Zero Breaking Changes** - ai-proxy unified protocol adaptation  
+✅ **Production Ready** - Wasm sandbox isolation, hot updates without interruption  
 
-### 1. 运行演示
+### 🚀 Quick Start
+
 ```bash
+# Run demo
 cd samples/mcp-guard
 bash 04-demo-script.sh
-```
 
-### 2. 测试授权
-```bash
-# 授权拒绝（tenantB 访问 translate）
+# Test authorization (deny)
 curl -i -H 'X-Subject: tenantB' \
      -H 'X-MCP-Capability: cap.text.translate' \
      http://127.0.0.1/v1/text:translate
 
-# 授权通过（tenantA 访问 summarize）
+# Test authorization (allow)
 curl -i -H 'X-Subject: tenantA' \
      -H 'X-MCP-Capability: cap.text.summarize' \
      http://127.0.0.1/v1/text:summarize
 ```
 
-## 📊 测试结果
+### 📊 Test Results
 
-- **测试通过率**: 100% (4/4)
-- **授权延迟**: < 1ms
-- **插件大小**: 5.4MB (mcp-guard.wasm)
-- **测试环境**: kind Kubernetes + Higress 2.1.9-rc.1
+- **Pass Rate**: 100% (4/4 test cases)
+- **Authorization Delay**: < 1ms
+- **Plugin Size**: 5.4MB (mcp-guard.wasm)
+- **Test Environment**: kind Kubernetes + Higress 2.1.9-rc.1
 
-## 💡 权限模型
+### 💡 Permission Model
 
 ```
-tenantA (白金客户) → [cap.text.summarize, cap.text.translate]
-tenantB (标准客户) → [cap.text.summarize]
+tenantA (Premium): [cap.text.summarize, cap.text.translate]
+tenantB (Standard): [cap.text.summarize]
 ```
 
-## 🏗️ 技术栈
+---
 
-- **网关**: Higress (Istio + Envoy)
-- **扩展**: Wasm插件 (Go)
-- **控制面**: Kubernetes + Go
-- **配置**: WasmPlugin CRD + xDS
-
-## 📞 联系方式
-
-- **项目仓库**: git@github.com:ink-hz/higress-ai-capability-auth.git
-- **技术文档**: [docs/mcp-guard/](docs/mcp-guard/)
-- **演示配置**: [samples/mcp-guard/](samples/mcp-guard/)
-
-## 📄 许可证
-
-本项目基于 Apache 2.0 许可证开源。
+For more information, please refer to the [documentation](docs/mcp-guard/).

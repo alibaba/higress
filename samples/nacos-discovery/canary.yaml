@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: service-provider-gray.DEFAULT-GROUP.public.nacos
+    nginx.ingress.kubernetes.io/canary: 'true'
+    nginx.ingress.kubernetes.io/canary-by-header: x-user-id
+    nginx.ingress.kubernetes.io/canary-by-header-value: '100'
+  name: echo-gray
+  namespace: default
+spec:
+  ingressClassName: higress
+  rules:
+  - http:
+      paths:
+      - backend:
+          resource:
+            apiGroup: networking.higress.io
+            kind: McpBridge
+            name: default
+        path: /echo
+        pathType: Prefix

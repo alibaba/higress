@@ -1,0 +1,97 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Test if the weight is 0
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "0"
+  name: ingress-echo-canary-weight-0
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: canary.higress.io
+      http:
+        paths:
+          - path: /weight-0
+            pathType: Exact
+            backend:
+              service:
+                name: infra-backend-v3
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-echo-weight-0
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: canary.higress.io
+      http:
+        paths:
+          - path: /weight-0
+            pathType: Exact
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+# Test if the weight is 100
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "100"
+  name: ingress-echo-canary-weight-100
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: canary.higress.io
+      http:
+        paths:
+          - path: /weight-100
+            pathType: Exact
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-echo-weight-100
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: canary.higress.io
+      http:
+        paths:
+          - path: /weight-100
+            pathType: Exact
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080

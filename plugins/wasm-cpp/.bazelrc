@@ -1,0 +1,9 @@
+build --config=clang
+build:gcc --cxxopt=-std=c++17
+
+build:clang --action_env=CC=clang --action_env=CXX=clang++
+build:clang --action_env=BAZEL_COMPILER=clang
+build:clang --linkopt=-fuse-ld=lld
+build:clang --cxxopt=-std=c++17
+
+build --incompatible_use_platforms_repo_for_constraints=false

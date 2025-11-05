@@ -1,0 +1,20 @@
+# BASE_DISTRIBUTION is used to switch between the old base distribution and distroless base images
+ARG BASE_DISTRIBUTION=debug
+
+# Version is the base image version from the TLD Makefile
+ARG BASE_VERSION=latest
+
+ARG HUB
+
+ARG TARGETARCH
+
+# The following section is used as base image if BASE_DISTRIBUTION=debug
+# This base image is provided by istio, see: https://github.com/istio/istio/blob/master/docker/Dockerfile.base
+FROM ${HUB}/base:${BASE_VERSION}-${TARGETARCH}
+
+ARG TARGETARCH
+COPY ${TARGETARCH}/higress /usr/local/bin/higress
+
+USER 1337:1337
+
+ENTRYPOINT ["/usr/local/bin/higress"]

@@ -1,0 +1,42 @@
+server:
+  name: jd-hot-words
+  config:
+    appCode: ""
+tools:
+  - name: jd-hot-words
+    description: 京东商品关键词搜索排名查询工具，利用本接口，可根据任意商品关键词，实时获取搜索关注度最高的商品关键词，协助商家及时掌握：买家搜索习惯和买家需求。
+    args:
+      - name: key
+        description: 商品关键词
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jdgoods.market.alicloudapi.com/jdgoods
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **goodsList**:  (Type: array)
+          - **goodsList[]**: Items of type string
+        - **key**:  (Type: string)
+        - **status**:  (Type: string)
+        - **time**:  (Type: string)
+
+        ## Original Response
+

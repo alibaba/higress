@@ -1,0 +1,77 @@
+{
+	"@type": "type.googleapis.com/envoy.admin.v3.ListenersConfigDump",
+	"version_info": "2",
+	"dynamic_listeners": [{
+		"name": "default-higress-http",
+		"active_state": {
+			"version_info": "42c71fb50c315ee3a32b327da69f8cc0baf420bc84b747e82d9c38e1b0c33eb2",
+			"listener": {
+				"@type": "type.googleapis.com/envoy.config.listener.v3.Listener",
+				"name": "default-higress-http",
+				"address": {
+					"socket_address": {
+						"address": "0.0.0.0",
+						"port_value": 10080
+					}
+				},
+				"access_log": [{
+					"name": "envoy.access_loggers.file",
+					"filter": {
+						"response_flag_filter": {
+							"flags": [
+								"NR"
+							]
+						}
+					},
+					"typed_config": {
+						"@type": "type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog",
+						"path": "/dev/stdout"
+					}
+				}],
+				"default_filter_chain": {
+					"filters": [{
+						"name": "envoy.filters.network.http_connection_manager",
+						"typed_config": {
+							"@type": "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
+							"stat_prefix": "http",
+							"rds": {
+								"config_source": {
+									"api_config_source": {
+										"api_type": "DELTA_GRPC",
+										"grpc_services": [{
+											"envoy_grpc": {
+												"cluster_name": "xds_cluster"
+											}
+										}],
+										"set_node_on_first_message_only": true,
+										"transport_api_version": "V3"
+									},
+									"resource_api_version": "V3"
+								},
+								"route_config_name": "default-higress-http"
+							},
+							"http_filters": [{
+								"name": "envoy.filters.http.router",
+								"typed_config": {
+									"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router"
+								}
+							}],
+							"access_log": [{
+								"name": "envoy.access_loggers.file",
+								"typed_config": {
+									"@type": "type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog",
+									"path": "/dev/stdout"
+								}
+							}],
+							"use_remote_address": true,
+							"upgrade_configs": [{
+								"upgrade_type": "websocket"
+							}]
+						}
+					}]
+				}
+			},
+			"last_updated": "2023-02-23T09:05:38.446Z"
+		}
+	}]
+}
