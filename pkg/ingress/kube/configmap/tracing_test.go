@@ -1,6 +1,7 @@
 package configmap
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -111,18 +112,28 @@ func TestNewDefaultTracing(t *testing.T) {
 	assert.Equal(t, 100.0, tr.Sampling)
 }
 
-func TestConstructCustomTags(t *testing.T) {
+func TestConstructCustomTagsJsonOutput(t *testing.T) {
 	tags := []CustomTag{
 		{Tag: "foo", Literal: "bar"},
 		{Tag: "env", Environment: &CustomTagValue{Key: "ENV", DefaultValue: "def"}},
 		{Tag: "header", RequestHeader: &CustomTagValue{Key: "X-Header", DefaultValue: "def"}},
 	}
-	result := constructCustomTags(tags)
+	jsonStr := constructJsonCustomTags(tags)
+	var result []EnvoyCustomTag
+	assert.NoError(t, json.Unmarshal([]byte(jsonStr), &result))
 	assert.Equal(t, 3, len(result))
 	assert.Equal(t, "foo", result[0].Tag)
 	assert.Equal(t, "bar", result[0].Literal.Value)
-	assert.Equal(t, "ENV", result[1].Env.Name)
-	assert.Equal(t, "def", result[1].Env.DefaultValue)
-	assert.Equal(t, "X-Header", result[2].Header.Name)
-	assert.Equal(t, "def", result[2].Header.DefaultValue)
+	assert.Equal(t, "env", result[1].Tag)
+	assert.Equal(t, "ENV", result[1].Environment.Name)
+	assert.Equal(t, "def", result[1].Environment.DefaultValue)
+	assert.Equal(t, "header", result[2].Tag)
+	assert.Equal(t, "X-Header", result[2].RequestHeader.Name)
+	assert.Equal(t, "def", result[2].RequestHeader.DefaultValue)
+}
+
+func TestConstructCustomTags_EmptyValues(t *testing.T) {
+	var tags []CustomTag
+	jsonStr := constructJsonCustomTags(tags)
+	assert.Equal(t, "[]", jsonStr)
 }

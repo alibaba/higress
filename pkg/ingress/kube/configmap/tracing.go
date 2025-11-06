@@ -44,7 +44,8 @@ type Tracing struct {
 	// The timeout for the gRPC request. Default is 500ms
 	Timeout int32 `json:"timeout,omitempty"`
 
-	CustomTag []CustomTag `json:"custom_tag,omitempty"`
+	// Custom tags to be added to spans.
+	CustomTag []CustomTag `json:"customTag,omitempty"`
 	// The tracer implementation to be used by Envoy.
 	//
 	// Types that are assignable to Tracer:
@@ -53,13 +54,20 @@ type Tracing struct {
 	OpenTelemetry *OpenTelemetry `json:"opentelemetry,omitempty"`
 }
 
+// CustomTag defines a custom tag to be added to spans.
+// Only one of Literal, Environment, or RequestHeader should be set.
 type CustomTag struct {
-	Tag           string          `json:"tag,omitempty"`
-	Literal       string          `json:"literal,omitempty"`
-	Environment   *CustomTagValue `json:"environment,omitempty"`
+	// The name of the custom tag.
+	Tag string `json:"tag,omitempty"`
+	// The literal value of the custom tag.
+	Literal string `json:"literal,omitempty"`
+	// The environment variable to be used as the value of the custom tag.
+	Environment *CustomTagValue `json:"environment,omitempty"`
+	// The request header to be used as the value of the custom tag.
 	RequestHeader *CustomTagValue `json:"requestHeader,omitempty"`
 }
 
+// CustomTagValue defines the key and default value for environment variable or request header custom tag.
 type CustomTagValue struct {
 	Key          string `json:"key,omitempty"`
 	DefaultValue string `json:"defaultValue,omitempty"`
@@ -136,7 +144,7 @@ func validTracing(t *Tracing) error {
 		return errors.New("only one of skywalking，zipkin and opentelemetry configuration can be set")
 	}
 
-	if t.CustomTag != nil {
+	if t.CustomTag != nil && len(t.CustomTag) > 0 {
 		customTagNames := make(map[string]struct{})
 		for _, tag := range t.CustomTag {
 			if err := validCustomTag(tag); err != nil {
@@ -460,7 +468,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
             "custom_tags": %v
 		}
 	}
-}`, namespace, skywalking.AccessToken, tracingClusterName(skywalking.Port, skywalking.Service), timeout, tracing.Sampling, constructCustomTags(tracing.CustomTag))
+}`, namespace, skywalking.AccessToken, tracingClusterName(skywalking.Port, skywalking.Service), timeout, tracing.Sampling, constructJsonCustomTags(tracing.CustomTag))
 	}
 
 	if tracing.Zipkin != nil {
@@ -487,7 +495,7 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
             "custom_tags": %v
 		}
 	}
-}`, tracingClusterName(zipkin.Port, zipkin.Service), tracing.Sampling, constructCustomTags(tracing.CustomTag))
+}`, tracingClusterName(zipkin.Port, zipkin.Service), tracing.Sampling, constructJsonCustomTags(tracing.CustomTag))
 	}
 
 	if tracing.OpenTelemetry != nil {
@@ -513,19 +521,19 @@ func (t *TracingController) constructTracingTracer(tracing *Tracing, namespace s
 			"random_sampling": {
 				"value": %.1f
 			},
-            "custom_tags": %v
+            "custom_tags": %s
 		}
 	}
-}`, namespace, tracingClusterName(opentelemetry.Port, opentelemetry.Service), timeout, tracing.Sampling, constructCustomTags(tracing.CustomTag))
+}`, namespace, tracingClusterName(opentelemetry.Port, opentelemetry.Service), timeout, tracing.Sampling, constructJsonCustomTags(tracing.CustomTag))
 	}
 	return tracingConfig
 }
 
 type EnvoyCustomTag struct {
-	Tag     string       `json:"tag,omitempty"`
-	Literal *LiteralInfo `json:"literal,omitempty"`
-	Env     *EnvTagInfo  `json:"env,omitempty"`
-	Header  *HeaderInfo  `json:"header,omitempty"`
+	Tag           string       `json:"tag,omitempty"`
+	Literal       *LiteralInfo `json:"literal,omitempty"`
+	Environment   *EnvTagInfo  `json:"environment,omitempty"`
+	RequestHeader *HeaderInfo  `json:"request_header,omitempty"`
 }
 
 type LiteralInfo struct {
@@ -542,7 +550,11 @@ type HeaderInfo struct {
 	DefaultValue string `json:"default_value,omitempty"`
 }
 
-func constructCustomTags(tag []CustomTag) []EnvoyCustomTag {
+func constructJsonCustomTags(tag []CustomTag) string {
+	if tag == nil || len(tag) == 0 {
+		return "[]"
+	}
+
 	var envoyTags []EnvoyCustomTag
 	for _, t := range tag {
 		envoyTag := EnvoyCustomTag{
@@ -556,14 +568,14 @@ func constructCustomTags(tag []CustomTag) []EnvoyCustomTag {
 		}
 
 		if t.Environment != nil {
-			envoyTag.Env = &EnvTagInfo{
+			envoyTag.Environment = &EnvTagInfo{
 				Name:         t.Environment.Key,
 				DefaultValue: t.Environment.DefaultValue,
 			}
 		}
 
 		if t.RequestHeader != nil {
-			envoyTag.Header = &HeaderInfo{
+			envoyTag.RequestHeader = &HeaderInfo{
 				Name:         t.RequestHeader.Key,
 				DefaultValue: t.RequestHeader.DefaultValue,
 			}
@@ -571,5 +583,7 @@ func constructCustomTags(tag []CustomTag) []EnvoyCustomTag {
 
 		envoyTags = append(envoyTags, envoyTag)
 	}
-	return envoyTags
+
+	jsonTag, _ := json.Marshal(envoyTags)
+	return string(jsonTag)
 }
