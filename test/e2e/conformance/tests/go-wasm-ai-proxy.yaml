@@ -435,6 +435,16 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
+            "gpt-3": gpt-35-turbo-16k
+            "*": gpt-35-turbo-16k
+          type: azure
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-azure
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
             "gpt-3": baichuan2-13b-chat-v1
             "*": baichuan-7b-v1
           type: baichuan
