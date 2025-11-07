@@ -164,7 +164,7 @@ data: [DONE]
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "models.inference.ai.azure.com",
+						Host:        "YOUR_RESOURCE_NAME.openai.azure.com",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
@@ -186,7 +186,7 @@ data: [DONE]
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "models.inference.ai.azure.com",
+						Host:        "YOUR_RESOURCE_NAME.openai.azure.com",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
