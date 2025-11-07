@@ -351,7 +351,7 @@ spec:
               service:
                 name: llm-mock-service
                 port:
-                  number: 11434
+                  number: 3000
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
