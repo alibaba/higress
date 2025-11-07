@@ -175,7 +175,7 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeApplicationJson,
-						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
+						Body:        []byte(`{"id":"chatcmpl-llm-mock","choices":[{"index":0,"message":{"role":"assistant","content":"你好，你是谁？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion","usage":{"prompt_tokens":9,"completion_tokens":1,"total_tokens":10}}`),
 					},
 				},
 			},
@@ -197,19 +197,19 @@ data: [DONE]
 					ExpectedResponse: http.Response{
 						StatusCode:  200,
 						ContentType: http.ContentTypeTextEventStream,
-						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion.chunk","usage":null}
+						Body: []byte(`data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion.chunk","usage":null}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"好"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion.chunk","usage":null}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"，"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion.chunk","usage":null}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"你"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion.chunk","usage":null}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"是"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion.chunk","usage":null}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"谁"},"finish_reason":null,"logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion.chunk","usage":null}
 
-data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"gpt-35-turbo-16k","object":"chat.completion.chunk","usage":null}
+data: {"id":"chatcmpl-llm-mock","choices":[{"index":0,"delta":{"content":"？"},"finish_reason":"stop","logprobs":null}],"created":10,"model":"gpt-3","object":"chat.completion.chunk","usage":null}
 
 data: [DONE]
 
