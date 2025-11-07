@@ -342,7 +342,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "yourlocalhost"
+    - host: "localhost:11434"
       http:
         paths:
           - pathType: Prefix
@@ -603,8 +603,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            "gpt-3":gpt-oss:120b
-            "*": gpt-oss:120b
+            "gpt-3":gpt-oss:120b-cloud
+            "*": gpt-oss:120b-cloud
           type: ollama
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-ollama
