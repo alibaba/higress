@@ -164,7 +164,7 @@ data: [DONE]
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "YOUR_RESOURCE_NAME.openai.azure.com",
+						Host:        "your-apim-instance.azure-api.net",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
@@ -186,7 +186,7 @@ data: [DONE]
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "YOUR_RESOURCE_NAME.openai.azure.com",
+						Host:        "your-apim-instance.azure-api.net",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,

@@ -57,7 +57,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "YOUR_RESOURCE_NAME.openai.azure.com"
+    - host: "your-apim-instance.azure-api.net"
       http:
         paths:
           - pathType: Prefix
