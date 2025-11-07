@@ -133,7 +133,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "YOUR_RESOURCE_NAME.openai.azure.com"
+    - host: "models.inference.ai.azure.com"
       http:
         paths:
           - pathType: Prefix
