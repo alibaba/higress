@@ -181,12 +181,12 @@ data: [DONE]
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:  "gpt-35-turbo-16k case 2: streaming request",
+					TestCaseName:  "azure case 2: streaming request",
 					CompareTarget: http.CompareTargetResponse,
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "api.baichuan-ai.com",
+						Host:        "models.inference.ai.azure.com",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
