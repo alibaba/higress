@@ -128,6 +128,7 @@ type AISecurityConfig struct {
 	RequestContentJsonPath        string
 	CheckResponse                 bool
 	ResponseCheckService          string
+	ResponseImageCheckService     string
 	ResponseContentJsonPath       string
 	ResponseStreamContentJsonPath string
 	DenyCode                      int64
@@ -181,6 +182,9 @@ func (config *AISecurityConfig) Parse(json gjson.Result) error {
 	}
 	if obj := json.Get("responseCheckService"); obj.Exists() {
 		config.ResponseCheckService = obj.String()
+	}
+	if obj := json.Get("responseImageCheckService"); obj.Exists() {
+		config.ResponseImageCheckService = obj.String()
 	}
 	config.CheckRequest = json.Get("checkRequest").Bool()
 	config.CheckResponse = json.Get("checkResponse").Bool()
@@ -379,6 +383,21 @@ func (config *AISecurityConfig) GetResponseCheckService(consumer string) string 
 		if matcher, ok := obj["matcher"].(Matcher); ok {
 			if matcher.match(consumer) {
 				if responseCheckService, ok := obj["responseCheckService"]; ok {
+					result, _ = responseCheckService.(string)
+				}
+				break
+			}
+		}
+	}
+	return result
+}
+
+func (config *AISecurityConfig) GetResponseImageCheckService(consumer string) string {
+	result := config.ResponseImageCheckService
+	for _, obj := range config.ConsumerResponseCheckService {
+		if matcher, ok := obj["matcher"].(Matcher); ok {
+			if matcher.match(consumer) {
+				if responseCheckService, ok := obj["responseImageCheckService"]; ok {
 					result, _ = responseCheckService.(string)
 				}
 				break

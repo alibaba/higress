@@ -1,4 +1,4 @@
-package common
+package text
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/common"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/utils"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -107,7 +108,7 @@ func HandleTextGenerationStreamingResponseBody(ctx wrapper.HttpContext, config c
 			ctx.SetContext("during_call", true)
 			log.Debugf("current content piece: %s", buffer)
 			checkService := config.GetResponseCheckService(consumer)
-			path, headers, body := GenerateRequestForText(config, config.Action, checkService, buffer, sessionID)
+			path, headers, body := common.GenerateRequestForText(config, config.Action, checkService, buffer, sessionID)
 			err := config.Client.Post(path, headers, body, callback, config.Timeout)
 			if err != nil {
 				log.Errorf("failed call the safe check service: %v", err)
@@ -215,7 +216,7 @@ func HandleTextGenerationResponseBody(ctx wrapper.HttpContext, config cfg.AISecu
 		contentIndex = nextContentIndex
 		log.Debugf("current content piece: %s", contentPiece)
 		checkService := config.GetResponseCheckService(consumer)
-		path, headers, body := GenerateRequestForText(config, config.Action, checkService, contentPiece, sessionID)
+		path, headers, body := common.GenerateRequestForText(config, config.Action, checkService, contentPiece, sessionID)
 		err := config.Client.Post(path, headers, body, callback, config.Timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
