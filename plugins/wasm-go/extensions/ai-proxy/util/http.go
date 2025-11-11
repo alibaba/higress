@@ -28,6 +28,9 @@ var (
 	RegCancelBatchPath                          = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)/cancel$`)
 	RegRetrieveFilePath                         = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)$`)
 	RegRetrieveFileContentPath                  = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)/content$`)
+	RegRetrieveVideoPath                        = regexp.MustCompile(`^.*/v1/videos/(?P<video_id>[^/]+)$`)
+	RegRetrieveVideoContentPath                 = regexp.MustCompile(`^.*/v1/videos/(?P<video_id>[^/]+)/content$`)
+	RegVideoRemixPath                           = regexp.MustCompile(`^.*/v1/videos/(?P<video_id>[^/]+)/remix$`)
 	RegRetrieveFineTuningJobPath                = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)$`)
 	RegRetrieveFineTuningJobEventsPath          = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/events$`)
 	RegRetrieveFineTuningJobCheckpointsPath     = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/checkpoints$`)
@@ -99,6 +102,9 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 			{RegRetrieveFileContentPath, "file_id"},
 			{RegRetrieveBatchPath, "batch_id"},
 			{RegCancelBatchPath, "batch_id"},
+			{RegRetrieveVideoPath, "video_id"},
+			{RegRetrieveVideoContentPath, "video_id"},
+			{RegVideoRemixPath, "video_id"},
 		}
 
 		for _, r := range replacements {
