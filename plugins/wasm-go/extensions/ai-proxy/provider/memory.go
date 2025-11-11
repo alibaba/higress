@@ -58,6 +58,15 @@ type SummaryConfig struct {
 	// @Title zh-CN LLM摘要提供商标识
 	// @Description zh-CN 用于生成摘要的LLM提供商标识（当method为llm时使用，可选，默认使用当前provider）
 	LLMProviderId string `yaml:"llmProviderId" json:"llmProviderId"`
+	// @Title zh-CN LLM服务URL
+	// @Description zh-CN LLM服务的完整URL（当method为llm时使用，例如：https://api.openai.com/v1/chat/completions）
+	LLMServiceUrl string `yaml:"llmServiceUrl" json:"llmServiceUrl"`
+	// @Title zh-CN LLM服务Cluster
+	// @Description zh-CN LLM服务的Cluster名称（当method为llm时使用，可选，如果配置了llmServiceUrl则不需要）
+	LLMServiceCluster string `yaml:"llmServiceCluster" json:"llmServiceCluster"`
+	// @Title zh-CN LLM调用超时
+	// @Description zh-CN LLM API调用的超时时间（毫秒），默认5000
+	LLMTimeout int `yaml:"llmTimeout" json:"llmTimeout"`
 	// @Title zh-CN 摘要最大长度
 	// @Description zh-CN 摘要的最大长度（字符数），默认500
 	MaxLength int `yaml:"maxLength" json:"maxLength"`
@@ -401,11 +410,14 @@ func ParseContextCompressionConfig(json gjson.Result) *ContextCompressionConfig 
 	summaryJson := json.Get("summaryConfig")
 	if summaryJson.Exists() {
 		config.SummaryConfig = &SummaryConfig{
-			Method:         summaryJson.Get("method").String(),
-			LLMModel:       summaryJson.Get("llmModel").String(),
-			LLMProviderId:  summaryJson.Get("llmProviderId").String(),
-			MaxLength:      int(summaryJson.Get("maxLength").Int()),
-			PromptTemplate: summaryJson.Get("promptTemplate").String(),
+			Method:            summaryJson.Get("method").String(),
+			LLMModel:          summaryJson.Get("llmModel").String(),
+			LLMProviderId:     summaryJson.Get("llmProviderId").String(),
+			LLMServiceUrl:     summaryJson.Get("llmServiceUrl").String(),
+			LLMServiceCluster: summaryJson.Get("llmServiceCluster").String(),
+			LLMTimeout:        int(summaryJson.Get("llmTimeout").Int()),
+			MaxLength:         int(summaryJson.Get("maxLength").Int()),
+			PromptTemplate:    summaryJson.Get("promptTemplate").String(),
 		}
 
 		// 设置默认值

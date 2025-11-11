@@ -3,7 +3,11 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -27,6 +31,7 @@ const (
 type llmSummaryGenerator struct {
 	providerConfig *ProviderConfig
 	config         *SummaryConfig
+	httpClient     wrapper.HttpClient // HTTP客户端，用于调用LLM API
 }
 
 // NewLLMSummaryGenerator 创建LLM摘要生成器
@@ -51,11 +56,59 @@ func NewLLMSummaryGenerator(providerConfig *ProviderConfig, config *SummaryConfi
 		// 这里可以根据实际情况调整
 		config.LLMModel = "gpt-3.5-turbo" // 默认模型
 	}
+	if config.LLMTimeout == 0 {
+		config.LLMTimeout = 5000 // 默认5秒超时
+	}
+
+	// 创建HTTP客户端
+	httpClient := createLLMHttpClient(config)
 
 	return &llmSummaryGenerator{
 		providerConfig: providerConfig,
 		config:         config,
+		httpClient:     httpClient,
 	}
+}
+
+// createLLMHttpClient 创建用于调用LLM API的HTTP客户端
+func createLLMHttpClient(config *SummaryConfig) wrapper.HttpClient {
+	// 如果配置了Cluster名称，使用RouteCluster
+	if config.LLMServiceCluster != "" {
+		return wrapper.NewClusterClient(wrapper.RouteCluster{
+			Host: config.LLMServiceCluster,
+		})
+	}
+
+	// 如果配置了URL，从URL解析host和port
+	if config.LLMServiceUrl != "" {
+		parsedURL, err := url.Parse(config.LLMServiceUrl)
+		if err == nil && parsedURL.Host != "" {
+			// 解析host和port
+			host := parsedURL.Hostname()
+			port := int64(443) // 默认HTTPS端口
+
+			// 解析端口号
+			if parsedURL.Port() != "" {
+				if p, err := strconv.ParseInt(parsedURL.Port(), 10, 64); err == nil {
+					port = p
+				}
+			} else {
+				// 根据scheme设置默认端口
+				if parsedURL.Scheme == "http" {
+					port = 80
+				}
+			}
+
+			// 使用FQDN方式（推荐，支持服务发现）
+			return wrapper.NewClusterClient(wrapper.FQDNCluster{
+				FQDN: host,
+				Port: port,
+			})
+		}
+	}
+
+	// 默认使用RouteCluster（通过Gateway路由）
+	return wrapper.NewClusterClient(wrapper.RouteCluster{})
 }
 
 // GenerateSummary 使用LLM生成智能摘要
@@ -111,22 +164,84 @@ func (g *llmSummaryGenerator) GenerateSummary(ctx wrapper.HttpContext, content s
 }
 
 // callLLMForSummary 调用LLM API生成摘要
-// 这是一个简化实现，实际应该通过provider调用LLM服务
+// 使用HTTP客户端通过wrapper.HttpClient调用LLM服务
 func (g *llmSummaryGenerator) callLLMForSummary(ctx wrapper.HttpContext, requestBody []byte) (string, error) {
-	// 注意：在WASM环境中，直接调用LLM API比较复杂
-	// 这里提供一个框架，实际实现需要：
-	// 1. 通过HTTP客户端调用LLM API
-	// 2. 或者通过provider的内部方法调用
+	if g.httpClient == nil {
+		return "", fmt.Errorf("HTTP client not initialized")
+	}
 
-	// 方案1：如果provider支持内部调用，可以直接使用
-	// 方案2：通过HTTP请求调用LLM服务（需要HTTP客户端支持）
+	// 确定请求URL路径
+	// 如果配置了完整URL，提取路径部分；否则使用默认路径
+	requestPath := "/v1/chat/completions"
+	if g.config.LLMServiceUrl != "" {
+		parsedURL, err := url.Parse(g.config.LLMServiceUrl)
+		if err == nil && parsedURL.Path != "" {
+			requestPath = parsedURL.Path
+			if parsedURL.RawQuery != "" {
+				requestPath += "?" + parsedURL.RawQuery
+			}
+		}
+	}
 
-	// 这里先返回一个占位实现，实际使用时需要根据环境实现
-	log.Warnf("[LLMSummaryGenerator] LLM summary generation not fully implemented, using fallback")
+	// 构建请求头部
+	headers := [][2]string{
+		{"Content-Type", "application/json"},
+	}
 
-	// 降级：使用简单摘要作为占位
-	// 实际实现时，应该调用真实的LLM API
-	return generateSummary(string(requestBody)), fmt.Errorf("LLM summary generation not implemented yet")
+	// 添加认证头部（使用当前provider的API Token）
+	apiToken := g.providerConfig.GetApiTokenInUse(ctx)
+	if apiToken != "" {
+		headers = append(headers, [2]string{"Authorization", "Bearer " + apiToken})
+	}
+
+	// 设置超时时间
+	timeout := uint32(g.config.LLMTimeout)
+	if timeout == 0 {
+		timeout = 5000 // 默认5秒
+	}
+
+	log.Debugf("[callLLMForSummary] calling LLM API: %s, timeout: %dms", requestPath, timeout)
+
+	// 使用channel等待异步响应
+	resultChan := make(chan string, 1)
+	errChan := make(chan error, 1)
+
+	// 发起异步HTTP调用
+	err := g.httpClient.Post(requestPath, headers, requestBody, func(statusCode int, respHeaders http.Header, respBody []byte) {
+		if statusCode == http.StatusOK {
+			// 解析响应获取摘要
+			summary, parseErr := extractSummaryFromResponse(respBody)
+			if parseErr != nil {
+				errChan <- fmt.Errorf("failed to parse LLM response: %v", parseErr)
+				return
+			}
+			resultChan <- summary
+		} else {
+			// LLM API返回错误
+			errMsg := string(respBody)
+			if len(errMsg) > 200 {
+				errMsg = errMsg[:200] + "..."
+			}
+			errChan <- fmt.Errorf("LLM API returned status %d: %s", statusCode, errMsg)
+		}
+	}, timeout)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to dispatch HTTP call to LLM: %v", err)
+	}
+
+	// 等待响应或超时
+	select {
+	case summary := <-resultChan:
+		log.Infof("[callLLMForSummary] successfully generated LLM summary, length: %d", len(summary))
+		return summary, nil
+	case err := <-errChan:
+		log.Errorf("[callLLMForSummary] LLM API error: %v", err)
+		return "", err
+	case <-time.After(time.Duration(timeout) * time.Millisecond):
+		log.Errorf("[callLLMForSummary] timeout waiting for LLM response after %dms", timeout)
+		return "", fmt.Errorf("timeout waiting for LLM response")
+	}
 }
 
 // simpleSummaryGenerator 简单摘要生成器实现（默认）
