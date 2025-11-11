@@ -37,3 +37,7 @@ func ExtractMessageFromStreamingBody(data []byte, jsonPath string) string {
 	}
 	return strings.Join(strChunks, "")
 }
+
+func GetConsumer(ctx wrapper.HttpContext) string {
+	return ctx.GetStringContext("x-mse-consumer", "")
+}

@@ -187,6 +187,7 @@ func GenerateRequestForText(config cfg.AISecurityConfig, checkAction, checkServi
 	str := formDataToString(body)
 	req.body = []byte(*str)
 	req.headers["content-type"] = "application/x-www-form-urlencoded"
+	req.headers["User-Agent"] = cfg.AliyunUserAgent
 
 	getAuthorization(req, config.AK, config.SK, config.Token)
 
@@ -219,6 +220,7 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 		serviceParameters["imageUrls"] = []string{imgUrl}
 	}
 	serviceParametersJSON, _ := json.Marshal(serviceParameters)
+	serviceParameters["requestFrom"] = cfg.AliyunUserAgent
 	body["ServiceParameters"] = serviceParametersJSON
 	if imgBase64 != "" {
 		body["ImageBase64Str"] = imgBase64
@@ -226,6 +228,7 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 	str := formDataToString(body)
 	req.body = []byte(*str)
 	req.headers["content-type"] = "application/x-www-form-urlencoded"
+	req.headers["User-Agent"] = cfg.AliyunUserAgent
 
 	getAuthorization(req, config.AK, config.SK, config.Token)
 
