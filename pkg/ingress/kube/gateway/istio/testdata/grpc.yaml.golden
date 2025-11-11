@@ -44,7 +44,7 @@ spec:
           exact: some-value
       uri:
         prefix: /foo/
-    name: grpc/default/grpc
+    name: GRPC/default/grpc
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -53,7 +53,7 @@ spec:
   - match:
     - uri:
         regex: /[^/]+/bar
-    name: grpc/default/grpc
+    name: GRPC/default/grpc
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -87,7 +87,7 @@ spec:
           exact: some-value
       uri:
         prefix: /foo/
-    name: grpc/default/grpc
+    name: GRPC/default/grpc
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -96,7 +96,7 @@ spec:
   - match:
     - uri:
         regex: /[^/]+/bar
-    name: grpc/default/grpc
+    name: GRPC/default/grpc
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
