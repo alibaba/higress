@@ -122,6 +122,18 @@ message MatchRule {
   google.protobuf.Struct config = 3;
   google.protobuf.BoolValue config_disable = 4;
   repeated string service = 5;
+  // Route type for this match rule, defaults to HTTP
+  RouteType route_type = 6;
+}
+
+// Route type for matching rules.
+// Extended by Higress
+enum RouteType {
+  // HTTP route (default)
+  HTTP = 0;
+  
+  // GRPC route
+  GRPC = 1;
 }
 
 // The phase in the filter chain where the plugin will be injected.

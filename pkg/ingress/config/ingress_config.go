@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -1053,7 +1054,17 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 			validRule := false
 			var matchItems []*_struct.Value
 			// match ingress
+			// if route type is not http, we should re-generate the route name for ingress matching
+			// this is because the route name
+			needAppendRuleType := false
+			if rule.GetRouteType() != higressext.RouteType_HTTP {
+				needAppendRuleType = true
+			}
+
 			for _, ing := range rule.Ingress {
+				if needAppendRuleType {
+					ing = path.Join(rule.GetRouteType().String())
+				}
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
 						StringValue: ing,
