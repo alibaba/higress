@@ -656,6 +656,17 @@ func (c *ProviderConfig) Validate() error {
 			return fmt.Errorf("failed to initialize memory service: %v", err)
 		}
 		c.memoryService = memoryService
+		
+		// 如果配置了LLM摘要，设置摘要生成器
+		if c.contextCompression.SummaryConfig != nil && c.contextCompression.SummaryConfig.Method == "llm" {
+			llmGenerator := NewLLMSummaryGenerator(c, c.contextCompression.SummaryConfig)
+			memoryService.SetSummaryGenerator(llmGenerator)
+			log.Infof("initialized LLM summary generator with model: %s", c.contextCompression.SummaryConfig.LLMModel)
+		} else if c.contextCompression.SummaryConfig == nil || c.contextCompression.SummaryConfig.Method == "simple" {
+			// 使用简单摘要生成器（默认）
+			simpleGenerator := NewSimpleSummaryGenerator()
+			memoryService.SetSummaryGenerator(simpleGenerator)
+		}
 	}
 
 	return nil

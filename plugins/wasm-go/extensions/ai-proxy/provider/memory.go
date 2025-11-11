@@ -42,6 +42,28 @@ type ContextCompressionConfig struct {
 	// @Title zh-CN 内存条目TTL
 	// @Description zh-CN 内存条目的过期时间（秒），默认3600秒（1小时）
 	MemoryTTL int `yaml:"memoryTTL" json:"memoryTTL"`
+	// @Title zh-CN 摘要生成配置
+	// @Description zh-CN 摘要生成方式配置，支持simple（简单提取）和llm（LLM智能摘要）
+	SummaryConfig *SummaryConfig `yaml:"summaryConfig" json:"summaryConfig"`
+}
+
+// SummaryConfig 摘要生成配置
+type SummaryConfig struct {
+	// @Title zh-CN 摘要生成方式
+	// @Description zh-CN 摘要生成方式：simple（简单文本提取，默认）或llm（使用LLM模型生成智能摘要）
+	Method string `yaml:"method" json:"method"` // "simple" or "llm"
+	// @Title zh-CN LLM摘要模型
+	// @Description zh-CN 用于生成摘要的LLM模型名称（当method为llm时使用）
+	LLMModel string `yaml:"llmModel" json:"llmModel"`
+	// @Title zh-CN LLM摘要提供商标识
+	// @Description zh-CN 用于生成摘要的LLM提供商标识（当method为llm时使用，可选，默认使用当前provider）
+	LLMProviderId string `yaml:"llmProviderId" json:"llmProviderId"`
+	// @Title zh-CN 摘要最大长度
+	// @Description zh-CN 摘要的最大长度（字符数），默认500
+	MaxLength int `yaml:"maxLength" json:"maxLength"`
+	// @Title zh-CN 摘要提示词
+	// @Description zh-CN 用于LLM生成摘要的提示词模板（当method为llm时使用）
+	PromptTemplate string `yaml:"promptTemplate" json:"promptTemplate"`
 }
 
 // RedisConfig Redis配置
@@ -66,6 +88,16 @@ type RedisConfig struct {
 	Database int `yaml:"database" json:"database"`
 }
 
+// SummaryGenerator 摘要生成器接口
+// 用于支持不同的摘要生成方式（简单提取或LLM生成）
+type SummaryGenerator interface {
+	// GenerateSummary 生成内容摘要
+	// ctx: HTTP上下文
+	// content: 需要生成摘要的内容
+	// 返回: 生成的摘要
+	GenerateSummary(ctx wrapper.HttpContext, content string) (string, error)
+}
+
 // MemoryService 内存管理服务接口
 type MemoryService interface {
 	// SaveContext 保存上下文并返回唯一ID
@@ -76,13 +108,16 @@ type MemoryService interface {
 	ReadContextSummary(ctx wrapper.HttpContext, contextId string) (string, error)
 	// IsEnabled 检查服务是否启用
 	IsEnabled() bool
+	// SetSummaryGenerator 设置摘要生成器（可选，用于LLM摘要）
+	SetSummaryGenerator(generator SummaryGenerator)
 }
 
 // redisMemoryService Redis实现的内存管理服务
 type redisMemoryService struct {
-	config      *ContextCompressionConfig
-	redisClient wrapper.RedisClient
-	keyPrefix   string
+	config           *ContextCompressionConfig
+	redisClient      wrapper.RedisClient
+	keyPrefix        string
+	summaryGenerator SummaryGenerator // 摘要生成器（可选，用于LLM摘要）
 }
 
 // NewMemoryService 创建内存管理服务
@@ -152,8 +187,23 @@ func (s *redisMemoryService) SaveContext(ctx wrapper.HttpContext, content string
 	key := s.keyPrefix + contextId
 	summaryKey := DefaultMemorySummaryPrefix + contextId
 
-	// 生成摘要
-	summary := generateSummary(content)
+	// 生成摘要：优先使用LLM摘要生成器，否则使用简单摘要
+	var summary string
+	if s.summaryGenerator != nil {
+		// 使用LLM生成智能摘要
+		llmSummary, err := s.summaryGenerator.GenerateSummary(ctx, content)
+		if err != nil {
+			log.Warnf("failed to generate LLM summary, falling back to simple summary: %v", err)
+			// 降级到简单摘要
+			summary = generateSummary(content)
+		} else {
+			summary = llmSummary
+			log.Infof("generated LLM summary for context %s, length: %d", contextId, len(summary))
+		}
+	} else {
+		// 使用简单摘要
+		summary = generateSummary(content)
+	}
 
 	// 保存完整内容到Redis
 	err = s.redisClient.Set(key, content, nil)
@@ -184,6 +234,11 @@ func (s *redisMemoryService) SaveContext(ctx wrapper.HttpContext, content string
 
 	log.Infof("saved context %s to redis, content length: %d, summary length: %d", contextId, len(content), len(summary))
 	return contextId, nil
+}
+
+// SetSummaryGenerator 设置摘要生成器
+func (s *redisMemoryService) SetSummaryGenerator(generator SummaryGenerator) {
+	s.summaryGenerator = generator
 }
 
 // ReadContext 从Redis读取上下文
@@ -295,6 +350,10 @@ func (s *disabledMemoryService) ReadContextSummary(ctx wrapper.HttpContext, cont
 	return "", errors.New("memory service is not enabled")
 }
 
+func (s *disabledMemoryService) SetSummaryGenerator(generator SummaryGenerator) {
+	// 禁用状态，不设置生成器
+}
+
 // ToolContext 工具上下文信息
 type ToolContext struct {
 	ContextId string     `json:"context_id"`
@@ -337,6 +396,27 @@ func ParseContextCompressionConfig(json gjson.Result) *ContextCompressionConfig 
 
 	config.CompressionBytesThreshold = int(json.Get("compressionBytesThreshold").Int())
 	config.MemoryTTL = int(json.Get("memoryTTL").Int())
+
+	// 解析摘要配置
+	summaryJson := json.Get("summaryConfig")
+	if summaryJson.Exists() {
+		config.SummaryConfig = &SummaryConfig{
+			Method:         summaryJson.Get("method").String(),
+			LLMModel:       summaryJson.Get("llmModel").String(),
+			LLMProviderId:  summaryJson.Get("llmProviderId").String(),
+			MaxLength:      int(summaryJson.Get("maxLength").Int()),
+			PromptTemplate: summaryJson.Get("promptTemplate").String(),
+		}
+
+		// 设置默认值
+		if config.SummaryConfig.Method == "" {
+			config.SummaryConfig.Method = "simple"
+		}
+		if config.SummaryConfig.MaxLength == 0 {
+			config.SummaryConfig.MaxLength = DefaultSummaryMaxLength
+		}
+		// PromptTemplate如果为空，会在NewLLMSummaryGenerator中设置默认值
+	}
 
 	return config
 }
