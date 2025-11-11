@@ -63,6 +63,20 @@ const (
 	DefaultTextModerationPlusTextOutputCheckService = "llm_response_moderation"
 )
 
+// api types
+
+const (
+	ApiTextGeneration  = "text_generation"
+	ApiImageGeneration = "image_generation"
+)
+
+// provider types
+const (
+	ProviderOpenAI  = "openai"
+	ProviderQwen    = "qwen"
+	ProviderComfyUI = "comfyui"
+)
+
 type Response struct {
 	Code      int    `json:"Code"`
 	Message   string `json:"Message"`
@@ -146,6 +160,10 @@ type AISecurityConfig struct {
 	ConsumerRequestCheckService   []map[string]interface{}
 	ConsumerResponseCheckService  []map[string]interface{}
 	ConsumerRiskLevel             []map[string]interface{}
+	// text_generation, image_generation, etc.
+	ApiType string
+	// openai, qwen, comfyui, etc.
+	ProviderType string
 }
 
 func (config *AISecurityConfig) Parse(json gjson.Result) error {
@@ -304,6 +322,12 @@ func (config *AISecurityConfig) Parse(json gjson.Result) error {
 			config.ConsumerRiskLevel = append(config.ConsumerRiskLevel, m)
 		}
 	}
+	if obj := json.Get("apiType"); obj.Exists() {
+		config.ApiType = obj.String()
+	}
+	if obj := json.Get("providerType"); obj.Exists() {
+		config.ProviderType = obj.String()
+	}
 	config.Client = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: serviceName,
 		Port: servicePort,
@@ -311,7 +335,6 @@ func (config *AISecurityConfig) Parse(json gjson.Result) error {
 	})
 	config.Metrics = make(map[string]proxywasm.MetricCounter)
 	return nil
-
 }
 
 func (config *AISecurityConfig) SetDefaultValues() {
@@ -336,6 +359,8 @@ func (config *AISecurityConfig) SetDefaultValues() {
 	config.MaliciousUrlLevelBar = MaxRisk
 	config.Timeout = DefaultTimeout
 	config.BufferLimit = 1000
+	config.ApiType = ApiTextGeneration
+	config.ProviderType = ProviderOpenAI
 }
 
 func (config *AISecurityConfig) IncrementCounter(metricName string, inc uint64) {

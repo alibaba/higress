@@ -14,38 +14,68 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type ImageItemForOpenAI struct {
-	Content string
-	Type    string // URL or BASE64
-}
-
-func getOpenAIImageResults(body []byte) []ImageItemForOpenAI {
+func getQwenImageUrls(body []byte) []string {
 	// qwen api: https://bailian.console.aliyun.com/?tab=api#/api/?type=model&url=2975126
-	result := []ImageItemForOpenAI{}
-	for _, part := range gjson.GetBytes(body, "data").Array() {
+	result := []string{}
+	// 文生图/文生图v1/文生图v2/通用图像编辑2.5/通用图像编辑2.1/涂鸦作画/图像局部重绘/人像风格重绘
+	// 虚拟模特/图像背景生成/人物写真FaceChain/文生图StableDiffusion/文生图FLUX/文字纹理生成API
+	for _, part := range gjson.GetBytes(body, "output.results").Array() {
 		if url := part.Get("url").String(); url != "" {
-			result = append(result, ImageItemForOpenAI{
-				Content: url,
-				Type:    "URL",
-			})
+			result = append(result, url)
 		}
-		if b64 := part.Get("b64_json").String(); b64 != "" {
-			result = append(result, ImageItemForOpenAI{
-				Content: b64,
-				Type:    "BASE64",
-			})
+	}
+	// 图像编辑
+	for _, part := range gjson.GetBytes(body, "output.choices.0.message.content").Array() {
+		if url := part.Get("image").String(); url != "" {
+			result = append(result, url)
+		}
+	}
+	// 图像翻译/AI试衣OutfitAnyone
+	if url := gjson.GetBytes(body, "output.image_url").String(); url != "" {
+		result = append(result, url)
+	}
+	// 图像画面扩展/(part of)人物实例分割/图像擦除补全
+	if url := gjson.GetBytes(body, "output.output_image_url").String(); url != "" {
+		result = append(result, url)
+	}
+	// 鞋靴模特
+	if url := gjson.GetBytes(body, "output.result_url").String(); url != "" {
+		result = append(result, url)
+	}
+	// 创意海报生成
+	for _, part := range gjson.GetBytes(body, "output.render_urls").Array() {
+		if url := part.String(); url != "" {
+			result = append(result, url)
+		}
+	}
+	for _, part := range gjson.GetBytes(body, "output.bg_urls").Array() {
+		if url := part.String(); url != "" {
+			result = append(result, url)
+		}
+	}
+	// 人物实例分割
+	if url := gjson.GetBytes(body, "output.output_vis_image_url").String(); url != "" {
+		result = append(result, url)
+	}
+	// 文字变形API
+	for _, part := range gjson.GetBytes(body, "output.results").Array() {
+		if url := part.Get("png_url").String(); url != "" {
+			result = append(result, url)
+		}
+		if url := part.Get("svg_url").String(); url != "" {
+			result = append(result, url)
 		}
 	}
 	return result
 }
 
-func HandleOpenAIImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+func HandleQwenImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	consumer, _ := ctx.GetContext("consumer").(string)
 	log.Debugf("checking response body...")
 	checkImageService := config.GetResponseImageCheckService(consumer)
 	startTime := time.Now().UnixMilli()
-	imgResults := getOpenAIImageResults(body)
-	if len(imgResults) == 0 {
+	imgUrls := getQwenImageUrls(body)
+	if len(imgUrls) == 0 {
 		return types.ActionContinue
 	}
 	imageIndex := 0
@@ -54,7 +84,7 @@ func HandleOpenAIImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg
 		imageIndex += 1
 		log.Info(string(responseBody))
 		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
-			if imageIndex < len(imgResults) {
+			if imageIndex < len(imgUrls) {
 				singleCall()
 			} else {
 				proxywasm.ResumeHttpResponse()
@@ -65,7 +95,7 @@ func HandleOpenAIImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg
 		err := json.Unmarshal(responseBody, &response)
 		if err != nil {
 			log.Errorf("%+v", err)
-			if imageIndex < len(imgResults) {
+			if imageIndex < len(imgUrls) {
 				singleCall()
 			} else {
 				proxywasm.ResumeHttpResponse()
@@ -74,7 +104,7 @@ func HandleOpenAIImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg
 		}
 		endTime := time.Now().UnixMilli()
 		if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
-			if imageIndex >= len(imgResults) {
+			if imageIndex >= len(imgUrls) {
 				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
 				ctx.SetUserAttribute("safecheck_status", "request pass")
 				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
@@ -91,15 +121,8 @@ func HandleOpenAIImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg
 		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	}
 	singleCall = func() {
-		img := imgResults[imageIndex]
-		imgUrl := ""
-		imgBase64 := ""
-		if img.Type == "BASE64" {
-			imgBase64 = img.Content
-		} else {
-			imgUrl = img.Content
-		}
-		path, headers, body := common.GenerateRequestForImage(config, cfg.MultiModalGuardForBase64, checkImageService, imgUrl, imgBase64)
+		imgUrl := imgUrls[imageIndex]
+		path, headers, body := common.GenerateRequestForImage(config, cfg.MultiModalGuardForBase64, checkImageService, imgUrl, "")
 		err := config.Client.Post(path, headers, body, callback, config.Timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)

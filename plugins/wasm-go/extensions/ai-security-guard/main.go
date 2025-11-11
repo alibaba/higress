@@ -2,9 +2,8 @@ package main
 
 import (
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
-	common_text "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/common/text"
-	multi_modal_guard_text "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/multi_modal_guard/text"
-	text_moderation_plus_text "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/text_moderation_plus/text"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/multi_modal_guard"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/lvwang/text_moderation_plus"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -32,7 +31,7 @@ func parseConfig(json gjson.Result, config *cfg.AISecurityConfig) error {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {
 	consumer, _ := proxywasm.GetHttpRequestHeader("x-mse-consumer")
-	ctx.SetContext("consumer", consumer)
+	ctx.SetContext("x-mse-consumer", consumer)
 	ctx.DisableReroute()
 	if !config.CheckRequest {
 		log.Debugf("request checking is disabled")
@@ -45,9 +44,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, bod
 	log.Debugf("checking request body...")
 	switch config.Action {
 	case cfg.MultiModalGuard:
-		return multi_modal_guard_text.HandleTextGenerationRequestBody(ctx, config, body)
+		return multi_modal_guard.OnHttpRequestBody(ctx, config, body)
 	case cfg.TextModerationPlus:
-		return text_moderation_plus_text.HandleTextGenerationRequestBody(ctx, config, body)
+		return text_moderation_plus.OnHttpRequestBody(ctx, config, body)
 	default:
 		log.Warnf("Unknown action %s", config.Action)
 		return types.ActionContinue
@@ -67,8 +66,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig)
 		return types.ActionContinue
 	}
 	switch config.Action {
-	case cfg.MultiModalGuard, cfg.TextModerationPlus:
-		return common_text.HandleTextGenerationResponseHeader(ctx, config)
+	case cfg.MultiModalGuard:
+		return multi_modal_guard.OnHttpResponseHeaders(ctx, config)
+	case cfg.TextModerationPlus:
+		return text_moderation_plus.OnHttpResponseHeaders(ctx, config)
 	default:
 		log.Warnf("Unknown action %s", config.Action)
 		return types.ActionContinue
@@ -78,8 +79,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig)
 func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, data []byte, endOfStream bool) []byte {
 	log.Debugf("checking streaming response body...")
 	switch config.Action {
-	case cfg.MultiModalGuard, cfg.TextModerationPlus:
-		return common_text.HandleTextGenerationStreamingResponseBody(ctx, config, data, endOfStream)
+	case cfg.MultiModalGuard:
+		return multi_modal_guard.OnHttpStreamingResponseBody(ctx, config, data, endOfStream)
+	case cfg.TextModerationPlus:
+		return text_moderation_plus.OnHttpStreamingResponseBody(ctx, config, data, endOfStream)
 	default:
 		log.Warnf("Unknown action %s", config.Action)
 		return data
@@ -89,8 +92,10 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityC
 func onHttpResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	log.Debugf("checking response body...")
 	switch config.Action {
-	case cfg.MultiModalGuard, cfg.TextModerationPlus:
-		return common_text.HandleTextGenerationResponseBody(ctx, config, body)
+	case cfg.MultiModalGuard:
+		return multi_modal_guard.OnHttpResponseBody(ctx, config, body)
+	case cfg.TextModerationPlus:
+		return text_moderation_plus.OnHttpResponseBody(ctx, config, body)
 	default:
 		log.Warnf("Unknown action %s", config.Action)
 		return types.ActionContinue
