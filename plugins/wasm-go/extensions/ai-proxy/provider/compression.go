@@ -66,9 +66,16 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		contentSize := len(contentStr)
 
 		// Check if compression should be applied
+		// 使用更准确的基于内容的判断（支持token计算）
 		if redisService, ok := c.memoryService.(*redisMemoryService); ok {
-			if !redisService.ShouldCompress(contentSize) {
-				log.Debugf("[CompressContext] skipping message %d, size %d below threshold", i, contentSize)
+			shouldCompress := redisService.ShouldCompressByContent(contentStr)
+			if !shouldCompress {
+				if redisService.config.UseTokenBasedCompression {
+					tokenCount := calculateTokensDeepSeekFromString(contentStr)
+					log.Debugf("[CompressContext] skipping message %d, token count %d below threshold", i, tokenCount)
+				} else {
+					log.Debugf("[CompressContext] skipping message %d, size %d below threshold", i, contentSize)
+				}
 				newMessages = append(newMessages, msg)
 				continue
 			}

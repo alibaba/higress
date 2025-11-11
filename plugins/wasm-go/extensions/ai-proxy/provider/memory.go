@@ -39,6 +39,12 @@ type ContextCompressionConfig struct {
 	// @Title zh-CN 压缩字节阈值
 	// @Description zh-CN 只有当节省的字节数超过此阈值时才进行压缩，默认1000字节
 	CompressionBytesThreshold int `yaml:"compressionBytesThreshold" json:"compressionBytesThreshold"`
+	// @Title zh-CN 压缩Token阈值
+	// @Description zh-CN 使用token数判断是否压缩的阈值（基于DeepSeek标准），0表示使用字节阈值
+	CompressionTokenThreshold int `yaml:"compressionTokenThreshold" json:"compressionTokenThreshold"`
+	// @Title zh-CN 使用Token计算
+	// @Description zh-CN 是否使用token数而不是字节数来判断是否需要压缩，默认false（使用字节数）
+	UseTokenBasedCompression bool `yaml:"useTokenBasedCompression" json:"useTokenBasedCompression"`
 	// @Title zh-CN 内存条目TTL
 	// @Description zh-CN 内存条目的过期时间（秒），默认3600秒（1小时）
 	MemoryTTL int `yaml:"memoryTTL" json:"memoryTTL"`
@@ -142,6 +148,10 @@ func NewMemoryService(config *ContextCompressionConfig) (MemoryService, error) {
 	// 设置默认值
 	if config.CompressionBytesThreshold == 0 {
 		config.CompressionBytesThreshold = 1000
+	}
+	// 如果使用token计算但未设置token阈值，使用默认值（相当于1000字节的token数）
+	if config.UseTokenBasedCompression && config.CompressionTokenThreshold == 0 {
+		config.CompressionTokenThreshold = calculateTokensDeepSeek(1000) // 约300 tokens
 	}
 	if config.MemoryTTL == 0 {
 		config.MemoryTTL = DefaultMemoryTTL
@@ -372,8 +382,74 @@ type ToolContext struct {
 }
 
 // ShouldCompress 判断是否应该压缩
+// 支持基于字节数或token数的判断
 func (s *redisMemoryService) ShouldCompress(contentSize int) bool {
+	if s.config.UseTokenBasedCompression {
+		// 使用token数判断
+		tokenCount := calculateTokensDeepSeek(contentSize)
+		if s.config.CompressionTokenThreshold > 0 {
+			return tokenCount > s.config.CompressionTokenThreshold
+		}
+		// 如果没有设置token阈值，使用默认值（相当于1000字节的token数）
+		defaultTokenThreshold := calculateTokensDeepSeek(1000)
+		return tokenCount > defaultTokenThreshold
+	}
+	// 使用字节数判断（默认）
 	return contentSize > s.config.CompressionBytesThreshold
+}
+
+// ShouldCompressByContent 根据内容字符串判断是否应该压缩（更准确）
+func (s *redisMemoryService) ShouldCompressByContent(content string) bool {
+	if s.config.UseTokenBasedCompression {
+		// 使用token数判断（基于实际内容）
+		tokenCount := calculateTokensDeepSeekFromString(content)
+		if s.config.CompressionTokenThreshold > 0 {
+			return tokenCount > s.config.CompressionTokenThreshold
+		}
+		// 如果没有设置token阈值，使用默认值
+		defaultTokenThreshold := calculateTokensDeepSeek(1000)
+		return tokenCount > defaultTokenThreshold
+	}
+	// 使用字节数判断（默认）
+	return len(content) > s.config.CompressionBytesThreshold
+}
+
+// calculateTokensDeepSeek 根据字节数估算token数（DeepSeek标准）
+// 这是一个快速估算方法，用于ShouldCompress判断
+func calculateTokensDeepSeek(byteCount int) int {
+	// DeepSeek标准：1个中文字符≈0.6个token，1个英文字符≈0.3个token
+	// 假设平均每个字符占2字节（中英文混合），则：
+	// 平均每个字节约0.3个token（保守估计）
+	// 更准确的估算：假设50%中文50%英文，平均每个字符1.5字节，0.45个token
+	// 即每个字节约0.3个token
+	return int(float64(byteCount) * 0.3)
+}
+
+// calculateTokensDeepSeekFromString 根据字符串内容精确计算token数（DeepSeek标准）
+// 这是更准确的计算方法，基于实际字符类型
+func calculateTokensDeepSeekFromString(text string) int {
+	var tokenCount float64
+	for _, r := range text {
+		switch {
+		case r >= 0x4E00 && r <= 0x9FFF: // 中文字符范围（CJK统一汉字）
+			// 中文字符：1个字符 ≈ 0.6个token
+			tokenCount += 0.6
+		case (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z'): // 英文字母
+			// 英文字母：1个字符 ≈ 0.3个token
+			tokenCount += 0.3
+		case r >= '0' && r <= '9': // 数字
+			// 数字：1个字符 ≈ 0.3个token
+			tokenCount += 0.3
+		case r == ' ': // 空格
+			// 空格：1个字符 ≈ 0.1个token
+			tokenCount += 0.1
+		default:
+			// 其他字符（标点符号等）：1个字符 ≈ 0.2-0.3个token
+			// 保守估计使用0.3
+			tokenCount += 0.3
+		}
+	}
+	return int(tokenCount + 0.5) // 四舍五入
 }
 
 // ParseContextCompressionConfig 解析上下文压缩配置
@@ -404,6 +480,8 @@ func ParseContextCompressionConfig(json gjson.Result) *ContextCompressionConfig 
 	}
 
 	config.CompressionBytesThreshold = int(json.Get("compressionBytesThreshold").Int())
+	config.CompressionTokenThreshold = int(json.Get("compressionTokenThreshold").Int())
+	config.UseTokenBasedCompression = json.Get("useTokenBasedCompression").Bool()
 	config.MemoryTTL = int(json.Get("memoryTTL").Int())
 
 	// 解析摘要配置
