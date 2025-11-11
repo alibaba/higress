@@ -163,7 +163,7 @@ spec:
   hosts:
   - domain.example
   http:
-  - name: default.http.0
+  - name: default/http
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix

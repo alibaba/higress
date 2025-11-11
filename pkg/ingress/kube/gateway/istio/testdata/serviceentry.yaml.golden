@@ -32,7 +32,7 @@ spec:
   hosts:
   - '*.egress.com'
   http:
-  - name: default.egress.0
+  - name: default/egress
     route:
     - destination:
         host: google.com
@@ -54,7 +54,7 @@ spec:
   hosts:
   - google.com
   http:
-  - name: default.egress.0
+  - name: default/egress
     route:
     - destination:
         host: google.com
@@ -166,7 +166,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.http.0
+  - name: default/http
     route:
     - destination:
         host: google.com

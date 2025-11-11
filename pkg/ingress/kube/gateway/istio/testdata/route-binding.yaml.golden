@@ -314,7 +314,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -336,13 +336,13 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
         port:
           number: 85
-  - name: istio-system.same-namespace-valid.0
+  - name: istio-system/same-namespace-valid
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
@@ -364,7 +364,7 @@ spec:
   hosts:
   - alpha.foobar.example
   http:
-  - name: default.section-name-cross-namespace.0
+  - name: default/section-name-cross-namespace
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -386,13 +386,13 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
         port:
           number: 85
-  - name: group-namespace1.bind-cross-namespace.0
+  - name: group-namespace1/bind-cross-namespace
     route:
     - destination:
         host: httpbin.group-namespace1.svc.domain.suffix
@@ -414,13 +414,13 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
         port:
           number: 85
-  - name: group-namespace1.bind-cross-namespace.0
+  - name: group-namespace1/bind-cross-namespace
     route:
     - destination:
         host: httpbin.group-namespace1.svc.domain.suffix
@@ -442,13 +442,13 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
         port:
           number: 85
-  - name: group-namespace1.bind-cross-namespace.0
+  - name: group-namespace1/bind-cross-namespace
     route:
     - destination:
         host: httpbin.group-namespace1.svc.domain.suffix
@@ -470,13 +470,13 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.bind-all.0
+  - name: default/bind-all
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
         port:
           number: 85
-  - name: group-namespace1.bind-cross-namespace.0
+  - name: group-namespace1/bind-cross-namespace
     route:
     - destination:
         host: httpbin.group-namespace1.svc.domain.suffix

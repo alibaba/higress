@@ -35,7 +35,7 @@ spec:
   - match:
     - uri:
         prefix: /prefix-to-be-removed
-    name: default.rewrite.1
+    name: default/rewrite
     rewrite:
       uri: /
     route:
@@ -46,7 +46,7 @@ spec:
   - match:
     - uri:
         prefix: /prefix-original
-    name: route1
+    name: default/rewrite
     rewrite:
       authority: new.example.com
       uri: /replacement
@@ -58,7 +58,7 @@ spec:
   - match:
     - uri:
         prefix: /full-original
-    name: default.rewrite.2
+    name: default/rewrite
     rewrite:
       authority: new.example.com
       uriRegexRewrite:
@@ -82,13 +82,13 @@ spec:
           number: 80
       percentage:
         value: 80
-    name: default.mirror.0
+    name: default/mirror
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
         port:
           number: 80
-  - name: default.redirect.0
+  - name: default/redirect
     redirect:
       port: 8080
       redirectCode: 302
@@ -127,7 +127,7 @@ spec:
           exact: some-value
       uri:
         prefix: /get
-    name: default.http.0
+    name: default/http
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -163,7 +163,7 @@ spec:
       - POST
       allowOrigins:
       - exact: https://example.com
-    name: default.http-route-cors.0
+    name: default/http-route-cors
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -202,7 +202,7 @@ spec:
           exact: some-value
       uri:
         prefix: /get
-    name: default.http.0
+    name: default/http
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -230,7 +230,7 @@ spec:
           exact: some-value
       uri:
         prefix: /infpool
-    name: default.multiple-inferencepool-backend-refs.0
+    name: default/multiple-inferencepool-backend-refs
     route:
     - destination:
         host: infpool-gen-ip-6580eb2c.default.svc.domain.suffix
@@ -240,7 +240,7 @@ spec:
           exact: some-value-2
       uri:
         prefix: /infpool
-    name: default.multiple-inferencepool-backend-refs.1
+    name: default/multiple-inferencepool-backend-refs
     route:
     - destination:
         host: infpool-gen2-ip-97b729d1.default.svc.domain.suffix
@@ -263,7 +263,7 @@ spec:
   - match:
     - uri:
         prefix: /original
-    name: default.redirect-prefix-replace.0
+    name: default/redirect-prefix-replace
     redirect:
       port: 8080
       redirectCode: 302
@@ -288,7 +288,7 @@ spec:
   - match:
     - uri:
         prefix: /explicit
-    name: default.http-retry-request.0
+    name: default/http-retry-request
     retries:
       attempts: 3
       backoff: 0.003s
@@ -301,7 +301,7 @@ spec:
   - match:
     - uri:
         prefix: /disable
-    name: default.http-retry-request.2
+    name: default/http-retry-request
     retries: {}
     route:
     - destination:
@@ -311,7 +311,7 @@ spec:
   - match:
     - uri:
         prefix: /empty
-    name: default.http-retry-request.1
+    name: default/http-retry-request
     retries:
       attempts: 2
       retryOn: connect-failure,refused-stream,unavailable,cancelled
@@ -339,7 +339,7 @@ spec:
   - match:
     - uri:
         prefix: /second
-    name: default.http2.0
+    name: default/http2
     route:
     - destination:
         host: httpbin-second.default.svc.domain.suffix
@@ -348,7 +348,7 @@ spec:
   - match:
     - uri:
         prefix: /
-    name: default.http2.1
+    name: default/http2
     route:
     - destination:
         host: httpbin-wildcard.default.svc.domain.suffix
@@ -373,7 +373,7 @@ spec:
   - match:
     - uri:
         prefix: /get
-    name: default.http-timeout-backend-request.0
+    name: default/http-timeout-backend-request
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -399,7 +399,7 @@ spec:
   - match:
     - uri:
         prefix: /get
-    name: default.http-timeout-request.0
+    name: default/http-timeout-request
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix

@@ -35,7 +35,7 @@ spec:
   hosts:
   - cert1.domain.example
   http:
-  - name: cert.http.0
+  - name: cert/http
     route:
     - destination:
         host: httpbin.cert.svc.domain.suffix

@@ -32,7 +32,7 @@ spec:
   hosts:
   - simple.domain.example
   http:
-  - name: higress-system.http.0
+  - name: http
     route:
     - destination:
         host: my-svc.service.svc.domain.suffix
@@ -54,7 +54,7 @@ spec:
   hosts:
   - simple2.domain.example
   http:
-  - name: higress-system.backend-not-allowed.0
+  - name: backend-not-allowed
     route:
     - destination:
         host: my-svc.service.svc.domain.suffix

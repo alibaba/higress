@@ -92,7 +92,7 @@ spec:
   - match:
     - uri:
         prefix: /abc-foo-example-com
-    name: gateway-conformance-infra.attaches-to-abc-foo-example-com-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-abc-foo-example-com-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
@@ -117,7 +117,7 @@ spec:
   - match:
     - uri:
         prefix: /abc-foo-example-com
-    name: gateway-conformance-infra.attaches-to-abc-foo-example-com-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-abc-foo-example-com-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
@@ -142,7 +142,7 @@ spec:
   - match:
     - uri:
         prefix: /abc-foo-example-com
-    name: gateway-conformance-infra.attaches-to-abc-foo-example-com-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-abc-foo-example-com-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
@@ -167,7 +167,7 @@ spec:
   - match:
     - uri:
         prefix: /abc-foo-example-com
-    name: gateway-conformance-infra.attaches-to-abc-foo-example-com-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-abc-foo-example-com-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
@@ -192,7 +192,7 @@ spec:
   - match:
     - uri:
         prefix: /empty-hostname
-    name: gateway-conformance-infra.attaches-to-empty-hostname-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-empty-hostname-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
@@ -217,7 +217,7 @@ spec:
   - match:
     - uri:
         prefix: /wildcard-example-com
-    name: gateway-conformance-infra.attaches-to-wildcard-example-com-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-wildcard-example-com-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
@@ -242,7 +242,7 @@ spec:
   - match:
     - uri:
         prefix: /wildcard-foo-example-com
-    name: gateway-conformance-infra.attaches-to-wildcard-foo-example-com-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-wildcard-foo-example-com-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
@@ -267,7 +267,7 @@ spec:
   - match:
     - uri:
         prefix: /wildcard-foo-example-com
-    name: gateway-conformance-infra.attaches-to-wildcard-foo-example-com-with-hostname-intersection.0
+    name: gateway-conformance-infra/attaches-to-wildcard-foo-example-com-with-hostname-intersection
     route:
     - destination:
         host: infra-backend-v1.gateway-conformance-infra.svc.domain.suffix
