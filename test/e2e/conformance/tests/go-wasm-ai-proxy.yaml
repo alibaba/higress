@@ -438,6 +438,7 @@ spec:
             "gpt-3": gpt-35-turbo-16k
             "*": gpt-35-turbo-16k
           type: azure
+          azureServiceUrl: "https://YOUR_RESOURCE_NAME.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT_NAME/chat/completions?api-version=2024-02-15-preview"
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-azure
     - config:
