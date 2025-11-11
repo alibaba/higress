@@ -112,7 +112,7 @@ func convertHTTPRoute(ctx RouteContext, r k8s.HTTPRouteRule,
 	//	vs.Name = obj.Namespace + "." + obj.Name + "." + strconv.Itoa(pos) // format: %s.%s.%d
 	//}
 	// The best practice for Higress is to configure one HTTP route per route match.
-	vs.Name = generateRouteName(obj, "http")
+	vs.Name = generateRouteName(obj, "HTTP")
 	// End - Modified by Higress
 
 	for _, match := range r.Matches {
@@ -266,7 +266,7 @@ func convertGRPCRoute(ctx RouteContext, r k8s.GRPCRouteRule,
 	//	vs.Name = obj.Namespace + "." + obj.Name + "." + strconv.Itoa(pos) // format:%s.%s.%d
 	//}
 	// The best practice for Higress is to configure one HTTP route per route match.
-	vs.Name = generateRouteName(obj, "grpc")
+	vs.Name = generateRouteName(obj, "GRPC")
 	// End - Modified by Higress
 
 	for _, match := range r.Matches {
@@ -2554,7 +2554,7 @@ func generateRouteName(obj config.Namer, routeType string) string {
 	if obj.GetNamespace() != higressconfig.PodNamespace {
 		routeName = path.Join(obj.GetNamespace(), obj.GetName())
 	}
-	if routeType != "http" {
+	if routeType != "HTTP" {
 		routeName = path.Join(routeType, routeName)
 	}
 	return routeName
