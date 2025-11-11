@@ -603,8 +603,8 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            "gpt-3":gpt-oss:120b-cloud
-            "*": gpt-oss:120b-cloud
+            "gpt-3":gemma3
+            "*": gemma3
           type: ollama
       ingress:
         - higress-conformance-ai-backend/wasmplugin-ai-proxy-ollama
