@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -43,7 +45,8 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 	if len(needRetrievalIds) > 0 {
 		log.Infof("[CompressContext] found %d compressed context references, pre-retrieving...", len(needRetrievalIds))
 		if err := c.preRetrieveContexts(ctx, request, needRetrievalIds); err != nil {
-			log.Errorf("[CompressContext] pre-retrieval failed: %v", err)
+			log.Errorf("[CompressContext] pre-retrieval failed: %v, continuing with partial retrieval", err)
+			// Continue processing even if some contexts fail to retrieve (graceful degradation)
 		}
 	}
 
@@ -71,10 +74,12 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 			}
 		}
 
-		// Save context to Redis
+		// Save context to Redis with error handling and graceful degradation
 		contextId, err := c.memoryService.SaveContext(ctx, contentStr)
 		if err != nil {
-			log.Errorf("[CompressContext] failed to save context for message %d: %v", i, err)
+			log.Errorf("[CompressContext] failed to save context for message %d: %v, falling back to original content", i, err)
+			// Graceful degradation: if compression fails, keep original content
+			// This ensures the request can still proceed even if Redis is unavailable
 			newMessages = append(newMessages, msg)
 			continue
 		}
@@ -227,8 +232,50 @@ func (c *ProviderConfig) IsCompressionEnabled() bool {
 	return c.memoryService != nil && c.memoryService.IsEnabled()
 }
 
+// TransformResponseBody implements TransformResponseBodyHandler interface
+// This method processes response body and handles memory retrieval when read_memory calls are detected
+func (c *ProviderConfig) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	// Only process chat completion API responses
+	if apiName != ApiNameChatCompletion {
+		return body, nil
+	}
+
+	// Check if compression is enabled
+	if !c.IsCompressionEnabled() {
+		return body, nil
+	}
+
+	// Get original request body from context
+	originalRequestBody, ok := ctx.GetContext(CtxRequestBody).([]byte)
+	if !ok {
+		// If original request body is not available, try to get from context
+		originalRequestBody = body
+	}
+
+	// Process response for memory retrieval
+	needRetrieval, err := c.ProcessResponseForMemoryRetrieval(ctx, body, originalRequestBody)
+	if err != nil {
+		log.Errorf("[TransformResponseBody] failed to process memory retrieval: %v", err)
+		// Return original body on error (graceful degradation)
+		return body, nil
+	}
+
+	if needRetrieval {
+		// If memory retrieval was processed, return modified response
+		// The response now includes tool responses in the message content
+		modifiedBody, err := c.buildResponseWithToolResults(ctx, body)
+		if err != nil {
+			log.Errorf("[TransformResponseBody] failed to build response with tool results: %v", err)
+			return body, nil
+		}
+		return modifiedBody, nil
+	}
+
+	return body, nil
+}
+
 // ProcessResponseForMemoryRetrieval processes responses that require automatic memory retrieval
-// Production-grade implementation: triggers async re-request when read_memory call is detected
+// Production-grade implementation: automatically injects tool responses into the response
 func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 	ctx wrapper.HttpContext,
 	body []byte,
@@ -261,64 +308,304 @@ func (c *ProviderConfig) ProcessResponseForMemoryRetrieval(
 
 	log.Infof("[ProcessResponseForMemoryRetrieval] detected %d read_memory calls, initiating auto-retrieval", len(memoryToolCalls))
 
-	// Store assistant's tool call message
-	assistantMsg := chatMessage{
-		Role:      roleAssistant,
-		ToolCalls: response.Choices[0].Message.ToolCalls,
-	}
-	if response.Choices[0].Message.Content != "" {
-		assistantMsg.Content = response.Choices[0].Message.Content
-	}
-
-	// Batch retrieve contexts
-	toolResponses := make([]chatMessage, 0, len(memoryToolCalls))
-	for _, toolCall := range memoryToolCalls {
-		args := gjson.Parse(toolCall.Function.Arguments)
-		contextId := args.Get("context_id").String()
-		if contextId == "" {
-			log.Warnf("[ProcessResponseForMemoryRetrieval] empty context_id in tool call %s", toolCall.Id)
-			continue
-		}
-
-		// Read context from Redis
-		content, err := c.memoryService.ReadContext(ctx, contextId)
-		if err != nil {
-			log.Errorf("[ProcessResponseForMemoryRetrieval] failed to retrieve context %s: %v", contextId, err)
-			content = fmt.Sprintf("Error: Failed to retrieve context %s", contextId)
-		}
-
-		// Build tool response message
-		toolMsg := chatMessage{
-			Role:    "tool",
-			Content: content,
-			Id:      toolCall.Id, // Use Id field to associate with tool call
-		}
-		toolResponses = append(toolResponses, toolMsg)
-		log.Infof("[ProcessResponseForMemoryRetrieval] retrieved context %s, length: %d", contextId, len(content))
-	}
-
-	// Build new request
-	request := &chatCompletionRequest{}
-	if err := json.Unmarshal(originalRequestBody, request); err != nil {
-		return false, fmt.Errorf("failed to unmarshal original request: %v", err)
-	}
-
-	// Add assistant message and tool responses
-	request.Messages = append(request.Messages, assistantMsg)
-	request.Messages = append(request.Messages, toolResponses...)
-
-	// Serialize new request
-	newRequestBody, err := json.Marshal(request)
+	// Batch retrieve context summaries concurrently (使用摘要而非完整内容)
+	toolResponses, err := c.batchRetrieveContextSummariesConcurrent(ctx, memoryToolCalls)
 	if err != nil {
-		return false, fmt.Errorf("failed to marshal new request: %v", err)
+		log.Errorf("[ProcessResponseForMemoryRetrieval] failed to retrieve context summaries: %v", err)
+		// Continue with partial results
 	}
 
-	// Store new request body for re-request use
-	ctx.SetContext(ctxKeyReRequestBody, newRequestBody)
-	ctx.SetContext(ctxKeyNeedAutoRetrieve, true)
+	// Store tool responses in context for response building
+	ctx.SetContext(ctxKeyOriginalToolCalls, memoryToolCalls)
+	ctx.SetContext("tool_responses", toolResponses)
 
-	log.Infof("[ProcessResponseForMemoryRetrieval] prepared re-request with %d tool responses", len(toolResponses))
+	log.Infof("[ProcessResponseForMemoryRetrieval] retrieved %d context summaries successfully", len(toolResponses))
 	return true, nil
+}
+
+// buildResponseWithToolResults builds a response that includes tool results summaries
+// This allows the LLM to continue processing with the retrieved context summaries
+func (c *ProviderConfig) buildResponseWithToolResults(ctx wrapper.HttpContext, originalBody []byte) ([]byte, error) {
+	response := &chatCompletionResponse{}
+	if err := json.Unmarshal(originalBody, response); err != nil {
+		return originalBody, fmt.Errorf("failed to unmarshal response: %v", err)
+	}
+
+	// Get tool responses (summaries) from context
+	toolResponses, ok := ctx.GetContext("tool_responses").([]chatMessage)
+	if !ok || len(toolResponses) == 0 {
+		return originalBody, nil
+	}
+
+	// Build summary text from all tool responses
+	var summaryBuilder strings.Builder
+	summaryBuilder.WriteString(fmt.Sprintf("\n\n[已检索 %d 个上下文摘要]:\n", len(toolResponses)))
+
+	for i, toolResp := range toolResponses {
+		if i > 0 {
+			summaryBuilder.WriteString("\n---\n")
+		}
+		summaryBuilder.WriteString(fmt.Sprintf("上下文 %d (ID: %s):\n", i+1, toolResp.Id))
+		contentStr := toolResp.StringContent()
+		if len(contentStr) > 0 {
+			summaryBuilder.WriteString(contentStr)
+		} else {
+			summaryBuilder.WriteString("(摘要为空)")
+		}
+	}
+
+	// Append summaries to assistant's message content
+	if len(response.Choices) > 0 && response.Choices[0].Message != nil {
+		summaryText := summaryBuilder.String()
+		currentContent := ""
+		if response.Choices[0].Message.Content != nil {
+			if str, ok := response.Choices[0].Message.Content.(string); ok {
+				currentContent = str
+			}
+		}
+		if currentContent != "" {
+			response.Choices[0].Message.Content = currentContent + summaryText
+		} else {
+			response.Choices[0].Message.Content = summaryText
+		}
+		log.Infof("[buildResponseWithToolResults] appended %d context summaries to response", len(toolResponses))
+	}
+
+	// Serialize modified response
+	modifiedBody, err := json.Marshal(response)
+	if err != nil {
+		return originalBody, fmt.Errorf("failed to marshal modified response: %v", err)
+	}
+
+	return modifiedBody, nil
+}
+
+// batchRetrieveContextsConcurrent retrieves multiple contexts concurrently with timeout control
+func (c *ProviderConfig) batchRetrieveContextsConcurrent(ctx wrapper.HttpContext, toolCalls []toolCall) ([]chatMessage, error) {
+	if len(toolCalls) == 0 {
+		return nil, nil
+	}
+
+	// Use a channel to collect results
+	type result struct {
+		toolCall toolCall
+		content  string
+		err      error
+	}
+
+	resultChan := make(chan result, len(toolCalls))
+	var wg sync.WaitGroup
+
+	// Concurrent retrieval with timeout
+	timeout := 5 * time.Second
+	done := make(chan struct{})
+
+	// Start retrieval goroutines
+	for i := range toolCalls {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			tc := toolCalls[idx]
+			args := gjson.Parse(tc.Function.Arguments)
+			contextId := args.Get("context_id").String()
+			if contextId == "" {
+				resultChan <- result{
+					toolCall: tc,
+					content:  "",
+					err:      fmt.Errorf("empty context_id in tool call %s", tc.Id),
+				}
+				return
+			}
+
+			// Read context from Redis with timeout protection
+			contentChan := make(chan string, 1)
+			errChan := make(chan error, 1)
+
+			go func() {
+				content, err := c.memoryService.ReadContext(ctx, contextId)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				contentChan <- content
+			}()
+
+			select {
+			case content := <-contentChan:
+				resultChan <- result{
+					toolCall: tc,
+					content:  content,
+					err:      nil,
+				}
+			case err := <-errChan:
+				log.Errorf("[batchRetrieveContextsConcurrent] failed to retrieve context %s: %v", contextId, err)
+				resultChan <- result{
+					toolCall: tc,
+					content:  fmt.Sprintf("Error: Failed to retrieve context %s", contextId),
+					err:      err,
+				}
+			case <-time.After(timeout):
+				log.Errorf("[batchRetrieveContextsConcurrent] timeout retrieving context %s", contextId)
+				resultChan <- result{
+					toolCall: tc,
+					content:  fmt.Sprintf("Error: Timeout retrieving context %s", contextId),
+					err:      fmt.Errorf("timeout"),
+				}
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	// Collect results
+	toolResponses := make([]chatMessage, 0, len(toolCalls))
+	resultsCollected := 0
+
+collectLoop:
+	for resultsCollected < len(toolCalls) {
+		select {
+		case res := <-resultChan:
+			resultsCollected++
+			if res.err == nil || res.content != "" {
+				toolMsg := chatMessage{
+					Role:    "tool",
+					Content: res.content,
+					Id:      res.toolCall.Id,
+				}
+				toolResponses = append(toolResponses, toolMsg)
+				log.Infof("[batchRetrieveContextsConcurrent] retrieved context for tool call %s, length: %d", res.toolCall.Id, len(res.content))
+			}
+		case <-done:
+			// All goroutines completed
+			break collectLoop
+		case <-time.After(timeout + 1*time.Second):
+			// Safety timeout
+			log.Warnf("[batchRetrieveContextsConcurrent] safety timeout reached, collected %d/%d results", resultsCollected, len(toolCalls))
+			break collectLoop
+		}
+	}
+
+	return toolResponses, nil
+}
+
+// batchRetrieveContextSummariesConcurrent retrieves multiple context summaries concurrently with timeout control
+// This method uses summaries instead of full content to reduce token usage
+func (c *ProviderConfig) batchRetrieveContextSummariesConcurrent(ctx wrapper.HttpContext, toolCalls []toolCall) ([]chatMessage, error) {
+	if len(toolCalls) == 0 {
+		return nil, nil
+	}
+
+	// Use a channel to collect results
+	type result struct {
+		toolCall toolCall
+		summary  string
+		err      error
+	}
+
+	resultChan := make(chan result, len(toolCalls))
+	var wg sync.WaitGroup
+
+	// Concurrent retrieval with timeout
+	timeout := 5 * time.Second
+	done := make(chan struct{})
+
+	// Start retrieval goroutines
+	for i := range toolCalls {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+
+			tc := toolCalls[idx]
+			args := gjson.Parse(tc.Function.Arguments)
+			contextId := args.Get("context_id").String()
+			if contextId == "" {
+				resultChan <- result{
+					toolCall: tc,
+					summary:  "",
+					err:      fmt.Errorf("empty context_id in tool call %s", tc.Id),
+				}
+				return
+			}
+
+			// Read context summary from Redis with timeout protection
+			summaryChan := make(chan string, 1)
+			errChan := make(chan error, 1)
+
+			go func() {
+				// 使用摘要接口而非完整内容
+				summary, err := c.memoryService.ReadContextSummary(ctx, contextId)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				summaryChan <- summary
+			}()
+
+			select {
+			case summary := <-summaryChan:
+				resultChan <- result{
+					toolCall: tc,
+					summary:  summary,
+					err:      nil,
+				}
+			case err := <-errChan:
+				log.Errorf("[batchRetrieveContextSummariesConcurrent] failed to retrieve summary for context %s: %v", contextId, err)
+				resultChan <- result{
+					toolCall: tc,
+					summary:  fmt.Sprintf("Error: Failed to retrieve summary for context %s", contextId),
+					err:      err,
+				}
+			case <-time.After(timeout):
+				log.Errorf("[batchRetrieveContextSummariesConcurrent] timeout retrieving summary for context %s", contextId)
+				resultChan <- result{
+					toolCall: tc,
+					summary:  fmt.Sprintf("Error: Timeout retrieving summary for context %s", contextId),
+					err:      fmt.Errorf("timeout"),
+				}
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	// Collect results
+	toolResponses := make([]chatMessage, 0, len(toolCalls))
+	resultsCollected := 0
+
+collectLoop:
+	for resultsCollected < len(toolCalls) {
+		select {
+		case res := <-resultChan:
+			resultsCollected++
+			if res.err == nil || res.summary != "" {
+				toolMsg := chatMessage{
+					Role:    "tool",
+					Content: res.summary,
+					Id:      res.toolCall.Id,
+				}
+				toolResponses = append(toolResponses, toolMsg)
+				log.Infof("[batchRetrieveContextSummariesConcurrent] retrieved summary for tool call %s, length: %d", res.toolCall.Id, len(res.summary))
+			}
+		case <-done:
+			// All goroutines completed
+			break collectLoop
+		case <-time.After(timeout + 1*time.Second):
+			// Safety timeout
+			log.Warnf("[batchRetrieveContextSummariesConcurrent] safety timeout reached, collected %d/%d results", resultsCollected, len(toolCalls))
+			break collectLoop
+		}
+	}
+
+	return toolResponses, nil
 }
 
 // extractCompressedContextIds extracts compressed context ID references from messages
@@ -344,18 +631,54 @@ func (c *ProviderConfig) extractCompressedContextIds(messages []chatMessage) []s
 }
 
 // preRetrieveContexts pre-retrieves compressed contexts and restores them to messages
+// Optimized with concurrent retrieval for better performance
 func (c *ProviderConfig) preRetrieveContexts(ctx wrapper.HttpContext, request *chatCompletionRequest, contextIds []string) error {
-	// Batch retrieve contexts
-	contextMap := make(map[string]string)
-	for _, contextId := range contextIds {
-		content, err := c.memoryService.ReadContext(ctx, contextId)
-		if err != nil {
-			log.Errorf("[preRetrieveContexts] failed to retrieve context %s: %v", contextId, err)
-			continue
-		}
-		contextMap[contextId] = content
-		log.Infof("[preRetrieveContexts] retrieved context %s, length: %d", contextId, len(content))
+	if len(contextIds) == 0 {
+		return nil
 	}
+
+	// Concurrent batch retrieval
+	contextMap := make(map[string]string)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	timeout := 5 * time.Second
+
+	// Retrieve contexts concurrently
+	for _, contextId := range contextIds {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+
+			// Read context with timeout protection
+			contentChan := make(chan string, 1)
+			errChan := make(chan error, 1)
+
+			go func() {
+				content, err := c.memoryService.ReadContext(ctx, id)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				contentChan <- content
+			}()
+
+			select {
+			case content := <-contentChan:
+				mu.Lock()
+				contextMap[id] = content
+				mu.Unlock()
+				log.Infof("[preRetrieveContexts] retrieved context %s, length: %d", id, len(content))
+			case err := <-errChan:
+				log.Errorf("[preRetrieveContexts] failed to retrieve context %s: %v", id, err)
+				// Continue with other contexts (graceful degradation)
+			case <-time.After(timeout):
+				log.Errorf("[preRetrieveContexts] timeout retrieving context %s", id)
+			}
+		}(contextId)
+	}
+
+	// Wait for all retrievals to complete
+	wg.Wait()
 
 	// Restore message content
 	for i := range request.Messages {
@@ -371,6 +694,8 @@ func (c *ProviderConfig) preRetrieveContexts(ctx wrapper.HttpContext, request *c
 					// Restore original content
 					request.Messages[i].Content = retrievedContent
 					log.Infof("[preRetrieveContexts] restored message %d with context %s", i, contextId)
+				} else {
+					log.Warnf("[preRetrieveContexts] context %s not found in retrieved map", contextId)
 				}
 			}
 		}

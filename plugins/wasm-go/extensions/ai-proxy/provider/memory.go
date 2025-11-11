@@ -3,8 +3,10 @@ package provider
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -13,9 +15,18 @@ import (
 )
 
 const (
-	DefaultMemoryKeyPrefix = "higress-ai-memory:"
-	DefaultMemoryTTL       = 3600 // 1 hour default TTL for memory entries
+	DefaultMemoryKeyPrefix     = "higress-ai-memory:"
+	DefaultMemorySummaryPrefix = "higress-ai-memory-summary:"
+	DefaultMemoryTTL           = 3600 // 1 hour default TTL for memory entries
+	DefaultSummaryMaxLength    = 500  // 默认摘要最大长度（字符数）
+	DefaultSummaryLines        = 10   // 默认摘要行数
 )
+
+// ContextWithSummary 带摘要的上下文结构
+type ContextWithSummary struct {
+	Content string `json:"content"` // 完整内容
+	Summary string `json:"summary"` // 摘要
+}
 
 // ContextCompressionConfig 上下文压缩配置
 type ContextCompressionConfig struct {
@@ -61,6 +72,8 @@ type MemoryService interface {
 	SaveContext(ctx wrapper.HttpContext, content string) (string, error)
 	// ReadContext 根据ID读取上下文
 	ReadContext(ctx wrapper.HttpContext, contextId string) (string, error)
+	// ReadContextSummary 根据ID读取上下文摘要
+	ReadContextSummary(ctx wrapper.HttpContext, contextId string) (string, error)
 	// IsEnabled 检查服务是否启用
 	IsEnabled() bool
 }
@@ -124,7 +137,7 @@ func (s *redisMemoryService) IsEnabled() bool {
 	return s.config != nil && s.config.Enabled
 }
 
-// SaveContext 保存上下文到Redis
+// SaveContext 保存上下文到Redis，同时生成并保存摘要
 func (s *redisMemoryService) SaveContext(ctx wrapper.HttpContext, content string) (string, error) {
 	if !s.IsEnabled() {
 		return "", errors.New("memory service is not enabled")
@@ -137,12 +150,23 @@ func (s *redisMemoryService) SaveContext(ctx wrapper.HttpContext, content string
 	}
 
 	key := s.keyPrefix + contextId
+	summaryKey := DefaultMemorySummaryPrefix + contextId
 
-	// 保存到Redis
+	// 生成摘要
+	summary := generateSummary(content)
+
+	// 保存完整内容到Redis
 	err = s.redisClient.Set(key, content, nil)
 	if err != nil {
 		log.Errorf("failed to save context to redis: %v", err)
 		return "", fmt.Errorf("failed to save context: %v", err)
+	}
+
+	// 保存摘要到Redis
+	err = s.redisClient.Set(summaryKey, summary, nil)
+	if err != nil {
+		log.Warnf("failed to save summary to redis: %v, continuing without summary", err)
+		// 摘要保存失败不影响主流程
 	}
 
 	// 设置过期时间
@@ -151,9 +175,14 @@ func (s *redisMemoryService) SaveContext(ctx wrapper.HttpContext, content string
 		if err != nil {
 			log.Warnf("failed to set expiration for context %s: %v", contextId, err)
 		}
+		// 同时设置摘要的过期时间
+		err = s.redisClient.Expire(summaryKey, s.config.MemoryTTL, nil)
+		if err != nil {
+			log.Warnf("failed to set expiration for summary %s: %v", contextId, err)
+		}
 	}
 
-	log.Infof("saved context %s to redis, content length: %d", contextId, len(content))
+	log.Infof("saved context %s to redis, content length: %d, summary length: %d", contextId, len(content), len(summary))
 	return contextId, nil
 }
 
@@ -193,6 +222,51 @@ func (s *redisMemoryService) ReadContext(ctx wrapper.HttpContext, contextId stri
 	return content, nil
 }
 
+// ReadContextSummary 从Redis读取上下文摘要
+func (s *redisMemoryService) ReadContextSummary(ctx wrapper.HttpContext, contextId string) (string, error) {
+	if !s.IsEnabled() {
+		return "", errors.New("memory service is not enabled")
+	}
+
+	summaryKey := DefaultMemorySummaryPrefix + contextId
+
+	var summary string
+	var readErr error
+
+	// 同步读取Redis摘要
+	err := s.redisClient.Get(summaryKey, func(response resp.Value) {
+		if err := response.Error(); err != nil {
+			readErr = fmt.Errorf("redis get failed: %v", err)
+			return
+		}
+		if response.IsNull() {
+			// 如果摘要不存在，尝试读取完整内容并生成摘要
+			readErr = fmt.Errorf("summary not found: %s", contextId)
+			return
+		}
+		summary = response.String()
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to read summary: %v", err)
+	}
+
+	if readErr != nil {
+		// 如果摘要不存在，尝试读取完整内容并生成摘要（降级策略）
+		log.Warnf("summary not found for context %s, generating from full content", contextId)
+		fullContent, err := s.ReadContext(ctx, contextId)
+		if err != nil {
+			return "", fmt.Errorf("failed to read context for summary generation: %v", err)
+		}
+		summary = generateSummary(fullContent)
+		log.Infof("generated summary for context %s, length: %d", contextId, len(summary))
+		return summary, nil
+	}
+
+	log.Infof("read summary %s from redis, summary length: %d", contextId, len(summary))
+	return summary, nil
+}
+
 // generateContextId 生成唯一的上下文ID
 func generateContextId() (string, error) {
 	bytes := make([]byte, 16)
@@ -214,6 +288,10 @@ func (s *disabledMemoryService) SaveContext(ctx wrapper.HttpContext, content str
 }
 
 func (s *disabledMemoryService) ReadContext(ctx wrapper.HttpContext, contextId string) (string, error) {
+	return "", errors.New("memory service is not enabled")
+}
+
+func (s *disabledMemoryService) ReadContextSummary(ctx wrapper.HttpContext, contextId string) (string, error) {
 	return "", errors.New("memory service is not enabled")
 }
 
@@ -261,4 +339,185 @@ func ParseContextCompressionConfig(json gjson.Result) *ContextCompressionConfig 
 	config.MemoryTTL = int(json.Get("memoryTTL").Int())
 
 	return config
+}
+
+// generateSummary 生成工具输出的摘要
+// 摘要策略：
+// 1. 如果内容较短（<500字符），直接返回
+// 2. 提取前N行关键信息
+// 3. 如果包含结构化数据（JSON），提取关键字段
+// 4. 保留开头和结尾的重要信息
+func generateSummary(content string) string {
+	if len(content) == 0 {
+		return ""
+	}
+
+	// 如果内容较短，直接返回
+	if len(content) <= DefaultSummaryMaxLength {
+		return content
+	}
+
+	// 尝试解析JSON，如果是结构化数据，提取关键信息
+	var jsonData interface{}
+	if err := json.Unmarshal([]byte(content), &jsonData); err == nil {
+		// 是JSON格式，提取关键信息
+		return generateJSONSummary(jsonData, DefaultSummaryMaxLength)
+	}
+
+	// 非JSON格式，使用行提取策略
+	return generateTextSummary(content, DefaultSummaryMaxLength, DefaultSummaryLines)
+}
+
+// generateJSONSummary 从JSON数据生成摘要
+func generateJSONSummary(data interface{}, maxLength int) string {
+	var summary strings.Builder
+
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// 提取关键字段
+		keyFields := []string{"result", "data", "output", "content", "message", "summary", "title", "name"}
+		for _, key := range keyFields {
+			if val, ok := v[key]; ok {
+				valStr := fmt.Sprintf("%v", val)
+				if len(valStr) > 0 {
+					if summary.Len() > 0 {
+						summary.WriteString("; ")
+					}
+					if len(valStr) > maxLength/2 {
+						summary.WriteString(valStr[:maxLength/2])
+						summary.WriteString("...")
+					} else {
+						summary.WriteString(valStr)
+					}
+					if summary.Len() >= maxLength {
+						break
+					}
+				}
+			}
+		}
+		// 如果还没有足够的内容，添加其他字段
+		if summary.Len() < maxLength/2 {
+			count := 0
+			for k, val := range v {
+				if count >= 3 {
+					break
+				}
+				skip := false
+				for _, key := range keyFields {
+					if k == key {
+						skip = true
+						break
+					}
+				}
+				if skip {
+					continue
+				}
+				valStr := fmt.Sprintf("%v", val)
+				if len(valStr) > 0 {
+					if summary.Len() > 0 {
+						summary.WriteString("; ")
+					}
+					summary.WriteString(fmt.Sprintf("%s: %s", k, valStr))
+					count++
+				}
+			}
+		}
+	case []interface{}:
+		// 数组类型，提取前几个元素
+		maxItems := 3
+		if len(v) < maxItems {
+			maxItems = len(v)
+		}
+		for i := 0; i < maxItems; i++ {
+			if i > 0 {
+				summary.WriteString("; ")
+			}
+			itemStr := fmt.Sprintf("%v", v[i])
+			if len(itemStr) > maxLength/3 {
+				summary.WriteString(itemStr[:maxLength/3])
+				summary.WriteString("...")
+			} else {
+				summary.WriteString(itemStr)
+			}
+		}
+		if len(v) > maxItems {
+			summary.WriteString(fmt.Sprintf(" ... (共%d项)", len(v)))
+		}
+	default:
+		// 其他类型，转换为字符串
+		contentStr := fmt.Sprintf("%v", v)
+		if len(contentStr) > maxLength {
+			summary.WriteString(contentStr[:maxLength])
+			summary.WriteString("...")
+		} else {
+			summary.WriteString(contentStr)
+		}
+	}
+
+	result := summary.String()
+	if len(result) == 0 {
+		// 如果摘要生成失败，使用文本摘要策略
+		return generateTextSummary(fmt.Sprintf("%v", data), maxLength, DefaultSummaryLines)
+	}
+
+	if len(result) > maxLength {
+		return result[:maxLength] + "..."
+	}
+	return result
+}
+
+// generateTextSummary 从文本内容生成摘要
+func generateTextSummary(content string, maxLength int, maxLines int) string {
+	lines := strings.Split(content, "\n")
+
+	// 如果行数较少，直接返回前几行
+	if len(lines) <= maxLines {
+		result := strings.Join(lines, "\n")
+		if len(result) > maxLength {
+			return result[:maxLength] + "..."
+		}
+		return result
+	}
+
+	// 提取前N行和后M行（保留开头和结尾信息）
+	headLines := maxLines / 2
+	tailLines := maxLines - headLines
+
+	var summary strings.Builder
+
+	// 添加前几行
+	for i := 0; i < headLines && i < len(lines); i++ {
+		if summary.Len() > 0 {
+			summary.WriteString("\n")
+		}
+		summary.WriteString(lines[i])
+		if summary.Len() >= maxLength/2 {
+			break
+		}
+	}
+
+	// 添加省略标记
+	if len(lines) > maxLines {
+		summary.WriteString("\n...")
+		summary.WriteString(fmt.Sprintf(" (省略 %d 行) ", len(lines)-maxLines))
+	}
+
+	// 添加后几行
+	startIdx := len(lines) - tailLines
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	for i := startIdx; i < len(lines); i++ {
+		if summary.Len() >= maxLength {
+			break
+		}
+		summary.WriteString("\n")
+		summary.WriteString(lines[i])
+	}
+
+	result := summary.String()
+	if len(result) > maxLength {
+		return result[:maxLength] + "..."
+	}
+	return result
 }
