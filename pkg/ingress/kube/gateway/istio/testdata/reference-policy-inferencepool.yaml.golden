@@ -32,7 +32,7 @@ spec:
   hosts:
   - simple.domain.example
   http:
-  - name: higress-system.backend-allowed-ip.0
+  - name: backend-allowed-ip
     route:
     - destination: {}
 ---
@@ -51,7 +51,7 @@ spec:
   hosts:
   - simple2.domain.example
   http:
-  - name: higress-system.backend-not-allowed-ip.0
+  - name: backend-not-allowed-ip
     route:
     - destination: {}
       weight: 1

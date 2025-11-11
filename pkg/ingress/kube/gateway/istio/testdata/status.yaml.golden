@@ -51,25 +51,25 @@ spec:
   hosts:
   - '*'
   http:
-  - name: istio-system.existing-istio-first.0
+  - name: existing-istio-first
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
         port:
           number: 80
-  - name: istio-system.existing-istio-last.0
+  - name: existing-istio-last
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
         port:
           number: 80
-  - name: istio-system.stale-istio-reference.0
+  - name: stale-istio-reference
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
         port:
           number: 80
-  - name: istio-system.stale-other-reference.0
+  - name: stale-other-reference
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
@@ -91,25 +91,25 @@ spec:
   hosts:
   - '*'
   http:
-  - name: istio-system.existing-istio-first.0
+  - name: existing-istio-first
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
         port:
           number: 80
-  - name: istio-system.existing-istio-last.0
+  - name: existing-istio-last
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
         port:
           number: 80
-  - name: istio-system.stale-istio-reference.0
+  - name: stale-istio-reference
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
         port:
           number: 80
-  - name: istio-system.stale-other-reference.0
+  - name: stale-other-reference
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix

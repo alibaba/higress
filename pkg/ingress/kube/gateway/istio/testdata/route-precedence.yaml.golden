@@ -39,7 +39,7 @@ spec:
           exact: some-value
       uri:
         prefix: /foo
-    name: allowed-1.http.0
+    name: allowed-1/http
     route:
     - destination:
         host: svc1.allowed-1.svc.domain.suffix
@@ -48,7 +48,7 @@ spec:
   - match:
     - uri:
         regex: /foo((\/).*)?
-    name: allowed-1.http.1
+    name: allowed-1/http
     route:
     - destination:
         host: svc2.allowed-1.svc.domain.suffix
@@ -76,7 +76,7 @@ spec:
           exact: some-value
       uri:
         prefix: /foo
-    name: allowed-1.http.0
+    name: allowed-1/http
     route:
     - destination:
         host: svc1.allowed-1.svc.domain.suffix
@@ -85,7 +85,7 @@ spec:
   - match:
     - uri:
         regex: /foo((\/).*)?
-    name: allowed-1.http.1
+    name: allowed-1/http
     route:
     - destination:
         host: svc2.allowed-1.svc.domain.suffix
@@ -116,7 +116,7 @@ spec:
           regex: some-value
       uri:
         exact: /baz
-    name: allowed-2.http.1
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -125,7 +125,7 @@ spec:
   - match:
     - uri:
         prefix: /foo/bar
-    name: allowed-2.http.0
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -137,7 +137,7 @@ spec:
           exact: some-value
       uri:
         prefix: /foo
-    name: allowed-1.http.0
+    name: allowed-1/http
     route:
     - destination:
         host: svc1.allowed-1.svc.domain.suffix
@@ -146,7 +146,7 @@ spec:
   - match:
     - uri:
         prefix: /bar
-    name: allowed-2.http.0
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -157,7 +157,7 @@ spec:
         exact: PATCH
       uri:
         prefix: /
-    name: allowed-2.http.3
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -166,7 +166,7 @@ spec:
   - match:
     - uri:
         prefix: /
-    name: allowed-2.http.2
+    name: allowed-2/http
     route:
     - destination:
         host: svc3.allowed-2.svc.domain.suffix
@@ -175,7 +175,7 @@ spec:
   - match:
     - uri:
         regex: /foo((\/).*)?
-    name: allowed-1.http.1
+    name: allowed-1/http
     route:
     - destination:
         host: svc2.allowed-1.svc.domain.suffix
@@ -203,7 +203,7 @@ spec:
           exact: some-value
       uri:
         prefix: /foo
-    name: allowed-1.http.0
+    name: allowed-1/http
     route:
     - destination:
         host: svc1.allowed-1.svc.domain.suffix
@@ -212,7 +212,7 @@ spec:
   - match:
     - uri:
         regex: /foo((\/).*)?
-    name: allowed-1.http.1
+    name: allowed-1/http
     route:
     - destination:
         host: svc2.allowed-1.svc.domain.suffix
@@ -243,7 +243,7 @@ spec:
           regex: some-value
       uri:
         exact: /baz
-    name: allowed-2.http.1
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -252,7 +252,7 @@ spec:
   - match:
     - uri:
         prefix: /foo/bar
-    name: allowed-2.http.0
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -261,7 +261,7 @@ spec:
   - match:
     - uri:
         prefix: /bar
-    name: allowed-2.http.0
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -272,7 +272,7 @@ spec:
         exact: PATCH
       uri:
         prefix: /
-    name: allowed-2.http.3
+    name: allowed-2/http
     route:
     - destination:
         host: svc2.allowed-2.svc.domain.suffix
@@ -281,7 +281,7 @@ spec:
   - match:
     - uri:
         prefix: /
-    name: allowed-2.http.2
+    name: allowed-2/http
     route:
     - destination:
         host: svc3.allowed-2.svc.domain.suffix

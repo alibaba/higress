@@ -21,6 +21,7 @@ import (
 	higressconfig "github.com/alibaba/higress/v2/pkg/config"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 	"net"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -102,13 +103,17 @@ func convertHTTPRoute(ctx RouteContext, r k8s.HTTPRouteRule,
 	obj *k8sbeta.HTTPRoute, pos int, enforceRefGrant bool,
 ) (*istio.HTTPRoute, *inferencePoolConfig, *ConfigError) {
 	vs := &istio.HTTPRoute{}
-	if r.Name != nil {
-		vs.Name = string(*r.Name)
-	} else {
-		// Auto-name the route. If upstream defines an explicit name, will use it instead
-		// The position within the route is unique
-		vs.Name = obj.Namespace + "." + obj.Name + "." + strconv.Itoa(pos) // format: %s.%s.%d
-	}
+	// Start - Modified by Higress
+	//if r.Name != nil {
+	//	vs.Name = string(*r.Name)
+	//} else {
+	//	// Auto-name the route. If upstream defines an explicit name, will use it instead
+	//	// The position within the route is unique
+	//	vs.Name = obj.Namespace + "." + obj.Name + "." + strconv.Itoa(pos) // format: %s.%s.%d
+	//}
+	// The best practice for Higress is to configure one HTTP route per route match.
+	vs.Name = generateRouteName(obj, "http")
+	// End - Modified by Higress
 
 	for _, match := range r.Matches {
 		uri, err := createURIMatch(match)
@@ -252,13 +257,17 @@ func convertGRPCRoute(ctx RouteContext, r k8s.GRPCRouteRule,
 	obj *k8s.GRPCRoute, pos int, enforceRefGrant bool,
 ) (*istio.HTTPRoute, *ConfigError) { // Assuming GRPCRoute doesn't need inferencePoolConfig for now
 	vs := &istio.HTTPRoute{}
-	if r.Name != nil {
-		vs.Name = string(*r.Name)
-	} else {
-		// Auto-name the route. If upstream defines an explicit name, will use it instead
-		// The position within the route is unique
-		vs.Name = obj.Namespace + "." + obj.Name + "." + strconv.Itoa(pos) // format:%s.%s.%d
-	}
+	// Start - Modified by Higress
+	//if r.Name != nil {
+	//	vs.Name = string(*r.Name)
+	//} else {
+	//	// Auto-name the route. If upstream defines an explicit name, will use it instead
+	//	// The position within the route is unique
+	//	vs.Name = obj.Namespace + "." + obj.Name + "." + strconv.Itoa(pos) // format:%s.%s.%d
+	//}
+	// The best practice for Higress is to configure one HTTP route per route match.
+	vs.Name = generateRouteName(obj, "grpc")
+	// End - Modified by Higress
 
 	for _, match := range r.Matches {
 		uri, err := createGRPCURIMatch(match)
@@ -2540,11 +2549,15 @@ func nilOrEqual(have *string, expected string) bool {
 	return have == nil || *have == expected
 }
 
-//func generateRouteName(obj config.Namer) string {
-//	if obj.GetNamespace() == higressconfig.PodNamespace {
-//		return obj.GetName()
-//	}
-//	return path.Join(obj.GetNamespace(), obj.GetName())
-//}
+func generateRouteName(obj config.Namer, routeType string) string {
+	routeName := obj.GetName()
+	if obj.GetNamespace() != higressconfig.PodNamespace {
+		routeName = path.Join(obj.GetNamespace(), obj.GetName())
+	}
+	if routeType != "http" {
+		routeName = path.Join(routeType, routeName)
+	}
+	return routeName
+}
 
 // End - Added by Higress

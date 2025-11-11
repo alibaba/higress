@@ -121,7 +121,7 @@ spec:
   - match:
     - uri:
         prefix: /parent
-    name: istio-system.bind-parent.0
+    name: bind-parent
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
@@ -130,7 +130,7 @@ spec:
   - match:
     - uri:
         prefix: /both
-    name: istio-system.bind-both.0
+    name: bind-both
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
@@ -155,7 +155,7 @@ spec:
   - match:
     - uri:
         prefix: /both
-    name: istio-system.bind-both.0
+    name: bind-both
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix
@@ -164,7 +164,7 @@ spec:
   - match:
     - uri:
         prefix: /set
-    name: istio-system.bind-set.0
+    name: bind-set
     route:
     - destination:
         host: httpbin.istio-system.svc.domain.suffix

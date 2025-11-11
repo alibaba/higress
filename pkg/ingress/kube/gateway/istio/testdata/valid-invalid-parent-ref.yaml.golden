@@ -32,7 +32,7 @@ spec:
   hosts:
   - google.com
   http:
-  - name: default.mixed-parent-ref-validity.0
+  - name: default/mixed-parent-ref-validity
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
@@ -54,7 +54,7 @@ spec:
   hosts:
   - '*'
   http:
-  - name: default.mixed-parent-ref-validity.0
+  - name: default/mixed-parent-ref-validity
     route:
     - destination:
         host: httpbin.default.svc.domain.suffix
