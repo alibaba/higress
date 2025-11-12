@@ -6,15 +6,17 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/log"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"frontend-gray",
 		wrapper.ParseConfig(parseConfig),
@@ -63,7 +65,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 	}
 	frontendVersion := util.GetCookieValue(cookie, config.XHigressTag)
 
-	if grayConfig.GrayWeight > 0 {
+	if grayConfig.UniqueGrayTagConfigured || grayConfig.GrayWeight > 0 {
 		ctx.SetContext(grayConfig.UniqueGrayTag, util.GetGrayWeightUniqueId(cookie, grayConfig.UniqueGrayTag))
 	}
 
@@ -129,23 +131,26 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
-	isIndexRequest, indexOk := ctx.GetContext(config.IsIndexRequest).(bool)
-	if indexOk && isIndexRequest {
-		// 首页请求强制不缓存
-		proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
+	if !grayConfig.UseManifestAsEntry {
+		isIndexRequest, indexOk := ctx.GetContext(config.IsIndexRequest).(bool)
+		if indexOk && isIndexRequest {
+			// 首页请求强制不缓存
+			proxywasm.ReplaceHttpResponseHeader("cache-control", "no-cache, no-store, max-age=0, must-revalidate")
+			ctx.DontReadResponseBody()
+			return types.ActionContinue
+		}
+
+		isHtmlRequest, htmlOk := ctx.GetContext(config.IsHtmlRequest).(bool)
+		// response 不处理非首页的请求
+		if !htmlOk || !isHtmlRequest {
+			ctx.DontReadResponseBody()
+			return types.ActionContinue
+		} else {
+			// 不会进去Streaming 的Body处理
+			ctx.BufferResponseBody()
+		}
 	}
 
-	isHtmlRequest, htmlOk := ctx.GetContext(config.IsHtmlRequest).(bool)
-	// response 不处理非首页的请求
-	if !htmlOk || !isHtmlRequest {
-		ctx.DontReadResponseBody()
-		return types.ActionContinue
-	} else {
-		// 不会进去Streaming 的Body处理
-		ctx.BufferResponseBody()
-	}
 	// 处理HTML的首页
 	status, err := proxywasm.GetHttpResponseHeader(":status")
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
@@ -179,13 +184,13 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 	// 前端版本
 	frontendVersion, isFrontendVersionOk := ctx.GetContext(config.PreHigressVersion).(string)
 	if isFrontendVersionOk {
-		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", config.XHigressTag, frontendVersion, grayConfig.StoreMaxAge))
+		proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure", config.XHigressTag, frontendVersion, grayConfig.StoreMaxAge))
 	}
 	// 设置GrayWeight 唯一值
-	if grayConfig.GrayWeight > 0 {
+	if grayConfig.UniqueGrayTagConfigured || grayConfig.GrayWeight > 0 {
 		uniqueId, isUniqueIdOk := ctx.GetContext(grayConfig.UniqueGrayTag).(string)
 		if isUniqueIdOk {
-			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", grayConfig.UniqueGrayTag, uniqueId, grayConfig.StoreMaxAge))
+			proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure", grayConfig.UniqueGrayTag, uniqueId, grayConfig.StoreMaxAge))
 		}
 	}
 	// 设置后端的版本
@@ -194,9 +199,9 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, grayConfig config.GrayConfig)
 		if isBackVersionOk {
 			if backendVersion == "" {
 				// 删除后端灰度版本
-				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/;", grayConfig.BackendGrayTag, backendVersion))
+				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; HttpOnly; Secure", grayConfig.BackendGrayTag, backendVersion))
 			} else {
-				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/;", grayConfig.BackendGrayTag, backendVersion, grayConfig.StoreMaxAge))
+				proxywasm.AddHttpResponseHeader("Set-Cookie", fmt.Sprintf("%s=%s; Max-Age=%d; Path=/; HttpOnly; Secure", grayConfig.BackendGrayTag, backendVersion, grayConfig.StoreMaxAge))
 			}
 		}
 	}

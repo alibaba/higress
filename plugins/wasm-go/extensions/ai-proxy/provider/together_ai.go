@@ -6,13 +6,12 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
-	togetherAIDomain         = "api.together.xyz"
-	togetherAICompletionPath = "/v1/chat/completions"
+	togetherAIDomain = "api.together.xyz"
 )
 
 type togetherAIProviderInitializer struct{}
@@ -26,7 +25,7 @@ func (m *togetherAIProviderInitializer) ValidateConfig(config *ProviderConfig) e
 
 func (m *togetherAIProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): togetherAICompletionPath,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
 	}
 }
 
@@ -67,7 +66,7 @@ func (m *togetherAIProvider) TransformRequestHeaders(ctx wrapper.HttpContext, ap
 }
 
 func (m *togetherAIProvider) GetApiName(path string) ApiName {
-	if strings.Contains(path, togetherAICompletionPath) {
+	if strings.Contains(path, PathOpenAIChatCompletions) {
 		return ApiNameChatCompletion
 	}
 	return ""

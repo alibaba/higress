@@ -17,8 +17,8 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 )
 
 func init() {
@@ -116,7 +116,7 @@ var WasmPluginsKeyAuth = suite.ConformanceTest{
 			},
 			{
 				Meta: http.AssertionMeta{
-					TestCaseName:    "case 5:  Muti Key Authentication information found",
+					TestCaseName:    "case 5:  Multi Key Authentication information found",
 					TargetBackend:   "infra-backend-v1",
 					TargetNamespace: "higress-conformance-infra",
 				},

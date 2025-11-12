@@ -27,12 +27,14 @@ header:
     - 'plugins/**'
     - 'CODEOWNERS'
     - 'VERSION'
+    - 'DEP_VERSION'
     - 'tools/'
     - 'test/README.md'
     - 'test/README_CN.md'
     - 'hgctl/cmd/hgctl/config/testdata/config'
     - 'hgctl/pkg/manifests'
     - 'pkg/ingress/kube/gateway/istio/testdata'
+    - 'release-notes/**'
 
   comment: on-failure
 dependency:

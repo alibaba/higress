@@ -310,6 +310,7 @@ bool PluginRootContext::checkPlugin(
 
       auto credential_to_name_iter = rule.credential_to_name.find(credential);
       if (credential_to_name_iter != rule.credential_to_name.end()) {
+        addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
         if (allow_set && !allow_set->empty()) {
           if (allow_set->find(credential_to_name_iter->second) ==
               allow_set->end()) {
@@ -319,7 +320,6 @@ bool PluginRootContext::checkPlugin(
             return false;
           }
         }
-        addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
       }
       return true;
     }
@@ -350,6 +350,7 @@ bool PluginRootContext::checkPlugin(
 
         auto credential_to_name_iter = rule.credential_to_name.find(credential);
         if (credential_to_name_iter != rule.credential_to_name.end()) {
+          addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
           if (allow_set) {
             if (allow_set->empty()) {
               LOG_DEBUG("allow set is empty, nobody is allowed");
@@ -363,7 +364,6 @@ bool PluginRootContext::checkPlugin(
               return false;
             }
           }
-          addRequestHeader("X-Mse-Consumer", credential_to_name_iter->second);
         }
         return true;
       }

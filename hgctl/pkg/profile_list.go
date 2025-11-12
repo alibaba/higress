@@ -44,7 +44,6 @@ func profileListCmd(plArgs *profileListArgs) *cobra.Command {
 
 // profileList list all the builtin profiles.
 func profileList(cmd *cobra.Command, plArgs *profileListArgs) error {
-
 	profiles, err := helm.ListProfiles(plArgs.manifestsPath)
 	if err != nil {
 		return err

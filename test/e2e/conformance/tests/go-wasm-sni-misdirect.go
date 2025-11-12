@@ -17,10 +17,10 @@ package tests
 import (
 	"testing"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/cert"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/http"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/kubernetes"
-	"github.com/alibaba/higress/test/e2e/conformance/utils/suite"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/cert"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/kubernetes"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -75,9 +75,11 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 							SNI: "foo.com",
 							Certificates: http.Certificates{
 								CACerts: [][]byte{caCertOut.Bytes()},
-								ClientKeyPairs: []http.ClientKeyPair{{
-									ClientCert: cliCertOut.Bytes(),
-									ClientKey:  cliKeyOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{
+									{
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
+									},
 								},
 							},
 						},
@@ -107,9 +109,11 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 							SNI: "foo.com",
 							Certificates: http.Certificates{
 								CACerts: [][]byte{caCertOut.Bytes()},
-								ClientKeyPairs: []http.ClientKeyPair{{
-									ClientCert: cliCertOut.Bytes(),
-									ClientKey:  cliKeyOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{
+									{
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
+									},
 								},
 							},
 						},
@@ -139,9 +143,11 @@ var WasmPluginsSniMisdirect = suite.ConformanceTest{
 							SNI: "foo.com",
 							Certificates: http.Certificates{
 								CACerts: [][]byte{caCertOut.Bytes()},
-								ClientKeyPairs: []http.ClientKeyPair{{
-									ClientCert: cliCertOut.Bytes(),
-									ClientKey:  cliKeyOut.Bytes()},
+								ClientKeyPairs: []http.ClientKeyPair{
+									{
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
+									},
 								},
 							},
 						},

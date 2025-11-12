@@ -30,10 +30,10 @@ import (
 	ingress "knative.dev/networking/pkg/apis/networking/v1alpha1"
 	"knative.dev/pkg/kmeta"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/v2/pkg/kube"
 )
 
 const (
@@ -186,7 +186,8 @@ func testConvertHTTPRoute(t *testing.T, c common.KIngressController) {
 				wrapperConfig: nil,
 			},
 			expectNoError: false,
-		}, {
+		},
+		{
 			description: "convertOptions is not nil but empty",
 			input: struct {
 				options       *common.ConvertOptions
@@ -199,7 +200,8 @@ func testConvertHTTPRoute(t *testing.T, c common.KIngressController) {
 				},
 			},
 			expectNoError: false,
-		}, {
+		},
+		{
 			description: "valid httpRoute convention,invalid backend",
 			input: struct {
 				options       *common.ConvertOptions
@@ -216,34 +218,38 @@ func testConvertHTTPRoute(t *testing.T, c common.KIngressController) {
 					IngressRouteCache: &common.IngressRouteCache{},
 					HTTPRoutes:        make(map[string][]*common.WrapperHTTPRoute),
 				},
-				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Hosts: []string{
-								"host-tls.example.com",
+				wrapperConfig: &common.WrapperConfig{
+					Config: &config.Config{
+						Spec: ingress.IngressSpec{
+							Rules: []ingress.IngressRule{
+								{
+									Hosts: []string{
+										"host-tls.example.com",
+									},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{{
+											Splits: []ingress.IngressBackendSplit{{
+												IngressBackend: ingress.IngressBackend{},
+												Percent:        100,
+											}},
+										}},
+									},
+									Visibility: ingress.IngressVisibilityExternalIP,
+								},
 							},
-							HTTP: &ingress.HTTPIngressRuleValue{
-								Paths: []ingress.HTTPIngressPath{{
-									Splits: []ingress.IngressBackendSplit{{
-										IngressBackend: ingress.IngressBackend{},
-										Percent:        100,
-									}},
-								}},
+							TLS: []ingress.IngressTLS{
+								{
+									Hosts:      []string{"test1", "test2"},
+									SecretName: "test",
+								},
 							},
-							Visibility: ingress.IngressVisibilityExternalIP,
 						},
-					},
-						TLS: []ingress.IngressTLS{
-							{
-								Hosts:      []string{"test1", "test2"},
-								SecretName: "test",
-							},
-						}},
-				}, AnnotationsConfig: &annotations.Ingress{},
+					}, AnnotationsConfig: &annotations.Ingress{},
 				},
 			},
 			expectNoError: true,
-		}, {
+		},
+		{
 			description: "valid httpRoute convention,invalid split",
 			input: struct {
 				options       *common.ConvertOptions
@@ -260,33 +266,36 @@ func testConvertHTTPRoute(t *testing.T, c common.KIngressController) {
 					IngressRouteCache: &common.IngressRouteCache{},
 					HTTPRoutes:        make(map[string][]*common.WrapperHTTPRoute),
 				},
-				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Hosts: []string{
-								"host-tls.example.com",
+				wrapperConfig: &common.WrapperConfig{
+					Config: &config.Config{
+						Spec: ingress.IngressSpec{
+							Rules: []ingress.IngressRule{
+								{
+									Hosts: []string{
+										"host-tls.example.com",
+									},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{{
+											Splits: []ingress.IngressBackendSplit{{}},
+										}},
+									},
+									Visibility: ingress.IngressVisibilityExternalIP,
+								},
 							},
-							HTTP: &ingress.HTTPIngressRuleValue{
-								Paths: []ingress.HTTPIngressPath{{
-									Splits: []ingress.IngressBackendSplit{{}},
-								}},
+							TLS: []ingress.IngressTLS{
+								{
+									Hosts:      []string{"test1", "test2"},
+									SecretName: "test",
+								},
 							},
-							Visibility: ingress.IngressVisibilityExternalIP,
 						},
-					},
-						TLS: []ingress.IngressTLS{
-							{
-								Hosts:      []string{"test1", "test2"},
-								SecretName: "test",
-							},
-						}},
-				}, AnnotationsConfig: &annotations.Ingress{},
+					}, AnnotationsConfig: &annotations.Ingress{},
 				},
 			},
 			expectNoError: true,
 		},
 		{
-			description: "valid httpRoute convention, vaild ingress",
+			description: "valid httpRoute convention, valid ingress",
 			input: struct {
 				options       *common.ConvertOptions
 				wrapperConfig *common.WrapperConfig
@@ -302,42 +311,46 @@ func testConvertHTTPRoute(t *testing.T, c common.KIngressController) {
 					IngressRouteCache: common.NewIngressRouteCache(),
 					HTTPRoutes:        make(map[string][]*common.WrapperHTTPRoute),
 				},
-				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Meta: config.Meta{
-						Name:      "host-tls-test",
-						Namespace: testNS,
-					},
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Hosts: []string{
-								"host-tls.example.com",
-							},
-							HTTP: &ingress.HTTPIngressRuleValue{
-								Paths: []ingress.HTTPIngressPath{{
-									Splits: []ingress.IngressBackendSplit{{
-										IngressBackend: v1alpha1.IngressBackend{
-											ServiceNamespace: testNS,
-											ServiceName:      "v1-service",
-											ServicePort:      intstr.FromInt(80),
-										},
-										Percent: 100,
-									}},
-								}},
-							},
-							Visibility: ingress.IngressVisibilityExternalIP,
+				wrapperConfig: &common.WrapperConfig{
+					Config: &config.Config{
+						Meta: config.Meta{
+							Name:      "host-tls-test",
+							Namespace: testNS,
 						},
-					},
-						TLS: []ingress.IngressTLS{
-							{
-								Hosts:      []string{"test1", "test2"},
-								SecretName: "test",
+						Spec: ingress.IngressSpec{
+							Rules: []ingress.IngressRule{
+								{
+									Hosts: []string{
+										"host-tls.example.com",
+									},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{{
+											Splits: []ingress.IngressBackendSplit{{
+												IngressBackend: v1alpha1.IngressBackend{
+													ServiceNamespace: testNS,
+													ServiceName:      "v1-service",
+													ServicePort:      intstr.FromInt(80),
+												},
+												Percent: 100,
+											}},
+										}},
+									},
+									Visibility: ingress.IngressVisibilityExternalIP,
+								},
 							},
-						}},
-				}, AnnotationsConfig: &annotations.Ingress{},
+							TLS: []ingress.IngressTLS{
+								{
+									Hosts:      []string{"test1", "test2"},
+									SecretName: "test",
+								},
+							},
+						},
+					}, AnnotationsConfig: &annotations.Ingress{},
 				},
 			},
 			expectNoError: true,
-		}, {
+		},
+		{
 			description: "valid httpRoute convention, Spec Rule All open Ingress",
 			input: struct {
 				options       *common.ConvertOptions
@@ -354,91 +367,94 @@ func testConvertHTTPRoute(t *testing.T, c common.KIngressController) {
 					IngressRouteCache: common.NewIngressRouteCache(),
 					HTTPRoutes:        make(map[string][]*common.WrapperHTTPRoute),
 				},
-				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Meta: config.Meta{
-						Name:      "host-kingress-all-open-test",
-						Namespace: "default",
-					},
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Hosts: []string{
-								"hello.default",
-								"hello.default.svc",
-								"hello.default.svc.cluster.local",
-							},
-							HTTP: &ingress.HTTPIngressRuleValue{
-								Paths: []ingress.HTTPIngressPath{{
-									Path: "/pet/",
-									Splits: []v1alpha1.IngressBackendSplit{{
-										AppendHeaders: map[string]string{
-											"Knative-Serving-Namespace": "default",
-											"Knative-Serving-Revision":  "hello-00002",
-										},
-										IngressBackend: v1alpha1.IngressBackend{
-											ServiceNamespace: "default",
-											ServiceName:      "hello-00002",
-											ServicePort:      intstr.FromInt(80),
-										},
-										Percent: 90,
-									}, {
-										AppendHeaders: map[string]string{
-											"Knative-Serving-Namespace": "default",
-											"Knative-Serving-Revision":  "hello-00001",
-										},
-										IngressBackend: v1alpha1.IngressBackend{
-											ServiceNamespace: "default",
-											ServiceName:      "hello-00001",
-											ServicePort:      intstr.FromInt(80),
-										},
-										Percent: 10,
-									}},
-									AppendHeaders: map[string]string{
-										"ugh": "blah",
-									},
-								}},
-							},
-							Visibility: ingress.IngressVisibilityClusterLocal,
-						}, {
-							Hosts: []string{
-								"hello.default.zwj.com",
-							},
-							HTTP: &ingress.HTTPIngressRuleValue{
-								Paths: []ingress.HTTPIngressPath{{
-									Splits: []v1alpha1.IngressBackendSplit{{
-										AppendHeaders: map[string]string{
-											"Knative-Serving-Namespace": "default",
-											"Knative-Serving-Revision":  "hello-00002",
-										},
-										IngressBackend: v1alpha1.IngressBackend{
-											ServiceNamespace: "default",
-											ServiceName:      "hello-00002",
-											ServicePort:      intstr.FromInt(80),
-										},
-										Percent: 90,
-									}, {
-										AppendHeaders: map[string]string{
-											"Knative-Serving-Namespace": "default",
-											"Knative-Serving-Revision":  "hello-00001",
-										},
-										IngressBackend: v1alpha1.IngressBackend{
-											ServiceNamespace: "default",
-											ServiceName:      "hello-00001",
-											ServicePort:      intstr.FromInt(80),
-										},
-										Percent: 10,
-									}},
-								}},
-							},
-							Visibility: ingress.IngressVisibilityExternalIP,
+				wrapperConfig: &common.WrapperConfig{
+					Config: &config.Config{
+						Meta: config.Meta{
+							Name:      "host-kingress-all-open-test",
+							Namespace: "default",
 						},
-					},
-						TLS: []ingress.IngressTLS{
-							{
-								Hosts:      []string{"test1", "test2"},
-								SecretName: "test",
+						Spec: ingress.IngressSpec{
+							Rules: []ingress.IngressRule{
+								{
+									Hosts: []string{
+										"hello.default",
+										"hello.default.svc",
+										"hello.default.svc.cluster.local",
+									},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{{
+											Path: "/pet/",
+											Splits: []v1alpha1.IngressBackendSplit{{
+												AppendHeaders: map[string]string{
+													"Knative-Serving-Namespace": "default",
+													"Knative-Serving-Revision":  "hello-00002",
+												},
+												IngressBackend: v1alpha1.IngressBackend{
+													ServiceNamespace: "default",
+													ServiceName:      "hello-00002",
+													ServicePort:      intstr.FromInt(80),
+												},
+												Percent: 90,
+											}, {
+												AppendHeaders: map[string]string{
+													"Knative-Serving-Namespace": "default",
+													"Knative-Serving-Revision":  "hello-00001",
+												},
+												IngressBackend: v1alpha1.IngressBackend{
+													ServiceNamespace: "default",
+													ServiceName:      "hello-00001",
+													ServicePort:      intstr.FromInt(80),
+												},
+												Percent: 10,
+											}},
+											AppendHeaders: map[string]string{
+												"ugh": "blah",
+											},
+										}},
+									},
+									Visibility: ingress.IngressVisibilityClusterLocal,
+								}, {
+									Hosts: []string{
+										"hello.default.zwj.com",
+									},
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{{
+											Splits: []v1alpha1.IngressBackendSplit{{
+												AppendHeaders: map[string]string{
+													"Knative-Serving-Namespace": "default",
+													"Knative-Serving-Revision":  "hello-00002",
+												},
+												IngressBackend: v1alpha1.IngressBackend{
+													ServiceNamespace: "default",
+													ServiceName:      "hello-00002",
+													ServicePort:      intstr.FromInt(80),
+												},
+												Percent: 90,
+											}, {
+												AppendHeaders: map[string]string{
+													"Knative-Serving-Namespace": "default",
+													"Knative-Serving-Revision":  "hello-00001",
+												},
+												IngressBackend: v1alpha1.IngressBackend{
+													ServiceNamespace: "default",
+													ServiceName:      "hello-00001",
+													ServicePort:      intstr.FromInt(80),
+												},
+												Percent: 10,
+											}},
+										}},
+									},
+									Visibility: ingress.IngressVisibilityExternalIP,
+								},
 							},
-						}},
-				}, AnnotationsConfig: &annotations.Ingress{},
+							TLS: []ingress.IngressTLS{
+								{
+									Hosts:      []string{"test1", "test2"},
+									SecretName: "test",
+								},
+							},
+						},
+					}, AnnotationsConfig: &annotations.Ingress{},
 				},
 			},
 			expectNoError: true,
@@ -509,7 +525,6 @@ func TestShouldProcessIngressUpdate(t *testing.T) {
 		ingresses: make(map[string]*ingress.Ingress),
 	}
 	ingress1 := &ingress.Ingress{
-
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-1",
 		},
@@ -562,7 +577,7 @@ func TestShouldProcessIngressUpdate(t *testing.T) {
 	if should {
 		t.Fatal("should be false")
 	}
-	//可能有坑，annotation更新可能会引起ingress资源的反复处理。
+	// 可能有坑，annotation更新可能会引起ingress资源的反复处理。
 
 }
 
@@ -589,7 +604,7 @@ func TestCreateRuleKey(t *testing.T) {
 		buildHigressAnnotationKey("exact-" + annotations.MatchQuery + "-region"):           "beijing",
 		buildHigressAnnotationKey("prefix-" + annotations.MatchQuery + "-user-id"):         "user-",
 	}
-	expect := "higress.com-prefix-/foo" + sep + //host-pathType-path
+	expect := "higress.com-prefix-/foo" + sep + // host-pathType-path
 		"GET PUT" + sep + // method
 		"exact-:authority\tfoo.bar.com" + "\n" + "exact-abc\t123" + "\n" +
 		"prefix-:scheme\thtt" + "\n" + "prefix-def\t456" + sep + // header
@@ -597,7 +612,6 @@ func TestCreateRuleKey(t *testing.T) {
 
 	key := createRuleKey(annots, wrapperHttpRoute.PathFormat())
 	if diff := cmp.Diff(expect, key); diff != "" {
-
 		t.Errorf("CreateRuleKey() mismatch (-want +got):\n%s", diff)
 	}
 }

@@ -29,7 +29,7 @@ metadata:
 spec:
   containers:
   - name: dubbo-demo-provider
-    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo:0.0.3-x86
+    image: higress-registry.us-west-1.cr.aliyuncs.com/higress/dubbo-provider-demo:0.0.3-x86
     env:
     - name: NACOS_K8S_NAMESPACE
       value: higress-conformance-app-backend

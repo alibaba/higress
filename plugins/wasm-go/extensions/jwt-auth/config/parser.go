@@ -18,8 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/go-jose/go-jose/v3"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/tidwall/gjson"
 )
 
@@ -28,7 +28,7 @@ var RuleSet bool
 
 // ParseGlobalConfig 从wrapper提供的配置中解析并转换到插件运行时需要使用的配置。
 // 此处解析的是全局配置，域名和路由级配置由 ParseRuleConfig 负责。
-func ParseGlobalConfig(json gjson.Result, config *JWTAuthConfig, log wrapper.Log) error {
+func ParseGlobalConfig(json gjson.Result, config *JWTAuthConfig, log log.Log) error {
 	RuleSet = false
 	consumers := json.Get("consumers")
 	if !consumers.IsArray() {
@@ -53,7 +53,7 @@ func ParseGlobalConfig(json gjson.Result, config *JWTAuthConfig, log wrapper.Log
 
 // ParseRuleConfig 从wrapper提供的配置中解析并转换到插件运行时需要使用的配置。
 // 此处解析的是域名和路由级配置，全局配置由 ParseConfig 负责。
-func ParseRuleConfig(json gjson.Result, global JWTAuthConfig, config *JWTAuthConfig, log wrapper.Log) error {
+func ParseRuleConfig(json gjson.Result, global JWTAuthConfig, config *JWTAuthConfig, log log.Log) error {
 	// override config via global
 	*config = global
 

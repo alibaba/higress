@@ -23,8 +23,8 @@ import (
 
 	"amap-tools/config"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/mcp/server"
+	"github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 var _ server.Tool = AroundSearchRequest{}
@@ -58,11 +58,11 @@ func (t AroundSearchRequest) Call(ctx server.HttpContext, s server.Server) error
 
 	url := fmt.Sprintf("http://restapi.amap.com/v3/place/around?key=%s&location=%s&radius=%s&keywords=%s&source=ts_mcp", serverConfig.ApiKey, url.QueryEscape(t.Location), url.QueryEscape(t.Radius), url.QueryEscape(t.Keywords))
 	return ctx.RouteCall(http.MethodGet, url,
-		[][2]string{{"Accept", "application/json"}}, nil, func(sendDirectly bool, statusCode int, responseHeaders [][2]string, responseBody []byte) {
+		[][2]string{{"Accept", "application/json"}}, nil, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
 			if statusCode != http.StatusOK {
-				utils.OnMCPToolCallError(sendDirectly, ctx, fmt.Errorf("around search call failed, status: %d", statusCode))
+				utils.OnMCPToolCallError(ctx, fmt.Errorf("around search call failed, status: %d", statusCode))
 				return
 			}
-			utils.SendMCPToolTextResult(sendDirectly, ctx, string(responseBody))
+			utils.SendMCPToolTextResult(ctx, string(responseBody))
 		})
 }

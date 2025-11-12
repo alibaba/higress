@@ -32,10 +32,11 @@ import (
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	provider "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/memory"
 )
 
 type watchConfig struct {
@@ -301,11 +302,10 @@ func (w *watcher) ListenService() {
 			return
 		}
 	}
-
 }
 
 func (w *watcher) DataChange(eventType Event) bool {
-	//fmt.Println(eventType)
+	// fmt.Println(eventType)
 	host, interfaceConfig, err := w.GetInterfaceConfig(eventType)
 	if err != nil {
 		log.Errorf("GetInterfaceConfig failed, err:%v, event:%v", err, eventType)
@@ -331,7 +331,7 @@ func (w *watcher) DataChange(eventType Event) bool {
 		se := w.generateServiceEntry(w.serviceEntry[host])
 
 		w.seMux.Unlock()
-		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+		w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 			ServiceName:  host,
 			ServiceEntry: se,
 			Suffix:       "zookeeper",
@@ -356,13 +356,13 @@ func (w *watcher) DataChange(eventType Event) bool {
 		}
 		se := w.generateServiceEntry(w.serviceEntry[host])
 		w.seMux.Unlock()
-		//todo update
+		// todo update
 		if len(se.Endpoints) == 0 {
 			if !w.keepStaleWhenEmpty {
 				w.cache.DeleteServiceWrapper(host)
 			}
 		} else {
-			w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+			w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 				ServiceName:  host,
 				ServiceEntry: se,
 				Suffix:       "zookeeper",
@@ -561,8 +561,8 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 			if ok {
 				if !reflect.DeepEqual(value, config) {
 					w.serviceEntry[host] = config
-					//todo update or create serviceentry
-					w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+					// todo update or create serviceentry
+					w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 						ServiceName:  host,
 						ServiceEntry: se,
 						Suffix:       "zookeeper",
@@ -572,7 +572,7 @@ func (w *watcher) ChildToServiceEntry(children []string, interfaceName, zkPath s
 				}
 			} else {
 				w.serviceEntry[host] = config
-				w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+				w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 					ServiceName:  host,
 					ServiceEntry: se,
 					Suffix:       "zookeeper",

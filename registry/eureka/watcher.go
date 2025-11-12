@@ -25,11 +25,12 @@ import (
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	provider "github.com/alibaba/higress/registry"
-	. "github.com/alibaba/higress/registry/eureka/client"
-	"github.com/alibaba/higress/registry/memory"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	provider "github.com/alibaba/higress/v2/registry"
+	. "github.com/alibaba/higress/v2/registry/eureka/client"
+	"github.com/alibaba/higress/v2/registry/memory"
 )
 
 const (
@@ -78,6 +79,12 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 	w.eurekaClient = NewEurekaHttpClient(cfg)
 
 	return w, nil
+}
+
+func WithVport(vport *apiv1.RegistryConfig_VPort) WatcherOption {
+	return func(w *watcher) {
+		w.Vport = vport
+	}
 }
 
 func WithEurekaFullRefreshInterval(refreshInterval int64) WatcherOption {
@@ -150,6 +157,9 @@ func (w *watcher) Stop() {
 		w.cache.DeleteServiceWrapper(makeHost(serviceName))
 	}
 	w.UpdateService()
+	w.isStop = true
+	close(w.stop)
+	w.Ready(false)
 }
 
 func (w *watcher) IsHealthy() bool {
@@ -199,11 +209,11 @@ func (w *watcher) subscribe(service *fargo.Application) error {
 		defer w.UpdateService()
 
 		if len(service.Instances) != 0 {
-			se, err := generateServiceEntry(service)
+			se, err := w.generateServiceEntry(service)
 			if err != nil {
 				return err
 			}
-			w.cache.UpdateServiceWrapper(makeHost(service.Name), &memory.ServiceWrapper{
+			w.cache.UpdateServiceWrapper(makeHost(service.Name), &ingress.ServiceWrapper{
 				ServiceName:  service.Name,
 				ServiceEntry: se,
 				Suffix:       suffix,
@@ -251,10 +261,10 @@ func convertMap(m map[string]interface{}) map[string]string {
 	return result
 }
 
-func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
+func (w *watcher) generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error) {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
-
+	sePort := provider.GetServiceVport(makeHost(app.Name), w.Vport)
 	for _, instance := range app.Instances {
 		protocol := common.HTTP
 		if val, _ := instance.Metadata.GetString("protocol"); val != "" {
@@ -268,7 +278,13 @@ func generateServiceEntry(app *fargo.Application) (*v1alpha3.ServiceEntry, error
 			Protocol: protocol.String(),
 		}
 		if len(portList) == 0 {
-			portList = append(portList, port)
+			if sePort != nil {
+				sePort.Name = port.Name
+				sePort.Protocol = port.Protocol
+				portList = append(portList, sePort)
+			} else {
+				portList = append(portList, port)
+			}
 		}
 		endpoint := v1alpha3.WorkloadEntry{
 			Address: instance.IPAddr,

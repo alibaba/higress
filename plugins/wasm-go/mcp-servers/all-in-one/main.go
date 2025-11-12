@@ -18,7 +18,7 @@ import (
 	amap "amap-tools/tools"
 	quark "quark-search/tools"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+	"github.com/higress-group/wasm-go/pkg/mcp"
 )
 
 func main() {}

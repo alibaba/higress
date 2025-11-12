@@ -129,9 +129,15 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 	if method != http.MethodGet {
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusMethodNotAllowed, "Method not allowed", nil, 0, "")
 	} else {
+		// to support the query param in Message Endpoint
+		trimmed := strings.TrimSuffix(requestUrl.Path, GlobalSSEPathSuffix)
+		if rq := requestUrl.RawQuery; rq != "" {
+			trimmed += "?" + rq
+		}
+
 		f.config.defaultServer = common.NewSSEServer(common.NewMCPServer(DefaultServerName, Version),
 			common.WithSSEEndpoint(GlobalSSEPathSuffix),
-			common.WithMessageEndpoint(strings.TrimSuffix(requestUrl.Path, GlobalSSEPathSuffix)),
+			common.WithMessageEndpoint(trimmed),
 			common.WithRedisClient(f.config.redisClient))
 		f.serverName = f.config.defaultServer.GetServerName()
 		body := "SSE connection create"
@@ -143,48 +149,10 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 func (f *filter) processMcpRequestHeadersForSSEUpstream(header api.RequestHeaderMap, endStream bool) api.StatusType {
 	// We don't need to process the request body for SSE upstream.
 	f.skipRequestBody = true
-	f.rewritePathForSSEUpstream(header)
+	// Remove Accept-Encoding header to avoid gzip encoding,
+	// which our response body handling logic doesn't support.
+	header.Del("Accept-Encoding")
 	return api.Continue
-}
-
-func (f *filter) rewritePathForSSEUpstream(header api.RequestHeaderMap) {
-	matchedRule := f.matchedRule
-	if !matchedRule.EnablePathRewrite || matchedRule.MatchRuleType != common.PrefixMatch {
-		// No rewrite required, so we don't need to process the response body, either.
-		f.skipResponseBody = true
-		return
-	}
-
-	path := f.req.URL.Path
-	if !strings.HasPrefix(path, matchedRule.MatchRulePath) {
-		api.LogWarnf("Unexpected: Path %s does not match the configured prefix %s", path, matchedRule.MatchRulePath)
-		return
-	}
-
-	rewrittenPath := path[len(matchedRule.MatchRulePath):]
-
-	if rewrittenPath == "" {
-		rewrittenPath = matchedRule.PathRewritePrefix
-	} else {
-		rewritePrefixHasTrailingSlash := strings.HasSuffix(matchedRule.PathRewritePrefix, "/")
-		pathSuffixHasLeadingSlash := strings.HasPrefix(rewrittenPath, "/")
-		if rewritePrefixHasTrailingSlash != pathSuffixHasLeadingSlash {
-			// One has, the other doesn't have.
-			rewrittenPath = matchedRule.PathRewritePrefix + rewrittenPath
-		} else if pathSuffixHasLeadingSlash {
-			// Both have.
-			rewrittenPath = matchedRule.PathRewritePrefix + rewrittenPath[1:]
-		} else {
-			// Neither have.
-			rewrittenPath = matchedRule.PathRewritePrefix + "/" + rewrittenPath
-		}
-	}
-
-	if f.req.URL.RawQuery != "" {
-		rewrittenPath = rewrittenPath + "?" + f.req.URL.RawQuery
-	}
-
-	header.SetPath(rewrittenPath)
 }
 
 // DecodeData might be called multiple times during handling the request body.
@@ -321,21 +289,18 @@ func (f *filter) encodeDataFromRestUpstream(buffer api.BufferInstance, endStream
 func (f *filter) encodeDataFromSSEUpstream(buffer api.BufferInstance, endStream bool) api.StatusType {
 	bufferBytes := buffer.Bytes()
 	bufferData := string(bufferBytes)
+	api.LogDebugf("Received SSE data: %q, length: %d, endStream: %v", bufferData, len(bufferData), endStream)
 
-	err, lineBreak := f.findSSELineBreak(bufferData)
-	if err != nil {
-		api.LogWarnf("Failed to find line break in SSE data: %v", err)
-		f.needProcess = false
-		return api.Continue
+	// Combine cached data with new data
+	var combinedData string
+	if len(f.cachedResponseBody) > 0 {
+		combinedData = string(f.cachedResponseBody) + bufferData
+		api.LogDebugf("Combined with cached data: %q, total length: %d", combinedData, len(combinedData))
+	} else {
+		combinedData = bufferData
 	}
-	if lineBreak == "" {
-		// Have not found any line break. Need to buffer and check again.
-		return api.StopAndBuffer
-	}
 
-	api.LogDebugf("Line break sequence: %v", []byte(lineBreak))
-
-	err, endpointUrl := f.findEndpointUrl(bufferData, lineBreak)
+	err, endpointUrl := f.findEndpointUrl(combinedData)
 	if err != nil {
 		api.LogWarnf("Failed to find endpoint URL in SSE data: %v", err)
 		f.needProcess = false
@@ -343,8 +308,12 @@ func (f *filter) encodeDataFromSSEUpstream(buffer api.BufferInstance, endStream 
 	}
 	if endpointUrl == "" {
 		// No endpoint URL found. Need to buffer and check again.
-		return api.StopAndBuffer
+		f.cachedResponseBody = []byte(combinedData)
+		buffer.Reset()
+		return api.Continue
 	}
+	// Clear cached data
+	f.cachedResponseBody = nil
 
 	// Remove query string since we don't need to change it.
 	queryStringIndex := strings.IndexAny(endpointUrl, "?")
@@ -355,12 +324,12 @@ func (f *filter) encodeDataFromSSEUpstream(buffer api.BufferInstance, endStream 
 	if changed, newEndpointUrl := f.rewriteEndpointUrl(endpointUrl); changed {
 		api.LogDebugf("The endpoint URL is changed.\n  Old: %s\n  New: %s", endpointUrl, newEndpointUrl)
 
-		endpointUrlIndex := strings.Index(bufferData, endpointUrl)
+		endpointUrlIndex := strings.Index(combinedData, endpointUrl)
 		if endpointUrlIndex == -1 {
 			api.LogWarnf("Something wrong, the previously found endpoint URL %s not found in the SSE data now", endpointUrl)
 		} else {
-			bufferData = bufferData[:endpointUrlIndex] + newEndpointUrl + bufferData[endpointUrlIndex+len(endpointUrl):]
-			_ = buffer.SetString(bufferData)
+			newBufferData := combinedData[:endpointUrlIndex] + newEndpointUrl + combinedData[endpointUrlIndex+len(endpointUrl):]
+			_ = buffer.SetString(newBufferData)
 		}
 	} else {
 		api.LogDebugf("The endpoint URL %s is not changed", endpointUrl)
@@ -412,7 +381,7 @@ func (f *filter) rewriteEndpointUrl(endpointUrl string) (bool, string) {
 	return true, endpointUrl
 }
 
-func (f *filter) findSSELineBreak(bufferData string) (error, string) {
+func (f *filter) findNextLineBreak(bufferData string) (error, string) {
 	// See https://html.spec.whatwg.org/multipage/server-sent-events.html
 	crIndex := strings.IndexAny(bufferData, "\r")
 	lfIndex := strings.IndexAny(bufferData, "\n")
@@ -422,11 +391,20 @@ func (f *filter) findSSELineBreak(bufferData string) (error, string) {
 	}
 	lineBreak := ""
 	if crIndex != -1 && lfIndex != -1 {
-		if crIndex+1 != lfIndex {
-			// Found both line breaks, but they are not adjacent. Skip body processing.
-			return errors.New("found non-adjacent CR and LF"), ""
+		if crIndex < lfIndex {
+			if crIndex+1 == lfIndex {
+				lineBreak = "\r\n"
+			} else {
+				lineBreak = "\r"
+			}
+		} else {
+			if crIndex == lfIndex+1 {
+				// Found unexpected "\n\r". Skip body processing.
+				return errors.New("found unexpected LF+CR"), ""
+			} else {
+				lineBreak = "\n"
+			}
 		}
-		lineBreak = "\r\n"
 	} else if crIndex != -1 {
 		lineBreak = "\r"
 	} else {
@@ -435,36 +413,100 @@ func (f *filter) findSSELineBreak(bufferData string) (error, string) {
 	return nil, lineBreak
 }
 
-func (f *filter) findEndpointUrl(bufferData, lineBreak string) (error, string) {
-	eventIndex := strings.Index(bufferData, "event:")
-	if eventIndex == -1 {
-		return nil, ""
+func (f *filter) findEndpointUrl(bufferData string) (error, string) {
+	// Keep searching for events until we find an endpoint event or run out of data
+	for {
+		eventIndex := strings.Index(bufferData, "event:")
+		if eventIndex == -1 {
+			// No more events found
+			return nil, ""
+		}
+
+		// Move to the start of the event
+		bufferData = bufferData[eventIndex:]
+
+		// Find the end of the event line
+		err, lineBreak := f.findNextLineBreak(bufferData)
+		if err != nil {
+			return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
+		}
+		if lineBreak == "" {
+			// No line break found, which means the data is not enough.
+			return nil, ""
+		}
+
+		api.LogDebugf("event line break sequence: %v", []byte(lineBreak))
+		eventEndIndex := strings.Index(bufferData, lineBreak)
+		if eventEndIndex == -1 {
+			return nil, ""
+		}
+
+		eventName := strings.TrimSpace(bufferData[len("event:"):eventEndIndex])
+
+		// Move past the event line
+		bufferData = bufferData[eventEndIndex+len(lineBreak):]
+
+		if eventName == "endpoint" {
+			// Found endpoint event, now look for the data field
+			err, lineBreak = f.findNextLineBreak(bufferData)
+			if err != nil {
+				return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
+			}
+			if lineBreak == "" {
+				// No line break found, which means the data is not enough.
+				return nil, ""
+			}
+
+			api.LogDebugf("data line break sequence: %v", []byte(lineBreak))
+			dataEndIndex := strings.Index(bufferData, lineBreak)
+			if dataEndIndex == -1 {
+				// Data received not enough.
+				return nil, ""
+			}
+
+			eventData := bufferData[:dataEndIndex]
+			if !strings.HasPrefix(eventData, "data:") {
+				return fmt.Errorf("an unexpected non-data field found in the event. Skip processing. Field: %s", eventData), ""
+			}
+
+			return nil, strings.TrimSpace(eventData[len("data:"):])
+		} else {
+			// Not an endpoint event, skip to the next event
+			api.LogDebugf("Skipping non-endpoint event: %s", eventName)
+
+			// First, we need to skip the data field of this event
+			err, lineBreak = f.findNextLineBreak(bufferData)
+			if err != nil {
+				return fmt.Errorf("failed to find endpoint URL in SSE data: %v", err), ""
+			}
+			if lineBreak == "" {
+				// No line break found, which means the data is not enough.
+				return nil, ""
+			}
+
+			dataEndIndex := strings.Index(bufferData, lineBreak)
+			if dataEndIndex == -1 {
+				// Data received not enough.
+				return nil, ""
+			}
+
+			// Move past the data line
+			bufferData = bufferData[dataEndIndex+len(lineBreak):]
+
+			// Skip any additional empty lines that separate events
+			for strings.HasPrefix(bufferData, lineBreak) {
+				bufferData = bufferData[len(lineBreak):]
+			}
+
+			// Continue to look for the next event
+		}
 	}
-	bufferData = bufferData[eventIndex:]
-	eventEndIndex := strings.Index(bufferData, lineBreak)
-	if eventEndIndex == -1 {
-		return nil, ""
-	}
-	eventName := strings.TrimSpace(bufferData[len("event:"):eventEndIndex])
-	if eventName != "endpoint" {
-		return fmt.Errorf("the initial event [%s] is not an endpoint event. Skip processing", eventName), ""
-	}
-	bufferData = bufferData[eventEndIndex+len(lineBreak):]
-	dataEndIndex := strings.Index(bufferData, lineBreak)
-	if dataEndIndex == -1 {
-		// Data received not enough.
-		return nil, ""
-	}
-	eventData := bufferData[:dataEndIndex]
-	if !strings.HasPrefix(eventData, "data:") {
-		return fmt.Errorf("an unexpected non-data field found in the event. Skip processing. Field: %s", eventData), ""
-	}
-	return nil, strings.TrimSpace(eventData[len("data:"):])
 }
 
 // OnDestroy stops the goroutine
 func (f *filter) OnDestroy(reason api.DestroyReason) {
 	api.LogDebugf("OnDestroy: reason=%v", reason)
+	f.cachedResponseBody = nil
 	if f.serverName != "" && f.stopChan != nil {
 		select {
 		case <-f.stopChan:

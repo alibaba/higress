@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -18,13 +17,10 @@ import (
 // moonshotProvider is the provider for Moonshot AI service.
 
 const (
-	moonshotDomain             = "api.moonshot.cn"
-	moonshotChatCompletionPath = "/v1/chat/completions"
-	moonshotModelsPath         = "/v1/models"
+	moonshotDomain = "api.moonshot.cn"
 )
 
-type moonshotProviderInitializer struct {
-}
+type moonshotProviderInitializer struct{}
 
 func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.moonshotFileId != "" && config.context != nil {
@@ -38,8 +34,8 @@ func (m *moonshotProviderInitializer) ValidateConfig(config *ProviderConfig) err
 
 func (m *moonshotProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): moonshotChatCompletionPath,
-		string(ApiNameModels):         moonshotModelsPath,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameModels):         PathOpenAIModels,
 	}
 }
 
@@ -84,39 +80,7 @@ func (m *moonshotProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNam
 	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	// 非chat类型的请求，不做处理
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, nil
-	}
-
-	request := &chatCompletionRequest{}
-	if err := m.config.parseRequestAndMapModel(ctx, request, body); err != nil {
-		return types.ActionContinue, err
-	}
-
-	if m.config.moonshotFileId == "" && m.contextCache == nil {
-		return types.ActionContinue, replaceJsonRequestBody(request)
-	}
-
-	apiKey := m.config.GetOrSetTokenWithContext(ctx)
-	err := m.getContextContent(apiKey, func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.ErrorHandler("ai-proxy.moonshot.load_ctx_failed", fmt.Errorf("failed to load context file: %v", err))
-			return
-		}
-		err = m.performChatCompletion(ctx, content, request)
-		if err != nil {
-			_ = util.ErrorHandler("ai-proxy.moonshot.insert_ctx_failed", fmt.Errorf("failed to perform chat completion: %v", err))
-		}
-	})
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
 }
 
 func (m *moonshotProvider) performChatCompletion(ctx wrapper.HttpContext, fileContent string, request *chatCompletionRequest) error {

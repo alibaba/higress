@@ -77,8 +77,8 @@ import (
     "net/http"
     
     "my-mcp-server/config"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+    "github.com/higress-group/wasm-go/pkg/mcp/server"
+    "github.com/higress-group/wasm-go/pkg/mcp/utils"
 )
 
 // 定义带有输入参数的工具结构
@@ -139,8 +139,8 @@ func (t MyTool) Call(ctx server.HttpContext, s server.Server) error {
 package tools
 
 import (
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/server"
+    "github.com/higress-group/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp/server"
 )
 
 func LoadTools(server *mcp.MCPServer) server.Server {
@@ -164,7 +164,7 @@ import (
     amap "amap-tools/tools"
     quark "quark-search/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp"
 )
 
 func main() {}
@@ -347,7 +347,7 @@ tools:
 3. 创建正确格式化 API 请求的 requestTemplate，包括带有模板值的头部
 4. 创建将 API 响应转换为适合 AI 消费的可读格式的 responseTemplate
 
-模板使用 GJSON Template 语法 (https://github.com/higress-group/gjson_template)，该语法结合了 Go 模板和 GJSON 路径语法进行 JSON 处理。模板引擎支持：
+模板使用 [GJSON Template 语法](https://github.com/higress-group/gjson_template)，该语法结合了 Go 模板和 GJSON 路径语法进行 JSON 处理。模板引擎支持：
 
 1. 基本点表示法访问字段：{{.fieldName}}
 2. 用于复杂查询的 gjson 函数：{{gjson "users.#(active==true)#.name"}}
@@ -369,7 +369,7 @@ package main
 import (
     "my-mcp-server/tools"
     
-    "github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+    "github.com/higress-group/wasm-go/pkg/mcp"
 )
 
 func main() {}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -94,13 +95,15 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 	defer s.sessions.Delete(sessionID)
 
 	channel := GetSSEChannelName(sessionID)
+	u, err := url.Parse(s.baseURL + s.messageEndpoint)
+	if err != nil {
+		api.LogErrorf("Failed to parse base URL: %v", err)
+	}
 
-	messageEndpoint := fmt.Sprintf(
-		"%s%s?sessionId=%s",
-		s.baseURL,
-		s.messageEndpoint,
-		sessionID,
-	)
+	q := u.Query()
+	q.Set("sessionId", sessionID)
+	u.RawQuery = q.Encode()
+	messageEndpoint := u.String()
 
 	// go func() {
 	// 	for {
@@ -126,7 +129,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 	// 	}
 	// }()
 
-	err := s.redisClient.Subscribe(channel, stopChan, func(message string) {
+	err = s.redisClient.Subscribe(channel, stopChan, func(message string) {
 		defer cb.EncoderFilterCallbacks().RecoverPanic()
 		api.LogDebugf("SSE Send message: %s", message)
 		cb.EncoderFilterCallbacks().InjectData([]byte(message))
@@ -136,7 +139,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 	}
 
 	// Send the initial endpoint event
-	initialEvent := fmt.Sprintf("event: endpoint\ndata: %s\r\n\r\n", messageEndpoint)
+	initialEvent := fmt.Sprintf("event: endpoint\ndata: %s\n\n", messageEndpoint)
 	err = s.redisClient.Publish(channel, initialEvent)
 	if err != nil {
 		api.LogErrorf("Failed to send initial event: %v", err)
@@ -198,6 +201,18 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		SessionID: sessionID,
 	})
 
+	// Extract Authorization header from HTTP request and add to context
+	// This is used for Higress Console API authentication
+	if authHeader := r.Header.Get("Authorization"); authHeader != "" {
+		ctx = WithAuthHeader(ctx, authHeader)
+	}
+
+	// Extract X-Istiod-Token header from HTTP request and add to context
+	// This is used for Istiod debug API authentication
+	if istiodToken := r.Header.Get("X-Istiod-Token"); istiodToken != "" {
+		ctx = WithIstiodToken(ctx, istiodToken)
+	}
+
 	//TODO： check session id
 	// _, ok := s.sessions.Load(sessionID)
 	// if !ok {
@@ -210,7 +225,7 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 	var status int
 	// Only send response if there is one (not for notifications)
 	if response != nil {
-		if sessionID != ""{
+		if sessionID != "" {
 			w.WriteHeader(http.StatusAccepted)
 			status = http.StatusAccepted
 		} else {
@@ -220,7 +235,12 @@ func (s *SSEServer) HandleMessage(w http.ResponseWriter, r *http.Request, body j
 		}
 		// Send HTTP response
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			api.LogErrorf("Failed to marshal SSE Message response: %v", err)
+			status = http.StatusInternalServerError
+		}
+		w.Write(jsonData)
 	} else {
 		// For notifications, just send 202 Accepted with no body
 		w.WriteHeader(http.StatusAccepted)

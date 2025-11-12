@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
@@ -42,13 +42,10 @@ const (
 	hunyuanAuthIdLen  = 36
 
 	// docs: https://cloud.tencent.com/document/product/1729/111007
-	hunyuanOpenAiDomain      = "api.hunyuan.cloud.tencent.com"
-	hunyuanOpenAiRequestPath = "/v1/chat/completions"
-	hunyuanOpenAiEmbeddings  = "/v1/embeddings"
+	hunyuanOpenAiDomain = "api.hunyuan.cloud.tencent.com"
 )
 
-type hunyuanProviderInitializer struct {
-}
+type hunyuanProviderInitializer struct{}
 
 // ref: https://console.cloud.tencent.com/api/explorer?Product=hunyuan&Version=2023-09-01&Action=ChatCompletions
 type hunyuanTextGenRequest struct {
@@ -105,8 +102,8 @@ func (m *hunyuanProviderInitializer) ValidateConfig(config *ProviderConfig) erro
 
 func (m *hunyuanProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): hunyuanOpenAiRequestPath,
-		string(ApiNameEmbeddings):     hunyuanOpenAiEmbeddings,
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):     PathOpenAIEmbeddings,
 	}
 }
 
@@ -324,7 +321,7 @@ func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	}
 
 	// hunyuan的流式返回:
-	//data: {"Note":"以上内容为AI生成，不代表开发者立场，请勿删除或修改本标记","Choices":[{"Delta":{"Role":"assistant","Content":"有助于"},"FinishReason":""}],"Created":1716359713,"Id":"086b6b19-8b2c-4def-a65c-db6a7bc86acd","Usage":{"PromptTokens":7,"CompletionTokens":145,"TotalTokens":152}}
+	// data: {"Note":"以上内容为AI生成，不代表开发者立场，请勿删除或修改本标记","Choices":[{"Delta":{"Role":"assistant","Content":"有助于"},"FinishReason":""}],"Created":1716359713,"Id":"086b6b19-8b2c-4def-a65c-db6a7bc86acd","Usage":{"PromptTokens":7,"CompletionTokens":145,"TotalTokens":152}}
 
 	// openai的流式返回
 	// data: {"id": "chatcmpl-7QyqpwdfhqwajicIEznoc6Q47XAyW", "object": "chat.completion.chunk", "created": 1677664795, "model": "gpt-3.5-turbo-0613", "choices": [{"delta": {"content": "The "}, "index": 0, "finish_reason": null}]}
@@ -338,7 +335,7 @@ func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	}
 
 	// 初始化处理下标，以及将要返回的处理过的chunks
-	var newEventPivot = -1
+	newEventPivot := -1
 	var outputBuffer []byte
 
 	// 从buffer区取出若干完整的chunk，将其转为openAI格式后返回
@@ -390,7 +387,7 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 		Model:             ctx.GetStringContext(ctxKeyFinalRequestModel, ""),
 		SystemFingerprint: "",
 		Object:            objectChatCompletionChunk,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     hunyuanFormattedChunk.Usage.PromptTokens,
 			CompletionTokens: hunyuanFormattedChunk.Usage.CompletionTokens,
 			TotalTokens:      hunyuanFormattedChunk.Usage.TotalTokens,
@@ -403,7 +400,7 @@ func (m *hunyuanProvider) convertChunkFromHunyuanToOpenAI(ctx wrapper.HttpContex
 	if hunyuanFormattedChunk.Choices[0].FinishReason == hunyuanStreamEndMark {
 		// log.Debugf("@@@ --- 最后chunk: ")
 		openAIFormattedChunk.Choices = append(openAIFormattedChunk.Choices, chatCompletionChoice{
-			FinishReason: hunyuanFormattedChunk.Choices[0].FinishReason,
+			FinishReason: util.Ptr(hunyuanFormattedChunk.Choices[0].FinishReason),
 		})
 	} else {
 		deltaMsg := chatMessage{
@@ -451,7 +448,6 @@ func (m *hunyuanProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName
 }
 
 func (m *hunyuanProvider) insertContextMessageIntoHunyuanRequest(request *hunyuanTextGenRequest, content string) {
-
 	fileMessage := hunyuanChatMessage{
 		Role:    roleSystem,
 		Content: content,
@@ -499,7 +495,7 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 				Content:   choice.Message.Content,
 				ToolCalls: nil,
 			},
-			FinishReason: choice.FinishReason,
+			FinishReason: util.Ptr(choice.FinishReason),
 		})
 	}
 	return &chatCompletionResponse{
@@ -509,7 +505,7 @@ func (m *hunyuanProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, h
 		SystemFingerprint: "",
 		Object:            objectChatCompletion,
 		Choices:           choices,
-		Usage: usage{
+		Usage: &usage{
 			PromptTokens:     hunyuanResponse.Response.Usage.PromptTokens,
 			CompletionTokens: hunyuanResponse.Response.Usage.CompletionTokens,
 			TotalTokens:      hunyuanResponse.Response.Usage.TotalTokens,

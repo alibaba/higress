@@ -21,12 +21,11 @@ import (
 	"reflect"
 	"sync/atomic"
 
-	"github.com/alibaba/higress/registry/reconcile"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	networking "istio.io/api/networking/v1alpha3"
 )
 
@@ -236,9 +235,6 @@ func (t *TracingController) ValidHigressConfig(higressConfig *HigressConfig) err
 
 func (t *TracingController) RegisterItemEventHandler(eventHandler ItemEventHandler) {
 	t.eventHandler = eventHandler
-}
-
-func (t *TracingController) RegisterMcpReconciler(reconciler *reconcile.Reconciler) {
 }
 
 func (t *TracingController) ConstructEnvoyFilters() ([]*config.Config, error) {
