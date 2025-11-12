@@ -1,0 +1,45 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy
+  namespace: higress-system
+spec:
+  phase: UNSPECIFIED_PHASE
+  priority: 100
+  
+  # ai-proxy 插件配置
+  defaultConfig:
+    provider:
+      # DeepSeek 配置
+      type: deepseek
+      apiTokens:
+        - "sk-b28313f2ea2a452d8ef815dbc86c3ef0"
+      modelMapping:
+        "deepseek-chat": "deepseek-chat"
+        "*": "deepseek-chat"
+      
+      # 上下文压缩配置
+      contextCompression:
+        enabled: true
+        
+        redis:
+          serviceName: localhost
+          servicePort: 6379
+          timeout: 2000
+        
+        # 使用 Token 计算
+        useTokenBasedCompression: true
+        compressionTokenThreshold: 500
+        
+        # Agent 模式配置（为 Terminal-Bench 优化）
+        agentMode: "conservative"        # 保守压缩
+        autoRetrieve: false              # 禁用自动检索
+        preserveKeyInfo: true            # 保留关键信息
+        
+        memoryTTL: 3600
+  
+  # 匹配所有路由
+  matchRules:
+  - ingress:
+    - "*"
+
