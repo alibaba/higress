@@ -67,15 +67,27 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		contentSize := len(contentStr)
 
 		// Check if compression should be applied
-		// 使用更准确的基于内容的判断（支持token计算）
+		// 使用更准确的基于内容的判断（支持token计算和Agent模式）
 		if redisService, ok := c.memoryService.(*redisMemoryService); ok {
-			shouldCompress := redisService.ShouldCompressByContent(contentStr)
+			// 检测是否为Agent请求
+			isAgent := c.isAgentRequest(request)
+
+			var shouldCompress bool
+			if isAgent {
+				// Agent模式：使用Agent感知的压缩判断
+				shouldCompress = c.shouldCompressForAgent(contentStr)
+				log.Debugf("[CompressContext] Agent request detected, using Agent-aware compression strategy")
+			} else {
+				// 标准模式：使用原有逻辑
+				shouldCompress = redisService.ShouldCompressByContent(contentStr)
+			}
+
 			if !shouldCompress {
 				if redisService.config.UseTokenBasedCompression {
 					tokenCount := calculateTokensDeepSeekFromString(contentStr)
-					log.Debugf("[CompressContext] skipping message %d, token count %d below threshold", i, tokenCount)
+					log.Debugf("[CompressContext] skipping message %d, token count %d below threshold (agent: %v)", i, tokenCount, isAgent)
 				} else {
-					log.Debugf("[CompressContext] skipping message %d, size %d below threshold", i, contentSize)
+					log.Debugf("[CompressContext] skipping message %d, size %d below threshold (agent: %v)", i, contentSize, isAgent)
 				}
 				newMessages = append(newMessages, msg)
 				continue
@@ -92,10 +104,20 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 			continue
 		}
 
+		// Build compressed message with optional key info
+		compressedContent := fmt.Sprintf("[Context stored with ID: %s]", contextId)
+		if c.contextCompression != nil && c.contextCompression.PreserveKeyInfo {
+			keyInfo := extractKeyInfo(contentStr)
+			if keyInfo != "" {
+				compressedContent = fmt.Sprintf("[Context ID: %s]\nKey Info: %s", contextId, keyInfo)
+				log.Debugf("[CompressContext] preserved key info for message %d: %s", i, keyInfo)
+			}
+		}
+
 		// Replace message content with context reference
 		compressedMsg := chatMessage{
 			Role:    msg.Role,
-			Content: fmt.Sprintf("[Context stored with ID: %s]", contextId),
+			Content: compressedContent,
 		}
 		if msg.Name != "" {
 			compressedMsg.Name = msg.Name
