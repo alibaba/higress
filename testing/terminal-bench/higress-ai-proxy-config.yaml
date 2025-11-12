@@ -13,7 +13,7 @@ spec:
       # DeepSeek 配置
       type: deepseek
       apiTokens:
-        - "sk-b28313f2ea2a452d8ef815dbc86c3ef0"
+        - "api_token"
       modelMapping:
         "deepseek-chat": "deepseek-chat"
         "*": "deepseek-chat"
