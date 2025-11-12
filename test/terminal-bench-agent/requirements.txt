@@ -1,0 +1,4 @@
+requests>=2.31.0
+tbench>=0.1.0
+openai>=1.0.0
+
