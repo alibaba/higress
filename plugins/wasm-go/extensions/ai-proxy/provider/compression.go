@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -268,6 +269,13 @@ func (c *ProviderConfig) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 	}
 
 	if needRetrieval {
+		// Check if auto-retrieve is enabled
+		if c.contextCompression != nil && !c.contextCompression.AutoRetrieve {
+			// Auto-retrieve disabled, let agent call read_memory actively
+			log.Debugf("[TransformResponseBody] auto-retrieve disabled, agent should call read_memory")
+			return body, nil
+		}
+
 		// If memory retrieval was processed, return modified response
 		// The response now includes tool responses in the message content
 		modifiedBody, err := c.buildResponseWithToolResults(ctx, body)
@@ -709,4 +717,113 @@ func (c *ProviderConfig) preRetrieveContexts(ctx wrapper.HttpContext, request *c
 	}
 
 	return nil
+}
+
+// isAgentRequest 检测是否为Agent请求
+// Agent请求通常包含工具调用或工具定义
+func (c *ProviderConfig) isAgentRequest(request *chatCompletionRequest) bool {
+	// 检测是否有工具定义
+	if len(request.Tools) > 0 {
+		return true
+	}
+
+	// 检测消息历史中是否有工具调用
+	for _, msg := range request.Messages {
+		// 检测是否有工具调用
+		if len(msg.ToolCalls) > 0 {
+			return true
+		}
+		// 检测是否是工具结果消息
+		if msg.Role == "tool" || msg.Role == "function" {
+			return true
+		}
+	}
+
+	return false
+}
+
+// extractKeyInfo 从内容中提取关键信息
+// 用于在压缩时保留重要信息
+func extractKeyInfo(content string) string {
+	var keyInfo []string
+
+	// 提取文件路径（Unix和Windows路径）
+	filePathRegex := regexp.MustCompile(`(?:^|[\s\n])(/[^\s\n]+|\./[^\s\n]+|[A-Z]:\\[^\s\n]+)`)
+	filePaths := filePathRegex.FindAllString(content, 5) // 最多5个路径
+	if len(filePaths) > 0 {
+		uniquePaths := uniqueStrings(filePaths)
+		keyInfo = append(keyInfo, "Files: "+strings.Join(uniquePaths, ", "))
+	}
+
+	// 提取命令执行状态
+	if strings.Contains(strings.ToLower(content), "success") {
+		keyInfo = append(keyInfo, "Status: success")
+	}
+	if strings.Contains(strings.ToLower(content), "error") || strings.Contains(strings.ToLower(content), "failed") {
+		keyInfo = append(keyInfo, "Status: error")
+	}
+
+	// 提取重要的数字结果（可能是行号、大小等）
+	numberRegex := regexp.MustCompile(`\b\d{3,}\b`)  // 3位以上的数字
+	numbers := numberRegex.FindAllString(content, 3) // 最多3个
+	if len(numbers) > 0 {
+		keyInfo = append(keyInfo, "Numbers: "+strings.Join(numbers, ", "))
+	}
+
+	// 提取URL
+	urlRegex := regexp.MustCompile(`https?://[^\s\n]+`)
+	urls := urlRegex.FindAllString(content, 3) // 最多3个
+	if len(urls) > 0 {
+		keyInfo = append(keyInfo, "URLs: "+strings.Join(urls, ", "))
+	}
+
+	if len(keyInfo) == 0 {
+		return ""
+	}
+
+	return strings.Join(keyInfo, "; ")
+}
+
+// uniqueStrings 去除字符串切片中的重复项
+func uniqueStrings(strs []string) []string {
+	seen := make(map[string]bool)
+	result := []string{}
+	for _, s := range strs {
+		s = strings.TrimSpace(s)
+		if s != "" && !seen[s] {
+			seen[s] = true
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// shouldCompressForAgent 判断Agent模式下是否应该压缩
+func (c *ProviderConfig) shouldCompressForAgent(content string) bool {
+	if c.contextCompression == nil {
+		return true
+	}
+
+	// 保守模式：提高压缩阈值
+	if c.contextCompression.AgentMode == "conservative" {
+		if c.contextCompression.UseTokenBasedCompression {
+			tokenCount := calculateTokensDeepSeekFromString(content)
+			// 保守模式：阈值提高2倍
+			threshold := c.contextCompression.CompressionTokenThreshold
+			if threshold == 0 {
+				threshold = calculateTokensDeepSeek(1000)
+			}
+			return tokenCount > threshold*2
+		} else {
+			// 使用字节数判断
+			threshold := c.contextCompression.CompressionBytesThreshold
+			if threshold == 0 {
+				threshold = 1000
+			}
+			return len(content) > threshold*2
+		}
+	}
+
+	// 激进模式或默认：使用原有逻辑
+	return true
 }

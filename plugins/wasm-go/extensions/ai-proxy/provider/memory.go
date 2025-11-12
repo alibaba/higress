@@ -45,6 +45,15 @@ type ContextCompressionConfig struct {
 	// @Title zh-CN 使用Token计算
 	// @Description zh-CN 是否使用token数而不是字节数来判断是否需要压缩，默认false（使用字节数）
 	UseTokenBasedCompression bool `yaml:"useTokenBasedCompression" json:"useTokenBasedCompression"`
+	// @Title zh-CN Agent模式
+	// @Description zh-CN Agent模式下的压缩策略：aggressive（激进压缩，默认）、conservative（保守压缩）、disabled（禁用压缩）
+	AgentMode string `yaml:"agentMode" json:"agentMode"`
+	// @Title zh-CN 自动检索
+	// @Description zh-CN 是否自动检索压缩的上下文并注入摘要（true：自动注入，false：Agent主动调用read_memory）
+	AutoRetrieve bool `yaml:"autoRetrieve" json:"autoRetrieve"`
+	// @Title zh-CN 保留关键信息
+	// @Description zh-CN 在压缩时是否提取并保留关键信息（文件路径、命令结果等），默认false
+	PreserveKeyInfo bool `yaml:"preserveKeyInfo" json:"preserveKeyInfo"`
 	// @Title zh-CN 内存条目TTL
 	// @Description zh-CN 内存条目的过期时间（秒），默认3600秒（1小时）
 	MemoryTTL int `yaml:"memoryTTL" json:"memoryTTL"`
@@ -152,6 +161,15 @@ func NewMemoryService(config *ContextCompressionConfig) (MemoryService, error) {
 	// 如果使用token计算但未设置token阈值，使用默认值（相当于1000字节的token数）
 	if config.UseTokenBasedCompression && config.CompressionTokenThreshold == 0 {
 		config.CompressionTokenThreshold = calculateTokensDeepSeek(1000) // 约300 tokens
+	}
+	// Agent模式默认值
+	if config.AgentMode == "" {
+		config.AgentMode = "aggressive" // 默认激进压缩
+	}
+	// 自动检索默认值
+	if !config.AutoRetrieve {
+		// 默认启用自动检索（向后兼容）
+		config.AutoRetrieve = true
 	}
 	if config.MemoryTTL == 0 {
 		config.MemoryTTL = DefaultMemoryTTL
@@ -482,6 +500,9 @@ func ParseContextCompressionConfig(json gjson.Result) *ContextCompressionConfig 
 	config.CompressionBytesThreshold = int(json.Get("compressionBytesThreshold").Int())
 	config.CompressionTokenThreshold = int(json.Get("compressionTokenThreshold").Int())
 	config.UseTokenBasedCompression = json.Get("useTokenBasedCompression").Bool()
+	config.AgentMode = json.Get("agentMode").String()
+	config.AutoRetrieve = json.Get("autoRetrieve").Bool()
+	config.PreserveKeyInfo = json.Get("preserveKeyInfo").Bool()
 	config.MemoryTTL = int(json.Get("memoryTTL").Int())
 
 	// 解析摘要配置
