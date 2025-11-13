@@ -20,5 +20,6 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/resp v0.1.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
+	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
