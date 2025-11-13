@@ -3,7 +3,6 @@ kind: GatewayClass
 metadata:
   creationTimestamp: null
   name: higress
-  namespace: default
 spec: null
 status:
   conditions:
@@ -21,6 +20,9 @@ metadata:
   namespace: higress-system
 spec: null
 status:
+  addresses:
+  - type: Hostname
+    value: higress-gateway.higress-system.svc.domain.suffix
   conditions:
   - lastTransitionTime: fake
     message: Resource accepted
@@ -28,10 +30,9 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: 'Failed to assign to any requested addresses: port 443 not found for
-      hostname "higress-gateway.higress-system.svc.domain.suffix"'
-    reason: Invalid
-    status: "False"
+    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:443
+    reason: Programmed
+    status: "True"
     type: Programmed
   listeners:
   - attachedRoutes: 1
@@ -60,6 +61,8 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -81,7 +84,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system

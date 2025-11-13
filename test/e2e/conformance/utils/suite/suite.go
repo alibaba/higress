@@ -215,15 +215,16 @@ type ConformanceTests []ConformanceTest
 
 // ConformanceTest is used to define each individual conformance test.
 type ConformanceTest struct {
-	ShortName   string
-	Description string
-	PreDeleteRs []string
-	Manifests   []string
-	Features    []SupportedFeature
-	Slow        bool
-	Parallel    bool
-	Test        func(*testing.T, *ConformanceTestSuite)
-	NotCleanup  bool
+	ShortName    string
+	Description  string
+	PreDeleteRs  []string
+	PreApplyHook func(*testing.T, *ConformanceTestSuite)
+	Manifests    []string
+	Features     []SupportedFeature
+	Slow         bool
+	Parallel     bool
+	Test         func(*testing.T, *ConformanceTestSuite)
+	NotCleanup   bool
 }
 
 // Run runs an individual tests, applying and cleaning up the required manifests
@@ -255,6 +256,12 @@ func (test *ConformanceTest) Run(t *testing.T, suite *ConformanceTestSuite) {
 	for _, manifestLocation := range test.PreDeleteRs {
 		t.Logf("🧳 Applying PreDeleteRs Manifests: %s", manifestLocation)
 		suite.Applier.MustDelete(t, suite.Client, suite.TimeoutConfig, manifestLocation)
+	}
+
+	// Run PreApplyHook if defined (e.g., to create prerequisites before applying manifests)
+	if test.PreApplyHook != nil {
+		t.Logf("🔧 Running PreApplyHook for test: %s", test.ShortName)
+		test.PreApplyHook(t, suite)
 	}
 
 	for _, manifestLocation := range test.Manifests {

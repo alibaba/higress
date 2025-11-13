@@ -3,7 +3,6 @@ kind: GatewayClass
 metadata:
   creationTimestamp: null
   name: higress
-  namespace: default
 spec: null
 status:
   conditions:
@@ -22,8 +21,8 @@ metadata:
 spec: null
 status:
   addresses:
-  - type: IPAddress
-    value: 1.2.3.4
+  - type: Hostname
+    value: higress-gateway.higress-system.svc.domain.suffix
   conditions:
   - lastTransitionTime: fake
     message: Resource accepted
@@ -63,6 +62,8 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
   - attachedRoutes: 1
     conditions:
     - lastTransitionTime: fake
@@ -110,7 +111,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -135,7 +136,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system

@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Updated based on Istio codebase by Higress
-
 package istio
 
 import (
 	"github.com/hashicorp/go-multierror"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	k8sv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
+
 	"istio.io/istio/pilot/pkg/model/kstatus"
 	"istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/controllers"
 	"istio.io/istio/pkg/kube/kclient"
 	"istio.io/istio/pkg/util/istiomultierror"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	k8s "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
 )
 
 // ClassController is a controller that creates the default Istio GatewayClass(s). This will not
@@ -103,19 +102,19 @@ func (c *ClassController) reconcileClass(class gateway.ObjectName) error {
 	return nil
 }
 
-func GetClassStatus(existing *k8s.GatewayClassStatus, gen int64) k8s.GatewayClassStatus {
+func GetClassStatus(existing *k8sv1.GatewayClassStatus, gen int64) *k8sv1.GatewayClassStatus {
 	if existing == nil {
-		existing = &k8s.GatewayClassStatus{}
+		existing = &k8sv1.GatewayClassStatus{}
 	}
 	existing.Conditions = kstatus.UpdateConditionIfChanged(existing.Conditions, metav1.Condition{
-		Type:               string(gateway.GatewayClassConditionStatusAccepted),
+		Type:               string(k8sv1.GatewayClassConditionStatusAccepted),
 		Status:             kstatus.StatusTrue,
 		ObservedGeneration: gen,
 		LastTransitionTime: metav1.Now(),
-		Reason:             string(gateway.GatewayClassConditionStatusAccepted),
+		Reason:             string(k8sv1.GatewayClassConditionStatusAccepted),
 		// Start - Updated by Higress
 		Message: "Handled by Higress controller",
 		// End - Updated by Higress
 	})
-	return *existing
+	return existing
 }

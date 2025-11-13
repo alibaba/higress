@@ -1,14 +1,33 @@
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
   name: higress
 spec:
   controllerName: higress.io/gateway-controller
 ---
-apiVersion: gateway.networking.k8s.io/v1alpha2
+apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
   name: gateway
+  namespace: higress-system
+spec:
+  addresses:
+  - value: higress-gateway
+    type: Hostname
+  gatewayClassName: higress
+  listeners:
+  - name: default
+    port: 34000
+    protocol: TCP
+    allowedRoutes:
+      namespaces:
+        from: All
+---
+# Test we can bind to two parents
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: Gateway
+metadata:
+  name: gateway2
   namespace: higress-system
 spec:
   addresses:
@@ -31,6 +50,8 @@ metadata:
 spec:
   parentRefs:
   - name: gateway
+    namespace: higress-system
+  - name: gateway2
     namespace: higress-system
   rules:
   - backendRefs:
