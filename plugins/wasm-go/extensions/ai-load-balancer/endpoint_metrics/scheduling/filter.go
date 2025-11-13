@@ -20,7 +20,7 @@ import (
 	"errors"
 	"math"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/backend"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )

@@ -1,8 +1,7 @@
-package least_busy
+package endpoint_metrics
 
 import (
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/scheduling"
-
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/scheduling"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -10,34 +9,38 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type LeastBusyLoadBalancer struct {
-	criticalModels map[string]struct{}
+type MetricsEndpointLoadBalancer struct {
+	metricPolicy string
+	targetMetric string
 }
 
-func NewLeastBusyLoadBalancer(json gjson.Result) (LeastBusyLoadBalancer, error) {
-	lb := LeastBusyLoadBalancer{}
-	lb.criticalModels = make(map[string]struct{})
-	for _, model := range json.Get("criticalModels").Array() {
-		lb.criticalModels[model.String()] = struct{}{}
+func NewMetricsEndpointLoadBalancer(json gjson.Result) (MetricsEndpointLoadBalancer, error) {
+	lb := MetricsEndpointLoadBalancer{}
+	if json.Get("metricPolicy").Exists() {
+		lb.metricPolicy = json.Get("metricPolicy").String()
+	} else {
+		lb.metricPolicy = scheduling.MetricPolicyDefault
+	}
+	if json.Get("targetMetric").Exists() {
+		lb.targetMetric = json.Get("targetMetric").String()
 	}
 	return lb, nil
 }
 
 // Callbacks which are called in request path
-func (lb LeastBusyLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpContext) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpContext) types.Action {
 	// If return types.ActionContinue, SetUpstreamOverrideHost will not take effect
 	return types.HeaderStopIteration
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, body []byte) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	requestModel := gjson.GetBytes(body, "model")
 	if !requestModel.Exists() {
 		return types.ActionContinue
 	}
-	_, isCritical := lb.criticalModels[requestModel.String()]
 	llmReq := &scheduling.LLMRequest{
 		Model:    requestModel.String(),
-		Critical: isCritical,
+		Critical: true,
 	}
 	hostInfos, err := proxywasm.GetUpstreamHosts()
 	if err != nil {
@@ -49,7 +52,7 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 			hostMetrics[hostInfo[0]] = gjson.Get(hostInfo[1], "metrics").String()
 		}
 	}
-	scheduler, err := scheduling.GetScheduler(hostMetrics)
+	scheduler, err := scheduling.GetScheduler(hostMetrics, lb.metricPolicy, lb.targetMetric)
 	if err != nil {
 		log.Debugf("initial scheduler failed: %v", err)
 		return types.ActionContinue
@@ -65,17 +68,17 @@ func (lb LeastBusyLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpContext, b
 	return types.ActionContinue
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action {
 	ctx.DontReadResponseBody()
 	return types.ActionContinue
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
+func (lb MetricsEndpointLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
 	return data
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
+func (lb MetricsEndpointLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpContext, body []byte) types.Action {
 	return types.ActionContinue
 }
 
-func (lb LeastBusyLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {}
+func (lb MetricsEndpointLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {}

@@ -21,7 +21,7 @@ description: 针对LLM服务的负载均衡策略
 目前支持的负载均衡策略包括：
 - `global_least_request`: 基于redis实现的全局最小请求数负载均衡
 - `prefix_cache`: 基于 prompt 前缀匹配选择后端节点，如果通过前缀匹配无法匹配到节点，则通过全局最小请求数进行服务节点的选择
-- `least_busy`: [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md) 的 wasm 实现
+- `metrics_based`: 基于 llm 服务暴露的 metrics 进行负载均衡
 
 # 全局最小请求数
 ## 功能说明
@@ -161,14 +161,34 @@ sequenceDiagram
 
 | 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
 |--------------------|-----------------|------------------|-------------|-------------------------------------|
-| `criticalModels`      | []string          | 选填              |             | critical的模型列表    |
+| `metricPolicy`      | string | 必填 | | 如何使用llm暴露的metrics做负载均衡，当前支持`[default, least, most]` |
+| `targetMetric`      | string | 选填 | | 要使用的metric名称，`metricPolicy` 取值为 `least` 或者 `most` 时生效 |
+
 
 ## 配置示例
 
+使用 [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md) 中的算法
+
 ```yaml
-lb_policy: least_busy
+lb_policy: metrics_based
 lb_config:
-  criticalModels:
-  - meta-llama/Llama-2-7b-hf
-  - sql-lora
+  metricPolicy: default
+```
+
+根据当前排队请求数进行负载均衡
+
+```yaml
+lb_policy: metrics_based
+lb_config:
+  metricPolicy: least
+  targetMetric: vllm:num_requests_waiting
+```
+
+根据当前GPU中正在处理的请求数进行负载均衡
+
+```yaml
+lb_policy: metrics_based
+lb_config:
+  metricPolicy: least
+  targetMetric: vllm:num_requests_running
 ```
