@@ -35,7 +35,7 @@ Below are the detailed explanations of the important features and improvements i
 
 **Usage Background**
 
-As the AI-native API gateway Higress evolves, users' requirements for API security, flexibility, and ease of use continue to increase. In practical applications, the MCP (Model Context Protocol) protocol is widely used for managing and invoking AI models. However, the existing MCP servers lack a unified security authentication mechanism, leading to the need for repeated configuration of authentication information in different scenarios. Additionally, for certain scenarios where REST APIs are converted to MCP Servers, an efficient proxy mode is required to handle requests. This update addresses these issues, targeting users including but not limited to developers, operations personnel, and system administrators who need a more secure, flexible, and manageable API gateway.
+As the AI-native API gateway Higress develops, users' demands for API security, flexibility, and ease of use are increasing. In practical applications, the MCP (Model Context Protocol) is widely used for managing and invoking AI models. However, existing MCP servers lack a unified security authentication mechanism, leading to the need for configuring different authentication mechanisms in various scenarios (such as direct proxying by MCP Server, or REST API conversion to MCP Server). This update addresses these issues, targeting user groups including, but not limited to, developers, operations personnel, and system administrators, who require a more secure, flexible, and easy-to-manage API gateway.
 
 **Feature Details**
 
