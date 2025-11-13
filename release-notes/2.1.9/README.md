@@ -47,7 +47,7 @@ To enable this feature, you need to set the corresponding parameters in the Higr
 
 **Feature Value**
 
-This feature significantly enhances the security and flexibility of Higress, making API management more efficient. By introducing server-level default authentication, it reduces the workload of repetitive configurations and lowers the security risks associated with configuration errors. The MCP proxy server not only simplifies the complexity in the REST to MCP conversion process but also offloads state maintenance tasks to Higress, effectively reducing the load on backend MCP servers. These improvements collectively contribute to the stability and user experience of the entire ecosystem, laying a solid foundation for Higress to become an indispensable API gateway in the AI era.
+This feature significantly enhances the security and flexibility of Higress, making API management more efficient. By introducing server-level default authentication, it reduces the workload of repetitive configurations and lowers the security risks caused by configuration errors. The newly added MCP proxy server capability not only simplifies the complexity of MCP service governance but also effectively alleviates the pressure on backend MCP servers by offloading state-keeping tasks to the Higress side. These improvements collectively contribute to enhancing the stability and user experience of the entire ecosystem, laying a solid foundation for Higress to become an indispensable API gateway in the AI era.
 
 ---
 
