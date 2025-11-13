@@ -146,7 +146,7 @@ docker-buildx-push: clean-env docker.higress-buildx
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.1.9/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.2.0/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -166,8 +166,14 @@ build-gateway: prebuild buildx-prepare build-golang-filter
 	USE_REAL_USER=1 TARGET_ARCH=arm64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
 	DOCKER_TARGETS="docker.proxyv2" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
 
-build-gateway-local: prebuild build-golang-filter
+build-gateway-local: prebuild build-golang-filter-amd64
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker
+
+build-golang-filter-amd64:
+	TARGET_ARCH=amd64 ./tools/hack/build-golang-filters.sh
+
+build-golang-filter-arm64:
+	TARGET_ARCH=arm64 ./tools/hack/build-golang-filters.sh
 
 build-golang-filter:
 	TARGET_ARCH=amd64 ./tools/hack/build-golang-filters.sh
@@ -194,8 +200,8 @@ install: pre-install
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
 HIGRESS_LATEST_IMAGE_TAG ?= latest
-ENVOY_LATEST_IMAGE_TAG ?= 48da465cfd0dc5c9ac851bd2b9743780dc82dd8a
-ISTIO_LATEST_IMAGE_TAG ?= latest
+ENVOY_LATEST_IMAGE_TAG ?= ec099e0a24d25aff9c6530cb45dc0ff86ebb78b9
+ISTIO_LATEST_IMAGE_TAG ?= ec099e0a24d25aff9c6530cb45dc0ff86ebb78b9
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
