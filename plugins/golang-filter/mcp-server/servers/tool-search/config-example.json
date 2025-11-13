@@ -1,0 +1,22 @@
+{
+  "vector": {
+    "type": "milvus",
+    "vectorWeight": 0.5,
+    "tableName": "apig_mcp_tools",
+    "dsn": "milvus://localhost:19530/default/apig_mcp_tools?username=root&password=Milvus",
+    "gatewayId": "test-gateway"
+  },
+  "embedding":{
+    "apiKey": "sk-7c0bdbf6347d43139c2893e8992258e1",
+    "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "text-embedding-v4",
+    "dimensions": 1024
+  }
+}
+
+
+
+
+
+
+
