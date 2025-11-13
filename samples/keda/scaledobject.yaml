@@ -1,0 +1,15 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: higress-controller-scaledobject
+  namespace: higress-system
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    name: higress-controller
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-server.monitoring.svc.cluster.local
+        metricName: higress_ai_token_usage_total
+        threshold: "100"

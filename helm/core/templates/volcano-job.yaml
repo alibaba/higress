@@ -1,0 +1,19 @@
+{{- if .Values.volcano.enabled }}
+apiVersion: batch.volcano.sh/v1alpha1
+kind: Job
+metadata:
+  name: {{ include "higress.fullname" . }}-sample-batch
+  namespace: {{ .Release.Namespace }}
+spec:
+  minAvailable: 1
+  tasks:
+    - replicas: 1
+      name: infer
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: infer
+              image: {{ .Values.volcano.image | default "busybox" | quote }}
+              command: ["/bin/sh", "-c", "echo sample batch job"]
+{{- end }}
