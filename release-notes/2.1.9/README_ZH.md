@@ -19,7 +19,7 @@
 
 - **feat(mcp-server): add server-level default authentication and MCP proxy server support** ([#3096](https://github.com/alibaba/higress/pull/3096)): 此特性增强了Higress对MCP流量的安全管理能力，允许用户通过统一接口进行认证设置，简化了安全策略的部署流程，提升了系统的安全性与灵活性。
 - **feat: add higress api mcp server** ([#2923](https://github.com/alibaba/higress/pull/2923)): 通过添加higress-ops MCP Server，用户可以使用hgctl agent命令来管理Higress配置和排查问题，提升了运维效率和用户体验。
-- **feat: implement `hgctl agent` & `mcp add` subcommand ** ([#3051](https://github.com/alibaba/higress/pull/3051)): 增强了Higress的运维能力，特别是通过Agent进行交互式管理和调试的能力，使得用户能够更便捷地配置和调试MCP流量治理，是Higress向AI原生运维迈进的重要一步。
+- **feat: implement `hgctl agent` & `mcp add` subcommand** ([#3051](https://github.com/alibaba/higress/pull/3051)): 增强了Higress的运维能力，特别是通过Agent进行交互式管理和调试的能力，使得用户能够更便捷地配置和调试MCP流量治理，是Higress向AI原生运维迈进的重要一步。
 
 详细信息请查看下方重要功能详述部分。
 
@@ -35,7 +35,7 @@
 
 **使用背景**
 
-随着AI原生API网关Higress的发展，用户对API安全性、灵活性以及易用性的要求越来越高。在实际应用中，MCP（Model Context Protocol）协议被广泛用于管理和调用AI模型。然而，现有的MCP服务器缺乏统一的安全认证机制，导致在不同场景（MCP Server直接代理，REST API转换MCP Server）下需要配置差异化的认证机制。本次更新解决了这些问题，目标用户群体包括但不限于开发者、运维人员和系统管理员，他们需要一个更加安全、灵活且易于管理的API网关。
+随着用户对API安全性、灵活性以及易用性的要求越来越高。在实际应用中，MCP（Model Context Protocol）协议被广泛用于Agent调用工具。然而，现有的MCP服务器缺乏统一的安全认证机制，导致在不同场景（MCP Server直接代理，REST API转换MCP Server）下需要配置差异化的认证机制。本次更新解决了这些问题，目标用户群体包括但不限于开发者、运维人员和系统管理员，他们需要一个更加安全、灵活且易于管理的API网关。
 
 **功能详述**
 
@@ -47,7 +47,7 @@
 
 **功能价值**
 
-该功能显著提高了Higress的安全性和灵活性，使得API管理变得更加高效。通过引入服务器级别的默认认证，减少了重复配置工作量，降低了因配置错误引发的安全风险。新加的MCP代理服务器能力不仅简化了MCP服务治理的复杂性，还通过卸载状态保持任务至Higress侧，有效减轻了后端MCP服务器的压力。这些改进共同作用于提升整个生态系统的稳定性和用户体验，为Higress成为AI时代不可或缺的API网关奠定了坚实基础。
+该功能显著提高了Higress的安全性和灵活性，使得API管理变得更加高效。通过引入服务器级别的默认认证，减少了重复配置工作量，降低了因配置错误引发的安全风险。新加的MCP代理服务器能力不仅简化了MCP服务治理的复杂性，还通过卸载状态保持任务至Higress侧，有效减轻了后端MCP服务器的压力。
 
 ---
 
@@ -95,7 +95,7 @@
 
 **使用背景**
 
-Higress 是一个AI原生的API网关，用于统一管理LLM API、MCP API和Agent API。随着Higress的发展，传统的命令行工具已经不能满足用户的需求，特别是在MCP服务的管理和调试方面。本次PR引入了类似Claude Code的交互式Agent，使得用户可以通过自然语言来管理Higress。同时，新增的`mcp add`子命令可以方便地将远程MCP服务添加到Higress的MCP管理目录中，实现MCP流量的治理。这些功能不仅简化了MCP服务的配置过程，还增强了系统的可维护性和易用性。
+Higress 是一个AI原生的API网关，用于统一管理LLM API、MCP API和Agent API。随着Higress的发展，传统的命令行工具已经不能满足用户的需求，特别是在MCP服务的管理和调试方面。本次PR引入了类似Claude Code的交互式Agent，使得用户可以通过自然语言来管理Higress。同时，新增的`mcp add`子命令可以方便地将Remote MCP服务添加到Higress的MCP管理目录中，实现MCP流量的治理。这些功能不仅简化了MCP服务的配置过程，还增强了系统的可维护性和易用性。
 
 **功能详述**
 
