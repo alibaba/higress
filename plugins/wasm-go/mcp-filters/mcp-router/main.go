@@ -91,6 +91,23 @@ func ParseOverrideConfig(configBytes []byte, globalConfig any, ruleConfig *any) 
 	return nil
 }
 
+// parsePrefixedToolName tries to parse a tool name that may contain a server prefix.
+// It supports both the legacy consts.ToolSetNameSplitter (e.g. "server___tool") and
+// the slash form (e.g. "server/tool"). Returns serverName, actualToolName, and ok.
+func parsePrefixedToolName(toolName string) (string, string, bool) {
+    // First try the legacy splitter
+    parts := strings.SplitN(toolName, consts.ToolSetNameSplitter, 2)
+    if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+        return parts[0], parts[1], true
+    }
+    // Fallback to slash separator
+    parts = strings.SplitN(toolName, "/", 2)
+    if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+        return parts[0], parts[1], true
+    }
+    return "", "", false
+}
+
 func ProcessRequest(context wrapper.HttpContext, config any, toolName string, toolArgs gjson.Result, rawBody []byte) types.Action {
 	routerConfig, ok := config.(McpRouterConfig)
 	if !ok {
@@ -100,15 +117,12 @@ func ProcessRequest(context wrapper.HttpContext, config any, toolName string, to
 	if !routerConfig.enable {
 		return types.ActionContinue
 	}
-	// Extract server name from tool name (format: "${serverName}___${toolName}")
-	parts := strings.SplitN(toolName, consts.ToolSetNameSplitter, 2)
-	if len(parts) != 2 {
-		log.Debugf("Tool name '%s' does not contain server prefix, continuing without routing", toolName)
-		return types.ActionContinue
-	}
-
-	serverName := parts[0]
-	actualToolName := parts[1]
+    // Extract server name from tool name, support both "server___tool" and "server/tool"
+    serverName, actualToolName, ok := parsePrefixedToolName(toolName)
+    if !ok {
+        log.Debugf("Tool name '%s' does not contain server prefix, continuing without routing", toolName)
+        return types.ActionContinue
+    }
 
 	log.Debugf("Routing tool call: server=%s, tool=%s", serverName, actualToolName)
 
