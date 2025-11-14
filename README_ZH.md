@@ -49,6 +49,7 @@ Higress 在阿里内部为解决 Tengine reload 对长连接业务有损，以�
 
 [![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i4/O1CN01tHRaNm22hflDqxKV5_!!6000000007152-55-tps-170-40.svg)](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
 
+如果您使用开源的Higress并希望获得企业级支持，可以联系johnlanni的邮箱：zty98751@alibaba-inc.com或社交媒体账号（微信号：nomadao，钉钉号：chengtanzty）。添加好友时请备注Higress :）
 
 ## Summary
 
