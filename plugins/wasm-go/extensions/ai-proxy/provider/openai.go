@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 // openaiProvider is the provider for OpenAI service.
@@ -50,6 +50,10 @@ func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNamePauseFineTuningJob):                   PathOpenAIPauseFineTuningJob,
 		string(ApiNameFineTuningCheckpointPermissions):      PathOpenAIFineTuningCheckpointPermissions,
 		string(ApiNameDeleteFineTuningCheckpointPermission): PathOpenAIFineDeleteTuningCheckpointPermission,
+		string(ApiNameVideos):                               PathOpenAIVideos,
+		string(ApiNameRetrieveVideo):                        PathOpenAIRetrieveVideo,
+		string(ApiNameVideoRemix):                           PathOpenAIVideoRemix,
+		string(ApiNameRetrieveVideoContent):                 PathOpenAIRetrieveVideoContent,
 	}
 }
 
@@ -64,7 +68,8 @@ func isDirectPath(path string) bool {
 		strings.HasSuffix(path, "/models") ||
 		strings.HasSuffix(path, "/responses") ||
 		strings.HasSuffix(path, "/fine_tuning/jobs") ||
-		strings.HasSuffix(path, "/fine_tuning/checkpoints")
+		strings.HasSuffix(path, "/fine_tuning/checkpoints") ||
+		strings.HasSuffix(path, "/videos")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {

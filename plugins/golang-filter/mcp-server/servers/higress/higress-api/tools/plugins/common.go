@@ -70,7 +70,7 @@ func handleListPluginInstances(client *higress.HigressClient) common.ToolHandler
 			path = "/v1/global/plugin-instances"
 		}
 
-		respBody, err := client.Get(path)
+		respBody, err := client.Get(ctx, path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list plugin instances at scope '%s': %w", scope, err)
 		}
@@ -116,7 +116,7 @@ func handleGetPluginConfig(client *higress.HigressClient) common.ToolHandlerFunc
 
 		// Build API path and make request
 		path := BuildPluginPath(pluginName, scope, resourceName)
-		respBody, err := client.Get(path)
+		respBody, err := client.Get(ctx, path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get plugin config for '%s' at scope '%s': %w", pluginName, scope, err)
 		}
@@ -162,7 +162,7 @@ func handleDeletePluginConfig(client *higress.HigressClient) common.ToolHandlerF
 
 		// Build API path and make request
 		path := BuildPluginPath(pluginName, scope, resourceName)
-		respBody, err := client.Delete(path)
+		respBody, err := client.Delete(ctx, path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete plugin config for '%s' at scope '%s': %w", pluginName, scope, err)
 		}

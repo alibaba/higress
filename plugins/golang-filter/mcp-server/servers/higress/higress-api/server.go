@@ -18,8 +18,6 @@ func init() {
 
 type HigressConfig struct {
 	higressURL  string
-	username    string
-	password    string
 	description string
 }
 
@@ -30,26 +28,14 @@ func (c *HigressConfig) ParseConfig(config map[string]interface{}) error {
 	}
 	c.higressURL = higressURL
 
-	username, ok := config["username"].(string)
-	if !ok {
-		return errors.New("missing username")
-	}
-	c.username = username
-
-	password, ok := config["password"].(string)
-	if !ok {
-		return errors.New("missing password")
-	}
-	c.password = password
-
 	if desc, ok := config["description"].(string); ok {
 		c.description = desc
 	} else {
 		c.description = "Higress API MCP Server, which invokes Higress Console APIs to manage resources such as routes, services, and plugins."
 	}
 
-	api.LogDebugf("HigressConfig ParseConfig: higressURL=%s, username=%s, description=%s",
-		c.higressURL, c.username, c.description)
+	api.LogInfof("Higress MCP Server configuration parsed successfully. URL: %s",
+		c.higressURL)
 
 	return nil
 }
@@ -62,13 +48,17 @@ func (c *HigressConfig) NewServer(serverName string) (*common.MCPServer, error) 
 	)
 
 	// Initialize Higress API client
-	client := higress.NewHigressClient(c.higressURL, c.username, c.password)
+	client := higress.NewHigressClient(c.higressURL)
 
 	// Register all tools
 	tools.RegisterRouteTools(mcpServer, client)
 	tools.RegisterServiceTools(mcpServer, client)
+	tools.RegisterAiRouteTools(mcpServer, client)
+	tools.RegisterAiProviderTools(mcpServer, client)
+	tools.RegisterMcpServerTools(mcpServer, client)
 	plugins.RegisterCommonPluginTools(mcpServer, client)
 	plugins.RegisterRequestBlockPluginTools(mcpServer, client)
+	plugins.RegisterCustomResponsePluginTools(mcpServer, client)
 
 	api.LogInfof("Higress MCP Server initialized: %s", serverName)
 

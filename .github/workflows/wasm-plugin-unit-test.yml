@@ -180,6 +180,8 @@ jobs:
     - name: Upload coverage to Codecov for ${{ matrix.plugin }}
       uses: codecov/codecov-action@v4
       if: always()
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         file: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage-${{ matrix.plugin }}.out
         flags: wasm-go-plugin-${{ matrix.plugin }}
