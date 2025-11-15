@@ -603,7 +603,7 @@ spec:
           apiTokens:
             - fake_token
           modelMapping:
-            "gpt-3":gemma3
+            "gpt-3": gemma3
             "*": gemma3
           type: ollama
           ollamaServerHost: llm-mock-service.higress-conformance-ai-backend.svc.cluster.local
