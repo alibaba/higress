@@ -8,10 +8,15 @@ replace github.com/mark3labs/mcp-go => github.com/higress-group/mcp-go v0.0.0-20
 
 require (
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
+	github.com/distribution/distribution/v3 v3.0.0-20220526142353-ffbd94cbe269
 	github.com/envoyproxy/envoy v1.33.1-0.20250325161043-11ab50a29d99
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.6.0
 	github.com/mark3labs/mcp-go v0.12.0
+	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2
+	github.com/openai/openai-go/v2 v2.7.0
+	github.com/pkoukk/tiktoken-go v0.1.8
+	github.com/stretchr/testify v1.9.0
 	google.golang.org/protobuf v1.36.5
 	gorm.io/driver/clickhouse v0.6.1
 	gorm.io/driver/mysql v1.5.7
@@ -64,9 +69,8 @@ require (
 	github.com/milvus-io/milvus-sdk-go/v2 v2.4.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/openai/openai-go/v2 v2.7.0 // indirect
 	github.com/orcaman/concurrent-map v0.0.0-20210501183033-44dafcb38ecc // indirect
-	github.com/pkoukk/tiktoken-go v0.1.8 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.14.0 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
@@ -120,7 +124,7 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 replace github.com/nacos-group/nacos-sdk-go/v2 v2.2.9 => github.com/luoxiner/nacos-sdk-go/v2 v2.2.9-40

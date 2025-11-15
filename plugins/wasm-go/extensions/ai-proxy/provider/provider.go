@@ -56,6 +56,10 @@ const (
 	ApiNamePauseFineTuningJob                   ApiName = "openai/v1/pausefine-tuningjob"
 	ApiNameFineTuningCheckpointPermissions      ApiName = "openai/v1/fine-tuningjobcheckpointpermissions"
 	ApiNameDeleteFineTuningCheckpointPermission ApiName = "openai/v1/deletefine-tuningjobcheckpointpermission"
+	ApiNameVideos                               ApiName = "openai/v1/videos"
+	ApiNameRetrieveVideo                        ApiName = "openai/v1/retrievevideo"
+	ApiNameVideoRemix                           ApiName = "openai/v1/videoremix"
+	ApiNameRetrieveVideoContent                 ApiName = "openai/v1/retrievevideocontent"
 
 	// TODO: 以下是一些非标准的API名称，需要进一步确认是否支持
 	ApiNameCohereV1Rerank              ApiName = "cohere/v1/rerank"
@@ -93,6 +97,10 @@ const (
 	PathOpenAIPauseFineTuningJob                   = "/v1/fine_tuning/jobs/{fine_tuning_job_id}/pause"
 	PathOpenAIFineTuningCheckpointPermissions      = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions"
 	PathOpenAIFineDeleteTuningCheckpointPermission = "/v1/fine_tuning/checkpoints/{fine_tuned_model_checkpoint}/permissions/{permission_id}"
+	PathOpenAIVideos                               = "/v1/videos"
+	PathOpenAIRetrieveVideo                        = "/v1/videos/{video_id}"
+	PathOpenAIVideoRemix                           = "/v1/videos/{video_id}/remix"
+	PathOpenAIRetrieveVideoContent                 = "/v1/videos/{video_id}/content"
 
 	// Anthropic
 	PathAnthropicMessages = "/v1/messages"
@@ -598,7 +606,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			string(ApiNameImageVariation),
 			string(ApiNameImageEdit),
 			string(ApiNameAudioSpeech),
-			string(ApiNameCohereV1Rerank):
+			string(ApiNameCohereV1Rerank),
+			string(ApiNameVideos),
+			string(ApiNameRetrieveVideo),
+			string(ApiNameRetrieveVideoContent),
+			string(ApiNameVideoRemix):
 			c.capabilities[capability] = pathJson.String()
 		}
 	}
@@ -966,7 +978,9 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 // defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
 func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	switch apiName {
-	case ApiNameChatCompletion:
+	case ApiNameChatCompletion,
+		ApiNameVideos,
+		ApiNameVideoRemix:
 		stream := gjson.GetBytes(body, "stream").Bool()
 		if stream {
 			_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
@@ -1011,6 +1025,8 @@ func (c *ProviderConfig) isStreamingAPI(apiName ApiName, body []byte) bool {
 func (c *ProviderConfig) needToProcessRequestBody(apiName ApiName) bool {
 	switch apiName {
 	case ApiNameChatCompletion,
+		ApiNameVideos,
+		ApiNameVideoRemix,
 		ApiNameCompletion,
 		ApiNameEmbeddings,
 		ApiNameImageGeneration,

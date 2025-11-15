@@ -857,8 +857,17 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 					portUpdated := false
 					for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
 						if policy.Port.Number == portTrafficPolicy.Port.Number {
-							policy.Tls = portTrafficPolicy.Tls
-							policy.LoadBalancer = portTrafficPolicy.LoadBalancer
+							// Only set Tls if not already configured
+							if policy.Tls == nil && portTrafficPolicy.Tls != nil {
+								policy.Tls = portTrafficPolicy.Tls
+							}
+							// Only set LoadBalancer if not already configured
+							if policy.LoadBalancer == nil && portTrafficPolicy.LoadBalancer != nil {
+								policy.LoadBalancer = portTrafficPolicy.LoadBalancer
+							} else if policy.LoadBalancer != nil && policy.LoadBalancer.LbPolicy == nil &&
+								portTrafficPolicy.LoadBalancer != nil && portTrafficPolicy.LoadBalancer.LbPolicy != nil {
+								policy.LoadBalancer.LbPolicy = portTrafficPolicy.LoadBalancer.LbPolicy
+							}
 							portUpdated = true
 							break
 						}
