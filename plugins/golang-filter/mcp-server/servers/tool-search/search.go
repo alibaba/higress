@@ -2,7 +2,6 @@ package tool_search
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
@@ -66,24 +65,16 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 	for i, record := range records {
 		var tool ToolDefinition
 
-		// Parse metadata if available
-		if record.Metadata != "" {
-			if err := json.Unmarshal([]byte(record.Metadata), &tool); err != nil {
-				api.LogWarnf("Failed to parse metadata for tool %s___%s: %v", record.ServerName, record.Name, err)
-				// If metadata parsing fails, create a basic tool definition
-				tool = ToolDefinition{
-					"name":        record.Name,
-					"description": record.Description,
-				}
-			} else {
-				api.LogDebugf("Successfully parsed metadata for tool %s___%s", record.ServerName, record.Name)
-			}
+		// Use metadata if available
+		if len(record.Metadata) > 0 {
+			tool = record.Metadata
+			api.LogDebugf("Successfully parsed metadata for tool %s___%s", record.ServerName, record.Name)
 		} else {
 			api.LogDebugf("No metadata found for tool %s___%s, using basic definition", record.ServerName, record.Name)
 			// If no metadata, create a basic tool definition
 			tool = ToolDefinition{
 				"name":        record.Name,
-				"description": record.Description,
+				"description": record.Content,
 			}
 		}
 
@@ -93,7 +84,7 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 		tools = append(tools, tool)
 
 		if i < 3 { // Log first 3 tools for debugging
-			api.LogDebugf("Tool %d: %s - %s", i+1, tool["name"], record.Description)
+			api.LogDebugf("Tool %d: %s - %s", i+1, tool["name"], record.Content)
 		}
 	}
 
@@ -117,24 +108,16 @@ func (s *SearchService) GetAllTools() (*ToolSearchResult, error) {
 	for _, record := range records {
 		var tool ToolDefinition
 
-		// Parse metadata if available
-		if record.Metadata != "" {
-			if err := json.Unmarshal([]byte(record.Metadata), &tool); err != nil {
-				api.LogWarnf("Failed to parse metadata for tool %s___%s: %v", record.ServerName, record.Name, err)
-				// If metadata parsing fails, create a basic tool definition
-				tool = ToolDefinition{
-					"name":        record.Name,
-					"description": record.Description,
-				}
-			} else {
-				api.LogDebugf("Successfully parsed metadata for tool %s___%s", record.ServerName, record.Name)
-			}
+		// Use metadata if available
+		if len(record.Metadata) > 0 {
+			tool = record.Metadata
+			api.LogDebugf("Successfully parsed metadata for tool %s___%s", record.ServerName, record.Name)
 		} else {
 			api.LogDebugf("No metadata found for tool %s___%s, using basic definition", record.ServerName, record.Name)
 			// If no metadata, create a basic tool definition
 			tool = ToolDefinition{
 				"name":        record.Name,
-				"description": record.Description,
+				"description": record.Content,
 			}
 		}
 

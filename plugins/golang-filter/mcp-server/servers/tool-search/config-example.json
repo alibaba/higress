@@ -7,7 +7,7 @@
     "gatewayId": "test-gateway"
   },
   "embedding":{
-    "apiKey": "sk-7c0bdbf6347d43139c2893e8992258e1",
+    "apiKey": "your-dashscope-api-key",
     "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
     "model": "text-embedding-v4",
     "dimensions": 1024

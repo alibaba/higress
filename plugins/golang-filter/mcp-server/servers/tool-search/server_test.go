@@ -42,7 +42,7 @@ func TestServer(t *testing.T) {
 			"gatewayId":    "test-gateway",
 		},
 		"embedding": map[string]any{
-			"apiKey":     getEnvOrDefault("TEST_API_KEY", "xxxx"),
+			"apiKey":     getEnvOrDefault("TEST_API_KEY", "your-dashscope-api-key"),
 			"baseURL":    getEnvOrDefault("TEST_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
 			"model":      getEnvOrDefault("TEST_MODEL", "text-embedding-v4"),
 			"dimensions": 1024,

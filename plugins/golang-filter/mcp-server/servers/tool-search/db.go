@@ -2,7 +2,6 @@ package tool_search
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -29,12 +28,12 @@ type DBClient struct {
 
 // ToolRecord represents a tool record in the database
 type ToolRecord struct {
-	ID          string `json:"id"`
-	ServerName  string `json:"server_name"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Metadata    string `json:"metadata"`
-	GatewayID   string `json:"gateway_id"`
+	ID         string                 `json:"id"`
+	ServerName string                 `json:"server_name"`
+	Name       string                 `json:"name"`
+	Content    string                 `json:"content"`
+	Metadata   map[string]interface{} `json:"metadata"`
+	GatewayID  string                 `json:"gateway_id"`
 }
 
 // NewDBClient creates a new DBClient instance
@@ -222,9 +221,6 @@ func (c *DBClient) Ping() error {
 	_, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	// Try to list collections as a ping operation
-	// _, err := c.vectorDB.ListDocs(ctx, 1)
-	// For now, just return nil as a placeholder
 	return nil
 }
 
@@ -253,17 +249,19 @@ func (c *DBClient) SearchTools(query string, vector []float32, topK int, vectorW
 	// Convert results to ToolRecords
 	var records []ToolRecord
 	for _, result := range results {
-		var record ToolRecord
-		// Parse the content as JSON to extract tool information
-		if err := json.Unmarshal([]byte(result.Document.Content), &record); err != nil {
-			api.LogWarnf("Failed to parse tool record from search result: %v", err)
-			// Try to create a basic record from the content
-			record = ToolRecord{
-				ID:          result.Document.ID,
-				Description: result.Document.Content,
-			}
+		doc := result.Document
+		tool := ToolRecord{
+			ID:        doc.ID,
+			Content:   doc.Content,
+			Metadata:  doc.Metadata,
+			GatewayID: c.gatewayID,
 		}
-		records = append(records, record)
+
+		if name, ok := doc.Metadata["name"].(string); ok {
+			tool.Name = name
+		}
+
+		records = append(records, tool)
 	}
 
 	api.LogInfof("Vector search completed, found %d results", len(records))
@@ -282,7 +280,8 @@ func (c *DBClient) GetAllTools() ([]ToolRecord, error) {
 	defer cancel()
 
 	// Retrieve all documents
-	docs, err := c.vectorDB.ListDocs(ctx, 0) // 0 means no limit
+	const maxToolsLimit = 1000
+	docs, err := c.vectorDB.ListDocs(ctx, maxToolsLimit)
 	if err != nil {
 		api.LogErrorf("Failed to list documents: %v", err)
 		return nil, fmt.Errorf("failed to list documents: %w", err)
@@ -291,16 +290,17 @@ func (c *DBClient) GetAllTools() ([]ToolRecord, error) {
 	// Convert documents to ToolRecords
 	var tools []ToolRecord
 	for _, doc := range docs {
-		var tool ToolRecord
-		// Parse the content as JSON to extract tool information
-		if err := json.Unmarshal([]byte(doc.Content), &tool); err != nil {
-			api.LogWarnf("Failed to parse tool record from document: %v", err)
-			// Try to create a basic record from the content
-			tool = ToolRecord{
-				ID:          doc.ID,
-				Description: doc.Content,
-			}
+		tool := ToolRecord{
+			ID:        doc.ID,
+			Content:   doc.Content,
+			Metadata:  doc.Metadata,
+			GatewayID: c.gatewayID,
 		}
+
+		if name, ok := doc.Metadata["name"].(string); ok {
+			tool.Name = name
+		}
+
 		tools = append(tools, tool)
 	}
 
