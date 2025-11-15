@@ -342,7 +342,7 @@ metadata:
 spec:
   ingressClassName: higress
   rules:
-    - host: "localhost:11434"
+    - host: "ollama.e2e.host"
       http:
         paths:
           - pathType: Prefix

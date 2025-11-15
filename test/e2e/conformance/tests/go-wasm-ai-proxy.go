@@ -1028,7 +1028,7 @@ data: [DONE]
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "localhost:11434",
+						Host:        "ollama.e2e.host",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
@@ -1050,7 +1050,7 @@ data: [DONE]
 				},
 				Request: http.AssertionRequest{
 					ActualRequest: http.Request{
-						Host:        "localhost:11434",
+						Host:        "ollama.e2e.host",
 						Path:        "/v1/chat/completions",
 						Method:      "POST",
 						ContentType: http.ContentTypeApplicationJson,
