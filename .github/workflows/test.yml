@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ feat/**, main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - name: Tidy
+        run: |
+          go mod tidy
+      - name: Unit tests
+        run: |
+          go test ./pkg/... ./test/... -run Test -v

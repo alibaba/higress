@@ -1,0 +1,17 @@
+{{- if .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "controller.name" . }}-scaledobject
+  namespace: {{ .Release.Namespace }}
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    name: {{ include "controller.name" . }}
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.keda.prometheus.serverAddress | quote }}
+        metricName: {{ .Values.keda.metric.name | quote }}
+        threshold: {{ .Values.keda.metric.threshold | quote }}
+{{- end }}
