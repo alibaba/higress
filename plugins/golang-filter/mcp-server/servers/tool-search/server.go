@@ -27,7 +27,11 @@ type VectorConfig struct {
 	Type         string  `json:"type"`
 	VectorWeight float64 `json:"vectorWeight"`
 	TableName    string  `json:"tableName"`
-	DSN          string  `json:"dsn"`
+	Host         string  `json:"host"`
+	Port         int     `json:"port"`
+	Database     string  `json:"database"`
+	Username     string  `json:"username"`
+	Password     string  `json:"password"`
 	GatewayID    string  `json:"gatewayId"`
 }
 
@@ -77,26 +81,36 @@ func (c *ToolSearchConfig) ParseConfig(config map[string]any) error {
 }
 
 func (c *ToolSearchConfig) parseVectorConfig(config map[string]any) error {
-	// Parse type (required)
 	if vectorType, ok := config["type"].(string); ok {
 		c.Vector.Type = vectorType
 	} else {
 		return errors.New("missing vector.type")
 	}
 
-	// Validate supported types
 	if c.Vector.Type != "milvus" {
 		return fmt.Errorf("unsupported vector.type: %s, only 'milvus' is supported", c.Vector.Type)
 	}
 
-	// Parse DSN (required)
-	if dsn, ok := config["dsn"].(string); ok {
-		c.Vector.DSN = dsn
+	if host, ok := config["host"].(string); ok {
+		c.Vector.Host = host
 	} else {
-		return errors.New("missing vector.dsn")
+		return errors.New("missing vector.host")
 	}
 
-	// Parse optional fields with defaults
+	if port, ok := config["port"].(float64); ok {
+		c.Vector.Port = int(port)
+	} else if port, ok := config["port"].(int); ok {
+		c.Vector.Port = port
+	} else {
+		return errors.New("missing vector.port")
+	}
+
+	if database, ok := config["database"].(string); ok {
+		c.Vector.Database = database
+	} else {
+		c.Vector.Database = "default" // 默认数据库
+	}
+
 	if vectorWeight, ok := config["vectorWeight"].(float64); ok {
 		c.Vector.VectorWeight = vectorWeight
 	} else {
@@ -109,7 +123,14 @@ func (c *ToolSearchConfig) parseVectorConfig(config map[string]any) error {
 		c.Vector.TableName = defaultTableName
 	}
 
-	// Parse gatewayId (optional for Milvus)
+	if username, ok := config["username"].(string); ok {
+		c.Vector.Username = username
+	}
+
+	if password, ok := config["password"].(string); ok {
+		c.Vector.Password = password
+	}
+
 	if gatewayID, ok := config["gatewayId"].(string); ok {
 		c.Vector.GatewayID = gatewayID
 	}
@@ -157,13 +178,22 @@ func (c *ToolSearchConfig) NewServer(serverName string) (*common.MCPServer, erro
 	)
 
 	// Create database client
-	dbClient := NewDBClient(c.Vector.DSN, c.Vector.TableName, c.Vector.GatewayID, mcpServer.GetDestoryChannel())
+	dbClient := NewDBClient(
+		c.Vector.Host,
+		c.Vector.Port,
+		c.Vector.Database,
+		c.Vector.Username,
+		c.Vector.Password,
+		c.Vector.TableName,
+		c.Vector.GatewayID,
+		mcpServer.GetDestoryChannel(),
+	)
 
 	// Create embedding client
 	embeddingClient := NewEmbeddingClient(c.Embedding.APIKey, c.Embedding.BaseURL, c.Embedding.Model, c.Embedding.Dimensions)
 
 	// Create search service
-	searchService := NewSearchService(dbClient, embeddingClient, c.Vector.VectorWeight, 0)
+	searchService := NewSearchService(dbClient, embeddingClient)
 
 	// Add tool search tool
 	mcpServer.AddTool(

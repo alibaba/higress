@@ -10,16 +10,13 @@ import (
 type SearchService struct {
 	dbClient        *DBClient
 	embeddingClient *EmbeddingClient
-	vectorWeight    float64
 }
 
 // NewSearchService creates a new SearchService instance
-func NewSearchService(dbClient *DBClient, embeddingClient *EmbeddingClient, vectorWeight, textWeight float64) *SearchService {
-	api.LogInfof("Creating SearchService with vectorWeight: %f", vectorWeight)
+func NewSearchService(dbClient *DBClient, embeddingClient *EmbeddingClient) *SearchService {
 	return &SearchService{
 		dbClient:        dbClient,
 		embeddingClient: embeddingClient,
-		vectorWeight:    vectorWeight,
 	}
 }
 
@@ -34,7 +31,6 @@ type ToolDefinition map[string]interface{}
 // SearchTools performs semantic search for tools
 func (s *SearchService) SearchTools(ctx context.Context, query string, topK int) (*ToolSearchResult, error) {
 	api.LogInfof("Starting tool search for query: '%s', topK: %d", query, topK)
-	api.LogDebugf("Vector weight: %f", s.vectorWeight)
 
 	// Generate vector embedding for the query
 	vector, err := s.embeddingClient.GetEmbedding(ctx, query)
@@ -46,7 +42,7 @@ func (s *SearchService) SearchTools(ctx context.Context, query string, topK int)
 	api.LogInfof("Embedding generated successfully, vector dimension: %d", len(vector))
 
 	// Perform vector search
-	records, err := s.dbClient.SearchTools(query, vector, topK, s.vectorWeight, 0)
+	records, err := s.dbClient.SearchTools(query, vector, topK)
 	if err != nil {
 		api.LogErrorf("Failed to search tools: %v", err)
 		return nil, fmt.Errorf("failed to search tools: %w", err)

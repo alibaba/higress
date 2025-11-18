@@ -3,7 +3,6 @@ package tool_search
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -37,11 +36,19 @@ type ToolRecord struct {
 }
 
 // NewDBClient creates a new DBClient instance
-func NewDBClient(dsn, tableName, gatewayID string, stop chan struct{}) *DBClient {
+func NewDBClient(host string, port int, database, username, password, tableName, gatewayID string, stop chan struct{}) *DBClient {
 	api.LogInfof("Creating DBClient with tableName: %s, gatewayID: %s", tableName, gatewayID)
 
 	// Parse DSN to extract Milvus configuration
-	cfg := parseDSN(dsn)
+	cfg := &config.VectorDBConfig{
+		Provider:   "milvus",
+		Host:       host,
+		Port:       port,
+		Database:   database,
+		Collection: tableName,
+		Username:   username,
+		Password:   password,
+	}
 
 	client := &DBClient{
 		config:     cfg,
@@ -61,76 +68,6 @@ func NewDBClient(dsn, tableName, gatewayID string, stop chan struct{}) *DBClient
 	}
 
 	return client
-}
-
-// parseDSN parses the DSN string and returns a VectorDBConfig
-func parseDSN(dsn string) *config.VectorDBConfig {
-	// Example DSN format: "milvus://host:port/database/collection?username=user&password=pass"
-	cfg := &config.VectorDBConfig{
-		Provider:   "milvus",
-		Host:       "localhost",
-		Port:       19530,
-		Database:   "default",
-		Collection: "apig_mcp_tools",
-		Username:   "",
-		Password:   "",
-	}
-
-	// Parse the DSN string
-	// For simplicity, we'll use a basic parsing approach
-	// In a real implementation, you might want to use a more robust URL parser
-
-	if strings.HasPrefix(dsn, "milvus://") {
-		// Remove the prefix
-		dsn = strings.TrimPrefix(dsn, "milvus://")
-
-		// Split by '?' to separate address from parameters
-		parts := strings.Split(dsn, "?")
-		address := parts[0]
-
-		// Split address by '/' to get host:port, database, and collection
-		addrParts := strings.Split(address, "/")
-		if len(addrParts) >= 3 {
-			hostPort := strings.Split(addrParts[0], ":")
-			if len(hostPort) == 2 {
-				cfg.Host = hostPort[0]
-				fmt.Sscanf(hostPort[1], "%d", &cfg.Port)
-			}
-			cfg.Database = addrParts[1]
-			cfg.Collection = addrParts[2]
-		} else if len(addrParts) >= 2 {
-			hostPort := strings.Split(addrParts[0], ":")
-			if len(hostPort) == 2 {
-				cfg.Host = hostPort[0]
-				fmt.Sscanf(hostPort[1], "%d", &cfg.Port)
-			}
-			cfg.Database = addrParts[1]
-		} else {
-			hostPort := strings.Split(addrParts[0], ":")
-			if len(hostPort) == 2 {
-				cfg.Host = hostPort[0]
-				fmt.Sscanf(hostPort[1], "%d", &cfg.Port)
-			}
-		}
-
-		// Parse parameters if present
-		if len(parts) > 1 {
-			params := strings.Split(parts[1], "&")
-			for _, param := range params {
-				kv := strings.Split(param, "=")
-				if len(kv) == 2 {
-					switch kv[0] {
-					case "username":
-						cfg.Username = kv[1]
-					case "password":
-						cfg.Password = kv[1]
-					}
-				}
-			}
-		}
-	}
-
-	return cfg
 }
 
 func (c *DBClient) connect() error {
@@ -216,16 +153,10 @@ func (c *DBClient) Ping() error {
 	if c.vectorDB == nil {
 		return fmt.Errorf("database connection is nil")
 	}
-
-	// For Milvus, we can try a simple operation to check connectivity
-	_, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
 	return nil
 }
 
-// SearchTools performs hybrid search (vector + full-text) on tools
-func (c *DBClient) SearchTools(query string, vector []float32, topK int, vectorWeight, textWeight float64) ([]ToolRecord, error) {
+func (c *DBClient) SearchTools(query string, vector []float32, topK int) ([]ToolRecord, error) {
 	api.LogInfof("Performing vector search for query: '%s', topK: %d", query, topK)
 	if err := c.reconnectIfDbEmpty(); err != nil {
 		return nil, err

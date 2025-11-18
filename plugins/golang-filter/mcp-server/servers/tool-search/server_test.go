@@ -38,7 +38,11 @@ func TestServer(t *testing.T) {
 			"type":         "milvus",
 			"vectorWeight": 0.6,
 			"tableName":    getEnvOrDefault("TEST_TABLE_NAME", "apig_mcp_tools"),
-			"dsn":          getEnvOrDefault("TEST_DSN", "milvus://localhost:19530/default/apig_mcp_tools?username=root&password=Milvus"),
+			"host":         getEnvOrDefault("TEST_MILVUS_HOST", "localhost"),
+			"port":         getEnvOrDefaultInt("TEST_MILVUS_PORT", 19530),
+			"database":     getEnvOrDefault("TEST_MILVUS_DATABASE", "default"),
+			"username":     getEnvOrDefault("TEST_MILVUS_USERNAME", "root"),
+			"password":     getEnvOrDefault("TEST_MILVUS_PASSWORD", "Milvus"),
 			"gatewayId":    "test-gateway",
 		},
 		"embedding": map[string]any{
@@ -67,7 +71,17 @@ func TestServer(t *testing.T) {
 	embeddingConfig := config["embedding"].(map[string]any)
 
 	stopChan := make(chan struct{})
-	dbClient := NewDBClient(vectorConfig["dsn"].(string), vectorConfig["tableName"].(string), vectorConfig["gatewayId"].(string), stopChan)
+	// Update DB client creation to use new parameters instead of DSN
+	dbClient := NewDBClient(
+		vectorConfig["host"].(string),
+		vectorConfig["port"].(int),
+		vectorConfig["database"].(string),
+		vectorConfig["username"].(string),
+		vectorConfig["password"].(string),
+		vectorConfig["tableName"].(string),
+		vectorConfig["gatewayId"].(string),
+		stopChan,
+	)
 	defer func() {
 		close(stopChan)
 	}()
@@ -91,7 +105,7 @@ func TestServer(t *testing.T) {
 		embeddingConfig["dimensions"].(int),
 	)
 
-	searchService := NewSearchService(dbClient, embeddingClient, vectorConfig["vectorWeight"].(float64), 1.0-vectorConfig["vectorWeight"].(float64))
+	searchService := NewSearchService(dbClient, embeddingClient)
 
 	allTools, err := searchService.GetAllTools()
 	if err != nil {
@@ -169,7 +183,9 @@ func TestServer(t *testing.T) {
 
 	// Test configuration validation
 	t.Logf("\n=== Configuration Validation ===")
-	t.Logf("DSN: %s", vectorConfig["dsn"])
+	t.Logf("Host: %s", vectorConfig["host"])
+	t.Logf("Port: %d", vectorConfig["port"])
+	t.Logf("Database: %s", vectorConfig["database"])
 	t.Logf("Table Name: %s", vectorConfig["tableName"])
 	t.Logf("Vector Weight: %f", vectorConfig["vectorWeight"])
 	t.Logf("Text Weight: %f", 1.0-vectorConfig["vectorWeight"].(float64))
@@ -184,6 +200,15 @@ func TestServer(t *testing.T) {
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvOrDefaultInt(key string, defaultValue int) int {
+	if valueStr := os.Getenv(key); valueStr != "" {
+		if value, err := fmt.Sscanf(valueStr, "%d", &defaultValue); err == nil && value == 1 {
+			return defaultValue
+		}
 	}
 	return defaultValue
 }
