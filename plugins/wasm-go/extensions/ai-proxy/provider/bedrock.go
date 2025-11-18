@@ -107,9 +107,8 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		chatChoice.Delta.Content = nil
 		chatChoice.Delta.ToolCalls = []toolCall{
 			{
-				Id:    bedrockEvent.Start.ToolUse.ToolUseID,
-				Index: 0,
-				Type:  "function",
+				Id:   bedrockEvent.Start.ToolUse.ToolUseID,
+				Type: "function",
 				Function: functionCall{
 					Name:      bedrockEvent.Start.ToolUse.Name,
 					Arguments: "",
@@ -138,8 +137,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 		if bedrockEvent.Delta.ToolUse != nil {
 			chatChoice.Delta.ToolCalls = []toolCall{
 				{
-					Index: 0,
-					Type:  "function",
+					Type: "function",
 					Function: functionCall{
 						Arguments: bedrockEvent.Delta.ToolUse.Input,
 					},
@@ -168,7 +166,6 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 			TotalTokens:      bedrockEvent.Usage.TotalTokens,
 		}
 	}
-
 	openAIFormattedChunkBytes, _ := json.Marshal(openAIFormattedChunk)
 	var openAIChunk strings.Builder
 	openAIChunk.WriteString(ssePrefix)
