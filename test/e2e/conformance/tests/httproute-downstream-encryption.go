@@ -29,38 +29,12 @@ func init() {
 	Register(HTTPRouteDownstreamEncryption)
 }
 
-// Shared certificates for use in both PreApplyHook and Test
-// This is necessary because certificates need to be generated once and used in both places
-//var (
-//	sharedCAKey      *rsa.PrivateKey
-//	sharedCACertOut  *bytes.Buffer
-//	sharedCliCertOut *bytes.Buffer
-//	sharedCliKeyOut  *bytes.Buffer
-//	sharedSvcCertOut *bytes.Buffer
-//	sharedSvcKeyOut  *bytes.Buffer
-//)
-
 var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 	ShortName:   "HTTPRouteDownstreamEncryption",
 	Description: "A single Ingress in the higress-conformance-infra namespace for downstream encryption.",
 	Manifests:   []string{"tests/httproute-downstream-encryption.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
-	//PreApplyHook: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-	//	// Prepare certificates and secrets to be created BEFORE manifests are applied
-	//	// This ensures secrets exist when the Ingress resources reference them
-	//	var caCert *x509.Certificate
-	//	sharedCACertOut, _, caCert, sharedCAKey = cert.MustGenerateCaCert(t)
-	//	sharedSvcCertOut, sharedSvcKeyOut = cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, sharedCAKey, []string{"foo.com"})
-	//	sharedCliCertOut, sharedCliKeyOut = cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, sharedCAKey, nil)
-	//	fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", sharedSvcCertOut.Bytes(), sharedSvcKeyOut.Bytes())
-	//	fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", sharedCACertOut.Bytes())
-	//	suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret, fooSecretCACert}, suite.Cleanup)
-	//	time.Sleep(time.Second * 5)
-	//},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		// Use the certificates that were already generated in PreApplyHook
-		// Prepare certificates and secrets to be created BEFORE manifests are applied
-		// This ensures secrets exist when the Ingress resources reference them
 		var caCert *x509.Certificate
 		sharedCACertOut, _, caCert, sharedCAKey := cert.MustGenerateCaCert(t)
 		sharedSvcCertOut, sharedSvcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, sharedCAKey, []string{"foo.com"})
