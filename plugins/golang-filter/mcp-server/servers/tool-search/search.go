@@ -3,19 +3,50 @@ package tool_search
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/schema"
+	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/vectordb"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 // SearchService handles tool search operations
 type SearchService struct {
-	dbClient        *DBClient
+	vectorDB        vectordb.VectorStoreProvider
+	config          *config.VectorDBConfig
+	tableName       string
+	gatewayID       string
+	dimensions      int
 	embeddingClient *EmbeddingClient
 }
 
 // NewSearchService creates a new SearchService instance
-func NewSearchService(dbClient *DBClient, embeddingClient *EmbeddingClient) *SearchService {
+func NewSearchService(host string, port int, database, username, password, tableName, gatewayID string, embeddingClient *EmbeddingClient, dimensions int) *SearchService {
+	// Create Milvus configuration
+	cfg := &config.VectorDBConfig{
+		Provider:   "milvus",
+		Host:       host,
+		Port:       port,
+		Database:   database,
+		Collection: tableName,
+		Username:   username,
+		Password:   password,
+	}
+
+	// Create Milvus provider
+	provider, err := vectordb.NewVectorDBProvider(cfg, dimensions)
+	if err != nil {
+		api.LogErrorf("Failed to create Milvus provider: %v", err)
+		return nil
+	}
+
 	return &SearchService{
-		dbClient:        dbClient,
+		vectorDB:        provider,
+		config:          cfg,
+		tableName:       tableName,
+		gatewayID:       gatewayID,
+		dimensions:      dimensions,
 		embeddingClient: embeddingClient,
 	}
 }
@@ -42,7 +73,7 @@ func (s *SearchService) SearchTools(ctx context.Context, query string, topK int)
 	api.LogInfof("Embedding generated successfully, vector dimension: %d", len(vector))
 
 	// Perform vector search
-	records, err := s.dbClient.SearchTools(query, vector, topK)
+	records, err := s.searchToolsInDB(query, vector, topK)
 	if err != nil {
 		api.LogErrorf("Failed to search tools: %v", err)
 		return nil, fmt.Errorf("failed to search tools: %w", err)
@@ -64,9 +95,9 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 		// Use metadata if available
 		if len(record.Metadata) > 0 {
 			tool = record.Metadata
-			api.LogDebugf("Successfully parsed metadata for tool %s___%s", record.ServerName, record.Name)
+			api.LogDebugf("Successfully parsed metadata for tool %s", record.Name)
 		} else {
-			api.LogDebugf("No metadata found for tool %s___%s, using basic definition", record.ServerName, record.Name)
+			api.LogDebugf("No metadata found for tool  %s, using basic definition", record.Name)
 			// If no metadata, create a basic tool definition
 			tool = ToolDefinition{
 				"name":        record.Name,
@@ -75,7 +106,7 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 		}
 
 		// Update the name to include server name
-		tool["name"] = fmt.Sprintf("%s___%s", record.ServerName, record.Name)
+		tool["name"] = fmt.Sprintf(" %s", record.Name)
 
 		tools = append(tools, tool)
 
@@ -91,7 +122,7 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 // GetAllTools retrieves all available tools
 func (s *SearchService) GetAllTools() (*ToolSearchResult, error) {
 	api.LogInfo("Retrieving all tools")
-	records, err := s.dbClient.GetAllTools()
+	records, err := s.getAllToolsFromDB()
 	if err != nil {
 		api.LogErrorf("Failed to get all tools: %v", err)
 		return nil, fmt.Errorf("failed to get all tools: %w", err)
@@ -107,9 +138,9 @@ func (s *SearchService) GetAllTools() (*ToolSearchResult, error) {
 		// Use metadata if available
 		if len(record.Metadata) > 0 {
 			tool = record.Metadata
-			api.LogDebugf("Successfully parsed metadata for tool %s___%s", record.ServerName, record.Name)
+			api.LogDebugf("Successfully parsed metadata for tool %s", record.Name)
 		} else {
-			api.LogDebugf("No metadata found for tool %s___%s, using basic definition", record.ServerName, record.Name)
+			api.LogDebugf("No metadata found for tool %s, using basic definition", record.Name)
 			// If no metadata, create a basic tool definition
 			tool = ToolDefinition{
 				"name":        record.Name,
@@ -118,11 +149,96 @@ func (s *SearchService) GetAllTools() (*ToolSearchResult, error) {
 		}
 
 		// Update the name to include server name
-		tool["name"] = fmt.Sprintf("%s___%s", record.ServerName, record.Name)
+		tool["name"] = fmt.Sprintf("%s", record.Name)
 
 		tools = append(tools, tool)
 	}
 
 	api.LogInfof("Successfully converted %d tools", len(tools))
 	return &ToolSearchResult{Tools: tools}, nil
+}
+
+// ToolRecord represents a tool record in the database
+type ToolRecord struct {
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Content   string                 `json:"content"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	GatewayID string                 `json:"gateway_id"`
+}
+
+func (s *SearchService) searchToolsInDB(query string, vector []float32, topK int) ([]ToolRecord, error) {
+	api.LogInfof("Performing vector search for query: '%s', topK: %d", query, topK)
+
+	// For Milvus, we'll perform vector search directly
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Perform vector search
+	searchOptions := &schema.SearchOptions{
+		TopK: topK,
+	}
+
+	results, err := s.vectorDB.SearchDocs(ctx, vector, searchOptions)
+	if err != nil {
+		api.LogErrorf("Vector search failed: %v", err)
+		return nil, fmt.Errorf("failed to perform vector search: %w", err)
+	}
+
+	// Convert results to ToolRecords
+	var records []ToolRecord
+	for _, result := range results {
+		doc := result.Document
+		tool := ToolRecord{
+			ID:        doc.ID,
+			Content:   doc.Content,
+			Metadata:  doc.Metadata,
+			GatewayID: s.gatewayID,
+		}
+
+		if name, ok := doc.Metadata["name"].(string); ok {
+			tool.Name = name
+		}
+
+		records = append(records, tool)
+	}
+
+	api.LogInfof("Vector search completed, found %d results", len(records))
+	return records, nil
+}
+
+// getAllToolsFromDB retrieves all tools from the database
+func (s *SearchService) getAllToolsFromDB() ([]ToolRecord, error) {
+	api.LogInfof("Executing GetAllTools query from collection: %s", s.tableName)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Retrieve all documents
+	const maxToolsLimit = 1000
+	docs, err := s.vectorDB.ListDocs(ctx, maxToolsLimit)
+	if err != nil {
+		api.LogErrorf("Failed to list documents: %v", err)
+		return nil, fmt.Errorf("failed to list documents: %w", err)
+	}
+
+	// Convert documents to ToolRecords
+	var tools []ToolRecord
+	for _, doc := range docs {
+		tool := ToolRecord{
+			ID:        doc.ID,
+			Content:   doc.Content,
+			Metadata:  doc.Metadata,
+			GatewayID: s.gatewayID,
+		}
+
+		if name, ok := doc.Metadata["name"].(string); ok {
+			tool.Name = name
+		}
+
+		tools = append(tools, tool)
+	}
+
+	api.LogInfof("GetAllTools query completed, found %d tools", len(tools))
+	return tools, nil
 }

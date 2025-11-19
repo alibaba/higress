@@ -70,32 +70,6 @@ func TestServer(t *testing.T) {
 	vectorConfig := config["vector"].(map[string]any)
 	embeddingConfig := config["embedding"].(map[string]any)
 
-	stopChan := make(chan struct{})
-	// Update DB client creation to use new parameters instead of DSN
-	dbClient := NewDBClient(
-		vectorConfig["host"].(string),
-		vectorConfig["port"].(int),
-		vectorConfig["database"].(string),
-		vectorConfig["username"].(string),
-		vectorConfig["password"].(string),
-		vectorConfig["tableName"].(string),
-		vectorConfig["gatewayId"].(string),
-		stopChan,
-	)
-	defer func() {
-		close(stopChan)
-	}()
-
-	// Wait a bit for connection to establish
-	time.Sleep(2 * time.Second)
-
-	if err := dbClient.Ping(); err != nil {
-		t.Logf("Database connection failed: %v", err)
-		t.Logf("Please ensure Milvus is running and accessible")
-		return
-	}
-	t.Logf("Database connection successful")
-
 	// Test GetAllTools
 	t.Logf("\n=== Testing GetAllTools ===")
 	embeddingClient := NewEmbeddingClient(
@@ -105,7 +79,17 @@ func TestServer(t *testing.T) {
 		embeddingConfig["dimensions"].(int),
 	)
 
-	searchService := NewSearchService(dbClient, embeddingClient)
+	searchService := NewSearchService(
+		vectorConfig["host"].(string),
+		vectorConfig["port"].(int),
+		vectorConfig["database"].(string),
+		vectorConfig["username"].(string),
+		vectorConfig["password"].(string),
+		vectorConfig["tableName"].(string),
+		vectorConfig["gatewayId"].(string),
+		embeddingClient,
+		embeddingConfig["dimensions"].(int),
+	)
 
 	allTools, err := searchService.GetAllTools()
 	if err != nil {

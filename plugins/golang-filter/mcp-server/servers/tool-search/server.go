@@ -177,8 +177,11 @@ func (c *ToolSearchConfig) NewServer(serverName string) (*common.MCPServer, erro
 		common.WithInstructions(c.description),
 	)
 
-	// Create database client
-	dbClient := NewDBClient(
+	// Create embedding client
+	embeddingClient := NewEmbeddingClient(c.Embedding.APIKey, c.Embedding.BaseURL, c.Embedding.Model, c.Embedding.Dimensions)
+
+	// Create search service
+	searchService := NewSearchService(
 		c.Vector.Host,
 		c.Vector.Port,
 		c.Vector.Database,
@@ -186,14 +189,9 @@ func (c *ToolSearchConfig) NewServer(serverName string) (*common.MCPServer, erro
 		c.Vector.Password,
 		c.Vector.TableName,
 		c.Vector.GatewayID,
-		mcpServer.GetDestoryChannel(),
+		embeddingClient,
+		c.Embedding.Dimensions,
 	)
-
-	// Create embedding client
-	embeddingClient := NewEmbeddingClient(c.Embedding.APIKey, c.Embedding.BaseURL, c.Embedding.Model, c.Embedding.Dimensions)
-
-	// Create search service
-	searchService := NewSearchService(dbClient, embeddingClient)
 
 	// Add tool search tool
 	mcpServer.AddTool(
