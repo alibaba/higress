@@ -16,13 +16,14 @@ package tests
 
 import (
 	"crypto/tls"
-	"crypto/x509"
+	"testing"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/cert"
 	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/http"
 	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/kubernetes"
 	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/suite"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"testing"
 )
 
 func init() {
@@ -35,12 +36,12 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-downstream-encryption.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
-		var caCert *x509.Certificate
-		sharedCACertOut, _, caCert, sharedCAKey := cert.MustGenerateCaCert(t)
-		sharedSvcCertOut, sharedSvcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, sharedCAKey, []string{"foo.com"})
-		sharedCliCertOut, sharedCliKeyOut := cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, sharedCAKey, nil)
-		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", sharedSvcCertOut.Bytes(), sharedSvcKeyOut.Bytes())
-		fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", sharedCACertOut.Bytes())
+		// Prepare certificates and secrets for testcases
+		caCertOut, _, caCert, caKey := cert.MustGenerateCaCert(t)
+		svcCertOut, svcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, caKey, []string{"foo.com"})
+		cliCertOut, cliKeyOut := cert.MustGenerateCertWithCA(t, cert.ClientCertType, caCert, caKey, nil)
+		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", svcCertOut.Bytes(), svcKeyOut.Bytes())
+		fooSecretCACert := kubernetes.ConstructCASecret("higress-conformance-infra", "foo-secret-cacert", caCertOut.Bytes())
 		suite.Applier.MustApplyObjectsWithCleanup(t, suite.Client, suite.TimeoutConfig, []client.Object{fooSecret, fooSecretCACert}, suite.Cleanup)
 
 		testcases := []http.Assertion{
@@ -58,11 +59,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 						TLSConfig: &http.TLSConfig{
 							SNI: "foo1.com",
 							Certificates: http.Certificates{
-								CACerts: [][]byte{sharedCACertOut.Bytes()},
+								CACerts: [][]byte{caCertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: sharedCliCertOut.Bytes(),
-										ClientKey:  sharedCliKeyOut.Bytes(),
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -98,11 +99,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							MaxVersion:   tls.VersionTLS12,
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA},
 							Certificates: http.Certificates{
-								CACerts: [][]byte{sharedCACertOut.Bytes()},
+								CACerts: [][]byte{caCertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: sharedCliCertOut.Bytes(),
-										ClientKey:  sharedCliKeyOut.Bytes(),
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -138,11 +139,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							MaxVersion:   tls.VersionTLS12,
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305},
 							Certificates: http.Certificates{
-								CACerts: [][]byte{sharedCACertOut.Bytes()},
+								CACerts: [][]byte{caCertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: sharedCliCertOut.Bytes(),
-										ClientKey:  sharedCliKeyOut.Bytes(),
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
 									},
 								},
 							},
@@ -179,11 +180,11 @@ var HTTPRouteDownstreamEncryption = suite.ConformanceTest{
 							MaxVersion:   tls.VersionTLS13,
 							CipherSuites: []uint16{tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384},
 							Certificates: http.Certificates{
-								CACerts: [][]byte{sharedCACertOut.Bytes()},
+								CACerts: [][]byte{caCertOut.Bytes()},
 								ClientKeyPairs: []http.ClientKeyPair{
 									{
-										ClientCert: sharedCliCertOut.Bytes(),
-										ClientKey:  sharedCliKeyOut.Bytes(),
+										ClientCert: cliCertOut.Bytes(),
+										ClientKey:  cliKeyOut.Bytes(),
 									},
 								},
 							},

@@ -35,6 +35,7 @@ var HTTPHttpsWithoutSni = suite.ConformanceTest{
 	Manifests:   []string{"tests/httproute-https-without-sni.yaml"},
 	Features:    []suite.SupportedFeature{suite.HTTPConformanceFeature},
 	Test: func(t *testing.T, suite *suite.ConformanceTestSuite) {
+		// Prepare secrets for testcases
 		_, _, caCert, caKey := cert.MustGenerateCaCert(t)
 		svcCertOut, svcKeyOut := cert.MustGenerateCertWithCA(t, cert.ServerCertType, caCert, caKey, []string{"foo.com"})
 		fooSecret := kubernetes.ConstructTLSSecret("higress-conformance-infra", "foo-secret", svcCertOut.Bytes(), svcKeyOut.Bytes())
