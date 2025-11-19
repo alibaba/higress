@@ -49,13 +49,18 @@ const (
 	// Cluster load balancer policies
 	MetricsBasedCluster = "cluster_metrics"
 	// Endpoint load balancer policies
-	MetricsBasedEndpoint       = "endpoint_metrics"
-	GlobalLeastRequestEndpoint = "global_least_request"
-	PrefixCacheEndpoint        = "prefix_cache"
+	MetricsBasedEndpoint           = "endpoint_metrics"
+	MetricsBasedEndpointDeprecated = "metrics_based" // Compatible with old configurations, equal to `endpoint_metrics`
+	GlobalLeastRequestEndpoint     = "global_least_request"
+	PrefixCacheEndpoint            = "prefix_cache"
 )
 
 func parseConfig(json gjson.Result, config *Config) error {
 	config.lbType = json.Get("lb_type").String()
+	// Compatible with old configurations
+	if config.lbType == "" {
+		config.lbType = EndpointLoadBalancerType
+	}
 	config.lbPolicy = json.Get("lb_policy").String()
 	var err error
 	switch config.lbType {
@@ -68,14 +73,14 @@ func parseConfig(json gjson.Result, config *Config) error {
 		}
 	case EndpointLoadBalancerType:
 		switch config.lbPolicy {
-		case MetricsBasedEndpoint:
+		case MetricsBasedEndpoint, MetricsBasedEndpointDeprecated:
 			config.lb, err = endpoint_metrics.NewMetricsEndpointLoadBalancer(json.Get("lb_config"))
 		case GlobalLeastRequestEndpoint:
 			config.lb, err = global_least_request.NewGlobalLeastRequestLoadBalancer(json.Get("lb_config"))
 		case PrefixCacheEndpoint:
 			config.lb, err = prefix_cache.NewPrefixCacheLoadBalancer(json.Get("lb_config"))
 		default:
-			err = fmt.Errorf("lb_policy %s is not supported", config.lbPolicy)
+			err = fmt.Errorf("lb_psolicy %s is not supported", config.lbPolicy)
 		}
 	default:
 		err = fmt.Errorf("lb_type %s is not supported", config.lbType)

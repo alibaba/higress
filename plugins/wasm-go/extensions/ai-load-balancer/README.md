@@ -15,13 +15,18 @@ description: 针对LLM服务的负载均衡策略
 
 | 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
 |--------------------|-----------------|------------------|-------------|-------------------------------------|
+| `lb_type`        | string          | 选填              | endpoint    | 负载均衡类型，可选`endpoint`,`cluster` |
 | `lb_policy`      | string          | 必填              |             | 负载均衡策略类型    |
 | `lb_config`      | object          | 必填              |             | 当前负载均衡策略类型的配置    |
 
-目前支持的负载均衡策略包括：
+`lb_type` 为 `endpoint` 时支持的负载均衡策略包括：
+
 - `global_least_request`: 基于redis实现的全局最小请求数负载均衡
 - `prefix_cache`: 基于 prompt 前缀匹配选择后端节点，如果通过前缀匹配无法匹配到节点，则通过全局最小请求数进行服务节点的选择
-- `metrics_based`: 基于 llm 服务暴露的 metrics 进行负载均衡
+- `endpoint_metrics`: 基于 llm 服务暴露的 metrics 进行负载均衡
+
+`lb_type` 为 `cluster` 时支持的负载均衡策略包括：
+- `cluster_metrics`: 基于网关统计的不同service的指标进行服务之间的负载均衡
 
 # 全局最小请求数
 ## 功能说明
@@ -59,6 +64,7 @@ sequenceDiagram
 ## 配置示例
 
 ```yaml
+lb_type: endpoint
 lb_policy: global_least_request
 lb_config:
   serviceFQDN: redis.static
@@ -116,11 +122,12 @@ lb_config:
 | `password`         | string          | 选填              | 空          | redis 密码                           |
 | `timeout`          | int             | 选填              | 3000ms      | redis 请求超时时间                    |
 | `database`         | int             | 选填              | 0           | redis 数据库序号                      |
-| `redisKeyTTL`      | int             | 选填              | 1800ms      | prompt 前缀对应的key的ttl             |
+| `redisKeyTTL`      | int             | 选填              | 1800s      | prompt 前缀对应的key的ttl             |
 
 ## 配置示例
 
 ```yaml
+lb_type: endpoint
 lb_policy: prefix_cache
 lb_config:
   serviceFQDN: redis.static
@@ -161,8 +168,9 @@ sequenceDiagram
 
 | 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
 |--------------------|-----------------|------------------|-------------|-------------------------------------|
-| `metricPolicy`      | string | 必填 | | 如何使用llm暴露的metrics做负载均衡，当前支持`[default, least, most]` |
-| `targetMetric`      | string | 选填 | | 要使用的metric名称，`metricPolicy` 取值为 `least` 或者 `most` 时生效 |
+| `metric_policy`      | string | 必填 | | 如何使用llm暴露的metrics做负载均衡，当前支持`[default, least, most]` |
+| `target_metric`      | string | 选填 | | 要使用的metric名称，`metric_policy` 取值为 `least` 或者 `most` 时生效 |
+| `rate_limit`      | string | 选填 | 1 | 单个节点处理请求比例上限，取值范围0~1 |
 
 
 ## 配置示例
@@ -170,25 +178,63 @@ sequenceDiagram
 使用 [gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/README.md) 中的算法
 
 ```yaml
+lb_type: endpoint
 lb_policy: metrics_based
 lb_config:
-  metricPolicy: default
+  metric_policy: default
+  rate_limit: 0.6 # 单个节点承载的最大请求比例
 ```
 
 根据当前排队请求数进行负载均衡
 
 ```yaml
+lb_type: endpoint
 lb_policy: metrics_based
 lb_config:
-  metricPolicy: least
-  targetMetric: vllm:num_requests_waiting
+  metric_policy: least
+  target_metric: vllm:num_requests_waiting
+  rate_limit: 0.6 # 单个节点承载的最大请求比例
 ```
 
 根据当前GPU中正在处理的请求数进行负载均衡
 
 ```yaml
+lb_type: endpoint
 lb_policy: metrics_based
 lb_config:
-  metricPolicy: least
-  targetMetric: vllm:num_requests_running
+  metric_policy: least
+  target_metric: vllm:num_requests_running
+  rate_limit: 0.6 # 单个节点承载的最大请求比例
+```
+
+
+# 跨服务负载均衡
+
+## 配置说明
+
+| 名称                | 数据类型         | 填写要求          | 默认值       | 描述                                 |
+|--------------------|-----------------|------------------|-------------|-------------------------------------|
+| `mode`      | string | 必填 | | 如何使用服务级指标做负载均衡，当前支持`[LeastBusy, LeastTotalLatency, LeastFirstTokenLatency ]` |
+| `service_list`      | []string | 必填 | | 路由后端服务列表 |
+| `rate_limit`      | string | 选填 | 1 | 单个服务处理请求比例上限，取值范围0~1 |
+| `cluster_header` | string | 选填 | `x-envoy-target-cluster` | 通过取该header的值得知需要路由到哪个后端服务 |
+| `queue_size`      | int | 选填 | 100 | 根据最近的多少个请求进行观测指标的计算 |
+
+`mode` 各取值含义如下：
+- `LeastBusy`: 路由到当前并发请求数最少的服务
+- `LeastTotalLatency`: 路由到当前RT最低的服务
+- `LeastFirstTokenLatency`: 路由到当前首包RT最低的服务
+
+## 配置示例
+
+```yaml
+lb_type: cluster
+lb_policy: cluster_metrics
+lb_config:
+  mode: LeastTotalLatency # 策略名称
+  queue_size: 100 # 统计指标时使用的最近请求数
+  rate_limit: 0.6 # 单个服务承载的最大请求比例
+  service_list:
+  - outbound|80||test-1.dns
+  - outbound|80||test-2.static
 ```

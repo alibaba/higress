@@ -12,6 +12,11 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+const (
+	DefaultQueueSize     = 100
+	DefaultClusterHeader = "x-envoy-target-cluster"
+)
+
 type ClusterEndpointLoadBalancer struct {
 	// Configurations
 	Mode          string
@@ -34,8 +39,18 @@ func NewClusterEndpointLoadBalancer(json gjson.Result) (ClusterEndpointLoadBalan
 
 	lb.Mode = json.Get("mode").String()
 	lb.ClusterHeader = json.Get("cluster_header").String()
-	lb.RateLimit = json.Get("rate_limit").Float()
+	if lb.ClusterHeader == "" {
+		lb.ClusterHeader = DefaultClusterHeader
+	}
+	if json.Get("rate_limit").Exists() {
+		lb.RateLimit = json.Get("rate_limit").Float()
+	} else {
+		lb.RateLimit = 1.0
+	}
 	queueSize := int(json.Get("queue_size").Int())
+	if queueSize == 0 {
+		queueSize = DefaultQueueSize
+	}
 
 	for _, svc := range json.Get("service_list").Array() {
 		serviceName := svc.String()
