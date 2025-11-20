@@ -58,26 +58,54 @@
 
 ## 配置示例
 
-```
-{
-  "vector": {
-    "type": "milvus",
-    "host": "localhost",
-    "port": 19530,
-    "database": "default",
-    "tableName": "apig_mcp_tools",
-    "username": "root",
-    "password": "Milvus",
-    "gatewayId": "higress-gateway-01"
-  },
-  "embedding": {
-    "apiKey": "your-dashscope-api-key",
-    "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "model": "text-embedding-v4",
-    "dimensions": 1024
-  },
-  "description": "Higress 工具语义搜索服务"
-}
+
+### 在 Higress 中配置 Tool Search MCP Server
+
+Tool Search MCP Server 也可以作为 Higress 的一个模块进行配置。以下是一个在 Higress ConfigMap 中配置 Tool Search 的示例：
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: higress-config
+  namespace: higress-system
+data:
+  higress: |
+    mcpServer:
+      enable: true
+      sse_path_suffix: "/sse"
+      redis:
+        address: "<Redis IP>:6379"
+        username: ""
+        password: ""
+        db: 0
+      match_list:
+      - path_rewrite_prefix: ""
+        upstream_type: ""
+        enable_path_rewrite: false
+        match_rule_domain: "*"
+        match_rule_path: "/mcp-servers/tool-search"
+        match_rule_type: "prefix"
+      servers:
+      - path: "/mcp-servers/tool-search"
+        name: "tool-search"
+        type: "tool-search"
+        config:
+          vector:
+            type: "milvus"
+            host: "localhost"
+            port: 19530
+            database: "default"
+            tableName: "apig_mcp_tools"
+            username: "root"
+            password: "Milvus"
+            gatewayId: "higress-gateway-01"
+          embedding:
+            apiKey: "your-dashscope-api-key"
+            baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            model: "text-embedding-v4"
+            dimensions: 1024
+          description: "Higress 工具语义搜索服务"
 ```
 
 ## 工具搜索接口

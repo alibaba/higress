@@ -7,13 +7,12 @@ import (
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/config"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/schema"
-	"github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag/vectordb"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 )
 
 // SearchService handles tool search operations
 type SearchService struct {
-	vectorDB        vectordb.VectorStoreProvider
+	milvusProvider  *MilvusVectorStoreProvider
 	config          *config.VectorDBConfig
 	tableName       string
 	gatewayID       string
@@ -35,14 +34,14 @@ func NewSearchService(host string, port int, database, username, password, table
 	}
 
 	// Create Milvus provider
-	provider, err := vectordb.NewVectorDBProvider(cfg, dimensions)
+	provider, err := NewMilvusVectorStoreProvider(cfg, dimensions)
 	if err != nil {
 		api.LogErrorf("Failed to create Milvus provider: %v", err)
 		return nil
 	}
 
 	return &SearchService{
-		vectorDB:        provider,
+		milvusProvider:  provider,
 		config:          cfg,
 		tableName:       tableName,
 		gatewayID:       gatewayID,
@@ -97,7 +96,7 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 			tool = record.Metadata
 			api.LogDebugf("Successfully parsed metadata for tool %s", record.Name)
 		} else {
-			api.LogDebugf("No metadata found for tool  %s, using basic definition", record.Name)
+			api.LogDebugf("No metadata found for tool %s, using basic definition", record.Name)
 			// If no metadata, create a basic tool definition
 			tool = ToolDefinition{
 				"name":        record.Name,
@@ -106,7 +105,7 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 		}
 
 		// Update the name to include server name
-		tool["name"] = fmt.Sprintf(" %s", record.Name)
+		tool["name"] = fmt.Sprintf("%s", record.Name)
 
 		tools = append(tools, tool)
 
@@ -179,7 +178,7 @@ func (s *SearchService) searchToolsInDB(query string, vector []float32, topK int
 		TopK: topK,
 	}
 
-	results, err := s.vectorDB.SearchDocs(ctx, vector, searchOptions)
+	results, err := s.milvusProvider.SearchDocs(ctx, vector, searchOptions)
 	if err != nil {
 		api.LogErrorf("Vector search failed: %v", err)
 		return nil, fmt.Errorf("failed to perform vector search: %w", err)
@@ -214,9 +213,8 @@ func (s *SearchService) getAllToolsFromDB() ([]ToolRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Retrieve all documents
-	const maxToolsLimit = 1000
-	docs, err := s.vectorDB.ListDocs(ctx, maxToolsLimit)
+	// Retrieve all documents without limit
+	docs, err := s.milvusProvider.ListAllDocs(ctx)
 	if err != nil {
 		api.LogErrorf("Failed to list documents: %v", err)
 		return nil, fmt.Errorf("failed to list documents: %w", err)
