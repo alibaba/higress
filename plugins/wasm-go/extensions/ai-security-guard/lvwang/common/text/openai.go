@@ -119,17 +119,30 @@ func HandleTextGenerationStreamingResponseBody(ctx wrapper.HttpContext, config c
 		}
 	}
 	if !ctx.GetContext("risk_detected").(bool) {
-		unifiedChunk := bytes.TrimSpace(wrapper.UnifySSEChunk(data))
-		chunks := bytes.Split(unifiedChunk, []byte("\n\n"))
-		for i := range len(chunks) - 1 {
-			chunks[i] = append(chunks[i], []byte("\n\n")...)
-		}
-		if bytes.HasSuffix(unifiedChunk, []byte("\n\n")) {
-			chunks[len(chunks)-1] = append(chunks[len(chunks)-1], []byte("\n\n")...)
-		}
+		unifiedChunk := wrapper.UnifySSEChunk(data)
+		hasTrailingSeparator := bytes.HasSuffix(unifiedChunk, []byte("\n\n"))
+		trimmedChunk := bytes.TrimSpace(unifiedChunk)
+		chunks := bytes.Split(trimmedChunk, []byte("\n\n"))
+		// Filter out empty chunks
+		nonEmptyChunks := make([][]byte, 0, len(chunks))
 		for _, chunk := range chunks {
+			if len(chunk) > 0 {
+				nonEmptyChunks = append(nonEmptyChunks, chunk)
+			}
+		}
+		// Restore separators
+		for i := range len(nonEmptyChunks) - 1 {
+			nonEmptyChunks[i] = append(nonEmptyChunks[i], []byte("\n\n")...)
+		}
+		if hasTrailingSeparator && len(nonEmptyChunks) > 0 {
+			nonEmptyChunks[len(nonEmptyChunks)-1] = append(nonEmptyChunks[len(nonEmptyChunks)-1], []byte("\n\n")...)
+		}
+		for _, chunk := range nonEmptyChunks {
 			ctx.PushBuffer(chunk)
 		}
+		// for _, chunk := range bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n")) {
+		// 	ctx.PushBuffer([]byte(string(chunk) + "\n\n"))
+		// }
 		ctx.SetContext("end_of_stream_received", endOfStream)
 		if !ctx.GetContext("during_call").(bool) {
 			singleCall()
