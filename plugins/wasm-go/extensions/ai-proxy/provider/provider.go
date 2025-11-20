@@ -424,6 +424,10 @@ type ProviderConfig struct {
 	// @Title zh-CN vLLM主机地址
 	// @Description zh-CN 仅适用于vLLM服务，指定vLLM服务器的主机地址，例如：vllm-service.cluster.local
 	vllmServerHost string `required:"false" yaml:"vllmServerHost" json:"vllmServerHost"`
+	// @Title zh-CN 上下文压缩配置
+	// @Description zh-CN 对Agent透明的上下文压缩功能配置
+	contextCompression *ContextCompressionConfig `required:"false" yaml:"contextCompression" json:"contextCompression"`
+	memoryService      MemoryService             `yaml:"-" json:"-"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -596,6 +600,14 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.tritonModelVersion = json.Get("tritonModelVersion").String()
 	c.tritonDomain = json.Get("tritonDomain").String()
 
+	c.basePath = json.Get("basePath").String()
+	c.basePathHandling = basePathHandling(json.Get("basePathHandling").String())
+	if c.basePath != "" && c.basePathHandling == "" {
+		c.basePathHandling = basePathHandlingRemovePrefix
+	}
+	c.vllmServerHost = json.Get("vllmServerHost").String()
+	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
+
 	c.capabilities = make(map[string]string)
 	for capability, pathJson := range json.Get("capabilities").Map() {
 		// 过滤掉不受支持的能力
@@ -614,13 +626,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.capabilities[capability] = pathJson.String()
 		}
 	}
-	c.basePath = json.Get("basePath").String()
-	c.basePathHandling = basePathHandling(json.Get("basePathHandling").String())
-	if c.basePath != "" && c.basePathHandling == "" {
-		c.basePathHandling = basePathHandlingRemovePrefix
+
+	// 解析上下文压缩配置
+	contextCompressionJson := json.Get("contextCompression")
+	if contextCompressionJson.Exists() {
+		c.contextCompression = ParseContextCompressionConfig(contextCompressionJson)
 	}
-	c.vllmServerHost = json.Get("vllmServerHost").String()
-	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -649,6 +660,27 @@ func (c *ProviderConfig) Validate() error {
 	if err := initializer.ValidateConfig(c); err != nil {
 		return err
 	}
+
+	// 初始化内存服务
+	if c.contextCompression != nil {
+		memoryService, err := NewMemoryService(c.contextCompression)
+		if err != nil {
+			return fmt.Errorf("failed to initialize memory service: %v", err)
+		}
+		c.memoryService = memoryService
+		
+		// 如果配置了LLM摘要，设置摘要生成器
+		if c.contextCompression.SummaryConfig != nil && c.contextCompression.SummaryConfig.Method == "llm" {
+			llmGenerator := NewLLMSummaryGenerator(c, c.contextCompression.SummaryConfig)
+			memoryService.SetSummaryGenerator(llmGenerator)
+			log.Infof("initialized LLM summary generator with model: %s", c.contextCompression.SummaryConfig.LLMModel)
+		} else if c.contextCompression.SummaryConfig == nil || c.contextCompression.SummaryConfig.Method == "simple" {
+			// 使用简单摘要生成器（默认）
+			simpleGenerator := NewSimpleSummaryGenerator()
+			memoryService.SetSummaryGenerator(simpleGenerator)
+		}
+	}
+
 	return nil
 }
 
