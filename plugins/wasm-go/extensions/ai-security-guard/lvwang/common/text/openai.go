@@ -119,8 +119,16 @@ func HandleTextGenerationStreamingResponseBody(ctx wrapper.HttpContext, config c
 		}
 	}
 	if !ctx.GetContext("risk_detected").(bool) {
-		for _, chunk := range bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n")) {
-			ctx.PushBuffer([]byte(string(chunk) + "\n\n"))
+		unifiedChunk := bytes.TrimSpace(wrapper.UnifySSEChunk(data))
+		chunks := bytes.Split(unifiedChunk, []byte("\n\n"))
+		for i := range len(chunks) - 1 {
+			chunks[i] = append(chunks[i], []byte("\n\n")...)
+		}
+		if bytes.HasSuffix(unifiedChunk, []byte("\n\n")) {
+			chunks[len(chunks)-1] = append(chunks[len(chunks)-1], []byte("\n\n")...)
+		}
+		for _, chunk := range chunks {
+			ctx.PushBuffer(chunk)
 		}
 		ctx.SetContext("end_of_stream_received", endOfStream)
 		if !ctx.GetContext("during_call").(bool) {
