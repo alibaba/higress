@@ -20,13 +20,20 @@ package scheduling
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend/vllm"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/backend"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/backend/vllm"
 
 	"github.com/prometheus/common/expfmt"
+)
+
+const (
+	MetricPolicyDefault = "default"
+	MetricPolicyLeast   = "least"
+	MetricPolicyMost    = "most"
 )
 
 const (
@@ -107,11 +114,11 @@ var (
 	}
 )
 
-func NewScheduler(pm []*backend.PodMetrics) *Scheduler {
+func NewScheduler(pm []*backend.PodMetrics, filter Filter) *Scheduler {
 
 	return &Scheduler{
 		podMetrics: pm,
-		filter:     defaultFilter,
+		filter:     filter,
 	}
 }
 
@@ -130,7 +137,7 @@ func (s *Scheduler) Schedule(req *LLMRequest) (targetPod backend.Pod, err error)
 	return pods[i].Pod, nil
 }
 
-func GetScheduler(hostMetrics map[string]string) (*Scheduler, error) {
+func GetScheduler(hostMetrics map[string]string, metricPolicy string, targetMetric string) (*Scheduler, error) {
 	if len(hostMetrics) == 0 {
 		return nil, errors.New("backend is not support llm scheduling")
 	}
@@ -147,6 +154,9 @@ func GetScheduler(hostMetrics map[string]string) (*Scheduler, error) {
 				Address: addr,
 			},
 			Metrics: backend.Metrics{},
+			UserSelectedMetric: backend.UserSelectedMetric{
+				MetricName: targetMetric,
+			},
 		}
 		pm, err = vllm.PromToPodMetrics(metricFamilies, pm)
 		if err != nil {
@@ -154,5 +164,60 @@ func GetScheduler(hostMetrics map[string]string) (*Scheduler, error) {
 		}
 		pms = append(pms, pm)
 	}
-	return NewScheduler(pms), nil
+	if metricPolicy == MetricPolicyLeast {
+		filterFunc := func(req *LLMRequest, pods []*backend.PodMetrics) ([]*backend.PodMetrics, error) {
+			min := math.MaxFloat64
+			max := 0.0
+			filtered := []*backend.PodMetrics{}
+
+			for _, pod := range pods {
+				if pod.MetricValue <= min {
+					min = pod.MetricValue
+				}
+				if pod.MetricValue >= max {
+					max = pod.MetricValue
+				}
+			}
+
+			for _, pod := range pods {
+				if pod.MetricValue >= min && pod.MetricValue <= min+(max-min)/float64(len(pods)) {
+					filtered = append(filtered, pod)
+				}
+			}
+			return filtered, nil
+		}
+		filter := filter{
+			name:   "least user selected metric",
+			filter: filterFunc,
+		}
+		return NewScheduler(pms, &filter), nil
+	} else if metricPolicy == MetricPolicyMost {
+		filterFunc := func(req *LLMRequest, pods []*backend.PodMetrics) ([]*backend.PodMetrics, error) {
+			min := math.MaxFloat64
+			max := 0.0
+			filtered := []*backend.PodMetrics{}
+
+			for _, pod := range pods {
+				if pod.MetricValue <= min {
+					min = pod.MetricValue
+				}
+				if pod.MetricValue >= max {
+					max = pod.MetricValue
+				}
+			}
+
+			for _, pod := range pods {
+				if pod.MetricValue <= max && pod.MetricValue >= max-(max-min)/float64(len(pods)) {
+					filtered = append(filtered, pod)
+				}
+			}
+			return filtered, nil
+		}
+		filter := filter{
+			name:   "most user selected metric",
+			filter: filterFunc,
+		}
+		return NewScheduler(pms, &filter), nil
+	}
+	return NewScheduler(pms, defaultFilter), nil
 }
