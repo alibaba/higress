@@ -1270,7 +1270,7 @@ func createCorsFilter(filter *k8s.HTTPCORSFilter) *istio.CorsPolicy {
 			MatchType: &istio.StringMatch_Exact{Exact: string(r)},
 		})
 	}
-	if filter.AllowCredentials {
+	if ptr.OrEmpty(filter.AllowCredentials) {
 		res.AllowCredentials = wrappers.Bool(true)
 	}
 	for _, r := range filter.AllowMethods {
@@ -2259,7 +2259,7 @@ func buildTLS(
 				}
 			}
 			out.Mode = istio.ServerTLSSettings_MUTUAL
-			out.CaCertCredentialName = cred.ResourceName
+			//out.CaCertCredentialName = cred.ResourceName
 		}
 	case k8s.TLSModePassthrough:
 		out.Mode = istio.ServerTLSSettings_PASSTHROUGH
