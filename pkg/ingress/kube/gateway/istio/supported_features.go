@@ -15,14 +15,7 @@
 package istio
 
 import (
-	"testing"
-
-	"istio.io/istio/pkg/fuzz"
+	"sigs.k8s.io/gateway-api/pkg/features"
 )
 
-func FuzzConvertResources(f *testing.F) {
-	fuzz.Fuzz(f, func(fg fuzz.Helper) {
-		r := fuzz.Struct[GatewayResources](fg)
-		convertResources(r)
-	})
-}
+var SupportedFeatures = features.AllFeatures

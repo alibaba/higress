@@ -177,13 +177,13 @@ func (c *client) HigressInformer() higressinformer.SharedInformerFactory {
 	return c.higressInformer
 }
 
-func (c *client) RunAndWait(stop <-chan struct{}) {
+func (c *client) RunAndWait(stop <-chan struct{}) bool {
 	c.Client.RunAndWait(stop)
 	c.higressInformer.Start(stop)
 
 	if c.fastSync {
 		fastWaitForCacheSync(stop, c.higressInformer)
-		_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+		err := wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
 			select {
 			case <-stop:
 				return false, fmt.Errorf("channel closed")
@@ -194,6 +194,10 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 			}
 			return false, nil
 		})
+		if err != nil {
+			return false
+		}
+		return true
 	} else {
 		c.higressInformer.WaitForCacheSync(stop)
 	}
@@ -202,7 +206,7 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 		c.kingressInformer.Start(stop)
 		if c.fastSync {
 			fastWaitForCacheSync(stop, c.kingressInformer)
-			_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+			err := wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
 				select {
 				case <-stop:
 					return false, fmt.Errorf("channel closed")
@@ -213,10 +217,15 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 				}
 				return false, nil
 			})
+			if err != nil {
+				return false
+			}
+			return true
 		} else {
 			c.kingressInformer.WaitForCacheSync(stop)
 		}
 	}
+	return true
 }
 
 type reflectInformerSync interface {

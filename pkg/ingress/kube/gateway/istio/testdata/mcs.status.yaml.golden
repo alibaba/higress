@@ -3,7 +3,7 @@ kind: Gateway
 metadata:
   creationTimestamp: null
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   addresses:
@@ -16,7 +16,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:34000
+    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:34000
     reason: Programmed
     status: "True"
     type: Programmed
@@ -53,7 +53,7 @@ kind: TCPRoute
 metadata:
   creationTimestamp: null
   name: tcp
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   parents:
@@ -68,8 +68,8 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
+    controllerName: istio.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
 ---
