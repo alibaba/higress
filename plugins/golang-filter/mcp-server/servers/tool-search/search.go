@@ -109,9 +109,7 @@ func (s *SearchService) convertRecordsToResult(records []ToolRecord) *ToolSearch
 
 		tools = append(tools, tool)
 
-		if i < 3 { // Log first 3 tools for debugging
-			api.LogDebugf("Tool %d: %s - %s", i+1, tool["name"], record.Content)
-		}
+		api.LogDebugf("Tool %d: %s - %s", i+1, tool["name"], record.Content)
 	}
 
 	api.LogInfof("Successfully converted %d tools", len(tools))
