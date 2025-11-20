@@ -16,7 +16,6 @@ package istio
 
 import (
 	"fmt"
-	"github.com/alibaba/higress/v2/pkg/config/constants"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	inferencev1alpha2 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha2"
+	inferencev1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
 
@@ -40,20 +39,21 @@ import (
 )
 
 const (
-	HigressController = constants.ManagedGatewayController
-	DefaultTestNS     = "default"
-	GatewayTestNS     = "gateway-ns"
-	AppTestNS         = "app-ns"
-	EmptyTestNS       = ""
+	IstioController = "istio.io/gateway-controller"
+	DefaultTestNS   = "default"
+	GatewayTestNS   = "gateway-ns"
+	AppTestNS       = "app-ns"
+	EmptyTestNS     = ""
+	infPoolPending  = "Pending"
 )
 
 func TestInferencePoolStatusReconciliation(t *testing.T) {
 	test.SetForTest(t, &features.EnableGatewayAPIInferenceExtension, true)
 	testCases := []struct {
 		name         string
-		givens       []runtime.Object                 // Objects to create before the test
-		targetPool   *inferencev1alpha2.InferencePool // The InferencePool to check
-		expectations func(t *testing.T, pool *inferencev1alpha2.InferencePoolStatus)
+		givens       []runtime.Object           // Objects to create before the test
+		targetPool   *inferencev1.InferencePool // The InferencePool to check
+		expectations func(t *testing.T, pool *inferencev1.InferencePoolStatus)
 	}{
 		//
 		// Positive Test Scenarios
@@ -61,21 +61,21 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should add gateway parentRef to inferencepool status",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					WithRouteParentCondition(string(gatewayv1.RouteConditionAccepted), metav1.ConditionTrue, "Accepted", "Accepted"),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, DefaultTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, DefaultTestNS, string(status.Parents[0].ParentRef.Namespace))
 				assertConditionContains(t, status.Parents[0].Conditions, metav1.Condition{
-					Type:    string(inferencev1alpha2.InferencePoolConditionAccepted),
+					Type:    string(inferencev1.InferencePoolConditionAccepted),
 					Status:  metav1.ConditionTrue,
-					Reason:  string(inferencev1alpha2.InferencePoolReasonAccepted),
+					Reason:  string(inferencev1.InferencePoolReasonAccepted),
 					Message: "Referenced by an HTTPRoute",
 				}, "Expected condition with Accepted")
 			},
@@ -83,136 +83,136 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should add only 1 gateway parentRef to status for multiple routes on different gateways with different controllers",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("other")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithParentRefAndStatus("gateway-2", DefaultTestNS, "other-controller"),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "gateway-1", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, DefaultTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "gateway-1", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, DefaultTestNS, string(status.Parents[0].ParentRef.Namespace))
 			},
 		},
 		{
-			name: "should keep the status of the gateway parentRefs from antoher controller",
+			name: "should keep the status of the gateway parentRefs from another controller",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("other-class")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 				NewHTTPRoute("route-2", InNamespace(DefaultTestNS),
 					WithParentRefAndStatus("gateway-2", DefaultTestNS, "other-class"),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithParentStatus("gateway-2", DefaultTestNS, WithAcceptedConditions())),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 2, "Expected two parent references")
 				assert.ElementsMatch(t,
 					[]string{"gateway-1", "gateway-2"},
-					[]string{string(status.Parents[0].GatewayRef.Name), string(status.Parents[1].GatewayRef.Name)},
+					[]string{string(status.Parents[0].ParentRef.Name), string(status.Parents[1].ParentRef.Name)},
 				)
 			},
 		},
 		{
 			name: "should add multiple gateway parentRefs to status for multiple routes",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
-				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 				NewHTTPRoute("route-2", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-2", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-2", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 2, "Expected two parent references")
 				assert.ElementsMatch(t,
 					[]string{"gateway-1", "gateway-2"},
-					[]string{string(status.Parents[0].GatewayRef.Name), string(status.Parents[1].GatewayRef.Name)},
+					[]string{string(status.Parents[0].ParentRef.Name), string(status.Parents[1].ParentRef.Name)},
 				)
 			},
 		},
 		{
 			name: "should remove our status from previous reconciliation that is no longer referenced by any HTTPRoute",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
-				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
+				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS),
 				WithParentStatus("gateway-2", DefaultTestNS,
 					WithAcceptedConditions(),
 				)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "gateway-1", string(status.Parents[0].GatewayRef.Name))
+				assert.Equal(t, "gateway-1", string(status.Parents[0].ParentRef.Name))
 			},
 		},
 		{
 			name: "should update/recreate our status from previous reconciliation",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS),
 				WithParentStatus("gateway-1", DefaultTestNS,
 					WithAcceptedConditions(),
 				)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "gateway-1", string(status.Parents[0].GatewayRef.Name))
+				assert.Equal(t, "gateway-1", string(status.Parents[0].ParentRef.Name))
 				require.Len(t, status.Parents[0].Conditions, 2, "Expected two conditions")
 			},
 		},
 		{
 			name: "should keep others status from previous reconciliation",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewGateway("gateway-2", InNamespace(DefaultTestNS), WithGatewayClass("other-class")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithParentStatus("gateway-2", DefaultTestNS, WithAcceptedConditions())),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 2, "Expected two parent references")
 				assert.ElementsMatch(t,
 					[]string{"gateway-1", "gateway-2"},
-					[]string{string(status.Parents[0].GatewayRef.Name), string(status.Parents[1].GatewayRef.Name)},
+					[]string{string(status.Parents[0].ParentRef.Name), string(status.Parents[1].ParentRef.Name)},
 				)
 			},
 		},
 		{
 			name: "should remove default parent 'waiting for controller' status",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithParentStatus("default", DefaultTestNS, AsDefaultStatus())),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected two parent references")
-				assert.Equal(t, "gateway-1", string(status.Parents[0].GatewayRef.Name))
+				assert.Equal(t, "gateway-1", string(status.Parents[0].ParentRef.Name))
 			},
 		},
 		{
 			name: "should remove unknown condition types from controlled parents",
 			givens: []runtime.Object{
-				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("gateway-1", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("route-1", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("gateway-1", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("gateway-1", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS),
@@ -220,12 +220,12 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 					WithAcceptedConditions(),
 					WithConditions(metav1.ConditionUnknown, "X", "Y", "Dummy"),
 				)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected two parent references")
-				assert.Equal(t, "gateway-1", string(status.Parents[0].GatewayRef.Name))
+				assert.Equal(t, "gateway-1", string(status.Parents[0].ParentRef.Name))
 				require.Len(t, status.Parents[0].Conditions, 2, "Expected two conditions")
 				assert.ElementsMatch(t,
-					[]string{string(inferencev1alpha2.InferencePoolConditionAccepted), string(inferencev1alpha2.InferencePoolConditionResolvedRefs)},
+					[]string{string(inferencev1.InferencePoolConditionAccepted), string(inferencev1.InferencePoolConditionResolvedRefs)},
 					[]string{status.Parents[0].Conditions[0].Type, status.Parents[0].Conditions[1].Type},
 				)
 			},
@@ -233,97 +233,97 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should handle cross-namespace gateway references correctly",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", GatewayTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", GatewayTestNS, IstioController),
 					WithBackendRef("test-pool", AppTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(AppTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, GatewayTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, GatewayTestNS, string(status.Parents[0].ParentRef.Namespace))
 			},
 		},
 		{
 			name: "should handle cross-namespace httproute references correctly",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", GatewayTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", GatewayTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, GatewayTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, GatewayTestNS, string(status.Parents[0].ParentRef.Namespace))
 			},
 		},
 		{
 			name: "should handle HTTPRoute in same namespace (empty)",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", GatewayTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", GatewayTestNS, IstioController),
 					WithBackendRef("test-pool", EmptyTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(AppTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, GatewayTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, GatewayTestNS, string(status.Parents[0].ParentRef.Namespace))
 			},
 		},
 		{
 			name: "should handle Gateway in same namespace (empty)",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(AppTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(AppTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(AppTestNS),
-					WithParentRefAndStatus("main-gateway", EmptyTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", EmptyTestNS, IstioController),
 					WithBackendRef("test-pool", AppTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(AppTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, AppTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, AppTestNS, string(status.Parents[0].ParentRef.Namespace))
 			},
 		},
 		{
 			name: "should add only one parentRef for multiple routes on same gateway",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("route-a", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 				NewHTTPRoute("route-b", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected only one parent reference for the same gateway")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
 			},
 		},
 		{
 			name: "should report ResolvedRef true when ExtensioNRef found",
 			givens: []runtime.Object{
 				NewService("test-epp", InNamespace(DefaultTestNS)),
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithExtensionRef("Service", "test-epp")),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
 				require.Len(t, status.Parents[0].Conditions, 2, "Expected two condition")
 				assertConditionContains(t, status.Parents[0].Conditions, metav1.Condition{
-					Type:    string(inferencev1alpha2.InferencePoolConditionResolvedRefs),
+					Type:    string(inferencev1.InferencePoolConditionResolvedRefs),
 					Status:  metav1.ConditionTrue,
-					Reason:  string(inferencev1alpha2.InferencePoolReasonResolvedRefs),
+					Reason:  string(inferencev1.InferencePoolReasonResolvedRefs),
 					Message: "Referenced ExtensionRef resolved",
 				}, "Expected condition with InvalidExtensionRef")
 			},
@@ -331,21 +331,21 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should report HTTPRoute not accepted when parent gateway rejects HTTPRoute",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					WithRouteParentCondition(string(gatewayv1.RouteConditionAccepted), metav1.ConditionFalse, "GatewayNotReady", "Gateway not ready"),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, DefaultTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, DefaultTestNS, string(status.Parents[0].ParentRef.Namespace))
 				assertConditionContains(t, status.Parents[0].Conditions, metav1.Condition{
-					Type:    string(inferencev1alpha2.InferencePoolConditionAccepted),
+					Type:    string(inferencev1.InferencePoolConditionAccepted),
 					Status:  metav1.ConditionFalse,
-					Reason:  string(inferencev1alpha2.InferencePoolReasonHTTPRouteNotAccepted),
+					Reason:  string(inferencev1.InferencePoolReasonHTTPRouteNotAccepted),
 					Message: "Referenced HTTPRoute default/test-route not accepted by Gateway default/main-gateway",
 				}, "Expected condition with HTTPRouteNotAccepted")
 			},
@@ -353,21 +353,21 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should report unknown status when HTTPRoute parent status has no Accepted condition",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					// Note: No WithRouteParentCondition for Accepted - parent is listed but has no conditions
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
-				assert.Equal(t, "main-gateway", string(status.Parents[0].GatewayRef.Name))
-				assert.Equal(t, DefaultTestNS, string(*status.Parents[0].GatewayRef.Namespace))
+				assert.Equal(t, "main-gateway", string(status.Parents[0].ParentRef.Name))
+				assert.Equal(t, DefaultTestNS, string(status.Parents[0].ParentRef.Namespace))
 				assertConditionContains(t, status.Parents[0].Conditions, metav1.Condition{
-					Type:    string(inferencev1alpha2.InferencePoolConditionAccepted),
+					Type:    string(inferencev1.InferencePoolConditionAccepted),
 					Status:  metav1.ConditionUnknown,
-					Reason:  string(inferencev1alpha2.InferencePoolReasonAccepted),
+					Reason:  string(inferencev1.InferencePoolReasonAccepted),
 					Message: "Referenced by an HTTPRoute unknown parentRef Gateway status",
 				}, "Expected condition with ConditionUnknown")
 			},
@@ -385,19 +385,19 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				assert.Empty(t, status.Parents, "ParentRefs should be empty")
 			},
 		},
 		{
 			name: "should not add parentRef if httproute has no backendref",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(DefaultTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController)), // No BackendRef
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController)), // No BackendRef
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				assert.Empty(t, status.Parents, "ParentRefs should be empty")
 			},
 		},
@@ -408,26 +408,26 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 					WithBackendRef("test-pool", DefaultTestNS)), // No ParentRef
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				assert.Empty(t, status.Parents, "ParentRefs should be empty")
 			},
 		},
 		{
 			name: "should report ExtensionRef not found if no matching service found",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS)),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
 				require.Len(t, status.Parents[0].Conditions, 2, "Expected two condition")
 				assertConditionContains(t, status.Parents[0].Conditions, metav1.Condition{
-					Type:    string(inferencev1alpha2.InferencePoolConditionResolvedRefs),
+					Type:    string(inferencev1.InferencePoolConditionResolvedRefs),
 					Status:  metav1.ConditionFalse,
-					Reason:  string(inferencev1alpha2.InferencePoolReasonInvalidExtensionRef),
+					Reason:  string(inferencev1.InferencePoolReasonInvalidExtensionRef),
 					Message: "Referenced ExtensionRef not found",
 				}, "Expected condition with InvalidExtensionRef")
 			},
@@ -435,19 +435,19 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 		{
 			name: "should report unsupported ExtensionRef if kind is not service",
 			givens: []runtime.Object{
-				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass(constants.DefaultGatewayClass)),
+				NewGateway("main-gateway", InNamespace(GatewayTestNS), WithGatewayClass("istio")),
 				NewHTTPRoute("test-route", InNamespace(DefaultTestNS),
-					WithParentRefAndStatus("main-gateway", DefaultTestNS, HigressController),
+					WithParentRefAndStatus("main-gateway", DefaultTestNS, IstioController),
 					WithBackendRef("test-pool", DefaultTestNS)),
 			},
 			targetPool: NewInferencePool("test-pool", InNamespace(DefaultTestNS), WithExtensionRef("Gateway", "main-gateway")),
-			expectations: func(t *testing.T, status *inferencev1alpha2.InferencePoolStatus) {
+			expectations: func(t *testing.T, status *inferencev1.InferencePoolStatus) {
 				require.Len(t, status.Parents, 1, "Expected one parent reference")
 				require.Len(t, status.Parents[0].Conditions, 2, "Expected two condition")
 				assertConditionContains(t, status.Parents[0].Conditions, metav1.Condition{
-					Type:    string(inferencev1alpha2.InferencePoolConditionResolvedRefs),
+					Type:    string(inferencev1.InferencePoolConditionResolvedRefs),
 					Status:  metav1.ConditionFalse,
-					Reason:  string(inferencev1alpha2.InferencePoolReasonInvalidExtensionRef),
+					Reason:  string(inferencev1.InferencePoolReasonInvalidExtensionRef),
 					Message: "Unsupported ExtensionRef kind",
 				}, "Expected condition with InvalidExtensionRef")
 			},
@@ -472,10 +472,10 @@ func TestInferencePoolStatusReconciliation(t *testing.T) {
 
 			dumpOnFailure(t, krt.GlobalDebugHandler)
 
-			getInferencePoolStatus := func() *inferencev1alpha2.InferencePoolStatus {
+			getInferencePoolStatus := func() *inferencev1.InferencePoolStatus {
 				statuses := sq.Statuses()
 				for _, status := range statuses {
-					if pool, ok := status.(*inferencev1alpha2.InferencePoolStatus); ok {
+					if pool, ok := status.(*inferencev1.InferencePoolStatus); ok {
 						return pool
 					}
 				}
@@ -511,7 +511,7 @@ func assertConditionContains(t *testing.T, conditions []metav1.Condition, expect
 // Option is a function that mutates an object.
 type Option func(client.Object)
 
-type ParentOption func(*inferencev1alpha2.PoolStatus)
+type ParentOption func(*inferencev1.ParentStatus)
 
 // --- Helper functions to mutate objects ---
 
@@ -635,15 +635,15 @@ func WithBackendRef(name, namespace string) Option {
 
 func WithParentStatus(gatewayName, namespace string, opt ...ParentOption) Option {
 	return func(obj client.Object) {
-		ip, ok := obj.(*inferencev1alpha2.InferencePool)
+		ip, ok := obj.(*inferencev1.InferencePool)
 		if ok {
 			if ip.Status.Parents == nil {
-				ip.Status.Parents = []inferencev1alpha2.PoolStatus{}
+				ip.Status.Parents = []inferencev1.ParentStatus{}
 			}
-			poolStatus := inferencev1alpha2.PoolStatus{
-				GatewayRef: inferencev1alpha2.ParentGatewayReference{
-					Name:      inferencev1alpha2.ObjectName(gatewayName),
-					Namespace: (*inferencev1alpha2.Namespace)(&namespace),
+			poolStatus := inferencev1.ParentStatus{
+				ParentRef: inferencev1.ParentReference{
+					Name:      inferencev1.ObjectName(gatewayName),
+					Namespace: inferencev1.Namespace(namespace),
 				},
 			}
 			for _, opt := range opt {
@@ -655,22 +655,22 @@ func WithParentStatus(gatewayName, namespace string, opt ...ParentOption) Option
 }
 
 func AsDefaultStatus() ParentOption {
-	return func(parentStatusRef *inferencev1alpha2.PoolStatus) {
+	return func(parentStatusRef *inferencev1.ParentStatus) {
 		dName := "default"
 		dKind := "Status"
-		parentStatusRef.GatewayRef.Name = inferencev1alpha2.ObjectName(dName)
-		parentStatusRef.GatewayRef.Kind = (*inferencev1alpha2.Kind)(&dKind)
+		parentStatusRef.ParentRef.Name = inferencev1.ObjectName(dName)
+		parentStatusRef.ParentRef.Kind = inferencev1.Kind(dKind)
 		WithConditions(
 			metav1.ConditionUnknown,
-			string(inferencev1alpha2.InferencePoolConditionAccepted),
-			string(inferencev1alpha2.InferencePoolReasonPending),
+			string(inferencev1.InferencePoolConditionAccepted),
+			infPoolPending,
 			"Waiting for controller",
 		)
 	}
 }
 
 func WithConditions(status metav1.ConditionStatus, conType, reason, message string) ParentOption {
-	return func(parentStatusRef *inferencev1alpha2.PoolStatus) {
+	return func(parentStatusRef *inferencev1.ParentStatus) {
 		if parentStatusRef.Conditions == nil {
 			parentStatusRef.Conditions = []metav1.Condition{}
 		}
@@ -688,17 +688,17 @@ func WithConditions(status metav1.ConditionStatus, conType, reason, message stri
 }
 
 func WithAcceptedConditions() ParentOption {
-	return func(parentStatusRef *inferencev1alpha2.PoolStatus) {
+	return func(parentStatusRef *inferencev1.ParentStatus) {
 		WithConditions(
 			metav1.ConditionTrue,
-			string(inferencev1alpha2.InferencePoolConditionAccepted),
-			string(inferencev1alpha2.InferencePoolReasonAccepted),
+			string(inferencev1.InferencePoolConditionAccepted),
+			string(inferencev1.InferencePoolReasonAccepted),
 			"Accepted by the parentRef Gateway",
 		)(parentStatusRef)
 		WithConditions(
 			metav1.ConditionTrue,
-			string(inferencev1alpha2.InferencePoolConditionResolvedRefs),
-			string(inferencev1alpha2.InferencePoolReasonResolvedRefs),
+			string(inferencev1.InferencePoolConditionResolvedRefs),
+			string(inferencev1.InferencePoolReasonResolvedRefs),
 			"Resolved ExtensionRef",
 		)(parentStatusRef)
 	}
@@ -706,14 +706,12 @@ func WithAcceptedConditions() ParentOption {
 
 func WithExtensionRef(kind, name string) Option {
 	return func(obj client.Object) {
-		ip, ok := obj.(*inferencev1alpha2.InferencePool)
+		ip, ok := obj.(*inferencev1.InferencePool)
 		if ok {
-			typedKind := inferencev1alpha2.Kind(kind)
-			ip.Spec.EndpointPickerConfig.ExtensionRef = &inferencev1alpha2.Extension{
-				ExtensionReference: inferencev1alpha2.ExtensionReference{
-					Name: inferencev1alpha2.ObjectName(name),
-					Kind: &typedKind,
-				},
+			typedKind := inferencev1.Kind(kind)
+			ip.Spec.EndpointPickerRef = inferencev1.EndpointPickerRef{
+				Name: inferencev1.ObjectName(name),
+				Kind: typedKind,
 			}
 		}
 	}
@@ -750,22 +748,20 @@ func NewHTTPRoute(name string, opts ...Option) *gateway.HTTPRoute {
 	return hr
 }
 
-func NewInferencePool(name string, opts ...Option) *inferencev1alpha2.InferencePool {
-	ip := &inferencev1alpha2.InferencePool{
+func NewInferencePool(name string, opts ...Option) *inferencev1.InferencePool {
+	ip := &inferencev1.InferencePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: DefaultTestNS,
 		},
-		Spec: inferencev1alpha2.InferencePoolSpec{
-			Selector: map[inferencev1alpha2.LabelKey]inferencev1alpha2.LabelValue{
-				"app": "test",
-			},
-			EndpointPickerConfig: inferencev1alpha2.EndpointPickerConfig{
-				ExtensionRef: &inferencev1alpha2.Extension{
-					ExtensionReference: inferencev1alpha2.ExtensionReference{
-						Name: "endpoint-picker",
-					},
+		Spec: inferencev1.InferencePoolSpec{
+			Selector: inferencev1.LabelSelector{
+				MatchLabels: map[inferencev1.LabelKey]inferencev1.LabelValue{
+					"app": "test",
 				},
+			},
+			EndpointPickerRef: inferencev1.EndpointPickerRef{
+				Name: "endpoint-picker",
 			},
 		},
 	}
