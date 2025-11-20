@@ -15,13 +15,13 @@ type SearchService struct {
 	milvusProvider  *MilvusVectorStoreProvider
 	config          *config.VectorDBConfig
 	tableName       string
-	gatewayID       string
 	dimensions      int
+	maxTools        int
 	embeddingClient *EmbeddingClient
 }
 
 // NewSearchService creates a new SearchService instance
-func NewSearchService(host string, port int, database, username, password, tableName, gatewayID string, embeddingClient *EmbeddingClient, dimensions int) *SearchService {
+func NewSearchService(host string, port int, database, username, password, tableName string, embeddingClient *EmbeddingClient, dimensions int, maxTools int) *SearchService {
 	// Create Milvus configuration
 	cfg := &config.VectorDBConfig{
 		Provider:   "milvus",
@@ -44,8 +44,8 @@ func NewSearchService(host string, port int, database, username, password, table
 		milvusProvider:  provider,
 		config:          cfg,
 		tableName:       tableName,
-		gatewayID:       gatewayID,
 		dimensions:      dimensions,
+		maxTools:        maxTools,
 		embeddingClient: embeddingClient,
 	}
 }
@@ -157,11 +157,10 @@ func (s *SearchService) GetAllTools() (*ToolSearchResult, error) {
 
 // ToolRecord represents a tool record in the database
 type ToolRecord struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name"`
-	Content   string                 `json:"content"`
-	Metadata  map[string]interface{} `json:"metadata"`
-	GatewayID string                 `json:"gateway_id"`
+	ID       string                 `json:"id"`
+	Name     string                 `json:"name"`
+	Content  string                 `json:"content"`
+	Metadata map[string]interface{} `json:"metadata"`
 }
 
 func (s *SearchService) searchToolsInDB(query string, vector []float32, topK int) ([]ToolRecord, error) {
@@ -187,10 +186,9 @@ func (s *SearchService) searchToolsInDB(query string, vector []float32, topK int
 	for _, result := range results {
 		doc := result.Document
 		tool := ToolRecord{
-			ID:        doc.ID,
-			Content:   doc.Content,
-			Metadata:  doc.Metadata,
-			GatewayID: s.gatewayID,
+			ID:       doc.ID,
+			Content:  doc.Content,
+			Metadata: doc.Metadata,
 		}
 
 		if name, ok := doc.Metadata["name"].(string); ok {
@@ -211,8 +209,8 @@ func (s *SearchService) getAllToolsFromDB() ([]ToolRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Retrieve all documents without limit
-	docs, err := s.milvusProvider.ListAllDocs(ctx)
+	// Retrieve all documents with limit
+	docs, err := s.milvusProvider.ListAllDocs(ctx, s.maxTools)
 	if err != nil {
 		api.LogErrorf("Failed to list documents: %v", err)
 		return nil, fmt.Errorf("failed to list documents: %w", err)
@@ -222,10 +220,9 @@ func (s *SearchService) getAllToolsFromDB() ([]ToolRecord, error) {
 	var tools []ToolRecord
 	for _, doc := range docs {
 		tool := ToolRecord{
-			ID:        doc.ID,
-			Content:   doc.Content,
-			Metadata:  doc.Metadata,
-			GatewayID: s.gatewayID,
+			ID:       doc.ID,
+			Content:  doc.Content,
+			Metadata: doc.Metadata,
 		}
 
 		if name, ok := doc.Metadata["name"].(string); ok {

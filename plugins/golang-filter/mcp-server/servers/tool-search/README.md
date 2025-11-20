@@ -21,7 +21,6 @@
 | `metadata`   | JSON              | 完整的工具定义（必须包含 `name` 字段） |
 | `vector`     | FloatVector(1024) | embedding 向量            |
 | `metadata`   | Int64             | 创建时间                    |
-| `gateway_id` | VarChar(64)       | 网关id                    |
 
 
 ## 配置参数
@@ -45,7 +44,7 @@
 | `tableName` | string | 否   | `"apig_mcp_tools"` | Milvus 集合名 |
 | `username`  | string | 否   | -                  | 认证用户名（可选） |
 | `password`  | string | 否   | -                  | 认证密码（可选） |
-| `gatewayId` | string | 否   | -                  | 网关标识（用于记录来源） |
+| `maxTools`  | int    | 否   | `1000`             | 获取工具列表时的最大工具数量 |
 
 ### Embedding 配置（`embedding` 对象）
 
@@ -58,8 +57,6 @@
 
 ## 配置示例
 
-
-### 在 Higress 中配置 Tool Search MCP Server
 
 Tool Search MCP Server 也可以作为 Higress 的一个模块进行配置。以下是一个在 Higress ConfigMap 中配置 Tool Search 的示例：
 
@@ -99,7 +96,7 @@ data:
             tableName: "apig_mcp_tools"
             username: "root"
             password: "Milvus"
-            gatewayId: "higress-gateway-01"
+            maxTools: 1000
           embedding:
             apiKey: "your-dashscope-api-key"
             baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"

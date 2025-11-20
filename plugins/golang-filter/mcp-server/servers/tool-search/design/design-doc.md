@@ -38,7 +38,7 @@ Tool Search插件是一个基于Milvus向量数据库的MCP（Model Context Prot
 | tableName | string | 否 | "apig_mcp_tools" | Milvus集合名称 |
 | username | string | 否 | - | Milvus用户名 |
 | password | string | 否 | - | Milvus密码 |
-| gatewayId | string | 否 | - | 网关ID |
+| maxTools | integer | 否 | 1000 | 获取工具列表时的最大工具数量限制 |
 
 ### 嵌入模型配置 (embedding)
 | 参数 | 类型 | 必填 | 默认值 | 描述 |
@@ -79,6 +79,7 @@ Tool Search插件是一个基于Milvus向量数据库的MCP（Model Context Prot
 - 向量搜索性能受Milvus配置和硬件资源影响
 - 嵌入模型调用可能成为性能瓶颈
 - 需要合理设置topK参数以平衡准确性和性能
+- 通过maxTools参数限制获取工具列表的数量，避免大量数据传输
 
 ## 测试策略
 

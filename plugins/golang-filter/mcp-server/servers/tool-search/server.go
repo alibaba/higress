@@ -3,6 +3,8 @@ package tool_search
 import (
 	"errors"
 	"fmt"
+	"strconv"
+
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -12,11 +14,11 @@ const (
 	Version = "1.0.0"
 
 	// 默认配置值
-	defaultVectorWeight = 1.0
-	defaultTableName    = "apig_mcp_tools"
-	defaultBaseURL      = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-	defaultModel        = "text-embedding-v4"
-	defaultDimensions   = 1024
+	defaultTableName  = "apig_mcp_tools"
+	defaultBaseURL    = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+	defaultModel      = "text-embedding-v4"
+	defaultDimensions = 1024
+	defaultMaxTools   = 1000
 )
 
 func init() {
@@ -32,7 +34,7 @@ type VectorConfig struct {
 	Database     string  `json:"database"`
 	Username     string  `json:"username"`
 	Password     string  `json:"password"`
-	GatewayID    string  `json:"gatewayId"`
+	MaxTools     int     `json:"maxTools"`
 }
 
 type EmbeddingConfig struct {
@@ -111,12 +113,6 @@ func (c *ToolSearchConfig) parseVectorConfig(config map[string]any) error {
 		c.Vector.Database = "default" // 默认数据库
 	}
 
-	if vectorWeight, ok := config["vectorWeight"].(float64); ok {
-		c.Vector.VectorWeight = vectorWeight
-	} else {
-		c.Vector.VectorWeight = defaultVectorWeight
-	}
-
 	if tableName, ok := config["tableName"].(string); ok {
 		c.Vector.TableName = tableName
 	} else {
@@ -131,8 +127,18 @@ func (c *ToolSearchConfig) parseVectorConfig(config map[string]any) error {
 		c.Vector.Password = password
 	}
 
-	if gatewayID, ok := config["gatewayId"].(string); ok {
-		c.Vector.GatewayID = gatewayID
+	if maxTools, ok := config["maxTools"].(string); ok {
+		if val, err := strconv.Atoi(maxTools); err == nil {
+			c.Vector.MaxTools = val
+		} else {
+			c.Vector.MaxTools = defaultMaxTools
+		}
+	} else if maxTools, ok := config["maxTools"].(float64); ok {
+		c.Vector.MaxTools = int(maxTools)
+	} else if maxTools, ok := config["maxTools"].(int); ok {
+		c.Vector.MaxTools = maxTools
+	} else {
+		c.Vector.MaxTools = defaultMaxTools
 	}
 
 	return nil
@@ -188,9 +194,9 @@ func (c *ToolSearchConfig) NewServer(serverName string) (*common.MCPServer, erro
 		c.Vector.Username,
 		c.Vector.Password,
 		c.Vector.TableName,
-		c.Vector.GatewayID,
 		embeddingClient,
 		c.Embedding.Dimensions,
+		c.Vector.MaxTools,
 	)
 
 	// Add tool search tool

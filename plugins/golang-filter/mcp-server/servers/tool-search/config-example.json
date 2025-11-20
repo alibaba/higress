@@ -8,7 +8,7 @@
     "database": "default",
     "username": "root",
     "password": "Milvus",
-    "gatewayId": "test-gateway"
+    "maxTools": 1000
   },
   "embedding": {
     "apiKey": "your-dashscope-api-key",

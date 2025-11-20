@@ -42,19 +42,32 @@ func NewMilvusVectorStoreProvider(cfg *config.VectorDBConfig, dimensions int) (*
 	}, nil
 }
 
-func (c *MilvusVectorStoreProvider) ListAllDocs(ctx context.Context) ([]schema.Document, error) {
-
+func (c *MilvusVectorStoreProvider) ListAllDocs(ctx context.Context, limit int) ([]schema.Document, error) {
 	expr := ""
 
 	outputFields := []string{"id", "content", "metadata", "created_at"}
 
-	queryResult, err := c.client.Query(
-		ctx,
-		c.collection,
-		[]string{}, // partitions
-		expr,       // filter condition
-		outputFields,
-	)
+	var queryResult []entity.Column
+	var err error
+
+	if limit > 0 {
+		queryResult, err = c.client.Query(
+			ctx,
+			c.collection,
+			[]string{}, // partitions
+			expr,       // filter condition
+			outputFields,
+			client.WithLimit(int64(limit)),
+		)
+	} else {
+		queryResult, err = c.client.Query(
+			ctx,
+			c.collection,
+			[]string{}, // partitions
+			expr,       // filter condition
+			outputFields,
+		)
+	}
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query all documents: %w", err)

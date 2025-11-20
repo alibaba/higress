@@ -43,7 +43,7 @@ func TestServer(t *testing.T) {
 			"database":     getEnvOrDefault("TEST_MILVUS_DATABASE", "default"),
 			"username":     getEnvOrDefault("TEST_MILVUS_USERNAME", "root"),
 			"password":     getEnvOrDefault("TEST_MILVUS_PASSWORD", "Milvus"),
-			"gatewayId":    "test-gateway",
+			"maxTools":     getEnvOrDefaultInt("TEST_MAX_TOOLS", 1000),
 		},
 		"embedding": map[string]any{
 			"apiKey":     getEnvOrDefault("TEST_API_KEY", "your-dashscope-api-key"),
@@ -86,9 +86,9 @@ func TestServer(t *testing.T) {
 		vectorConfig["username"].(string),
 		vectorConfig["password"].(string),
 		vectorConfig["tableName"].(string),
-		vectorConfig["gatewayId"].(string),
 		embeddingClient,
 		embeddingConfig["dimensions"].(int),
+		getEnvOrDefaultInt("TEST_MAX_TOOLS", 1000),
 	)
 
 	allTools, err := searchService.GetAllTools()
