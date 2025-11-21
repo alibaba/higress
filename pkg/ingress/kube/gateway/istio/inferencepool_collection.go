@@ -15,7 +15,6 @@
 package istio
 
 import (
-	"context"
 	"crypto/sha256"
 	"fmt"
 	"strconv"
@@ -24,15 +23,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/json"
 	inferencev1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/gvk"
-	"istio.io/istio/pkg/kube"
+	"istio.io/istio/pkg/kube/kclient"
 	"istio.io/istio/pkg/kube/krt"
+	"istio.io/istio/pkg/maps"
 	"istio.io/istio/pkg/ptr"
 	"istio.io/istio/pkg/slices"
 	"istio.io/istio/pkg/util/sets"
@@ -45,7 +44,6 @@ const (
 	InferencePoolExtensionRefSvc         = "higress.io/inferencepool-extension-service"
 	InferencePoolExtensionRefPort        = "higress.io/inferencepool-extension-port"
 	InferencePoolExtensionRefFailureMode = "higress.io/inferencepool-extension-failure-mode"
-	InferencePoolFieldManager            = "higress.io/inference-pool-controller"
 )
 
 // // ManagedLabel is the label used to identify resources managed by this controller
@@ -505,7 +503,7 @@ func InferencePoolServiceName(poolName string) (string, error) {
 	return svcName, nil
 }
 
-func translateShadowServiceToService(shadow shadowServiceInfo, extRef extRefInfo) *corev1.Service {
+func translateShadowServiceToService(existingLabels map[string]string, shadow shadowServiceInfo, extRef extRefInfo) *corev1.Service {
 	// Create the ports used by the shadow service
 	ports := make([]corev1.ServicePort, 0, len(shadow.targetPorts))
 	dummyPort := int32(54321) // Dummy port, not used for anything
@@ -520,20 +518,16 @@ func translateShadowServiceToService(shadow shadowServiceInfo, extRef extRefInfo
 
 	// Create a new service object based on the shadow service info
 	svc := &corev1.Service{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
-			Kind:       "Service",
-		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      shadow.key.Name,
 			Namespace: shadow.key.Namespace,
-			Labels: map[string]string{
+			Labels: maps.MergeCopy(map[string]string{
 				InferencePoolRefLabel:                shadow.poolName,
 				InferencePoolExtensionRefSvc:         extRef.name,
 				InferencePoolExtensionRefPort:        strconv.Itoa(int(extRef.port)),
 				InferencePoolExtensionRefFailureMode: extRef.failureMode,
 				constants.InternalServiceSemantics:   constants.ServiceSemanticsInferencePool,
-			},
+			}, existingLabels),
 		},
 		Spec: corev1.ServiceSpec{
 			Selector:  shadow.selector,
@@ -556,7 +550,7 @@ func translateShadowServiceToService(shadow shadowServiceInfo, extRef extRefInfo
 }
 
 func (c *Controller) reconcileShadowService(
-	kubeClient kube.Client,
+	svcClient kclient.Client[*corev1.Service],
 	inferencePools krt.Collection[InferencePool],
 	servicesCollection krt.Collection[*corev1.Service],
 ) func(key types.NamespacedName) error {
@@ -574,35 +568,33 @@ func (c *Controller) reconcileShadowService(
 		existingService := ptr.Flatten(servicesCollection.GetKey(pool.shadowService.key.String()))
 
 		// Check if we can manage this service
+		var existingLabels map[string]string
 		if existingService != nil {
-			canManage, reason := c.canManageShadowServiceForInference(existingService)
+			existingLabels = existingService.GetLabels()
+			canManage, _ := c.canManageShadowServiceForInference(existingService)
 			if !canManage {
-				log.Debugf("skipping service %s/%s, already managed by another controller: %s", key.Namespace, key.Name, reason)
+				log.Debugf("skipping service %s/%s, already managed by another controller", key.Namespace, key.Name)
 				return nil
 			}
 		}
 
-		service := translateShadowServiceToService(pool.shadowService, pool.extRef)
-		return c.applyShadowService(kubeClient, service)
+		service := translateShadowServiceToService(existingLabels, pool.shadowService, pool.extRef)
+
+		var err error
+		if existingService == nil {
+			// Create the service if it doesn't exist
+			_, err = svcClient.Create(service)
+		} else {
+			// TODO: Don't overwrite resources: https://github.com/istio/istio/issues/56667
+			service.ResourceVersion = existingService.ResourceVersion
+			_, err = svcClient.Update(service)
+		}
+
+		return err
 	}
 }
 
-// applyShadowService uses Server-Side Apply to create or update shadow services
-func (c *Controller) applyShadowService(kubeClient kube.Client, service *corev1.Service) error {
-	data, err := json.Marshal(service)
-	if err != nil {
-		return fmt.Errorf("failed to marshal service for SSA: %v", err)
-	}
-
-	ctx := context.Background()
-	_, err = kubeClient.Kube().CoreV1().Services(service.Namespace).Patch(
-		ctx, service.Name, types.ApplyPatchType, data, metav1.PatchOptions{
-			FieldManager: InferencePoolFieldManager,
-			Force:        ptr.Of(true),
-		})
-	return err
-}
-
+// canManage checks if a service should be managed by this controller
 func (c *Controller) canManageShadowServiceForInference(obj *corev1.Service) (bool, string) {
 	if obj == nil {
 		// No object exists, we can manage it

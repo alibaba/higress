@@ -50,6 +50,10 @@ func (a AncestorBackend) Equals(other AncestorBackend) bool {
 	return a.Gateway == other.Gateway && a.Backend == other.Backend
 }
 
+func (a AncestorBackend) ResourceName() string {
+	return a.Gateway.String() + "/" + a.Backend.String()
+}
+
 func HTTPRouteCollection(
 	httpRoutes krt.Collection[*gateway.HTTPRoute],
 	inputs RouteContextInputs,
