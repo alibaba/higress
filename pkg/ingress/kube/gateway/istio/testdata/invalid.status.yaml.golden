@@ -1,7 +1,6 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  creationTimestamp: null
   name: higress
 spec: null
 status:
@@ -15,7 +14,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway
   namespace: higress-system
 spec: null
@@ -67,7 +65,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: invalid-cert-kind
   namespace: higress-system
 spec: null
@@ -120,7 +117,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: invalid-cert-malformed
   namespace: higress-system
 spec: null
@@ -171,7 +167,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: invalid-cert-notfound
   namespace: higress-system
 spec: null
@@ -224,7 +219,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: invalid-service
   namespace: higress-system
 spec: null
@@ -274,7 +268,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: protocol-lower-case
   namespace: higress-system
 spec: null
@@ -320,7 +313,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: target-port-reference
   namespace: higress-system
 spec: null
@@ -370,7 +362,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: udp-protocol
   namespace: higress-system
 spec: null
@@ -416,7 +407,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: unknown-protocol
   namespace: higress-system
 spec: null
@@ -462,7 +452,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: invalid-gateway-address
   namespace: invalid-gateway-address
 spec: null
@@ -512,7 +501,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-backendRef-hostname
   namespace: default
 spec: null
@@ -538,7 +526,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-backendRef-kind
   namespace: default
 spec: null
@@ -563,7 +550,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-backendRef-mirror
   namespace: default
 spec: null
@@ -589,7 +575,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-backendRef-mixed
   namespace: default
 spec: null
@@ -614,7 +599,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-backendRef-notfound
   namespace: default
 spec: null
@@ -639,7 +623,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-backendRef-serviceimport
   namespace: default
 spec: null
@@ -665,7 +648,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-mirror
   namespace: default
 spec: null
@@ -690,7 +672,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-parentRef-port
   namespace: default
 spec: null
@@ -716,7 +697,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-parentRef-service
   namespace: default
 spec: null
@@ -742,7 +722,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-parentRef-service-entry
   namespace: default
 spec: null
@@ -768,7 +747,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: invalid-sectionname-port
   namespace: default
 spec: null
@@ -794,7 +772,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: no-backend
   namespace: default
 spec: null

@@ -1,7 +1,6 @@
 apiVersion: gateway.networking.k8s.io/v1alpha3
 kind: BackendTLSPolicy
 metadata:
-  creationTimestamp: null
   name: bad-configmap-type
   namespace: default
 spec: null
@@ -22,7 +21,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha3
 kind: BackendTLSPolicy
 metadata:
-  creationTimestamp: null
   name: bad-service
   namespace: default
 spec: null
@@ -44,7 +42,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha3
 kind: BackendTLSPolicy
 metadata:
-  creationTimestamp: null
   name: existing-status
   namespace: default
 spec: null
@@ -76,7 +73,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha3
 kind: BackendTLSPolicy
 metadata:
-  creationTimestamp: null
   name: malformed-configmap
   namespace: default
 spec: null
@@ -98,7 +94,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha3
 kind: BackendTLSPolicy
 metadata:
-  creationTimestamp: null
   name: tls-upstream-echo
   namespace: default
 spec: null
@@ -119,7 +114,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha3
 kind: BackendTLSPolicy
 metadata:
-  creationTimestamp: null
   name: unknown-configmap
   namespace: default
 spec: null
