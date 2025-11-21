@@ -749,7 +749,7 @@ func TestConvertResources(t *testing.T) {
 
 			goldenFile := fmt.Sprintf("testdata/%s.yaml.golden", tt.name)
 			b := marshalYaml(t, res)
-			t.Logf("marshaled yaml result : %s", string(b))
+			//t.Logf("marshaled yaml result : %s", string(b))
 
 			util.CompareContent(t, b, goldenFile)
 

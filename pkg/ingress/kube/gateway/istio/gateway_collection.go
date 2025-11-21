@@ -16,6 +16,7 @@ package istio
 
 import (
 	"fmt"
+	"istio.io/api/annotation"
 	"strings"
 
 	"go.uber.org/atomic"
@@ -77,6 +78,7 @@ func ListenerSetCollection(
 	gatewayClasses krt.Collection[GatewayClass],
 	namespaces krt.Collection[*corev1.Namespace],
 	grants ReferenceGrants,
+	configMaps krt.Collection[*corev1.ConfigMap],
 	secrets krt.Collection[*corev1.Secret],
 	domainSuffix string,
 	gatewayContext krt.RecomputeProtected[*atomic.Pointer[GatewayContext]],
@@ -151,7 +153,8 @@ func ListenerSetCollection(
 				l.Port = port
 				standardListener := convertListenerSetToListener(l)
 				originalStatus := slices.Map(status.Listeners, convertListenerSetStatusToStandardStatus)
-				server, updatedStatus, programmed := buildListener(ctx, secrets, grants, namespaces, obj, originalStatus, standardListener, i, controllerName, portErr)
+				server, updatedStatus, programmed := buildListener(ctx, configMaps, secrets, grants, namespaces,
+					obj, originalStatus, parentGwObj.Spec, standardListener, i, controllerName, portErr)
 				status.Listeners = slices.Map(updatedStatus, convertStandardStatusToListenerSetStatus(l))
 
 				servers = append(servers, server)
@@ -163,6 +166,11 @@ func ListenerSetCollection(
 				meta[constants.InternalGatewaySemantics] = constants.GatewaySemanticsGateway
 				//meta[model.InternalGatewayServiceAnnotation] = strings.Join(gatewayServices, ",")
 				meta[constants.InternalParentNamespace] = parentGwObj.Namespace
+				serviceAccountName := model.GetOrDefault(
+					parentGwObj.GetAnnotations()[annotation.GatewayServiceAccount.Name],
+					getDefaultName(parentGwObj.GetName(), &parentGwObj.Spec, classInfo.disableNameSuffix),
+				)
+				meta[constants.InternalServiceAccount] = serviceAccountName
 
 				// Start - Updated by Higress
 				var selector map[string]string
@@ -233,6 +241,7 @@ func GatewayCollection(
 	gatewayClasses krt.Collection[GatewayClass],
 	namespaces krt.Collection[*corev1.Namespace],
 	grants ReferenceGrants,
+	configMaps krt.Collection[*corev1.ConfigMap],
 	secrets krt.Collection[*corev1.Secret],
 	domainSuffix string,
 	gatewayContext krt.RecomputeProtected[*atomic.Pointer[GatewayContext]],
@@ -284,8 +293,19 @@ func GatewayCollection(
 		}
 		// End - Updated by Higress
 
+		// See: https://istio.io/latest/docs/tasks/traffic-management/ingress/gateway-api/#manual-deployment
+		// If we set and address of type hostname, then we have no idea what service accounts the gateway workloads will use.
+		// Thus, we don't enforce service account name restrictions (still look at namespaces though).
+		serviceAccountName := ""
+		if IsManaged(&obj.Spec) {
+			serviceAccountName = model.GetOrDefault(
+				obj.GetAnnotations()[annotation.GatewayServiceAccount.Name],
+				getDefaultName(obj.GetName(), &kgw, classInfo.disableNameSuffix),
+			)
+		}
+
 		for i, l := range kgw.Listeners {
-			server, updatedStatus, programmed := buildListener(ctx, secrets, grants, namespaces, obj, status.Listeners, l, i, controllerName, nil)
+			server, updatedStatus, programmed := buildListener(ctx, configMaps, secrets, grants, namespaces, obj, status.Listeners, kgw, l, i, controllerName, nil)
 			status.Listeners = updatedStatus
 
 			servers = append(servers, server)
@@ -296,6 +316,7 @@ func GatewayCollection(
 			}
 			meta := parentMeta(obj, &l.Name)
 			meta[constants.InternalGatewaySemantics] = constants.GatewaySemanticsGateway
+			meta[constants.InternalServiceAccount] = serviceAccountName
 			// Start - Updated by Higress
 			var selector map[string]string
 			if len(gatewayServices) != 0 {
