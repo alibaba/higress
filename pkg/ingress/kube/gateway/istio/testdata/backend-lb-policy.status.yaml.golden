@@ -17,5 +17,5 @@ status:
       reason: Accepted
       status: "True"
       type: Accepted
-    controllerName: istio.io/gateway-controller
+    controllerName: istio.io/mesh-controller
 ---
