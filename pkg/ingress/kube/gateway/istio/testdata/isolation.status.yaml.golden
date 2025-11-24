@@ -151,7 +151,7 @@ status:
       reason: BackendNotFound
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: isolation
       namespace: gateway-conformance-infra
@@ -177,7 +177,7 @@ status:
       reason: BackendNotFound
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: isolation
       namespace: gateway-conformance-infra
@@ -203,7 +203,7 @@ status:
       reason: BackendNotFound
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: isolation
       namespace: gateway-conformance-infra
@@ -229,7 +229,7 @@ status:
       reason: BackendNotFound
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: isolation
       namespace: gateway-conformance-infra

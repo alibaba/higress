@@ -116,7 +116,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       kind: Gateway
       name: eastwestgateway
@@ -141,7 +141,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       kind: Gateway
       name: eastwestgateway

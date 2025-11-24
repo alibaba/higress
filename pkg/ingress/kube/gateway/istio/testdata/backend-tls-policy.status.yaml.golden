@@ -307,7 +307,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha3
 kind: BackendTLSPolicy
@@ -420,7 +420,7 @@ status:
       reason: RefNotPermitted
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
 ---

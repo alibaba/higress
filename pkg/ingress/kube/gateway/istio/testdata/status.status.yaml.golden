@@ -109,7 +109,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
   - controllerName: example.com/not-istio
@@ -144,7 +144,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
 ---
@@ -167,7 +167,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
 ---
@@ -190,7 +190,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
   - controllerName: example.com/not-istio
