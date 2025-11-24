@@ -393,7 +393,7 @@ func (m *chatMessage) ParseContent() []chatMessageContent {
 }
 
 type toolCall struct {
-	Index    int          `json:"index,omitempty"`
+	Index    int          `json:"index"`
 	Id       string       `json:"id,omitempty"`
 	Type     string       `json:"type"`
 	Function functionCall `json:"function"`
