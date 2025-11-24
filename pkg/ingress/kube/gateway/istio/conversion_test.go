@@ -521,6 +521,33 @@ D2lWusoe2/nEqfDVVWGWlyJ7yOmqaVm/iNUN9B2N2g==
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "malformed",
+				Namespace: "higress-system",
+			},
+			Data: map[string]string{
+				"not-ca.crt": "hello",
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "malformed-trustbundle",
+				Namespace: "higress-system",
+			},
+			Data: map[string]string{
+				"ca.crt": "hello",
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-cert-http",
+				Namespace: "higress-system",
+			},
+			Data: map[string]string{
+				"ca.crt": rsaCertPEM,
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "malformed",
 				Namespace: "default",
 			},
 			Data: map[string]string{
@@ -625,7 +652,7 @@ func TestConvertResources(t *testing.T) {
 	}{
 		{name: "http"},
 		{name: "tcp"},
-		//{name: "tls"}, // TODO: fix this case
+		{name: "tls"},
 		{name: "grpc"},
 		{name: "mismatch"},
 		{name: "weighted"},
