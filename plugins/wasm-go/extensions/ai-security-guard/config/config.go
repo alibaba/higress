@@ -137,6 +137,7 @@ type AISecurityConfig struct {
 	Token                         string
 	Action                        string
 	CheckRequest                  bool
+	CheckRequestImage             bool
 	RequestCheckService           string
 	RequestImageCheckService      string
 	RequestContentJsonPath        string
@@ -205,6 +206,7 @@ func (config *AISecurityConfig) Parse(json gjson.Result) error {
 		config.ResponseImageCheckService = obj.String()
 	}
 	config.CheckRequest = json.Get("checkRequest").Bool()
+	config.CheckRequestImage = json.Get("checkRequestImage").Bool()
 	config.CheckResponse = json.Get("checkResponse").Bool()
 	config.ProtocolOriginal = json.Get("protocol").String() == "original"
 	config.DenyMessage = json.Get("denyMessage").String()

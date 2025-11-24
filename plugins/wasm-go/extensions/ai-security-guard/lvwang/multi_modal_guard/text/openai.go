@@ -17,7 +17,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func parseContent(json gjson.Result) (text, imgUrl, imgBase64 string) {
+type ImageItemForOpenAI struct {
+	Content string
+	Type    string // URL or BASE64
+}
+
+func parseContent(json gjson.Result) (text string, images []ImageItemForOpenAI) {
+	images = []ImageItemForOpenAI{}
 	if json.IsArray() {
 		for _, item := range json.Array() {
 			switch item.Get("type").String() {
@@ -26,16 +32,22 @@ func parseContent(json gjson.Result) (text, imgUrl, imgBase64 string) {
 			case "image_url":
 				imgContent := item.Get("image_url.url").String()
 				if strings.HasPrefix(imgContent, "data:image") {
-					imgBase64 = imgContent
+					images = append(images, ImageItemForOpenAI{
+						Content: imgContent,
+						Type:    "BASE64",
+					})
 				} else {
-					imgUrl = imgContent
+					images = append(images, ImageItemForOpenAI{
+						Content: imgContent,
+						Type:    "URL",
+					})
 				}
 			}
 		}
 	} else {
 		text = json.String()
 	}
-	return text, imgUrl, imgBase64
+	return text, images
 }
 
 func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
@@ -44,15 +56,17 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 	checkImageService := config.GetRequestImageCheckService(consumer)
 	startTime := time.Now().UnixMilli()
 	// content := gjson.GetBytes(body, config.RequestContentJsonPath).String()
-	content, imgUrl, imgBase64 := parseContent(gjson.GetBytes(body, config.RequestContentJsonPath))
+	content, images := parseContent(gjson.GetBytes(body, config.RequestContentJsonPath))
 	log.Debugf("Raw request content is: %s", content)
-	if len(content) == 0 {
+	if len(content) == 0 && len(images) == 0 {
 		log.Info("request content is empty. skip")
 		return types.ActionContinue
 	}
 	contentIndex := 0
+	imageIndex := 0
 	sessionID, _ := utils.GenerateHexID(20)
 	var singleCall func()
+	var singleCallForImage func()
 	callback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 		log.Info(string(responseBody))
 		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
@@ -72,7 +86,11 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
 				ctx.SetUserAttribute("safecheck_status", "request pass")
 				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-				proxywasm.ResumeHttpRequest()
+				if len(images) > 0 && config.CheckRequestImage {
+					singleCallForImage()
+				} else {
+					proxywasm.ResumeHttpRequest()
+				}
 			} else {
 				singleCall()
 			}
@@ -124,68 +142,86 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 			proxywasm.ResumeHttpRequest()
 		}
 	}
-	// check image
-	if imgUrl != "" || imgBase64 != "" {
-		path, headers, body := common.GenerateRequestForImage(config, cfg.MultiModalGuardForBase64, checkImageService, imgUrl, imgBase64)
-		err := config.Client.Post(path, headers, body, func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			log.Info(string(responseBody))
-			if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
-				// start checking text
-				singleCall()
-				return
+
+	callbackForImage := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		imageIndex += 1
+		log.Info(string(responseBody))
+		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+			if imageIndex < len(images) {
+				singleCallForImage()
+			} else {
+				proxywasm.ResumeHttpRequest()
 			}
-			var response cfg.Response
-			err := json.Unmarshal(responseBody, &response)
-			if err != nil {
-				log.Errorf("%+v", err)
-				// start checking text
-				singleCall()
-				return
+			return
+		}
+		var response cfg.Response
+		err := json.Unmarshal(responseBody, &response)
+		if err != nil {
+			log.Errorf("%+v", err)
+			if imageIndex < len(images) {
+				singleCallForImage()
+			} else {
+				proxywasm.ResumeHttpRequest()
 			}
-			if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
-				endTime := time.Now().UnixMilli()
+			return
+		}
+		endTime := time.Now().UnixMilli()
+		if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
+			if imageIndex >= len(images) {
 				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
 				ctx.SetUserAttribute("safecheck_status", "request pass")
 				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-				// start checking text
-				singleCall()
-				return
-			}
-			denyMessage := cfg.DefaultDenyMessage
-			if config.DenyMessage != "" {
-				denyMessage = config.DenyMessage
-			} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-				denyMessage = response.Data.Advice[0].Answer
-			}
-			marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
-			if config.ProtocolOriginal {
-				proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
-			} else if gjson.GetBytes(body, "stream").Bool() {
-				randomID := utils.GenerateRandomChatID()
-				jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
-				proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+				proxywasm.ResumeHttpRequest()
 			} else {
-				randomID := utils.GenerateRandomChatID()
-				jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
-				proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+				singleCallForImage()
 			}
-			ctx.DontReadResponseBody()
-			config.IncrementCounter("ai_sec_request_deny", 1)
-			endTime := time.Now().UnixMilli()
-			ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-			ctx.SetUserAttribute("safecheck_status", "reqeust deny")
-			if response.Data.Advice != nil {
-				ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
-				ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
-			}
-			ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-		}, config.Timeout)
+			return
+		}
+
+		denyMessage := cfg.DefaultDenyMessage
+		if config.DenyMessage != "" {
+			denyMessage = config.DenyMessage
+		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
+			denyMessage = response.Data.Advice[0].Answer
+		}
+		marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
+		if config.ProtocolOriginal {
+			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
+		} else if gjson.GetBytes(body, "stream").Bool() {
+			randomID := utils.GenerateRandomChatID()
+			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
+			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
+		} else {
+			randomID := utils.GenerateRandomChatID()
+			jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
+			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
+		}
+		ctx.DontReadResponseBody()
+		config.IncrementCounter("ai_sec_request_deny", 1)
+		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
+		if response.Data.Advice != nil {
+			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
+			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
+		}
+		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	}
+	singleCallForImage = func() {
+		img := images[imageIndex]
+		imgUrl := ""
+		imgBase64 := ""
+		if img.Type == "BASE64" {
+			imgBase64 = img.Content
+		} else {
+			imgUrl = img.Content
+		}
+		path, headers, body := common.GenerateRequestForImage(config, cfg.MultiModalGuardForBase64, checkImageService, imgUrl, imgBase64)
+		err := config.Client.Post(path, headers, body, callbackForImage, config.Timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
 			proxywasm.ResumeHttpRequest()
 		}
-	} else {
-		singleCall()
 	}
+	singleCall()
 	return types.ActionPause
 }
