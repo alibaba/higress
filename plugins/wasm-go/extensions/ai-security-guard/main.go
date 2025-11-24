@@ -22,6 +22,7 @@ func init() {
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBody(onHttpStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
+		wrapper.WithRebuildAfterRequests[cfg.AISecurityConfig](1000),
 	)
 }
 
