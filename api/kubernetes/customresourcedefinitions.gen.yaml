@@ -71,6 +71,11 @@ spec:
                       items:
                         type: string
                       type: array
+                    routeType:
+                      enum:
+                      - HTTP
+                      - GRPC
+                      type: string
                     service:
                       items:
                         type: string
