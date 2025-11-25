@@ -29,16 +29,37 @@ const (
 )
 
 // CompressContextInRequest compresses context in request with intelligent pre-retrieval
+// 使用分层压缩策略和内容感知的压缩决策
 func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
 	if c.memoryService == nil || !c.memoryService.IsEnabled() {
 		return body, nil
 	}
 
-	log.Debugf("[CompressContext] starting context compression and pre-retrieval")
+	log.Debugf("[CompressContext] starting context compression and pre-retrieval with layered strategy")
 
 	request := &chatCompletionRequest{}
 	if err := json.Unmarshal(body, request); err != nil {
 		return body, fmt.Errorf("failed to unmarshal request: %v", err)
+	}
+
+	// 检测是否为Agent请求和Agent模式
+	isAgent := c.isAgentRequest(request)
+	agentMode := "normal"
+	if isAgent && c.memoryService != nil {
+		if redisService, ok := c.memoryService.(*redisMemoryService); ok {
+			agentMode = redisService.config.AgentMode
+		}
+	}
+
+	log.Debugf("[CompressContext] Request type: Agent=%v, AgentMode=%s", isAgent, agentMode)
+
+	// 初始化分层压缩策略（仅在启用时）
+	var layeredStrategy *LayeredCompressionStrategy
+	useLayeredCompression := false
+	if c.contextCompression != nil && c.contextCompression.EnableLayeredCompression {
+		useLayeredCompression = true
+		layeredStrategy = NewLayeredCompressionStrategy()
+		log.Debugf("[CompressContext] Layered compression strategy enabled")
 	}
 
 	// Step 1: Check if there are compressed references that need to be restored
@@ -55,6 +76,7 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 	compressedIds := make(map[string]string) // message index -> context_id
 	var newMessages []chatMessage
 	totalSavedBytes := 0
+	compressionStats := map[string]int{} // 统计各类型的压缩情况
 
 	for i, msg := range request.Messages {
 		// Only compress messages with tool or function role
@@ -66,36 +88,84 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		contentStr := msg.StringContent()
 		contentSize := len(contentStr)
 
-		// Check if compression should be applied
-		// 使用更准确的基于内容的判断（支持token计算和Agent模式）
+		// Step 2.1: 决定是否压缩
+		var shouldCompress bool
+		var compressionReason string
+		var dataLayer string
+
 		if redisService, ok := c.memoryService.(*redisMemoryService); ok {
-			// 检测是否为Agent请求
-			isAgent := c.isAgentRequest(request)
+			if useLayeredCompression && layeredStrategy != nil {
+				// 使用分层压缩策略
+				useTokenBased := redisService.config.UseTokenBasedCompression
+				preserveKeyInfo := redisService.config.PreserveKeyInfo
 
-			var shouldCompress bool
-			if isAgent {
-				// Agent模式：使用Agent感知的压缩判断
-				shouldCompress = c.shouldCompressForAgent(contentStr)
-				log.Debugf("[CompressContext] Agent request detected, using Agent-aware compression strategy")
-			} else {
-				// 标准模式：使用原有逻辑
-				shouldCompress = redisService.ShouldCompressByContent(contentStr)
-			}
+				decision := layeredStrategy.DecideCompression(
+					contentStr,
+					useTokenBased,
+					agentMode,
+					preserveKeyInfo)
 
-			if !shouldCompress {
-				if redisService.config.UseTokenBasedCompression {
-					tokenCount := calculateTokensDeepSeekFromString(contentStr)
-					log.Debugf("[CompressContext] skipping message %d, token count %d below threshold (agent: %v)", i, tokenCount, isAgent)
-				} else {
-					log.Debugf("[CompressContext] skipping message %d, size %d below threshold (agent: %v)", i, contentSize, isAgent)
+				shouldCompress = decision.ShouldCompress
+				compressionReason = decision.Reason
+				dataLayer = c.contentLayerString(decision.DataLayer)
+
+				log.Debugf("[CompressContext] Message %d: type analysis: %v, layer: %s, strategy: %v, should_compress: %v",
+					i, "analysis", dataLayer, decision.Strategy, shouldCompress)
+
+				// 记录统计信息
+				strategyStr := c.compressionStrategyString(decision.Strategy)
+				compressionStats[strategyStr]++
+
+				// 如果不压缩，记录原因
+				if !shouldCompress {
+					if useTokenBased {
+						tokens := calculateTokensDeepSeekFromString(contentStr)
+						log.Debugf("[CompressContext] Message %d: skipped (tokens: %d, layer: %s, reason: %s)", i, tokens, dataLayer, compressionReason)
+					} else {
+						log.Debugf("[CompressContext] Message %d: skipped (size: %d bytes, layer: %s, reason: %s)", i, contentSize, dataLayer, compressionReason)
+					}
+					newMessages = append(newMessages, msg)
+					continue
 				}
-				newMessages = append(newMessages, msg)
-				continue
+			} else {
+				// 使用原有逻辑（向后兼容）
+				if isAgent {
+					// Agent模式：使用Agent感知的压缩判断
+					shouldCompress = c.shouldCompressForAgent(contentStr)
+					compressionReason = "Agent-aware compression"
+					dataLayer = "N/A"
+					log.Debugf("[CompressContext] Agent request detected, using Agent-aware compression strategy")
+				} else {
+					// 标准模式：使用原有逻辑
+					shouldCompress = redisService.ShouldCompressByContent(contentStr)
+					compressionReason = "Content-based compression"
+					dataLayer = "N/A"
+				}
+
+				// 日志记录
+				if !shouldCompress {
+					if redisService.config.UseTokenBasedCompression {
+						tokenCount := calculateTokensDeepSeekFromString(contentStr)
+						log.Debugf("[CompressContext] skipping message %d, token count %d below threshold (agent: %v)", i, tokenCount, isAgent)
+					} else {
+						log.Debugf("[CompressContext] skipping message %d, size %d below threshold (agent: %v)", i, contentSize, isAgent)
+					}
+					newMessages = append(newMessages, msg)
+					continue
+				}
+
+				compressionStats["standard"]++
 			}
 		}
 
-		// Save context to Redis with error handling and graceful degradation
-		contextId, err := c.memoryService.SaveContext(ctx, contentStr)
+		// Step 2.2: 保存上下文到Redis
+		// 改进的会话级别管理：获取上下文会话ID
+		sessionId, err := c.memoryService.GetOrCreateSessionId(ctx)
+		if err != nil {
+			log.Warnf("[CompressContext] failed to get or create session id: %v, falling back to default", err)
+		}
+			
+		contextId, err := c.memoryService.SaveContextWithSession(ctx, contentStr, sessionId, "")
 		if err != nil {
 			log.Errorf("[CompressContext] failed to save context for message %d: %v, falling back to original content", i, err)
 			// Graceful degradation: if compression fails, keep original content
@@ -104,17 +174,32 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 			continue
 		}
 
-		// Build compressed message with optional key info
+		// Step 2.3: 构建压缩消息
 		compressedContent := fmt.Sprintf("[Context stored with ID: %s]", contextId)
+		keyInfoStr := ""
+
+		// 提取关键信息（如果启用）
 		if c.contextCompression != nil && c.contextCompression.PreserveKeyInfo {
-			keyInfo := extractKeyInfo(contentStr)
-			if keyInfo != "" {
-				compressedContent = fmt.Sprintf("[Context ID: %s]\nKey Info: %s", contextId, keyInfo)
-				log.Debugf("[CompressContext] preserved key info for message %d: %s", i, keyInfo)
+			if useLayeredCompression && layeredStrategy != nil {
+				// 使用智能关键信息提取
+				analyzer := NewContentAnalyzer()
+				contentType, confidence := analyzer.AnalyzeContent(contentStr)
+				extractor := NewSmartKeyExtractor()
+				keyInfoStr = extractor.ExtractSmartKeyInfo(contentStr, contentType)
+				log.Debugf("[CompressContext] Message %d: smart key extraction (type: %v, confidence: %d%%): %s",
+					i, c.contentTypeString(contentType), confidence, keyInfoStr)
+			} else {
+				// 使用原有的关键信息提取
+				keyInfoStr = extractKeyInfo(contentStr)
+				log.Debugf("[CompressContext] preserved key info for message %d: %s", i, keyInfoStr)
+			}
+
+			if keyInfoStr != "" {
+				compressedContent = fmt.Sprintf("[Context ID: %s]\nKey Info: %s", contextId, keyInfoStr)
 			}
 		}
 
-		// Replace message content with context reference
+		// Step 2.4: 替换消息内容
 		compressedMsg := chatMessage{
 			Role:    msg.Role,
 			Content: compressedContent,
@@ -128,10 +213,11 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 
 		newMessages = append(newMessages, compressedMsg)
 		compressedIds[fmt.Sprintf("%d", i)] = contextId
-		totalSavedBytes += contentSize - len(compressedMsg.StringContent())
+		savedBytes := contentSize - len(compressedMsg.StringContent())
+		totalSavedBytes += savedBytes
 
-		log.Infof("[CompressContext] compressed message %d, saved %d bytes, context_id: %s",
-			i, contentSize-len(compressedMsg.StringContent()), contextId)
+		log.Infof("[CompressContext] Message %d: compressed (original: %d bytes, compressed: %d bytes, saved: %d bytes, layer: %s, reason: %s, context_id: %s)",
+			i, contentSize, len(compressedMsg.StringContent()), savedBytes, dataLayer, compressionReason, contextId)
 	}
 
 	if len(compressedIds) == 0 && len(needRetrievalIds) == 0 {
@@ -770,7 +856,11 @@ func extractKeyInfo(content string) string {
 	var keyInfo []string
 
 	// 提取文件路径（Unix和Windows路径）
-	filePathRegex := regexp.MustCompile(`(?:^|[\s\n])(/[^\s\n]+|\./[^\s\n]+|[A-Z]:\\[^\s\n]+)`)
+	filePathRegex := regexp.MustCompile(`(?:^|[\s
+])(/[^\s
+]+|\.\/[^\s
+]+|[A-Z]:\\[^\s
+]+)`)
 	filePaths := filePathRegex.FindAllString(content, 5) // 最多5个路径
 	if len(filePaths) > 0 {
 		uniquePaths := uniqueStrings(filePaths)
@@ -848,4 +938,73 @@ func (c *ProviderConfig) shouldCompressForAgent(content string) bool {
 
 	// 激进模式或默认：使用原有逻辑
 	return true
+}
+
+// contentLayerString 返回数据优先级层级的字符串表示
+func (c *ProviderConfig) contentLayerString(dl DataLayer) string {
+	switch dl {
+	case DataLayerCritical:
+		return "Critical"
+	case DataLayerImportant:
+		return "Important"
+	case DataLayerNormal:
+		return "Normal"
+	case DataLayerLow:
+		return "Low"
+	default:
+		return "Unknown"
+	}
+}
+
+// compressionStrategyString 返回压缩策略的字符串表示
+func (c *ProviderConfig) compressionStrategyString(cs CompressionStrategy) string {
+	switch cs {
+	case CompressionStrategyNone:
+		return "none"
+	case CompressionStrategyConservative:
+		return "conservative"
+	case CompressionStrategyNormal:
+		return "normal"
+	case CompressionStrategyAggressive:
+		return "aggressive"
+	default:
+		return "unknown"
+	}
+}
+
+// contentTypeString 返回内容类型的字符串表示
+func (c *ProviderConfig) contentTypeString(ct ContentType) string {
+	switch ct {
+	case ContentTypeMaze:
+		return "Maze"
+	case ContentTypeCode:
+		return "Code"
+	case ContentTypeJSON:
+		return "JSON"
+	case ContentTypeStructuredData:
+		return "StructuredData"
+	case ContentTypeText:
+		return "Text"
+	default:
+		return "Unknown"
+	}
+}
+
+// splitByNewline 分割字符串
+func splitByNewline(s string) []string {
+	return strings.Split(s, "\n")
+}
+
+// trimSpace 修剪空格
+func trimSpace(s string) string {
+	// 简单实现：去掉前后空格
+	var start, end int
+	for start = 0; start < len(s) && (s[start] == ' ' || s[start] == '\t'); start++ {
+	}
+	for end = len(s); end > start && (s[end-1] == ' ' || s[end-1] == '\t'); end-- {
+	}
+	if start >= end {
+		return ""
+	}
+	return s[start:end]
 }

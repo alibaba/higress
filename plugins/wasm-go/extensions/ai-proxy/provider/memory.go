@@ -17,9 +17,13 @@ import (
 const (
 	DefaultMemoryKeyPrefix     = "higress-ai-memory:"
 	DefaultMemorySummaryPrefix = "higress-ai-memory-summary:"
-	DefaultMemoryTTL           = 3600 // 1 hour default TTL for memory entries
-	DefaultSummaryMaxLength    = 500  // 默认摘要最大长度（字符数）
-	DefaultSummaryLines        = 10   // 默认摘要行数
+	DefaultMemorySessionPrefix = "higress-ai-memory-session:" // 会话级别上下文前缀
+	DefaultMemoryTTL           = 3600                         // 1 hour default TTL for memory entries
+	DefaultSummaryMaxLength    = 500                          // 默认摘要最大长度（字符数）
+	DefaultSummaryLines        = 10                           // 默认摘要行数
+
+	// 上下文键：用于在HTTP请求上下文中存储会话信息
+	CtxKeySessionId = "session_id" // 会话ID
 )
 
 // ContextWithSummary 带摘要的上下文结构
@@ -60,6 +64,24 @@ type ContextCompressionConfig struct {
 	// @Title zh-CN 摘要生成配置
 	// @Description zh-CN 摘要生成方式配置，支持simple（简单提取）和llm（LLM智能摘要）
 	SummaryConfig *SummaryConfig `yaml:"summaryConfig" json:"summaryConfig"`
+	// @Title zh-CN 启用分层压缩
+	// @Description zh-CN 是否启用基于内容类型和优先级的分层压缩策略，默认true
+	EnableLayeredCompression bool `yaml:"enableLayeredCompression" json:"enableLayeredCompression"`
+	// @Title zh-CN 关键数据Token阈值
+	// @Description zh-CN 关键数据层（Critical）的Token阈值，超过则禁用压缩，默认30000
+	CriticalTokenThreshold int `yaml:"criticalTokenThreshold" json:"criticalTokenThreshold"`
+	// @Title zh-CN 关键数据字节阈值
+	// @Description zh-CN 关键数据层（Critical）的字节阈值，超过则禁用压缩，默认102400
+	CriticalBytesThreshold int `yaml:"criticalBytesThreshold" json:"criticalBytesThreshold"`
+	// @Title zh-CN 重要数据Token阈值
+	// @Description zh-CN 重要数据层（Important）的Token阈值，默认1500
+	ImportantTokenThreshold int `yaml:"importantTokenThreshold" json:"importantTokenThreshold"`
+	// @Title zh-CN 重要数据字节阈值
+	// @Description zh-CN 重要数据层（Important）的字节阈值，默认5120
+	ImportantBytesThreshold int `yaml:"importantBytesThreshold" json:"importantBytesThreshold"`
+	// @Title zh-CN 启用智能关键信息提取
+	// @Description zh-CN 是否启用根据内容类型的智能关键信息提取，默认true
+	EnableSmartKeyExtraction bool `yaml:"enableSmartKeyExtraction" json:"enableSmartKeyExtraction"`
 }
 
 // SummaryConfig 摘要生成配置
@@ -126,6 +148,10 @@ type SummaryGenerator interface {
 type MemoryService interface {
 	// SaveContext 保存上下文并返回唯一ID
 	SaveContext(ctx wrapper.HttpContext, content string) (string, error)
+	// SaveContextWithSession 保存上下文并返回唯一ID，支持会话级别管理
+	// sessionId: 会话标识（如果为空则使用生成的随机ID）
+	// toolCallId: 工具调用ID（可选，用于在会话中进一步细化上下文）
+	SaveContextWithSession(ctx wrapper.HttpContext, content string, sessionId string, toolCallId string) (string, error)
 	// ReadContext 根据ID读取上下文
 	ReadContext(ctx wrapper.HttpContext, contextId string) (string, error)
 	// ReadContextSummary 根据ID读取上下文摘要
@@ -134,6 +160,8 @@ type MemoryService interface {
 	IsEnabled() bool
 	// SetSummaryGenerator 设置摘要生成器（可选，用于LLM摘要）
 	SetSummaryGenerator(generator SummaryGenerator)
+	// GetOrCreateSessionId 获取或创建会话ID，用于会话级别的上下文管理
+	GetOrCreateSessionId(ctx wrapper.HttpContext) (string, error)
 }
 
 // redisMemoryService Redis实现的内存管理服务
@@ -278,6 +306,122 @@ func (s *redisMemoryService) SetSummaryGenerator(generator SummaryGenerator) {
 	s.summaryGenerator = generator
 }
 
+// SaveContextWithSession 保存上下文到Redis，改进的会话级别管理
+// sessionId: 会话标识，为空时自动生成
+// toolCallId: 工具调用ID，用于在会话中提供颗粒的上下文管理
+func (s *redisMemoryService) SaveContextWithSession(ctx wrapper.HttpContext, content string, sessionId string, toolCallId string) (string, error) {
+	if !s.IsEnabled() {
+		return "", errors.New("memory service is not enabled")
+	}
+
+	// 如果sessionId为空，使用随机ID
+	if sessionId == "" {
+		var err error
+		sessionId, err = generateContextId()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate session id: %v", err)
+		}
+		ctx.SetContext(CtxKeySessionId, sessionId)
+	}
+
+	// 根据toolCallId生成不同的contextId，但管理在sessionId这个题目组下
+	// 简化实现：直接拼接sessionId和toolCallId
+	var contextId string
+	if toolCallId != "" {
+		contextId = sessionId + "-" + toolCallId
+	} else {
+		var err error
+		contextId, err = generateContextId()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate context id: %v", err)
+		}
+	}
+
+	return s.saveContextToRedis(ctx, contextId, content)
+}
+
+// GetOrCreateSessionId 获取或创建会话ID
+// 对于一个整个业务流程，我们需要一个稳定的sessionId
+// 此处使用随机ID，但用户也可自定义提供sessionId
+func (s *redisMemoryService) GetOrCreateSessionId(ctx wrapper.HttpContext) (string, error) {
+	if !s.IsEnabled() {
+		return "", errors.New("memory service is not enabled")
+	}
+
+	// 需先检查是否已经之前创建过sessionId
+	if sessionIdVal := ctx.GetContext(CtxKeySessionId); sessionIdVal != nil {
+		if sessionId, ok := sessionIdVal.(string); ok && sessionId != "" {
+			return sessionId, nil
+		}
+	}
+
+	// 生成新的sessionId
+	var sessionId string
+	var err error
+	sessionId, err = generateContextId()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate session id: %v", err)
+	}
+
+	// 保存到上下文
+	ctx.SetContext(CtxKeySessionId, sessionId)
+	return sessionId, nil
+}
+
+// saveContextToRedis 是一个内部协助函数，将上下文保存到Redis
+func (s *redisMemoryService) saveContextToRedis(ctx wrapper.HttpContext, contextId string, content string) (string, error) {
+	key := s.keyPrefix + contextId
+	summaryKey := DefaultMemorySummaryPrefix + contextId
+
+	// 生成摘要：优先使用LLM摘要生成器，否则使用简单摘要
+	var summary string
+	if s.summaryGenerator != nil {
+		// 使用LLM生成智能摘要
+		llmSummary, err := s.summaryGenerator.GenerateSummary(ctx, content)
+		if err != nil {
+			log.Warnf("failed to generate LLM summary, falling back to simple summary: %v", err)
+			// 降级到简单摘要
+			summary = generateSummary(content)
+		} else {
+			summary = llmSummary
+			log.Infof("generated LLM summary for context %s, length: %d", contextId, len(summary))
+		}
+	} else {
+		// 使用简单摘要
+		summary = generateSummary(content)
+	}
+
+	// 保存完整内容到Redis
+	err := s.redisClient.Set(key, content, nil)
+	if err != nil {
+		log.Errorf("failed to save context to redis: %v", err)
+		return "", fmt.Errorf("failed to save context: %v", err)
+	}
+
+	// 保存摘要到Redis
+	err = s.redisClient.Set(summaryKey, summary, nil)
+	if err != nil {
+		log.Warnf("failed to save summary to redis: %v, continuing without summary", err)
+		// 摘要保存失败不影响主流程
+	}
+
+	// 设置过期时间
+	if s.config.MemoryTTL > 0 {
+		err = s.redisClient.Expire(key, s.config.MemoryTTL, nil)
+		if err != nil {
+			log.Warnf("failed to set expiration for context %s: %v", contextId, err)
+		}
+		// 同时设置摘要的过期时间
+		err = s.redisClient.Expire(summaryKey, s.config.MemoryTTL, nil)
+		if err != nil {
+			log.Warnf("failed to set expiration for summary %s: %v", contextId, err)
+		}
+	}
+
+	log.Infof("saved context %s to redis, content length: %d, summary length: %d", contextId, len(content), len(summary))
+	return contextId, nil
+}
+
 // ReadContext 从Redis读取上下文
 func (s *redisMemoryService) ReadContext(ctx wrapper.HttpContext, contextId string) (string, error) {
 	if !s.IsEnabled() {
@@ -389,6 +533,14 @@ func (s *disabledMemoryService) ReadContextSummary(ctx wrapper.HttpContext, cont
 
 func (s *disabledMemoryService) SetSummaryGenerator(generator SummaryGenerator) {
 	// 禁用状态，不设置生成器
+}
+
+func (s *disabledMemoryService) SaveContextWithSession(ctx wrapper.HttpContext, content string, sessionId string, toolCallId string) (string, error) {
+	return "", errors.New("memory service is not enabled")
+}
+
+func (s *disabledMemoryService) GetOrCreateSessionId(ctx wrapper.HttpContext) (string, error) {
+	return "", errors.New("memory service is not enabled")
 }
 
 // ToolContext 工具上下文信息
