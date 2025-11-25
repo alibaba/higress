@@ -76,7 +76,7 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 	compressedIds := make(map[string]string) // message index -> context_id
 	var newMessages []chatMessage
 	totalSavedBytes := 0
-	compressionStats := map[string]int{} // 统计各类型的压縩情况
+	compressionStats := map[string]int{} // 统计各类型的压缩情况
 
 	// 初始化会话上下文链，跟踪一个会话中所有工具调用的顺序和依赖关系
 	sessionToolChain := &SessionToolCallChain{
@@ -85,6 +85,17 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 	}
 	// 保存每个工具调用的上下文信息，以持待后续工具调用参考
 	toolContextMap := make(map[string]ToolCallContextInfo) // contextId -> tool info
+
+	// Step 2.0: 第一遍扫描，收集需要压缩的工具调用，进行批量压缩判断
+	type pendingToolCompress struct {
+		messageIndex   int         // 消息索引
+		message        chatMessage // 原始消息
+		content        string      // 消息内容
+		toolName       string      // 工具名称
+		toolCallId     string      // 工具调用ID
+		toolArgs       string      // 工具参数
+		shouldCompress bool        // 是否应该压缩
+	}
 
 	for i, msg := range request.Messages {
 		// Only compress messages with tool or function role
@@ -280,6 +291,77 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 
 		log.Infof("[CompressContext] Message %d: compressed (original: %d bytes, compressed: %d bytes, saved: %d bytes, layer: %s, reason: %s, context_id: %s)",
 			i, contentSize, len(compressedMsg.StringContent()), savedBytes, dataLayer, compressionReason, contextId)
+	}
+
+	// Step 2.5: 批量压缩判断，并对处于筋末了啊格彻羅于郈龍等等伪斋压缩
+	if len(sessionToolChain.ToolCalls) > 1 {
+		// 重要：当有多个工具调用被压缩时，检查是否需要进行批量合并
+		if redisService, ok := c.memoryService.(*redisMemoryService); ok {
+			// 计算所有工具摘要的累积大小
+			var accumulatedSummarySize int
+			for _, toolInfo := range sessionToolChain.ToolCalls {
+				summary := generateSummary(toolInfo.ToolOutput)
+				accumulatedSummarySize += len(summary)
+			}
+
+			// 判断是否超过处于压缩阈值
+			shouldBatchCompress := false
+			if redisService.config.UseTokenBasedCompression {
+				accumulatedTokens := calculateTokensDeepSeekFromString(fmt.Sprintf("%d", accumulatedSummarySize))
+				if accumulatedTokens > redisService.config.CompressionTokenThreshold {
+					shouldBatchCompress = true
+				}
+			} else {
+				if accumulatedSummarySize > redisService.config.CompressionBytesThreshold {
+					shouldBatchCompress = true
+				}
+			}
+
+			if shouldBatchCompress {
+				log.Infof("[CompressContext] Batch compression triggered: %d tools with accumulated summary size %d bytes", len(sessionToolChain.ToolCalls), accumulatedSummarySize)
+				// 执行批量厫缚（对多个工具的摘要进行合并并保存到Redis）
+				// Step 2.5.1: Build merged summary
+var mergedSummaryBuilder strings.Builder
+for idx, toolInfo := range sessionToolChain.ToolCalls {
+if idx > 0 {
+mergedSummaryBuilder.WriteString("\n\n--- Tool ")
+mergedSummaryBuilder.WriteString(toolInfo.ToolName)
+mergedSummaryBuilder.WriteString(" ---\n")
+}
+toolSummary := generateSummary(toolInfo.ToolOutput)
+mergedSummaryBuilder.WriteString(toolSummary)
+}
+mergedSummary := mergedSummaryBuilder.String()
+
+// Step 2.5.2: Generate merged contextId
+var sessionIdForMerge string
+if len(sessionToolChain.ToolCalls) > 0 && sessionToolChain.ToolCalls[0].SessionId != "" {
+sessionIdForMerge = sessionToolChain.ToolCalls[0].SessionId
+} else if sid, err := c.memoryService.GetOrCreateSessionId(ctx); err == nil {
+sessionIdForMerge = sid
+}
+mergedContextId := fmt.Sprintf("%s-merged-%d", sessionIdForMerge, len(sessionToolChain.ToolCalls))
+
+// Step 2.5.3: Save to Redis
+contentKey := DefaultMemoryKeyPrefix + mergedContextId
+if err := redisService.redisClient.Set(contentKey, mergedSummary, nil); err != nil {
+log.Errorf("[CompressContext] failed to save merged context: %v", err)
+} else {
+summaryKey := DefaultMemorySummaryPrefix + mergedContextId
+if err := redisService.redisClient.Set(summaryKey, mergedSummary, nil); err != nil {
+log.Warnf("[CompressContext] failed to save merged summary: %v, continuing", err)
+}
+
+// Step 2.5.4: Set expiration time
+if redisService.config.MemoryTTL > 0 {
+redisService.redisClient.Expire(contentKey, redisService.config.MemoryTTL, nil)
+redisService.redisClient.Expire(summaryKey, redisService.config.MemoryTTL, nil)
+}
+
+log.Infof("[CompressContext] Successfully saved merged summary for %d tools, contextId: %s, size: %d bytes", len(sessionToolChain.ToolCalls), mergedContextId, len(mergedSummary))
+}
+			}
+		}
 	}
 
 	if len(compressedIds) == 0 && len(needRetrievalIds) == 0 {
