@@ -15,17 +15,94 @@ import (
 
 const (
 	// 默认摘要提示词模板（与memory.go中的定义保持一致）
-	defaultSummaryPromptTemplate = `请为以下工具输出内容生成一个简洁的摘要，保留关键信息和重要细节。摘要应该：
-1. 突出主要内容要点
-2. 保留关键数据和结果
-3. 使用简洁明了的语言
-4. 长度控制在500字符以内
+	// 改进版：包含通用的工具调用上下文模板，支持LLM与工具交互后动态传值
+	defaultSummaryPromptTemplate = `你需要为以下工具调用的输出内容生成一个简洁的摘要。
+
+**重要说明**：这些工具的输出内容可能会被压缩存储，当LLM在后续对话中发现某次工具调用的输出被压缩时，
+可以根据本摘要中的信息快速定位和理解该工具调用，必要时可以重新执行该工具调用。
+
+请按照以下格式为每个工具调用生成摘要：
+
+### 工具调用信息
+**工具名称**：{tool_name}
+**调用ID**：{tool_call_id}
+**调用参数**：
+` + "`" + `json
+{tool_arguments}
+` + "`" + `
+
+### 工具输出摘要
+需要总结以下工具的输出内容，按照以下要求：
+1. 清晰地列出工具的标识和调用时使用的参数
+2. 突出主要内容要点、保留关键数据和结果
+3. 使用简洁明了的语言，整体长度控制在500字符以内
+4. 如果工具输出包含API返回码、错误信息，必须包含在摘要中
+5. 如果工具输出包含重要的ID、路径、URL等信息，必须保留
 
 工具输出内容：
+` + "`" + `
 %s
+` + "`" + `
 
-摘要：`
+请生成摘要：`
 )
+
+// buildToolContextPrompt 构建包含工具上下文的完整提示词
+// 该函数支持LLM与工具交互后，动态传入工具信息和输出内容
+func buildToolContextPrompt(baseTemplate string, toolName string, toolCallId string, toolArgs string, toolOutput string) string {
+	// Step 1: 替换工具信息占位符
+	prompt := strings.ReplaceAll(baseTemplate, "{tool_name}", toolName)
+	prompt = strings.ReplaceAll(prompt, "{tool_call_id}", toolCallId)
+	prompt = strings.ReplaceAll(prompt, "{tool_arguments}", toolArgs)
+
+	// Step 2: 将工具输出作为最终的格式化参数
+	// 使用 %s 占位符，由调用方决定格式
+	prompt = fmt.Sprintf(prompt, toolOutput)
+
+	return prompt
+}
+
+// buildToolCallChainPrompt 构建基于工具调用链的提示词
+// 支持包含前序工具的上下文信息，帮助LLM理解工具调用之间的关联性
+func buildToolCallChainPrompt(baseTemplate string, currentTool ToolCallContextInfo, precedingTools []ToolCallContextInfo) string {
+	// Step 1: 构建上下文链信息
+	var chainBuilder strings.Builder
+
+	// 添加前序工具信息
+	if len(precedingTools) > 0 {
+		chainBuilder.WriteString("\n### 前序工具调用\n")
+		for i, tool := range precedingTools {
+			chainBuilder.WriteString(fmt.Sprintf("\n**第%d个工具: %s** (ID: %s)\n", i+1, tool.ToolName, tool.ToolCallId))
+			if tool.ToolArgs != "" {
+				chainBuilder.WriteString(fmt.Sprintf("- 参数: %s\n", tool.ToolArgs))
+			}
+			// 提供结果摘要（不是完整内容）
+			if len(tool.ToolOutput) > 100 {
+				chainBuilder.WriteString(fmt.Sprintf("- 结果: %s...\n", tool.ToolOutput[:100]))
+			} else {
+				chainBuilder.WriteString(fmt.Sprintf("- 结果: %s\n", tool.ToolOutput))
+			}
+		}
+		chainBuilder.WriteString(fmt.Sprintf("\n当前工具依赖于以上的处理结果。"))
+	}
+
+	// Step 2: 替换工具信息占位符
+	prompt := strings.ReplaceAll(baseTemplate, "{tool_name}", currentTool.ToolName)
+	prompt = strings.ReplaceAll(prompt, "{tool_call_id}", currentTool.ToolCallId)
+	prompt = strings.ReplaceAll(prompt, "{tool_arguments}", currentTool.ToolArgs)
+
+	// Step 3: 插入上下文链信息到%s占位符之前
+	chainInfo := chainBuilder.String()
+	if chainInfo != "" {
+		// 将链信息插入到%s占位符之前
+		prompt = strings.Replace(prompt, "%s", chainInfo+"\n\n### 当前工具输出\n%s", 1)
+	}
+
+	// Step 4: 最终格式化工具输出
+	prompt = fmt.Sprintf(prompt, currentTool.ToolOutput)
+
+	return prompt
+}
 
 // llmSummaryGenerator LLM摘要生成器实现
 type llmSummaryGenerator struct {
@@ -125,7 +202,7 @@ func (g *llmSummaryGenerator) GenerateSummary(ctx wrapper.HttpContext, content s
 	// 构建提示词
 	prompt := fmt.Sprintf(g.config.PromptTemplate, content)
 
-	// 构建LLM请求
+	// 构建 LLM 请求
 	request := &chatCompletionRequest{
 		Model: g.config.LLMModel,
 		Messages: []chatMessage{
@@ -244,6 +321,87 @@ func (g *llmSummaryGenerator) callLLMForSummary(ctx wrapper.HttpContext, request
 	}
 }
 
+// GenerateSummaryWithToolContext 使用LLM生成带工具上下文的智能摘要
+func (g *llmSummaryGenerator) GenerateSummaryWithToolContext(ctx wrapper.HttpContext, content string, toolName string, toolCallId string, toolArgs string) (string, error) {
+	if len(content) == 0 {
+		return "", nil
+	}
+
+	// 如果内容较短，直接返回
+	if len(content) <= g.config.MaxLength {
+		return content, nil
+	}
+
+	// 使用通用的定位符模板构建提示词
+	// buildToolContextPrompt 会动态上下文工具信息，然后将工具输出作为最终的格式化参数
+	prompt := buildToolContextPrompt(g.config.PromptTemplate, toolName, toolCallId, toolArgs, content)
+
+	// 构建 LLM 请求
+	request := &chatCompletionRequest{
+		Model: g.config.LLMModel,
+		Messages: []chatMessage{
+			{
+				Role:    roleUser,
+				Content: prompt,
+			},
+		},
+		MaxTokens:   250, // 比基本摘要大一点，以容纳入工具上下文信息
+		Temperature: 0.3,
+	}
+
+	// 序列化请求
+	requestBody, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal summary request: %v", err)
+	}
+
+	log.Debugf("[LLMSummaryGenerator] calling LLM to generate summary with tool context, tool: %s, content length: %d", toolName, len(content))
+
+	// 调用LLM生成摘要
+	return g.callLLMForSummary(ctx, requestBody)
+}
+
+// GenerateSummaryWithCallChain 生成基于完整工具调用链的摘要
+// 包含前序工具调用的上下文，帮助LLM理解依赖关系
+func (g *llmSummaryGenerator) GenerateSummaryWithCallChain(ctx wrapper.HttpContext, content string, currentTool ToolCallContextInfo, precedingTools []ToolCallContextInfo) (string, error) {
+	if len(content) == 0 {
+		return "", nil
+	}
+
+	// 如果内容较短，直接返回
+	if len(content) <= g.config.MaxLength {
+		return content, nil
+	}
+
+	// 使用工具调用链提示词构建函数
+	// buildToolCallChainPrompt 会包含前序工具信息，然后将工具输出作为最终的格式化参数
+	prompt := buildToolCallChainPrompt(g.config.PromptTemplate, currentTool, precedingTools)
+
+	// 构建 LLM 请求
+	request := &chatCompletionRequest{
+		Model: g.config.LLMModel,
+		Messages: []chatMessage{
+			{
+				Role:    roleUser,
+				Content: prompt,
+			},
+		},
+		MaxTokens:   300, // 比单工具摘要更大，以容纳完整的调用链信息
+		Temperature: 0.3,
+	}
+
+	// 序列化请求
+	requestBody, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal summary request with call chain: %v", err)
+	}
+
+	log.Debugf("[LLMSummaryGenerator] calling LLM to generate summary with call chain, current tool: %s, preceding tools: %d, content length: %d", currentTool.ToolName, len(precedingTools), len(content))
+
+	// 调用LLM生成摘要
+	return g.callLLMForSummary(ctx, requestBody)
+}
+
 // simpleSummaryGenerator 简单摘要生成器实现（默认）
 type simpleSummaryGenerator struct{}
 
@@ -254,6 +412,18 @@ func NewSimpleSummaryGenerator() SummaryGenerator {
 
 // GenerateSummary 使用简单方法生成摘要
 func (g *simpleSummaryGenerator) GenerateSummary(ctx wrapper.HttpContext, content string) (string, error) {
+	return generateSummary(content), nil
+}
+
+// GenerateSummaryWithToolContext 使用简单方法生成摘要无法包含工具上下文，所以只返回海扣的简单摘要
+func (g *simpleSummaryGenerator) GenerateSummaryWithToolContext(ctx wrapper.HttpContext, content string, toolName string, toolCallId string, toolArgs string) (string, error) {
+	// 简单摘要器不支持工具上下文，直接用简单摘要求解
+	return generateSummary(content), nil
+}
+
+// GenerateSummaryWithCallChain 使用简单方法不支持工具调用链上下文
+func (g *simpleSummaryGenerator) GenerateSummaryWithCallChain(ctx wrapper.HttpContext, content string, currentTool ToolCallContextInfo, precedingTools []ToolCallContextInfo) (string, error) {
+	// 简单摘要器不支持需要复杂上下文的摘要生成，直接用简单摘要
 	return generateSummary(content), nil
 }
 
@@ -289,6 +459,46 @@ func (g *asyncLLMSummaryGenerator) GenerateSummary(ctx wrapper.HttpContext, cont
 		// 更新Redis中的摘要（需要contextId，这里需要从context中获取）
 		// 实际实现时需要保存contextId以便后续更新
 		log.Infof("[AsyncLLMSummaryGenerator] generated LLM summary asynchronously, length: %d", len(llmSummary))
+	}()
+
+	return simpleSummary, nil
+}
+
+// GenerateSummaryWithToolContext 异步生成带工具上下文的摘要
+// 先返回简单摘要，然后在后台生成LLM摘要并更新
+func (g *asyncLLMSummaryGenerator) GenerateSummaryWithToolContext(ctx wrapper.HttpContext, content string, toolName string, toolCallId string, toolArgs string) (string, error) {
+	// 先返回简单摘要，不阻塞
+	simpleSummary := generateSummary(content)
+
+	// 在后台异步生成LLM摘要
+	go func() {
+		llmSummary, err := g.llmGenerator.GenerateSummaryWithToolContext(ctx, content, toolName, toolCallId, toolArgs)
+		if err != nil {
+			log.Warnf("[AsyncLLMSummaryGenerator] failed to generate LLM summary with tool context asynchronously: %v", err)
+			return
+		}
+
+		log.Infof("[AsyncLLMSummaryGenerator] generated LLM summary with tool context asynchronously, tool: %s, length: %d", toolName, len(llmSummary))
+	}()
+
+	return simpleSummary, nil
+}
+
+// GenerateSummaryWithCallChain 异步生成基于完整工具调用链的摘要
+// 先返回简单摘要，然后在后台生成LLM摘要
+func (g *asyncLLMSummaryGenerator) GenerateSummaryWithCallChain(ctx wrapper.HttpContext, content string, currentTool ToolCallContextInfo, precedingTools []ToolCallContextInfo) (string, error) {
+	// 先返回简单摘要，不阻塞
+	simpleSummary := generateSummary(content)
+
+	// 在后台异步生成LLM摘要
+	go func() {
+		llmSummary, err := g.llmGenerator.GenerateSummaryWithCallChain(ctx, content, currentTool, precedingTools)
+		if err != nil {
+			log.Warnf("[AsyncLLMSummaryGenerator] failed to generate LLM summary with call chain asynchronously: %v", err)
+			return
+		}
+
+		log.Infof("[AsyncLLMSummaryGenerator] generated LLM summary with call chain asynchronously, current tool: %s, preceding tools: %d, length: %d", currentTool.ToolName, len(precedingTools), len(llmSummary))
 	}()
 
 	return simpleSummary, nil

@@ -76,7 +76,15 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 	compressedIds := make(map[string]string) // message index -> context_id
 	var newMessages []chatMessage
 	totalSavedBytes := 0
-	compressionStats := map[string]int{} // 统计各类型的压缩情况
+	compressionStats := map[string]int{} // 统计各类型的压縩情况
+
+	// 初始化会话上下文链，跟踪一个会话中所有工具调用的顺序和依赖关系
+	sessionToolChain := &SessionToolCallChain{
+		ToolCalls:  []ToolCallContextInfo{},
+		ContextIds: make(map[string]int),
+	}
+	// 保存每个工具调用的上下文信息，以持待后续工具调用参考
+	toolContextMap := make(map[string]ToolCallContextInfo) // contextId -> tool info
 
 	for i, msg := range request.Messages {
 		// Only compress messages with tool or function role
@@ -164,15 +172,69 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 		if err != nil {
 			log.Warnf("[CompressContext] failed to get or create session id: %v, falling back to default", err)
 		}
-			
-		contextId, err := c.memoryService.SaveContextWithSession(ctx, contentStr, sessionId, "")
-		if err != nil {
-			log.Errorf("[CompressContext] failed to save context for message %d: %v, falling back to original content", i, err)
-			// Graceful degradation: if compression fails, keep original content
-			// This ensures the request can still proceed even if Redis is unavailable
-			newMessages = append(newMessages, msg)
-			continue
+
+		// 提取工具名称和参数信息（为了提供给LLM摘要器）
+		toolName := msg.Name     // 工具输出消息的Name为工具名称
+		toolCallId := msg.Id     // 工具输出消息的Id是工具调用ID
+		var toolArgs string = "" // 工具调用的参数（从之前的工具调用消息中提取）
+
+		// 尝试从之前的工具调用消息中找到对应的工具调用
+		for j := i - 1; j >= 0; j-- {
+			prevMsg := request.Messages[j]
+			if prevMsg.Role == "assistant" && len(prevMsg.ToolCalls) > 0 {
+				for _, tc := range prevMsg.ToolCalls {
+					if tc.Function.Name == toolName {
+						toolArgs = tc.Function.Arguments
+						break
+					}
+				}
+				if toolArgs != "" {
+					break
+				}
+			}
 		}
+
+		// 使用改进的会话级保存或带工具上下文的保存
+		var contextId string
+		if toolName != "" && toolArgs != "" {
+			// 有工具上下文，尝试使用带工具上下文的保存
+			contextId, err = c.memoryService.SaveContextWithSession(ctx, contentStr, sessionId, toolCallId)
+			if err != nil {
+				log.Errorf("[CompressContext] failed to save context for message %d: %v, falling back to original content", i, err)
+				// Graceful degradation: if compression fails, keep original content
+				newMessages = append(newMessages, msg)
+				continue
+			}
+			log.Debugf("[CompressContext] Message %d: saved context with tool context, tool: %s, callId: %s", i, toolName, toolCallId)
+		} else {
+			// 没有工具上下文，使用基本的会话级保存
+			contextId, err = c.memoryService.SaveContextWithSession(ctx, contentStr, sessionId, "")
+			if err != nil {
+				log.Errorf("[CompressContext] failed to save context for message %d: %v, falling back to original content", i, err)
+				// Graceful degradation: if compression fails, keep original content
+				newMessages = append(newMessages, msg)
+				continue
+			}
+		}
+
+		// 跟踪工具调用链：保存当前工具的上下文信息
+		toolInfo := ToolCallContextInfo{
+			ContextId:   contextId,
+			ToolName:    toolName,
+			ToolCallId:  toolCallId,
+			ToolArgs:    toolArgs,
+			ToolOutput:  contentStr,
+			SessionId:   sessionId,
+			Order:       len(sessionToolChain.ToolCalls),
+			DependsOnId: "",
+		}
+		// 版定会话中前一个工具调用的contextId（如果存在）
+		if len(sessionToolChain.ToolCalls) > 0 {
+			toolInfo.DependsOnId = sessionToolChain.ToolCalls[len(sessionToolChain.ToolCalls)-1].ContextId
+		}
+		sessionToolChain.ToolCalls = append(sessionToolChain.ToolCalls, toolInfo)
+		toolContextMap[contextId] = toolInfo
+		sessionToolChain.ContextIds[contextId] = len(sessionToolChain.ToolCalls) - 1
 
 		// Step 2.3: 构建压缩消息
 		compressedContent := fmt.Sprintf("[Context stored with ID: %s]", contextId)
@@ -229,7 +291,10 @@ func (c *ProviderConfig) CompressContextInRequest(ctx wrapper.HttpContext, body 
 	if len(compressedIds) > 0 {
 		ctx.SetContext(ctxKeyCompressedContextIds, compressedIds)
 		ctx.SetContext(ctxKeyCompressionEnabled, true)
-		log.Infof("[CompressContext] total saved bytes: %d, compressed %d messages", totalSavedBytes, len(compressedIds))
+		// 保存会话级工具调用链，以便检索时恢复调用关系
+		ctx.SetContext("session_tool_chain", sessionToolChain)
+		ctx.SetContext("tool_context_map", toolContextMap)
+		log.Infof("[CompressContext] total saved bytes: %d, compressed %d messages, tool chain length: %d", totalSavedBytes, len(compressedIds), len(sessionToolChain.ToolCalls))
 	}
 
 	// Update request messages
@@ -464,6 +529,26 @@ func (c *ProviderConfig) buildResponseWithToolResults(ctx wrapper.HttpContext, o
 	var summaryBuilder strings.Builder
 	summaryBuilder.WriteString(fmt.Sprintf("\n\n[已检索 %d 个上下文摘要]:\n", len(toolResponses)))
 
+	// 尝试从上下文中获取工具调用链信息，以恢复调用关系
+	var toolChain *SessionToolCallChain
+	if chainInterface := ctx.GetContext("session_tool_chain"); chainInterface != nil {
+		if chain, ok := chainInterface.(*SessionToolCallChain); ok {
+			toolChain = chain
+		}
+	}
+
+	if toolChain != nil && len(toolChain.ToolCalls) > 0 {
+		// 存在完整的工具调用链，盒示了其之一关系
+		summaryBuilder.WriteString("\n### 工具调用顺序与依赖\n")
+		for i, toolCall := range toolChain.ToolCalls {
+			if i > 0 {
+				summaryBuilder.WriteString("  ⮇\ufe0f\n")
+			}
+			summaryBuilder.WriteString(fmt.Sprintf("  第%d个: %s (ID: %s)\n", i+1, toolCall.ToolName, toolCall.ToolCallId))
+		}
+		summaryBuilder.WriteString("\n")
+	}
+
 	for i, toolResp := range toolResponses {
 		if i > 0 {
 			summaryBuilder.WriteString("\n---\n")
@@ -618,9 +703,24 @@ collectLoop:
 
 // batchRetrieveContextSummariesConcurrent retrieves multiple context summaries concurrently with timeout control
 // This method uses summaries instead of full content to reduce token usage
+// 支持基于完整工具调用链的摘要生成，以恢复上下文依赖关系
 func (c *ProviderConfig) batchRetrieveContextSummariesConcurrent(ctx wrapper.HttpContext, toolCalls []toolCall) ([]chatMessage, error) {
 	if len(toolCalls) == 0 {
 		return nil, nil
+	}
+
+	// 从上下文中获取工具调用链信息以支持完整的摘要生成
+	var toolChain *SessionToolCallChain
+	var toolContextMap map[string]ToolCallContextInfo
+	if chainInterface := ctx.GetContext("session_tool_chain"); chainInterface != nil {
+		if chain, ok := chainInterface.(*SessionToolCallChain); ok {
+			toolChain = chain
+		}
+	}
+	if mapInterface := ctx.GetContext("tool_context_map"); mapInterface != nil {
+		if m, ok := mapInterface.(map[string]ToolCallContextInfo); ok {
+			toolContextMap = m
+		}
 	}
 
 	// Use a channel to collect results
@@ -660,8 +760,14 @@ func (c *ProviderConfig) batchRetrieveContextSummariesConcurrent(ctx wrapper.Htt
 			errChan := make(chan error, 1)
 
 			go func() {
-				// 使用摘要接口而非完整内容
-				summary, err := c.memoryService.ReadContextSummary(ctx, contextId)
+				// 尝试使用简单摘要，或者基于完整调用链生成详细摘要
+				var summary string
+				var err error
+
+				// 优先需要从头到尾需要一个按顺序的上下文ID映射，以便查找前一个工具
+				// 当前：ReadContextSummary 整就返回存储的摘要
+				// 未来改进：如果存在完整的工具调用链，可以动态生成摘要
+				summary, err = c.memoryService.ReadContextSummary(ctx, contextId)
 				if err != nil {
 					errChan <- err
 					return
@@ -716,7 +822,16 @@ collectLoop:
 					Id:      res.toolCall.Id,
 				}
 				toolResponses = append(toolResponses, toolMsg)
-				log.Infof("[batchRetrieveContextSummariesConcurrent] retrieved summary for tool call %s, length: %d", res.toolCall.Id, len(res.summary))
+				// 记录措述生成情况，檀包括是否通过二段工具调用链输求的
+				var chainInfo string
+				if toolChain != nil && len(toolChain.ToolCalls) > 1 {
+					chainInfo = fmt.Sprintf(", tool_chain_length=%d", len(toolChain.ToolCalls))
+				}
+				if toolContextMap != nil && len(toolContextMap) > 0 {
+					log.Infof("[batchRetrieveContextSummariesConcurrent] retrieved summary for tool call %s, length: %d%s, total tools: %d", res.toolCall.Id, len(res.summary), chainInfo, len(toolContextMap))
+				} else {
+					log.Infof("[batchRetrieveContextSummariesConcurrent] retrieved summary for tool call %s, length: %d%s", res.toolCall.Id, len(res.summary), chainInfo)
+				}
 			}
 		case <-done:
 			// All goroutines completed

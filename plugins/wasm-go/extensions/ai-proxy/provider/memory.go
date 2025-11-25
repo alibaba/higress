@@ -142,6 +142,21 @@ type SummaryGenerator interface {
 	// content: 需要生成摘要的内容
 	// 返回: 生成的摘要
 	GenerateSummary(ctx wrapper.HttpContext, content string) (string, error)
+	// GenerateSummaryWithToolContext 生成包含工具调用上下文的内容摘要
+	// ctx: HTTP上下文
+	// content: 需要生成摘要的内容
+	// toolName: 工具名称
+	// toolCallId: 工具调用ID
+	// toolArgs: 工具调用参数（JSON字符串）
+	// 返回: 生成的摘要
+	GenerateSummaryWithToolContext(ctx wrapper.HttpContext, content string, toolName string, toolCallId string, toolArgs string) (string, error)
+	// GenerateSummaryWithCallChain 生成基于完整工具调用链的摘要
+	// ctx: HTTP上下文
+	// content: 当前工具的输出内容
+	// currentTool: 当前工具的上下文信息
+	// precedingTools: 在此之前的所有工具调用上下文（有序）
+	// 返回: 生成的摘要，包含与前序工具的关联性
+	GenerateSummaryWithCallChain(ctx wrapper.HttpContext, content string, currentTool ToolCallContextInfo, precedingTools []ToolCallContextInfo) (string, error)
 }
 
 // MemoryService 内存管理服务接口
@@ -543,12 +558,25 @@ func (s *disabledMemoryService) GetOrCreateSessionId(ctx wrapper.HttpContext) (s
 	return "", errors.New("memory service is not enabled")
 }
 
-// ToolContext 工具上下文信息
-type ToolContext struct {
-	ContextId string     `json:"context_id"`
-	Role      string     `json:"role"`
-	Content   string     `json:"content"`
-	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+// ToolCallContextInfo 工具调用上下文信息
+// 用于跟踪会话中工具调用的序列和依赖关系
+type ToolCallContextInfo struct {
+	ContextId   string // 上下文ID（存储在Redis中）
+	ToolName    string // 工具名称
+	ToolCallId  string // 工具调用ID
+	ToolArgs    string // 工具调用参数（JSON字符串）
+	ToolOutput  string // 工具输出内容
+	SessionId   string // 会话ID
+	Order       int    // 调用顺序（0为第一个）
+	DependsOnId string // 依赖的前一个工具调用的contextId（""表示无依赖）
+}
+
+// SessionToolCallChain 会话内的工具调用链
+// 维护一个会话中所有工具调用的完整链
+type SessionToolCallChain struct {
+	SessionId  string                // 会话ID
+	ToolCalls  []ToolCallContextInfo // 按顺序的工具调用列表
+	ContextIds map[string]int        // contextId到顺序的映射
 }
 
 // ShouldCompress 判断是否应该压缩
