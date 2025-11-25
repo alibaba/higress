@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/least_busy/backend"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-load-balancer/endpoint_metrics/backend"
 
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/multierr"
@@ -53,6 +53,16 @@ func PromToPodMetrics(
 ) (*backend.PodMetrics, error) {
 	var errs error
 	updated := existing.Clone()
+	// User selected metric
+	if updated.MetricName != "" {
+		metricValue, err := getLatestMetric(metricFamilies, updated.MetricName)
+		errs = multierr.Append(errs, err)
+		if err == nil {
+			updated.MetricValue = metricValue.GetGauge().GetValue()
+		}
+		return updated, errs
+	}
+	// Default metric
 	runningQueueSize, err := getLatestMetric(metricFamilies, RunningQueueSizeMetricName)
 	errs = multierr.Append(errs, err)
 	if err == nil {
