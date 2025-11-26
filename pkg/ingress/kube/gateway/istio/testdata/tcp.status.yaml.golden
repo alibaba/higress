@@ -1,7 +1,6 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  creationTimestamp: null
   name: higress
 spec: null
 status:
@@ -15,7 +14,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway
   namespace: higress-system
 spec: null
@@ -65,7 +63,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway2
   namespace: higress-system
 spec: null
@@ -115,7 +112,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TCPRoute
 metadata:
-  creationTimestamp: null
   name: tcp
   namespace: default
 spec: null
@@ -132,7 +128,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway2
       namespace: higress-system
@@ -147,7 +143,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system

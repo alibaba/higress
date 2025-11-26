@@ -46,7 +46,7 @@ status:
       kind: Gateway
       name: not-istio
       namespace: higress-system
-  - controllerName: istio.io/gateway-controller
+  - controllerName: higress.io/gateway-controller
     parentRef:
       group: gateway.networking.k8s.io
       kind: Gateway
@@ -68,7 +68,7 @@ spec:
       port: 80
 status:
   parents:
-  - controllerName: istio.io/gateway-controller
+  - controllerName: higress.io/gateway-controller
     parentRef:
       group: gateway.networking.k8s.io
       kind: Gateway
@@ -95,13 +95,13 @@ spec:
           port: 80
 status:
   parents:
-    - controllerName: istio.io/gateway-controller
+    - controllerName: higress.io/gateway-controller
       parentRef:
         group: gateway.networking.k8s.io
         kind: Gateway
         name: gateway
         namespace: higress-system
-    - controllerName: istio.io/gateway-controller # We do own this one so should prune it
+    - controllerName: higress.io/gateway-controller # We do own this one so should prune it
       parentRef:
         group: gateway.networking.k8s.io
         kind: Gateway
@@ -122,7 +122,7 @@ spec:
       port: 80
 status:
   parents:
-  - controllerName: istio.io/gateway-controller
+  - controllerName: higress.io/gateway-controller
     parentRef:
       group: gateway.networking.k8s.io
       kind: Gateway

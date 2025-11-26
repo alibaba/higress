@@ -44,7 +44,7 @@ global:
   # -- If true, Higress Controller will monitor istio resources as well
   enableIstioAPI: true
   # -- If true, Higress Controller will monitor Gateway API resources as well
-  enableGatewayAPI: false
+  enableGatewayAPI: true
   # -- Used to locate istiod.
   istioNamespace: istio-system
   # -- enable pod disruption budget for the control plane, which is used to

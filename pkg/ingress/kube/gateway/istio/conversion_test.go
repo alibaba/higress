@@ -521,6 +521,33 @@ D2lWusoe2/nEqfDVVWGWlyJ7yOmqaVm/iNUN9B2N2g==
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "malformed",
+				Namespace: "higress-system",
+			},
+			Data: map[string]string{
+				"not-ca.crt": "hello",
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "malformed-trustbundle",
+				Namespace: "higress-system",
+			},
+			Data: map[string]string{
+				"ca.crt": "hello",
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "my-cert-http",
+				Namespace: "higress-system",
+			},
+			Data: map[string]string{
+				"ca.crt": rsaCertPEM,
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "malformed",
 				Namespace: "default",
 			},
 			Data: map[string]string{
@@ -625,7 +652,7 @@ func TestConvertResources(t *testing.T) {
 	}{
 		{name: "http"},
 		{name: "tcp"},
-		//{name: "tls"}, // TODO: fix this case
+		{name: "tls"},
 		{name: "grpc"},
 		{name: "mismatch"},
 		{name: "weighted"},
@@ -672,7 +699,14 @@ func TestConvertResources(t *testing.T) {
 		//{name: "waypoint"},
 		//{name: "isolation"},
 		{name: "backend-lb-policy"},
-		{name: "backend-tls-policy"},
+		{
+			name: "backend-tls-policy",
+			validationIgnorer: crdvalidation.NewValidationIgnorer(
+				"default/echo-https",
+				"default/external-service",
+				"default/multi-host-service",
+			),
+		},
 		{name: "mix-backend-policy"},
 		//{name: "listenerset"},
 		//{name: "listenerset-cross-namespace"},
@@ -749,7 +783,7 @@ func TestConvertResources(t *testing.T) {
 
 			goldenFile := fmt.Sprintf("testdata/%s.yaml.golden", tt.name)
 			b := marshalYaml(t, res)
-			t.Logf("marshaled yaml result : %s", string(b))
+			//t.Logf("marshaled yaml result : %s", string(b))
 
 			util.CompareContent(t, b, goldenFile)
 

@@ -1,7 +1,6 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway
   namespace: higress-system
 spec: null
@@ -78,7 +77,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TCPRoute
 metadata:
-  creationTimestamp: null
   name: allowed-my-svc
   namespace: higress-system
 spec: null
@@ -95,7 +93,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -104,7 +102,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TCPRoute
 metadata:
-  creationTimestamp: null
   name: not-allowed-echo
   namespace: higress-system
 spec: null
@@ -122,7 +119,7 @@ status:
       reason: RefNotPermitted
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system

@@ -16,15 +16,13 @@ package istio
 
 import (
 	"fmt"
-
 	"go.uber.org/atomic"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	inferencev1alpha2 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha2"
+	inferencev1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gatewayalpha "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	gatewayalpha3 "sigs.k8s.io/gateway-api/apis/v1alpha3"
 	gateway "sigs.k8s.io/gateway-api/apis/v1beta1"
 	gatewayx "sigs.k8s.io/gateway-api/apisx/v1alpha1"
 
@@ -153,9 +151,9 @@ type Inputs struct {
 	ListenerSets         krt.Collection[*gatewayx.XListenerSet]
 	ReferenceGrants      krt.Collection[*gateway.ReferenceGrant]
 	BackendTrafficPolicy krt.Collection[*gatewayx.XBackendTrafficPolicy]
-	BackendTLSPolicies   krt.Collection[*gatewayalpha3.BackendTLSPolicy]
+	BackendTLSPolicies   krt.Collection[*gatewayv1.BackendTLSPolicy]
 	ServiceEntries       krt.Collection[*networkingclient.ServiceEntry]
-	InferencePools       krt.Collection[*inferencev1alpha2.InferencePool]
+	InferencePools       krt.Collection[*inferencev1.InferencePool]
 }
 
 var _ model.GatewayController = &Controller{}
@@ -201,11 +199,12 @@ func NewController(
 			kclient.NewFiltered[*corev1.ConfigMap](kc, kubetypes.Filter{ObjectFilter: kc.ObjectFilter()}),
 			opts.WithName("informer/ConfigMaps")...,
 		),
-		Services:       krt.WrapClient[*corev1.Service](svcClient, opts.WithName("informer/Services")...),
-		GatewayClasses: buildClient[*gateway.GatewayClass](c, kc, gvr.GatewayClass, opts, "informer/GatewayClasses"),
-		Gateways:       buildClient[*gateway.Gateway](c, kc, gvr.KubernetesGateway, opts, "informer/Gateways"),
-		HTTPRoutes:     buildClient[*gateway.HTTPRoute](c, kc, gvr.HTTPRoute, opts, "informer/HTTPRoutes"),
-		GRPCRoutes:     buildClient[*gatewayv1.GRPCRoute](c, kc, gvr.GRPCRoute, opts, "informer/GRPCRoutes"),
+		Services:           krt.WrapClient[*corev1.Service](svcClient, opts.WithName("informer/Services")...),
+		GatewayClasses:     buildClient[*gateway.GatewayClass](c, kc, gvr.GatewayClass, opts, "informer/GatewayClasses"),
+		Gateways:           buildClient[*gateway.Gateway](c, kc, gvr.KubernetesGateway, opts, "informer/Gateways"),
+		HTTPRoutes:         buildClient[*gateway.HTTPRoute](c, kc, gvr.HTTPRoute, opts, "informer/HTTPRoutes"),
+		GRPCRoutes:         buildClient[*gatewayv1.GRPCRoute](c, kc, gvr.GRPCRoute, opts, "informer/GRPCRoutes"),
+		BackendTLSPolicies: buildClient[*gatewayv1.BackendTLSPolicy](c, kc, gvr.BackendTLSPolicy, opts, "informer/BackendTLSPolicies"),
 
 		ReferenceGrants: buildClient[*gateway.ReferenceGrant](c, kc, gvr.ReferenceGrant, opts, "informer/ReferenceGrants"),
 		ServiceEntries:  buildClient[*networkingclient.ServiceEntry](c, kc, gvr.ServiceEntry, opts, "informer/ServiceEntries"),
@@ -213,27 +212,26 @@ func NewController(
 	if features.EnableAlphaGatewayAPI {
 		inputs.TCPRoutes = buildClient[*gatewayalpha.TCPRoute](c, kc, gvr.TCPRoute, opts, "informer/TCPRoutes")
 		inputs.TLSRoutes = buildClient[*gatewayalpha.TLSRoute](c, kc, gvr.TLSRoute, opts, "informer/TLSRoutes")
-		inputs.BackendTLSPolicies = buildClient[*gatewayalpha3.BackendTLSPolicy](c, kc, gvr.BackendTLSPolicy, opts, "informer/BackendTLSPolicies")
 		inputs.BackendTrafficPolicy = buildClient[*gatewayx.XBackendTrafficPolicy](c, kc, gvr.XBackendTrafficPolicy, opts, "informer/XBackendTrafficPolicy")
 		inputs.ListenerSets = buildClient[*gatewayx.XListenerSet](c, kc, gvr.XListenerSet, opts, "informer/XListenerSet")
 	} else {
 		// If disabled, still build a collection but make it always empty
 		inputs.TCPRoutes = krt.NewStaticCollection[*gatewayalpha.TCPRoute](nil, nil, opts.WithName("disable/TCPRoutes")...)
 		inputs.TLSRoutes = krt.NewStaticCollection[*gatewayalpha.TLSRoute](nil, nil, opts.WithName("disable/TLSRoutes")...)
-		inputs.BackendTLSPolicies = krt.NewStaticCollection[*gatewayalpha3.BackendTLSPolicy](nil, nil, opts.WithName("disable/BackendTLSPolicies")...)
 		inputs.BackendTrafficPolicy = krt.NewStaticCollection[*gatewayx.XBackendTrafficPolicy](nil, nil, opts.WithName("disable/XBackendTrafficPolicy")...)
 		inputs.ListenerSets = krt.NewStaticCollection[*gatewayx.XListenerSet](nil, nil, opts.WithName("disable/XListenerSet")...)
 	}
 
 	if features.EnableGatewayAPIInferenceExtension {
-		inputs.InferencePools = buildClient[*inferencev1alpha2.InferencePool](c, kc, gvr.InferencePool, opts, "informer/InferencePools")
+		inputs.InferencePools = buildClient[*inferencev1.InferencePool](c, kc, gvr.InferencePool, opts, "informer/InferencePools")
 	} else {
 		// If disabled, still build a collection but make it always empty
-		inputs.InferencePools = krt.NewStaticCollection[*inferencev1alpha2.InferencePool](nil, nil, opts.WithName("disable/InferencePools")...)
+		inputs.InferencePools = krt.NewStaticCollection[*inferencev1.InferencePool](nil, nil, opts.WithName("disable/InferencePools")...)
 	}
 
 	references := NewReferenceSet(
 		AddReference(inputs.Services),
+		AddReference(inputs.ServiceEntries),
 		AddReference(inputs.ConfigMaps),
 		AddReference(inputs.Secrets),
 	)
@@ -252,6 +250,7 @@ func NewController(
 		GatewayClasses,
 		inputs.Namespaces,
 		ReferenceGrants,
+		inputs.ConfigMaps,
 		inputs.Secrets,
 		options.DomainSuffix,
 		c.gatewayContext,
@@ -261,15 +260,6 @@ func NewController(
 	)
 	status.RegisterStatus(c.status, ListenerSetStatus, GetStatus)
 
-	DestinationRules := DestinationRuleCollection(
-		inputs.BackendTrafficPolicy,
-		inputs.BackendTLSPolicies,
-		references,
-		c.domainSuffix,
-		c,
-		opts,
-	)
-
 	// GatewaysStatus is not fully complete until its join with route attachments to report attachedRoutes.
 	// Do not register yet.
 	GatewaysStatus, Gateways := GatewayCollection(
@@ -278,6 +268,7 @@ func NewController(
 		GatewayClasses,
 		inputs.Namespaces,
 		ReferenceGrants,
+		inputs.ConfigMaps,
 		inputs.Secrets,
 		c.domainSuffix,
 		c.gatewayContext,
@@ -352,6 +343,26 @@ func NewController(
 	RouteAttachmentsIndex := krt.NewIndex(RouteAttachments, "to", func(o RouteAttachment) []types.NamespacedName {
 		return []types.NamespacedName{o.To}
 	})
+	Ancestors := krt.JoinCollection([]krt.Collection[AncestorBackend]{
+		tcpRoutes.Ancestors,
+		tlsRoutes.Ancestors,
+		httpRoutes.Ancestors,
+		grpcRoutes.Ancestors,
+	}, opts.WithName("Ancestors")...)
+	AncestorsIndex := krt.NewIndex(Ancestors, "ancestors", func(o AncestorBackend) []TypedNamespacedName {
+		return []TypedNamespacedName{o.Backend}
+	})
+
+	DestinationRules := DestinationRuleCollection(
+		inputs.BackendTrafficPolicy,
+		inputs.BackendTLSPolicies,
+		AncestorsIndex,
+		references,
+		c.domainSuffix,
+		c,
+		inputs.Services,
+		opts,
+	)
 
 	GatewayFinalStatus := FinalGatewayStatusCollection(GatewaysStatus, RouteAttachments, RouteAttachmentsIndex, opts)
 	status.RegisterStatus(c.status, GatewayFinalStatus, GetStatus)

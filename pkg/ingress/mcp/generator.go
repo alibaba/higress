@@ -16,18 +16,21 @@ package mcp
 
 // nolint
 import (
+	"encoding/json"
 	"path"
 	"sort"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcp "istio.io/api/mcp/v1alpha1"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/xds"
 	cfg "istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/log"
 )
 
 var (
@@ -211,6 +214,14 @@ func generate(proxy *model.Proxy, configs []cfg.Config, w *model.WatchedResource
 		if keepAnnotations {
 			resource.Metadata.Annotations = config.Annotations
 		}
+
+		// Add config.Extra to Resource's unknown fields
+		if len(config.Extra) > 0 {
+			if err = addExtraToUnknownFields(resource, config.Extra); err != nil {
+				log.Warnf("Failed to add Extra to unknown fields: %v, extra: %v", err, config.Extra)
+			}
+		}
+
 		// nolint
 		mcpAny, err := anypb.New(resource)
 		if err != nil {
@@ -222,4 +233,36 @@ func generate(proxy *model.Proxy, configs []cfg.Config, w *model.WatchedResource
 		})
 	}
 	return resources, model.DefaultXdsLogDetails, nil
+}
+
+// addExtraToUnknownFields adds the Extra map to the Resource's unknown fields
+// We use field number 100 (which is not defined in the proto) to store the Extra data
+func addExtraToUnknownFields(resource *mcp.Resource, extra map[string]any) error {
+	// Serialize Extra to JSON
+	extraJSON, err := json.Marshal(extra)
+	if err != nil {
+		return err
+	}
+
+	// Use field number 100 (arbitrary high number not used in the proto definition)
+	// Resource proto only has field 1 (metadata) and field 2 (body), so 100 is safe
+	// Field 100, wire type 2 (length-delimited for bytes/string)
+	const extraFieldNumber = 100
+
+	// Encode the field: tag (field number + wire type) + length + data
+	tag := protowire.EncodeTag(extraFieldNumber, protowire.BytesType)
+	unknownData := protowire.AppendVarint(nil, uint64(tag))
+	unknownData = protowire.AppendBytes(unknownData, extraJSON)
+
+	// Get the ProtoReflect interface to access unknown fields
+	resourceReflect := resource.ProtoReflect()
+
+	// Append to existing unknown fields
+	existingUnknown := resourceReflect.GetUnknown()
+	resourceReflect.SetUnknown(append(existingUnknown, unknownData...))
+
+	log.Debugf("[addExtraToUnknownFields] Added %d bytes to Resource unknown fields (field %d)", len(unknownData), extraFieldNumber)
+	log.Debugf("[addExtraToUnknownFields] Extra JSON: %s", string(extraJSON))
+	log.Debugf("[addExtraToUnknownFields] Unknown data (hex): %x", unknownData)
+	return nil
 }

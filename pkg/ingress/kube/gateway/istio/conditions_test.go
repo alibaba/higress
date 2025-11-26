@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8s "sigs.k8s.io/gateway-api/apis/v1beta1"
 
-	"istio.io/istio/pilot/pkg/features"
+	higressconstants "github.com/alibaba/higress/v2/pkg/config/constants"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
 )
@@ -39,7 +39,7 @@ func TestCreateRouteStatus(t *testing.T) {
 		},
 		{
 			ParentRef:      parentRef,
-			ControllerName: k8s.GatewayController(features.ManagedGatewayController),
+			ControllerName: k8s.GatewayController(higressconstants.ManagedGatewayController),
 			Conditions: []metav1.Condition{
 				{
 					Type:               string(k8s.RouteReasonAccepted),
