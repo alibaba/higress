@@ -1,7 +1,6 @@
-apiVersion: inference.networking.x-k8s.io/v1alpha2
+apiVersion: inference.networking.k8s.io/v1
 kind: InferencePool
 metadata:
-  creationTimestamp: null
   name: my-ip
   namespace: inferencepool
 spec: null
@@ -10,7 +9,6 @@ status: {}
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway
   namespace: higress-system
 spec: null
@@ -62,7 +60,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: backend-allowed-ip
   namespace: higress-system
 spec: null
@@ -79,7 +76,7 @@ status:
       reason: BackendNotFound
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -87,7 +84,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: backend-not-allowed-ip
   namespace: higress-system
 spec: null
@@ -105,7 +101,7 @@ status:
       reason: RefNotPermitted
       status: "False"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
