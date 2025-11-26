@@ -166,7 +166,6 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 			TotalTokens:      bedrockEvent.Usage.TotalTokens,
 		}
 	}
-
 	openAIFormattedChunkBytes, _ := json.Marshal(openAIFormattedChunk)
 	var openAIChunk strings.Builder
 	openAIChunk.WriteString(ssePrefix)

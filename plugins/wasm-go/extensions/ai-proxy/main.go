@@ -60,6 +60,7 @@ var (
 		{provider.PathOpenAIModels, provider.ApiNameModels},
 		{provider.PathOpenAIFineTuningJobs, provider.ApiNameFineTuningJobs},
 		{provider.PathOpenAIResponses, provider.ApiNameResponses},
+		{provider.PathOpenAIVideos, provider.ApiNameVideos},
 		// Anthropic style
 		{provider.PathAnthropicMessages, provider.ApiNameAnthropicMessages},
 		{provider.PathAnthropicComplete, provider.ApiNameAnthropicComplete},
@@ -72,6 +73,9 @@ var (
 		{util.RegCancelBatchPath, provider.ApiNameCancelBatch},
 		{util.RegRetrieveFilePath, provider.ApiNameRetrieveFile},
 		{util.RegRetrieveFileContentPath, provider.ApiNameRetrieveFileContent},
+		{util.RegRetrieveVideoPath, provider.ApiNameRetrieveVideo},
+		{util.RegRetrieveVideoContentPath, provider.ApiNameRetrieveVideoContent},
+		{util.RegVideoRemixPath, provider.ApiNameVideoRemix},
 		{util.RegRetrieveFineTuningJobPath, provider.ApiNameRetrieveFineTuningJob},
 		{util.RegRetrieveFineTuningJobEventsPath, provider.ApiNameFineTuningJobEvents},
 		{util.RegRetrieveFineTuningJobCheckpointsPath, provider.ApiNameFineTuningJobCheckpoints},
