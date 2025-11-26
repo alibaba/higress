@@ -1,7 +1,6 @@
 apiVersion: gateway.networking.x-k8s.io/v1alpha1
 kind: XListenerSet
 metadata:
-  creationTimestamp: null
   name: multi-entry
   namespace: istio-system
 spec: null
@@ -81,7 +80,6 @@ status:
 apiVersion: gateway.networking.x-k8s.io/v1alpha1
 kind: XListenerSet
 metadata:
-  creationTimestamp: null
   name: single-entry-http
   namespace: istio-system
 spec: null
@@ -131,7 +129,6 @@ status:
 apiVersion: gateway.networking.x-k8s.io/v1alpha1
 kind: XListenerSet
 metadata:
-  creationTimestamp: null
   name: single-entry-tls
   namespace: istio-system
 spec: null
@@ -181,7 +178,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  creationTimestamp: null
   name: istio
 spec: null
 status:
@@ -195,7 +191,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: parent-gateway
   namespace: istio-system
 spec: null
@@ -253,7 +248,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: bind-both
   namespace: istio-system
 spec: null
@@ -270,7 +264,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       group: gateway.networking.x-k8s.io
       kind: XListenerSet
@@ -287,14 +281,13 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: parent-gateway
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: bind-parent
   namespace: istio-system
 spec: null
@@ -311,14 +304,13 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: parent-gateway
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: bind-set
   namespace: istio-system
 spec: null
@@ -335,7 +327,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       group: gateway.networking.x-k8s.io
       kind: XListenerSet

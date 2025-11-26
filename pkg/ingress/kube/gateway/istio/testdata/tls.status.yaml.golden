@@ -1,7 +1,6 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  creationTimestamp: null
   name: higress
 spec: null
 status:
@@ -15,7 +14,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway
   namespace: higress-system
 spec: null
@@ -167,6 +165,62 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
+    name: terminate-mtls-frontendvalidation-configmap
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    name: terminate-mtls-frontendvalidation-secret
+    supportedKinds:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
+  - attachedRoutes: 0
+    conditions:
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: NoConflicts
+      status: "False"
+      type: Conflicted
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: Programmed
+      status: "True"
+      type: Programmed
+    - lastTransitionTime: fake
+      message: No errors found
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
     name: terminate-istio-mtls
     supportedKinds:
     - group: gateway.networking.k8s.io
@@ -205,7 +259,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway2
   namespace: higress-system
 spec: null
@@ -255,7 +308,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http
   namespace: default
 spec: null
@@ -280,7 +332,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TLSRoute
 metadata:
-  creationTimestamp: null
   name: tls
   namespace: default
 spec: null
@@ -299,7 +350,7 @@ status:
       type: ResolvedRefs
     controllerName: higress.io/gateway-controller
     parentRef:
-      name: gateway
+      name: gateway2
       namespace: higress-system
   - conditions:
     - lastTransitionTime: fake
@@ -314,13 +365,12 @@ status:
       type: ResolvedRefs
     controllerName: higress.io/gateway-controller
     parentRef:
-      name: gateway2
+      name: gateway
       namespace: higress-system
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TLSRoute
 metadata:
-  creationTimestamp: null
   name: tls-match
   namespace: default
 spec: null
