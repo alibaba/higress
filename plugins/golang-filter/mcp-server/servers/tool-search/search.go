@@ -16,7 +16,7 @@ type SearchService struct {
 	config          *config.VectorDBConfig
 	tableName       string
 	dimensions      int
-	maxTools        int
+	maxTools        int // 写死的最大工具数量，仅用于单测
 	embeddingClient *EmbeddingClient
 }
 
@@ -45,7 +45,7 @@ func NewSearchService(host string, port int, database, username, password, table
 		config:          cfg,
 		tableName:       tableName,
 		dimensions:      dimensions,
-		maxTools:        maxTools,
+		maxTools:        maxTools, // 使用写死的值
 		embeddingClient: embeddingClient,
 	}
 }

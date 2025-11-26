@@ -1,5 +1,5 @@
 {
-   "vector": {
+  "vector": {
     "type": "milvus",
     "vectorWeight": 0.5,
     "tableName": "apig_mcp_tools",
@@ -7,8 +7,7 @@
     "port": 19530,
     "database": "default",
     "username": "root",
-    "password": "Milvus",
-    "maxTools": 1000
+    "password": "Milvus"
   },
   "embedding": {
     "apiKey": "your-dashscope-api-key",
@@ -17,10 +16,3 @@
     "dimensions": 1024
   }
 }
-
-
-
-
-
-
-

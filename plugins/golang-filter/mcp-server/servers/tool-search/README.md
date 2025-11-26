@@ -44,7 +44,6 @@
 | `tableName` | string | 否   | `"apig_mcp_tools"` | Milvus 集合名 |
 | `username`  | string | 否   | -                  | 认证用户名（可选） |
 | `password`  | string | 否   | -                  | 认证密码（可选） |
-| `maxTools`  | int    | 否   | `1000`             | 获取工具列表时的最大工具数量 |
 
 ### Embedding 配置（`embedding` 对象）
 

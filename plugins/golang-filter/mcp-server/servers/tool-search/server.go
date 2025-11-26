@@ -3,7 +3,6 @@ package tool_search
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	"github.com/envoyproxy/envoy/contrib/golang/common/go/api"
@@ -18,7 +17,8 @@ const (
 	defaultBaseURL    = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 	defaultModel      = "text-embedding-v4"
 	defaultDimensions = 1024
-	defaultMaxTools   = 1000
+	// 写死最大工具数量为1000，仅用于单测
+	fixedMaxTools = 1000
 )
 
 func init() {
@@ -34,7 +34,6 @@ type VectorConfig struct {
 	Database     string  `json:"database"`
 	Username     string  `json:"username"`
 	Password     string  `json:"password"`
-	MaxTools     int     `json:"maxTools"`
 }
 
 type EmbeddingConfig struct {
@@ -127,19 +126,7 @@ func (c *ToolSearchConfig) parseVectorConfig(config map[string]any) error {
 		c.Vector.Password = password
 	}
 
-	if maxTools, ok := config["maxTools"].(string); ok {
-		if val, err := strconv.Atoi(maxTools); err == nil {
-			c.Vector.MaxTools = val
-		} else {
-			c.Vector.MaxTools = defaultMaxTools
-		}
-	} else if maxTools, ok := config["maxTools"].(float64); ok {
-		c.Vector.MaxTools = int(maxTools)
-	} else if maxTools, ok := config["maxTools"].(int); ok {
-		c.Vector.MaxTools = maxTools
-	} else {
-		c.Vector.MaxTools = defaultMaxTools
-	}
+	// 移除maxTools的解析逻辑
 
 	return nil
 }
@@ -186,7 +173,7 @@ func (c *ToolSearchConfig) NewServer(serverName string) (*common.MCPServer, erro
 	// Create embedding client
 	embeddingClient := NewEmbeddingClient(c.Embedding.APIKey, c.Embedding.BaseURL, c.Embedding.Model, c.Embedding.Dimensions)
 
-	// Create search service
+	// Create search service，使用写死的fixedMaxTools值
 	searchService := NewSearchService(
 		c.Vector.Host,
 		c.Vector.Port,
@@ -196,7 +183,7 @@ func (c *ToolSearchConfig) NewServer(serverName string) (*common.MCPServer, erro
 		c.Vector.TableName,
 		embeddingClient,
 		c.Embedding.Dimensions,
-		c.Vector.MaxTools,
+		fixedMaxTools, // 使用写死的值
 	)
 
 	// Add tool search tool
