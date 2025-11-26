@@ -93,6 +93,13 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 	if !exist {
 		return ""
 	}
+	// 将查询字符串从原始路径中剥离，避免干扰正则匹配 video_id 等占位符
+	pathOnly := originPath
+	query := ""
+	if queryIndex := strings.Index(originPath, "?"); queryIndex >= 0 {
+		pathOnly = originPath[:queryIndex]
+		query = originPath[queryIndex:]
+	}
 	if strings.Contains(mappedPath, "{") && strings.Contains(mappedPath, "}") {
 		replacements := []struct {
 			regx *regexp.Regexp
@@ -108,8 +115,8 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 		}
 
 		for _, r := range replacements {
-			if r.regx.MatchString(originPath) {
-				subMatch := r.regx.FindStringSubmatch(originPath)
+			if r.regx.MatchString(pathOnly) {
+				subMatch := r.regx.FindStringSubmatch(pathOnly)
 				if subMatch == nil {
 					continue
 				}
@@ -122,6 +129,14 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 					return strings.Replace(s, "{"+r.key+"}", id, 1)
 				})
 			}
+		}
+	}
+	if query != "" {
+		// 保留原始查询参数，例如 variant=thumbnail
+		if strings.Contains(mappedPath, "?") {
+			mappedPath = mappedPath + "&" + strings.TrimPrefix(query, "?")
+		} else {
+			mappedPath += query
 		}
 	}
 	return mappedPath
