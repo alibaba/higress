@@ -56,31 +56,8 @@ $(OUT):
 	@mkdir -p $@
 
 submodule:
-	@echo "Initializing submodules..."
-	@git submodule init || true
-	@git submodule update --init --recursive || true
-	@git submodule foreach -q ' \
-		branch="$$(git config -f $${toplevel}/.gitmodules submodule.$${name}.branch)"; \
-		if [ -n "$$branch" ]; then \
-			echo "Updating $$name to branch $$branch"; \
-			if ! git fetch origin "$$branch" 2>/dev/null; then \
-				echo "Error: Branch $$branch not found in remote for $$name. Make sure the branch exists and is accessible."; \
-				exit 1; \
-			fi; \
-			if git show-ref --verify --quiet "refs/remotes/origin/$$branch" 2>/dev/null; then \
-				remote_ref="origin/$$branch"; \
-			else \
-				remote_ref="FETCH_HEAD"; \
-			fi; \
-			if git show-ref --verify --quiet "refs/heads/$$branch" 2>/dev/null; then \
-				git checkout "$$branch" && git reset --hard "$$remote_ref" || { echo "Error: Failed to update $$name to $$branch"; exit 1; }; \
-			else \
-				git checkout -b "$$branch" "$$remote_ref" || { echo "Error: Failed to checkout branch $$branch for $$name"; exit 1; }; \
-			fi; \
-			git branch --set-upstream-to="origin/$$branch" "$$branch" 2>/dev/null || true; \
-			echo "✓ $$name is now on branch $$branch"; \
-		fi \
-	'
+	git submodule update --init
+#	git submodule update --remote
 
 .PHONY: prebuild
 prebuild: submodule
