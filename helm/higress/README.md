@@ -161,9 +161,9 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.defaultUpstreamConcurrencyThreshold | int | `10000` |  |
 | global.disableAlpnH2 | bool | `false` | Whether to disable HTTP/2 in ALPN |
 | global.enableGatewayAPI | bool | `true` | If true, Higress Controller will monitor Gateway API resources as well |
-| global.enableInferenceExtension | bool | `false` | If true, enable Gateway API Inference Extension support |
 | global.enableH3 | bool | `false` |  |
 | global.enableIPv6 | bool | `false` |  |
+| global.enableInferenceExtension | bool | `false` | If true, enable Gateway API Inference Extension support |
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
 | global.enableLDSCache | bool | `false` |  |
 | global.enablePluginServer | bool | `false` |  |
