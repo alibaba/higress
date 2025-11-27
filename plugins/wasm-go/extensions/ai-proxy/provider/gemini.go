@@ -170,6 +170,17 @@ func (g *geminiProvider) buildGeminiImageGenerationRequest(request *imageGenerat
 		},
 	}
 
+	if cfg := request.GenerationConfig; cfg != nil {
+		if imgCfg := cfg.ImageConfig; imgCfg != nil {
+			if imgCfg.AspectRatio != "" {
+				geminiRequest.Parameters.AspectRatio = imgCfg.AspectRatio
+			}
+			if imgCfg.ImageSize != "" {
+				geminiRequest.Parameters.ImageSize = imgCfg.ImageSize
+			}
+		}
+	}
+
 	return geminiRequest
 }
 
@@ -399,6 +410,7 @@ type geminiImageGenerationInstance struct {
 type geminiImageGenerationParameters struct {
 	SampleCount int    `json:"sampleCount,omitempty"`
 	AspectRatio string `json:"aspectRatio,omitempty"`
+	ImageSize   string `json:"imageSize,omitempty"`
 }
 
 type geminiImageGenerationPrediction struct {
