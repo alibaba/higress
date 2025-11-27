@@ -1,8 +1,12 @@
-package util
+package test
 
-import "testing"
+import (
+	"testing"
 
-func TestMapRequestPathByCapability(t *testing.T) {
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+)
+
+func RunMapRequestPathByCapabilityTests(t *testing.T) {
 	testCases := []struct {
 		name     string
 		apiName  string
@@ -101,8 +105,9 @@ func TestMapRequestPathByCapability(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			got := MapRequestPathByCapability(tc.apiName, tc.origin, tc.mapping)
+			got := util.MapRequestPathByCapability(tc.apiName, tc.origin, tc.mapping)
 			if got != tc.expected {
 				t.Fatalf("expected %q, got %q", tc.expected, got)
 			}
