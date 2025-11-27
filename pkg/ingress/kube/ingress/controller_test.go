@@ -1192,7 +1192,7 @@ func TestIngressControllerProcessing(t *testing.T) {
 	stopChan := make(chan struct{})
 	t.Cleanup(func() {
 		time.Sleep(3 * time.Second)
-		stopChan <- struct{}{}
+		close(stopChan)
 	})
 
 	go ingressController.ingressInformer.Start(stopChan)
