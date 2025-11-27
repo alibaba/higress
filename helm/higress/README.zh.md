@@ -145,6 +145,7 @@ helm delete higress -n higress-system
 | gateway.service.ports[1].targetPort | int | `443` | 靶向端口 |
 | gateway.service.type | string | `"LoadBalancer"` | 服务类型 |
 | global.disableAlpnH2 | bool | `false` | 设置是否禁用 ALPN 中的 http/2 |
+| global.enableInferenceExtension | bool | `false` | 是否启用 Gateway API Inference Extension 支持 |
 | ... | ... | ... | ... |
 
 由于内容较多，其他参数可以参考完整表。
