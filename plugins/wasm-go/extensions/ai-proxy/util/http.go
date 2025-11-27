@@ -93,6 +93,12 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 	if !exist {
 		return ""
 	}
+	mappedPathOnly := mappedPath
+	mappedQuery := ""
+	if queryIndex := strings.Index(mappedPathOnly, "?"); queryIndex >= 0 {
+		mappedPathOnly = mappedPathOnly[:queryIndex]
+		mappedQuery = mappedPath[queryIndex:]
+	}
 	// 将查询字符串从原始路径中剥离，避免干扰正则匹配 video_id 等占位符
 	pathOnly := originPath
 	query := ""
@@ -125,11 +131,16 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 					continue
 				}
 				id := subMatch[index]
-				mappedPath = r.regx.ReplaceAllStringFunc(mappedPath, func(s string) string {
+				mappedPathOnly = r.regx.ReplaceAllStringFunc(mappedPathOnly, func(s string) string {
 					return strings.Replace(s, "{"+r.key+"}", id, 1)
 				})
 			}
 		}
+	}
+	if mappedQuery != "" {
+		mappedPath = mappedPathOnly + mappedQuery
+	} else {
+		mappedPath = mappedPathOnly
 	}
 	if query != "" {
 		// 保留原始查询参数，例如 variant=thumbnail
