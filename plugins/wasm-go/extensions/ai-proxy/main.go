@@ -286,10 +286,13 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 	if handler, ok := activeProvider.(provider.RequestBodyHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		providerConfig := pluginConfig.GetProviderConfig()
-		// If retryOnFailure is enabled, save the transformed body to the context in case of retry
+		
+		// If retryOnFailure is enabled, save the original body to the context in case of retry
 		if providerConfig.IsRetryOnFailureEnabled() {
 			ctx.SetContext(provider.CtxRequestBody, body)
 		}
+		
+		// Apply custom settings
 		newBody, settingErr := providerConfig.ReplaceByCustomSettings(body)
 		if settingErr != nil {
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
@@ -298,6 +301,18 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if providerConfig.IsOpenAIProtocol() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
+		
+		// Apply context compression if enabled and for chat completion API
+		if apiName == provider.ApiNameChatCompletion && providerConfig.IsCompressionEnabled() {
+			compressedBody, err := providerConfig.CompressContextInRequest(ctx, newBody)
+			if err != nil {
+				log.Warnf("[onHttpRequestBody] failed to compress context: %v", err)
+			} else {
+				newBody = compressedBody
+				log.Debugf("[onHttpRequestBody] applied context compression")
+			}
+		}
+		
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)
 		body = newBody
 		action, err := handler.OnRequestBody(ctx, apiName, body)

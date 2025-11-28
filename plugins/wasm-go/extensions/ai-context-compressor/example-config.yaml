@@ -1,0 +1,41 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-context-compressor
+  namespace: higress-system
+spec:
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-context-compressor:1.0.0
+  phase: AUTHN
+  priority: -1
+  config:
+    method: "bm25_extract"
+    rate: 0.5
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-context-compressor-llmlingua
+  namespace: higress-system
+spec:
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-context-compressor:1.0.0
+  phase: AUTHN
+  priority: -1
+  config:
+    method: "llmlingua"
+    rate: 0.3
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-context-compressor-token-based
+  namespace: higress-system
+spec:
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-context-compressor:1.0.0
+  phase: AUTHN
+  priority: -1
+  config:
+    method: "token_based"
+    rate: 0.5
+    model: "gpt-4"
+    minTokens: 100
+    useTokenizer: false
