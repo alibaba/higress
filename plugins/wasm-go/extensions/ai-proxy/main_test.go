@@ -109,3 +109,9 @@ func TestFireworks(t *testing.T) {
 	test.RunFireworksOnHttpRequestHeadersTests(t)
 	test.RunFireworksOnHttpRequestBodyTests(t)
 }
+
+func TestGeneric(t *testing.T) {
+	test.RunGenericParseConfigTests(t)
+	test.RunGenericOnHttpRequestHeadersTests(t)
+	test.RunGenericOnHttpRequestBodyTests(t)
+}
