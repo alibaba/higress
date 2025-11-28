@@ -250,6 +250,10 @@ template:
     tolerations:
       {{- toYaml . | nindent 6 }}
     {{- end }}
+    {{- with .Values.gateway.topologySpreadConstraints }}
+    topologySpreadConstraints:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
     volumes:
     - emptyDir: {}
       name: workload-socket
