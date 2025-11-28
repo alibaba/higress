@@ -458,13 +458,13 @@ type imageGenerationRequest struct {
 
 // 专门支持gemini,openai协议并没有此config
 type imageGenerationConfig struct {
-	ImageConfig *imageGenerationImageConfig `json:"imageConfig,omitempty"`
+	ImageConfig        *imageGenerationImageConfig `json:"imageConfig,omitempty"`
+	ResponseModalities []string                    `json:"responseModalities,omitempty"`
 }
 
 type imageGenerationImageConfig struct {
-	AspectRatio        string   `json:"aspectRatio,omitempty"`
-	ImageSize          string   `json:"imageSize,omitempty"`
-	ResponseModalities []string `json:"responseModalities,omitempty"`
+	AspectRatio string `json:"aspectRatio,omitempty"`
+	ImageSize   string `json:"imageSize,omitempty"`
 }
 type imageGenerationData struct {
 	URL           string `json:"url,omitempty"`
