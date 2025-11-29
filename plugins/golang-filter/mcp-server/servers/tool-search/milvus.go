@@ -24,7 +24,6 @@ func NewMilvusVectorStoreProvider(cfg *config.VectorDBConfig, dimensions int) (*
 	}
 	connectParam.DBName = cfg.Database
 
-	// 添加认证信息（如果提供）
 	if cfg.Username != "" && cfg.Password != "" {
 		connectParam.Username = cfg.Username
 		connectParam.Password = cfg.Password
@@ -42,7 +41,6 @@ func NewMilvusVectorStoreProvider(cfg *config.VectorDBConfig, dimensions int) (*
 	}, nil
 }
 
-// ListAllDocs 检索所有文档，使用指定的limit参数
 func (c *MilvusVectorStoreProvider) ListAllDocs(ctx context.Context, limit int) ([]schema.Document, error) {
 	expr := ""
 
@@ -51,7 +49,6 @@ func (c *MilvusVectorStoreProvider) ListAllDocs(ctx context.Context, limit int) 
 	var queryResult []entity.Column
 	var err error
 
-	// 使用limit参数查询文档，如果limit为0或负数则不设置限制
 	if limit > 0 {
 		queryResult, err = c.client.Query(
 			ctx,
