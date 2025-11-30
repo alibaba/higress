@@ -1,0 +1,11 @@
+{
+  "type": "envoy_proxy",
+  "abiVersions": [
+    "v0.2.0"
+  ],
+  "config": {
+    "rootIds": [
+      "ai-context-compressor"
+    ]
+  }
+}

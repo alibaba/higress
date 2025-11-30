@@ -1,0 +1,9 @@
+{
+  "type": "custom",
+  "endpoint": "http://localhost:8080/v1/chat/completions",
+  "api_key": "${HIGRESS_API_KEY}",
+  "model": "deepseek-chat",
+  "temperature": 0.7,
+  "max_tokens": 4096
+}
+
