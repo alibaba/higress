@@ -32,7 +32,7 @@ func parseConfig(json gjson.Result, config *cfg.AISecurityConfig) error {
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {
 	consumer, _ := proxywasm.GetHttpRequestHeader("x-mse-consumer")
-	ctx.SetContext("x-mse-consumer", consumer)
+	ctx.SetContext("consumer", consumer)
 	ctx.DisableReroute()
 	if !config.CheckRequest {
 		log.Debugf("request checking is disabled")

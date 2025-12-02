@@ -39,5 +39,5 @@ func ExtractMessageFromStreamingBody(data []byte, jsonPath string) string {
 }
 
 func GetConsumer(ctx wrapper.HttpContext) string {
-	return ctx.GetStringContext("x-mse-consumer", "")
+	return ctx.GetStringContext("consumer", "")
 }
