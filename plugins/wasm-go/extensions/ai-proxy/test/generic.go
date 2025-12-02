@@ -164,7 +164,7 @@ func RunGenericOnHttpRequestHeadersTests(t *testing.T) {
 
 func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
-		t.Run("generic stream true injects SSE headers", func(t *testing.T) {
+		t.Run("generic first byte timeout injects SSE headers", func(t *testing.T) {
 			host, status := test.NewTestHost(genericStreamingConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
@@ -176,7 +176,7 @@ func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 				{"Content-Type", "application/json"},
 			})
 
-			body := `{"model":"gpt-any","stream":true}`
+			body := `{"model":"gpt-any"}`
 			action := host.CallOnHttpRequestBody([]byte(body))
 			require.Equal(t, types.ActionContinue, action)
 
@@ -188,8 +188,8 @@ func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 			require.JSONEq(t, body, string(processedBody))
 		})
 
-		t.Run("generic stream options trigger SSE headers", func(t *testing.T) {
-			host, status := test.NewTestHost(genericStreamingConfig)
+		t.Run("generic without first byte timeout keeps headers untouched", func(t *testing.T) {
+			host, status := test.NewTestHost(genericBasicConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
@@ -200,36 +200,15 @@ func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 				{"Content-Type", "application/json"},
 			})
 
-			body := `{"model":"gpt-any","stream_options":{"stream":true}}`
-			action := host.CallOnHttpRequestBody([]byte(body))
-			require.Equal(t, types.ActionContinue, action)
-
-			requestHeaders := host.GetRequestHeaders()
-			require.True(t, test.HasHeaderWithValue(requestHeaders, "Accept", "text/event-stream"))
-			require.True(t, test.HasHeaderWithValue(requestHeaders, "x-envoy-upstream-rq-first-byte-timeout-ms", "1500"))
-		})
-
-		t.Run("generic non streaming request keeps headers untouched", func(t *testing.T) {
-			host, status := test.NewTestHost(genericStreamingConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-
-			host.CallOnHttpRequestHeaders([][2]string{
-				{":authority", "client.local"},
-				{":path", "/v1/chat/completions"},
-				{":method", "POST"},
-				{"Content-Type", "application/json"},
-			})
-
-			action := host.CallOnHttpRequestBody([]byte(`{"model":"gpt-any"}`))
+			action := host.CallOnHttpRequestBody([]byte(`{"model":"gpt-any","stream":true}`))
 			require.Equal(t, types.ActionContinue, action)
 
 			requestHeaders := host.GetRequestHeaders()
 			_, hasAccept := test.GetHeaderValue(requestHeaders, "Accept")
-			require.False(t, hasAccept, "Accept header should remain untouched for non streaming requests")
+			require.False(t, hasAccept, "Accept header should remain untouched when first byte timeout is disabled")
 
 			_, hasTimeout := test.GetHeaderValue(requestHeaders, "x-envoy-upstream-rq-first-byte-timeout-ms")
-			require.False(t, hasTimeout, "timeout header should not be added when request is not streaming")
+			require.False(t, hasTimeout, "timeout header should not be added when first byte timeout is disabled")
 		})
 	})
 }

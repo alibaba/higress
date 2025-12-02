@@ -231,6 +231,18 @@ Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
 | `ollamaServerHost` | string   | 必填     | -      | Ollama 服务器的主机地址             |
 | `ollamaServerPort` | number   | 必填     | -      | Ollama 服务器的端口号，默认为 11434 |
 
+#### 通用代理（Generic）
+
+当只需要借助 AI Proxy 的鉴权、basePath 处理或首包超时能力，且不希望插件改写路径时，可将 `provider.type` 设置为 `generic`。该 Provider 不绑定任何模型厂商，也不会做能力映射。
+
+| 名称          | 数据类型 | 填写要求 | 默认值 | 描述                                                                 |
+| ------------- | -------- | -------- | ------ | -------------------------------------------------------------------- |
+| `genericHost` | string   | 非必填   | -      | 指定要转发到的目标 Host；未配置时沿用客户端请求的 Host。 |
+
+- 配置了 `apiTokens` 时，会自动写入 `Authorization: Bearer <token>` 请求头，复用全局的 Token 轮询能力。
+- 当配置了 `firstByteTimeout` 时，会自动注入 `Accept: text/event-stream` 以及 `x-envoy-upstream-rq-first-byte-timeout-ms`。
+- `basePath` 与 `basePathHandling` 同样适用，可在通用转发中快捷地移除或添加统一前缀。
+
 #### 混元
 
 混元所对应的 `type` 为 `hunyuan`。它特有的配置字段如下：

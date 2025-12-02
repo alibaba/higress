@@ -9,7 +9,6 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"github.com/tidwall/gjson"
 )
 
 // genericProviderInitializer 用于创建一个不做能力映射的通用 Provider。
@@ -48,17 +47,16 @@ func (m *genericProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 	return nil
 }
 
-// OnRequestBody 根据请求体中的 stream 配置注入 SSE 头，并在任意路径上应用首包超时。
+// OnRequestBody 会在开启 firstByteTimeout 时强制注入 SSE 头并应用首包超时。
 func (m *genericProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
-	stream := gjson.GetBytes(body, "stream").Bool() || gjson.GetBytes(body, "stream_options.stream").Bool()
-	if stream {
-		// 将 Accept 改为 SSE，让后端以事件流返回。
-		_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-		ctx.SetContext(ctxKeyIsStreaming, true)
-		m.applyFirstByteTimeout()
-	} else {
-		ctx.SetContext(ctxKeyIsStreaming, false)
+	if m.config.firstByteTimeout <= 0 {
+		return types.ActionContinue, nil
 	}
+
+	// 将 Accept 改为 SSE，让后端以事件流返回。
+	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+	ctx.SetContext(ctxKeyIsStreaming, true)
+	m.applyFirstByteTimeout()
 	return types.ActionContinue, nil
 }
 
