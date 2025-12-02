@@ -27,6 +27,10 @@ func Test_getApiName(t *testing.T) {
 		{"openai files", "/v1/files", provider.ApiNameFiles},
 		{"openai retrieve file", "/v1/files/fileid", provider.ApiNameRetrieveFile},
 		{"openai retrieve file content", "/v1/files/fileid/content", provider.ApiNameRetrieveFileContent},
+		{"openai videos", "/v1/videos", provider.ApiNameVideos},
+		{"openai retrieve video", "/v1/videos/videoid", provider.ApiNameRetrieveVideo},
+		{"openai retrieve video content", "/v1/videos/videoid/content", provider.ApiNameRetrieveVideoContent},
+		{"openai video remix", "/v1/videos/videoid/remix", provider.ApiNameVideoRemix},
 		{"openai models", "/v1/models", provider.ApiNameModels},
 		{"openai fine tuning jobs", "/v1/fine_tuning/jobs", provider.ApiNameFineTuningJobs},
 		{"openai retrieve fine tuning job", "/v1/fine_tuning/jobs/jobid", provider.ApiNameRetrieveFineTuningJob},
@@ -108,6 +112,10 @@ func TestFireworks(t *testing.T) {
 	test.RunFireworksParseConfigTests(t)
 	test.RunFireworksOnHttpRequestHeadersTests(t)
 	test.RunFireworksOnHttpRequestBodyTests(t)
+}
+
+func TestUtil(t *testing.T) {
+	test.RunMapRequestPathByCapabilityTests(t)
 }
 
 func TestGeneric(t *testing.T) {
