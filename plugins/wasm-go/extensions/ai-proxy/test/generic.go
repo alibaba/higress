@@ -159,12 +159,32 @@ func RunGenericOnHttpRequestHeadersTests(t *testing.T) {
 			requestHeaders := host.GetRequestHeaders()
 			require.True(t, test.HasHeaderWithValue(requestHeaders, ":path", "/custom/v1/echo"))
 		})
+
+		t.Run("generic firstByteTimeout injects timeout header only", func(t *testing.T) {
+			host, status := test.NewTestHost(genericStreamingConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "client.local"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.True(t, test.HasHeaderWithValue(requestHeaders, "x-envoy-upstream-rq-first-byte-timeout-ms", "1500"))
+
+			_, hasAccept := test.GetHeaderValue(requestHeaders, "Accept")
+			require.False(t, hasAccept, "Accept header should remain untouched when enabling firstByteTimeout")
+		})
 	})
 }
 
 func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
-		t.Run("generic first byte timeout injects SSE headers", func(t *testing.T) {
+		t.Run("generic body passthrough keeps headers unchanged with timeout", func(t *testing.T) {
 			host, status := test.NewTestHost(genericStreamingConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
@@ -176,13 +196,14 @@ func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 				{"Content-Type", "application/json"},
 			})
 
-			body := `{"model":"gpt-any"}`
+			body := `{"model":"gpt-any","stream":true}`
 			action := host.CallOnHttpRequestBody([]byte(body))
 			require.Equal(t, types.ActionContinue, action)
 
 			requestHeaders := host.GetRequestHeaders()
-			require.True(t, test.HasHeaderWithValue(requestHeaders, "Accept", "text/event-stream"))
 			require.True(t, test.HasHeaderWithValue(requestHeaders, "x-envoy-upstream-rq-first-byte-timeout-ms", "1500"))
+			_, hasAccept := test.GetHeaderValue(requestHeaders, "Accept")
+			require.False(t, hasAccept, "Accept header should remain untouched even when firstByteTimeout is enabled")
 
 			processedBody := host.GetRequestBody()
 			require.JSONEq(t, body, string(processedBody))
@@ -200,7 +221,8 @@ func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 				{"Content-Type", "application/json"},
 			})
 
-			action := host.CallOnHttpRequestBody([]byte(`{"model":"gpt-any","stream":true}`))
+			body := `{"model":"gpt-any","stream":true}`
+			action := host.CallOnHttpRequestBody([]byte(body))
 			require.Equal(t, types.ActionContinue, action)
 
 			requestHeaders := host.GetRequestHeaders()
@@ -209,6 +231,9 @@ func RunGenericOnHttpRequestBodyTests(t *testing.T) {
 
 			_, hasTimeout := test.GetHeaderValue(requestHeaders, "x-envoy-upstream-rq-first-byte-timeout-ms")
 			require.False(t, hasTimeout, "timeout header should not be added when first byte timeout is disabled")
+
+			processedBody := host.GetRequestBody()
+			require.JSONEq(t, body, string(processedBody))
 		})
 	})
 }

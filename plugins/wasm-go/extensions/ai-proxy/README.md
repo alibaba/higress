@@ -240,7 +240,7 @@ Ollama 所对应的 `type` 为 `ollama`。它特有的配置字段如下：
 | `genericHost` | string   | 非必填   | -      | 指定要转发到的目标 Host；未配置时沿用客户端请求的 Host。 |
 
 - 配置了 `apiTokens` 时，会自动写入 `Authorization: Bearer <token>` 请求头，复用全局的 Token 轮询能力。
-- 当配置了 `firstByteTimeout` 时，会自动注入 `Accept: text/event-stream` 以及 `x-envoy-upstream-rq-first-byte-timeout-ms`。
+- 当配置了 `firstByteTimeout` 时，会自动注入 `x-envoy-upstream-rq-first-byte-timeout-ms`。
 - `basePath` 与 `basePathHandling` 同样适用，可在通用转发中快捷地移除或添加统一前缀。
 
 #### 混元

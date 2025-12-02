@@ -41,22 +41,17 @@ func (m *genericProvider) GetProviderType() string {
 	return providerTypeGeneric
 }
 
-// OnRequestHeaders 复用通用的 handleRequestHeaders，自动处理 basePath、鉴权等逻辑。
+// OnRequestHeaders 复用通用的 handleRequestHeaders，并在配置首包超时时写入相关头部。
 func (m *genericProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
 	m.config.handleRequestHeaders(m, ctx, apiName)
+	if m.config.firstByteTimeout > 0 {
+		ctx.SetContext(ctxKeyIsStreaming, true)
+		m.applyFirstByteTimeout()
+	}
 	return nil
 }
 
-// OnRequestBody 会在开启 firstByteTimeout 时强制注入 SSE 头并应用首包超时。
 func (m *genericProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
-	if m.config.firstByteTimeout <= 0 {
-		return types.ActionContinue, nil
-	}
-
-	// 将 Accept 改为 SSE，让后端以事件流返回。
-	_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
-	ctx.SetContext(ctxKeyIsStreaming, true)
-	m.applyFirstByteTimeout()
 	return types.ActionContinue, nil
 }
 
