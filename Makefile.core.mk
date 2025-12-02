@@ -56,31 +56,8 @@ $(OUT):
 	@mkdir -p $@
 
 submodule:
-	@echo "Initializing submodules..."
-	@git submodule init || true
-	@git submodule update --init --recursive || true
-	@git submodule foreach -q ' \
-		branch="$$(git config -f $${toplevel}/.gitmodules submodule.$${name}.branch)"; \
-		if [ -n "$$branch" ]; then \
-			echo "Updating $$name to branch $$branch"; \
-			if ! git fetch origin "$$branch" 2>/dev/null; then \
-				echo "Error: Branch $$branch not found in remote for $$name. Make sure the branch exists and is accessible."; \
-				exit 1; \
-			fi; \
-			if git show-ref --verify --quiet "refs/remotes/origin/$$branch" 2>/dev/null; then \
-				remote_ref="origin/$$branch"; \
-			else \
-				remote_ref="FETCH_HEAD"; \
-			fi; \
-			if git show-ref --verify --quiet "refs/heads/$$branch" 2>/dev/null; then \
-				git checkout "$$branch" && git reset --hard "$$remote_ref" || { echo "Error: Failed to update $$name to $$branch"; exit 1; }; \
-			else \
-				git checkout -b "$$branch" "$$remote_ref" || { echo "Error: Failed to checkout branch $$branch for $$name"; exit 1; }; \
-			fi; \
-			git branch --set-upstream-to="origin/$$branch" "$$branch" 2>/dev/null || true; \
-			echo "✓ $$name is now on branch $$branch"; \
-		fi \
-	'
+	git submodule update --init
+#	git submodule update --remote
 
 .PHONY: prebuild
 prebuild: submodule
@@ -224,7 +201,7 @@ install: pre-install
 
 HIGRESS_LATEST_IMAGE_TAG ?= latest
 ENVOY_LATEST_IMAGE_TAG ?= cdf0f16bf622102f89a0d0257834f43f502e4b99
-ISTIO_LATEST_IMAGE_TAG ?= 2124b6819c805d16507d4bb0bb394160281169e7
+ISTIO_LATEST_IMAGE_TAG ?= a7525f292c38d7d3380f3ce7ee971ad6e3c46adf
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'

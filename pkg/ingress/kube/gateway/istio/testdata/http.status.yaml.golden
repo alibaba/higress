@@ -1,16 +1,14 @@
-apiVersion: inference.networking.x-k8s.io/v1alpha2
+apiVersion: inference.networking.k8s.io/v1
 kind: InferencePool
 metadata:
-  creationTimestamp: null
   name: infpool-gen
   namespace: default
 spec: null
 status: {}
 ---
-apiVersion: inference.networking.x-k8s.io/v1alpha2
+apiVersion: inference.networking.k8s.io/v1
 kind: InferencePool
 metadata:
-  creationTimestamp: null
   name: infpool-gen2
   namespace: default
 spec: null
@@ -19,7 +17,6 @@ status: {}
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  creationTimestamp: null
   name: higress
 spec: null
 status:
@@ -33,7 +30,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway
   namespace: higress-system
 spec: null
@@ -85,7 +81,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http
   namespace: default
 spec: null
@@ -102,7 +97,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -110,7 +105,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http-not-selected
   namespace: default
 spec: null
@@ -127,7 +121,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -135,7 +129,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http-retry-request
   namespace: default
 spec: null
@@ -152,7 +145,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -160,7 +153,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http-route-cors
   namespace: default
 spec: null
@@ -177,7 +169,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -185,7 +177,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http-timeout-backend-request
   namespace: default
 spec: null
@@ -202,7 +193,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -210,7 +201,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http-timeout-request
   namespace: default
 spec: null
@@ -227,7 +217,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -235,7 +225,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http2
   namespace: default
 spec: null
@@ -252,7 +241,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -260,7 +249,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: mirror
   namespace: default
 spec: null
@@ -277,7 +265,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -285,7 +273,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: multiple-inferencepool-backend-refs
   namespace: default
 spec: null
@@ -302,7 +289,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -310,7 +297,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: redirect
   namespace: default
 spec: null
@@ -327,7 +313,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -335,7 +321,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: redirect-prefix-replace
   namespace: default
 spec: null
@@ -352,7 +337,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
@@ -360,7 +345,6 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: rewrite
   namespace: default
 spec: null
@@ -377,7 +361,7 @@ status:
       reason: ResolvedRefs
       status: "True"
       type: ResolvedRefs
-    controllerName: istio.io/gateway-controller
+    controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
       namespace: higress-system
