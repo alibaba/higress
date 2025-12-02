@@ -222,6 +222,10 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 			proxywasm.ResumeHttpRequest()
 		}
 	}
-	singleCall()
+	if len(content) > 0 {
+		singleCall()
+	} else {
+		singleCallForImage()
+	}
 	return types.ActionPause
 }
