@@ -238,10 +238,9 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 	ret := api.Continue
 	api.LogDebugf("Upstream Type: %s", f.matchedRule.UpstreamType)
 	switch f.matchedRule.UpstreamType {
-	case common.RestUpstream, common.StreamableUpstream:
+	case common.RestUpstream:
 		api.LogDebugf("Encoding data from Rest upstream")
 		ret = f.encodeDataFromRestUpstream(buffer, endStream)
-		break
 	case common.SSEUpstream:
 		api.LogDebugf("Encoding data from SSE upstream")
 		ret = f.encodeDataFromSSEUpstream(buffer, endStream)
@@ -249,6 +248,8 @@ func (f *filter) EncodeData(buffer api.BufferInstance, endStream bool) api.Statu
 			// Always continue as long as the stream has ended.
 			ret = api.Continue
 		}
+	case common.StreamableUpstream:
+		// Do nothing for streamable upstream
 	}
 	return ret
 }
