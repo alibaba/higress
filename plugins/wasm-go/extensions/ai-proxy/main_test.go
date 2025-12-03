@@ -117,3 +117,9 @@ func TestFireworks(t *testing.T) {
 func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
 }
+
+func TestGeneric(t *testing.T) {
+	test.RunGenericParseConfigTests(t)
+	test.RunGenericOnHttpRequestHeadersTests(t)
+	test.RunGenericOnHttpRequestBodyTests(t)
+}
