@@ -11,77 +11,108 @@ metadata:
   name: gateway
   namespace: higress-system
 spec:
+  # TODO: test per-port
+  tls:
+    frontend:
+      default:
+        validation:
+          caCertificateRefs:
+            - group: ""
+              kind: ConfigMap
+              name: my-cert-http
   addresses:
-  - value: higress-gateway
-    type: Hostname
+    - value: higress-gateway
+      type: Hostname
   gatewayClassName: higress
   listeners:
-  - name: passthrough
-    port: 34000
-    protocol: TLS
-    allowedRoutes:
-      namespaces:
-        from: All
-    tls:
-      mode: Passthrough
-  - name: terminate
-    hostname: "domain.example"
-    port: 34000
-    protocol: HTTPS
-    allowedRoutes:
-      namespaces:
-        from: All
-    tls:
-      mode: Terminate
-      certificateRefs:
-      - name: my-cert-http
-  - name: terminate-multi
-    hostname: "domainmulti.example"
-    port: 34000
-    protocol: HTTPS
-    allowedRoutes:
-      namespaces:
-        from: All
-    tls:
-      mode: Terminate
-      certificateRefs:
-      - name: my-cert-http
-      - name: my-cert-http2
-  - name: terminate-mtls
-    hostname: "other.example"
-    port: 34000
-    protocol: HTTPS
-    allowedRoutes:
-      namespaces:
-        from: All
-    tls:
-      mode: Terminate
-      certificateRefs:
-      - name: my-cert-http
-      options:
-        gateway.istio.io/tls-terminate-mode: MUTUAL
-  - name: terminate-istio-mtls
-    hostname: "egress.example"
-    port: 34000
-    protocol: HTTPS
-    allowedRoutes:
-      namespaces:
-        from: All
-    tls:
-      mode: Terminate
-      options:
-        gateway.istio.io/tls-terminate-mode: ISTIO_MUTUAL
-  - name: terminate-istio-builtin
-    hostname: "builtin.example"
-    port: 34000
-    protocol: HTTPS
-    allowedRoutes:
-      namespaces:
-        from: All
-    tls:
-      mode: Terminate
-      options:
-        gateway.istio.io/tls-terminate-mode: ISTIO_SIMPLE
+    - name: passthrough
+      port: 34000
+      protocol: TLS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Passthrough
+    - name: terminate
+      hostname: "domain.example"
+      port: 34000
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: my-cert-http
+    - name: terminate-multi
+      hostname: "domainmulti.example"
+      port: 34000
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: my-cert-http
+          - name: my-cert-http2
+    - name: terminate-mtls
+      hostname: "other.example"
+      port: 34000
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: my-cert-http
+        options:
+          gateway.istio.io/tls-terminate-mode: MUTUAL
+    - name: terminate-mtls-frontendvalidation-configmap
+      hostname: "frontendvalidation-configmap.example"
+      port: 34000
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: my-cert-http
+    - name: terminate-mtls-frontendvalidation-secret
+      hostname: "frontendvalidation-secret.example"
+      port: 34000
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - name: my-cert-http
+    - name: terminate-istio-mtls
+      hostname: "egress.example"
+      port: 34000
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        options:
+          gateway.istio.io/tls-terminate-mode: ISTIO_MUTUAL
+    - name: terminate-istio-builtin
+      hostname: "builtin.example"
+      port: 34000
+      protocol: HTTPS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Terminate
+        options:
+          gateway.istio.io/tls-terminate-mode: ISTIO_SIMPLE
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
@@ -90,18 +121,18 @@ metadata:
   namespace: higress-system
 spec:
   addresses:
-  - value: higress-gateway
-    type: Hostname
+    - value: higress-gateway
+      type: Hostname
   gatewayClassName: higress
   listeners:
-  - name: passthrough
-    port: 34000
-    protocol: TLS
-    allowedRoutes:
-      namespaces:
-        from: All
-    tls:
-      mode: Passthrough
+    - name: passthrough
+      port: 34000
+      protocol: TLS
+      allowedRoutes:
+        namespaces:
+          from: All
+      tls:
+        mode: Passthrough
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TLSRoute
@@ -110,14 +141,14 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-  - name: gateway
-    namespace: higress-system
-  - name: gateway2
-    namespace: higress-system
+    - name: gateway
+      namespace: higress-system
+    - name: gateway2
+      namespace: higress-system
   rules:
-  - backendRefs:
-    - name: httpbin
-      port: 443
+    - backendRefs:
+        - name: httpbin
+          port: 443
 ---
 apiVersion: gateway.networking.k8s.io/v1alpha2
 kind: TLSRoute
@@ -126,14 +157,14 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-  - name: gateway
-    namespace: higress-system
+    - name: gateway
+      namespace: higress-system
   hostnames:
-  - "foo.com"
+    - "foo.com"
   rules:
-  - backendRefs:
-    - name: httpbin-foo
-      port: 443
+    - backendRefs:
+        - name: httpbin-foo
+          port: 443
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
@@ -142,10 +173,10 @@ metadata:
   namespace: default
 spec:
   parentRefs:
-  - name: gateway
-    namespace: higress-system
+    - name: gateway
+      namespace: higress-system
   hostnames: ["domain.example"]
   rules:
-  - backendRefs:
-    - name: httpbin
-      port: 80
+    - backendRefs:
+        - name: httpbin
+          port: 80
