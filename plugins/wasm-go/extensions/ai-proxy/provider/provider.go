@@ -429,6 +429,9 @@ type ProviderConfig struct {
 	// @Title zh-CN vLLM主机地址
 	// @Description zh-CN 仅适用于vLLM服务，指定vLLM服务器的主机地址，例如：vllm-service.cluster.local
 	vllmServerHost string `required:"false" yaml:"vllmServerHost" json:"vllmServerHost"`
+	// @Title zh-CN 豆包服务域名
+	// @Description zh-CN 仅适用于豆包服务，默认转发域名为 ark.cn-beijing.volces.com
+	doubaoDomain string `required:"false" yaml:"doubaoDomain" json:"doubaoDomain"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -627,6 +630,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.genericHost = json.Get("genericHost").String()
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
+	c.doubaoDomain = json.Get("doubaoDomain").String()
 }
 
 func (c *ProviderConfig) Validate() error {
