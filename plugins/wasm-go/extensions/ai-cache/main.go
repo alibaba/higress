@@ -38,6 +38,7 @@ func init() {
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBodyBy(onHttpResponseBody),
+		wrapper.WithRebuildAfterRequests[config.PluginConfig](1000),
 	)
 }
 
