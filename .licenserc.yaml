@@ -35,6 +35,7 @@ header:
     - 'hgctl/pkg/manifests'
     - 'pkg/ingress/kube/gateway/istio/testdata'
     - 'release-notes/**'
+    - '.cursor/**'    
 
   comment: on-failure
 dependency:
