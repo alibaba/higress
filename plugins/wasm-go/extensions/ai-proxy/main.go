@@ -146,7 +146,7 @@ func initContext(ctx wrapper.HttpContext) {
 		ctx.SetContext(ctxKey, value)
 	}
 	for _, originHeader := range headerToOriginalHeaderMapping {
-		proxywasm.RemoveHttpRequestHeader(originHeader)
+		_ = proxywasm.RemoveHttpRequestHeader(originHeader)
 	}
 	originalAuth, _ := proxywasm.GetHttpRequestHeader(util.HeaderOriginalAuth)
 	if originalAuth == "" {
@@ -248,8 +248,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		providerConfig.SetAvailableApiTokens(ctx)
 
 		// save the original request host and path in case they are needed for apiToken health check and retry
-		ctx.SetContext(provider.CtxRequestHost, wrapper.GetRequestHost())
-		ctx.SetContext(provider.CtxRequestPath, wrapper.GetRequestPath())
+		ctx.SetContext(provider.CtxRequestHost, ctx.Host())
+		ctx.SetContext(provider.CtxRequestPath, ctx.Path())
 
 		err := handler.OnRequestHeaders(ctx, apiName)
 		if err != nil {
@@ -257,7 +257,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 			return types.ActionContinue
 		}
 
-		hasRequestBody := wrapper.HasRequestBody()
+		hasRequestBody := ctx.HasRequestBody()
 		if hasRequestBody {
 			_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 			ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
