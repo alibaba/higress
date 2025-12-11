@@ -40,6 +40,33 @@ var cerebrasMultiModelConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：无效 Cerebras 配置（缺少 apiToken）
+var invalidCerebrasConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":         "cerebras",
+			"apiTokens":    []string{},
+			"modelMapping": map[string]string{},
+		},
+	})
+	return data
+}()
+
+// 测试配置：Cerebras 自定义URL配置
+var cerebrasCustomUrlConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":            "cerebras",
+			"apiTokens":       []string{"csk-cerebras-custom"},
+			"openaiCustomUrl": "https://custom.cerebras.ai/custom/path",
+			"modelMapping": map[string]string{
+				"*": "llama3.1-8b",
+			},
+		},
+	})
+	return data
+}()
+
 // RunCerebrasParseConfigTests 测试 Cerebras 配置解析
 func RunCerebrasParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
@@ -53,6 +80,20 @@ func RunCerebrasParseConfigTests(t *testing.T) {
 		// 测试多模型 Cerebras 配置解析
 		t.Run("cerebras multi-model config", func(t *testing.T) {
 			host, status := test.NewTestHost(cerebrasMultiModelConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+		})
+
+		// 测试无效 Cerebras 配置（缺少 apiToken）
+		t.Run("invalid cerebras config - missing apiToken", func(t *testing.T) {
+			host, status := test.NewTestHost(invalidCerebrasConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusFailed, status)
+		})
+
+		// 测试 Cerebras 自定义URL配置
+		t.Run("cerebras custom url config", func(t *testing.T) {
+			host, status := test.NewTestHost(cerebrasCustomUrlConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 		})
@@ -82,6 +123,105 @@ func RunCerebrasOnHttpRequestHeadersTests(t *testing.T) {
 			// 验证请求头是否被正确处理
 			requestHeaders := host.GetRequestHeaders()
 			require.NotNil(t, requestHeaders)
+
+			// 验证 Host 是否被改为 Cerebras 域名
+			hostValue, hasHost := test.GetHeaderValue(requestHeaders, ":authority")
+			require.True(t, hasHost, "Host header should exist")
+			require.Equal(t, "api.cerebras.ai", hostValue, "Host should be changed to Cerebras domain")
+
+			// 验证 Authorization 是否被设置
+			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
+			require.True(t, hasAuth, "Authorization header should exist")
+			require.Contains(t, authValue, "Bearer csk-cerebras-test123456789", "Authorization should contain Cerebras API token with Bearer prefix")
+
+			// 验证 Path 保持 OpenAI 兼容格式
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath, "Path header should exist")
+			require.Equal(t, "/v1/chat/completions", pathValue, "Path should remain OpenAI compatible")
+		})
+
+		// 测试 Cerebras 模型列表请求头处理
+		t.Run("cerebras models request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(basicCerebrasConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/models"},
+				{":method", "GET"},
+			})
+
+			require.Equal(t, types.ActionContinue, action)
+
+			// 验证请求头处理
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			// 验证 Host 转换
+			hostValue, hasHost := test.GetHeaderValue(requestHeaders, ":authority")
+			require.True(t, hasHost)
+			require.Equal(t, "api.cerebras.ai", hostValue)
+
+			// 验证 Path 保持 OpenAI 兼容格式
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Equal(t, "/v1/models", pathValue, "Path should remain OpenAI compatible for models")
+
+			// 验证 Authorization 设置
+			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
+			require.True(t, hasAuth, "Authorization header should exist for models")
+			require.Contains(t, authValue, "Bearer csk-cerebras-test123456789", "Authorization should contain Cerebras API token")
+		})
+
+		// 测试 Cerebras 未知路径请求头处理
+		t.Run("cerebras unknown path request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(basicCerebrasConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头 - 使用未知路径
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/unknown/endpoint"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 即使是未知路径，如果有Content-Type，也会尝试读取请求体
+			require.Equal(t, types.HeaderStopIteration, action)
+		})
+
+		// 测试 Cerebras 自定义URL请求头处理
+		t.Run("cerebras custom url request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(cerebrasCustomUrlConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			// 验证请求头处理
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			// 验证 Host 转换为自定义域名
+			hostValue, hasHost := test.GetHeaderValue(requestHeaders, ":authority")
+			require.True(t, hasHost)
+			require.Equal(t, "custom.cerebras.ai", hostValue, "Host should be changed to custom domain")
+
+			// 验证 Path 转换为自定义路径
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/custom/path", "Path should contain custom path")
 		})
 	})
 }

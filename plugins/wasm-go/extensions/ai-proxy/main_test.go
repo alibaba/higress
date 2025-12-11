@@ -121,7 +121,8 @@ func TestCerebras(t *testing.T) {
 	test.RunCerebrasOnHttpResponseHeadersTests(t)
 	test.RunCerebrasOnHttpResponseBodyTests(t)
 	test.RunCerebrasOnStreamingResponseBodyTests(t)
-  
+}
+
 func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
 }
