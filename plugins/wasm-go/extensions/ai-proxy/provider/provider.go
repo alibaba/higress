@@ -144,6 +144,7 @@ const (
 	providerTypeLongcat    = "longcat"
 	providerTypeFireworks  = "fireworks"
 	providerTypeVllm       = "vllm"
+	providerTypeGeneric    = "generic"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -227,6 +228,7 @@ var (
 		providerTypeLongcat:    &longcatProviderInitializer{},
 		providerTypeFireworks:  &fireworksProviderInitializer{},
 		providerTypeVllm:       &vllmProviderInitializer{},
+		providerTypeGeneric:    &genericProviderInitializer{},
 	}
 )
 
@@ -409,6 +411,9 @@ type ProviderConfig struct {
 	basePath string `required:"false" yaml:"basePath" json:"basePath"`
 	// @Title zh-CN basePathHandling用于指定basePath的处理方式，可选值：removePrefix、prepend
 	basePathHandling basePathHandling `required:"false" yaml:"basePathHandling" json:"basePathHandling"`
+	// @Title zh-CN generic Provider 对应的Host
+	// @Description zh-CN 仅适用于generic provider，用于覆盖请求转发的目标Host
+	genericHost string `required:"false" yaml:"genericHost" json:"genericHost"`
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
@@ -424,6 +429,9 @@ type ProviderConfig struct {
 	// @Title zh-CN vLLM主机地址
 	// @Description zh-CN 仅适用于vLLM服务，指定vLLM服务器的主机地址，例如：vllm-service.cluster.local
 	vllmServerHost string `required:"false" yaml:"vllmServerHost" json:"vllmServerHost"`
+	// @Title zh-CN 豆包服务域名
+	// @Description zh-CN 仅适用于豆包服务，默认转发域名为 ark.cn-beijing.volces.com
+	doubaoDomain string `required:"false" yaml:"doubaoDomain" json:"doubaoDomain"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -619,8 +627,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.basePath != "" && c.basePathHandling == "" {
 		c.basePathHandling = basePathHandlingRemovePrefix
 	}
+	c.genericHost = json.Get("genericHost").String()
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
+	c.doubaoDomain = json.Get("doubaoDomain").String()
 }
 
 func (c *ProviderConfig) Validate() error {

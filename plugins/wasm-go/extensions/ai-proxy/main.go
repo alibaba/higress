@@ -102,6 +102,7 @@ func init() {
 		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
 		wrapper.WithRebuildAfterRequests[config.PluginConfig](1000),
+		wrapper.WithRebuildMaxMemBytes[config.PluginConfig](200*1024*1024),
 	)
 }
 
@@ -204,23 +205,24 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
 			apiName = handler.GetApiName(path.Path)
 		}
-	}
-
-	// Auto-detect protocol based on request path and handle conversion if needed
-	// If request is Claude format (/v1/messages) but provider doesn't support it natively,
-	// convert to OpenAI format (/v1/chat/completions)
-	if apiName == provider.ApiNameAnthropicMessages && !providerConfig.IsSupportedAPI(provider.ApiNameAnthropicMessages) {
-		// Provider doesn't support Claude protocol natively, convert to OpenAI format
-		newPath := strings.Replace(path.Path, provider.PathAnthropicMessages, provider.PathOpenAIChatCompletions, 1)
-		_ = proxywasm.ReplaceHttpRequestHeader(":path", newPath)
-		// Update apiName to match the new path
-		apiName = provider.ApiNameChatCompletion
-		// Mark that we need to convert response back to Claude format
-		ctx.SetContext("needClaudeResponseConversion", true)
-		log.Debugf("[Auto Protocol] Claude request detected, provider doesn't support natively, converted path from %s to %s, apiName: %s", path.Path, newPath, apiName)
-	} else if apiName == provider.ApiNameAnthropicMessages {
-		// Provider supports Claude protocol natively, no conversion needed
-		log.Debugf("[Auto Protocol] Claude request detected, provider supports natively, keeping original path: %s, apiName: %s", path.Path, apiName)
+	} else {
+		// Only perform protocol conversion for non-original protocols.
+		// Auto-detect protocol based on request path and handle conversion if needed
+		// If request is Claude format (/v1/messages) but provider doesn't support it natively,
+		// convert to OpenAI format (/v1/chat/completions)
+		if apiName == provider.ApiNameAnthropicMessages && !providerConfig.IsSupportedAPI(provider.ApiNameAnthropicMessages) {
+			// Provider doesn't support Claude protocol natively, convert to OpenAI format
+			newPath := strings.Replace(path.Path, provider.PathAnthropicMessages, provider.PathOpenAIChatCompletions, 1)
+			_ = proxywasm.ReplaceHttpRequestHeader(":path", newPath)
+			// Update apiName to match the new path
+			apiName = provider.ApiNameChatCompletion
+			// Mark that we need to convert response back to Claude format
+			ctx.SetContext("needClaudeResponseConversion", true)
+			log.Debugf("[Auto Protocol] Claude request detected, provider doesn't support natively, converted path from %s to %s, apiName: %s", path.Path, newPath, apiName)
+		} else if apiName == provider.ApiNameAnthropicMessages {
+			// Provider supports Claude protocol natively, no conversion needed
+			log.Debugf("[Auto Protocol] Claude request detected, provider supports natively, keeping original path: %s, apiName: %s", path.Path, apiName)
+		}
 	}
 
 	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !strings.Contains(contentType, util.MimeTypeApplicationJson) {

@@ -24,7 +24,6 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
-	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
 	listersv1 "k8s.io/client-go/listers/core/v1"
@@ -467,11 +466,11 @@ func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.Cluster
 	m.mutex.RUnlock()
 
 	if hit {
-		push := func(gvk config.GroupVersionKind) {
+		push := func(GVK config.GroupVersionKind) {
 			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,
 				ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
-					Kind:      kind.MustFromGVK(gvk),
+					Kind:      gvk.MustToKind(GVK),
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
