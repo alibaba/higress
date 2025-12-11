@@ -80,7 +80,7 @@ var originalProtocolGaladrielConfig = func() json.RawMessage {
 }()
 
 func RunGaladrielParseConfigTests(t *testing.T) {
-	test.RunTest(t, func(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
 		// 测试基本Galadriel配置解析
 		t.Run("basic galadriel config", func(t *testing.T) {
 			host, status := test.NewTestHost(basicGaladrielConfig)
