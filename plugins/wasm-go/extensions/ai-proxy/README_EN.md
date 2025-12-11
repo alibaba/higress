@@ -201,6 +201,18 @@ For Ollama, the corresponding `type` is `ollama`. Its unique configuration field
 | `ollamaServerHost` | string      | Required             | -             | The host address of the Ollama server.                                                                |
 | `ollamaServerPort` | number      | Required             | -             | The port number of the Ollama server, defaults to 11434.                                              |
 
+#### Generic
+
+For a vendor-agnostic passthrough, set the provider `type` to `generic`. Requests are forwarded without path remapping, while still benefiting from the shared header/basePath utilities.
+
+| Name           | Data Type | Requirement | Default | Description                                                                                              |
+|----------------|-----------|-------------|---------|----------------------------------------------------------------------------------------------------------|
+| `genericHost`  | string    | Optional    | -       | Overrides the upstream `Host` header. Use it to route traffic to a specific backend domain for generic proxying. |
+
+- When `apiTokens` are configured, the Generic provider injects `Authorization: Bearer <token>` automatically.
+- `firstByteTimeout` applies to any request whose body sets `stream: true`, ensuring consistent streaming behavior even without capability definitions.
+- `basePath` and `basePathHandling` remain available to strip or prepend prefixes before forwarding.
+
 #### Hunyuan
 
 For Hunyuan, the corresponding `type` is `hunyuan`. Its unique configuration fields are:

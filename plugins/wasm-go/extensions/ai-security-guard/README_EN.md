@@ -37,6 +37,9 @@ Plugin Priority: `300`
 | `sensitiveDataLevelBar` | string | optional | S4 | sensitiveData risk level threshold,  `S4`, `S3`, `S2` or `S1` |
 | `timeout` | int | optional | 2000 | timeout for lvwang service |
 | `bufferLimit` | int | optional | 1000 | Limit the length of each text when calling the lvwang service |
+| `consumerRequestCheckService` | map | optional | - | Specify specific request detection services for different consumers |
+| `consumerResponseCheckService` | map | optional | - | Specify specific response detection services for different consumers |
+| `consumerRiskLevel` | map | optional | - | Specify interception risk levels for different consumers in different dimensions |
 
 
 ## Examples of configuration

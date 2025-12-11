@@ -19,6 +19,7 @@ var basicQwenConfig = func() json.RawMessage {
 			"modelMapping": map[string]string{
 				"*": "qwen-turbo",
 			},
+			"qwenEnableCompatible": false,
 		},
 	})
 	return data
@@ -62,7 +63,8 @@ var qwenCustomDomainConfig = func() json.RawMessage {
 			"modelMapping": map[string]string{
 				"*": "qwen-turbo",
 			},
-			"qwenDomain": "custom.qwen.com",
+			"qwenDomain":           "custom.qwen.com",
+			"qwenEnableCompatible": false,
 		},
 	})
 	return data
