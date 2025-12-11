@@ -355,13 +355,21 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 		return types.ActionContinue
 	}
 
-	// Check Content-Type for response body logging
+	// Check Content-Type and Content-Encoding for response body logging
 	contentType := ""
+	hasContentEncoding := false
 	for _, header := range headers {
 		if strings.ToLower(header[0]) == "content-type" {
 			contentType = header[1]
-			break
+		} else if strings.ToLower(header[0]) == "content-encoding" {
+			hasContentEncoding = true
 		}
+	}
+
+	// Skip response body logging if content encoding is present (avoid logging compressed content)
+	if hasContentEncoding {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
 	}
 
 	// Skip response body logging if content type is not in the configured list

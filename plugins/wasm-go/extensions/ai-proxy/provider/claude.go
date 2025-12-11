@@ -279,8 +279,9 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (c *claudeProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): PathAnthropicMessages,
-		string(ApiNameCompletion):     PathAnthropicComplete,
+		string(ApiNameChatCompletion):    PathAnthropicMessages,
+		string(ApiNameCompletion):        PathAnthropicComplete,
+		string(ApiNameAnthropicMessages): PathAnthropicMessages,
 		// docs: https://docs.anthropic.com/en/docs/build-with-claude/embeddings#voyage-http-api
 		string(ApiNameEmbeddings): PathOpenAIEmbeddings,
 		string(ApiNameModels):     PathOpenAIModels,

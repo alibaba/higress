@@ -74,6 +74,9 @@ func (m *qwenProviderInitializer) DefaultCapabilities(qwenEnableCompatible bool)
 			string(ApiNameRetrieveFileContent): qwenCompatibleRetrieveFileContentPath,
 			string(ApiNameBatches):             qwenCompatibleBatchesPath,
 			string(ApiNameRetrieveBatch):       qwenCompatibleRetrieveBatchPath,
+			string(ApiNameQwenAsyncAIGC):       qwenAsyncAIGCPath,
+			string(ApiNameQwenAsyncTask):       qwenAsyncTaskPath,
+			string(ApiNameQwenV1Rerank):        qwenTextRerankPath,
 			string(ApiNameAnthropicMessages):   qwenAnthropicMessagesPath,
 		}
 	} else {
@@ -349,7 +352,7 @@ func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpCont
 
 	reasoningContentMode := m.config.reasoningContentMode
 
-	log.Warnf("incrementalStreaming: %v", incrementalStreaming)
+	log.Debugf("incrementalStreaming: %v", incrementalStreaming)
 	deltaContentMessage := &chatMessage{Role: message.Role, Content: message.Content, ReasoningContent: message.ReasoningContent}
 	deltaToolCallsMessage := &chatMessage{Role: message.Role, ToolCalls: append([]toolCall{}, message.ToolCalls...)}
 	if incrementalStreaming {
