@@ -31,6 +31,7 @@ const (
 	vertexChatCompletionAction       = "generateContent"
 	vertexChatCompletionStreamAction = "streamGenerateContent?alt=sse"
 	vertexEmbeddingAction            = "predict"
+	vertexGlobalRegion               = "global"
 )
 
 type vertexProviderInitializer struct{}
@@ -95,7 +96,7 @@ func (v *vertexProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	var finalVertexDomain string
-	if v.config.vertexRegion != "global" {
+	if v.config.vertexRegion != vertexGlobalRegion {
 		finalVertexDomain = fmt.Sprintf("%s-%s", v.config.vertexRegion, vertexDomain)
 	} else {
 		finalVertexDomain = vertexDomain
