@@ -86,6 +86,11 @@ func RunGaladrielParseConfigTests(t *testing.T) {
 			host, status := test.NewTestHost(basicGaladrielConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 验证配置是否被正确解析
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err, "GetMatchConfig should not return error")
+			require.NotNil(t, config, "Config should not be nil")
 		})
 
 		// 测试Galadriel多模型配置解析
@@ -93,6 +98,11 @@ func RunGaladrielParseConfigTests(t *testing.T) {
 			host, status := test.NewTestHost(galadrielMultiModelConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 验证配置是否被正确解析
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err, "GetMatchConfig should not return error")
+			require.NotNil(t, config, "Config should not be nil")
 		})
 
 		// 测试无效Galadriel配置（缺少apiToken）
@@ -107,6 +117,11 @@ func RunGaladrielParseConfigTests(t *testing.T) {
 			host, status := test.NewTestHost(completeGaladrielConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 验证配置是否被正确解析
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err, "GetMatchConfig should not return error")
+			require.NotNil(t, config, "Config should not be nil")
 		})
 	})
 }
@@ -142,6 +157,7 @@ func RunGaladrielOnHttpRequestHeadersTests(t *testing.T) {
 			// 验证Authorization是否被设置
 			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
 			require.True(t, hasAuth, "Authorization header should exist")
+			require.Contains(t, authValue, "Bearer ", "Authorization should contain Bearer prefix")
 			require.Contains(t, authValue, "gal-test123456789", "Authorization should contain Galadriel API token")
 
 			// 验证Path是否被正确处理
@@ -193,6 +209,7 @@ func RunGaladrielOnHttpRequestHeadersTests(t *testing.T) {
 			// 验证Authorization是否被设置
 			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
 			require.True(t, hasAuth, "Authorization header should exist")
+			require.Contains(t, authValue, "Bearer ", "Authorization should contain Bearer prefix")
 			require.Contains(t, authValue, "gal-test123456789", "Authorization should contain Galadriel API token")
 		})
 
