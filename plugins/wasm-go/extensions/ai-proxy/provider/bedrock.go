@@ -1059,17 +1059,19 @@ func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 				Text: text,
 			},
 		}
-		openaiContent := chatMessage.ParseContent()
-		for _, part := range openaiContent {
-			var content bedrockMessageContent
-			if part.Type == contentTypeText {
-				content.Text = part.Text
-			} else {
-				continue
+	} else if contentList, ok := chatMessage.Content.([]any); ok {
+		for _, contentItem := range contentList {
+			contentMap, ok := contentItem.(map[string]any)
+			if ok && contentMap["type"] == contentTypeText {
+				if text, ok := contentMap[contentTypeText].(string); ok {
+					toolResultContent.Content = append(toolResultContent.Content, toolResultContentBlock{
+						Text: text,
+					})
+				}
 			}
 		}
 	} else {
-		log.Warnf("only text content is supported, current content is %v", chatMessage.Content)
+		log.Warnf("the content type is not supported, current content is %v", chatMessage.Content)
 	}
 	return bedrockMessage{
 		Role: roleUser,
