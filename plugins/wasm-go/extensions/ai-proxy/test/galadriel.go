@@ -67,6 +67,18 @@ var completeGaladrielConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：Galadriel 原始协议配置
+var originalProtocolGaladrielConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":      "galadriel",
+			"apiTokens": []string{"gal-original"},
+			"protocol":  "original",
+		},
+	})
+	return data
+}()
+
 func RunGaladrielParseConfigTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		// 测试基本Galadriel配置解析
@@ -183,6 +195,67 @@ func RunGaladrielOnHttpRequestHeadersTests(t *testing.T) {
 			require.True(t, hasAuth, "Authorization header should exist")
 			require.Contains(t, authValue, "gal-test123456789", "Authorization should contain Galadriel API token")
 		})
+
+		// 测试 Galadriel 原始协议配置 (覆盖 GetApiName)
+		t.Run("galadriel original protocol", func(t *testing.T) {
+			host, status := test.NewTestHost(originalProtocolGaladrielConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			// 验证 ApiName 是否正确识别 (通过 logs 或者行为)
+			// 这里我们主要依靠覆盖率来确认 GetApiName 被调用
+			requestHeaders := host.GetRequestHeaders()
+			hostValue, _ := test.GetHeaderValue(requestHeaders, ":authority")
+			require.Equal(t, "api.galadriel.com", hostValue)
+		})
+
+		// 测试 Galadriel GetApiName - models endpoint
+		t.Run("galadriel get api name models", func(t *testing.T) {
+			host, status := test.NewTestHost(originalProtocolGaladrielConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头 - models endpoint
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/models"},
+				{":method", "GET"},
+			})
+
+			// GET 请求没有请求体，应该直接继续
+			require.Equal(t, types.ActionContinue, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			hostValue, _ := test.GetHeaderValue(requestHeaders, ":authority")
+			require.Equal(t, "api.galadriel.com", hostValue)
+		})
+
+		// 测试 Galadriel GetApiName - unknown path
+		t.Run("galadriel get api name unknown", func(t *testing.T) {
+			host, status := test.NewTestHost(originalProtocolGaladrielConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头 - unknown endpoint
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/unknown/endpoint"},
+				{":method", "GET"},
+			})
+
+			// 未知路径应该被跳过
+			require.Equal(t, types.ActionContinue, action)
+		})
 	})
 }
 
@@ -264,6 +337,35 @@ func RunGaladrielOnHttpRequestBodyTests(t *testing.T) {
 			actualRequestBody := host.GetRequestBody()
 			bodyStr := string(actualRequestBody)
 			require.Contains(t, bodyStr, `"model": "llama3.1"`, "gpt-3.5-turbo should be mapped to llama3.1")
+		})
+
+		// 测试不支持的 API (覆盖 OnRequestBody 错误路径)
+		t.Run("galadriel unsupported api", func(t *testing.T) {
+			host, status := test.NewTestHost(basicGaladrielConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 使用 embeddings 接口 (Galadriel 不支持)
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/embeddings"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model": "text-embedding-ada-002",
+				"input": "The food was delicious and the waiter..."
+			}`
+
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			// OnRequestBody 应该返回错误，但在 main.go 中被 catch 并调用 ErrorHandler
+			// ErrorHandler 会发送 HTTP 500 响应
+			require.Equal(t, types.ActionContinue, action)
+
+			// 验证是否发送了错误响应 (检查响应状态码)
+			// 注意：在测试框架中，SendHttpResponse 可能不会设置实际的响应头
+			// 我们主要是为了覆盖代码路径
 		})
 	})
 }

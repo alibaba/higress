@@ -122,6 +122,8 @@ func TestGaladriel(t *testing.T) {
 	test.RunGaladrielOnHttpResponseBodyTests(t)
 	test.RunGaladrielOnStreamingResponseBodyTests(t)
   
+}
+
 func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
 }
