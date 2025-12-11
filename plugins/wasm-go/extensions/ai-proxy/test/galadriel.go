@@ -43,8 +43,9 @@ var galadrielMultiModelConfig = func() json.RawMessage {
 var invalidGaladrielConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"provider": map[string]interface{}{
-			"type": "galadriel",
-			// 缺少apiTokens
+			"type":         "galadriel",
+			"apiTokens":    []string{},
+			"modelMapping": map[string]string{},
 		},
 	})
 	return data
