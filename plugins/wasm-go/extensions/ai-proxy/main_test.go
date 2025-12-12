@@ -114,6 +114,15 @@ func TestFireworks(t *testing.T) {
 	test.RunFireworksOnHttpRequestBodyTests(t)
 }
 
+func TestCerebras(t *testing.T) {
+	test.RunCerebrasParseConfigTests(t)
+	test.RunCerebrasOnHttpRequestHeadersTests(t)
+	test.RunCerebrasOnHttpRequestBodyTests(t)
+	test.RunCerebrasOnHttpResponseHeadersTests(t)
+	test.RunCerebrasOnHttpResponseBodyTests(t)
+	test.RunCerebrasOnStreamingResponseBodyTests(t)
+}
+
 func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
 }

@@ -26,9 +26,9 @@ The plugin now supports **automatic protocol detection**, allowing seamless comp
 > When the request path suffix matches `/v1/embeddings`, it corresponds to text vector scenarios. The request body will be parsed using OpenAI's text vector protocol and then converted to the corresponding LLM vendor's text vector protocol.
 
 ## Execution Properties
+
 Plugin execution phase: `Default Phase`
 Plugin execution priority: `100`
-
 
 ## Configuration Fields
 
@@ -255,6 +255,7 @@ For DeepL, the corresponding `type` is `deepl`. Its unique configuration field i
 | `targetLang` | string    | Required    | -       | The target language required by the DeepL translation service |
 
 #### Google Vertex AI
+
 For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
 
 | Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
@@ -276,6 +277,10 @@ For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration
 | `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
 | `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
 | `bedrockAdditionalFields` | map       | Optional    | -       | Additional inference parameters that the model supports |
+
+#### Cerebras
+
+For Cerebras, the corresponding `type` is `cerebras`. It has no unique configuration fields.
 
 ## Usage Examples
 
@@ -1669,6 +1674,7 @@ Here, `model` denotes the service tier of DeepL and can only be either `Free` or
 ### Utilizing OpenAI Protocol Proxy for Together-AI Services
 
 **Configuration Information**
+
 ```yaml
 provider:
   type: together-ai
@@ -1679,6 +1685,7 @@ provider:
 ```
 
 **Request Example**
+
 ```json
 {
     "model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
@@ -1692,6 +1699,7 @@ provider:
 ```
 
 **Response Example**
+
 ```json
 {
   "id": "8f5809d54b73efac",
@@ -1721,7 +1729,9 @@ provider:
 ```
 
 ### Utilizing OpenAI Protocol Proxy for Google Vertex Services
+
 **Configuration Information**
+
 ```yaml
 provider:
   type: vertex
@@ -1740,6 +1750,7 @@ provider:
 ```
 
 **Request Example**
+
 ```json
 {
   "model": "gemini-2.0-flash-001",
@@ -1754,6 +1765,7 @@ provider:
 ```
 
 **Response Example**
+
 ```json
 {
   "id": "chatcmpl-0000000000000",
@@ -1779,7 +1791,9 @@ provider:
 ```
 
 ### Utilizing OpenAI Protocol Proxy for AWS Bedrock Services
+
 **Configuration Information**
+
 ```yaml
 provider:
   type: bedrock
@@ -1791,6 +1805,7 @@ provider:
 ```
 
 **Request Example**
+
 ```json
 {
   "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
@@ -1805,6 +1820,7 @@ provider:
 ```
 
 **Response Example**
+
 ```json
 {
   "id": "d52da49d-daf3-49d9-a105-0b527481fe14",
@@ -1825,6 +1841,62 @@ provider:
     "prompt_tokens": 10,
     "completion_tokens": 57,
     "total_tokens": 67
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Cerebras Services
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: cerebras
+  apiTokens:
+    - "YOUR_CEREBRAS_API_TOKEN"
+  modelMapping:
+    "gpt-4": "llama3.1-70b"
+    "gpt-3.5-turbo": "llama3.1-8b"
+    "*": "llama3.1-8b"
+```
+
+**Request Example**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "who are you"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+
+```json
+{
+  "id": "cmpl-123456789",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "llama3.1-70b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am an AI assistant powered by Cerebras, based on the Llama 3.1 model. I can help answer questions, engage in conversations, and provide various information. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 50,
+    "total_tokens": 60
   }
 }
 ```
@@ -1858,6 +1930,7 @@ providers:
   "stream": false
 }
 ```
+
 **Response Example**
 
 ```json
