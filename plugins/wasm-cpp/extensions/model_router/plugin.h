@@ -48,9 +48,10 @@ struct ModelRouterConfigRule {
   std::string add_provider_header_;
   std::string model_to_header_;
   std::vector<std::string> enable_on_path_suffix_ = {
-      "/completions",  "/embeddings",       "/images/generations",
-      "/audio/speech", "/fine_tuning/jobs", "/moderations",
-      "/image-synthesis", "/video-synthesis"};
+      "/completions",     "/embeddings",       "/images/generations",
+      "/audio/speech",    "/fine_tuning/jobs", "/moderations",
+      "/image-synthesis", "/video-synthesis",  "/rerank",
+      "/messages"};
 };
 
 class PluginContext;
@@ -65,13 +66,20 @@ class PluginRootContext : public RootContext,
       : RootContext(id, root_id) {}
   ~PluginRootContext() {}
   bool onConfigure(size_t) override;
-  FilterHeadersStatus onHeader(PluginContext& ctx, const ModelRouterConfigRule&);
+  FilterHeadersStatus onHeader(PluginContext& ctx,
+                               const ModelRouterConfigRule&);
   FilterDataStatus onJsonBody(const ModelRouterConfigRule&, std::string_view);
-  FilterDataStatus onMultipartBody(PluginContext& ctx, const ModelRouterConfigRule& rule, WasmDataPtr& body, bool end_stream);
+  FilterDataStatus onMultipartBody(PluginContext& ctx,
+                                   const ModelRouterConfigRule& rule,
+                                   WasmDataPtr& body, bool end_stream);
   bool configure(size_t);
+  void incrementRequestCount();
 
  private:
   bool parsePluginConfig(const json&, ModelRouterConfigRule&) override;
+  uint64_t request_count_ = 0;
+  static constexpr uint64_t REBUILD_THRESHOLD = 1000;
+  static constexpr size_t MEMORY_THRESHOLD_BYTES = 200 * 1024 * 1024;
 };
 
 // Per-stream context.
