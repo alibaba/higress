@@ -157,7 +157,8 @@ TEST_F(ModelRouterTest, RewriteModelAndHeader) {
   body_.set(request_json);
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
-  EXPECT_EQ(context_->onRequestBody(request_json.length(), true), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(request_json.length(), true),
+            FilterDataStatus::Continue);
 }
 
 TEST_F(ModelRouterTest, ModelToHeader) {
@@ -183,7 +184,8 @@ TEST_F(ModelRouterTest, ModelToHeader) {
   body_.set(request_json);
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
-  EXPECT_EQ(context_->onRequestBody(request_json.length(), true), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(request_json.length(), true),
+            FilterDataStatus::Continue);
 }
 
 TEST_F(ModelRouterTest, IgnorePath) {
@@ -210,7 +212,8 @@ TEST_F(ModelRouterTest, IgnorePath) {
   body_.set(request_json);
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::Continue);
-  EXPECT_EQ(context_->onRequestBody(request_json.length(), true), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(request_json.length(), true),
+            FilterDataStatus::Continue);
 }
 
 TEST_F(ModelRouterTest, RouteLevelRewriteModelAndHeader) {
@@ -244,9 +247,9 @@ TEST_F(ModelRouterTest, RouteLevelRewriteModelAndHeader) {
   route_name_ = "route-a";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
-  EXPECT_EQ(context_->onRequestBody(request_json.length(), true), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(request_json.length(), true),
+            FilterDataStatus::Continue);
 }
-
 
 TEST_F(ModelRouterTest, RewriteModelAndHeaderMultipartFormData) {
   std::string configuration = R"({
@@ -257,8 +260,11 @@ TEST_F(ModelRouterTest, RewriteModelAndHeaderMultipartFormData) {
   EXPECT_TRUE(root_context_->configure(configuration.size()));
 
   path_ = "/v1/chat/completions";
-  content_type_ = "multipart/form-data; boundary=--------------------------100751621174704322650451";
-  std::string request_data = std::regex_replace(R"(
+  content_type_ =
+      "multipart/form-data; "
+      "boundary=--------------------------100751621174704322650451";
+  std::string request_data = std::regex_replace(
+      R"(
 ----------------------------100751621174704322650451
 Content-Disposition: form-data; name="purpose"
 
@@ -274,16 +280,21 @@ Content-Type: application/json
 [
 ]
 ----------------------------100751621174704322650451--
-)", std::regex("\n"), "\r\n"); // Multipart data requires CRLF line endings
+)",
+      std::regex("\n"), "\r\n");  // Multipart data requires CRLF line endings
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
-      .WillOnce([&](WasmBufferType, size_t start, size_t length, std::string_view body) {
-        std::cerr << "===============" << "\n";
+      .WillOnce([&](WasmBufferType, size_t start, size_t length,
+                    std::string_view body) {
+        std::cerr << "==============="
+                  << "\n";
         std::cerr << body << "\n";
-        std::cerr << "===============" << "\n";
+        std::cerr << "==============="
+                  << "\n";
         EXPECT_EQ(start, 0);
         EXPECT_EQ(length, std::numeric_limits<size_t>::max());
-        auto expected_body= std::regex_replace(R"(
+        auto expected_body = std::regex_replace(
+            R"(
 ----------------------------100751621174704322650451
 Content-Disposition: form-data; name="purpose"
 
@@ -292,7 +303,9 @@ batch
 Content-Disposition: form-data; name="model"
 
 qwen-turbo
-)", std::regex("\n"), "\r\n"); // Multipart data requires CRLF line endings
+)",
+            std::regex("\n"),
+            "\r\n");  // Multipart data requires CRLF line endings
         EXPECT_EQ(body, expected_body);
         return WasmResult::Ok;
       });
@@ -308,42 +321,54 @@ qwen-turbo
 
   auto last_body_size = 0;
 
-  auto body = request_data.substr(0, request_data.find("batch") + 5 + 2 /* batch + CRLF */);
+  auto body = request_data.substr(
+      0, request_data.find("batch") + 5 + 2 /* batch + CRLF */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("\"model\"") + 5 + 2 + 2 /* "model" + CRLF + CRLF */);
+  body = request_data.substr(0, request_data.find("\"model\"") + 5 + 2 +
+                                    2 /* "model" + CRLF + CRLF */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
   body = request_data.substr(0, request_data.find("qwen") + 4 /* "qwen" */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("qwen-turbo") + 10 /* "qwen-turbo" */);
+  body = request_data.substr(
+      0, request_data.find("qwen-turbo") + 10 /* "qwen-turbo" */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("qwen-turbo") + 10 + 2 /* "qwen-turbo" + CRLF */);
+  body = request_data.substr(
+      0, request_data.find("qwen-turbo") + 10 + 2 /* "qwen-turbo" + CRLF */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::Continue);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("qwen-turbo") + 10 + 2 + 50 /* "qwen-turbo" + CRLF + boundary */);
+  body = request_data.substr(0, request_data.find("qwen-turbo") + 10 + 2 +
+                                    50 /* "qwen-turbo" + CRLF + boundary */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::Continue);
   last_body_size = body.size();
 
   body_.set(request_data);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, true), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, true),
+            FilterDataStatus::Continue);
 }
 
 TEST_F(ModelRouterTest, ModelToHeaderMultipartFormData) {
-  std::string configuration =  R"(
+  std::string configuration = R"(
 {
   "modelToHeader": "x-higress-llm-model"
 })";
@@ -352,8 +377,11 @@ TEST_F(ModelRouterTest, ModelToHeaderMultipartFormData) {
   EXPECT_TRUE(root_context_->configure(configuration.size()));
 
   path_ = "/v1/chat/completions";
-  content_type_ = "multipart/form-data; boundary=--------------------------100751621174704322650451";
-  std::string request_data = std::regex_replace(R"(
+  content_type_ =
+      "multipart/form-data; "
+      "boundary=--------------------------100751621174704322650451";
+  std::string request_data = std::regex_replace(
+      R"(
 ----------------------------100751621174704322650451
 Content-Disposition: form-data; name="purpose"
 
@@ -369,7 +397,8 @@ Content-Type: application/json
 [
 ]
 ----------------------------100751621174704322650451--
-)", std::regex("\n"), "\r\n"); // Multipart data requires CRLF line endings
+)",
+      std::regex("\n"), "\r\n");  // Multipart data requires CRLF line endings
   EXPECT_CALL(*mock_context_,
               setBuffer(testing::_, testing::_, testing::_, testing::_))
       .Times(0);
@@ -384,38 +413,50 @@ Content-Type: application/json
 
   auto last_body_size = 0;
 
-  auto body = request_data.substr(0, request_data.find("batch") + 5 + 2 /* batch + CRLF */);
+  auto body = request_data.substr(
+      0, request_data.find("batch") + 5 + 2 /* batch + CRLF */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("\"model\"") + 5 + 2 + 2 /* "model" + CRLF + CRLF */);
+  body = request_data.substr(0, request_data.find("\"model\"") + 5 + 2 +
+                                    2 /* "model" + CRLF + CRLF */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
   body = request_data.substr(0, request_data.find("qwen") + 4 /* "qwen" */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("qwen-max") + 8 /* "qwen-max" */);
+  body = request_data.substr(
+      0, request_data.find("qwen-max") + 8 /* "qwen-max" */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::StopIterationAndBuffer);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::StopIterationAndBuffer);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("qwen-max") + 8 + 2 /* "qwen-max" + CRLF */);
+  body = request_data.substr(
+      0, request_data.find("qwen-max") + 8 + 2 /* "qwen-max" + CRLF */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::Continue);
   last_body_size = body.size();
 
-  body = request_data.substr(0, request_data.find("qwen-max") + 8 + 2 + 50 /* "qwen-max" + CRLF */);
+  body = request_data.substr(
+      0, request_data.find("qwen-max") + 8 + 2 + 50 /* "qwen-max" + CRLF */);
   body_.set(body);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, false),
+            FilterDataStatus::Continue);
   last_body_size = body.size();
 
   body_.set(request_data);
-  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, true), FilterDataStatus::Continue);
+  EXPECT_EQ(context_->onRequestBody(body.size() - last_body_size, true),
+            FilterDataStatus::Continue);
 }
 
 }  // namespace model_router

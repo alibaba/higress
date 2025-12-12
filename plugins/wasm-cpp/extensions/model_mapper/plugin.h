@@ -42,9 +42,10 @@ struct ModelMapperConfigRule {
   std::vector<std::pair<std::string, std::string>> prefix_model_mapping_;
   std::string default_model_mapping_;
   std::vector<std::string> enable_on_path_suffix_ = {
-      "/completions",  "/embeddings",       "/images/generations",
-      "/audio/speech", "/fine_tuning/jobs", "/moderations",
-      "/image-synthesis", "/video-synthesis"};
+      "/completions",     "/embeddings",       "/images/generations",
+      "/audio/speech",    "/fine_tuning/jobs", "/moderations",
+      "/image-synthesis", "/video-synthesis",  "/rerank",
+      "/messages"};
 };
 
 // PluginRootContext is the root context for all streams processed by the
@@ -60,9 +61,13 @@ class PluginRootContext : public RootContext,
   FilterHeadersStatus onHeader(const ModelMapperConfigRule&);
   FilterDataStatus onBody(const ModelMapperConfigRule&, std::string_view);
   bool configure(size_t);
+  void incrementRequestCount();
 
  private:
   bool parsePluginConfig(const json&, ModelMapperConfigRule&) override;
+  uint64_t request_count_ = 0;
+  static constexpr uint64_t REBUILD_THRESHOLD = 1000;
+  static constexpr size_t MEMORY_THRESHOLD_BYTES = 200 * 1024 * 1024;
 };
 
 // Per-stream context.
