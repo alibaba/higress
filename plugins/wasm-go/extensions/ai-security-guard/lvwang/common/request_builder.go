@@ -219,8 +219,8 @@ func GenerateRequestForImage(config cfg.AISecurityConfig, checkAction, checkServ
 	if imgUrl != "" {
 		serviceParameters["imageUrls"] = []string{imgUrl}
 	}
-	serviceParametersJSON, _ := json.Marshal(serviceParameters)
 	serviceParameters["requestFrom"] = cfg.AliyunUserAgent
+	serviceParametersJSON, _ := json.Marshal(serviceParameters)
 	body["ServiceParameters"] = serviceParametersJSON
 	if imgBase64 != "" {
 		body["ImageBase64Str"] = imgBase64
