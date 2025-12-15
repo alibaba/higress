@@ -25,12 +25,13 @@ import (
 
 const (
 	vertexAuthDomain = "oauth2.googleapis.com"
-	vertexDomain     = "{REGION}-aiplatform.googleapis.com"
+	vertexDomain     = "aiplatform.googleapis.com"
 	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{MODEL_ID}:{ACTION}
 	vertexPathTemplate               = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
 	vertexChatCompletionAction       = "generateContent"
 	vertexChatCompletionStreamAction = "streamGenerateContent?alt=sse"
 	vertexEmbeddingAction            = "predict"
+	vertexGlobalRegion               = "global"
 )
 
 type vertexProviderInitializer struct{}
@@ -94,8 +95,13 @@ func (v *vertexProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	vertexRegionDomain := strings.Replace(vertexDomain, "{REGION}", v.config.vertexRegion, 1)
-	util.OverwriteRequestHostHeader(headers, vertexRegionDomain)
+	var finalVertexDomain string
+	if v.config.vertexRegion != vertexGlobalRegion {
+		finalVertexDomain = fmt.Sprintf("%s-%s", v.config.vertexRegion, vertexDomain)
+	} else {
+		finalVertexDomain = vertexDomain
+	}
+	util.OverwriteRequestHostHeader(headers, finalVertexDomain)
 }
 
 func (v *vertexProvider) getToken() (cached bool, err error) {
