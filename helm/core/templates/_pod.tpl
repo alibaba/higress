@@ -60,9 +60,6 @@ template:
           allowPrivilegeEscalation: false
           privileged: false
           # When enabling lite metrics, the configuration template files need to be replaced.
-          {{- if not .Values.global.liteMetrics }}
-          readOnlyRootFilesystem: true
-          {{- end }}
           runAsUser: 1337
           runAsGroup: 1337
           runAsNonRoot: true
