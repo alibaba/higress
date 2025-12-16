@@ -174,11 +174,13 @@ func (m *azureProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName Ap
 }
 
 func (m *azureProvider) transformRequestPath(ctx wrapper.HttpContext, apiName ApiName) string {
-	originalPath := util.GetOriginalRequestPath()
-
+	// When using original protocol, don't overwrite the path.
+	// This ensures basePathHandling works correctly even in TransformRequestBody stage.
 	if m.config.IsOriginal() {
-		return originalPath
+		return ""
 	}
+
+	originalPath := util.GetOriginalRequestPath()
 
 	if m.serviceUrlType == azureServiceUrlTypeFull {
 		log.Debugf("azureProvider: use configured path %s", m.serviceUrlFullPath)

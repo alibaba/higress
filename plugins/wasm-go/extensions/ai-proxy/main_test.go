@@ -106,12 +106,17 @@ func TestAzure(t *testing.T) {
 	test.RunAzureOnHttpRequestBodyTests(t)
 	test.RunAzureOnHttpResponseHeadersTests(t)
 	test.RunAzureOnHttpResponseBodyTests(t)
+	test.RunAzureBasePathHandlingTests(t)
 }
 
 func TestFireworks(t *testing.T) {
 	test.RunFireworksParseConfigTests(t)
 	test.RunFireworksOnHttpRequestHeadersTests(t)
 	test.RunFireworksOnHttpRequestBodyTests(t)
+}
+
+func TestMinimax(t *testing.T) {
+	test.RunMinimaxBasePathHandlingTests(t)
 }
 
 func TestUtil(t *testing.T) {

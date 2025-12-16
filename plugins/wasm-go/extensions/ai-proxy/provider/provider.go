@@ -973,12 +973,33 @@ func (c *ProviderConfig) handleRequestBody(
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
 	headers := util.GetRequestHeaders()
 	originPath := headers.Get(":path")
+
+	// Record the path after removePrefix processing
+	var removePrefixPath string
 	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
-		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
+		removePrefixPath = strings.TrimPrefix(originPath, c.basePath)
+		headers.Set(":path", removePrefixPath)
 	}
+
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
 		handler.TransformRequestHeaders(ctx, apiName, headers)
 	}
+
+	// When using original protocol with removePrefix, restore the basePath-processed path.
+	// This ensures basePathHandling works correctly even when TransformRequestHeaders
+	// overwrites the path (which most providers do).
+	//
+	// TODO: Most providers (OpenAI, vLLM, DeepSeek, Claude, etc.) unconditionally overwrite
+	// the path in TransformRequestHeaders without checking IsOriginal(). Ideally, each provider
+	// should check IsOriginal() before overwriting the path (like Qwen does). Once all providers
+	// are updated to handle protocol correctly, this workaround can be removed.
+	// Affected providers: OpenAI, vLLM, ZhipuAI, Moonshot, Longcat, DeepSeek, Azure, Yi,
+	// TogetherAI, Stepfun, Ollama, Hunyuan, GitHub, Doubao, Cohere, Baichuan, AI360, Claude,
+	// Groq, Grok, Spark, Fireworks, Cloudflare, Baidu, OpenRouter, DeepL (24+ providers)
+	if c.IsOriginal() && removePrefixPath != "" {
+		headers.Set(":path", removePrefixPath)
+	}
+
 	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
 		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
 	}

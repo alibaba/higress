@@ -106,8 +106,11 @@ func (m *minimaxProvider) handleRequestBodyByChatCompletionPro(body []byte) (typ
 	}
 
 	// Map the model and rewrite the request path.
+	// When using original protocol, don't overwrite the path to ensure basePathHandling works correctly.
 	request.Model = getMappedModel(request.Model, m.config.modelMapping)
-	_ = util.OverwriteRequestPath(fmt.Sprintf("%s?GroupId=%s", minimaxChatCompletionProPath, m.config.minimaxGroupId))
+	if !m.config.IsOriginal() {
+		_ = util.OverwriteRequestPath(fmt.Sprintf("%s?GroupId=%s", minimaxChatCompletionProPath, m.config.minimaxGroupId))
+	}
 
 	if m.config.context == nil {
 		minimaxRequest := m.buildMinimaxChatCompletionProRequest(request, "")
