@@ -114,6 +114,15 @@ func TestFireworks(t *testing.T) {
 	test.RunFireworksOnHttpRequestBodyTests(t)
 }
 
+func TestGaladriel(t *testing.T) {
+	test.RunGaladrielParseConfigTests(t)
+	test.RunGaladrielOnHttpRequestHeadersTests(t)
+	test.RunGaladrielOnHttpRequestBodyTests(t)
+	test.RunGaladrielOnHttpResponseHeadersTests(t)
+	test.RunGaladrielOnHttpResponseBodyTests(t)
+	test.RunGaladrielOnStreamingResponseBodyTests(t)
+}
+
 func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
 }
