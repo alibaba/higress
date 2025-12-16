@@ -83,6 +83,7 @@ Port descriptions:
 > If you experience a timeout when pulling image from `higress-registry.cn-hangzhou.cr.aliyuncs.com`, you can try replacing it with the following docker registry mirror source:
 > 
 > **North America**: `higress-registry.us-west-1.cr.aliyuncs.com`
+> 
 > **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
 
 For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
