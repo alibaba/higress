@@ -672,6 +672,26 @@ mod tests {
         assert_eq!(c.1.age, 16);
     }
 
+    #[test]
+    fn test_match_route1_config() {
+        let mut rule: RuleMatcher<CustomConfig> = RuleMatcher::default();
+
+        let res = rule.parse_rule_config(
+            &serde_json::from_str(
+                r#"{"_rules_":[{"_match_route_":["test1"]}]}"#,
+            )
+            .unwrap(),
+        );
+        assert!(res.is_ok());
+        let config = rule.get_match_config_by_args("test", "test", "test");
+        assert!(config.is_none());
+        let config = rule.get_match_config_by_args("test", "test1", "test");
+        assert!(config.is_some());
+        let c = config.unwrap();
+        assert_eq!(c.1.name, "");
+        assert_eq!(c.1.age, 0);
+
+    }
     #[derive(Default, Clone, Deserialize, PartialEq, Eq)]
     struct CompleteConfig {
         // global config
