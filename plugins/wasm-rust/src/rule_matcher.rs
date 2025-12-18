@@ -677,10 +677,7 @@ mod tests {
         let mut rule: RuleMatcher<CustomConfig> = RuleMatcher::default();
 
         let res = rule.parse_rule_config(
-            &serde_json::from_str(
-                r#"{"_rules_":[{"_match_route_":["test1"]}]}"#,
-            )
-            .unwrap(),
+            &serde_json::from_str(r#"{"_rules_":[{"_match_route_":["test1"]}]}"#).unwrap(),
         );
         assert!(res.is_ok());
         let config = rule.get_match_config_by_args("test", "test", "test");
@@ -690,7 +687,6 @@ mod tests {
         let c = config.unwrap();
         assert_eq!(c.1.name, "");
         assert_eq!(c.1.age, 0);
-
     }
     #[derive(Default, Clone, Deserialize, PartialEq, Eq)]
     struct CompleteConfig {
