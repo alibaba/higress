@@ -279,7 +279,7 @@ where
             // According to RFC3986 v6 address is always enclosed in "[]".
             // section 3.2.2.
             let v6_end_index = req_host.rfind(']');
-            if v6_end_index.is_none_or(|idx| idx < port_start) && port_start < req_host.len() {
+            if v6_end_index.map_or(true, |idx| idx < port_start) && port_start < req_host.len() {
                 return req_host[..port_start].to_string();
             }
         }
