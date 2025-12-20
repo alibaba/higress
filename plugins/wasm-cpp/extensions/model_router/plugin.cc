@@ -227,6 +227,8 @@ FilterHeadersStatus PluginRootContext::onHeader(
     LOG_DEBUG(absl::StrCat("Enable multipart/form-data mode. Boundary=",
                            boundary_value));
     removeRequestHeader(Wasm::Common::Http::Header::ContentLength);
+    setFilterState(SetDecoderBufferLimitKey, DefaultMaxBodyBytes);
+    LOG_INFO(absl::StrCat("SetRequestBodyBufferLimit: ", DefaultMaxBodyBytes));
     return FilterHeadersStatus::StopIteration;
   }
   return FilterHeadersStatus::Continue;
