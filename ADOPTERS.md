@@ -7,4 +7,5 @@ Below are the adopters of the Higress project. If you are using Higress in your 
 |---------------------------------------|----------------------------------------|--------------------------------------------|-----------------------------------------------------------------------|
 | [antdigital](https://antdigital.com/) | [@Lovelcp](https://github.com/Lovelcp) | Production  | Ingress Gateway, Microservice gateway, LLM Gateway, MCP Gateway |
 | [Trip.com](https://www.trip.com/)     | [@CH3CHO](https://github.com/CH3CHO)   | Production  | LLM Gateway, MCP Gateway |
+| [vipshop](https://github.com/vipshop/) | [@firebook](https://github.com/firebook) | Production  | AI gateway |
 | < company name here>                  | < your github handle here >            | <Production/Testing/Experimenting/etc>       | <Ingress Gateway/Microservice gateway/LLM Gateway/MCP Gateway>                                       |
