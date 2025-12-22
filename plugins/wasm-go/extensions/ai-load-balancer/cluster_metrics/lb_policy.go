@@ -171,14 +171,26 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpRequestBody(ctx wrapper.HttpCont
 }
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.HttpContext) types.Action {
+	statusCode, _ := proxywasm.GetHttpResponseHeader(":status")
+	ctx.SetContext("statusCode", statusCode)
 	return types.ActionContinue
 }
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
 	if ctx.GetContext("ttft_recorded") == nil {
 		candidate := ctx.GetContext(lb.ClusterHeader).(string)
-		duration := time.Now().UnixMilli() - ctx.GetContext("request_start").(int64)
-		lb.FirstTokenLatencyRequests[candidate].Enqueue(float64(duration))
+		duration := float64(time.Now().UnixMilli() - ctx.GetContext("request_start").(int64))
+		// punish failed request
+		if ctx.GetContext("statusCode").(string) != "200" {
+			for _, svc := range lb.ServiceList {
+				ttft := lb.getServiceTTFT(svc)
+				if duration < ttft {
+					duration = ttft
+				}
+			}
+			duration *= 2
+		}
+		lb.FirstTokenLatencyRequests[candidate].Enqueue(duration)
 		ctx.SetContext("ttft_recorded", struct{}{})
 	}
 	return data
@@ -190,7 +202,17 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpCon
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {
 	candidate := ctx.GetContext(lb.ClusterHeader).(string)
-	duration := time.Now().UnixMilli() - ctx.GetContext("request_start").(int64)
-	lb.TotalLatencyRequests[candidate].Enqueue(float64(duration))
 	lb.ServiceRequestOngoing[candidate] -= 1
+	duration := float64(time.Now().UnixMilli() - ctx.GetContext("request_start").(int64))
+	// punish failed request
+	if ctx.GetContext("statusCode").(string) != "200" {
+		for _, svc := range lb.ServiceList {
+			rt := lb.getServiceTotalRT(svc)
+			if duration < rt {
+				duration = rt
+			}
+		}
+		duration *= 2
+	}
+	lb.TotalLatencyRequests[candidate].Enqueue(duration)
 }
