@@ -17,13 +17,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-type ImageItemForOpenAI struct {
+type ImageItem struct {
 	Content string
 	Type    string // URL or BASE64
 }
 
-func parseContent(json gjson.Result) (text string, images []ImageItemForOpenAI) {
-	images = []ImageItemForOpenAI{}
+func parseContent(json gjson.Result) (text string, images []ImageItem) {
+	images = []ImageItem{}
 	if json.IsArray() {
 		for _, item := range json.Array() {
 			switch item.Get("type").String() {
@@ -32,12 +32,12 @@ func parseContent(json gjson.Result) (text string, images []ImageItemForOpenAI) 
 			case "image_url":
 				imgContent := item.Get("image_url.url").String()
 				if strings.HasPrefix(imgContent, "data:image") {
-					images = append(images, ImageItemForOpenAI{
+					images = append(images, ImageItem{
 						Content: imgContent,
 						Type:    "BASE64",
 					})
 				} else {
-					images = append(images, ImageItemForOpenAI{
+					images = append(images, ImageItem{
 						Content: imgContent,
 						Type:    "URL",
 					})
