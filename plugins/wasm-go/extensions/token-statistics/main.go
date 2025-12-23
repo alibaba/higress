@@ -389,7 +389,8 @@ func extractStreamingTokenUsage(model string, data []byte) *TokenUsage {
 	case "togetherai":
 		togetheraiExporter := &TogetherAI{}
 		return togetheraiExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
-
+	default:
+		return nil
 	}
 }
 
