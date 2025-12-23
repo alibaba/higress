@@ -286,22 +286,110 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config PluginConfig, data []by
 
 // 从流式响应中提取Token使用量
 func extractStreamingTokenUsage(model string, data []byte) *TokenUsage {
-	switch model {
-	case "gpt-4", "gpt-4-turbo", "gpt-3.5-turbo", "gpt-3.5-turbo-0301":
+	// 统一转为小写，兼容大小写输入（如"OpenAI"="openai"）
+	normalizedType := strings.TrimSpace(strings.ToLower(model))
+
+	// 处理别名（兼容不同命名习惯）
+	switch normalizedType {
+	case "azureopenai", "azure_openai":
+		normalizedType = "azure"
+	case "zhipu", "chatglm":
+		normalizedType = "zhipuai"
+	case "baidu", "ernie":
+		normalizedType = "baidu"
+	case "sparkai", "xunfei":
+		normalizedType = "spark"
+	case "hunyuanai", "tencent":
+		normalizedType = "hunyuan"
+	case "360", "360zhinao":
+		normalizedType = "ai360"
+	case "stepfunai", "jieyue":
+		normalizedType = "stepfun"
+	case "anthropic", "claudeai":
+		normalizedType = "claude"
+	case "together", "together-ai":
+		normalizedType = "togetherai"
+	case "cloudflareai", "cfai":
+		normalizedType = "cloudflare"
+	}
+
+	// 核心类型映射（覆盖所有供应商）
+	switch normalizedType {
+	// 基础类型
+	case "openai":
 		openAIExporter := &OpenAI{}
 		return openAIExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
-	case "gemini-1", "gemini-1.5", "gemini-2":
-		geminiExporter := &GoogleGemini{}
-		return geminiExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
-	case "deepseek-001", "deepseek-002":
+	case "azure":
+		azureaiExporter := &AzureOpenAI{}
+		return azureaiExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+
+	// 国内厂商
+	case "qwen":
+		qwenExporter := &Qwen{}
+		return qwenExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "moonshot":
+		moonshotExporter := &Moonshot{}
+		return moonshotExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "zhipuai":
+		zhipuExporter := &ZhipuAI{}
+		return zhipuExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "baichuan":
+		baichuanExporter := &Baichuan{}
+		return baichuanExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "yi":
+		yiExporter := &Yi{}
+		return yiExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "baidu":
+		baiduExporter := &Baidu{}
+		return baiduExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "spark":
+		sparkExporter := &Spark{}
+		return sparkExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "hunyuan":
+		hunyuanExporter := &Hunyuan{}
+		return hunyuanExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "minimax":
+		minimaxExporter := &MiniMax{}
+		return minimaxExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "ai360":
+		ai360Exporter := &AI360{}
+		return ai360Exporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "stepfun":
+		stepfunExporter := &Stepfun{}
+		return stepfunExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "deepseek":
 		deepseekExporter := &DeepSeek{}
 		return deepseekExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
-	// 添加其他模型支持
-	case "claude-2", "claude-instant-100k":
-		anthropicExporter := &Anthropic{}
-		return anthropicExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
-	default:
-		return nil
+
+	// 国外厂商
+	case "claude":
+		claudeExporter := &Claude{}
+		return claudeExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "groq":
+		groqExporter := &Groq{}
+		return groqExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "mistral":
+		mistralExporter := &Mistral{}
+		return mistralExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "gemini":
+		geminiExporter := &Gemini{}
+		return geminiExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "ollama":
+		ollamaExporter := &Ollama{}
+		return ollamaExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "deepl":
+		deeplExporter := &DeepL{}
+		return deeplExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "cohere":
+		cohereExporter := &Cohere{}
+		return cohereExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "cloudflare":
+		cloudflareExporter := &Cloudflare{}
+		return cloudflareExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+	case "togetherai":
+		togetheraiExporter := &TogetherAI{}
+		return togetheraiExporter.ExtractTokenUsage(gjson.ParseBytes(data), data)
+
 	}
 }
 
