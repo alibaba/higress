@@ -384,6 +384,76 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 	})
 }
 
+func TestOnHttpResponseBody(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试响应体安全检查通过
+		t.Run("response body security check pass", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 设置响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			// 设置响应体
+			body := `{"choices": [{"message": {"role": "assistant", "content": "Hello, how can I help you?"}}]}`
+			action := host.CallOnHttpResponseBody([]byte(body))
+
+			// 应该返回ActionPause，等待安全检查结果
+			require.Equal(t, types.ActionPause, action)
+
+			// 模拟安全检查服务响应（通过）
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-123", "Data": {"RiskLevel": "low"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			action = host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+
+			host.CompleteHttp()
+		})
+
+		// 测试空响应内容
+		t.Run("empty response content", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 设置响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			// 设置空内容的响应体
+			body := `{"choices": [{"message": {"role": "assistant", "content": ""}}]}`
+			action := host.CallOnHttpResponseBody([]byte(body))
+
+			// 空内容应该直接通过
+			require.Equal(t, types.ActionContinue, action)
+		})
+	})
+}
+
 func TestRiskLevelFunctions(t *testing.T) {
 	// 测试风险等级转换函数
 	t.Run("risk level conversion", func(t *testing.T) {
