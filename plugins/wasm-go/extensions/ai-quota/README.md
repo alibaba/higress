@@ -6,9 +6,9 @@ description: AI 配额管理插件配置参考
 
 ## 功能说明
 
-`ai-qutoa` 插件实现给特定 consumer 根据分配固定的 quota 进行 quota 策略限流，同时支持 quota 管理能力，包括查询 quota 、刷新 quota、增减 quota。
+`ai-quota` 插件实现给特定 consumer 根据分配固定的 quota 进行 quota 策略限流，同时支持 quota 管理能力，包括查询 quota 、刷新 quota、增减 quota。
 
-`ai-quota` 插件需要配合 认证插件比如 `key-auth`、`jwt-auth` 等插件获取认证身份的 consumer 名称，同时需要配合 `ai-statatistics` 插件获取 AI Token 统计信息。
+`ai-quota` 插件需要配合 认证插件比如 `key-auth`、`jwt-auth` 等插件获取认证身份的 consumer 名称，同时需要配合 `ai-statistics` 插件获取 AI Token 统计信息。
 
 ## 运行属性
 
@@ -26,14 +26,14 @@ description: AI 配额管理插件配置参考
 
 `redis`中每一项的配置字段说明
 
-| 配置项       | 类型   | 必填 | 默认值                                                     | 说明                        |
-| ------------ | ------ | ---- | ---------------------------------------------------------- | --------------------------- |
-| service_name | string | 必填 | -                                                          | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local     |
-| service_port | int    | 否   | 服务类型为固定地址（static service）默认值为80，其他为6379 | 输入redis服务的服务端口     |
-| username     | string | 否   | -                                                          | redis用户名                 |
-| password     | string | 否   | -                                                          | redis密码                   |
-| timeout      | int    | 否   | 1000                                                       | redis连接超时时间，单位毫秒 |
-
+| 配置项       | 类型   | 必填 | 默认值                                                     | 说明                                                                                         |
+| ------------ | ------ | ---- | ---------------------------------------------------------- | ---------------------------                                                                  |
+| service_name | string | 必填 | -                                                          | redis 服务名称，带服务类型的完整 FQDN 名称，例如 my-redis.dns、redis.my-ns.svc.cluster.local |
+| service_port | int    | 否   | 服务类型为固定地址（static service）默认值为80，其他为6379 | 输入redis服务的服务端口                                                                      |
+| username     | string | 否   | -                                                          | redis用户名                                                                                  |
+| password     | string | 否   | -                                                          | redis密码                                                                                    |
+| timeout      | int    | 否   | 1000                                                       | redis连接超时时间，单位毫秒                                                                  |
+| database     | int    | 否   | 0                                                          | 使用的数据库id，例如配置为1，对应`SELECT 1`                                                  |
 
 
 ## 配置示例

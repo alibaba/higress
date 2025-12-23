@@ -1,0 +1,107 @@
+server:
+  name: ip-query
+  config:
+    appCode: ""
+tools:
+  - name: ip-address-query
+    description: 根据IP地址查询归属地信息，包含国家、省、市等信息，可以无需主动提供IP，支持IP自动获取
+    args:
+      - name: ip
+        description: 要查询的ip，如果用户没有提供ip，可以传空字符串，该mcp服务会自动获取用户IP
+        type: string
+        required: true
+    requestTemplate:
+      url: https://jmipquery3.market.alicloudapi.com/ipv3-group/ip/address-query-v2
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+      body: |
+        ip={{ if empty .args.ip }}{{ getRealIP }}{{ else }}{{ .args.ip }}{{ end }}
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.city**: 市 (Type: string)
+          - **data.code**: 区县编码 (Type: string)
+          - **data.district**: 区县 (Type: string)
+          - **data.latitude**: 纬度 (Type: string)
+          - **data.longitude**: 经度 (Type: string)
+          - **data.nation**: 国家 (Type: string)
+          - **data.province**: 省份 (Type: string)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+
+  - name: ip-address-query-precision-version
+    description: |-
+      ip-address-query如果查询不到，可以使用此工具再查询一次
+      根据 IP地址查询归属地信息，包含国家、省、市等信息，可以无需主动提供IP，支持IP自动获取
+      同时支持IPv6和IPv4
+      IPv4不返回经纬度
+    args:
+      - name: ip
+        description: 要查询的ip，如果用户没有提供ip，可以传空字符串，该mcp服务会自动获取用户IP
+        type: string
+        required: true
+    requestTemplate:
+      url: https://jmipquery3.market.alicloudapi.com/ip/query-v3
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+      body: |
+        ip={{ if empty .args.ip }}{{ getRealIP }}{{ else }}{{ .args.ip }}{{ end }}      
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.areaCode**: 国家编码 (Type: string)
+          - **data.city**: 市 (Type: string)
+          - **data.code**: 行政区划代码 (Type: string)
+          - **data.continent**: 大洲 (Type: string)
+          - **data.isp**: 运营商 (Type: string)
+          - **data.latitude**: 纬度 (Type: string)
+          - **data.longitude**: 经度 (Type: string)
+          - **data.nation**: 国家 (Type: string)
+          - **data.owner**: 所属机构 (Type: string)
+          - **data.province**: 省份 (Type: string)
+          - **data.radius**:  (Type: string)
+          - **data.timezone**: 时区 (Type: string)
+          - **data.zipcode**: 邮编 (Type: string)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+

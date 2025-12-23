@@ -1,3 +1,4 @@
+<a name="readme-top"></a>
 <h1 align="center">
     <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
   <br>
@@ -17,19 +18,25 @@
 
 
 <p>
-   <a href="README_EN.md"> English <a/> | <a href="README.md">中文<a/> | 日本語
+   <a href="README.md"> English </a> | <a href="README_ZH.md">中文</a> | 日本語
 </p>
 
 
+## Higressとは？
+
 Higressは、IstioとEnvoyをベースにしたクラウドネイティブAPIゲートウェイで、Go/Rust/JSなどを使用してWasmプラグインを作成できます。数十の既製の汎用プラグインと、すぐに使用できるコンソールを提供しています（デモは[こちら](http://demo.higress.io/)）。
 
-Higressは、Tengineのリロードが長時間接続のビジネスに影響を与える問題や、gRPC/Dubboの負荷分散能力の不足を解決するために、Alibaba内部で誕生しました。
+### 主な使用シナリオ
 
-Alibaba Cloudは、Higressを基盤にクラウドネイティブAPIゲートウェイ製品を構築し、多くの企業顧客に99.99％のゲートウェイ高可用性保証サービスを提供しています。
+HigressのAIゲートウェイ機能は、国内外のすべての[主要モデルプロバイダー](https://github.com/alibaba/higress/tree/main/plugins/wasm-go/extensions/ai-proxy/provider)をサポートし、vllm/ollamaなどに基づく自己構築DeepSeekモデルにも対応しています。また、プラグインメカニズムを通じてMCP（Model Context Protocol）サーバーをホストすることもでき、AI Agentが様々なツールやサービスを簡単に呼び出せるようにします。[openapi-to-mcpツール](https://github.com/higress-group/openapi-to-mcpserver)を使用すると、OpenAPI仕様を迅速にリモートMCPサーバーに変換してホスティングできます。HigressはLLM APIとMCP APIの統一管理を提供します。
 
-Higressは、AIゲートウェイ機能を基盤に、Tongyi Qianwen APP、Bailian大規模モデルAPI、機械学習PAIプラットフォームなどのAIビジネスをサポートしています。また、国内の主要なAIGC企業（例：ZeroOne）やAI製品（例：FastGPT）にもサービスを提供しています。
+**🌟 今すぐ[https://mcp.higress.ai/](https://mcp.higress.ai/)で体験**してください。HigressがホストするリモートMCPサーバーを直接体験できます:
 
-![](https://img.alicdn.com/imgextra/i2/O1CN011AbR8023V8R5N0HcA_!!6000000007260-2-tps-1080-606.png)
+![Higress MCP Server Platform](https://img.alicdn.com/imgextra/i2/O1CN01nmVa0a1aChgpyyWOX_!!6000000003294-0-tps-3430-1742.jpg)
+
+### 企業での採用
+
+Higressは、Tengineのリロードが長時間接続のビジネスに影響を与える問題や、gRPC/Dubboの負荷分散能力の不足を解決するために、Alibaba内部で誕生しました。Alibaba Cloud内では、HigressのAIゲートウェイ機能がTongyi Qianwen APP、Tongyi Bailian Model Studio、機械学習PAIプラットフォームなどの中核的なAIアプリケーションをサポートしています。また、国内の主要なAIGC企業（例：ZeroOne）やAI製品（例：FastGPT）にもサービスを提供しています。Alibaba Cloudは、Higressを基盤にクラウドネイティブAPIゲートウェイ製品を構築し、多くの企業顧客に99.99％のゲートウェイ高可用性保証サービスを提供しています。
 
 
 ## 目次
@@ -71,6 +78,20 @@ K8sでのHelmデプロイなどの他のインストール方法については�
   Higressは、国内外のすべてのLLMモデルプロバイダーと統一されたプロトコルで接続でき、豊富なAI可観測性、多モデル負荷分散/フォールバック、AIトークンフロー制御、AIキャッシュなどの機能を備えています。
 
   ![](https://img.alicdn.com/imgextra/i1/O1CN01fNnhCp1cV8mYPRFeS_!!6000000003605-0-tps-1080-608.jpg)
+
+- **MCP Server ホスティング**:
+
+  Higressは、EnvoyベースのAPIゲートウェイとして、プラグインメカニズムを通じてMCP Serverをホストすることができます。MCP（Model Context Protocol）は本質的にAIにより親和性の高いAPIであり、AI Agentが様々なツールやサービスを簡単に呼び出せるようにします。Higressはツール呼び出しの認証、認可、レート制限、可観測性などの統一機能を提供し、AIアプリケーションの開発とデプロイを簡素化します。
+
+  ![](https://img.alicdn.com/imgextra/i3/O1CN01K4qPUX1OliZa8KIPw_!!6000000001746-2-tps-1581-615.png)
+
+  Higressを使用してMCP Serverをホストすることで、以下のことが実現できます：
+  - 統一された認証と認可メカニズム、AIツール呼び出しのセキュリティを確保
+  - きめ細かいレート制限、乱用やリソース枯渇を防止
+  - 包括的な監査ログ、すべてのツール呼び出し行動を記録
+  - 豊富な可観測性、ツール呼び出しのパフォーマンスと健全性を監視
+  - 簡素化されたデプロイと管理、Higressのプラグインメカニズムを通じて新しいMCP Serverを迅速に追加
+  - 動的更新による無停止：Envoyの長時間接続に対する友好的なサポートとWasmプラグインの動的更新メカニズムにより、MCP Serverのロジックをリアルタイムで更新でき、トラフィックに完全に影響を与えず、接続が切断されることはありません
 
 - **Kubernetes Ingressゲートウェイ**:
 
@@ -187,3 +208,19 @@ WeChat公式アカウント：
 
 - Higressコンソール：https://github.com/higress-group/higress-console
 - Higress（スタンドアロン版）：https://github.com/higress-group/higress-standalone
+
+### 貢献者
+
+<a href="https://github.com/alibaba/higress/graphs/contributors">
+  <img alt="contributors" src="https://contrib.rocks/image?repo=alibaba/higress"/>
+</a>
+
+### スターの歴史
+
+[![スターの歴史チャート](https://api.star-history.com/svg?repos=alibaba/higress&type=Date)](https://star-history.com/#alibaba/higress&Date)
+
+<p align="right" style="font-size: 14px; color: #555; margin-top: 20px;">
+    <a href="#readme-top" style="text-decoration: none; color: #007bff; font-weight: bold;">
+        ↑ トップに戻る ↑
+    </a>
+</p>

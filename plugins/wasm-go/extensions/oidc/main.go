@@ -9,14 +9,17 @@ import (
 	oidc "github.com/higress-group/oauth2-proxy"
 	"github.com/higress-group/oauth2-proxy/pkg/apis/options"
 	"github.com/higress-group/oauth2-proxy/pkg/util"
+	"github.com/higress-group/wasm-go/pkg/log"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		// 插件名称
 		"oidc",
@@ -29,14 +32,13 @@ func main() {
 	)
 }
 
-var oidcHandler *oidc.OAuthProxy
-
 type PluginConfig struct {
-	options *options.Options
+	oidcHandler *oidc.OAuthProxy
+	options     *options.Options
 }
 
 // 在控制台插件配置中填写的yaml配置会自动转换为json，此处直接从json这个参数里解析配置即可
-func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *PluginConfig, log log.Log) error {
 	oidc.SetLogger(log)
 	opts, err := oidc.LoadOptions(json)
 	if err != nil {
@@ -45,19 +47,20 @@ func parseConfig(json gjson.Result, config *PluginConfig, log wrapper.Log) error
 	opts.Providers[0].Scope = strings.Replace(opts.Providers[0].Scope, ";", " ", -1)
 	config.options = opts
 
-	oidcHandler, err = oidc.NewOAuthProxy(opts)
+	config.oidcHandler, err = oidc.NewOAuthProxy(opts)
 	if err != nil {
 		return err
 	}
 
-	wrapper.RegisteTickFunc(opts.VerifierInterval.Milliseconds(), func() {
-		oidcHandler.SetVerifier(opts)
+	wrapper.RegisterTickFunc(opts.VerifierInterval.Milliseconds(), func() {
+		config.oidcHandler.SetVerifier(opts)
 	})
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	oidcHandler.SetContext(ctx)
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
+	config.oidcHandler.SetContext(ctx)
 	req := getHttpRequest()
 	rw := util.NewRecorder()
 	if options.IsAllowedByMode(req.URL.Host, req.URL.Path, config.options.MatchRules, config.options.ProxyPrefix) {
@@ -66,24 +69,24 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	}
 
 	// TODO: remove this verifier after envoy support send request during parseConfig
-	if err := oidcHandler.ValidateVerifier(); err != nil {
+	if err := config.oidcHandler.ValidateVerifier(); err != nil {
 		log.Critical(err.Error())
 		return types.ActionContinue
 	}
 
-	oidcHandler.ServeHTTP(rw, req)
+	config.oidcHandler.ServeHTTP(rw, req)
 	if code := rw.GetStatus(); code != 0 {
 		return types.ActionContinue
 	}
 	return types.ActionPause
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	value := ctx.GetContext(oidc.SetCookieHeader)
 	if value != nil {
 		proxywasm.AddHttpResponseHeader(oidc.SetCookieHeader, value.(string))
 	}
-	oidcHandler.SetContext(nil)
+	config.oidcHandler.SetContext(nil)
 	return types.ActionContinue
 }
 

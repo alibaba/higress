@@ -10,7 +10,7 @@ export BASE_VERSION ?= $(HIGRESS_BASE_VERSION)
 
 export CHARTS ?= higress-registry.cn-hangzhou.cr.aliyuncs.com/charts
 
-VERSION_PACKAGE := github.com/alibaba/higress/pkg/cmd/lversion
+VERSION_PACKAGE := github.com/alibaba/higress/v2/pkg/cmd/lversion
 
 GIT_COMMIT:=$(shell git rev-parse HEAD)
 
@@ -137,14 +137,16 @@ endif
 # for now docker is limited to Linux compiles - why ?
 include docker/docker.mk
 
-docker-build: docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
+docker-build-amd64: clean-higress docker.higress-amd64 ## Build and push amdd64 docker images to registry defined by $HUB and $TAG
+
+docker-build: clean-higress docker.higress ## Build and push docker images to registry defined by $HUB and $TAG
 
 docker-buildx-push: clean-env docker.higress-buildx
 
 export PARENT_GIT_TAG:=$(shell cat VERSION)
 export PARENT_GIT_REVISION:=$(TAG)
 
-export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.0.0/envoy-symbol-ARCH.tar.gz
+export ENVOY_PACKAGE_URL_PATTERN?=https://github.com/higress-group/proxy/releases/download/v2.2.0/envoy-symbol-ARCH.tar.gz
 
 build-envoy: prebuild
 	./tools/hack/build-envoy.sh
@@ -159,16 +161,26 @@ build-pilot-local: prebuild
 buildx-prepare:
 	docker buildx inspect multi-arch >/dev/null 2>&1 || docker buildx create --name multi-arch --platform linux/amd64,linux/arm64 --use
 
-build-gateway: prebuild buildx-prepare
+build-gateway: prebuild buildx-prepare build-golang-filter
 	USE_REAL_USER=1 TARGET_ARCH=amd64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
 	USE_REAL_USER=1 TARGET_ARCH=arm64 DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh init
-	DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker.buildx
+	DOCKER_TARGETS="docker.proxyv2" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
 
-build-gateway-local: prebuild
+build-gateway-local: prebuild build-golang-filter-amd64
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.proxyv2" ./tools/hack/build-istio-image.sh docker
 
+build-golang-filter-amd64:
+	TARGET_ARCH=amd64 ./tools/hack/build-golang-filters.sh
+
+build-golang-filter-arm64:
+	TARGET_ARCH=arm64 ./tools/hack/build-golang-filters.sh
+
+build-golang-filter:
+	TARGET_ARCH=amd64 ./tools/hack/build-golang-filters.sh
+	TARGET_ARCH=arm64 ./tools/hack/build-golang-filters.sh
+
 build-istio: prebuild buildx-prepare
-	DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker.buildx
+	DOCKER_TARGETS="docker.pilot" IMG_URL="${IMG_URL}" ./tools/hack/build-istio-image.sh docker.buildx
 
 build-istio-local: prebuild
 	TARGET_ARCH=${TARGET_ARCH} DOCKER_TARGETS="docker.pilot" ./tools/hack/build-istio-image.sh docker
@@ -187,8 +199,9 @@ install: pre-install
 	cd helm/higress; helm dependency build
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
-ENVOY_LATEST_IMAGE_TAG ?= 2.0.1
-ISTIO_LATEST_IMAGE_TAG ?= 2.0.1
+HIGRESS_LATEST_IMAGE_TAG ?= latest
+ENVOY_LATEST_IMAGE_TAG ?= cdf0f16bf622102f89a0d0257834f43f502e4b99
+ISTIO_LATEST_IMAGE_TAG ?= a7525f292c38d7d3380f3ce7ee971ad6e3c46adf
 
 install-dev: pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
@@ -231,6 +244,7 @@ clean-gateway: clean-istio
 	rm -rf external/proxy
 	rm -rf external/go-control-plane
 	rm -rf external/package/envoy.tar.gz
+	rm -rf external/package/*.so
 
 clean-env:
 	rm -rf out/
@@ -263,9 +277,25 @@ higress-conformance-test-clean: $(tools/kind) delete-cluster
 .PHONY: higress-wasmplugin-test-prepare
 higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin
 
+# higress-wasmplugin-test-prepare-skip-docker-build prepares the environment for higress wasmplugin tests without build higress docker image.
+.PHONY: higress-wasmplugin-test-prepare-skip-docker-build
+higress-wasmplugin-test-prepare-skip-docker-build: $(tools/kind) delete-cluster create-cluster prebuild
+	@export TAG="$(HIGRESS_LATEST_IMAGE_TAG)" && \
+	$(MAKE) kube-load-image && \
+	$(MAKE) install-dev-wasmplugin
+
 # higress-wasmplugin-test runs ingress wasmplugin tests.
 .PHONY: higress-wasmplugin-test
 higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
+
+# higress-wasmplugin-test-skip-docker-build runs ingress wasmplugin tests without build higress docker image
+.PHONY: higress-wasmplugin-test-skip-docker-build
+higress-wasmplugin-test-skip-docker-build: $(tools/kind) delete-cluster create-cluster prebuild
+	@export TAG="$(HIGRESS_LATEST_IMAGE_TAG)" && \
+	$(MAKE) kube-load-image && \
+	$(MAKE) install-dev-wasmplugin && \
+	$(MAKE) run-higress-e2e-test-wasmplugin && \
+	$(MAKE) delete-cluster
 
 # higress-wasmplugin-test-clean cleans the environment for higress wasmplugin tests.
 .PHONY: higress-wasmplugin-test-clean
@@ -285,9 +315,15 @@ delete-cluster: $(tools/kind) ## Delete kind cluster.
 # dubbo-provider-demo和nacos-standlone-rc3的镜像已经上传到阿里云镜像库，第一次需要先拉到本地
 # docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/dubbo-provider-demo:0.0.1
 # docker pull registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3:1.0.0-RC3
+# If TAG is HIGRESS_LATEST_IMAGE_TAG, means we skip building higress docker image, so we need to pull the image first.
 .PHONY: kube-load-image
 kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster using the provided $IMAGE and $TAG.
+	@if [ "$(TAG)" = "$(HIGRESS_LATEST_IMAGE_TAG)" ]; then \
+		tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG); \
+	fi
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot $(ISTIO_LATEST_IMAGE_TAG)
+	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway $(ENVOY_LATEST_IMAGE_TAG)
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/docker-pull-image.sh docker.io/hashicorp/consul 1.16.0
@@ -297,7 +333,8 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server v1.0
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body 1.0.0
-	tools/hack/docker-pull-image.sh openpolicyagent/opa latest
+	tools/hack/docker-pull-image.sh openpolicyagent/opa 0.61.0
+	tools/hack/docker-pull-image.sh curlimages/curl latest
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
@@ -309,7 +346,8 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server 1.3.0
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server v1.0
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-body 1.0.0
-	tools/hack/kind-load-image.sh openpolicyagent/opa latest
+	tools/hack/kind-load-image.sh openpolicyagent/opa 0.61.0
+	tools/hack/kind-load-image.sh curlimages/curl latest
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
 	tools/hack/kind-load-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
 

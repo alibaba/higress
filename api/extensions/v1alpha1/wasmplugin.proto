@@ -24,7 +24,7 @@ import "google/protobuf/struct.proto";
 
 package higress.extensions.v1alpha1;
 
-option go_package="github.com/alibaba/higress/api/extensions/v1alpha1";
+option go_package="github.com/alibaba/higress/v2/api/extensions/v1alpha1";
 
 // <!-- crd generation tags
 // +cue-gen:WasmPlugin:groupName:extensions.higress.io
@@ -112,7 +112,7 @@ message WasmPlugin {
   // Extended by Higress, matching rules take effect
   repeated MatchRule match_rules = 102;
   // disable the default config
-  bool default_config_disable = 103;
+  google.protobuf.BoolValue default_config_disable = 103;
 }
 
 // Extended by Higress
@@ -120,8 +120,20 @@ message MatchRule {
   repeated string ingress = 1;
   repeated string domain = 2;
   google.protobuf.Struct config = 3;
-  bool config_disable = 4;
+  google.protobuf.BoolValue config_disable = 4;
   repeated string service = 5;
+  // Route type for this match rule, defaults to HTTP
+  RouteType route_type = 6;
+}
+
+// Route type for matching rules.
+// Extended by Higress
+enum RouteType {
+  // HTTP route (default)
+  HTTP = 0;
+  
+  // GRPC route
+  GRPC = 1;
 }
 
 // The phase in the filter chain where the plugin will be injected.

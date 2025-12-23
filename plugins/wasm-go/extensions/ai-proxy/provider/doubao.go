@@ -2,29 +2,45 @@ package provider
 
 import (
 	"errors"
-	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
-	doubaoDomain             = "ark.cn-beijing.volces.com"
-	doubaoChatCompletionPath = "/api/v3/chat/completions"
+	doubaoDomain              = "ark.cn-beijing.volces.com"
+	doubaoChatCompletionPath  = "/api/v3/chat/completions"
+	doubaoEmbeddingsPath      = "/api/v3/embeddings"
+	doubaoImageGenerationPath = "/api/v3/images/generations"
+	doubaoResponsesPath       = "/api/v3/responses"
 )
 
 type doubaoProviderInitializer struct{}
 
-func (m *doubaoProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *doubaoProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
 }
 
+func (m *doubaoProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion):  doubaoChatCompletionPath,
+		string(ApiNameEmbeddings):      doubaoEmbeddingsPath,
+		string(ApiNameImageGeneration): doubaoImageGenerationPath,
+		string(ApiNameResponses):       doubaoResponsesPath,
+	}
+}
+
 func (m *doubaoProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &doubaoProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -40,63 +56,67 @@ func (m *doubaoProvider) GetProviderType() string {
 	return providerTypeDoubao
 }
 
-func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	_ = util.OverwriteRequestHost(doubaoDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	if m.config.protocol == protocolOriginal {
-		ctx.DontReadRequestBody()
-		return types.ActionContinue, nil
-	}
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
-	}
-	_ = util.OverwriteRequestPath(doubaoChatCompletionPath)
-	return types.ActionContinue, nil
+func (m *doubaoProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
+	return nil
 }
 
-func (m *doubaoProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+func (m *doubaoProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
-	model := request.Model
-	if model == "" {
-		return types.ActionContinue, errors.New("missing model in chat completion request")
-	}
-	mappedModel := getMappedModel(model, m.config.modelMapping, log)
-	if mappedModel == "" {
-		return types.ActionContinue, errors.New("model becomes empty after applying the configured mapping")
-	}
-	request.Model = mappedModel
-	if m.contextCache != nil {
-		err := m.contextCache.GetContent(func(content string, err error) {
-			defer func() {
-				_ = proxywasm.ResumeHttpRequest()
-			}()
-			if err != nil {
-				log.Errorf("failed to load context file: %v", err)
-				_ = util.SendResponse(500, "ai-proxy.doubao.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-			}
-			insertContextMessage(request, content)
-			if err := replaceJsonRequestBody(request, log); err != nil {
-				_ = util.SendResponse(500, "ai-proxy.doubao.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			}
-		}, log)
-		if err == nil {
-			return types.ActionPause, nil
-		} else {
-			return types.ActionContinue, err
-		}
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
+}
+
+func (m *doubaoProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
+	if m.config.doubaoDomain != "" {
+		util.OverwriteRequestHostHeader(headers, m.config.doubaoDomain)
 	} else {
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.doubao.transform_body_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-			return types.ActionContinue, err
-		}
-		_ = proxywasm.ResumeHttpRequest()
-		return types.ActionPause, nil
+		util.OverwriteRequestHostHeader(headers, doubaoDomain)
 	}
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
+}
+
+func (m *doubaoProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	var err error
+	switch apiName {
+	case ApiNameResponses:
+		// 移除火山 responses 接口暂时不支持的参数
+		// 参考: https://www.volcengine.com/docs/82379/1569618
+		// TODO: 这里应该用 DTO 处理
+		for _, param := range []string{"parallel_tool_calls", "tool_choice"} {
+			body, err = sjson.DeleteBytes(body, param)
+			if err != nil {
+				log.Warnf("[doubao] failed to delete %s in request body, err: %v", param, err)
+			}
+		}
+	case ApiNameImageGeneration:
+		// 火山生图接口默认会带上水印,但 OpenAI 接口不支持此参数
+		// 参考: https://www.volcengine.com/docs/82379/1541523
+		if res := gjson.GetBytes(body, "watermark"); !res.Exists() {
+			body, err = sjson.SetBytes(body, "watermark", false)
+			if err != nil {
+				log.Warnf("[doubao] failed to set watermark in request body, err: %v", err)
+			}
+		}
+	}
+	return m.config.defaultTransformRequestBody(ctx, apiName, body)
+}
+
+func (m *doubaoProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, doubaoChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	if strings.Contains(path, doubaoEmbeddingsPath) {
+		return ApiNameEmbeddings
+	}
+	if strings.Contains(path, doubaoImageGenerationPath) {
+		return ApiNameImageGeneration
+	}
+	if strings.Contains(path, doubaoResponsesPath) {
+		return ApiNameResponses
+	}
+	return ""
 }

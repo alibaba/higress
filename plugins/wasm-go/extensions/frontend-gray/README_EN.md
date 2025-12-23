@@ -1,59 +1,96 @@
 ---
 title: Frontend Gray
 keywords: [higress, frontend gray]
-description: Frontend gray plugin configuration reference
----
-## Function Description
-The `frontend-gray` plugin implements the functionality of user gray release on the frontend. Through this plugin, it can be used for business `A/B testing`, while the `gradual release` combined with `monitorable` and `rollback` strategies ensures the stability of system release operations.
+description: Frontend Gray Plugin Configuration Reference
 
-## Runtime Attributes
-Plugin execution phase: `Authentication Phase`  
-Plugin execution priority: `450`
+## Feature Description
+The `frontend-gray` plugin implements frontend user grayscale capabilities. This plugin can be used for business `A/B testing` while ensuring system release stability through `grayscale`, `monitoring`, and `rollback` strategies.
+
+## Runtime Properties
+
+Execution Stage: `Default Stage`  
+Execution Priority: `1000`
 
 ## Configuration Fields
-| Name             | Data Type         | Requirements  | Default Value | Description                                                                                                 |
-|-----------------|-------------------|---------------|---------------|-------------------------------------------------------------------------------------------------------------|
-| `grayKey`       | string            | Optional      | -             | The unique identifier of the user ID, which can be from Cookie or Header, such as userid. If not provided, uses `rules[].grayTagKey` and `rules[].grayTagValue` to filter gray release rules. |
-| `graySubKey`    | string            | Optional      | -             | User identity information may be output in JSON format, for example: `userInfo:{ userCode:"001" }`, in the current example, `graySubKey` is `userCode`. |
-| `rules`         | array of object    | Required      | -             | User-defined different gray release rules, adapted to different gray release scenarios.                      |
-| `rewrite`       | object            | Required      | -             | Rewrite configuration, generally used for OSS/CDN frontend deployment rewrite configurations.                |
-| `baseDeployment`| object            | Optional      | -             | Configuration of the Base baseline rules.                                                                    |
-| `grayDeployments` | array of object   | Optional      | -             | Configuration of the effective rules for gray release, as well as the effective versions.                     |
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `grayKey` | string | Optional | - | Unique user identifier from Cookie/Header (e.g., userid). If empty, uses `rules[].grayTagKey` and `rules[].grayTagValue` to filter rules. |
+| `useManifestAsEntry` | boolean | Optional | false | Whether to use manifest as entry point. When set to true, the system will use manifest file as application entry, suitable for micro-frontend architecture. In this mode, the system loads different versions of frontend resources based on manifest file content. |
+| `localStorageGrayKey` | string | Optional | - | When using JWT authentication, user ID comes from `localStorage`. Overrides `grayKey` if configured. |
+| `graySubKey` | string | Optional | - | Used when user info is in JSON format (e.g., `userInfo:{ userCode:"001" }`). In this example, `graySubKey` would be `userCode`. |
+| `storeMaxAge` | int | Optional | 31536000 | Max cookie storage duration in seconds (default: 1 year). |
+| `indexPaths` | string[] | Optional | - | Paths requiring mandatory processing (supports Glob patterns). Example: `/resource/**/manifest-main.json` in micro-frontend scenarios. |
+| `skippedPaths` | string[] | Optional | - | Excluded paths (supports Glob patterns). Example: `/api/**` XHR requests in rewrite scenarios. |
+| `skippedByHeaders` | map<string, string> | Optional | - | Filter requests via headers. `skippedPaths` has higher priority. HTML page requests are unaffected. |
+| `rules` | object[] | Required | - | User-defined grayscale rules for different scenarios. |
+| `rewrite` | object | Required | - | Rewrite configuration for OSS/CDN deployments. |
+| `baseDeployment` | object | Optional | - | Baseline configuration. |
+| `grayDeployments` | object[] | Optional | - | Gray deployment rules and versions. |
+| `backendGrayTag` | string | Optional | `x-mse-tag` | Backend grayscale tag. Cookies will carry `${backendGrayTag}:${grayDeployments[].backendVersion}` if configured. |
+| `uniqueGrayTag` | string | Optional | `x-higress-uid` | UUID stored in cookies for percentage-based grayscale session stickiness and backend tracking. |
+| `injection` | object | Optional | - | Inject global info into HTML (e.g., `<script>window.global = {...}</script>`). |
 
-`rules` field configuration description:
-| Name             | Data Type         | Requirements  | Default Value | Description                                                                                |
-|------------------|-------------------|---------------|---------------|--------------------------------------------------------------------------------------------|
-| `name`           | string            | Required      | -             | Unique identifier for the rule name, associated with `deploy.gray[].name` for effectiveness. |
-| `grayKeyValue`   | array of string   | Optional      | -             | Whitelist of user IDs.                                                                    |
-| `grayTagKey`     | string            | Optional      | -             | Label key for user classification tagging, derived from Cookie.                               |
-| `grayTagValue`   | array of string   | Optional      | -             | Label value for user classification tagging, derived from Cookie.                             |
+### `rules` Field
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `name` | string | Required | - | Unique rule name linked to `grayDeployments[].name`. |
+| `grayKeyValue` | string[] | Optional | - | User ID whitelist. |
+| `grayTagKey` | string | Optional | - | User tag key from cookies. |
+| `grayTagValue` | string[] | Optional | - | User tag values from cookies. |
 
-`rewrite` field configuration description:
-> `indexRouting` homepage rewrite and `fileRouting` file rewrite essentially use prefix matching, for example, `/app1`: `/mfe/app1/{version}/index.html` represents requests with the prefix /app1 routed to `/mfe/app1/{version}/index.html` page, where `{version}` represents the version number, which will be dynamically replaced by `baseDeployment.version` or `grayDeployments[].version` during execution.  
-> `{version}` will be replaced dynamically during execution by the frontend version from `baseDeployment.version` or `grayDeployments[].version`.
+### `rewrite` Field
+> Both `indexRouting` and `fileRouting` use prefix matching. The `{version}` placeholder will be dynamically replaced by `baseDeployment.version` or `grayDeployments[].version`.
 
-| Name             | Data Type         | Requirements  | Default Value | Description                           |
-|------------------|-------------------|---------------|---------------|---------------------------------------|
-| `host`           | string            | Optional      | -             | Host address, if OSS set to the VPC internal access address. |
-| `notFoundUri`    | string            | Optional      | -             | 404 page configuration.               |
-| `indexRouting`   | map of string to string | Optional  | -             | Defines the homepage rewrite routing rules. Each key represents the homepage routing path, and the value points to the redirect target file. For example, the key `/app1` corresponds to the value `/mfe/app1/{version}/index.html`. If the effective version is `0.0.1`, the access path is `/app1`, it redirects to `/mfe/app1/0.0.1/index.html`. |
-| `fileRouting`    | map of string to string | Optional  | -             | Defines resource file rewrite routing rules. Each key represents the resource access path, and the value points to the redirect target file. For example, the key `/app1/` corresponds to the value `/mfe/app1/{version}`. If the effective version is `0.0.1`, the access path is `/app1/js/a.js`, it redirects to `/mfe/app1/0.0.1/js/a.js`. |
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `host` | string | Optional | - | Host address (use VPC endpoint for OSS). |
+| `indexRouting` | map<string, string> | Optional | - | Homepage rewrite rules. Key: route path, Value: target file. Example: `/app1` → `/mfe/app1/{version}/index.html`. |
+| `fileRouting` | map<string, string> | Optional | - | Resource rewrite rules. Key: resource path, Value: target path. Example: `/app1/` → `/mfe/app1/{version}`. |
 
-`baseDeployment` field configuration description:
-| Name             | Data Type         | Requirements  | Default Value | Description                                                                                |
-|------------------|-------------------|---------------|---------------|-------------------------------------------------------------------------------------------|
-| `version`        | string            | Required      | -             | The version number of the Base version, as a fallback version.                           |
+### `baseDeployment` Field
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `version` | string | Required | - | Baseline version as fallback. |
+| `backendVersion` | string | Required | - | Backend grayscale version written to cookies via `${backendGrayTag}`. |
+| `versionPredicates` | string | Required | - | Supports multi-version mapping for micro-frontend scenarios. |
 
-`grayDeployments` field configuration description:
-| Name             | Data Type         | Requirements  | Default Value | Description                                                                                  |
-|------------------|-------------------|---------------|---------------|----------------------------------------------------------------------------------------------|
-| `version`        | string            | Required      | -             | Version number of the Gray version, if the gray rules are hit, this version will be used. If it is a non-CDN deployment, add `x-higress-tag` to the header. |
-| `backendVersion` | string            | Required      | -             | Gray version for the backend, which will add `x-mse-tag` to the header of `XHR/Fetch` requests. |
-| `name`           | string            | Required      | -             | Rule name associated with `rules[].name`.                                                  |
-| `enabled`        | boolean           | Required      | -             | Whether to activate the current gray release rule.                                          |
+### `grayDeployments` Field
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `version` | string | Required | - | Gray version used when rules match. Adds `x-higress-tag` header for non-CDN deployments. |
+| `versionPredicates` | string | Required | - | Multi-version support for micro-frontends. |
+| `backendVersion` | string | Required | - | Backend grayscale version for cookies. |
+| `name` | string | Required | - | Linked to `rules[].name`. |
+| `enabled` | boolean | Required | - | Enable/disable rule. |
+| `weight` | int | Optional | - | Traffic percentage (e.g., 50). |
 
-## Configuration Example
-### Basic Configuration
+> **Percentage-based Grayscale Notes**:
+> 1. Percentage rules override user-based rules when both exist.
+> 2. Uses UUID fingerprint hashed via SHA-256 for traffic distribution.
+
+### `injection` Field
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `globalConfig` | object | Optional | - | Global variables injected into HTML. |
+| `head` | string[] | Optional | - | Inject elements into `<head>`. |
+| `body` | object | Optional | - | Inject elements into `<body>`. |
+
+#### `globalConfig` Sub-field
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `key` | string | Optional | `HIGRESS_CONSOLE_CONFIG` | Window global variable key. |
+| `featureKey` | string | Optional | `FEATURE_STATUS` | Rule hit status (e.g., `{"beta-user":true,"inner-user":false}`). |
+| `value` | string | Optional | - | Custom global value. |
+| `enabled` | boolean | Optional | `false` | Enable global injection. |
+
+#### `body` Sub-field
+| Name | Data Type | Required | Default | Description |
+|------|-----------|----------|---------|-------------|
+| `first` | string[] | Optional | - | Inject at body start. |
+| `last` | string[] | Optional | - | Inject at body end. |
+
+## Configuration Examples
+### Basic Configuration (User-based)
 ```yml
 grayKey: userid
 rules:
@@ -75,15 +112,37 @@ grayDeployments:
   - name: beta-user
     version: gray
     enabled: true
+
 ```
 
-The unique identifier of the user in the cookie is `userid`, and the current gray release rule has configured the `beta-user` rule.  
-When the following conditions are met, the version `version: gray` will be used:
-- `userid` in the cookie equals `00000002` or `00000003`
-- Users whose `level` in the cookie equals `level3` or `level5`  
-Otherwise, use version `version: base`.
+The unique user identifier in the cookie is `userid`, and the current grayscale rule configures the `beta-user` rule.
 
-### User Information Exists in JSON
+When the following conditions are met, the `version: gray` version will be used:
+- `userid` in cookie equals `00000002` or `00000003`
+- `level` in cookie equals `level3` or `level5`
+
+Otherwise, the `version: base` version will be used.
+
+### Percentage-based Grayscale
+```yml
+grayKey: userid
+rules:
+- name: inner-user
+  grayKeyValue:
+  - '00000001'
+  - '00000005'
+baseDeployment:
+  version: base
+grayDeployments:
+  - name: beta-user
+    version: gray
+    enabled: true
+    weight: 80
+
+```
+The total grayscale rule is 100%, with the grayscale version weighted at 80% and the baseline version at 20%.
+
+### User Information in JSON Format
 ```yml
 grayKey: appInfo
 graySubKey: userId
@@ -106,17 +165,44 @@ grayDeployments:
   - name: beta-user
     version: gray
     enabled: true
+
 ```
 
-The cookie contains JSON data for `appInfo`, which includes the field `userId` as the current unique identifier.  
-The current gray release rule has configured the `beta-user` rule.  
-When the following conditions are met, the version `version: gray` will be used:
-- `userid` in the cookie equals `00000002` or `00000003`
-- Users whose `level` in the cookie equals `level3` or `level5`  
-Otherwise, use version `version: base`.
+The cookie contains JSON data in `appInfo`, which includes the `userId` field as the unique identifier.
+The current grayscale rule configures the `beta-user` rule.
+When the following conditions are met, the `version: gray` version will be used:
+- `userid` in cookie equals `00000002` or `00000003`
+- `level` in cookie equals `level3` or `level5`
+
+Otherwise, the `version: base` version will be used.
+
+### User Information Stored in LocalStorage
+Since the gateway plugin needs to identify users by unique identity information, and HTTP protocol can only transmit information in headers, a script can be injected into the homepage to set user information from LocalStorage to cookies if user information is stored in LocalStorage.
+
+```
+(function() {
+	var grayKey = '@@X_GRAY_KEY';
+	var cookies = document.cookie.split('; ').filter(function(row) {
+		return row.indexOf(grayKey + '=') === 0;
+	});
+
+	try {
+		if (typeof localStorage !== 'undefined' && localStorage !== null) {
+			var storageValue = localStorage.getItem(grayKey);
+			var cookieValue = cookies.length > 0 ? decodeURIComponent(cookies[0].split('=')[1]) : null;
+			if (storageValue && storageValue.indexOf('=') < 0 && cookieValue && cookieValue !== storageValue) {
+				document.cookie = grayKey + '=' + encodeURIComponent(storageValue) + '; path=/;';
+				window.location.reload();
+			}
+		}
+	} catch (error) {
+		// xx
+	}
+})();
+```
 
 ### Rewrite Configuration
-> Generally used in CDN deployment scenarios.
+> Generally used for CDN deployment scenarios
 ```yml
 grayKey: userid
 rules:
@@ -134,7 +220,6 @@ rules:
   - level5
 rewrite:
   host: frontend-gray.oss-cn-shanghai-internal.aliyuncs.com
-  notFoundUri: /mfe/app1/dev/404.html
   indexRouting:
     /app1: '/mfe/app1/{version}/index.html'
     /: '/mfe/app1/{version}/index.html',
@@ -147,16 +232,45 @@ grayDeployments:
   - name: beta-user
     version: gray
     enabled: true
+
 ```
 
-`{version}` will be dynamically replaced with the actual version during execution.
+The `{version}` will be dynamically replaced with the actual version during runtime.
 
-#### indexRouting: Homepage Route Configuration
-Accessing `/app1`, `/app123`, `/app1/index.html`, `/app1/xxx`, `/xxxx` will route to '/mfe/app1/{version}/index.html'.
+#### indexRouting: Homepage Routing Configuration
+Accessing `/app1`, `/app123`, `/app1/index.html`, `/app1/xxx`, `/xxxx` will all route to '/mfe/app1/{version}/index.html'
 
-#### fileRouting: File Route Configuration
-The following file mappings are effective:
+#### fileRouting: File Routing Configuration
+The following file mappings will be effective:
 - `/js/a.js` => `/mfe/app1/v1.0.0/js/a.js`
 - `/js/template/a.js` => `/mfe/app1/v1.0.0/js/template/a.js`
 - `/app1/js/a.js` => `/mfe/app1/v1.0.0/js/a.js`
 - `/app1/js/template/a.js` => `/mfe/app1/v1.0.0/js/template/a.js`
+
+### Injecting Code into HTML Homepage
+```yml
+grayKey: userid
+rules:
+- name: inner-user
+  grayKeyValue:
+  - '00000001'
+  - '00000005'
+baseDeployment:
+  version: base
+grayDeployments:
+  - name: beta-user
+    version: gray
+    enabled: true
+injection:
+  head: 
+    - <script>console.log('Header')</script>
+  body:
+    first:
+      - <script>console.log('hello world before')</script>
+      - <script>console.log('hello world before1')</script>
+    last:
+      - <script>console.log('hello world after')</script>
+      - <script>console.log('hello world after2')</script>
+
+```
+Code can be injected into the HTML homepage through `injection`, either in the `head` tag or at the `first` and `last` positions of the `body` tag.

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@proxy_wasm_cpp_sdk//bazel/wasm:wasm.bzl", "wasm_cc_binary")
+load("@proxy_wasm_cpp_sdk//bazel:defs.bzl", "proxy_wasm_cc_binary")
 load("//bazel:wasm.bzl", "declare_wasm_image_targets")
 
 wasm_cc_binary(
@@ -33,7 +33,6 @@ wasm_cc_binary(
         "//common:json_util",
         "//common:http_util",
         "//common:rule_util",
-        "@proxy_wasm_cpp_sdk//:proxy_wasm_intrinsics",
     ],
 )
 

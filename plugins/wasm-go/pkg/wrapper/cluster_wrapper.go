@@ -45,6 +45,19 @@ func (c RouteCluster) HostName() string {
 	return GetRequestHost()
 }
 
+type TargetCluster struct {
+	Host    string
+	Cluster string
+}
+
+func (c TargetCluster) ClusterName() string {
+	return c.Cluster
+}
+
+func (c TargetCluster) HostName() string {
+	return c.Host
+}
+
 type K8sCluster struct {
 	ServiceName string
 	Namespace   string

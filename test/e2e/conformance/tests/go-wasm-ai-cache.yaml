@@ -1,0 +1,103 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-ai-cache-openai
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "dashscope.aliyuncs.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+  name: wasmplugin-ai-cache-qwen
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "qwen.ai.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-cache
+  namespace: higress-system
+spec:
+  priority: 400
+  matchRules:
+    - config:
+        embedding:
+          type: "dashscope"
+          serviceName: "qwen"
+          apiKey: "{{secret.qwenApiKey}}"
+          timeout: 12000
+        vector:
+          type: "dashvector"
+          serviceName: "dashvector"
+          collectionID: "{{secret.collectionID}}"
+          serviceDomain: "{{secret.serviceDomain}}"
+          apiKey: "{{secret.apiKey}}"
+          timeout: 12000
+        cache:
+
+      ingress:
+        - higress-conformance-infra/wasmplugin-ai-cache-openai
+        - higress-conformance-infra/wasmplugin-ai-cache-qwen
+  # url: file:///opt/plugins/wasm-go/extensions/ai-cache/plugin.wasm
+  url: oci://registry.cn-shanghai.aliyuncs.com/suchunsv/higress_ai:1.18
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-proxy
+  namespace: higress-system
+spec:
+  priority: 201
+  matchRules:
+    - config:
+        provider:
+          type: "qwen"
+          qwenEnableCompatible: true
+          apiTokens:
+            - "{{secret.qwenApiKey}}"
+          timeout: 1200000
+          modelMapping:
+            "*": "qwen-long"
+      ingress:
+        - higress-conformance-infra/wasmplugin-ai-cache-openai
+        - higress-conformance-infra/wasmplugin-ai-cache-qwen
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:2.0.0

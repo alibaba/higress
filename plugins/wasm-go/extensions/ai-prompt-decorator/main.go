@@ -5,19 +5,22 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-prompt-decorator",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
 	)
 }
 
@@ -31,11 +34,12 @@ type AIPromptDecoratorConfig struct {
 	Append  []Message `json:"append"`
 }
 
-func parseConfig(jsonConfig gjson.Result, config *AIPromptDecoratorConfig, log wrapper.Log) error {
+func parseConfig(jsonConfig gjson.Result, config *AIPromptDecoratorConfig) error {
 	return json.Unmarshal([]byte(jsonConfig.Raw), config)
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIPromptDecoratorConfig) types.Action {
+	ctx.DisableReroute()
 	proxywasm.RemoveHttpRequestHeader("content-length")
 	return types.ActionContinue
 }
@@ -66,7 +70,7 @@ func decorateGeographicPrompt(entry *Message) (*Message, error) {
 	return entry, nil
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config AIPromptDecoratorConfig, body []byte) types.Action {
 	messageJson := `{"messages":[]}`
 
 	for _, entry := range config.Prepend {

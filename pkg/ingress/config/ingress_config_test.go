@@ -28,11 +28,11 @@ import (
 	ingress "k8s.io/api/networking/v1"
 	ingressv1beta1 "k8s.io/api/networking/v1beta1"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	controllerv1beta1 "github.com/alibaba/higress/pkg/ingress/kube/ingress"
-	controllerv1 "github.com/alibaba/higress/pkg/ingress/kube/ingressv1"
-	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	controllerv1beta1 "github.com/alibaba/higress/v2/pkg/ingress/kube/ingress"
+	controllerv1 "github.com/alibaba/higress/v2/pkg/ingress/kube/ingressv1"
+	"github.com/alibaba/higress/v2/pkg/kube"
 )
 
 func TestNormalizeWeightedCluster(t *testing.T) {
@@ -127,7 +127,14 @@ func TestConvertGatewaysForIngress(t *testing.T) {
 	}
 	ingressV1Beta1Controller := controllerv1beta1.NewController(fake, fake, v1Beta1Options, nil)
 	ingressV1Controller := controllerv1.NewController(fake, fake, v1Options, nil)
-	m := NewIngressConfig(fake, nil, "wakanda", "gw-123-istio")
+	options := common.Options{
+		Enable:           true,
+		ClusterId:        "gw-123-istio",
+		RawClusterId:     "gw-123-istio__",
+		GatewayHttpPort:  80,
+		GatewayHttpsPort: 443,
+	}
+	m := NewIngressConfig(fake, nil, "wakanda", options)
 	m.remoteIngressControllers = map[cluster.ID]common.IngressController{
 		"ingress-v1beta1": ingressV1Beta1Controller,
 		"ingress-v1":      ingressV1Controller,

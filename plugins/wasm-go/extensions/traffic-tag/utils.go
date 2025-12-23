@@ -15,17 +15,15 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tidwall/gjson"
+	"github.com/higress-group/wasm-go/pkg/log"
 )
 
-func setDefaultTag(k string, v string, log wrapper.Log) {
+func setDefaultTag(k string, v string, log log.Log) {
 	if k == "" || v == "" {
 		return
 	}
@@ -63,7 +61,7 @@ func getQueryParameter(urlStr, paramKey string) (string, error) {
 	return values[0], nil
 }
 
-func addTagHeader(key string, value string, log wrapper.Log) {
+func addTagHeader(key string, value string, log log.Log) {
 	existValue, _ := proxywasm.GetHttpRequestHeader(key)
 	if existValue != "" {
 		log.Infof("ADD HEADER failed: %s already exists, value: %s", key, existValue)
@@ -74,24 +72,4 @@ func addTagHeader(key string, value string, log wrapper.Log) {
 		return
 	}
 	log.Infof("ADD HEADER: %s, value: %s", key, value)
-}
-
-func jsonValidate(json gjson.Result, log wrapper.Log) error {
-	if !json.Exists() {
-		log.Error("plugin config is missing in JSON")
-		return errors.New("plugin config is missing in JSON")
-	}
-
-	jsonStr := strings.TrimSpace(json.Raw)
-	if jsonStr == "{}" || jsonStr == "" {
-		log.Error("plugin config is empty")
-		return errors.New("plugin config is empty")
-	}
-
-	if !gjson.Valid(json.Raw) {
-		log.Error("plugin config is invalid JSON")
-		return errors.New("plugin config is invalid JSON")
-	}
-
-	return nil
 }

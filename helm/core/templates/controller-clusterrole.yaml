@@ -38,6 +38,14 @@ rules:
     resources: ["*"]
     verbs: ["get", "watch", "list", "create", "update", "delete", "patch"]
 
+  # Gateway api inference extension
+  - apiGroups: ["inference.networking.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "watch", "list", "create", "update", "delete", "patch"]
+  - apiGroups: ["inference.networking.x-k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "watch", "list", "create", "update", "delete", "patch"]
+
   # Needed for multicluster secret reading, possibly ingress certs in the future
   - apiGroups: [""]
     resources: ["secrets"]
@@ -129,3 +137,10 @@ rules:
   - apiGroups: ["networking.internal.knative.dev"]
     resources: ["ingresses/status"]
     verbs: ["get","patch","update"]
+  # gateway api need
+  - apiGroups: ["apps"]
+    verbs: [ "get", "watch", "list", "update", "patch", "create", "delete" ]
+    resources: [ "deployments" ]
+  - apiGroups: [""]
+    verbs: [ "get", "watch", "list", "update", "patch", "create", "delete" ]
+    resources: [ "serviceaccounts"]

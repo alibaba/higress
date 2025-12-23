@@ -16,11 +16,14 @@ package v2
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/naming_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
@@ -30,11 +33,14 @@ import (
 	"istio.io/api/networking/v1alpha3"
 	"istio.io/pkg/log"
 
-	apiv1 "github.com/alibaba/higress/api/networking/v1"
-	"github.com/alibaba/higress/pkg/common"
-	provider "github.com/alibaba/higress/registry"
-	"github.com/alibaba/higress/registry/memory"
-	"github.com/alibaba/higress/registry/nacos/address"
+	apiv1 "github.com/alibaba/higress/v2/api/networking/v1"
+	"github.com/alibaba/higress/v2/pkg/common"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/registry"
+	provider "github.com/alibaba/higress/v2/registry"
+	"github.com/alibaba/higress/v2/registry/memory"
+	"github.com/alibaba/higress/v2/registry/nacos/address"
+	"github.com/alibaba/higress/v2/registry/nacos/mcpserver"
 )
 
 const (
@@ -68,6 +74,9 @@ type watcher struct {
 	updateCacheWhenEmpty bool
 	nacosClientConfig    *constant.ClientConfig
 	authOption           provider.AuthOption
+	namespace            string
+	clusterId            string
+	mcpWatcher           provider.Watcher
 }
 
 type WatcherOption func(w *watcher)
@@ -86,6 +95,45 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 
 	for _, opt := range opts {
 		opt(w)
+	}
+
+	if w.EnableMCPServer != nil && w.EnableMCPServer.GetValue() {
+		if w.Type != string(registry.Nacos3) {
+			log.Errorf("can not create mcpWatcher for nacos 2.x type, required nacos 3.x")
+		} else {
+			mcpWatcher, err := mcpserver.NewWatcher(
+				cache,
+				mcpserver.WithType(w.Type),
+				mcpserver.WithName(w.Name),
+				mcpserver.WithNacosAddressServer(w.NacosAddressServer),
+				mcpserver.WithDomain(w.Domain),
+				mcpserver.WithPort(w.Port),
+				mcpserver.WithNacosNamespaceId(w.NacosNamespaceId),
+				mcpserver.WithNacosNamespace(w.NacosNamespace),
+				mcpserver.WithNacosGroups(w.NacosGroups),
+				mcpserver.WithNacosAccessKey(w.NacosAccessKey),
+				mcpserver.WithNacosSecretKey(w.NacosSecretKey),
+				mcpserver.WithNacosRefreshInterval(w.NacosRefreshInterval),
+				mcpserver.WithMcpExportDomains(w.McpServerExportDomains),
+				mcpserver.WithMcpBaseUrl(w.McpServerBaseUrl),
+				mcpserver.WithEnableMcpServer(w.EnableMCPServer),
+				mcpserver.WithClusterId(w.clusterId),
+				mcpserver.WithNamespace(w.namespace),
+				mcpserver.WithAuthOption(w.authOption),
+			)
+			if err != nil {
+				return nil, fmt.Errorf("can not create mcp server watcher, err:%v", err)
+			}
+			var once sync.Once
+			mcpWatcher.ReadyHandler(func(ready bool) {
+				once.Do(func() {
+					if ready {
+						log.Infof("Registry mcp Watcher is ready, type:%s, name:%s", w.Type, w.Name)
+					}
+				})
+			})
+			w.mcpWatcher = mcpWatcher
+		}
 	}
 
 	if w.NacosNamespace == "" {
@@ -145,6 +193,12 @@ func NewWatcher(cache memory.Cache, opts ...WatcherOption) (provider.Watcher, er
 		return nil, errors.New("new nacos2 watcher timeout")
 	case <-success:
 		return w, nil
+	}
+}
+
+func WithVport(vport *apiv1.RegistryConfig_VPort) WatcherOption {
+	return func(w *watcher) {
+		w.Vport = vport
 	}
 }
 
@@ -233,15 +287,51 @@ func WithAuthOption(authOption provider.AuthOption) WatcherOption {
 	}
 }
 
+func WithMcpExportDomains(exportDomains []string) WatcherOption {
+	return func(w *watcher) {
+		w.McpServerExportDomains = exportDomains
+	}
+}
+
+func WithMcpBaseUrl(url string) WatcherOption {
+	return func(w *watcher) {
+		w.McpServerBaseUrl = url
+	}
+}
+
+func WithEnableMcpServer(enable *wrappers.BoolValue) WatcherOption {
+	return func(w *watcher) {
+		w.EnableMCPServer = enable
+	}
+}
+
+func WithNamespace(ns string) WatcherOption {
+	return func(w *watcher) {
+		w.namespace = ns
+	}
+}
+
+func WithClusterId(id string) WatcherOption {
+	return func(w *watcher) {
+		w.clusterId = id
+	}
+}
+
 func (w *watcher) Run() {
 	ticker := time.NewTicker(time.Duration(w.NacosRefreshInterval))
 	defer ticker.Stop()
 	w.Status = provider.ProbeWatcherStatus(w.Domain, strconv.FormatUint(uint64(w.Port), 10))
+	if w.mcpWatcher != nil {
+		w.mcpWatcher.AppendServiceUpdateHandler(w.UpdateService)
+		go w.mcpWatcher.Run()
+	}
 	err := w.fetchAllServices()
 	if err != nil {
 		log.Errorf("first fetch services failed, err:%v", err)
 	} else {
-		w.Ready(true)
+		if w.mcpWatcherReady() {
+			w.Ready(true)
+		}
 	}
 	for {
 		select {
@@ -250,12 +340,18 @@ func (w *watcher) Run() {
 			if err != nil {
 				log.Errorf("fetch services failed, err:%v", err)
 			} else {
-				w.Ready(true)
+				if w.mcpWatcherReady() {
+					w.Ready(true)
+				}
 			}
 		case <-w.stop:
 			return
 		}
 	}
+}
+
+func (w *watcher) mcpWatcherReady() bool {
+	return w.mcpWatcher == nil || w.mcpWatcher.IsReady()
 }
 
 func (w *watcher) updateNacosClient() {
@@ -374,7 +470,6 @@ func (w *watcher) subscribe(groupName string, serviceName string) error {
 		GroupName:         groupName,
 		SubscribeCallback: w.getSubscribeCallback(groupName, serviceName),
 	})
-
 	if err != nil {
 		log.Errorf("subscribe service error:%v, groupName:%s, serviceName:%s", err, groupName, serviceName)
 		return err
@@ -391,7 +486,6 @@ func (w *watcher) unsubscribe(groupName string, serviceName string) error {
 		GroupName:         groupName,
 		SubscribeCallback: w.getSubscribeCallback(groupName, serviceName),
 	})
-
 	if err != nil {
 		log.Errorf("unsubscribe service error:%v, groupName:%s, serviceName:%s", err, groupName, serviceName)
 		return err
@@ -408,7 +502,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 	return func(services []model.Instance, err error) {
 		defer w.UpdateService()
 
-		//log.Info("callback", "serviceName", serviceName, "suffix", suffix, "details", services)
+		// log.Info("callback", "serviceName", serviceName, "suffix", suffix, "details", services)
 
 		if err != nil {
 			if strings.Contains(err.Error(), "hosts is empty") {
@@ -425,7 +519,7 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 			return
 		}
 		serviceEntry := w.generateServiceEntry(host, services)
-		w.cache.UpdateServiceWrapper(host, &memory.ServiceWrapper{
+		w.cache.UpdateServiceWrapper(host, &ingress.ServiceWrapper{
 			ServiceName:  serviceName,
 			ServiceEntry: serviceEntry,
 			Suffix:       suffix,
@@ -438,7 +532,8 @@ func (w *watcher) getSubscribeCallback(groupName string, serviceName string) fun
 func (w *watcher) generateServiceEntry(host string, services []model.Instance) *v1alpha3.ServiceEntry {
 	portList := make([]*v1alpha3.ServicePort, 0)
 	endpoints := make([]*v1alpha3.WorkloadEntry, 0)
-
+	isDnsService := false
+	sePort := provider.GetServiceVport(host, w.Vport)
 	for _, service := range services {
 		protocol := common.HTTP
 		if service.Metadata != nil && service.Metadata["protocol"] != "" {
@@ -450,7 +545,16 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 			Protocol: protocol.String(),
 		}
 		if len(portList) == 0 {
-			portList = append(portList, port)
+			if sePort != nil {
+				sePort.Name = port.Name
+				sePort.Protocol = port.Protocol
+				portList = append(portList, sePort)
+			} else {
+				portList = append(portList, port)
+			}
+		}
+		if !isValidIP(service.Ip) {
+			isDnsService = true
 		}
 		endpoint := &v1alpha3.WorkloadEntry{
 			Address: service.Ip,
@@ -460,11 +564,15 @@ func (w *watcher) generateServiceEntry(host string, services []model.Instance) *
 		endpoints = append(endpoints, endpoint)
 	}
 
+	resolution := v1alpha3.ServiceEntry_STATIC
+	if isDnsService {
+		resolution = v1alpha3.ServiceEntry_DNS
+	}
 	se := &v1alpha3.ServiceEntry{
 		Hosts:      []string{host},
 		Ports:      portList,
 		Location:   v1alpha3.ServiceEntry_MESH_INTERNAL,
-		Resolution: v1alpha3.ServiceEntry_STATIC,
+		Resolution: resolution,
 		Endpoints:  endpoints,
 	}
 
@@ -476,6 +584,9 @@ func (w *watcher) Stop() {
 	defer w.mutex.Unlock()
 	if w.addrProvider != nil {
 		w.addrProvider.Stop()
+	}
+	if w.mcpWatcher != nil {
+		w.mcpWatcher.Stop()
 	}
 	for key := range w.WatchingServices {
 		s := strings.Split(key, DefaultJoiner)
@@ -522,4 +633,9 @@ func shouldSubscribe(serviceName string) bool {
 	}
 
 	return true
+}
+
+func isValidIP(ipStr string) bool {
+	ip := net.ParseIP(ipStr)
+	return ip != nil
 }

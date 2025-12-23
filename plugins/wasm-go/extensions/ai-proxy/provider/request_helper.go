@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
@@ -18,7 +18,21 @@ func decodeChatCompletionRequest(body []byte, request *chatCompletionRequest) er
 	return nil
 }
 
-func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
+func decodeEmbeddingsRequest(body []byte, request *embeddingsRequest) error {
+	if err := json.Unmarshal(body, request); err != nil {
+		return fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+	return nil
+}
+
+func decodeImageGenerationRequest(body []byte, request *imageGenerationRequest) error {
+	if err := json.Unmarshal(body, request); err != nil {
+		return fmt.Errorf("unable to unmarshal request: %v", err)
+	}
+	return nil
+}
+
+func replaceJsonRequestBody(request interface{}) error {
 	body, err := json.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("unable to marshal request: %v", err)
@@ -29,6 +43,15 @@ func replaceJsonRequestBody(request interface{}, log wrapper.Log) error {
 		return fmt.Errorf("unable to replace the original request body: %v", err)
 	}
 	return err
+}
+
+func replaceRequestBody(body []byte) error {
+	log.Debugf("request body: %s", string(body))
+	err := proxywasm.ReplaceHttpRequestBody(body)
+	if err != nil {
+		return fmt.Errorf("unable to replace the original request body: %v", err)
+	}
+	return nil
 }
 
 func insertContextMessage(request *chatCompletionRequest, content string) {
@@ -50,15 +73,11 @@ func insertContextMessage(request *chatCompletionRequest, content string) {
 	}
 }
 
-func replaceJsonResponseBody(response interface{}, log wrapper.Log) error {
-	body, err := json.Marshal(response)
-	if err != nil {
-		return fmt.Errorf("unable to marshal response: %v", err)
-	}
+func ReplaceResponseBody(body []byte) error {
 	log.Debugf("response body: %s", string(body))
-	err = proxywasm.ReplaceHttpResponseBody(body)
+	err := proxywasm.ReplaceHttpResponseBody(body)
 	if err != nil {
 		return fmt.Errorf("unable to replace the original response body: %v", err)
 	}
-	return err
+	return nil
 }

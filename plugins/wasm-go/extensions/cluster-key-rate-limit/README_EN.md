@@ -1,162 +1,201 @@
 ---
-title: Key-Based Cluster Rate Limiting
-keywords: [higress, rate-limit]
-description: Configuration reference for the Key-Based Cluster Rate Limiting plugin
+title: Cluster Rate Limiting Based on Key  
+keywords: [higress, rate-limit]  
+description: Configuration reference for the Key-based cluster rate limiting plugin
+
 ---
+
 ## Function Description
-The `cluster-key-rate-limit` plugin implements cluster rate limiting based on Redis, suitable for scenarios that require global consistent rate limiting across multiple Higress Gateway instances. 
 
-The Key used for rate limiting can originate from URL parameters, HTTP request headers, client IP addresses, consumer names, or keys in cookies. 
+The `cluster-key-rate-limit` plugin implements **cluster-level rate limiting** based on Redis, suitable for scenarios
+requiring **globally consistent rate limiting across multiple Higress Gateway instances**.
 
-## Execution Attributes
-Plugin Execution Phase: `default phase`  
-Plugin Execution Priority: `20` 
+It supports two rate limiting modes:
 
-## Configuration Description
-| Configuration Item        | Type          | Required | Default Value | Description                                                                               |
-|---------------------------|---------------|----------|---------------|-------------------------------------------------------------------------------------------|
-| rule_name                 | string        | Yes      | -             | The name of the rate limiting rule. The Redis key is constructed using rule name + rate limit type + limit key name + actual value of the limit key.         |
-| rule_items                | array of object| Yes     | -             | Rate limiting rule items. The first matching `rule_item` based on the order under `rule_items` will trigger the rate limiting, and subsequent rules will be ignored.                 |
-| show_limit_quota_header   | bool          | No       | false         | Whether to display `X-RateLimit-Limit` (total requests allowed) and `X-RateLimit-Remaining` (remaining requests that can be sent) in the response headers. |
-| rejected_code             | int           | No       | 429           | HTTP status code returned when a request is rate limited.                                                          |
-| rejected_msg              | string        | No       | Too many requests | Response body returned when a request is rate limited.                                                               |
-| redis                     | object        | Yes      | -             | Redis related configuration.                                                                  |
+- **Rule-Level Global Rate Limiting**: Applies a unified rate limit threshold to custom rule groups based on identical `rule_name` and `global_threshold` configurations.
+- **Key-Level Dynamic Rate Limiting**: Groups and limits requests by dynamic keys extracted from requests, such as URL parameters, request headers, client IPs, consumer names, or cookie fields.
 
-Description of configuration fields for each item in `rule_items`.
-| Configuration Item        | Type          | Required               | Default Value | Description                                                                                           |
-|---------------------------|---------------|------------------------|---------------|-------------------------------------------------------------------------------------------------------|
-| limit_by_header           | string        | No, one of `limit_by_*` | -             | The name of the HTTP request header from which to retrieve the rate limiting key value.               |
-| limit_by_param            | string        | No, one of `limit_by_*` | -             | The name of the URL parameter from which to retrieve the rate limiting key value.                     |
-| limit_by_consumer         | string        | No, one of `limit_by_*` | -             | Applies rate limiting based on consumer name without needing to add an actual value.                  |
-| limit_by_cookie           | string        | No, one of `limit_by_*` | -             | The name of the key in the Cookie from which to retrieve the rate limiting key value.                |
-| limit_by_per_header       | string        | No, one of `limit_by_*` | -             | Matches specific HTTP request headers according to the rules and calculates rate limits for each header. The `limit_keys` configuration supports regular expressions or `*`. |
-| limit_by_per_param        | string        | No, one of `limit_by_*` | -             | Matches specific URL parameters according to the rules and calculates rate limits for each parameter. The `limit_keys` configuration supports regular expressions or `*`. |
-| limit_by_per_consumer     | string        | No, one of `limit_by_*` | -             | Matches specific consumers according to the rules and calculates rate limits for each consumer. The `limit_keys` configuration supports regular expressions or `*`. |
-| limit_by_per_cookie       | string        | No, one of `limit_by_*` | -             | Matches specific cookies according to the rules and calculates rate limits for each cookie. The `limit_keys` configuration supports regular expressions or `*`. |
-| limit_by_per_ip           | string        | No, one of `limit_by_*` | -             | Matches specific IPs according to the rules and calculates rate limits for each IP. Retrieve via IP parameter name from request headers, defined as `from-header-{header name}`, e.g., `from-header-x-forwarded-for`. To get the remote socket IP directly, use `from-remote-addr`. |
-| limit_keys                | array of object | Yes                    | -             | Configures the limit counts after matching key values.                                               |
+## Operational Attributes
 
-Description of configuration fields for each item in `limit_keys`.
-| Configuration Item        | Type          | Required                                                         | Default Value | Description                                                        |
-|---------------------------|---------------|------------------------------------------------------------------|---------------|--------------------------------------------------------------------|
-| key                       | string        | Yes                                                              | -             | Matched key value; types `limit_by_per_header`, `limit_by_per_param`, `limit_by_per_consumer`, `limit_by_per_cookie` support regular expression configurations (starting with regexp: followed by a regular expression) or `*` (representing all), e.g., `regexp:^d.*` (all strings starting with d); `limit_by_per_ip` supports configuring IP addresses or IP segments. |
-| query_per_second          | int           | No, one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day` is optional. | -             | Allowed number of requests per second.                           |
-| query_per_minute          | int           | No, one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day` is optional. | -             | Allowed number of requests per minute.                           |
-| query_per_hour            | int           | No, one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day` is optional. | -             | Allowed number of requests per hour.                             |
-| query_per_day             | int           | No, one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day` is optional. | -             | Allowed number of requests per day.                              |
+- **Plugin execution phase**: `Default phase`
+- **Plugin execution priority**: `20`
 
-Description of configuration fields for each item in `redis`.
-| Configuration Item        | Type          | Required | Default Value                                               | Description                                                               |
-|---------------------------|---------------|----------|------------------------------------------------------------|---------------------------------------------------------------------------|
-| service_name              | string        | Required | -                                                          | Full FQDN name of the Redis service, including service type, e.g., my-redis.dns, redis.my-ns.svc.cluster.local. |
-| service_port              | int           | No       | 80 for static services; otherwise 6379                     | Service port for the Redis service.                                      |
-| username                  | string        | No       | -                                                          | Redis username.                                                          |
-| password                  | string        | No       | -                                                          | Redis password.                                                          |
-| timeout                   | int           | No       | 1000                                                       | Redis connection timeout in milliseconds.                               |
+## Configuration Instructions
+
+| Configuration Item       | Type          | Required                                  | Default Value       | Description                                                                |  
+|--------------------------|---------------|-------------------------------------------|---------------------|----------------------------------------------------------------------------|  
+| rule_name                | string        | Yes                                       | -                   | Name of the rate limiting rule. Used to construct the Redis key in the format: `rule_name:rate_limit_type:key_name:key_value`. |  
+| global_threshold         | Object        | No (choose either `global_threshold` or `rule_items`) | -                 | Apply rate limiting to the entire custom rule group.|  
+| rule_items               | array of object | No (choose either `global_threshold` or `rule_items`) | -               | Rate limiting rule items. Rules are matched in the order of the array; once the first matching rule is hit, subsequent rules are ignored. |  
+| show_limit_quota_header  | bool          | No                                        | false             | Whether to display `X-RateLimit-Limit` (total allowed requests) and `X-RateLimit-Remaining` (remaining allowed requests) in the response header. |  
+| rejected_code            | int           | No                                        | 429               | HTTP status code returned when a request is rate-limited.                  |  
+| rejected_msg             | string        | No                                        | Too many requests | Response body returned when a request is rate-limited.                      |  
+| redis                    | object        | Yes                                       | -                   | Configuration for Redis.                                                   |  
+
+### Configuration Fields for `global_threshold`
+
+| Configuration Item       | Type | Required                                 | Default Value | Description                          |  
+|--------------------------|------|------------------------------------------|---------------|--------------------------------------|  
+| query_per_second         | int  | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per second.         |  
+| query_per_minute         | int  | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per minute.         |  
+| query_per_hour           | int  | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per hour.           |  
+| query_per_day            | int  | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per day.            |  
+
+### Configuration Fields for `rule_items`
+
+| Configuration Item            | Type          | Required                          | Default Value | Description                                                                 |  
+|-------------------------------|---------------|-----------------------------------|---------------|-----------------------------------------------------------------------------|  
+| limit_by_header               | string        | No (choose one of `limit_by_*` fields) | -           | Configures the HTTP request header name to extract the rate limiting key.   |  
+| limit_by_param                | string        | No (choose one of `limit_by_*` fields) | -           | Configures the URL parameter name to extract the rate limiting key.        |  
+| limit_by_consumer             | string        | No (choose one of `limit_by_*` fields) | -           | Rate limits based on the consumer name (no need to add a specific value).   |  
+| limit_by_cookie               | string        | No (choose one of `limit_by_*` fields) | -           | Configures the Cookie key name to extract the rate limiting key.           |  
+| limit_by_per_header           | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific HTTP headers by rule and calculates rate limits for each header. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration. |  
+| limit_by_per_param            | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific URL parameters by rule and calculates rate limits for each parameter. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration. |  
+| limit_by_per_consumer         | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific consumers by rule and calculates rate limits for each consumer. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration (no need to add a specific value for the consumer name). |  
+| limit_by_per_cookie           | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific Cookies by rule and calculates rate limits for each Cookie value. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration. |  
+| limit_by_per_ip               | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific IPs by rule and calculates rate limits for each IP. The IP can be extracted from a request header (formatted as `from-header-<header_name>`, e.g., `from-header-x-forwarded-for`) or directly from the peer socket IP (configured as `from-remote-addr`). |  
+| limit_keys                    | array of object | Yes                               | -           | Configures the rate limits for matched key values.                          |  
+
+### Configuration Fields for `limit_keys`
+
+| Configuration Item       | Type   | Required                                 | Default Value | Description                                                                 |  
+|--------------------------|--------|------------------------------------------|---------------|-----------------------------------------------------------------------------|  
+| key                      | string | Yes                                      | -             | The matched key value. For `limit_by_per_header`, `limit_by_per_param`, `limit_by_per_consumer`, and `limit_by_per_cookie` types, supports regular expressions (prefixed with `regexp:`) or `*` (wildcard for all). Example regular expression: `regexp:^d.*` (matches all strings starting with `d`). For `limit_by_per_ip`, supports IP addresses or CIDR blocks. |  
+| query_per_second         | int    | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per second.                                                |  
+| query_per_minute         | int    | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per minute.                                                |  
+| query_per_hour           | int    | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per hour.                                                  |  
+| query_per_day            | int    | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per day.                                                   |  
+
+### Configuration Fields for `redis`
+
+| Configuration Item   | Type   | Required | Default Value                                                     | Description                                                                 |  
+|----------------------|--------|----------|-------------------------------------------------------------------|-----------------------------------------------------------------------------|  
+| service_name         | string | Yes      | -                                                                 | The fully qualified domain name (FQDN) of the Redis service, including the service type (e.g., `my-redis.dns`, `redis.my-ns.svc.cluster.local`). |  
+| service_port         | int    | No       | 80 (for static services), 6379 for other services                  | The port of the Redis service.                                              |  
+| username             | string | No       | -                                                                 | Redis username for authentication.                                          |  
+| password             | string | No       | -                                                                 | Redis password for authentication.                                          |  
+| timeout              | int    | No       | 1000 (milliseconds)                                               | Redis connection timeout in milliseconds.                                  |  
+| database             | int    | No       | 0                                                                 | The ID of the Redis database to use (e.g., configuring `1` corresponds to `SELECT 1`). |  
 
 ## Configuration Examples
 
-### Distinguish rate limiting based on the request parameter apikey
-```yaml
-rule_name: default_rule
-rule_items:
-- limit_by_param: apikey
-  limit_keys:
-  - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
-    query_per_minute: 10
-  - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
-    query_per_hour: 100
-- limit_by_per_param: apikey
-  limit_keys:
-  # Regular expression, matches all strings starting with a, each apikey corresponds to 10qds.
-  - key: "regexp:^a.*"
-    query_per_second: 10
-  # Regular expression, matches all strings starting with b, each apikey corresponds to 100qd.
-  - key: "regexp:^b.*"
-    query_per_minute: 100
-  # As a fallback, matches all requests, each apikey corresponds to 1000qdh.
-  - key: "*"
-    query_per_hour: 1000
+### Global Rate Limiting for Custom Rule Group
+
+```yaml  
+rule_name: routeA-global-limit-rule
+global_threshold:
+  query_per_minute: 1000 # Maximum 1000 requests per minute for this rule group
 redis:
   service_name: redis.static
 show_limit_quota_header: true
 ```
 
-### Distinguish rate limiting based on the header x-ca-key
-```yaml
-rule_name: default_rule
+### Rate Limiting by Request Parameter `apikey`
+
+```yaml  
+rule_name: routeA-request-param-limit-rule
 rule_items:
-- limit_by_header: x-ca-key
-  limit_keys:
-  - key: 102234
-    query_per_minute: 10
-  - key: 308239
-    query_per_hour: 10
-- limit_by_per_header: x-ca-key
-  limit_keys:
-  # Regular expression, matches all strings starting with a, each apikey corresponds to 10qds.
-  - key: "regexp:^a.*"
-    query_per_second: 10
-  # Regular expression, matches all strings starting with b, each apikey corresponds to 100qd.
-  - key: "regexp:^b.*"
-    query_per_minute: 100
-  # As a fallback, matches all requests, each apikey corresponds to 1000qdh.
-  - key: "*"
-    query_per_hour: 1000
+  - limit_by_param: apikey
+    limit_keys:
+      - key: 9a342114-ba8a-11ec-b1bf-00163e1250b5
+        query_per_minute: 10
+      - key: a6a6d7f2-ba8a-11ec-bec2-00163e1250b5
+        query_per_hour: 100
+  - limit_by_per_param: apikey
+    limit_keys:
+      # Regular expression to match all strings starting with "a"; 10 requests per second for each apikey  
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # Regular expression to match all strings starting with "b"; 100 requests per minute for each apikey  
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # Fallback rule to match all requests; 1000 requests per hour for each apikey  
+      - key: "*"
+        query_per_hour: 1000
 redis:
   service_name: redis.static
 show_limit_quota_header: true
 ```
 
-### Distinguish rate limiting based on the client IP from the request header x-forwarded-for
-```yaml
-rule_name: default_rule
+### Rate Limiting by Request Header `x-ca-key`
+
+```yaml  
+rule_name: routeA-request-header-limit-rule
 rule_items:
-- limit_by_per_ip: from-header-x-forwarded-for
-  limit_keys:
-  # Exact IP
-  - key: 1.1.1.1
-    query_per_day: 10
-  # IP segment, for IPs matching this segment, each IP corresponds to 100qpd.
-  - key: 1.1.1.0/24
-    query_per_day: 100
-  # As a fallback, defaults to 1000 qpd for each IP.
-  - key: 0.0.0.0/0
-    query_per_day: 1000
+  - limit_by_header: x-ca-key
+    limit_keys:
+      - key: 102234
+        query_per_minute: 10
+      - key: 308239
+        query_per_hour: 10
+  - limit_by_per_header: x-ca-key
+    limit_keys:
+      # Regular expression to match all strings starting with "a"; 10 requests per second for each key  
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # Regular expression to match all strings starting with "b"; 100 requests per minute for each key  
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # Fallback rule to match all requests; 1000 requests per hour for each key  
+      - key: "*"
+        query_per_hour: 1000
 redis:
   service_name: redis.static
 show_limit_quota_header: true
 ```
 
-### Distinguish rate limiting based on consumers
-```yaml
-rule_name: default_rule
+### Rate Limiting by Client IP Extracted from `x-forwarded-for` Header
+
+```yaml  
+rule_name: routeA-client-ip-limit-rule
 rule_items:
-- limit_by_consumer: ''
-  limit_keys:
-  - key: consumer1
-    query_per_second: 10
-  - key: consumer2
-    query_per_hour: 100
-- limit_by_per_consumer: ''
-  limit_keys:
-  # Regular expression, matches all strings starting with a, each consumer corresponds to 10qds.
-  - key: "regexp:^a.*"
-    query_per_second: 10
-  # Regular expression, matches all strings starting with b, each consumer corresponds to 100qd.
-  - key: "regexp:^b.*"
-    query_per_minute: 100
-  # As a fallback, matches all requests, each consumer corresponds to 1000qdh.
-  - key: "*"
-    query_per_hour: 1000
+  - limit_by_per_ip: from-header-x-forwarded-for
+    limit_keys:
+      # Exact IP match  
+      - key: 1.1.1.1
+        query_per_day: 10
+      # CIDR block match; 100 requests per day for each IP in the block  
+      - key: 1.1.1.0/24
+        query_per_day: 100
+      # Fallback rule for all IPs; 1000 requests per day for each IP  
+      - key: 0.0.0.0/0
+        query_per_day: 1000
 redis:
   service_name: redis.static
 show_limit_quota_header: true
 ```
 
-### Distinguish rate limiting based on key-value pairs in cookies
-```yaml
-rule_name: default_rule
+### Rate Limiting by Consumer
+
+```yaml  
+rule_name: routeA-consumer-limit-rule
+rule_items:
+  - limit_by_consumer: ''
+    limit_keys:
+      - key: consumer1
+        query_per_second: 10
+      - key: consumer2
+        query_per_hour: 100
+  - limit_by_per_consumer: ''
+    limit_keys:
+      # Regular expression to match all consumer names starting with "a"; 10 requests per second for each consumer  
+      - key: "regexp:^a.*"
+        query_per_second: 10
+      # Regular expression to match all consumer names starting with "b"; 100 requests per minute for each consumer  
+      - key: "regexp:^b.*"
+        query_per_minute: 100
+      # Fallback rule to match all consumers; 1000 requests per hour for each consumer  
+      - key: "*"
+        query_per_hour: 1000
+redis:
+  service_name: redis.static
+show_limit_quota_header: true
+```
+
+### Rate Limiting by Cookie Value
+
+```yaml  
+rule_name: routeA-cookie-limit-rule
 rule_items:
   - limit_by_cookie: key1
     limit_keys:
@@ -166,13 +205,13 @@ rule_items:
         query_per_hour: 100
   - limit_by_per_cookie: key1
     limit_keys:
-      # Regular expression, matches all strings starting with a, each cookie's value corresponds to 10qds.
+      # Regular expression to match all cookie values starting with "a"; 10 requests per second for each value  
       - key: "regexp:^a.*"
         query_per_second: 10
-      # Regular expression, matches all strings starting with b, each cookie's value corresponds to 100qd.
+      # Regular expression to match all cookie values starting with "b"; 100 requests per minute for each value  
       - key: "regexp:^b.*"
         query_per_minute: 100
-      # As a fallback, matches all requests, each cookie's value corresponds to 1000qdh.
+      # Fallback rule to match all cookie values; 1000 requests per hour for each value  
       - key: "*"
         query_per_hour: 1000
 rejected_code: 200

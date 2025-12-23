@@ -1,4 +1,4 @@
-# Copyright (c) 2022 Alibaba Group Holding Ltd.
+# Copyright (c) 2025 Alibaba Group Holding Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,42 +14,382 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations:
-  name: wasmplugin-ai-proxy-openai
-  namespace: higress-conformance-infra
+  name: wasmplugin-ai-proxy-ai360
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
-    - host: "openai.ai.com"
+    - host: "api.360.cn"
       http:
         paths:
           - pathType: Prefix
             path: "/"
             backend:
               service:
-                name: infra-backend-v1
+                name: llm-mock-service
                 port:
-                  number: 8080
+                  number: 3000
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations:
-  name: wasmplugin-ai-proxy-qwen
-  namespace: higress-conformance-infra
+  name: wasmplugin-ai-proxy-baichuan
+  namespace: higress-conformance-ai-backend
 spec:
   ingressClassName: higress
   rules:
-    - host: "qwen.ai.com"
+    - host: "api.baichuan-ai.com"
       http:
         paths:
           - pathType: Prefix
             path: "/"
             backend:
               service:
-                name: infra-backend-v1
+                name: llm-mock-service
                 port:
-                  number: 8080
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-baidu
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "qianfan.baidubce.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-deepseek
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.deepseek.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-doubao
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "ark.cn-beijing.volces.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-github
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "models.inference.ai.azure.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-groq
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.groq.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-minimax-v2-api
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.minimax.chat-v2-api"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-minimax-pro-api
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.minimax.chat-pro-api"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-mistral
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.mistral.ai"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-qwen-compatible-mode
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "dashscope.aliyuncs.com-compatible-mode"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-qwen
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "dashscope.aliyuncs.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-stepfun
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.stepfun.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-cloudflare
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.cloudflare.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-together-ai
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.together.xyz"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-yi
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.lingyiwanwu.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-zhipuai
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "open.bigmodel.cn"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-dify
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.dify.ai"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-grok
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.x.ai"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-proxy-openai
+  namespace: higress-conformance-ai-backend
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "api.openai.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: llm-mock-service
+                port:
+                  number: 3000
 ---
 apiVersion: extensions.higress.io/v1alpha1
 kind: WasmPlugin
@@ -57,31 +397,214 @@ metadata:
   name: ai-proxy
   namespace: higress-system
 spec:
-  priority: 200
+  defaultConfigDisable: true
+  phase: UNSPECIFIED_PHASE
+  priority: 100
   matchRules:
     - config:
         provider:
-          type: "openai"
-          customSettings:
-            - name: "max_tokens"
-              value: 123
-              overwrite: false
-            - name: "temperature"
-              value: 0.66
-              overwrite: true
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": 360gpt-turbo
+            "*": 360gpt-pro
+          type: ai360
       ingress:
-        - higress-conformance-infra/wasmplugin-ai-proxy-openai
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-ai360
     - config:
         provider:
-          type: "qwen"
-          apiTokens: "fake-token"
-          customSettings:
-            - name: "max_tokens"
-              value: 123
-              overwrite: false
-            - name: "temperature"
-              value: 0.66
-              overwrite: true
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": baichuan2-13b-chat-v1
+            "*": baichuan-7b-v1
+          type: baichuan
       ingress:
-        - higress-conformance-infra/wasmplugin-ai-proxy-qwen
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:1.0.0
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-baichuan
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": ernie-3.5-8k
+            "*": ernie-3.5-8k
+          type: baidu
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-baidu
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": deepseek-reasoner
+            "*": deepseek-chat
+          type: deepseek
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-deepseek
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "*": fake_doubao_endpoint
+          type: doubao
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-doubao
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": cohere-command-r-08-2024
+            "*": Phi-3.5-MoE-instruct
+          type: github
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-github
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": llama3-8b-8192
+            "*": llama-3.1-8b-instant
+          type: groq
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-groq
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": abab6.5s-chat
+            "gpt-4": abab6.5g-chat
+            "*": abab6.5t-chat
+          type: minimax
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-minimax-v2-api
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": abab6.5s-chat
+            "gpt-4": abab6.5g-chat
+            "*": abab6.5t-chat
+          type: minimax
+          minimaxApiType: pro
+          minimaxGroupId: 1
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-minimax-pro-api
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": mistral-tiny
+            "*": mistral-large-latest
+          type: mistral
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-mistral
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": qwen-turbo
+            "gpt-35-turbo": qwen-plus
+            "gpt-4-*": qwen-max
+            "*": qwen-turbo
+          type: qwen
+          qwenEnableCompatible: true
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen-compatible-mode
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": qwen-turbo
+            "gpt-35-turbo": qwen-plus
+            "gpt-4-*": qwen-max
+            "*": qwen-turbo
+          type: qwen
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-qwen
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": step-1-8k
+            "*": step-1-32k
+          type: stepfun
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-stepfun
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": meta/llama-3.1-8b-instruct
+            "*": meta/llama-3.1-70b-instruct
+          type: cloudflare
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-cloudflare
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": meta-llama/Meta-Llama-3-8B-Instruct-Turbo
+            "*": meta-llama/Llama-3-8b-chat-hf
+          type: together-ai
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-together-ai
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": Yi-Medium
+            "*": Yi-Large
+          type: yi
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-yi
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": glm-4-plus
+            "*": glm-4-long
+          type: zhipuai
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-zhipuai
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "*": dify
+          type: dify
+          botType: Completion
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-dify
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          modelMapping:
+            "gpt-3": grok-beta
+            "gpt-4": grok-beta
+            "*": grok-beta
+          type: grok
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-grok
+    - config:
+        provider:
+          apiTokens:
+            - fake_token
+          type: openai
+      ingress:
+        - higress-conformance-ai-backend/wasmplugin-ai-proxy-openai
+  url: file:///opt/plugins/wasm-go/extensions/ai-proxy/plugin.wasm

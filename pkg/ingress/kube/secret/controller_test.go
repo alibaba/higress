@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+
 	kubeclient "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/test/util/retry"
 	corev1 "k8s.io/api/core/v1"
@@ -29,7 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
 )
 
 const (
@@ -43,7 +45,7 @@ var period = time.Second
 
 func TestController(t *testing.T) {
 	client := kubeclient.NewFakeClient()
-	ctrl := NewController(client, "fake-cluster")
+	ctrl := NewController(client, common.Options{ClusterId: "fake-cluster"})
 
 	stop := make(chan struct{})
 	t.Cleanup(func() {

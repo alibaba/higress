@@ -36,7 +36,7 @@ description: AI 数据脱敏插件配置参考
 |  deny_openai            | bool            | true  |  对openai协议进行拦截 |
 |  deny_jsonpath          | string          |   []  |  对指定jsonpath拦截 |
 |  deny_raw               | bool            | false |  对原始body拦截 |
-|  system_deny            | bool            | true  |  开启内置拦截规则  |
+|  system_deny            | bool            | false |  开启内置拦截规则  |
 |  deny_code              | int             | 200   |  拦截时http状态码   |
 |  deny_message           | string          | 提问或回答中包含敏感词，已被屏蔽 |  拦截时ai返回消息   |
 |  deny_raw_message       | string          | {"errmsg":"提问或回答中包含敏感词，已被屏蔽"} |  非openai拦截时返回内容   |
@@ -147,5 +147,5 @@ curl -X POST \
  - 流模式中如果脱敏后的词被多个chunk拆分，可能无法进行还原
  - 流模式中，如果敏感词语被多个chunk拆分，可能会有敏感词的一部分返回给用户的情况
  - grok 内置规则列表 https://help.aliyun.com/zh/sls/user-guide/grok-patterns
- - 内置敏感词库数据来源 https://github.com/houbb/sensitive-word/tree/master/src/main/resources
- 
+ - 内置敏感词库数据来源 https://github.com/houbb/sensitive-word-data/tree/main/src/main/resources
+ - 由于敏感词列表是在文本分词后进行匹配的，所以请将 `deny_words` 设置为单个单词，英文多单词情况如 `hello word` 可能无法匹配

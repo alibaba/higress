@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/tidwall/gjson"
 	"testing"
+
+	"github.com/tidwall/gjson"
 )
 
 func Test_parseIPNets(t *testing.T) {
@@ -52,7 +53,8 @@ func Test_parseIPNets(t *testing.T) {
 
 func Test_parseIP(t *testing.T) {
 	type args struct {
-		source string
+		source     string
+		fromHeader bool
 	}
 	tests := []struct {
 		name string
@@ -64,6 +66,7 @@ func Test_parseIP(t *testing.T) {
 			name: "case 1",
 			args: args{
 				"127.0.0.1",
+				false,
 			},
 			want: "127.0.0.1",
 		},
@@ -71,6 +74,7 @@ func Test_parseIP(t *testing.T) {
 			name: "case 2",
 			args: args{
 				"127.0.0.1:12",
+				false,
 			},
 			want: "127.0.0.1",
 		},
@@ -78,6 +82,7 @@ func Test_parseIP(t *testing.T) {
 			name: "case 3",
 			args: args{
 				"fe80::14d5:8aff:fed9:2114",
+				false,
 			},
 			want: "fe80::14d5:8aff:fed9:2114",
 		},
@@ -85,6 +90,7 @@ func Test_parseIP(t *testing.T) {
 			name: "case 4",
 			args: args{
 				"[fe80::14d5:8aff:fed9:2114]:123",
+				false,
 			},
 			want: "fe80::14d5:8aff:fed9:2114",
 		},
@@ -92,13 +98,38 @@ func Test_parseIP(t *testing.T) {
 			name: "case 5",
 			args: args{
 				"127.0.0.1:12,[fe80::14d5:8aff:fed9:2114]:123",
+				true,
+			},
+			want: "127.0.0.1",
+		},
+		{
+			name: "case 6",
+			args: args{
+				"127.0.0.1,[fe80::14d5:8aff:fed9:2114]:123",
+				true,
+			},
+			want: "127.0.0.1",
+		},
+		{
+			name: "case 7",
+			args: args{
+				"[fe80::14d5:8aff:fed9:2114]:123,127.0.0.1",
+				true,
+			},
+			want: "fe80::14d5:8aff:fed9:2114",
+		},
+		{
+			name: "case 8",
+			args: args{
+				"127.0.0.1 , [fe80::14d5:8aff:fed9:2114]:123",
+				true,
 			},
 			want: "127.0.0.1",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := parseIP(tt.args.source); got != tt.want {
+			if got := parseIP(tt.args.source, tt.args.fromHeader); got != tt.want {
 				t.Errorf("parseIP() = %v, want %v", got, tt.want)
 			}
 		})

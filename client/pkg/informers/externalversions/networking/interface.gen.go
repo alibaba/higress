@@ -17,8 +17,8 @@
 package networking
 
 import (
-	internalinterfaces "github.com/alibaba/higress/client/pkg/informers/externalversions/internalinterfaces"
-	v1 "github.com/alibaba/higress/client/pkg/informers/externalversions/networking/v1"
+	internalinterfaces "github.com/alibaba/higress/v2/client/pkg/informers/externalversions/internalinterfaces"
+	v1 "github.com/alibaba/higress/v2/client/pkg/informers/externalversions/networking/v1"
 )
 
 // Interface provides access to each of this group's versions.

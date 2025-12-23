@@ -16,6 +16,8 @@ package bootstrap
 
 import (
 	"fmt"
+	"istio.io/istio/pkg/config/mesh/meshwatcher"
+	"istio.io/istio/pkg/kube/krt"
 	"net"
 	"net/http"
 	"time"
@@ -32,29 +34,25 @@ import (
 	"istio.io/istio/pilot/pkg/serviceregistry/aggregate"
 	kubecontroller "istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
 	"istio.io/istio/pilot/pkg/xds"
-	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
-	"istio.io/istio/pkg/config/mesh"
 	"istio.io/istio/pkg/config/schema/collections"
 	"istio.io/istio/pkg/config/schema/gvk"
-	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/keepalive"
 	istiokube "istio.io/istio/pkg/kube"
+	"istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/security"
 	"istio.io/istio/security/pkg/server/ca/authenticate"
 	"istio.io/istio/security/pkg/server/ca/authenticate/kubeauth"
-	"istio.io/pkg/ledger"
-	"istio.io/pkg/log"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/cert"
-	higressconfig "github.com/alibaba/higress/pkg/config"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/mcp"
-	"github.com/alibaba/higress/pkg/ingress/translation"
-	higresskube "github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/v2/pkg/cert"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/mcp"
+	"github.com/alibaba/higress/v2/pkg/ingress/translation"
+	higresskube "github.com/alibaba/higress/v2/pkg/kube"
 )
 
 type XdsOptions struct {
@@ -152,7 +150,7 @@ type Server struct {
 func NewServer(args *ServerArgs) (*Server, error) {
 	e := model.NewEnvironment()
 	e.DomainSuffix = constants.DefaultClusterLocalDomain
-	e.SetLedger(buildLedger(args.RegistryOptions))
+	//e.SetLedger(buildLedger(args.RegistryOptions))
 	ac := aggregate.NewController(aggregate.Options{
 		MeshHolder: e,
 	})
@@ -164,7 +162,7 @@ func NewServer(args *ServerArgs) (*Server, error) {
 		readinessProbes: make(map[string]readinessProbe),
 		server:          server.New(),
 	}
-	s.environment.Watcher = mesh.NewFixedWatcher(&v1alpha1.MeshConfig{})
+	s.environment.Watcher = meshwatcher.NewTestWatcher(&v1alpha1.MeshConfig{})
 	s.environment.Init()
 	initFuncList := []func() error{
 		s.initKubeClient,
@@ -202,7 +200,7 @@ func (s *Server) initRegistryEventHandlers() error {
 		pushReq := &model.PushRequest{
 			Full: true,
 			ConfigsUpdated: map[model.ConfigKey]struct{}{{
-				Kind:      kind.MustFromGVK(curr.GroupVersionKind),
+				Kind:      gvk.MustToKind(curr.GroupVersionKind),
 				Name:      curr.Name,
 				Namespace: curr.Namespace,
 			}: {}},
@@ -235,7 +233,7 @@ func (s *Server) initConfigController() error {
 		options.ClusterId = ""
 	}
 
-	ingressConfig := translation.NewIngressTranslation(s.kubeClient, s.xdsServer, ns, options.ClusterId)
+	ingressConfig := translation.NewIngressTranslation(s.kubeClient, s.xdsServer, ns, options)
 	ingressConfig.AddLocalCluster(options)
 
 	s.configStores = append(s.configStores, ingressConfig)
@@ -340,7 +338,7 @@ func (s *Server) WaitUntilCompletion() {
 
 func (s *Server) initXdsServer() error {
 	log.Info("init xds server")
-	s.xdsServer = xds.NewDiscoveryServer(s.environment, higressconfig.PodName, cluster.ID(higressconfig.PodNamespace), s.RegistryOptions.KubeOptions.ClusterAliases)
+	s.xdsServer = xds.NewDiscoveryServer(s.environment, s.RegistryOptions.KubeOptions.ClusterAliases, krt.GlobalDebugHandler)
 	generatorOptions := mcp.GeneratorOptions{KeepConfigLabels: s.XdsOptions.KeepConfigLabels, KeepConfigAnnotations: s.XdsOptions.KeepConfigAnnotations}
 	s.xdsServer.Generators[gvk.WasmPlugin.String()] = &mcp.WasmPluginGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
 	s.xdsServer.Generators[gvk.DestinationRule.String()] = &mcp.DestinationRuleGenerator{Environment: s.environment, Server: s.xdsServer, GeneratorOptions: generatorOptions}
@@ -354,8 +352,8 @@ func (s *Server) initXdsServer() error {
 			s.xdsServer.Generators[gvk] = &mcp.FallbackGenerator{Environment: s.environment, Server: s.xdsServer}
 		}
 	}
-	s.xdsServer.ProxyNeedsPush = func(proxy *model.Proxy, req *model.PushRequest) bool {
-		return true
+	s.xdsServer.ProxyNeedsPush = func(proxy *model.Proxy, req *model.PushRequest) (*model.PushRequest, bool) {
+		return req, true
 	}
 	s.server.RunComponent("xds-server", func(stop <-chan struct{}) error {
 		log.Infof("Starting ADS server")
@@ -382,7 +380,7 @@ func (s *Server) initAuthenticators() error {
 		&authenticate.ClientCertAuthenticator{},
 	}
 	authenticators = append(authenticators,
-		kubeauth.NewKubeJWTAuthenticator(s.environment.Watcher, s.kubeClient.Kube(), s.RegistryOptions.KubeOptions.ClusterID, nil, features.JwtPolicy))
+		kubeauth.NewKubeJWTAuthenticator(s.environment.Watcher, s.kubeClient.Kube(), s.RegistryOptions.KubeOptions.ClusterID, nil, nil))
 	if features.XDSAuth {
 		s.xdsServer.Authenticators = authenticators
 	}
@@ -528,12 +526,13 @@ func (s *Server) pushContextReady(expected int64) bool {
 	return true
 }
 
-func buildLedger(ca RegistryOptions) ledger.Ledger {
-	var result ledger.Ledger
-	if ca.DistributionTrackingEnabled {
-		result = ledger.Make(ca.DistributionCacheRetention)
-	} else {
-		result = &model.DisabledLedger{}
-	}
-	return result
-}
+// ledger has been removed in istio 1.27
+//func buildLedger(ca RegistryOptions) ledger.Ledger {
+//	var result ledger.Ledger
+//	if ca.DistributionTrackingEnabled {
+//		result = ledger.Make(ca.DistributionCacheRetention)
+//	} else {
+//		result = &pkgcommon.DisabledLedger{}
+//	}
+//	return result
+//}

@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 proxy-wasm = { git="https://github.com/higress-group/proxy-wasm-rust-sdk", branch="main", version="0.2.2" }
-serde = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.3.3", features = ["v4"] }
 multimap = "0"
 http = "1"
 lazy_static = "1"
 downcast-rs="1"
+redis={version = "0", default-features = false}

@@ -33,7 +33,7 @@ jobs:
       - name: "Setup Go"
         uses: actions/setup-go@v5
         with:
-          go-version: 1.21.5
+          go-version: 1.22
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -65,12 +65,16 @@ jobs:
 
       - name: Build Docker Image and Push
         run: |
-          GOPROXY="https://proxy.golang.org,direct" make docker-buildx-push
-          BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress"
+          BUILT_IMAGE=""
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
+            if [ "$BUILT_IMAGE" == "" ]; then
+              GOPROXY="https://proxy.golang.org,direct" IMG_URL="$image" make docker-buildx-push
+              BUILT_IMAGE="$image"
+            else
+              docker buildx imagetools create $BUILT_IMAGE --tag $image
+            fi
           done
 
   build-pilot-image:
@@ -99,7 +103,7 @@ jobs:
       - name: "Setup Go"
         uses: actions/setup-go@v5
         with:
-          go-version: 1.21.5
+          go-version: 1.22
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -110,11 +114,16 @@ jobs:
           key: ${{ runner.os }}-go-${{ github.run_id }}
           restore-keys: ${{ runner.os }}-go
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          image: tonistiigi/binfmt:qemu-v7.0.0
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Cache Docker layers
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -142,19 +151,26 @@ jobs:
 
       - name: Build Pilot-Discovery Image and Push
         run: |
-          GOPROXY="https://proxy.golang.org,direct" make build-istio
-          BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot"
+          BUILT_IMAGE=""
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
+            if [ "$BUILT_IMAGE" == "" ]; then
+              TAG=${image#*:}
+              HUB=${image%:*}
+              HUB=${HUB%/*}
+              BUILT_IMAGE="$HUB/pilot:$TAG"
+              GOPROXY="https://proxy.golang.org,direct" IMG_URL="$BUILT_IMAGE" make build-istio
+            fi
+            if [ "$BUILT_IMAGE" != "$image" ]; then
+              docker buildx imagetools create $BUILT_IMAGE --tag $image
+            fi
           done
-
 
   build-gateway-image:
     runs-on: ubuntu-latest
     environment:
-      name: image-registry-pilot
+      name: image-registry-gateway
     env:
       GATEWAY_IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY || 'higress-registry.cn-hangzhou.cr.aliyuncs.com' }}
       GATEWAY_IMAGE_NAME: ${{ vars.GATEWAY_IMAGE_NAME || 'higress/gateway' }}
@@ -177,7 +193,7 @@ jobs:
       - name: "Setup Go"
         uses: actions/setup-go@v5
         with:
-          go-version: 1.21.5
+          go-version: 1.22
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -188,11 +204,16 @@ jobs:
           key: ${{ runner.os }}-go-${{ github.run_id }}
           restore-keys: ${{ runner.os }}-go
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          image: tonistiigi/binfmt:qemu-v7.0.0
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v3
 
       - name: Cache Docker layers
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ github.sha }}
@@ -216,14 +237,22 @@ jobs:
         with:
           registry: ${{ env.GATEWAY_IMAGE_REGISTRY }}
           username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}            
-          
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
       - name: Build Gateway Image and Push
         run: |
-          GOPROXY="https://proxy.golang.org,direct" make build-gateway
-          BUILT_IMAGE="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/proxyv2"
+          BUILT_IMAGE=""
           readarray -t IMAGES <<< "${{ steps.docker-meta.outputs.tags }}"
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
-            docker buildx imagetools create $BUILT_IMAGE:$GITHUB_SHA --tag $image
+            if [ "$BUILT_IMAGE" == "" ]; then
+              TAG=${image#*:}
+              HUB=${image%:*}
+              HUB=${HUB%/*}
+              BUILT_IMAGE="$HUB/proxyv2:$TAG"
+              GOPROXY="https://proxy.golang.org,direct" IMG_URL="$BUILT_IMAGE" make build-gateway
+            fi
+            if [ "$BUILT_IMAGE" != "$image" ]; then
+              docker buildx imagetools create $BUILT_IMAGE --tag $image
+            fi
           done

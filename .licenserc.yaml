@@ -12,6 +12,7 @@ header:
     - 'LICENSE'
     - 'api/**'
     - 'samples/**'
+    - 'docs/**'
     - '.github/**'
     - '.licenserc.yaml'
     - 'helm/**'
@@ -26,12 +27,15 @@ header:
     - 'plugins/**'
     - 'CODEOWNERS'
     - 'VERSION'
+    - 'DEP_VERSION'
     - 'tools/'
     - 'test/README.md'
     - 'test/README_CN.md'
     - 'hgctl/cmd/hgctl/config/testdata/config'
     - 'hgctl/pkg/manifests'
     - 'pkg/ingress/kube/gateway/istio/testdata'
+    - 'release-notes/**'
+    - '.cursor/**'    
 
   comment: on-failure
 dependency:

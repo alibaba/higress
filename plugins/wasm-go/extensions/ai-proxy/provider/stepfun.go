@@ -2,30 +2,35 @@ package provider
 
 import (
 	"errors"
-	"fmt"
+	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
-	stepfunDomain             = "api.stepfun.com"
-	stepfunChatCompletionPath = "/v1/chat/completions"
+	stepfunDomain = "api.stepfun.com"
 )
 
-type stepfunProviderInitializer struct {
-}
+type stepfunProviderInitializer struct{}
 
-func (m *stepfunProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *stepfunProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
 }
 
+func (m *stepfunProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		// stepfun的chat接口path和OpenAI的chat接口一样
+		string(ApiNameChatCompletion): PathOpenAIChatCompletions,
+	}
+}
+
 func (m *stepfunProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &stepfunProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -41,43 +46,21 @@ func (m *stepfunProvider) GetProviderType() string {
 	return providerTypeStepfun
 }
 
-func (m *stepfunProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
-	}
-	_ = util.OverwriteRequestPath(stepfunChatCompletionPath)
-	_ = util.OverwriteRequestHost(stepfunDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	return types.ActionContinue, nil
+func (m *stepfunProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
+	return nil
 }
 
-func (m *stepfunProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+func (m *stepfunProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	if m.contextCache == nil {
-		return types.ActionContinue, nil
-	}
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.stepfun.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.stepfun.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
+}
+
+func (m *stepfunProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
+	util.OverwriteRequestHostHeader(headers, stepfunDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
 }

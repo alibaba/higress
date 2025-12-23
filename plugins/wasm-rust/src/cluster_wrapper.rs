@@ -4,10 +4,12 @@ pub trait Cluster {
     fn cluster_name(&self) -> String;
     fn host_name(&self) -> String;
 }
+
 #[derive(Debug, Clone)]
 pub struct RouteCluster {
     host: String,
 }
+
 impl RouteCluster {
     pub fn new(host: &str) -> Self {
         RouteCluster {
@@ -15,6 +17,7 @@ impl RouteCluster {
         }
     }
 }
+
 impl Cluster for RouteCluster {
     fn cluster_name(&self) -> String {
         if let Some(res) = get_property(vec!["cluster_name"]) {
@@ -111,6 +114,7 @@ impl NacosCluster {
         }
     }
 }
+
 impl Cluster for NacosCluster {
     fn cluster_name(&self) -> String {
         let group = if self.group.is_empty() {
@@ -154,6 +158,7 @@ impl StaticIpCluster {
         }
     }
 }
+
 impl Cluster for StaticIpCluster {
     fn cluster_name(&self) -> String {
         format!("outbound|{}||{}.static", self.port, self.service_name)
@@ -184,6 +189,7 @@ impl DnsCluster {
         }
     }
 }
+
 impl Cluster for DnsCluster {
     fn cluster_name(&self) -> String {
         format!("outbound|{}||{}.dns", self.port, self.service_name)
@@ -212,6 +218,7 @@ impl ConsulCluster {
         }
     }
 }
+
 impl Cluster for ConsulCluster {
     fn cluster_name(&self) -> String {
         format!(
@@ -245,10 +252,12 @@ impl FQDNCluster {
         }
     }
 }
+
 impl Cluster for FQDNCluster {
     fn cluster_name(&self) -> String {
         format!("outbound|{}||{}", self.port, self.fqdn)
     }
+
     fn host_name(&self) -> String {
         if self.host.is_empty() {
             self.fqdn.clone()

@@ -50,4 +50,4 @@ spec:
       configDisable: false
       ingress:
         - higress-conformance-infra/wasmplugin-bot-detect
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-bot-detect:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-bot-detect:2.0.0

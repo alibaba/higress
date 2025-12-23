@@ -3,36 +3,48 @@ package provider
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
-	cohereDomain       = "api.cohere.com"
-	chatCompletionPath = "/v1/chat"
+	cohereDomain = "api.cohere.com"
+	// TODO: support more capabilities, upgrade to v2, docs: https://docs.cohere.com/v2/reference/chat
+	cohereChatCompletionPath = "/v1/chat"
+	cohereRerankPath         = "/v1/rerank"
 )
 
 type cohereProviderInitializer struct{}
 
-func (m *cohereProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *cohereProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
 }
 
+func (m *cohereProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): cohereChatCompletionPath,
+		string(ApiNameCohereV1Rerank): cohereRerankPath,
+	}
+}
+
 func (m *cohereProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities())
 	return &cohereProvider{
-		config: config,
+		config:       config,
+		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type cohereProvider struct {
-	config ProviderConfig
+	config       ProviderConfig
+	contextCache *contextCache
 }
 
 type cohereTextGenRequest struct {
@@ -53,45 +65,16 @@ func (m *cohereProvider) GetProviderType() string {
 	return providerTypeCohere
 }
 
-func (m *cohereProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
-	}
-	_ = util.OverwriteRequestHost(cohereDomain)
-	_ = util.OverwriteRequestPath(chatCompletionPath)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	return types.ActionContinue, nil
+func (m *cohereProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
+	return nil
 }
 
-func (m *cohereProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+func (m *cohereProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	if m.config.protocol == protocolOriginal {
-		request := &cohereTextGenRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		return m.handleRequestBody(log, request)
-	}
-	origin := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, origin); err != nil {
-		return types.ActionContinue, err
-	}
-	request := m.buildCohereRequest(origin)
-	return m.handleRequestBody(log, request)
-}
-
-func (m *cohereProvider) handleRequestBody(log wrapper.Log, request interface{}) (types.Action, error) {
-	defer func() {
-		_ = proxywasm.ResumeHttpRequest()
-	}()
-	err := replaceJsonRequestBody(request, log)
-	if err != nil {
-		_ = util.SendResponse(500, "ai-proxy.cohere.proxy_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-	}
-	return types.ActionContinue, err
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
 }
 
 func (m *cohereProvider) buildCohereRequest(origin *chatCompletionRequest) *cohereTextGenRequest {
@@ -111,4 +94,31 @@ func (m *cohereProvider) buildCohereRequest(origin *chatCompletionRequest) *cohe
 		FrequencyPenalty: origin.FrequencyPenalty,
 		PresencePenalty:  origin.PresencePenalty,
 	}
+}
+
+func (m *cohereProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
+	util.OverwriteRequestHostHeader(headers, cohereDomain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
+}
+
+func (m *cohereProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return m.config.defaultTransformRequestBody(ctx, apiName, body)
+	}
+	request := &chatCompletionRequest{}
+	if err := m.config.parseRequestAndMapModel(ctx, request, body); err != nil {
+		return nil, err
+	}
+
+	cohereRequest := m.buildCohereRequest(request)
+	return json.Marshal(cohereRequest)
+}
+
+func (m *cohereProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, cohereChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }

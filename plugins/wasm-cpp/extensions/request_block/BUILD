@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("@proxy_wasm_cpp_sdk//bazel/wasm:wasm.bzl", "wasm_cc_binary")
+load("@proxy_wasm_cpp_sdk//bazel:defs.bzl", "proxy_wasm_cc_binary")
 load("//bazel:wasm.bzl", "declare_wasm_image_targets")
 
-wasm_cc_binary(
+proxy_wasm_cc_binary(
     name = "request_block.wasm",
     srcs = [
         "plugin.cc",
@@ -26,8 +26,8 @@ wasm_cc_binary(
         "@com_google_absl//absl/time",
         "//common:json_util",
         "//common:http_util",
+        "//common:regex_util",
         "//common:rule_util",
-        "@proxy_wasm_cpp_sdk//:proxy_wasm_intrinsics",
     ],
 )
 
@@ -45,6 +45,7 @@ cc_library(
         "//common:json_util",
         "@proxy_wasm_cpp_host//:lib",
         "//common:http_util_nullvm",
+        "//common:regex_util",
         "//common:rule_util_nullvm",
     ],
 )

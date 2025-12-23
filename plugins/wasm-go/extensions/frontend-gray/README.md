@@ -9,22 +9,28 @@ description: 前端灰度插件配置参考
 
 ## 运行属性
 
-插件执行阶段：`认证阶段`
-插件执行优先级：`450`
+插件执行阶段：`默认阶段`
+插件执行优先级：`1000`
 
 
 ## 配置字段
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                                 |
 |----------------|--------------|----|-----|----------------------------------------------------------------------------------------------------|
 | `grayKey`         | string       | 非必填 | -   | 用户ID的唯一标识，可以来自Cookie或者Header中，比如 userid，如果没有填写则使用`rules[].grayTagKey`和`rules[].grayTagValue`过滤灰度规则 |
+| `useManifestAsEntry` | boolean | 非必填 | false | 是否使用manifest作为入口。当设置为true时，系统将使用manifest文件作为应用入口，适用于微前端架构。在这种模式下，系统会根据manifest文件的内容来加载不同版本的前端资源。 |
 | `localStorageGrayKey`         | string       | 非必填 | -   | 使用JWT鉴权方式，用户ID的唯一标识来自`localStorage`中，如果配置了当前参数，则`grayKey`失效 |
 | `graySubKey`    | string       | 非必填 | -   | 用户身份信息可能以JSON形式透出，比如：`userInfo:{ userCode:"001" }`,当前例子`graySubKey`取值为`userCode` |
-| `userStickyMaxAge`         | int       | 非必填 | 172800   | 用户粘滞的时长：单位为秒，默认为`172800`，2天时间 |
+| `storeMaxAge`         | int       | 非必填 | 60 * 60 * 24 * 365   | 网关设置Cookie最大存储时长：单位为秒，默认为1年 |
+| `indexPaths` | array of strings | 非必填 | - | 强制处理的路径，支持 `Glob` 模式匹配。例如：在 微前端场景下，XHR 接口如： `/resource/**/manifest-main.json`本质是一个资源请求，需要走插件转发逻辑。 |
+| `skippedPaths` | array of strings | 非必填 | - | 用于排除特定路径，避免当前插件处理这些请求，支持 `Glob` 模式匹配。例如，在 rewrite 场景下，XHR 接口请求 `/api/**` 如果经过插件转发逻辑，可能会导致非预期的结果。 |
+| `skippedByHeaders` | map of string to string   | 非必填  | -   | 用于通过请求头过滤，指定哪些请求不被当前插件
+处理。`skippedPaths` 的优先级高于当前配置，且页面HTML请求不受本配置的影响。 |
 | `rules`      | array of object | 必填 | -   | 用户定义不同的灰度规则，适配不同的灰度场景   |
 | `rewrite`      | object | 必填 | -   | 重写配置，一般用于OSS/CDN前端部署的重写配置  |
 | `baseDeployment` | object   | 非必填 | -   | 配置Base基线规则的配置    |
 | `grayDeployments` |  array of object   | 非必填 | -   | 配置Gray灰度的生效规则，以及生效版本                                |
 | `backendGrayTag`     | string       | 非必填  | `x-mse-tag`   | 后端灰度版本Tag，如果配置了，cookie中将携带值为`${backendGrayTag}:${grayDeployments[].backendVersion}` |
+| `uniqueGrayTag`     | string       | 非必填  | `x-higress-uid`   | 开启按照比例灰度时候，网关会生成一个唯一标识存在`cookie`中，一方面用于session黏贴，另一方面后端也可以使用这个值用于全链路的灰度串联 |
 | `injection`     | object    | 非必填  | -   | 往首页HTML中注入全局信息，比如`<script>window.global = {...}</script>` |
 
 
@@ -46,7 +52,6 @@ description: 前端灰度插件配置参考
 | 名称         | 数据类型         | 填写要求 | 默认值 | 描述                           |
 |------------|--------------|------|-----|------------------------------|
 | `host`     | string       | 非必填  | -   | host地址，如果是OSS则设置为 VPC 内网访问地址 |
-| `notFoundUri` | string       | 非必填  | -   | 404 页面配置                     |
 | `indexRouting`    | map of string to string       | 非必填  | -   | 用于定义首页重写路由规则。每个键 (Key) 表示首页的路由路径，值 (Value) 则指向重定向的目标文件。例如，键为 `/app1` 对应的值为 `/mfe/app1/{version}/index.html`。生效version为`0.0.1`， 访问路径为 `/app1`，则重定向到 `/mfe/app1/0.0.1/index.html`。                     |
 | `fileRouting`     | map of string to string       | 非必填  | -   | 用于定义资源文件重写路由规则。每个键 (Key) 表示资源访问路径，值 (Value) 则指向重定向的目标文件。例如，键为 `/app1/` 对应的值为 `/mfe/app1/{version}`。生效version为`0.0.1`，访问路径为 `/app1/js/a.js`，则重定向到 `/mfe/app1/0.0.1/js/a.js`。                     |
 
@@ -54,26 +59,40 @@ description: 前端灰度插件配置参考
 
 | 名称             | 数据类型         | 填写要求 | 默认值 | 描述                                                                                |
 |----------------|--------------|------|-----|-----------------------------------------------------------------------------------|
-| `version`         | string       | 必填   | -   | Base版本的版本号，作为兜底的版本                                         |
+| `version`         | string       | 必填   | -   | Base版本的版本号，作为兜底的版本 |
+| `backendVersion`  | string | 必填   | -   | 后端灰度版本，配合`key`为`${backendGrayTag}`，写入cookie中 |
+| `versionPredicates`  | string | 必填   | -   | 和`version`含义相同，但是满足多版本的需求：根据不同路由映射不同的`Version`版本。一般用于微前端的场景：一个主应用需要管理多个微应用 |
 
 `grayDeployments`字段配置说明：
 
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
 |--------|--------|------|-----|-------------------------------------------------|
-| `version`  | string | 必填   | -   | Gray版本的版本号，如果命中灰度规则，则使用此版本。如果是非CDN部署，在header添加`x-higress-tag`                     |
+| `version`  | string | 必填   | -   | Gray版本的版本号，如果命中灰度规则，则使用此版本。如果是非CDN部署，在header添加`x-higress-tag` |
+| `versionPredicates`  | string | 必填   | -   | 和`version`含义相同，但是满足多版本的需求：根据不同路由映射不同的`Version`版本。一般用于微前端的场景：一个主应用需要管理多个微应用 |
 | `backendVersion`  | string | 必填   | -   | 后端灰度版本，配合`key`为`${backendGrayTag}`，写入cookie中 |
-| `name` | string | 必填   | -   | 规则名称和`rules[].name`关联，                          |
+| `name` | string | 必填   | -   | 规则名称和`rules[].name`关联 |
 | `enabled`  | boolean   | 必填   | -   | 是否启动当前灰度规则                                      |
-| `weight`  | int   | 非必填   | -   | 按照比例灰度，比如`50`。注意：灰度规则权重总和不能超过100，如果同时配置了`grayKey`以及`grayDeployments[0].weight`按照比例灰度优先生效 |
-> 为了实现按比例（weight） 进行灰度发布，并确保用户粘滞，我们需要确认客户端的唯一性。如果配置了 grayKey，则将其用作唯一标识；如果未配置 grayKey，则使用客户端的访问 IP 地址作为唯一标识。
+| `weight`  | int   | 非必填   | -   | 按照比例灰度，比如50。 |
+>按照比例灰度注意下面几点:
+> 1. 如果同时配置了`按用户灰度`以及`按比例灰度`，按`比例灰度`优先生效
+> 2. 采用客户端设备标识符的哈希摘要机制实现流量比例控制，其唯一性判定逻辑遵循以下原则：自动生成全局唯一标识符（UUID）作为设备指纹，可以通过`uniqueGrayTag`配置`cookie`的key值，并通过SHA-256哈希算法生成对应灰度判定基准值。
 
 
 `injection`字段配置说明：
 
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
 |--------|--------|------|-----|-------------------------------------------------|
+| `globalConfig`  | object | 非必填   | -   | 注入到HTML首页的全局变量 |
 | `head`  | array of string | 非必填   | -   | 注入head信息，比如`<link rel="stylesheet" href="https://cdn.example.com/styles.css">` |
 | `body`  | object | 非必填   | -   | 注入Body |
+
+`injection.globalConfig`字段配置说明：
+| 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
+|--------|--------|------|-----|-------------------------------------------------|
+| `key`  | string | 非必填   |  HIGRESS_CONSOLE_CONFIG  | 注入到window全局变量的key值 |
+| `featureKey`  | string | 非必填   | FEATURE_STATUS   | 关于`rules`相关规则的命中情况，返回实例`{"beta-user":true,"inner-user":false}` |
+| `value`  | string | 非必填   | -   | 自定义的全局变量 |
+| `enabled`  | boolean | 非必填   | false   | 是否开启注入全局变量 |
 
 `injection.body`字段配置说明：
 | 名称     | 数据类型   | 填写要求 | 默认值 | 描述                                              |
@@ -133,8 +152,7 @@ grayDeployments:
     enabled: true
     weight: 80
 ```
-总的灰度规则为100%，其中灰度版本的权重为`80%`，基线版本为`20%`。一旦用户命中了灰度规则，会根据IP固定这个用户的灰度版本（否则会在下次请求时随机选择一个灰度版本）。
-
+总的灰度规则为100%，其中灰度版本的权重为80%，基线版本为20%。
 ### 用户信息存在JSON中
 
 ```yml
@@ -212,7 +230,6 @@ rules:
   - level5
 rewrite:
   host: frontend-gray.oss-cn-shanghai-internal.aliyuncs.com
-  notFoundUri: /mfe/app1/dev/404.html
   indexRouting:
     /app1: '/mfe/app1/{version}/index.html'
     /: '/mfe/app1/{version}/index.html',
@@ -254,7 +271,6 @@ grayDeployments:
   - name: beta-user
     version: gray
     enabled: true
-    weight: 80
 injection:
   head: 
     - <script>console.log('Header')</script>

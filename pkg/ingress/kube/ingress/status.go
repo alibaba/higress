@@ -29,8 +29,8 @@ import (
 	ingresslister "k8s.io/client-go/listers/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 // statusSyncer keeps the status IP in each Ingress resource updated
@@ -47,7 +47,8 @@ type statusSyncer struct {
 
 // newStatusSyncer creates a new instance
 func newStatusSyncer(localKubeClient, client kubelib.Client, controller *controller, namespace string,
-	ingressLister ingresslister.IngressLister, serviceLister corelist.ServiceLister) *statusSyncer {
+	ingressLister ingresslister.IngressLister, serviceLister corelist.ServiceLister,
+) *statusSyncer {
 	return &statusSyncer{
 		client:           client.Kube(),
 		controller:       controller,
@@ -80,8 +81,6 @@ func (s *statusSyncer) runUpdateStatus() error {
 	if err != nil {
 		return err
 	}
-
-	IngressLog.Debugf("found number %d of svc", len(svcList))
 
 	lbStatusList := common.GetLbStatusListV1Beta1(svcList)
 	if len(lbStatusList) == 0 {

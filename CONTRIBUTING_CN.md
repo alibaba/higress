@@ -169,6 +169,31 @@ git config --get user.email
 
 PR 是更改 Higress 项目文件的唯一方法。为了帮助审查人更好地理解你的目的，PR 描述不能太详细。我们鼓励贡献者遵循 [PR 模板](./.github/PULL_REQUEST_TEMPLATE.md) 来完成拉取请求。
 
+#### 使用 AI Coding 工具的特殊要求
+
+如果你使用 AI Coding 工具（如 Cursor、GitHub Copilot 等）来生成 PR，我们有以下**严格要求**：
+
+**针对新增独立插件的场景**（例如新实现的 wasm 插件或 golang-filter 插件）：
+- 你**必须**在插件目录下创建 `design/` 目录
+- 将你提供给 AI Coding 工具的设计文档放在 `design/` 目录中
+- 在 PR 描述中提供 AI Coding 工具生成的工作总结
+
+**针对日常更新/修改的场景**：
+- 在 PR 描述中提供你给 AI Coding 工具的提示词/指令
+- 在 PR 描述中提供 AI Coding 工具生成的工作总结
+
+**AI Coding 工作总结应包括**：
+- 做出的关键决策
+- 实现的主要更改
+- 重要的注意事项或限制
+
+**Review 优先级说明**：
+- 如果你使用了 AI Coding 工具但没有按照上述要求操作，你的 PR review 优先级将会**降低**
+- 我们**无法保证**对不符合要求的 AI Coding PR 进行及时 review
+- 如果不是使用 AI Coding 工具完成的 PR，则不需要遵循这些额外要求
+
+这些要求的目的是确保使用 AI 生成的代码具有充分的文档记录和可追溯性，便于代码审查和后续维护。通过要求提供提示词/设计文档，我们可以更好地理解开发意图和上下文。
+
 ### 开发前准备
 
 ```shell

@@ -35,10 +35,10 @@ import (
 	kingressfake "knative.dev/networking/pkg/client/clientset/versioned/fake"
 	kingressinformer "knative.dev/networking/pkg/client/informers/externalversions"
 
-	higressclient "github.com/alibaba/higress/client/pkg/clientset/versioned"
-	higressfake "github.com/alibaba/higress/client/pkg/clientset/versioned/fake"
-	higressinformer "github.com/alibaba/higress/client/pkg/informers/externalversions"
-	"github.com/alibaba/higress/pkg/config/constants"
+	higressclient "github.com/alibaba/higress/v2/client/pkg/clientset/versioned"
+	higressfake "github.com/alibaba/higress/v2/client/pkg/clientset/versioned/fake"
+	higressinformer "github.com/alibaba/higress/v2/client/pkg/informers/externalversions"
+	"github.com/alibaba/higress/v2/pkg/config/constants"
 )
 
 type Client interface {
@@ -50,7 +50,7 @@ type Client interface {
 	// HigressInformer returns an informer for the higress client
 	HigressInformer() higressinformer.SharedInformerFactory
 
-	//KIngress return the Knative kube client
+	// KIngress return the Knative kube client
 	KIngress() kingressclient.Interface
 
 	KIngressInformer() kingressinformer.SharedInformerFactory
@@ -177,13 +177,13 @@ func (c *client) HigressInformer() higressinformer.SharedInformerFactory {
 	return c.higressInformer
 }
 
-func (c *client) RunAndWait(stop <-chan struct{}) {
+func (c *client) RunAndWait(stop <-chan struct{}) bool {
 	c.Client.RunAndWait(stop)
 	c.higressInformer.Start(stop)
 
 	if c.fastSync {
 		fastWaitForCacheSync(stop, c.higressInformer)
-		_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+		err := wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
 			select {
 			case <-stop:
 				return false, fmt.Errorf("channel closed")
@@ -194,6 +194,10 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 			}
 			return false, nil
 		})
+		if err != nil {
+			return false
+		}
+		return true
 	} else {
 		c.higressInformer.WaitForCacheSync(stop)
 	}
@@ -202,7 +206,7 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 		c.kingressInformer.Start(stop)
 		if c.fastSync {
 			fastWaitForCacheSync(stop, c.kingressInformer)
-			_ = wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
+			err := wait.PollImmediate(time.Microsecond*100, wait.ForeverTestTimeout, func() (bool, error) {
 				select {
 				case <-stop:
 					return false, fmt.Errorf("channel closed")
@@ -213,11 +217,15 @@ func (c *client) RunAndWait(stop <-chan struct{}) {
 				}
 				return false, nil
 			})
+			if err != nil {
+				return false
+			}
+			return true
 		} else {
 			c.kingressInformer.WaitForCacheSync(stop)
 		}
 	}
-
+	return true
 }
 
 type reflectInformerSync interface {

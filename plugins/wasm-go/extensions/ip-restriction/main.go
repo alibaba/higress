@@ -3,13 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"net"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
-	"net"
-	"strings"
 )
 
 const (
@@ -31,20 +32,23 @@ type RestrictionConfig struct {
 	Message      string         `json:"message"`        //被拒绝时返回的消息
 }
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ip-restriction",
 		wrapper.ParseConfigBy(parseConfig),
 		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders))
 }
 
-func parseConfig(json gjson.Result, config *RestrictionConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *RestrictionConfig, log log.Log) error {
 	sourceType := json.Get("ip_source_type")
 	if sourceType.Exists() && sourceType.String() != "" {
 		switch sourceType.String() {
 		case HeaderSourceType:
 			config.IPSourceType = HeaderSourceType
 		case OriginSourceType:
+			config.IPSourceType = OriginSourceType
 		default:
 			config.IPSourceType = OriginSourceType
 		}
@@ -101,9 +105,6 @@ func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
 
 	if config.IPSourceType == HeaderSourceType {
 		s, err = proxywasm.GetHttpRequestHeader(config.IPHeaderName)
-		if err == nil {
-			s = strings.Split(strings.Trim(s, " "), ",")[0]
-		}
 	} else {
 		var bs []byte
 		bs, err = proxywasm.GetProperty([]string{"source", "address"})
@@ -112,7 +113,7 @@ func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
 	if err != nil {
 		return nil, err
 	}
-	ip := parseIP(s)
+	ip := parseIP(s, config.IPSourceType == HeaderSourceType)
 	realIP := net.ParseIP(ip)
 	if realIP == nil {
 		return nil, fmt.Errorf("invalid ip[%s]", ip)
@@ -120,7 +121,7 @@ func getDownStreamIp(config RestrictionConfig) (net.IP, error) {
 	return realIP, nil
 }
 
-func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(context wrapper.HttpContext, config RestrictionConfig, log log.Log) types.Action {
 	realIp, err := getDownStreamIp(config)
 	if err != nil {
 		return deniedUnauthorized(config, "get_ip_failed")

@@ -1,15 +1,16 @@
 package util
 
 import (
-	"fmt"
-	"math/rand"
+	"encoding/json"
+	"hash/crc32"
 	"net/url"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
+	"github.com/bmatcuk/doublestar/v4"
+	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
@@ -17,42 +18,69 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func LogInfof(format string, args ...interface{}) {
-	format = fmt.Sprintf("[%s] %s", "frontend-gray", format)
-	proxywasm.LogInfof(format, args...)
+func GetRequestPath() string {
+	requestPath, _ := proxywasm.GetHttpRequestHeader(":path")
+	requestPath = path.Clean(requestPath)
+	parsedURL, err := url.Parse(requestPath)
+	if err == nil {
+		requestPath = parsedURL.Path
+	} else {
+		return ""
+	}
+	return requestPath
 }
 
-func GetXPreHigressVersion(cookies string) (string, string) {
-	xPreHigressVersion := ExtractCookieValueByKey(cookies, config.XPreHigressTag)
-	preVersions := strings.Split(xPreHigressVersion, ",")
-	if len(preVersions) == 0 {
-		return "", ""
+func GetRouteName() (string, error) {
+	if raw, err := proxywasm.GetProperty([]string{"route_name"}); err != nil {
+		return "-", err
+	} else {
+		return string(raw), nil
 	}
-	if len(preVersions) == 1 {
-		return preVersions[0], ""
-	}
-
-	return strings.TrimSpace(preVersions[0]), strings.TrimSpace(preVersions[1])
 }
-
-// 从xff中获取真实的IP
-func GetRealIpFromXff(xff string) string {
-	if xff != "" {
-		// 通常客户端的真实 IP 是 XFF 头中的第一个 IP
-		ips := strings.Split(xff, ",")
-		if len(ips) > 0 {
-			return strings.TrimSpace(ips[0])
+func IsRequestSkippedByHeaders(grayConfig *config.GrayConfig) bool {
+	for headerKey, headerValue := range grayConfig.SkippedByHeaders {
+		requestHeader, _ := proxywasm.GetHttpRequestHeader(headerKey)
+		if requestHeader == headerValue {
+			return true
 		}
 	}
-	return ""
+	return false
 }
 
-func IsGrayEnabled(grayConfig config.GrayConfig) bool {
+func IsIndexRequest(requestPath string, indexPaths []string) bool {
+	for _, prefix := range indexPaths {
+		matchResult, err := doublestar.Match(prefix, requestPath)
+		if err == nil && matchResult {
+			return true
+		}
+	}
+	return false
+}
+
+func IsGrayEnabled(requestPath string, grayConfig *config.GrayConfig) bool {
+	if IsIndexRequest(requestPath, grayConfig.IndexPaths) {
+		return true
+	}
+	// 当前路径中前缀为 SkippedPaths，则不走插件逻辑
+	for _, prefix := range grayConfig.SkippedPaths {
+		matchResult, err := doublestar.Match(prefix, requestPath)
+		if err == nil && matchResult {
+			return false
+		}
+	}
+
+	//  如果是首页，进入插件逻辑
+	if CheckIsHtmlRequest(requestPath) {
+		return true
+	}
 	// 检查是否存在重写主机
 	if grayConfig.Rewrite != nil && grayConfig.Rewrite.Host != "" {
 		return true
 	}
-
+	// 检查header标识，判断是否需要跳过
+	if IsRequestSkippedByHeaders(grayConfig) {
+		return false
+	}
 	// 检查是否存在灰度版本配置
 	return len(grayConfig.GrayDeployments) > 0
 }
@@ -67,8 +95,8 @@ func IsBackendGrayEnabled(grayConfig config.GrayConfig) bool {
 	return false
 }
 
-// ExtractCookieValueByKey 根据 cookie 和 key 获取 cookie 值
-func ExtractCookieValueByKey(cookie string, key string) string {
+// GetCookieValue 根据 cookie 和 key 获取 cookie 值
+func GetCookieValue(cookie string, key string) string {
 	if cookie == "" {
 		return ""
 	}
@@ -132,29 +160,35 @@ var indexSuffixes = []string{
 	".html", ".htm", ".jsp", ".php", ".asp", ".aspx", ".erb", ".ejs", ".twig",
 }
 
-func IsPageRequest(fetchMode string, myPath string) bool {
-	if fetchMode == "cors" {
-		return false
+func CheckIsHtmlRequest(requestPath string) bool {
+	if requestPath == "/" || requestPath == "" {
+		return true
 	}
-	ext := path.Ext(myPath)
+	ext := path.Ext(requestPath)
 	return ext == "" || ContainsValue(indexSuffixes, ext)
 }
 
-// 首页Rewrite
-func IndexRewrite(path, version string, matchRules map[string]string) string {
-	// Create a slice of keys in matchRules and sort them by length in descending order
+// SortKeysByLengthAndLexicographically 按长度降序和字典序排序键
+func SortKeysByLengthAndLexicographically(matchRules map[string]string) []string {
 	keys := make([]string, 0, len(matchRules))
 	for prefix := range matchRules {
 		keys = append(keys, prefix)
 	}
 	sort.Slice(keys, func(i, j int) bool {
 		if len(keys[i]) != len(keys[j]) {
-			return len(keys[i]) > len(keys[j]) // Sort by length
+			return len(keys[i]) > len(keys[j]) // 按长度排序
 		}
-		return keys[i] < keys[j] // Sort lexicographically
+		return keys[i] < keys[j] // 按字典序排序
 	})
+	return keys
+}
 
-	// Iterate over sorted keys to find the longest match
+// 首页Rewrite
+func IndexRewrite(path, version string, matchRules map[string]string) string {
+	// 使用新的排序函数
+	keys := SortKeysByLengthAndLexicographically(matchRules)
+
+	// 遍历排序后的键以找到最长匹配
 	for _, prefix := range keys {
 		if strings.HasPrefix(path, prefix) {
 			rewrite := matchRules[prefix]
@@ -166,24 +200,24 @@ func IndexRewrite(path, version string, matchRules map[string]string) string {
 }
 
 func PrefixFileRewrite(path, version string, matchRules map[string]string) string {
-	var matchedPrefix, replacement string
-	for prefix, template := range matchRules {
+	// 对规则的键进行排序
+	sortedKeys := SortKeysByLengthAndLexicographically(matchRules)
+
+	// 遍历排序后的键
+	for _, prefix := range sortedKeys {
 		if strings.HasPrefix(path, prefix) {
-			if len(prefix) > len(matchedPrefix) { // 找到更长的前缀
-				matchedPrefix = prefix
-				replacement = strings.Replace(template, "{version}", version, 1)
-			}
+			// 找到第一个匹配的前缀就停止,因为它是最长的匹配
+			replacement := strings.Replace(matchRules[prefix], "{version}", version, 1)
+			newPath := strings.Replace(path, prefix, replacement+"/", 1)
+			return filepath.Clean(newPath)
 		}
 	}
-	// 将path 中的前缀部分用 replacement 替换掉
-	newPath := strings.Replace(path, matchedPrefix, replacement+"/", 1)
-	return filepath.Clean(newPath)
+
+	// 如果没有匹配,返回原始路径
+	return path
 }
 
-func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string, isPageRequest bool) *config.Deployment {
-	if isPageRequest {
-		return deployment
-	}
+func GetVersion(grayConfig config.GrayConfig, deployment *config.Deployment, xPreHigressVersion string) *config.Deployment {
 	// cookie 中为空，返回当前版本
 	if xPreHigressVersion == "" {
 		return deployment
@@ -235,8 +269,68 @@ func GetGrayKey(grayKeyValueByCookie string, grayKeyValueByHeader string, graySu
 	return grayKeyValue
 }
 
+// 如果基础部署或任何灰度部署中包含VersionPredicates，则认为是多版本配置
+func IsSupportMultiVersion(grayConfig config.GrayConfig) bool {
+	if len(grayConfig.BaseDeployment.VersionPredicates) > 0 {
+		return true
+	}
+	for _, deployment := range grayConfig.GrayDeployments {
+		if len(deployment.VersionPredicates) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func GetConditionRules(rules []*config.GrayRule, grayKeyValue string, cookie string) string {
+	ruleMaps := map[string]bool{}
+	for _, grayRule := range rules {
+		if grayRule.GrayKeyValue != nil && len(grayRule.GrayKeyValue) > 0 && grayKeyValue != "" {
+			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayKeyValue, grayKeyValue)
+			continue
+		} else if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
+			grayTagValue := GetCookieValue(cookie, grayRule.GrayTagKey)
+			ruleMaps[grayRule.Name] = ContainsValue(grayRule.GrayTagValue, grayTagValue)
+			continue
+		} else {
+			ruleMaps[grayRule.Name] = false
+		}
+	}
+	jsonBytes, err := json.Marshal(ruleMaps)
+	if err != nil {
+		return ""
+	}
+	return string(jsonBytes)
+}
+
+func GetGrayWeightUniqueId(cookie string, uniqueGrayTag string) string {
+	uniqueId, _ := proxywasm.GetHttpRequestHeader(uniqueGrayTag)
+	if uniqueId == "" {
+		uniqueId = GetCookieValue(cookie, uniqueGrayTag)
+	}
+	if uniqueId == "" {
+		uniqueId = strings.ReplaceAll(uuid.NewString(), "-", "")
+	}
+	return uniqueId
+}
+
 // FilterGrayRule 过滤灰度规则
-func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string) *config.Deployment {
+func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookie string) *config.Deployment {
+	if grayConfig.GrayWeight > 0 {
+		uniqueId := GetGrayWeightUniqueId(cookie, grayConfig.UniqueGrayTag)
+		// 计算哈希后取模
+		mod := crc32.ChecksumIEEE([]byte(uniqueId)) % 100
+		isGray := mod < uint32(grayConfig.GrayWeight)
+		if isGray {
+			for _, deployment := range grayConfig.GrayDeployments {
+				if deployment.Enabled && deployment.Weight > 0 {
+					return deployment
+				}
+			}
+		}
+		return grayConfig.BaseDeployment
+	}
+
 	for _, deployment := range grayConfig.GrayDeployments {
 		grayRule := GetRule(grayConfig.Rules, deployment.Name)
 		// 首先：先校验用户名单ID
@@ -247,8 +341,7 @@ func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string) *config.
 		}
 		//	第二：校验Cookie中的 GrayTagKey
 		if grayRule.GrayTagKey != "" && grayRule.GrayTagValue != nil && len(grayRule.GrayTagValue) > 0 {
-			cookieStr, _ := proxywasm.GetHttpRequestHeader("cookie")
-			grayTagValue := ExtractCookieValueByKey(cookieStr, grayRule.GrayTagKey)
+			grayTagValue := GetCookieValue(cookie, grayRule.GrayTagKey)
 			if ContainsValue(grayRule.GrayTagValue, grayTagValue) {
 				return deployment
 			}
@@ -257,46 +350,37 @@ func FilterGrayRule(grayConfig *config.GrayConfig, grayKeyValue string) *config.
 	return grayConfig.BaseDeployment
 }
 
-func FilterGrayWeight(grayConfig *config.GrayConfig, preVersion string, preUniqueClientId string, uniqueClientId string) *config.Deployment {
-	// 如果没有灰度权重，直接返回基础版本
-	if grayConfig.TotalGrayWeight == 0 {
-		return grayConfig.BaseDeployment
+// FilterMultiVersionGrayRule 过滤多版本灰度规则
+func FilterMultiVersionGrayRule(grayConfig *config.GrayConfig, grayKeyValue string, cookie string, requestPath string) *config.Deployment {
+	// 首先根据灰度键值获取当前部署
+	currentDeployment := FilterGrayRule(grayConfig, grayKeyValue, cookie)
+
+	// 创建一个新的部署对象，初始化版本为当前部署的版本
+	deployment := &config.Deployment{
+		Version: currentDeployment.Version,
 	}
 
-	deployments := append(grayConfig.GrayDeployments, grayConfig.BaseDeployment)
-	LogInfof("preVersion: %s, preUniqueClientId: %s, uniqueClientId: %s", preVersion, preUniqueClientId, uniqueClientId)
-	// 用户粘滞，确保每个用户每次访问的都是走同一版本
-	if preVersion != "" && uniqueClientId == preUniqueClientId {
-		for _, deployment := range deployments {
-			if deployment.Version == preVersion {
-				return deployment
-			}
-		}
-	}
+	// 对版本谓词的键进行排序
+	keys := SortKeysByLengthAndLexicographically(currentDeployment.VersionPredicates)
 
-	totalWeight := 100
-	// 如果总权重小于100，则将基础版本也加入到总版本列表中
-	if grayConfig.TotalGrayWeight <= totalWeight {
-		grayConfig.BaseDeployment.Weight = 100 - grayConfig.TotalGrayWeight
-	} else {
-		totalWeight = grayConfig.TotalGrayWeight
-	}
-	rand.Seed(time.Now().UnixNano())
-	randWeight := rand.Intn(totalWeight)
-	sumWeight := 0
-	for _, deployment := range deployments {
-		sumWeight += deployment.Weight
-		if randWeight < sumWeight {
+	// 遍历排序后的键
+	for _, prefix := range keys {
+		// 如果请求路径以当前前缀开头
+		if strings.HasPrefix(requestPath, prefix) {
+			deployment.Version = currentDeployment.VersionPredicates[prefix]
 			return deployment
 		}
 	}
-	return nil
+	return deployment
 }
 
 // InjectContent 用于将内容注入到 HTML 文档的指定位置
-func InjectContent(originalHtml string, injectionConfig *config.Injection) string {
-
-	headInjection := strings.Join(injectionConfig.Head, "\n")
+func InjectContent(originalHtml string, injectionConfig *config.Injection, globalConfigValue string) string {
+	heads := injectionConfig.Head
+	if globalConfigValue != "" {
+		heads = append([]string{globalConfigValue}, injectionConfig.Head...)
+	}
+	headInjection := strings.Join(heads, "\n")
 	bodyFirstInjection := strings.Join(injectionConfig.Body.First, "\n")
 	bodyLastInjection := strings.Join(injectionConfig.Body.Last, "\n")
 
@@ -316,4 +400,15 @@ func InjectContent(originalHtml string, injectionConfig *config.Injection) strin
 	modifiedHtml = strings.ReplaceAll(modifiedHtml, "</body>", bodyLastInjection+"\n</body>")
 
 	return modifiedHtml
+}
+
+func FixLocalStorageKey(newHtml string, localStorageGrayKey string) string {
+	if localStorageGrayKey != "" {
+		localStr := strings.ReplaceAll(`<script>
+	!function(){var o,e,n="@@X_GRAY_KEY",t=document.cookie.split("; ").filter(function(o){return 0===o.indexOf(n+"=")});try{"undefined"!=typeof localStorage&&null!==localStorage&&(o=localStorage.getItem(n),e=0<t.length?decodeURIComponent(t[0].split("=")[1]):null,o)&&o.indexOf("=")<0&&e&&e!==o&&(document.cookie=n+"="+encodeURIComponent(o)+"; path=/;",window.location.reload())}catch(o){}}();
+	</script>
+	`, "@@X_GRAY_KEY", localStorageGrayKey)
+		newHtml = strings.ReplaceAll(newHtml, "<body>", "<body>\n"+localStr)
+	}
+	return newHtml
 }

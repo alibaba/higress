@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use proxy_wasm::hostcalls;
+use proxy_wasm::{hostcalls, types};
+use std::fmt::Arguments;
 
 pub enum LogLevel {
     Trace,
@@ -34,14 +35,7 @@ impl Log {
 
     fn log(&self, level: LogLevel, msg: &str) {
         let msg = format!("[{}] {}", self.plugin_name, msg);
-        let level = match level {
-            LogLevel::Trace => proxy_wasm::types::LogLevel::Trace,
-            LogLevel::Debug => proxy_wasm::types::LogLevel::Debug,
-            LogLevel::Info => proxy_wasm::types::LogLevel::Info,
-            LogLevel::Warn => proxy_wasm::types::LogLevel::Warn,
-            LogLevel::Error => proxy_wasm::types::LogLevel::Error,
-            LogLevel::Critical => proxy_wasm::types::LogLevel::Critical,
-        };
+        let level = types::LogLevel::from(level);
         hostcalls::log(level, msg.as_str()).unwrap();
     }
 
@@ -67,5 +61,86 @@ impl Log {
 
     pub fn critical(&self, msg: &str) {
         self.log(LogLevel::Critical, msg)
+    }
+
+    fn logf(&self, level: LogLevel, format_args: Arguments) {
+        let level = types::LogLevel::from(level);
+        if let Ok(log_level) = hostcalls::get_log_level() {
+            if (level as i32) < (log_level as i32) {
+                return;
+            }
+            hostcalls::log(
+                level,
+                format!("[{}] {}", self.plugin_name, format_args).as_str(),
+            )
+            .unwrap();
+        }
+    }
+
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.tracef(format_args!("Hello, {}!","World"));
+    /// ```
+    pub fn tracef(&self, format_args: Arguments) {
+        self.logf(LogLevel::Trace, format_args)
+    }
+
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.debugf(format_args!("Hello, {}!","World"));
+    /// ```
+    pub fn debugf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Debug, format_args)
+    }
+
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.infof(format_args!("Hello, {}!","World"));
+    /// ```
+    pub fn infof(&self, format_args: Arguments) {
+        self.logf(LogLevel::Info, format_args)
+    }
+
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.warnf(format_args!("Hello, {}!","World"));
+    /// ```
+    pub fn warnf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Warn, format_args)
+    }
+
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.errorf(format_args!("Hello, {}!","World"));
+    /// ```
+    pub fn errorf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Error, format_args)
+    }
+
+    /// ```
+    /// use higress_wasm_rust::log::Log;
+    /// let log = Log::new("foobar".into_string());
+    /// log.criticalf(format_args!("Hello, {}!","World"));
+    /// ```
+    pub fn criticalf(&self, format_args: Arguments) {
+        self.logf(LogLevel::Critical, format_args)
+    }
+}
+
+impl From<LogLevel> for types::LogLevel {
+    fn from(value: LogLevel) -> Self {
+        match value {
+            LogLevel::Trace => types::LogLevel::Trace,
+            LogLevel::Debug => types::LogLevel::Debug,
+            LogLevel::Info => types::LogLevel::Info,
+            LogLevel::Warn => types::LogLevel::Warn,
+            LogLevel::Error => types::LogLevel::Error,
+            LogLevel::Critical => types::LogLevel::Critical,
+        }
     }
 }

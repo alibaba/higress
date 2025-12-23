@@ -1,32 +1,80 @@
 package provider
 
 import (
-	"fmt"
+	"encoding/json"
+	"net/http"
+	"path"
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 // openaiProvider is the provider for OpenAI service.
 
 const (
-	defaultOpenaiDomain             = "api.openai.com"
-	defaultOpenaiChatCompletionPath = "/v1/chat/completions"
-	defaultOpenaiEmbeddingsPath     = "/v1/chat/embeddings"
+	defaultOpenaiDomain = "api.openai.com"
 )
 
-type openaiProviderInitializer struct {
+type openaiProviderInitializer struct{}
+
+func (m *openaiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
+	return nil
 }
 
-func (m *openaiProviderInitializer) ValidateConfig(config ProviderConfig) error {
-	return nil
+func (m *openaiProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameCompletion):                           PathOpenAICompletions,
+		string(ApiNameChatCompletion):                       PathOpenAIChatCompletions,
+		string(ApiNameEmbeddings):                           PathOpenAIEmbeddings,
+		string(ApiNameImageGeneration):                      PathOpenAIImageGeneration,
+		string(ApiNameImageEdit):                            PathOpenAIImageEdit,
+		string(ApiNameImageVariation):                       PathOpenAIImageVariation,
+		string(ApiNameAudioSpeech):                          PathOpenAIAudioSpeech,
+		string(ApiNameModels):                               PathOpenAIModels,
+		string(ApiNameFiles):                                PathOpenAIFiles,
+		string(ApiNameRetrieveFile):                         PathOpenAIRetrieveFile,
+		string(ApiNameRetrieveFileContent):                  PathOpenAIRetrieveFileContent,
+		string(ApiNameBatches):                              PathOpenAIBatches,
+		string(ApiNameRetrieveBatch):                        PathOpenAIRetrieveBatch,
+		string(ApiNameCancelBatch):                          PathOpenAICancelBatch,
+		string(ApiNameResponses):                            PathOpenAIResponses,
+		string(ApiNameFineTuningJobs):                       PathOpenAIFineTuningJobs,
+		string(ApiNameRetrieveFineTuningJob):                PathOpenAIRetrieveFineTuningJob,
+		string(ApiNameFineTuningJobEvents):                  PathOpenAIFineTuningJobEvents,
+		string(ApiNameFineTuningJobCheckpoints):             PathOpenAIFineTuningJobCheckpoints,
+		string(ApiNameCancelFineTuningJob):                  PathOpenAICancelFineTuningJob,
+		string(ApiNameResumeFineTuningJob):                  PathOpenAIResumeFineTuningJob,
+		string(ApiNamePauseFineTuningJob):                   PathOpenAIPauseFineTuningJob,
+		string(ApiNameFineTuningCheckpointPermissions):      PathOpenAIFineTuningCheckpointPermissions,
+		string(ApiNameDeleteFineTuningCheckpointPermission): PathOpenAIFineDeleteTuningCheckpointPermission,
+		string(ApiNameVideos):                               PathOpenAIVideos,
+		string(ApiNameRetrieveVideo):                        PathOpenAIRetrieveVideo,
+		string(ApiNameVideoRemix):                           PathOpenAIVideoRemix,
+		string(ApiNameRetrieveVideoContent):                 PathOpenAIRetrieveVideoContent,
+	}
+}
+
+// isDirectPath checks if the path is a known standard OpenAI interface path.
+func isDirectPath(path string) bool {
+	return strings.HasSuffix(path, "/completions") ||
+		strings.HasSuffix(path, "/embeddings") ||
+		strings.HasSuffix(path, "/audio/speech") ||
+		strings.HasSuffix(path, "/images/generations") ||
+		strings.HasSuffix(path, "/images/variations") ||
+		strings.HasSuffix(path, "/images/edits") ||
+		strings.HasSuffix(path, "/models") ||
+		strings.HasSuffix(path, "/responses") ||
+		strings.HasSuffix(path, "/fine_tuning/jobs") ||
+		strings.HasSuffix(path, "/fine_tuning/checkpoints") ||
+		strings.HasSuffix(path, "/videos")
 }
 
 func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	if config.openaiCustomUrl == "" {
+		config.setDefaultCapabilities(m.DefaultCapabilities())
 		return &openaiProvider{
 			config:       config,
 			contextCache: createContextCache(&config),
@@ -34,94 +82,81 @@ func (m *openaiProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	}
 	customUrl := strings.TrimPrefix(strings.TrimPrefix(config.openaiCustomUrl, "http://"), "https://")
 	pairs := strings.SplitN(customUrl, "/", 2)
-	if len(pairs) != 2 {
-		return nil, fmt.Errorf("invalid openaiCustomUrl:%s", config.openaiCustomUrl)
+	customPath := "/"
+	if len(pairs) == 2 {
+		customPath += pairs[1]
 	}
+	isDirectCustomPath := isDirectPath(customPath)
+	capabilities := m.DefaultCapabilities()
+	if !isDirectCustomPath {
+		for key, mapPath := range capabilities {
+			capabilities[key] = path.Join(customPath, strings.TrimPrefix(mapPath, "/v1"))
+		}
+	}
+	config.setDefaultCapabilities(capabilities)
+	log.Debugf("ai-proxy: openai provider customDomain:%s, customPath:%s, isDirectCustomPath:%v, capabilities:%v",
+		pairs[0], customPath, isDirectCustomPath, capabilities)
 	return &openaiProvider{
-		config:       config,
-		customDomain: pairs[0],
-		customPath:   "/" + pairs[1],
-		contextCache: createContextCache(&config),
+		config:             config,
+		customDomain:       pairs[0],
+		customPath:         customPath,
+		isDirectCustomPath: isDirectCustomPath,
+		contextCache:       createContextCache(&config),
 	}, nil
 }
 
 type openaiProvider struct {
-	config       ProviderConfig
-	customDomain string
-	customPath   string
-	contextCache *contextCache
+	config             ProviderConfig
+	customDomain       string
+	customPath         string
+	isDirectCustomPath bool
+	contextCache       *contextCache
 }
 
 func (m *openaiProvider) GetProviderType() string {
 	return providerTypeOpenAI
 }
 
-func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if m.customPath == "" {
-		switch apiName {
-		case ApiNameChatCompletion:
-			_ = util.OverwriteRequestPath(defaultOpenaiChatCompletionPath)
-		case ApiNameEmbeddings:
-			ctx.DontReadRequestBody()
-			_ = util.OverwriteRequestPath(defaultOpenaiEmbeddingsPath)
-		}
-	} else {
-		_ = util.OverwriteRequestPath(m.customPath)
-	}
-	if m.customDomain == "" {
-		_ = util.OverwriteRequestHost(defaultOpenaiDomain)
-	} else {
-		_ = util.OverwriteRequestHost(m.customDomain)
-	}
-	if len(m.config.apiTokens) > 0 {
-		_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-	}
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	return types.ActionContinue, nil
+func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
+	return nil
 }
 
-func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	if m.isDirectCustomPath {
+		util.OverwriteRequestPathHeader(headers, m.customPath)
+	} else if apiName != "" {
+		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
+	}
+
+	if m.customDomain != "" {
+		util.OverwriteRequestHostHeader(headers, m.customDomain)
+	} else {
+		util.OverwriteRequestHostHeader(headers, defaultOpenaiDomain)
+	}
+	if len(m.config.apiTokens) > 0 {
+		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	}
+	headers.Del("Content-Length")
+}
+
+func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	if !m.config.needToProcessRequestBody(apiName) {
 		// We don't need to process the request body for other APIs.
 		return types.ActionContinue, nil
 	}
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
-	}
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
+}
+
+func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if m.config.responseJsonSchema != nil {
+		request := &chatCompletionRequest{}
+		if err := decodeChatCompletionRequest(body, request); err != nil {
+			return nil, err
+		}
 		log.Debugf("[ai-proxy] set response format to %s", m.config.responseJsonSchema)
 		request.ResponseFormat = m.config.responseJsonSchema
+		body, _ = json.Marshal(request)
 	}
-	if request.Stream {
-		// For stream requests, we need to include usage in the response.
-		if request.StreamOptions == nil {
-			request.StreamOptions = &streamOptions{IncludeUsage: true}
-		} else if !request.StreamOptions.IncludeUsage {
-			request.StreamOptions.IncludeUsage = true
-		}
-	}
-	if m.contextCache == nil {
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.openai.set_include_usage_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-		return types.ActionContinue, nil
-	}
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.openai.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.openai.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
-	}
-	return types.ActionContinue, err
+	return m.config.defaultTransformRequestBody(ctx, apiName, body)
 }
