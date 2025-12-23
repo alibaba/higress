@@ -100,10 +100,11 @@ func HandleTextGenerationStreamingResponseBody(ctx wrapper.HttpContext, config c
 					break
 				}
 			}
-			// if streaming body has reasoning_content, buffer maybe empty
+			// case 1: streaming body has reasoning_content, part of buffer maybe empty
+			// case 2: streaming body has toolcall result, part of buffer maybe empty
 			log.Debugf("current content piece: %s", buffer)
 			if len(buffer) == 0 {
-				return
+				buffer = "[empty content]"
 			}
 			ctx.SetContext("during_call", true)
 			log.Debugf("current content piece: %s", buffer)
