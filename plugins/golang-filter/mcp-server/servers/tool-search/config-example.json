@@ -1,0 +1,18 @@
+{
+  "vector": {
+    "type": "milvus",
+    "vectorWeight": 0.5,
+    "tableName": "apig_mcp_tools",
+    "host": "localhost",
+    "port": 19530,
+    "database": "default",
+    "username": "root",
+    "password": "Milvus"
+  },
+  "embedding": {
+    "apiKey": "your-dashscope-api-key",
+    "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "model": "text-embedding-v4",
+    "dimensions": 1024
+  }
+}
