@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -59,7 +60,18 @@ func (d *difyProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName
 func (d *difyProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	if d.config.difyApiUrl != "" {
 		log.Debugf("use local host: %s", d.config.difyApiUrl)
-		util.OverwriteRequestHostHeader(headers, d.config.difyApiUrl)
+		// Extract hostname, including Full URL or Domain
+		host := d.config.difyApiUrl
+		if parsedUrl, err := url.Parse(d.config.difyApiUrl); err == nil && parsedUrl.Host != "" {
+			host = parsedUrl.Host
+		} else {
+			host = strings.TrimPrefix(strings.TrimPrefix(d.config.difyApiUrl, "http://"), "https://")
+			if idx := strings.Index(host, "/"); idx != -1 {
+				host = host[:idx]
+			}
+		}
+		log.Debugf("extracted hostname: %s", host)
+		util.OverwriteRequestHostHeader(headers, host)
 	} else {
 		util.OverwriteRequestHostHeader(headers, difyDomain)
 	}
