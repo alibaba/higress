@@ -290,6 +290,9 @@ func (v *vertexProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 			PromptTokens:     response.UsageMetadata.PromptTokenCount,
 			CompletionTokens: response.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      response.UsageMetadata.TotalTokenCount,
+			CompletionTokensDetails: &completionTokensDetails{
+				ReasoningTokens: response.UsageMetadata.ThoughtsTokenCount,
+			},
 		},
 	}
 	for _, candidate := range response.Candidates {
@@ -400,6 +403,9 @@ func (v *vertexProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 			PromptTokens:     vertexResp.UsageMetadata.PromptTokenCount,
 			CompletionTokens: vertexResp.UsageMetadata.CandidatesTokenCount,
 			TotalTokens:      vertexResp.UsageMetadata.TotalTokenCount,
+			CompletionTokensDetails: &completionTokensDetails{
+				ReasoningTokens: vertexResp.UsageMetadata.ThoughtsTokenCount,
+			},
 		},
 	}
 	return &streamResponse
@@ -449,19 +455,22 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 		},
 	}
 	if request.ReasoningEffort != "" {
-		thinkingBudget := 1024 // default
-		switch request.ReasoningEffort {
-		case "low":
-			thinkingBudget = 1024
-		case "medium":
-			thinkingBudget = 4096
-		case "high":
-			thinkingBudget = 16384
-		}
-		vertexRequest.GenerationConfig.ThinkingConfig = vertexThinkingConfig{
+		thinkingConfig := vertexThinkingConfig{
 			IncludeThoughts: true,
-			ThinkingBudget:  thinkingBudget,
+			ThinkingBudget:  1024,
 		}
+		switch request.ReasoningEffort {
+		case "none":
+			thinkingConfig.IncludeThoughts = false
+			thinkingConfig.ThinkingBudget = 0
+		case "low":
+			thinkingConfig.ThinkingBudget = 1024
+		case "medium":
+			thinkingConfig.ThinkingBudget = 4096
+		case "high":
+			thinkingConfig.ThinkingBudget = 16384
+		}
+		vertexRequest.GenerationConfig.ThinkingConfig = thinkingConfig
 	}
 	if request.Tools != nil {
 		functions := make([]function, 0, len(request.Tools))
@@ -637,7 +646,7 @@ type vertexChatGenerationConfig struct {
 
 type vertexThinkingConfig struct {
 	IncludeThoughts bool `json:"includeThoughts,omitempty"`
-	ThinkingBudget  int  `json:"thinkingBudget,omitempty"`
+	ThinkingBudget  any  `json:"thinkingBudget,omitempty"`
 }
 
 type vertexEmbeddingRequest struct {
@@ -682,6 +691,7 @@ type vertexUsageMetadata struct {
 	PromptTokenCount     int `json:"promptTokenCount,omitempty"`
 	CandidatesTokenCount int `json:"candidatesTokenCount,omitempty"`
 	TotalTokenCount      int `json:"totalTokenCount,omitempty"`
+	ThoughtsTokenCount   int `json:"thoughtsTokenCount,omitempty"`
 }
 
 type vertexEmbeddingResponse struct {
