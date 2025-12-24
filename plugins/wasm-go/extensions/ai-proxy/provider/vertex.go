@@ -646,7 +646,7 @@ type vertexChatGenerationConfig struct {
 
 type vertexThinkingConfig struct {
 	IncludeThoughts bool `json:"includeThoughts,omitempty"`
-	ThinkingBudget  any  `json:"thinkingBudget,omitempty"`
+	ThinkingBudget  int  `json:"thinkingBudget,omitempty"`
 }
 
 type vertexEmbeddingRequest struct {
