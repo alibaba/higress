@@ -166,7 +166,6 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 			TotalTokens:      bedrockEvent.Usage.TotalTokens,
 		}
 	}
-
 	openAIFormattedChunkBytes, _ := json.Marshal(openAIFormattedChunk)
 	var openAIChunk strings.Builder
 	openAIChunk.WriteString(ssePrefix)
@@ -284,11 +283,10 @@ func extractAmazonEventStreamEvents(ctx wrapper.HttpContext, chunk []byte) []Con
 
 	r := bytes.NewReader(body)
 	var events []ConverseStreamEvent
-	var lastRead int64 = -1
+	var lastRead int64 = 0
 	messageBuffer := make([]byte, 1024)
 	defer func() {
 		log.Infof("extractAmazonEventStreamEvents: lastRead=%d, r.Size=%d", lastRead, r.Size())
-		ctx.SetContext(ctxKeyStreamingBody, nil)
 	}()
 
 	for {
@@ -305,6 +303,11 @@ func extractAmazonEventStreamEvents(ctx wrapper.HttpContext, chunk []byte) []Con
 			events = append(events, event)
 		}
 		lastRead = r.Size() - int64(r.Len())
+	}
+	if lastRead < int64(len(body)) {
+		ctx.SetContext(ctxKeyStreamingBody, body[lastRead:])
+	} else {
+		ctx.SetContext(ctxKeyStreamingBody, nil)
 	}
 	return events
 }
@@ -766,7 +769,7 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		System:   systemMessages,
 		Messages: messages,
 		InferenceConfig: bedrockInferenceConfig{
-			MaxTokens:   origRequest.MaxTokens,
+			MaxTokens:   origRequest.getMaxTokens(),
 			Temperature: origRequest.Temperature,
 			TopP:        origRequest.TopP,
 		},
@@ -1056,17 +1059,19 @@ func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 				Text: text,
 			},
 		}
-		openaiContent := chatMessage.ParseContent()
-		for _, part := range openaiContent {
-			var content bedrockMessageContent
-			if part.Type == contentTypeText {
-				content.Text = part.Text
-			} else {
-				continue
+	} else if contentList, ok := chatMessage.Content.([]any); ok {
+		for _, contentItem := range contentList {
+			contentMap, ok := contentItem.(map[string]any)
+			if ok && contentMap["type"] == contentTypeText {
+				if text, ok := contentMap[contentTypeText].(string); ok {
+					toolResultContent.Content = append(toolResultContent.Content, toolResultContentBlock{
+						Text: text,
+					})
+				}
 			}
 		}
 	} else {
-		log.Warnf("only text content is supported, current content is %v", chatMessage.Content)
+		log.Warnf("the content type is not supported, current content is %v", chatMessage.Content)
 	}
 	return bedrockMessage{
 		Role: roleUser,

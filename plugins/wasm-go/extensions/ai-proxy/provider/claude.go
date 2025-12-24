@@ -203,19 +203,20 @@ type claudeThinkingConfig struct {
 }
 
 type claudeTextGenRequest struct {
-	Model         string                `json:"model"`
-	Messages      []claudeChatMessage   `json:"messages"`
-	System        *claudeSystemPrompt   `json:"system,omitempty"`
-	MaxTokens     int                   `json:"max_tokens,omitempty"`
-	StopSequences []string              `json:"stop_sequences,omitempty"`
-	Stream        bool                  `json:"stream,omitempty"`
-	Temperature   float64               `json:"temperature,omitempty"`
-	TopP          float64               `json:"top_p,omitempty"`
-	TopK          int                   `json:"top_k,omitempty"`
-	ToolChoice    *claudeToolChoice     `json:"tool_choice,omitempty"`
-	Tools         []claudeTool          `json:"tools,omitempty"`
-	ServiceTier   string                `json:"service_tier,omitempty"`
-	Thinking      *claudeThinkingConfig `json:"thinking,omitempty"`
+	Model            string                `json:"model,omitempty"`
+	Messages         []claudeChatMessage   `json:"messages"`
+	System           *claudeSystemPrompt   `json:"system,omitempty"`
+	MaxTokens        int                   `json:"max_tokens,omitempty"`
+	StopSequences    []string              `json:"stop_sequences,omitempty"`
+	Stream           bool                  `json:"stream,omitempty"`
+	Temperature      float64               `json:"temperature,omitempty"`
+	TopP             float64               `json:"top_p,omitempty"`
+	TopK             int                   `json:"top_k,omitempty"`
+	ToolChoice       *claudeToolChoice     `json:"tool_choice,omitempty"`
+	Tools            []claudeTool          `json:"tools,omitempty"`
+	ServiceTier      string                `json:"service_tier,omitempty"`
+	Thinking         *claudeThinkingConfig `json:"thinking,omitempty"`
+	AnthropicVersion string                `json:"anthropic_version,omitempty"`
 }
 
 type claudeTextGenResponse struct {
@@ -279,8 +280,9 @@ func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (c *claudeProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): PathAnthropicMessages,
-		string(ApiNameCompletion):     PathAnthropicComplete,
+		string(ApiNameChatCompletion):    PathAnthropicMessages,
+		string(ApiNameCompletion):        PathAnthropicComplete,
+		string(ApiNameAnthropicMessages): PathAnthropicMessages,
 		// docs: https://docs.anthropic.com/en/docs/build-with-claude/embeddings#voyage-http-api
 		string(ApiNameEmbeddings): PathOpenAIEmbeddings,
 		string(ApiNameModels):     PathOpenAIModels,

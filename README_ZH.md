@@ -17,6 +17,7 @@
 [**官网**](https://higress.cn/) &nbsp; |
 &nbsp; [**文档**](https://higress.cn/docs/latest/overview/what-is-higress/) &nbsp; |
 &nbsp; [**博客**](https://higress.cn/blog/) &nbsp; |
+&nbsp; [**MCP Server 快速开始**](https://higress.cn/ai/mcp-quick-start/) &nbsp; |
 &nbsp; [**电子书**](https://higress.cn/docs/ebook/wasm14/) &nbsp; |
 &nbsp; [**开发指引**](https://higress.cn/docs/latest/dev/architecture/) &nbsp; |
 &nbsp; [**AI插件**](https://higress.cn/plugin/) &nbsp;
@@ -44,6 +45,11 @@ Higress 的 AI 网关能力支持国内外所有[主流模型供应商](https://
 
 Higress 在阿里内部为解决 Tengine reload 对长连接业务有损，以及 gRPC/Dubbo 负载均衡能力不足而诞生。在阿里云内部，Higress 的 AI 网关能力支撑了通义千问 APP、通义百炼模型工作室、机器学习 PAI 平台等核心 AI 应用。同时服务国内头部的 AIGC 企业（如零一万物），以及 AI 产品（如 FastGPT）。阿里云基于 Higress 构建了云原生 API 网关产品，为大量企业客户提供 99.99% 的网关高可用保障服务能力。
 
+可以点下方按钮安装企业版 Higress: 
+
+[![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i4/O1CN01tHRaNm22hflDqxKV5_!!6000000007152-55-tps-170-40.svg)](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
+
+如果您使用开源的Higress并希望获得企业级支持，可以联系johnlanni的邮箱：zty98751@alibaba-inc.com或社交媒体账号（微信号：nomadao，钉钉号：chengtanzty）。添加好友时请备注Higress :）
 
 ## Summary
 
@@ -76,10 +82,7 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
 
-如果您是在云上部署，生产环境推荐使用[企业版](https://higress.io/cloud/)，开发测试可以使用下面一键部署社区版：
-
-[![Deploy on AlibabaCloud ComputeNest](https://service-info-public.oss-cn-hangzhou.aliyuncs.com/computenest.svg)](https://computenest.console.aliyun.com/service/instance/create/default?type=user&ServiceName=Higress社区版)
-
+如果您是在云上部署，推荐使用[企业版](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
 
 ## 使用场景
 

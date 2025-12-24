@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -42,7 +43,6 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
-	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/log"
 	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
@@ -279,7 +279,7 @@ func (m *IngressConfig) AddLocalCluster(options common.Options) {
 	}
 	m.remoteIngressControllers[options.ClusterId] = ingressController
 	if features.EnableGatewayAPI {
-		m.remoteGatewayControllers[options.ClusterId] = gateway.NewController(m.localKubeClient, options)
+		m.remoteGatewayControllers[options.ClusterId] = gateway.NewController(m.localKubeClient, options, m.XDSUpdater)
 	}
 }
 
@@ -653,7 +653,7 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 			loadBalance := route.WrapperConfig.AnnotationsConfig.LoadBalance
 			if loadBalance != nil && loadBalance.McpSseStateful {
 				IngressLog.Infof("Found MCP SSE stateful session for route %s", route.HTTPRoute.Name)
-				envoyFilter, err := m.constructMcpSseStatefulSessionEnvoyFilter(route, m.namespace, initMcpSseGlobalFilter)
+				envoyFilter, err := m.constructMcpSseStatefulSessionEnvoyFilter(route, m.namespace, initMcpSseGlobalFilter, loadBalance.McpSseStatefulKey)
 				if err != nil {
 					IngressLog.Errorf("Construct MCP SSE stateful session EnvoyFilter error %v", err)
 				} else {
@@ -857,8 +857,17 @@ func (m *IngressConfig) convertDestinationRule(configs []common.WrapperConfig) [
 					portUpdated := false
 					for _, policy := range dr.DestinationRule.TrafficPolicy.PortLevelSettings {
 						if policy.Port.Number == portTrafficPolicy.Port.Number {
-							policy.Tls = portTrafficPolicy.Tls
-							policy.LoadBalancer = portTrafficPolicy.LoadBalancer
+							// Only set Tls if not already configured
+							if policy.Tls == nil && portTrafficPolicy.Tls != nil {
+								policy.Tls = portTrafficPolicy.Tls
+							}
+							// Only set LoadBalancer if not already configured
+							if policy.LoadBalancer == nil && portTrafficPolicy.LoadBalancer != nil {
+								policy.LoadBalancer = portTrafficPolicy.LoadBalancer
+							} else if policy.LoadBalancer != nil && policy.LoadBalancer.LbPolicy == nil &&
+								portTrafficPolicy.LoadBalancer != nil && portTrafficPolicy.LoadBalancer.LbPolicy != nil {
+								policy.LoadBalancer.LbPolicy = portTrafficPolicy.LoadBalancer.LbPolicy
+							}
 							portUpdated = true
 							break
 						}
@@ -1045,7 +1054,17 @@ func (m *IngressConfig) convertIstioWasmPlugin(obj *higressext.WasmPlugin) (*ext
 			validRule := false
 			var matchItems []*_struct.Value
 			// match ingress
+			// if route type is not http, we should re-generate the route name for ingress matching
+			// this is because the route name
+			needAppendRuleType := false
+			if rule.GetRouteType() != higressext.RouteType_HTTP {
+				needAppendRuleType = true
+			}
+
 			for _, ing := range rule.Ingress {
+				if needAppendRuleType {
+					ing = path.Join(rule.GetRouteType().String())
+				}
 				matchItems = append(matchItems, &_struct.Value{
 					Kind: &_struct.Value_StringValue{
 						StringValue: ing,
@@ -1301,11 +1320,11 @@ func (m *IngressConfig) AddOrUpdateHttp2Rpc(clusterNamespacedName util.ClusterNa
 	m.http2rpcs[clusterNamespacedName.Name] = &http2rpc.Spec
 	m.mutex.Unlock()
 	IngressLog.Infof("AddOrUpdateHttp2Rpc http2rpc ingress name %s", clusterNamespacedName.Name)
-	push := func(gvk config.GroupVersionKind) {
+	push := func(GVK config.GroupVersionKind) {
 		m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 			Full: true,
 			ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
-				Kind:      kind.MustFromGVK(gvk),
+				Kind:      gvk.MustToKind(GVK),
 				Name:      clusterNamespacedName.Name,
 				Namespace: clusterNamespacedName.Namespace,
 			}: {}},
@@ -1330,11 +1349,11 @@ func (m *IngressConfig) DeleteHttp2Rpc(clusterNamespacedName util.ClusterNamespa
 	m.mutex.Unlock()
 	if hit {
 		IngressLog.Infof("Http2Rpc triggered deleted event executed %s", clusterNamespacedName.Name)
-		push := func(gvk config.GroupVersionKind) {
+		push := func(GVK config.GroupVersionKind) {
 			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,
 				ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
-					Kind:      kind.MustFromGVK(gvk),
+					Kind:      gvk.MustToKind(GVK),
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
@@ -1355,11 +1374,11 @@ func (m *IngressConfig) ReflectSecretChanges(clusterNamespacedName util.ClusterN
 	m.mutex.RUnlock()
 
 	if hit {
-		push := func(gvk config.GroupVersionKind) {
+		push := func(GVK config.GroupVersionKind) {
 			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,
 				ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
-					Kind:      kind.MustFromGVK(gvk),
+					Kind:      gvk.MustToKind(GVK),
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
@@ -1956,7 +1975,7 @@ func (m *IngressConfig) Delete(config.GroupVersionKind, string, string, *string)
 	return common.ErrUnsupportedOp
 }
 
-func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.WrapperHTTPRoute, namespace string, initGlobalFilter bool) (*config.Config, error) {
+func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.WrapperHTTPRoute, namespace string, initGlobalFilter bool, mcpSseStatefulKey string) (*config.Config, error) {
 	httpRoute := route.HTTPRoute
 
 	var configPatches []*networking.EnvoyFilter_EnvoyConfigObjectPatch
@@ -2010,7 +2029,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 		},
 		Patch: &networking.EnvoyFilter_Patch{
 			Operation: networking.EnvoyFilter_Patch_MERGE,
-			Value: buildPatchStruct(`{
+			Value: buildPatchStruct(fmt.Sprintf(`{
 				"typed_per_filter_config": {
 					"envoy.filters.http.mcp_sse_stateful_session": {
 						"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
@@ -2023,7 +2042,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 										"@type": "type.googleapis.com/udpa.type.v1.TypedStruct",
 										"type_url": "type.googleapis.com/envoy.extensions.http.mcp_sse_stateful_session.envelope.v3alpha.EnvelopeSessionState",
 										"value": {
-											"param_name": "sessionId",
+											"param_name": "%s",
 											"chunk_end_patterns": ["\r\n\r\n", "\n\n", "\r\r"]
 										}
 									}
@@ -2033,7 +2052,7 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 						}
 					}
 				}
-			}`),
+			}`, mcpSseStatefulKey)),
 		},
 	})
 
@@ -2049,11 +2068,11 @@ func (m *IngressConfig) constructMcpSseStatefulSessionEnvoyFilter(route *common.
 	}, nil
 }
 
-func (m *IngressConfig) notifyXDSFullUpdate(gvk config.GroupVersionKind, reason istiomodel.TriggerReason, updatedConfigName *util.ClusterNamespacedName) {
+func (m *IngressConfig) notifyXDSFullUpdate(GVK config.GroupVersionKind, reason istiomodel.TriggerReason, updatedConfigName *util.ClusterNamespacedName) {
 	var configsUpdated map[istiomodel.ConfigKey]struct{}
 	if updatedConfigName != nil {
 		configsUpdated = map[istiomodel.ConfigKey]struct{}{{
-			Kind:      kind.MustFromGVK(gvk),
+			Kind:      gvk.MustToKind(GVK),
 			Name:      updatedConfigName.Name,
 			Namespace: updatedConfigName.Namespace,
 		}: {}}

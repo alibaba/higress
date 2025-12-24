@@ -28,6 +28,9 @@ var (
 	RegCancelBatchPath                          = regexp.MustCompile(`^.*/v1/batches/(?P<batch_id>[^/]+)/cancel$`)
 	RegRetrieveFilePath                         = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)$`)
 	RegRetrieveFileContentPath                  = regexp.MustCompile(`^.*/v1/files/(?P<file_id>[^/]+)/content$`)
+	RegRetrieveVideoPath                        = regexp.MustCompile(`^.*/v1/videos/(?P<video_id>[^/]+)$`)
+	RegRetrieveVideoContentPath                 = regexp.MustCompile(`^.*/v1/videos/(?P<video_id>[^/]+)/content$`)
+	RegVideoRemixPath                           = regexp.MustCompile(`^.*/v1/videos/(?P<video_id>[^/]+)/remix$`)
 	RegRetrieveFineTuningJobPath                = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)$`)
 	RegRetrieveFineTuningJobEventsPath          = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/events$`)
 	RegRetrieveFineTuningJobCheckpointsPath     = regexp.MustCompile(`^.*/v1/fine_tuning/jobs/(?P<fine_tuning_job_id>[^/]+)/checkpoints$`)
@@ -90,6 +93,19 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 	if !exist {
 		return ""
 	}
+	mappedPathOnly := mappedPath
+	mappedQuery := ""
+	if queryIndex := strings.Index(mappedPathOnly, "?"); queryIndex >= 0 {
+		mappedPathOnly = mappedPathOnly[:queryIndex]
+		mappedQuery = mappedPath[queryIndex:]
+	}
+	// 将查询字符串从原始路径中剥离，避免干扰正则匹配 video_id 等占位符
+	pathOnly := originPath
+	query := ""
+	if queryIndex := strings.Index(originPath, "?"); queryIndex >= 0 {
+		pathOnly = originPath[:queryIndex]
+		query = originPath[queryIndex:]
+	}
 	if strings.Contains(mappedPath, "{") && strings.Contains(mappedPath, "}") {
 		replacements := []struct {
 			regx *regexp.Regexp
@@ -99,11 +115,14 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 			{RegRetrieveFileContentPath, "file_id"},
 			{RegRetrieveBatchPath, "batch_id"},
 			{RegCancelBatchPath, "batch_id"},
+			{RegRetrieveVideoPath, "video_id"},
+			{RegRetrieveVideoContentPath, "video_id"},
+			{RegVideoRemixPath, "video_id"},
 		}
 
 		for _, r := range replacements {
-			if r.regx.MatchString(originPath) {
-				subMatch := r.regx.FindStringSubmatch(originPath)
+			if r.regx.MatchString(pathOnly) {
+				subMatch := r.regx.FindStringSubmatch(pathOnly)
 				if subMatch == nil {
 					continue
 				}
@@ -112,10 +131,23 @@ func MapRequestPathByCapability(apiName string, originPath string, mapping map[s
 					continue
 				}
 				id := subMatch[index]
-				mappedPath = r.regx.ReplaceAllStringFunc(mappedPath, func(s string) string {
+				mappedPathOnly = r.regx.ReplaceAllStringFunc(mappedPathOnly, func(s string) string {
 					return strings.Replace(s, "{"+r.key+"}", id, 1)
 				})
 			}
+		}
+	}
+	if mappedQuery != "" {
+		mappedPath = mappedPathOnly + mappedQuery
+	} else {
+		mappedPath = mappedPathOnly
+	}
+	if query != "" {
+		// 保留原始查询参数，例如 variant=thumbnail
+		if strings.Contains(mappedPath, "?") {
+			mappedPath = mappedPath + "&" + strings.TrimPrefix(query, "?")
+		} else {
+			mappedPath += query
 		}
 	}
 	return mappedPath
