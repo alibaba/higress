@@ -2,18 +2,17 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
+	// "github.com/alibaba/higress-wasm-go-sdk/higress/metrics"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tidwall/gjson"
+	// "k8s.io/component-base/metrics"
+	// "k8s.io/component-base/metrics"
 )
 
 const (
@@ -22,47 +21,22 @@ const (
 	SkipProcessing = "skip_processing"
 )
 
+var (
+	// 缓存命中计数器
+	hitCounter = proxywasm.DefineCounterMetric("ai_cache_hit_total")
+
+	// 缓存未命中计数器
+	missCounter = proxywasm.DefineCounterMetric("ai_cache_miss_total")
+
+	// 总请求计数器
+	totalCounter = proxywasm.DefineCounterMetric("ai_cache_request_total")
+	// 缓存状态仪表盘（1=hit, 0=miss, -1=unknown）
+
+	// statusGauge = metrics.NewGauge("ai_cache_status", "Current AI cache status (1=hit, 0=miss, -1=unknown)")
+	statusGauge = proxywasm.DefineGaugeMetric("ai_cache_status")
+)
+
 func main() {
-	// check ai-cache plugin enable or not, if not enable, return directly
-	if os.Getenv("ENABLE_AI_CACHE") != "true" {
-		fmt.Println("AI Cache plugin is not enabled")
-		return
-	}
-
-	// 配置参数（可通过命令行参数/环境变量传入，此处简化）
-	redisAddr := os.Getenv("REDIS_ADDR") // 如"redis:6379"
-	redisPassword := os.Getenv("REDIS_PASSWORD")
-	redisDB, _ := strconv.Atoi(os.Getenv("REDIS_DB"))                       // 默认为0
-	collectInterval, _ := time.ParseDuration(os.Getenv("COLLECT_INTERVAL")) // 如"10s"
-
-	// 初始化默认值
-	if redisAddr == "" {
-		redisAddr = "localhost:6379"
-	}
-	if collectInterval == 0 {
-		collectInterval = 10 * time.Second // 默认10秒采集一次
-	}
-
-	// 初始化Redis客户端
-	initRedis(redisAddr, redisPassword, redisDB)
-
-	// 启动定时采集（立即执行一次，然后每隔collectInterval执行）
-	collectRedisMetrics()
-	ticker := time.NewTicker(collectInterval)
-	defer ticker.Stop()
-	go func() {
-		for range ticker.C {
-			collectRedisMetrics()
-		}
-	}()
-
-	// 暴露Metric端点（默认:9234/metrics）
-	http.Handle("/metrics", promhttp.Handler())
-	fmt.Printf("Exporter running on :9234/metrics, collect interval: %v\n", collectInterval)
-	err := http.ListenAndServe(":9234", nil)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to start HTTP server: %v", err))
-	}
 }
 
 func init() {
@@ -75,7 +49,6 @@ func init() {
 		wrapper.ProcessStreamingResponseBody(onHttpStreamingBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
-
 }
 
 type TokenUsage struct {
@@ -241,6 +214,22 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if !strings.Contains(contentType, "text/event-stream") {
 		ctx.BufferResponseBody()
+	}
+	cacheStatus := ctx.GetUserAttribute("cache_status")
+	totalCounter.Increment(uint64(1))
+
+	switch cacheStatus {
+	case "hit":
+		proxywasm.LogInfo(fmt.Sprintf("cache status: hit, increment hit counter"))
+		hitCounter.Increment(uint64(1)) // 命中次数+1
+		statusGauge.Set(1)              // 仪表盘设为1（命中）
+	case "miss":
+		proxywasm.LogInfo(fmt.Sprintf("cache status: miss, increment miss counter"))
+		missCounter.Increment(uint64(1)) // 未命中次数+1
+		statusGauge.Set(0)               // 仪表盘设为0（未命中）
+	default:
+		proxywasm.LogWarn(fmt.Sprintf("cache status unknown: %s", cacheStatus))
+		statusGauge.Set(-1) // 未知状态设为-1
 	}
 	return types.ActionContinue
 }

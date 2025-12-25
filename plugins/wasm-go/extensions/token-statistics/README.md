@@ -1,5 +1,6 @@
 
 创建WasmPlugin资源配置：
+确保插件执行在 AI-Cache 插件之后（通过priority配置，数值越大执行越晚）；
 
 ```yaml
 apiVersion: extensions.higress.io/v1alpha1
