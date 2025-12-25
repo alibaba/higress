@@ -14,6 +14,7 @@ import (
 // 2. 原生模式：当protocol设置为original时，直接透传gemini格式的请求/响应
 
 const (
+	geminiApiKeyHeader                  = "x-goog-api-key"
 	geminiDefaultApiVersion             = "v1beta" // 可选: v1, v1beta
 	geminiDomain                        = "generativelanguage.googleapis.com"
 	geminiCompatibleChatCompletionPath  = "/v1beta/openai/chat/completions"
@@ -70,9 +71,16 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestHostHeader(headers, geminiDomain)
-	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
-	path := g.getRequestPath(apiName)
-	util.OverwriteRequestPathHeader(headers, path)
+	if g.config.IsOriginal() {
+		// gemini original protocol
+		headers.Set(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
+		util.OverwriteRequestAuthorizationHeader(headers, "")
+	} else {
+		// gemini openai compatible protocol
+		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+g.config.GetApiTokenInUse(ctx))
+		path := g.getRequestPath(apiName)
+		util.OverwriteRequestPathHeader(headers, path)
+	}
 }
 
 func (g *geminiProvider) getRequestPath(apiName ApiName) string {
