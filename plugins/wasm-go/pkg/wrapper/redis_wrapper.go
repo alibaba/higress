@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -197,13 +198,18 @@ func (c *RedisClusterClient[C]) Init(username, password string, timeout int64, o
 	if c.option.dataBase != 0 {
 		clusterName = fmt.Sprintf("%s?db=%d", clusterName, c.option.dataBase)
 	}
-	err := proxywasm.RedisInit(clusterName, username, password, uint32(timeout))
+	// URL encode username and password to handle special characters like '?', '@', '#', '&'
+	// These characters may be incorrectly parsed as URL separators by the underlying Envoy Redis client
+	// See: https://github.com/alibaba/higress/issues/2267
+	encodedUsername := url.QueryEscape(username)
+	encodedPassword := url.QueryEscape(password)
+	err := proxywasm.RedisInit(clusterName, encodedUsername, encodedPassword, uint32(timeout))
 	if err != nil {
 		c.checkReadyFunc = func() error {
 			if c.ready {
 				return nil
 			}
-			initErr := proxywasm.RedisInit(clusterName, username, password, uint32(timeout))
+			initErr := proxywasm.RedisInit(clusterName, encodedUsername, encodedPassword, uint32(timeout))
 			if initErr != nil {
 				return initErr
 			}
