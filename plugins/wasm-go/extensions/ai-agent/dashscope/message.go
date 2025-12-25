@@ -1,5 +1,7 @@
 package dashscope
 
+import "log"
+
 var MessageStore ChatMessages
 
 func init() {
@@ -37,6 +39,7 @@ func (cm *ChatMessages) AddForAssistant(msg string) {
 
 // 添加System角色的prompt
 func (cm *ChatMessages) AddForSystem(msg string) {
+	log.Println("AddForSystem", msg)
 	cm.AddFor(msg, RoleSystem)
 }
 
