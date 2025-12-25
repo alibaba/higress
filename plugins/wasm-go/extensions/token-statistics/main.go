@@ -33,7 +33,7 @@ var (
 	// 缓存状态仪表盘（1=hit, 0=miss, -1=unknown）
 
 	// statusGauge = metrics.NewGauge("ai_cache_status", "Current AI cache status (1=hit, 0=miss, -1=unknown)")
-	statusGauge = proxywasm.DefineGaugeMetric("ai_cache_status")
+	// statusGauge = proxywasm.DefineGaugeMetric("ai_cache_status")
 )
 
 func main() {
@@ -222,14 +222,14 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 	case "hit":
 		proxywasm.LogInfo(fmt.Sprintf("cache status: hit, increment hit counter"))
 		hitCounter.Increment(uint64(1)) // 命中次数+1
-		statusGauge.Set(1)              // 仪表盘设为1（命中）
+		// statusGauge.Set(1)              // 仪表盘设为1（命中）
 	case "miss":
 		proxywasm.LogInfo(fmt.Sprintf("cache status: miss, increment miss counter"))
 		missCounter.Increment(uint64(1)) // 未命中次数+1
-		statusGauge.Set(0)               // 仪表盘设为0（未命中）
+		// statusGauge.Set(0)               // 仪表盘设为0（未命中）
 	default:
 		proxywasm.LogWarn(fmt.Sprintf("cache status unknown: %s", cacheStatus))
-		statusGauge.Set(-1) // 未知状态设为-1
+		// statusGauge.Set(-1) // 未知状态设为-1
 	}
 	return types.ActionContinue
 }
