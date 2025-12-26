@@ -9,7 +9,7 @@ replace amap-tools => ../amap-tools
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20251103120604-77e9cce339d2
-	github.com/higress-group/wasm-go v1.0.6
+	github.com/higress-group/wasm-go v1.0.9-0.20251223122142-eae11e33a500
 	github.com/stretchr/testify v1.9.0
 	quark-search v0.0.0-00010101000000-000000000000
 )

@@ -144,6 +144,7 @@ const (
 	providerTypeLongcat    = "longcat"
 	providerTypeFireworks  = "fireworks"
 	providerTypeVllm       = "vllm"
+	providerTypeGeneric    = "generic"
 
 	protocolOpenAI   = "openai"
 	protocolOriginal = "original"
@@ -227,6 +228,7 @@ var (
 		providerTypeLongcat:    &longcatProviderInitializer{},
 		providerTypeFireworks:  &fireworksProviderInitializer{},
 		providerTypeVllm:       &vllmProviderInitializer{},
+		providerTypeGeneric:    &genericProviderInitializer{},
 	}
 )
 
@@ -409,6 +411,9 @@ type ProviderConfig struct {
 	basePath string `required:"false" yaml:"basePath" json:"basePath"`
 	// @Title zh-CN basePathHandling用于指定basePath的处理方式，可选值：removePrefix、prepend
 	basePathHandling basePathHandling `required:"false" yaml:"basePathHandling" json:"basePathHandling"`
+	// @Title zh-CN generic Provider 对应的Host
+	// @Description zh-CN 仅适用于generic provider，用于覆盖请求转发的目标Host
+	genericHost string `required:"false" yaml:"genericHost" json:"genericHost"`
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
@@ -424,6 +429,9 @@ type ProviderConfig struct {
 	// @Title zh-CN vLLM主机地址
 	// @Description zh-CN 仅适用于vLLM服务，指定vLLM服务器的主机地址，例如：vllm-service.cluster.local
 	vllmServerHost string `required:"false" yaml:"vllmServerHost" json:"vllmServerHost"`
+	// @Title zh-CN 豆包服务域名
+	// @Description zh-CN 仅适用于豆包服务，默认转发域名为 ark.cn-beijing.volces.com
+	doubaoDomain string `required:"false" yaml:"doubaoDomain" json:"doubaoDomain"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -619,8 +627,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.basePath != "" && c.basePathHandling == "" {
 		c.basePathHandling = basePathHandlingRemovePrefix
 	}
+	c.genericHost = json.Get("genericHost").String()
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
+	c.doubaoDomain = json.Get("doubaoDomain").String()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -963,12 +973,33 @@ func (c *ProviderConfig) handleRequestBody(
 func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.HttpContext, apiName ApiName) {
 	headers := util.GetRequestHeaders()
 	originPath := headers.Get(":path")
+
+	// Record the path after removePrefix processing
+	var removePrefixPath string
 	if c.basePath != "" && c.basePathHandling == basePathHandlingRemovePrefix {
-		headers.Set(":path", strings.TrimPrefix(originPath, c.basePath))
+		removePrefixPath = strings.TrimPrefix(originPath, c.basePath)
+		headers.Set(":path", removePrefixPath)
 	}
+
 	if handler, ok := provider.(TransformRequestHeadersHandler); ok {
 		handler.TransformRequestHeaders(ctx, apiName, headers)
 	}
+
+	// When using original protocol with removePrefix, restore the basePath-processed path.
+	// This ensures basePathHandling works correctly even when TransformRequestHeaders
+	// overwrites the path (which most providers do).
+	//
+	// TODO: Most providers (OpenAI, vLLM, DeepSeek, Claude, etc.) unconditionally overwrite
+	// the path in TransformRequestHeaders without checking IsOriginal(). Ideally, each provider
+	// should check IsOriginal() before overwriting the path (like Qwen does). Once all providers
+	// are updated to handle protocol correctly, this workaround can be removed.
+	// Affected providers: OpenAI, vLLM, ZhipuAI, Moonshot, Longcat, DeepSeek, Azure, Yi,
+	// TogetherAI, Stepfun, Ollama, Hunyuan, GitHub, Doubao, Cohere, Baichuan, AI360, Claude,
+	// Groq, Grok, Spark, Fireworks, Cloudflare, Baidu, OpenRouter, DeepL (24+ providers)
+	if c.IsOriginal() && removePrefixPath != "" {
+		headers.Set(":path", removePrefixPath)
+	}
+
 	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
 		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
 	}
