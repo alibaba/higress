@@ -16,9 +16,11 @@ package util
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -92,4 +94,34 @@ func WriteFileString(fileName string, content string, perm os.FileMode) error {
 	}
 	writer.Flush()
 	return nil
+}
+
+// This function return ~/.hgctl file_path string (Currently Linux only)
+func GetHomeHgctlDir() string {
+	homeDir, _ := os.UserHomeDir()
+	targetDir := filepath.Join(homeDir, ".hgctl")
+	return targetDir
+}
+
+func GetSpecificAgentDir(name string) (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
+	targetDir := filepath.Join(homeDir, ".hgctl", "agents", name)
+
+	info, err := os.Stat(targetDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("agent %q does not exist", name)
+		}
+		return "", fmt.Errorf("failed to stat agent directory %q: %w", targetDir, err)
+	}
+
+	if !info.IsDir() {
+		return "", fmt.Errorf("agent %q exists but is not a directory", name)
+	}
+
+	return targetDir, nil
 }

@@ -15,9 +15,11 @@
 package manifests
 
 import (
+	"bytes"
 	"embed"
 	"io/fs"
 	"os"
+	"path/filepath"
 )
 
 // FS embeds the manifests
@@ -25,6 +27,7 @@ import (
 //go:embed profiles/*
 //go:embed gatewayapi/*
 //go:embed istiobase/*
+//go:embed agent/*
 var FS embed.FS
 
 // BuiltinOrDir returns a FS for the provided directory. If no directory is passed, the compiled in
@@ -34,4 +37,40 @@ func BuiltinOrDir(dir string) fs.FS {
 		return FS
 	}
 	return os.DirFS(dir)
+}
+
+// This funciton will write the embed sourceDir's files to target dir
+func ExtractEmbedFiles(fsys fs.FS, srcDir, targetDir string) error {
+	return fs.WalkDir(fsys, srcDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relDir, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+		targetPath := filepath.Join(targetDir, relDir)
+
+		if d.IsDir() {
+			return os.MkdirAll(targetPath, 0755)
+		}
+
+		data, err := fs.ReadFile(fsys, path)
+		if err != nil {
+			return err
+		}
+
+		// if this file already exists, then return
+		existing, err := os.ReadFile(targetPath)
+		if err == nil {
+			if bytes.Equal(existing, data) {
+				return nil
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+
+		return os.WriteFile(targetPath, data, 0644)
+	})
 }

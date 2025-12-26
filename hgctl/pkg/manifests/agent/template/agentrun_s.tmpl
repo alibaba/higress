@@ -1,0 +1,81 @@
+edition: 3.0.0
+name: agentrun-app
+access: "{{ .AccessKey }}" 
+
+resources:
+  hgctl-agent2:
+    component: agentrun
+    props:
+      region: "{{ .Region }}"
+
+      # ============= 新规范：agent 配置 =============
+      agent:
+        # 基本信息
+        name: "{{ .AgentName }}"
+        description: "{{ .AgentDesc }}" 
+
+        # 代码配置（直接指定路径，支持目录或 zip 文件,或使用 OSS 代码包）
+        code:
+          src: .
+          # ossBucketName: funagent-agent-quickstart-langchain-demo-code
+          # ossObjectName: agentrun-quickstart-code.zip
+          language: python3.12
+          command:
+            - python3
+            - agentrun_main.py
+
+        # 容器配置（使用容器模式时配置此项）
+        # customContainerConfig:
+        # 	image: registry.cn-hangzhou.aliyuncs.com/my-app:latest
+        # 	command:
+        # 	 	- python3
+        # 	 	- app.py
+        # 	port: 9000
+
+        # 资源配置
+        cpu: 2.0
+        memory: 4096
+        diskSize: {{ .DiskSize }} # 可选，默认 512 MB
+        timeout: {{ .Timeout }} # 可选，默认 600 秒
+
+        # 端口和并发
+        port: {{ .Port }} 
+        instanceConcurrency: 100
+
+        # 网络配置 - 仅公网访问
+        internetAccess: true
+
+        # VPC 配置（需要 VPC 内网访问时配置）
+        # vpcConfig:
+        # 	vpcId: vpc-xxx
+        # 	vSwitchIds: [vsw-xxx] # 支持单个或多个
+        # 	securityGroupId: sg-xxx
+        # internetAccess: true # 同时配置 vpcConfig 和 internetAccess 表示内外网都可访问
+
+        # 环境变量，需要填写以下环境变量使用，推荐使用无明文AK方式，在下方填写授信给FC，包含AliyunAgentRunFullAccess的执行角色
+        environmentVariables:
+          AGENTRUN_ACCESS_KEY_ID: "{{ .GlobalConfig.AlibabaCloudAccessKeyID }}"
+          AGENTRUN_ACCESS_KEY_SECRET: "{{ .GlobalConfig.AlibabaCloudAccessKeySecret }}"
+          AGENTRUN_ACCOUNT_ID: "{{ .GlobalConfig.AgentRunAccountID }}"
+          AGENTRUN_REGION: "{{ .GlobalConfig.AgentRunRegion }}"
+
+        # 执行角色，填写此角色，无需填写上方AK、SK敏感凭据的环境变量，角色需要授信给FC，包含AliyunAgentRunFullAccess
+        # role: acs:ram::1160216277279558:role/AliyunFCDefaultRole
+
+        # 日志配置
+        # logConfig:
+        # 	project: ws-testhz
+        # 	logstore: acs-ecs-system
+
+        # 端点配置
+        endpoints:
+        - name: prod
+
+          version: LATEST
+          description: "生产环境端点"
+
+          # 灰度发布示例
+          # - name: gray
+          # 	version: 2
+          # 	description: "灰度环境端点"
+          # 	weight: 0.2 # 20% 流量到版本 2
