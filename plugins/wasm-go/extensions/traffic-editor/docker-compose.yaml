@@ -1,0 +1,26 @@
+version: '3.7'
+services:
+  envoy:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.1.6
+    entrypoint: /usr/local/bin/envoy
+    # 注意这里对wasm开启了debug级别日志，正式部署时则默认info级别
+    command: -c /etc/envoy/envoy.yaml --component-log-level wasm:debug
+    #depends_on:
+    #  - httpbin
+    networks:
+      - wasmtest
+    ports:
+      - "10000:10000"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+      - ./plugin.wasm:/etc/envoy/main.wasm
+
+  httpbin:
+    image: kong/httpbin:latest
+    networks:
+      - wasmtest
+    ports:
+      - "12345:80"
+
+networks:
+  wasmtest: {}
