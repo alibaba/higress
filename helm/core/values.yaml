@@ -522,6 +522,8 @@ gateway:
 
   affinity: {}
 
+  topologySpreadConstraints: []
+
   # -- If specified, the gateway will act as a network gateway for the given network.
   networkGateway: ""
 
@@ -628,6 +630,8 @@ controller:
   tolerations: []
 
   affinity: {}
+
+  topologySpreadConstraints: []
 
   autoscaling:
     enabled: false
