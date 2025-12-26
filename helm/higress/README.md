@@ -104,6 +104,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.metrics.interval | string | `""` |  |
 | gateway.metrics.metricRelabelConfigs | list | `[]` | for operator.victoriametrics.com/v1beta1.VMPodScrape |
 | gateway.metrics.metricRelabelings | list | `[]` | for monitoring.coreos.com/v1.PodMonitor |
+| gateway.metrics.podMonitorSelector | object | `{"release":"kube-prome"}` | Selector for PodMonitor When using monitoring.coreos.com/v1.PodMonitor, the selector must match the label "release: kube-prome" is the default for kube-prometheus-stack |
 | gateway.metrics.provider | string | `"monitoring.coreos.com"` | provider group name for CustomResourceDefinition, can be monitoring.coreos.com or operator.victoriametrics.com |
 | gateway.metrics.rawSpec | object | `{}` | some more raw podMetricsEndpoints spec |
 | gateway.metrics.relabelConfigs | list | `[]` |  |
