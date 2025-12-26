@@ -434,7 +434,7 @@ func (w *watcher) processToolConfig(dataId, data string, credentials map[string]
 		rule.Server.SecuritySchemes = toolsDescription.SecuritySchemes
 	}
 
-	var allowTools []string
+	allowTools := []string{}
 	for _, t := range toolsDescription.Tools {
 		convertTool := &provider.McpTool{Name: t.Name, Description: t.Description}
 
@@ -816,6 +816,9 @@ func generateServiceEntry(host string, services *model.Service) *v1alpha3.Servic
 		protocol := common.HTTP
 		if service.Metadata != nil && service.Metadata["protocol"] != "" {
 			protocol = common.ParseProtocol(service.Metadata["protocol"])
+		}
+		if !service.Healthy || !service.Enable {
+			continue
 		}
 		port := &v1alpha3.ServicePort{
 			Name:     protocol.String(),

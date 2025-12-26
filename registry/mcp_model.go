@@ -43,7 +43,7 @@ type McpServerRule struct {
 	MatchRoute []string      `json:"_match_route_,omitempty"`
 	Server     *ServerConfig `json:"server,omitempty"`
 	Tools      []*McpTool    `json:"tools,omitempty"`
-	AllowTools []string      `json:"allowTools,omitempty"`
+	AllowTools []string      `json:"allowTools"`
 }
 
 type ServerConfig struct {
