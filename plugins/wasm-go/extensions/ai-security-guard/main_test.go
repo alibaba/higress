@@ -40,6 +40,7 @@ var basicConfig = func() json.RawMessage {
 		"sensitiveDataLevelBar":     "S3",
 		"timeout":                   2000,
 		"bufferLimit":               1000,
+		"bufferFlushTimeInterval":   1000,
 	})
 	return data
 }()
@@ -59,6 +60,7 @@ var requestOnlyConfig = func() json.RawMessage {
 		"sensitiveDataLevelBar":     "S3",
 		"timeout":                   1000,
 		"bufferLimit":               500,
+		"bufferFlushTimeInterval":   1000,
 	})
 	return data
 }()
@@ -155,6 +157,7 @@ func TestParseConfig(t *testing.T) {
 			require.Equal(t, "S3", securityConfig.SensitiveDataLevelBar)
 			require.Equal(t, uint32(2000), securityConfig.Timeout)
 			require.Equal(t, 1000, securityConfig.BufferLimit)
+			require.Equal(t, 1000, securityConfig.BufferFlushTimeInterval)
 		})
 
 		// 测试仅检查请求的配置
