@@ -28,14 +28,12 @@ func printStackTrace() {
 
 // clearBufferState clears buffer-related state in context
 // resetDuringCall: if true, resets during_call to false
-// Note: 不再重置 start_ts，时间窗口应该在整个流式响应期间保持一致
 func clearBufferState(ctx wrapper.HttpContext, resetDuringCall bool) [][]byte {
 	// 输出调用栈
 	printStackTrace()
 	var emptyQueue [][]byte
 	ctx.SetContext("bufferQueue", emptyQueue)
 	ctx.SetContext("buffer_pending_content", "")
-	// 重置时间窗口起点，用于下一批数据的计时
 	ctx.SetContext("start_ts", time.Now().UnixMilli())
 	if resetDuringCall {
 		ctx.SetContext("during_call", false)
