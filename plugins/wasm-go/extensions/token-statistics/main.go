@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
@@ -33,32 +32,6 @@ const (
 	SkipProcessing = "skip_processing"
 )
 
-var (
-// Use a local interface so we can provide a noop implementation when running
-// outside the wasm host environment (e.g. during unit tests).
-)
-
-// metricCounter defines the minimal interface we need from metrics.
-type metricCounter interface {
-	Increment(uint64)
-}
-
-// noopCounter is a no-op implementation used in tests or non-wasm environments.
-type noopCounter struct{}
-
-func (n noopCounter) Increment(_ uint64) {}
-
-var (
-	// 缓存命中计数器
-	hitCounter metricCounter = noopCounter{}
-
-	// 缓存未命中计数器
-	missCounter metricCounter = noopCounter{}
-
-	// 总请求计数器
-	totalCounter metricCounter = noopCounter{}
-)
-
 func main() {
 }
 
@@ -72,29 +45,6 @@ func init() {
 		wrapper.ProcessStreamingResponseBody(onHttpStreamingBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
-
-	// 在非-wasm 环境下直接调用 proxywasm.DefineCounterMetric 会导致空指针崩溃
-	if runtime.GOARCH != "wasm" {
-		fmt.Printf("[token-statistics] non-wasm environment (%s/%s), skipping metric initialization\n", runtime.GOOS, runtime.GOARCH)
-		return
-	}
-
-	// Try to initialize real metrics; if the hostcalls are not available
-	// the proxywasm.DefineCounterMetric may panic. Recover so the plugin
-	// doesn't crash the process.
-	defer func() {
-		if r := recover(); r != nil {
-			// Avoid calling proxywasm logging helpers here because they may
-			// invoke hostcalls that are not available during local runs.
-			fmt.Printf("[token-statistics] failed to define metrics: %v\n", r)
-			return
-		}
-	}()
-
-	// Attempt to set actual counters.
-	hitCounter = proxywasm.DefineCounterMetric("ai_cache_hit_total")
-	missCounter = proxywasm.DefineCounterMetric("ai_cache_miss_total")
-	totalCounter = proxywasm.DefineCounterMetric("ai_cache_request_total")
 }
 
 type TokenUsage struct {

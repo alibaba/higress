@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/google/martian/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -32,6 +33,55 @@ type PrometheusExporter struct {
 	model     string
 }
 
+// metricCounter defines the minimal interface we need from metrics.
+type metricCounter interface {
+	Increment(uint64)
+}
+
+// noopCounter is a no-op implementation used in tests or non-wasm environments.
+type noopCounter struct{}
+
+func (n noopCounter) Increment(_ uint64) {}
+
+var (
+	// 缓存命中计数器
+	hitCounter metricCounter = noopCounter{}
+	// 缓存未命中计数器
+	missCounter metricCounter = noopCounter{}
+	// 总请求计数器
+	totalCounter  metricCounter = noopCounter{}
+	metricCacheMu sync.Mutex
+	metricCache   = make(map[string]metricCounter)
+)
+
+// getOrDefineCounter will return an existing counter if cached, otherwise
+// attempt to define it via proxywasm.DefineCounterMetric. If DefineCounterMetric
+// panics or fails (e.g. non-wasm environment), a noopCounter will be cached and
+// returned to avoid repeated attempts.
+func getOrDefineCounter(name string) metricCounter {
+	metricCacheMu.Lock()
+	if c, ok := metricCache[name]; ok {
+		metricCacheMu.Unlock()
+		return c
+	}
+	// not cached yet
+	metricCacheMu.Unlock()
+
+	// attempt to define; protect from hostcall panics
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("[token-statistics] DefineCounterMetric panic for %s: %v\n", name, r)
+		}
+	}()
+
+	c := proxywasm.DefineCounterMetric(name)
+	// cache the obtained counter
+	metricCacheMu.Lock()
+	metricCache[name] = c
+	metricCacheMu.Unlock()
+	return c
+}
+
 func NewPrometheusExporter(namespace, subsystem, model string) *PrometheusExporter {
 	return &PrometheusExporter{
 		namespace: namespace,
@@ -46,10 +96,10 @@ func (p *PrometheusExporter) Export(usage *TokenUsage) {
 	outputMetricName := fmt.Sprintf("%s_%s_%s_output_tokens_total", p.namespace, p.subsystem, p.model)
 	totalMetricName := fmt.Sprintf("%s_%s_%s_total_tokens_total", p.namespace, p.subsystem, p.model)
 
-	// 定义并更新指标
-	inputCounter := proxywasm.DefineCounterMetric(inputMetricName)
-	outputCounter := proxywasm.DefineCounterMetric(outputMetricName)
-	totalCounter := proxywasm.DefineCounterMetric(totalMetricName)
+	// 定义（若尚未定义）并更新指标（懒初始化）
+	inputCounter := getOrDefineCounter(inputMetricName)
+	outputCounter := getOrDefineCounter(outputMetricName)
+	totalCounter := getOrDefineCounter(totalMetricName)
 
 	inputCounter.Increment(uint64(usage.InputTokens))
 	outputCounter.Increment(uint64(usage.OutputTokens))
