@@ -142,16 +142,21 @@ spec:
 
 部署后可以通过Prometheus查询相关指标：
 
-```promql
-# 查询每分钟Token消耗量
-rate(ai_token_input_tokens_total[1m])
+higress_token_statistics_<model>_input_tokens_total
+higress_token_statistics_<model>_output_tokens_total
+higress_token_statistics_<model>_total_tokens_total
+举例（如果 model = "gpt4" 或已被替换为合法字符 gpt_4）：
 
-# 按模型统计Token消耗
-sum by (model) (ai_token_input_tokens_total)
+higress_token_statistics_gpt4_input_tokens_total
+higress_token_statistics_gpt4_output_tokens_total
+higress_token_statistics_gpt4_total_tokens_total
+PromQL 示例
 
-# 查询平均响应Token数
-avg(ai_token_output_tokens_total)
-```
+最近 1 小时内某模型的总 token 增量：
+increase(higress_token_statistics_gpt4_total_tokens_total[1h])
+
+匹配所有模型的 input tokens（用 name 正则）：
+sum({name=~"higress_token_statistics_.*_input_tokens_total"})
 
 #### 验证日志输出
 
@@ -173,3 +178,4 @@ avg(ai_token_output_tokens_total)
 #### 验证HTTP导出
 
 如果配置了HTTP导出器，可以检查目标接收端是否收到统计数据。
+

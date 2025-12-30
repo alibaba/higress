@@ -73,11 +73,7 @@ func init() {
 		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
 
-	// Only attempt to define host metrics when running under the wasm
-	// environment. When running locally (go run / go test) GOARCH will not
-	// be "wasm" and the proxywasm hostcalls are not available, which
-	// results in a nil-pointer panic inside the SDK. Skip metric
-	// initialization in that case.
+	// 在非-wasm 环境下直接调用 proxywasm.DefineCounterMetric 会导致空指针崩溃
 	if runtime.GOARCH != "wasm" {
 		fmt.Printf("[token-statistics] non-wasm environment (%s/%s), skipping metric initialization\n", runtime.GOOS, runtime.GOARCH)
 		return
