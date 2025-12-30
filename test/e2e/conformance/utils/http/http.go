@@ -548,6 +548,28 @@ func CompareRequest(req *roundtripper.Request, cReq *roundtripper.CapturedReques
 	return nil
 }
 
+func QueryPrometheus(prometheusAddr string, query string) ([]byte, error) {
+	var urlStr string
+	if strings.HasPrefix(prometheusAddr, "http://") || strings.HasPrefix(prometheusAddr, "https://") {
+		urlStr = prometheusAddr
+	} else {
+		urlStr = "http://" + prometheusAddr
+	}
+	// Build query URL
+	u := urlStr + "/api/v1/query?query=" + url.QueryEscape(query)
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(u)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
 func CompareResponse(cRes *roundtripper.CapturedResponse, expected Assertion) error {
 	if expected.Response.ExpectedResponse.StatusCode != cRes.StatusCode {
 		return fmt.Errorf("expected status code to be %d, got %d", expected.Response.ExpectedResponse.StatusCode, cRes.StatusCode)

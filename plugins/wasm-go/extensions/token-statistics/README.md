@@ -179,3 +179,6 @@ sum({name=~"higress_token_statistics_.*_input_tokens_total"})
 
 如果配置了HTTP导出器，可以检查目标接收端是否收到统计数据。
 
+<!-- todo -->
+grafana dashboard json file
+
