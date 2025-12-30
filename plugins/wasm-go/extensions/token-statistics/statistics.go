@@ -1,6 +1,22 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
+	"math"
+
 	"github.com/tidwall/gjson"
 )
 
@@ -408,9 +424,15 @@ func (d *DeepL) ExtractTokenUsage(json gjson.Result, body []byte) *TokenUsage {
 	// DeepL响应格式：{"character_count":xxx,"word_count":xxx,"sentence_count":xxx}
 	// DeepL按字符计费，需转换为Token（粗略：1 Token ≈ 1.3字符）
 	if charCount := gjson.GetBytes(body, "character_count").Int(); charCount > 0 {
-		usage.InputTokens = charCount / 1.3 // 输入字符转Token
-		usage.OutputTokens = gjson.GetBytes(body, "character_count_target").Int() / 1.3
+		// 第一步：先做浮点数运算
+		inputFloat := float64(charCount) / 1.3 // 转为float64计算，避免精度丢失
+		outputFloat := float64(gjson.GetBytes(body, "character_count_target").Int()) / 1.3
+
+		// 第二步：显式转换为int64（明确处理小数，推荐四舍五入，也可根据需求取整）
+		usage.InputTokens = int64(math.Round(inputFloat)) // 四舍五入（更合理的计费方式）
+		usage.OutputTokens = int64(math.Round(outputFloat))
 		usage.TotalTokens = usage.InputTokens + usage.OutputTokens
+
 		usage.Model = gjson.GetBytes(body, "model").String()
 		if usage.Model == "" {
 			usage.Model = "deepl-pro"

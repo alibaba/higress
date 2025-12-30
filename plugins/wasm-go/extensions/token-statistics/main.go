@@ -1,18 +1,30 @@
+// Copyright (c) 2022 Alibaba Group Holding Ltd.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
-	// "github.com/alibaba/higress-wasm-go-sdk/higress/metrics"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
-	// "k8s.io/component-base/metrics"
-	// "k8s.io/component-base/metrics"
 )
 
 const (
@@ -22,18 +34,29 @@ const (
 )
 
 var (
+// Use a local interface so we can provide a noop implementation when running
+// outside the wasm host environment (e.g. during unit tests).
+)
+
+// metricCounter defines the minimal interface we need from metrics.
+type metricCounter interface {
+	Increment(uint64)
+}
+
+// noopCounter is a no-op implementation used in tests or non-wasm environments.
+type noopCounter struct{}
+
+func (n noopCounter) Increment(_ uint64) {}
+
+var (
 	// 缓存命中计数器
-	hitCounter = proxywasm.DefineCounterMetric("ai_cache_hit_total")
+	hitCounter metricCounter = noopCounter{}
 
 	// 缓存未命中计数器
-	missCounter = proxywasm.DefineCounterMetric("ai_cache_miss_total")
+	missCounter metricCounter = noopCounter{}
 
 	// 总请求计数器
-	totalCounter = proxywasm.DefineCounterMetric("ai_cache_request_total")
-	// 缓存状态仪表盘（1=hit, 0=miss, -1=unknown）
-
-	// statusGauge = metrics.NewGauge("ai_cache_status", "Current AI cache status (1=hit, 0=miss, -1=unknown)")
-	// statusGauge = proxywasm.DefineGaugeMetric("ai_cache_status")
+	totalCounter metricCounter = noopCounter{}
 )
 
 func main() {
@@ -49,6 +72,33 @@ func init() {
 		wrapper.ProcessStreamingResponseBody(onHttpStreamingBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
+
+	// Only attempt to define host metrics when running under the wasm
+	// environment. When running locally (go run / go test) GOARCH will not
+	// be "wasm" and the proxywasm hostcalls are not available, which
+	// results in a nil-pointer panic inside the SDK. Skip metric
+	// initialization in that case.
+	if runtime.GOARCH != "wasm" {
+		fmt.Printf("[token-statistics] non-wasm environment (%s/%s), skipping metric initialization\n", runtime.GOOS, runtime.GOARCH)
+		return
+	}
+
+	// Try to initialize real metrics; if the hostcalls are not available
+	// the proxywasm.DefineCounterMetric may panic. Recover so the plugin
+	// doesn't crash the process.
+	defer func() {
+		if r := recover(); r != nil {
+			// Avoid calling proxywasm logging helpers here because they may
+			// invoke hostcalls that are not available during local runs.
+			fmt.Printf("[token-statistics] failed to define metrics: %v\n", r)
+			return
+		}
+	}()
+
+	// Attempt to set actual counters.
+	hitCounter = proxywasm.DefineCounterMetric("ai_cache_hit_total")
+	missCounter = proxywasm.DefineCounterMetric("ai_cache_miss_total")
+	totalCounter = proxywasm.DefineCounterMetric("ai_cache_request_total")
 }
 
 type TokenUsage struct {
@@ -222,14 +272,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 	case "hit":
 		proxywasm.LogInfo(fmt.Sprintf("cache status: hit, increment hit counter"))
 		hitCounter.Increment(uint64(1)) // 命中次数+1
-		// statusGauge.Set(1)              // 仪表盘设为1（命中）
 	case "miss":
 		proxywasm.LogInfo(fmt.Sprintf("cache status: miss, increment miss counter"))
 		missCounter.Increment(uint64(1)) // 未命中次数+1
-		// statusGauge.Set(0)               // 仪表盘设为0（未命中）
 	default:
 		proxywasm.LogWarn(fmt.Sprintf("cache status unknown: %s", cacheStatus))
-		// statusGauge.Set(-1) // 未知状态设为-1
 	}
 	return types.ActionContinue
 }
