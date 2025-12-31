@@ -343,7 +343,7 @@ func RunAzureOnHttpRequestHeadersTests(t *testing.T) {
 			// 验证Path是否被正确处理
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath, "Path header should exist")
-			require.Contains(t, pathValue, "/openai/deployments/test-deployment/chat/completions", "Path should contain Azure deployment path")
+			require.Equal(t, "/openai/deployments/test-deployment/chat/completions?api-version=2024-02-15-preview", pathValue, "Path should equal Azure deployment path")
 
 			// 验证Content-Length是否被删除
 			_, hasContentLength := test.GetHeaderValue(requestHeaders, "Content-Length")
@@ -443,8 +443,7 @@ func RunAzureOnHttpRequestBodyTests(t *testing.T) {
 			requestHeaders := host.GetRequestHeaders()
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath, "Path header should exist")
-			require.Contains(t, pathValue, "/openai/deployments/test-deployment/chat/completions", "Path should contain Azure deployment path")
-			require.Contains(t, pathValue, "api-version=2024-02-15-preview", "Path should contain API version")
+			require.Equal(t, pathValue, "/openai/deployments/test-deployment/chat/completions?api-version=2024-02-15-preview", "Path should contain Azure deployment path")
 		})
 
 		// 测试Azure OpenAI请求体处理（不同模型）
@@ -577,7 +576,7 @@ func RunAzureOnHttpRequestBodyTests(t *testing.T) {
 			requestHeaders := host.GetRequestHeaders()
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath, "Path header should exist")
-			require.Contains(t, pathValue, "/openai/deployments/deployment-only/chat/completions", "Path should use default deployment")
+			require.Equal(t, pathValue, "/openai/deployments/deployment-only/chat/completions?api-version=2024-02-15-preview", "Path should use default deployment")
 		})
 
 		// 测试Azure OpenAI请求体处理（仅域名配置）
@@ -613,7 +612,42 @@ func RunAzureOnHttpRequestBodyTests(t *testing.T) {
 			requestHeaders := host.GetRequestHeaders()
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath, "Path header should exist")
-			require.Contains(t, pathValue, "/openai/deployments/gpt-3.5-turbo/chat/completions", "Path should use model from request body")
+			require.Equal(t, pathValue, "/openai/deployments/gpt-3.5-turbo/chat/completions?api-version=2024-02-15-preview", "Path should use model from request body")
+		})
+
+		// 测试Azure OpenAI模型无关请求处理（仅域名配置）
+		t.Run("azure domain only model independent", func(t *testing.T) {
+			host, status := test.NewTestHost(azureDomainOnlyConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/files?limit=10&purpose=assistants"},
+				{":method", "GET"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			// 验证请求路径是否使用模型占位符
+			requestHeaders := host.GetRequestHeaders()
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath, "Path header should exist")
+			require.Equal(t, pathValue, "/openai/files?limit=10&purpose=assistants&api-version=2024-02-15-preview", "Path should have api-version appended")
+
+			// 设置请求头
+			action = host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/files?"},
+				{":method", "GET"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			// 验证请求路径是否使用模型占位符
+			requestHeaders = host.GetRequestHeaders()
+			pathValue, hasPath = test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath, "Path header should exist")
+			require.Equal(t, pathValue, "/openai/files?api-version=2024-02-15-preview", "Path should have api-version appended")
 		})
 	})
 }
@@ -827,10 +861,8 @@ func RunAzureBasePathHandlingTests(t *testing.T) {
 			require.NotContains(t, pathValue, "/azure-gpt4",
 				"After body stage: basePath should be removed from path")
 			// 在 openai 协议下，路径会被转换为 Azure 的路径格式
-			require.Contains(t, pathValue, "/openai/deployments/gpt-4/chat/completions",
+			require.Equal(t, pathValue, "/openai/deployments/gpt-4/chat/completions?api-version=2024-02-15-preview",
 				"Path should be transformed to Azure format")
-			require.Contains(t, pathValue, "api-version=2024-02-15-preview",
-				"Path should contain API version")
 		})
 
 		// 测试 basePath prepend 在 original 协议下能正常工作
