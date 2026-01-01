@@ -51,14 +51,10 @@ go test -v
 go run ./
 ```
 
-运行 `go run ./` 时，若非 wasm 环境，会输出类似：
-
+跟着官网https://higress.cn/zh-cn/blog/e2e-debug/测试插件
+```bash
+PLUGIN_NAME=token-statistics make higress-wasmplugin-test 
 ```
-[token-statistics] non-wasm environment (darwin/arm64), skipping metric initialization
-```
-
-这表明插件在本地运行时跳过了真实 metrics 初始化，属于预期行为。
-
 ## 在 Wasm 运行时部署
 
 当插件被真正部署到 Higress 的 wasm 运行时（或任何提供 proxy-wasm hostcalls 的宿主）时，`init()` 中将会调用 `proxywasm.DefineCounterMetric` 来创建真实指标，导出到宿主的指标系统（如 Envoy/Prometheus）中。
