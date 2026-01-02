@@ -9,6 +9,11 @@ import (
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
+type ImageItem struct {
+	Content string
+	Type    string // URL or BASE64
+}
+
 func HandleImageGenerationResponseHeader(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	ctx.SetContext("risk_detected", false)

@@ -20,7 +20,7 @@ import (
 	"regexp"
 	"strings"
 
-	"istio.io/istio/operator/pkg/util"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 
