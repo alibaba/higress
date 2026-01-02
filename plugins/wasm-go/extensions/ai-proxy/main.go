@@ -60,6 +60,7 @@ var (
 		{provider.PathOpenAIModels, provider.ApiNameModels},
 		{provider.PathOpenAIFineTuningJobs, provider.ApiNameFineTuningJobs},
 		{provider.PathOpenAIResponses, provider.ApiNameResponses},
+		{provider.PathOpenAIVideos, provider.ApiNameVideos},
 		// Anthropic style
 		{provider.PathAnthropicMessages, provider.ApiNameAnthropicMessages},
 		{provider.PathAnthropicComplete, provider.ApiNameAnthropicComplete},
@@ -72,6 +73,9 @@ var (
 		{util.RegCancelBatchPath, provider.ApiNameCancelBatch},
 		{util.RegRetrieveFilePath, provider.ApiNameRetrieveFile},
 		{util.RegRetrieveFileContentPath, provider.ApiNameRetrieveFileContent},
+		{util.RegRetrieveVideoPath, provider.ApiNameRetrieveVideo},
+		{util.RegRetrieveVideoContentPath, provider.ApiNameRetrieveVideoContent},
+		{util.RegVideoRemixPath, provider.ApiNameVideoRemix},
 		{util.RegRetrieveFineTuningJobPath, provider.ApiNameRetrieveFineTuningJob},
 		{util.RegRetrieveFineTuningJobEventsPath, provider.ApiNameFineTuningJobEvents},
 		{util.RegRetrieveFineTuningJobCheckpointsPath, provider.ApiNameFineTuningJobCheckpoints},
@@ -98,6 +102,7 @@ func init() {
 		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
 		wrapper.WithRebuildAfterRequests[config.PluginConfig](1000),
+		wrapper.WithRebuildMaxMemBytes[config.PluginConfig](200*1024*1024),
 	)
 }
 
@@ -141,7 +146,7 @@ func initContext(ctx wrapper.HttpContext) {
 		ctx.SetContext(ctxKey, value)
 	}
 	for _, originHeader := range headerToOriginalHeaderMapping {
-		proxywasm.RemoveHttpRequestHeader(originHeader)
+		_ = proxywasm.RemoveHttpRequestHeader(originHeader)
 	}
 	originalAuth, _ := proxywasm.GetHttpRequestHeader(util.HeaderOriginalAuth)
 	if originalAuth == "" {
@@ -200,23 +205,24 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		if handler, ok := activeProvider.(provider.ApiNameHandler); ok {
 			apiName = handler.GetApiName(path.Path)
 		}
-	}
-
-	// Auto-detect protocol based on request path and handle conversion if needed
-	// If request is Claude format (/v1/messages) but provider doesn't support it natively,
-	// convert to OpenAI format (/v1/chat/completions)
-	if apiName == provider.ApiNameAnthropicMessages && !providerConfig.IsSupportedAPI(provider.ApiNameAnthropicMessages) {
-		// Provider doesn't support Claude protocol natively, convert to OpenAI format
-		newPath := strings.Replace(path.Path, provider.PathAnthropicMessages, provider.PathOpenAIChatCompletions, 1)
-		_ = proxywasm.ReplaceHttpRequestHeader(":path", newPath)
-		// Update apiName to match the new path
-		apiName = provider.ApiNameChatCompletion
-		// Mark that we need to convert response back to Claude format
-		ctx.SetContext("needClaudeResponseConversion", true)
-		log.Debugf("[Auto Protocol] Claude request detected, provider doesn't support natively, converted path from %s to %s, apiName: %s", path.Path, newPath, apiName)
-	} else if apiName == provider.ApiNameAnthropicMessages {
-		// Provider supports Claude protocol natively, no conversion needed
-		log.Debugf("[Auto Protocol] Claude request detected, provider supports natively, keeping original path: %s, apiName: %s", path.Path, apiName)
+	} else {
+		// Only perform protocol conversion for non-original protocols.
+		// Auto-detect protocol based on request path and handle conversion if needed
+		// If request is Claude format (/v1/messages) but provider doesn't support it natively,
+		// convert to OpenAI format (/v1/chat/completions)
+		if apiName == provider.ApiNameAnthropicMessages && !providerConfig.IsSupportedAPI(provider.ApiNameAnthropicMessages) {
+			// Provider doesn't support Claude protocol natively, convert to OpenAI format
+			newPath := strings.Replace(path.Path, provider.PathAnthropicMessages, provider.PathOpenAIChatCompletions, 1)
+			_ = proxywasm.ReplaceHttpRequestHeader(":path", newPath)
+			// Update apiName to match the new path
+			apiName = provider.ApiNameChatCompletion
+			// Mark that we need to convert response back to Claude format
+			ctx.SetContext("needClaudeResponseConversion", true)
+			log.Debugf("[Auto Protocol] Claude request detected, provider doesn't support natively, converted path from %s to %s, apiName: %s", path.Path, newPath, apiName)
+		} else if apiName == provider.ApiNameAnthropicMessages {
+			// Provider supports Claude protocol natively, no conversion needed
+			log.Debugf("[Auto Protocol] Claude request detected, provider supports natively, keeping original path: %s, apiName: %s", path.Path, apiName)
+		}
 	}
 
 	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !strings.Contains(contentType, util.MimeTypeApplicationJson) {
@@ -243,8 +249,8 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		providerConfig.SetAvailableApiTokens(ctx)
 
 		// save the original request host and path in case they are needed for apiToken health check and retry
-		ctx.SetContext(provider.CtxRequestHost, wrapper.GetRequestHost())
-		ctx.SetContext(provider.CtxRequestPath, wrapper.GetRequestPath())
+		ctx.SetContext(provider.CtxRequestHost, ctx.Host())
+		ctx.SetContext(provider.CtxRequestPath, ctx.Path())
 
 		err := handler.OnRequestHeaders(ctx, apiName)
 		if err != nil {
@@ -252,7 +258,7 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 			return types.ActionContinue
 		}
 
-		hasRequestBody := wrapper.HasRequestBody()
+		hasRequestBody := ctx.HasRequestBody()
 		if hasRequestBody {
 			_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
 			ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)

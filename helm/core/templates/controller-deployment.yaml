@@ -78,6 +78,10 @@ spec:
             value: "{{ .Values.global.enableGatewayAPI }}"
           - name: PILOT_ENABLE_ALPHA_GATEWAY_API
             value: "{{ .Values.global.enableGatewayAPI }}"
+          {{- if .Values.global.enableInferenceExtension }}
+          - name: ENABLE_GATEWAY_API_INFERENCE_EXTENSION
+            value: "true"
+          {{- end }}
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}
@@ -174,7 +178,15 @@ spec:
           - name: HOST_RDS_MERGE_SUBSET
             value: "{{ .Values.global.hostRDSMergeSubset }}"
           - name: PILOT_FILTER_GATEWAY_CLUSTER_CONFIG
+            {{- if .Values.global.enableInferenceExtension }}
+            value: "false"
+            {{- else }}
             value: "{{ .Values.global.onlyPushRouteCluster }}"
+            {{- end }}
+          {{- if .Values.global.enableInferenceExtension }}
+          - name: ENABLE_GATEWAY_API_INFERENCE_EXTENSION
+            value: "true"
+          {{- end }}
           - name: HIGRESS_CONTROLLER_SVC
             value: "127.0.0.1"
           - name: HIGRESS_CONTROLLER_PORT
@@ -287,6 +299,10 @@ spec:
       {{- end }}
       {{- with .Values.controller.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.topologySpreadConstraints }}
+      topologySpreadConstraints:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:

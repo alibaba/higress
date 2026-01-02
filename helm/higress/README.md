@@ -83,6 +83,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | controller.serviceAccount.name | string | `""` | If not set and create is true, a name is generated using the fullname template |
 | controller.tag | string | `""` |  |
 | controller.tolerations | list | `[]` |  |
+| controller.topologySpreadConstraints | list | `[]` |  |
 | downstream | object | `{"connectionBufferLimits":32768,"http2":{"initialConnectionWindowSize":1048576,"initialStreamWindowSize":65535,"maxConcurrentStreams":100},"idleTimeout":180,"maxRequestHeadersKb":60,"routeTimeout":0}` | Downstream config settings |
 | gateway.affinity | object | `{}` |  |
 | gateway.annotations | object | `{}` | Annotations to apply to all resources |
@@ -104,6 +105,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.metrics.interval | string | `""` |  |
 | gateway.metrics.metricRelabelConfigs | list | `[]` | for operator.victoriametrics.com/v1beta1.VMPodScrape |
 | gateway.metrics.metricRelabelings | list | `[]` | for monitoring.coreos.com/v1.PodMonitor |
+| gateway.metrics.podMonitorSelector | object | `{"release":"kube-prome"}` | Selector for PodMonitor When using monitoring.coreos.com/v1.PodMonitor, the selector must match the label "release: kube-prome" is the default for kube-prometheus-stack |
 | gateway.metrics.provider | string | `"monitoring.coreos.com"` | provider group name for CustomResourceDefinition, can be monitoring.coreos.com or operator.victoriametrics.com |
 | gateway.metrics.rawSpec | object | `{}` | some more raw podMetricsEndpoints spec |
 | gateway.metrics.relabelConfigs | list | `[]` |  |
@@ -151,6 +153,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.serviceAccount.name | string | `""` | The name of the service account to use. If not set, the release name is used |
 | gateway.tag | string | `""` |  |
 | gateway.tolerations | list | `[]` |  |
+| gateway.topologySpreadConstraints | list | `[]` |  |
 | gateway.unprivilegedPortSupported | string | `nil` |  |
 | global.autoscalingv2API | bool | `true` | whether to use autoscaling/v2 template for HPA settings for internal usage only, not to be configured by users. |
 | global.caAddress | string | `""` | The customized CA address to retrieve certificates for the pods in the cluster. CSR clients such as the Istio Agent and ingress gateways can use this to specify the CA endpoint. If not set explicitly, default to the Istio discovery address. |
@@ -160,9 +163,10 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.defaultResources | object | `{"requests":{"cpu":"10m"}}` | A minimal set of requested resources to applied to all deployments so that Horizontal Pod Autoscaler will be able to function (if set). Each component can overwrite these default values by adding its own resources block in the relevant section below and setting the desired resources values. |
 | global.defaultUpstreamConcurrencyThreshold | int | `10000` |  |
 | global.disableAlpnH2 | bool | `false` | Whether to disable HTTP/2 in ALPN |
-| global.enableGatewayAPI | bool | `false` | If true, Higress Controller will monitor Gateway API resources as well |
+| global.enableGatewayAPI | bool | `true` | If true, Higress Controller will monitor Gateway API resources as well |
 | global.enableH3 | bool | `false` |  |
 | global.enableIPv6 | bool | `false` |  |
+| global.enableInferenceExtension | bool | `false` | If true, enable Gateway API Inference Extension support |
 | global.enableIstioAPI | bool | `true` | If true, Higress Controller will monitor istio resources as well |
 | global.enableLDSCache | bool | `false` |  |
 | global.enablePluginServer | bool | `false` |  |

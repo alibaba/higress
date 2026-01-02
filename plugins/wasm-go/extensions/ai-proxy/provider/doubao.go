@@ -70,7 +70,11 @@ func (m *doubaoProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 
 func (m *doubaoProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
-	util.OverwriteRequestHostHeader(headers, doubaoDomain)
+	if m.config.doubaoDomain != "" {
+		util.OverwriteRequestHostHeader(headers, m.config.doubaoDomain)
+	} else {
+		util.OverwriteRequestHostHeader(headers, doubaoDomain)
+	}
 	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
 	headers.Del("Content-Length")
 }
