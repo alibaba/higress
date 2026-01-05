@@ -54,8 +54,8 @@ func OnHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig)
 			ctx.BufferResponseBody()
 			return types.HeaderStopIteration
 		} else {
-			// skip reading the body if it's application/octet-stream
-			ctx.DontReadResponseBody()
+			ctx.SetContext("during_call", false)
+			ctx.NeedPauseStreamingResponse()
 			return types.ActionContinue
 		}
 	default:
@@ -68,6 +68,8 @@ func OnHttpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityC
 	switch config.ApiType {
 	case cfg.ApiTextGeneration:
 		return common_text.HandleTextGenerationStreamingResponseBody(ctx, config, data, endOfStream)
+	case cfg.ApiMCP:
+		return mcp.HandleMcpStreamingResponseBody(ctx, config, data, endOfStream)
 	default:
 		log.Errorf("[on streaming response body] multi_modal_guard don't support api: %s", config.ApiType)
 		return data
