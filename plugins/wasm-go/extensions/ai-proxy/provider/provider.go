@@ -387,6 +387,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Vertex token刷新提前时间
 	// @Description zh-CN 用于Google服务账号认证，access token过期时间判定提前刷新，单位为秒，默认值为60秒
 	vertexTokenRefreshAhead int64 `required:"false" yaml:"vertexTokenRefreshAhead" json:"vertexTokenRefreshAhead"`
+	// @Title zh-CN Vertex AI Express Mode
+	// @Description zh-CN 启用 Express Mode，使用 API Key 认证，无需 Service Account。参考：https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview
+	vertexExpressMode bool `required:"false" yaml:"vertexExpressMode" json:"vertexExpressMode"`
+	// @Title zh-CN Vertex AI Express Mode API Key
+	// @Description zh-CN Express Mode 使用的 API Key，从 Google Cloud Console 的 API & Services > Credentials 获取
+	vertexApiKey string `required:"false" yaml:"vertexApiKey" json:"vertexApiKey"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -540,6 +546,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if c.vertexTokenRefreshAhead == 0 {
 		c.vertexTokenRefreshAhead = 60
 	}
+	c.vertexExpressMode = json.Get("vertexExpressMode").Bool()
+	c.vertexApiKey = json.Get("vertexApiKey").String()
 	c.targetLang = json.Get("targetLang").String()
 
 	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {

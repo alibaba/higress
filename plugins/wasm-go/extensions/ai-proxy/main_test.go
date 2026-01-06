@@ -128,3 +128,11 @@ func TestGeneric(t *testing.T) {
 	test.RunGenericOnHttpRequestHeadersTests(t)
 	test.RunGenericOnHttpRequestBodyTests(t)
 }
+
+func TestVertex(t *testing.T) {
+	test.RunVertexParseConfigTests(t)
+	test.RunVertexExpressModeOnHttpRequestHeadersTests(t)
+	test.RunVertexExpressModeOnHttpRequestBodyTests(t)
+	test.RunVertexExpressModeOnHttpResponseBodyTests(t)
+	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
+}

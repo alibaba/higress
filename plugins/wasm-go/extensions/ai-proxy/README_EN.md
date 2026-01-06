@@ -255,7 +255,9 @@ For DeepL, the corresponding `type` is `deepl`. Its unique configuration field i
 | `targetLang` | string    | Required    | -       | The target language required by the DeepL translation service |
 
 #### Google Vertex AI
-For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
+For Vertex, the corresponding `type` is `vertex`. It supports two authentication modes:
+
+**Standard Mode** (using Service Account):
 
 | Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
 |-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -265,6 +267,18 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 | `vertexAuthServiceName`     | string        | Required      | -      | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                                                                |
 | `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
 | `vertexTokenRefreshAhead`   | number        | Optional      | -      | Vertex access token refresh ahead time in seconds                                                                                                           |
+
+**Express Mode** (using API Key, simplified configuration):
+
+Express Mode is a simplified access mode introduced by Vertex AI. You can quickly get started with just an API Key, without configuring a Service Account. See [Vertex AI Express Mode documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview).
+
+| Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `vertexExpressMode`         | bool          | Required      | false  | Set to true to enable Express Mode                                                                                                                          |
+| `vertexApiKey`              | string        | Required      | -      | API Key for Express Mode, obtained from Google Cloud Console under API & Services > Credentials                                                              |
+| `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
+
+> **Note**: Express Mode has rate limits (approximately 10 RPM), suitable for development and testing scenarios. For production environments, it is recommended to use Standard Mode.
 
 #### AWS Bedrock
 
@@ -1720,7 +1734,7 @@ provider:
 }
 ```
 
-### Utilizing OpenAI Protocol Proxy for Google Vertex Services
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (Standard Mode)
 **Configuration Information**
 ```yaml
 provider:
@@ -1774,6 +1788,57 @@ provider:
     "prompt_tokens": 15,
     "completion_tokens": 43,
     "total_tokens": 58
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (Express Mode)
+
+Express Mode is a simplified access mode for Vertex AI. You only need an API Key to get started quickly, suitable for development and testing scenarios.
+
+**Configuration Information**
+```yaml
+provider:
+  type: vertex
+  vertexExpressMode: true
+  vertexApiKey: "YOUR_API_KEY"
+```
+
+**Request Example**
+```json
+{
+  "model": "gemini-2.5-flash",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am Gemini, an AI assistant developed by Google. How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.5-flash",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 25,
+    "total_tokens": 35
   }
 }
 ```

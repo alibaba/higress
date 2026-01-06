@@ -29,6 +29,9 @@ const (
 	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{MODEL_ID}:{ACTION}
 	vertexPathTemplate                 = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
 	vertexPathAnthropicTemplate        = "/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s"
+	// Express Mode 路径模板 (不含 project/location)
+	vertexExpressPathTemplate          = "/v1/publishers/google/models/%s:%s"
+	vertexExpressPathAnthropicTemplate = "/v1/publishers/anthropic/models/%s:%s"
 	vertexChatCompletionAction         = "generateContent"
 	vertexChatCompletionStreamAction   = "streamGenerateContent?alt=sse"
 	vertexAnthropicMessageAction       = "rawPredict"
@@ -42,6 +45,16 @@ const (
 type vertexProviderInitializer struct{}
 
 func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error {
+	if config.vertexExpressMode {
+		// Express Mode: 只需要 API Key
+		if config.vertexApiKey == "" {
+			return errors.New("missing vertexApiKey in vertex provider express mode config")
+		}
+		// Express Mode 不需要其他配置
+		return nil
+	}
+
+	// 标准模式: 保持原有验证逻辑
 	if config.vertexAuthKey == "" {
 		return errors.New("missing vertexAuthKey in vertex provider config")
 	}
@@ -63,19 +76,26 @@ func (v *vertexProviderInitializer) DefaultCapabilities() map[string]string {
 
 func (v *vertexProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	config.setDefaultCapabilities(v.DefaultCapabilities())
-	return &vertexProvider{
-		config: config,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			Domain:      vertexAuthDomain,
-			ServiceName: config.vertexAuthServiceName,
-			Port:        443,
-		}),
+
+	provider := &vertexProvider{
+		config:       config,
 		contextCache: createContextCache(&config),
 		claude: &claudeProvider{
 			config:       config,
 			contextCache: createContextCache(&config),
 		},
-	}, nil
+	}
+
+	// 仅标准模式需要 OAuth 客户端
+	if !config.vertexExpressMode {
+		provider.client = wrapper.NewClusterClient(wrapper.DnsCluster{
+			Domain:      vertexAuthDomain,
+			ServiceName: config.vertexAuthServiceName,
+			Port:        443,
+		})
+	}
+
+	return provider, nil
 }
 
 type vertexProvider struct {
@@ -106,11 +126,19 @@ func (v *vertexProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	var finalVertexDomain string
-	if v.config.vertexRegion != vertexGlobalRegion {
-		finalVertexDomain = fmt.Sprintf("%s-%s", v.config.vertexRegion, vertexDomain)
-	} else {
+
+	if v.config.vertexExpressMode {
+		// Express Mode: 固定域名，不带 region 前缀
 		finalVertexDomain = vertexDomain
+	} else {
+		// 标准模式: 带 region 前缀
+		if v.config.vertexRegion != vertexGlobalRegion {
+			finalVertexDomain = fmt.Sprintf("%s-%s", v.config.vertexRegion, vertexDomain)
+		} else {
+			finalVertexDomain = vertexDomain
+		}
 	}
+
 	util.OverwriteRequestHostHeader(headers, finalVertexDomain)
 }
 
@@ -156,6 +184,16 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	headers := util.GetRequestHeaders()
 	body, err := v.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 	headers.Set("Content-Length", fmt.Sprint(len(body)))
+
+	if v.config.vertexExpressMode {
+		// Express Mode: 不需要 Authorization header，API Key 已在 URL 中
+		headers.Del("Authorization")
+		util.ReplaceRequestHeaders(headers)
+		_ = proxywasm.ReplaceHttpRequestBody(body)
+		return types.ActionContinue, err
+	}
+
+	// 标准模式: 需要获取 OAuth token
 	util.ReplaceRequestHeaders(headers)
 	_ = proxywasm.ReplaceHttpRequestBody(body)
 	if err != nil {
@@ -422,6 +460,13 @@ func (v *vertexProvider) getAhthropicRequestPath(apiName ApiName, modelId string
 	} else {
 		action = vertexAnthropicMessageAction
 	}
+
+	if v.config.vertexExpressMode {
+		// Express Mode: 简化路径 + API Key 参数
+		basePath := fmt.Sprintf(vertexExpressPathAnthropicTemplate, modelId, action)
+		return basePath + "?key=" + v.config.vertexApiKey
+	}
+
 	return fmt.Sprintf(vertexPathAnthropicTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
 }
 
@@ -434,6 +479,13 @@ func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream 
 	} else {
 		action = vertexChatCompletionAction
 	}
+
+	if v.config.vertexExpressMode {
+		// Express Mode: 简化路径 + API Key 参数
+		basePath := fmt.Sprintf(vertexExpressPathTemplate, modelId, action)
+		return basePath + "?key=" + v.config.vertexApiKey
+	}
+
 	return fmt.Sprintf(vertexPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
 }
 
