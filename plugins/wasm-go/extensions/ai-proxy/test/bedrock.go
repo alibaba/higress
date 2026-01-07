@@ -477,6 +477,7 @@ func RunBedrockOnHttpResponseBodyTests(t *testing.T) {
 
 			// Process response headers (must include :status 200 for body processing)
 			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
 				{"Content-Type", "application/json"},
 			})
 			require.Equal(t, types.ActionContinue, action)
