@@ -469,11 +469,13 @@ func RunBedrockOnHttpResponseBodyTests(t *testing.T) {
 					}
 				]
 			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			// Process response headers
 			action = host.CallOnHttpResponseHeaders([][2]string{
 				{"Content-Type", "application/json"},
 			})
-			require.Equal(t, types.ActionContinue, action)
-			action = host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
 			// Process response body (Bedrock format)
