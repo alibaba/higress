@@ -272,13 +272,10 @@ For Vertex, the corresponding `type` is `vertex`. It supports two authentication
 
 Express Mode is a simplified access mode introduced by Vertex AI. You can quickly get started with just an API Key, without configuring a Service Account. See [Vertex AI Express Mode documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview).
 
-| Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
-|-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `vertexExpressMode`         | bool          | Required      | false  | Set to true to enable Express Mode                                                                                                                          |
-| `vertexApiKey`              | string        | Required      | -      | API Key for Express Mode, obtained from Google Cloud Console under API & Services > Credentials                                                              |
-| `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
-
-> **Note**: Express Mode has rate limits (approximately 10 RPM), suitable for development and testing scenarios. For production environments, it is recommended to use Standard Mode.
+| Name                        | Data Type        | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|------------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `apiTokens`                 | array of string  | Required      | -      | API Key for Express Mode, obtained from Google Cloud Console under API & Services > Credentials                                                              |
+| `vertexGeminiSafetySetting` | map of string    | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
 
 #### AWS Bedrock
 
@@ -1794,14 +1791,14 @@ provider:
 
 ### Utilizing OpenAI Protocol Proxy for Google Vertex Services (Express Mode)
 
-Express Mode is a simplified access mode for Vertex AI. You only need an API Key to get started quickly, suitable for development and testing scenarios.
+Express Mode is a simplified access mode for Vertex AI. You only need an API Key to get started quickly.
 
 **Configuration Information**
 ```yaml
 provider:
   type: vertex
-  vertexExpressMode: true
-  vertexApiKey: "YOUR_API_KEY"
+  apiTokens:
+    - "YOUR_API_KEY"
 ```
 
 **Request Example**

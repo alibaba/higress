@@ -328,11 +328,8 @@ Express Mode 是 Vertex AI 推出的简化访问模式，只需 API Key 即可�
 
 | 名称                         | 数据类型       | 填写要求   | 默认值    | 描述                                                                            |
 |-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
-| `vertexExpressMode`         | bool          | 必填     | false  | 设置为 true 启用 Express Mode                                                      |
-| `vertexApiKey`              | string        | 必填     | -      | Express Mode 使用的 API Key，从 Google Cloud Console 的 API & Services > Credentials 获取 |
+| `apiTokens`                 | array of string | 必填   | -      | Express Mode 使用的 API Key，从 Google Cloud Console 的 API & Services > Credentials 获取 |
 | `geminiSafetySetting`       | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
-
-> **注意**：Express Mode 有请求频率限制（约10 RPM），适合开发测试场景。生产环境建议使用标准模式。
 
 #### AWS Bedrock
 
@@ -2025,15 +2022,15 @@ provider:
 
 ### 使用 OpenAI 协议代理 Google Vertex 服务（Express Mode）
 
-Express Mode 是 Vertex AI 的简化访问模式，只需 API Key 即可快速开始使用，适合开发测试场景。
+Express Mode 是 Vertex AI 的简化访问模式，只需 API Key 即可快速开始使用。
 
 **配置信息**
 
 ```yaml
 provider:
   type: vertex
-  vertexExpressMode: true
-  vertexApiKey: "YOUR_API_KEY"
+  apiTokens:
+    - "YOUR_API_KEY"
 ```
 
 **请求示例**

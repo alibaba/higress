@@ -24,13 +24,12 @@ var basicVertexConfig = func() json.RawMessage {
 	return data
 }()
 
-// 测试配置：Vertex Express Mode 配置
+// 测试配置：Vertex Express Mode 配置（使用 apiTokens）
 var vertexExpressModeConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"provider": map[string]interface{}{
-			"type":              "vertex",
-			"vertexExpressMode": true,
-			"vertexApiKey":      "test-api-key-123456789",
+			"type":      "vertex",
+			"apiTokens": []string{"test-api-key-123456789"},
 		},
 	})
 	return data
@@ -40,9 +39,8 @@ var vertexExpressModeConfig = func() json.RawMessage {
 var vertexExpressModeWithModelMappingConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"provider": map[string]interface{}{
-			"type":              "vertex",
-			"vertexExpressMode": true,
-			"vertexApiKey":      "test-api-key-123456789",
+			"type":      "vertex",
+			"apiTokens": []string{"test-api-key-123456789"},
 			"modelMapping": map[string]string{
 				"gpt-4":                  "gemini-2.5-flash",
 				"gpt-3.5-turbo":          "gemini-2.5-flash-lite",
@@ -53,13 +51,17 @@ var vertexExpressModeWithModelMappingConfig = func() json.RawMessage {
 	return data
 }()
 
-// 测试配置：无效 Vertex Express Mode 配置（缺少 API Key）
-var invalidVertexExpressModeConfig = func() json.RawMessage {
+// 测试配置：Vertex Express Mode 配置（含安全设置）
+var vertexExpressModeWithSafetyConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"provider": map[string]interface{}{
-			"type":              "vertex",
-			"vertexExpressMode": true,
-			// 缺少 vertexApiKey
+			"type":      "vertex",
+			"apiTokens": []string{"test-api-key-123456789"},
+			"geminiSafetySetting": map[string]string{
+				"HARM_CATEGORY_HARASSMENT":        "BLOCK_MEDIUM_AND_ABOVE",
+				"HARM_CATEGORY_HATE_SPEECH":       "BLOCK_LOW_AND_ABOVE",
+				"HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+			},
 		},
 	})
 	return data
@@ -71,23 +73,6 @@ var invalidVertexStandardModeConfig = func() json.RawMessage {
 		"provider": map[string]interface{}{
 			"type": "vertex",
 			// 缺少必需的标准模式配置
-		},
-	})
-	return data
-}()
-
-// 测试配置：Vertex Express Mode 配置（含安全设置）
-var vertexExpressModeWithSafetyConfig = func() json.RawMessage {
-	data, _ := json.Marshal(map[string]interface{}{
-		"provider": map[string]interface{}{
-			"type":              "vertex",
-			"vertexExpressMode": true,
-			"vertexApiKey":      "test-api-key-123456789",
-			"geminiSafetySetting": map[string]string{
-				"HARM_CATEGORY_HARASSMENT":        "BLOCK_MEDIUM_AND_ABOVE",
-				"HARM_CATEGORY_HATE_SPEECH":       "BLOCK_LOW_AND_ABOVE",
-				"HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
-			},
 		},
 	})
 	return data
@@ -126,13 +111,6 @@ func RunVertexParseConfigTests(t *testing.T) {
 			config, err := host.GetMatchConfig()
 			require.NoError(t, err)
 			require.NotNil(t, config)
-		})
-
-		// 测试无效 Vertex Express Mode 配置（缺少 API Key）
-		t.Run("invalid vertex express mode config - missing api key", func(t *testing.T) {
-			host, status := test.NewTestHost(invalidVertexExpressModeConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusFailed, status)
 		})
 
 		// 测试无效 Vertex 标准模式配置（缺少 vertexAuthKey）

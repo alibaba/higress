@@ -27,8 +27,8 @@ const (
 	vertexAuthDomain = "oauth2.googleapis.com"
 	vertexDomain     = "aiplatform.googleapis.com"
 	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{MODEL_ID}:{ACTION}
-	vertexPathTemplate                 = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
-	vertexPathAnthropicTemplate        = "/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s"
+	vertexPathTemplate          = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
+	vertexPathAnthropicTemplate = "/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s"
 	// Express Mode 路径模板 (不含 project/location)
 	vertexExpressPathTemplate          = "/v1/publishers/google/models/%s:%s"
 	vertexExpressPathAnthropicTemplate = "/v1/publishers/anthropic/models/%s:%s"
@@ -45,11 +45,8 @@ const (
 type vertexProviderInitializer struct{}
 
 func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if config.vertexExpressMode {
-		// Express Mode: 只需要 API Key
-		if config.vertexApiKey == "" {
-			return errors.New("missing vertexApiKey in vertex provider express mode config")
-		}
+	// Express Mode: 如果配置了 apiTokens，则使用 API Key 认证
+	if len(config.apiTokens) > 0 {
 		// Express Mode 不需要其他配置
 		return nil
 	}
@@ -86,8 +83,8 @@ func (v *vertexProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 		},
 	}
 
-	// 仅标准模式需要 OAuth 客户端
-	if !config.vertexExpressMode {
+	// 仅标准模式需要 OAuth 客户端（Express Mode 通过 apiTokens 配置）
+	if !provider.isExpressMode() {
 		provider.client = wrapper.NewClusterClient(wrapper.DnsCluster{
 			Domain:      vertexAuthDomain,
 			ServiceName: config.vertexAuthServiceName,
@@ -96,6 +93,12 @@ func (v *vertexProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	}
 
 	return provider, nil
+}
+
+// isExpressMode 检测是否启用 Express Mode
+// 如果配置了 apiTokens，则使用 Express Mode（API Key 认证）
+func (v *vertexProvider) isExpressMode() bool {
+	return len(v.config.apiTokens) > 0
 }
 
 type vertexProvider struct {
@@ -127,7 +130,7 @@ func (v *vertexProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	var finalVertexDomain string
 
-	if v.config.vertexExpressMode {
+	if v.isExpressMode() {
 		// Express Mode: 固定域名，不带 region 前缀
 		finalVertexDomain = vertexDomain
 	} else {
@@ -185,7 +188,7 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	body, err := v.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 	headers.Set("Content-Length", fmt.Sprint(len(body)))
 
-	if v.config.vertexExpressMode {
+	if v.isExpressMode() {
 		// Express Mode: 不需要 Authorization header，API Key 已在 URL 中
 		headers.Del("Authorization")
 		util.ReplaceRequestHeaders(headers)
@@ -461,10 +464,10 @@ func (v *vertexProvider) getAhthropicRequestPath(apiName ApiName, modelId string
 		action = vertexAnthropicMessageAction
 	}
 
-	if v.config.vertexExpressMode {
+	if v.isExpressMode() {
 		// Express Mode: 简化路径 + API Key 参数
 		basePath := fmt.Sprintf(vertexExpressPathAnthropicTemplate, modelId, action)
-		return basePath + "?key=" + v.config.vertexApiKey
+		return basePath + "?key=" + v.config.GetRandomToken()
 	}
 
 	return fmt.Sprintf(vertexPathAnthropicTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
@@ -480,10 +483,10 @@ func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream 
 		action = vertexChatCompletionAction
 	}
 
-	if v.config.vertexExpressMode {
+	if v.isExpressMode() {
 		// Express Mode: 简化路径 + API Key 参数
 		basePath := fmt.Sprintf(vertexExpressPathTemplate, modelId, action)
-		return basePath + "?key=" + v.config.vertexApiKey
+		return basePath + "?key=" + v.config.GetRandomToken()
 	}
 
 	return fmt.Sprintf(vertexPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
