@@ -16,9 +16,9 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const DenyResponse = `{"jsonrpc":"2.0","id":0,"error":{"code":403,"message":"Blocked by security guard"}}`
+const DenyResponse = `{"jsonrpc":"2.0","id":0,"error":{"code":403,"message":"blocked by security guard"}}`
 const DenySSEResponse = `event: message
-data: {"jsonrpc":"2.0","id":0,"error":{"code":403,"message":"Blocked by security guard"}}
+data: {"jsonrpc":"2.0","id":0,"error":{"code":403,"message":"blocked by security guard"}}
 
 `
 
