@@ -472,7 +472,10 @@ func RunBedrockOnHttpResponseBodyTests(t *testing.T) {
 			action = host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, action)
 
-			// Process response headers
+			// Set response property to ensure IsResponseFromUpstream() returns true
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
+			// Process response headers (must include :status 200 for body processing)
 			action = host.CallOnHttpResponseHeaders([][2]string{
 				{"Content-Type", "application/json"},
 			})
