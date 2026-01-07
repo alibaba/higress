@@ -322,23 +322,31 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 
 #### AWS Bedrock
 
-AWS Bedrock 所对应的 type 为 bedrock。它特有的配置字段如下：
+AWS Bedrock 所对应的 type 为 bedrock。它支持两种认证方式：
 
-| 名称            | 数据类型  | 填写要求 | 默认值 | 描述                           |
-|---------------------------|--------|------|-----|------------------------------|
-| `modelVersion` | string   | 非必填  | -   | 用于指定 Triton Server 中 model version           |
-| `tritonDomain` | string   | 非必填  | -   | Triton Server 部署的指定请求 Domain            |
+1. **AWS Signature V4 认证**：使用 `awsAccessKey` 和 `awsSecretKey` 进行 AWS 标准签名认证
+2. **Bearer Token 认证**：使用 `apiTokens` 配置 AWS Bearer Token（适用于 IAM Identity Center 等场景）
+
+**注意**：两种认证方式二选一，如果同时配置了 `apiTokens`，将优先使用 Bearer Token 认证方式。
+
+它特有的配置字段如下：
+
+| 名称                        | 数据类型        | 填写要求            | 默认值 | 描述                                                |
+|---------------------------|---------------|-------------------|-------|---------------------------------------------------|
+| `apiTokens`               | array of string | 与 ak/sk 二选一   | -     | AWS Bearer Token，用于 Bearer Token 认证方式          |
+| `awsAccessKey`            | string        | 与 apiTokens 二选一 | -     | AWS Access Key，用于 AWS Signature V4 认证            |
+| `awsSecretKey`            | string        | 与 apiTokens 二选一 | -     | AWS Secret Access Key，用于 AWS Signature V4 认证     |
+| `awsRegion`               | string        | 必填              | -     | AWS 区域，例如：us-east-1                              |
+| `bedrockAdditionalFields` | map           | 非必填            | -     | Bedrock 额外模型请求参数                               |
 
 #### NVIDIA Triton Interference Server
 
 NVIDIA Triton Interference Server 所对应的 type 为 triton。它特有的配置字段如下：
 
-| 名称                        | 数据类型   | 填写要求 | 默认值 | 描述                           |
-|---------------------------|--------|------|-----|------------------------------|
-| `awsAccessKey`            | string | 必填   | -   | AWS Access Key，用于身份认证        |
-| `awsSecretKey`            | string | 必填   | -   | AWS Secret Access Key，用于身份认证 |
-| `awsRegion`               | string | 必填   | -   | AWS 区域，例如：us-east-1          |
-| `bedrockAdditionalFields` | map    | 非必填  | -   | Bedrock 额外模型请求参数             |
+| 名称                   | 数据类型 | 填写要求 | 默认值 | 描述                                      |
+|----------------------|--------|--------|-------|------------------------------------------|
+| `tritonModelVersion` | string | 非必填   | -     | 用于指定 Triton Server 中 model version     |
+| `tritonDomain`       | string | 非必填   | -     | Triton Server 部署的指定请求 Domain          |
 
 ## 用法示例
 
@@ -2011,6 +2019,10 @@ provider:
 
 ### 使用 OpenAI 协议代理 AWS Bedrock 服务
 
+AWS Bedrock 支持两种认证方式：
+
+#### 方式一：使用 AWS Access Key/Secret Key 认证（AWS Signature V4）
+
 **配置信息**
 
 ```yaml
@@ -2018,7 +2030,21 @@ provider:
   type: bedrock
   awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
   awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
-  awsRegion: "YOUR_AWS_REGION"
+  awsRegion: "us-east-1"
+  bedrockAdditionalFields:
+    top_k: 200
+```
+
+#### 方式二：使用 Bearer Token 认证（适用于 IAM Identity Center 等场景）
+
+**配置信息**
+
+```yaml
+provider:
+  type: bedrock
+  apiTokens:
+    - "YOUR_AWS_BEARER_TOKEN"
+  awsRegion: "us-east-1"
   bedrockAdditionalFields:
     top_k: 200
 ```
@@ -2027,7 +2053,7 @@ provider:
 
 ```json
 {
-  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "model": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
   "messages": [
     {
       "role": "user",

@@ -128,3 +128,11 @@ func TestGeneric(t *testing.T) {
 	test.RunGenericOnHttpRequestHeadersTests(t)
 	test.RunGenericOnHttpRequestBodyTests(t)
 }
+
+func TestBedrock(t *testing.T) {
+	test.RunBedrockParseConfigTests(t)
+	test.RunBedrockOnHttpRequestHeadersTests(t)
+	test.RunBedrockOnHttpRequestBodyTests(t)
+	test.RunBedrockOnHttpResponseHeadersTests(t)
+	test.RunBedrockOnHttpResponseBodyTests(t)
+}
