@@ -89,7 +89,6 @@ global_threshold:
   token_per_minute: 1000 # 1000 tokens per minute for the custom rule group
 redis:
   service_name: redis.static
-show_limit_quota_header: true
 ```
 
 ### Identify request parameter apikey for differentiated rate limiting
