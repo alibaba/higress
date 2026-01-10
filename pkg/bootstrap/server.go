@@ -16,11 +16,12 @@ package bootstrap
 
 import (
 	"fmt"
-	"istio.io/istio/pkg/config/mesh/meshwatcher"
-	"istio.io/istio/pkg/kube/krt"
 	"net"
 	"net/http"
 	"time"
+
+	"istio.io/istio/pkg/config/mesh/meshwatcher"
+	"istio.io/istio/pkg/kube/krt"
 
 	prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"google.golang.org/grpc"
@@ -435,9 +436,16 @@ func (s *Server) initHttpServer() error {
 		ReadTimeout: 30 * time.Second,
 	}
 	s.xdsServer.AddDebugHandlers(s.httpMux, nil, true, nil)
-	s.httpMux.HandleFunc("/ready", s.readyHandler)
-	s.httpMux.HandleFunc("/registry/watcherStatus", s.registryWatcherStatusHandler)
+	s.httpMux.HandleFunc("/ready", s.withConditionalAuth(s.readyHandler))
+	s.httpMux.HandleFunc("/registry/watcherStatus", s.withConditionalAuth(s.registryWatcherStatusHandler))
 	return nil
+}
+
+func (s *Server) withConditionalAuth(handler http.HandlerFunc) http.HandlerFunc {
+	if features.DebugAuth {
+		return s.xdsServer.AllowAuthenticatedOrLocalhost(handler)
+	}
+	return handler
 }
 
 // readyHandler checks whether the http server is ready
