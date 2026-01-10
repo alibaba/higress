@@ -83,7 +83,6 @@ global_threshold:
   token_per_minute: 1000 # 自定义规则组每分钟1000个token
 redis:
   service_name: redis.static
-show_limit_quota_header: true
 ```
 
 ### 识别请求参数 apikey，进行区别限流
