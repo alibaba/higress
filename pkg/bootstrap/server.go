@@ -436,7 +436,7 @@ func (s *Server) initHttpServer() error {
 		ReadTimeout: 30 * time.Second,
 	}
 	s.xdsServer.AddDebugHandlers(s.httpMux, nil, true, nil)
-	s.httpMux.HandleFunc("/ready", s.withConditionalAuth(s.readyHandler))
+	s.httpMux.HandleFunc("/ready", s.readyHandler)
 	s.httpMux.HandleFunc("/registry/watcherStatus", s.withConditionalAuth(s.registryWatcherStatusHandler))
 	return nil
 }
