@@ -15,7 +15,23 @@ func OnHttpRequestHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) 
 }
 
 func OnHttpRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
-	return text.HandleTextGenerationRequestBody(ctx, config, body)
+	switch config.ApiType {
+	case cfg.ApiTextGeneration:
+		return text.HandleTextGenerationRequestBody(ctx, config, body)
+	case cfg.ApiImageGeneration:
+		switch config.ProviderType {
+		case cfg.ProviderOpenAI:
+			return image.HandleOpenAIImageGenerationRequestBody(ctx, config, body)
+		case cfg.ProviderQwen:
+			return image.HandleQwenImageGenerationRequestBody(ctx, config, body)
+		default:
+			log.Errorf("[on request body] image generation api don't support provider: %s", config.ProviderType)
+			return types.ActionContinue
+		}
+	default:
+		log.Errorf("[on request body] multi_modal_guard don't support api: %s", config.ApiType)
+		return types.ActionContinue
+	}
 }
 
 func OnHttpResponseHeaders(ctx wrapper.HttpContext, config cfg.AISecurityConfig) types.Action {
