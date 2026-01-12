@@ -8,6 +8,7 @@ import (
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/higress-api"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/higress/higress-ops"
 	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/rag"
+	_ "github.com/alibaba/higress/plugins/golang-filter/mcp-server/servers/tool-search"
 	mcp_session "github.com/alibaba/higress/plugins/golang-filter/mcp-session"
 	"github.com/alibaba/higress/plugins/golang-filter/mcp-session/common"
 	xds "github.com/cncf/xds/go/xds/type/v3"
