@@ -118,7 +118,7 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 				{"content-length", "123"},
 			}
 			action := host.CallOnHttpRequestHeaders(originalHeaders)
-			require.Equal(t, types.ActionContinue, action)
+			require.Equal(t, types.HeaderStopIteration, action)
 
 			newHeaders := host.GetRequestHeaders()
 			_, found := getHeader(newHeaders, "content-length")
