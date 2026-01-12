@@ -17,7 +17,7 @@ metadata:
   name: wasmplugin-token-statistics-openai
   namespace: higress-conformance-infra
   annotations:
-    # Application-level annotations (if needed)
+    # No specific annotations needed for basic routing
 spec:
   ingressClassName: higress
   rules:
@@ -31,7 +31,6 @@ spec:
                 name: infra-backend-v1
                 port:
                   number: 8080
----
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -52,29 +51,64 @@ spec:
                 port:
                   number: 8080
 ---
+# Token Statistics Plugin Configuration
 apiVersion: extensions.higress.io/v1alpha1
----
 kind: WasmPlugin
-apiVersion: extensions.higress.io/v1alpha1
 metadata:
   name: token-statistics
   namespace: higress-system
 spec:
-  priority: 400
+  # Token statistics should run after ai-proxy (priority 201)
+  # but potentially before or after ai-cache (priority 400)
+  # Setting it to 300 ensures proper ordering
+  priority: 300
   matchRules:
-    - config: {}
+    - config:
+        # Configure path suffixes to track
+        enable_path_suffixes:
+          - "/v1/chat/completions"
+          - "/v1/completions"
+          - "/chat/completions"
+          - "/completions"
+        # Configure content types to process
+        enable_content_types:
+          - "application/json"
+          - "text/event-stream"
+        # Exporter configuration
+        exporters:
+          - type: "log"
+            config:
+              level: "info"
+          - type: "prometheus"
+            config:
+              namespace: "higress"
+              subsystem: "token_statistics"
+        # Optional: dimensions for advanced tracking
+        dimensions:
+          - name: "model"
+            value_source: "response_body"
+            value: "model"
+            apply_to_metric: true
+            apply_to_log: true
+          - name: "provider"
+            value_source: "request_header"
+            value: "x-ai-provider"
+            default_value: "unknown"
+            apply_to_metric: false
+            apply_to_log: true
       ingress:
         - higress-conformance-infra/wasmplugin-token-statistics-openai
         - higress-conformance-infra/wasmplugin-token-statistics-qwen
-  # For CI, point url to your built plugin wasm or OCI registry. Example:
+  # For CI/CD, point to the built plugin or OCI registry
+  # Option 1: Local file (for development)
   # url: file:///opt/plugins/wasm-go/extensions/token-statistics/plugin.wasm
-  # url: oci://registry.cn-shanghai.aliyuncs.com/suchunsv/higress_ai:1.18
+  # Option 2: OCI registry (for production/CI)
   url: oci://registry.cn-shanghai.aliyuncs.com/suchunsv/higress_ai:1.18
 ---
+# AI Proxy Plugin Configuration
+# This plugin should run before token-statistics to handle AI provider routing
 apiVersion: extensions.higress.io/v1alpha1
----
 kind: WasmPlugin
-apiVersion: extensions.higress.io/v1alpha1
 metadata:
   name: ai-proxy
   namespace: higress-system
@@ -90,27 +124,32 @@ spec:
           timeout: 1200000
           modelMapping:
             "*": "qwen-long"
+            "qwen-turbo": "qwen-turbo"
+            "gpt-4-test": "qwen-long"
       ingress:
         - higress-conformance-infra/wasmplugin-token-statistics-openai
         - higress-conformance-infra/wasmplugin-token-statistics-qwen
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:2.0.0
-
 ---
-# Optional: Prometheus scrape annotations on the backend service so Prometheus
-# can scrape metrics exposed by the Envoy/higress proxy (if the proxy exposes
-# plugin metrics under a /metrics endpoint). Adjust to your monitoring setup.
+# Optional: Service Monitor for Prometheus scraping
+# This ensures Prometheus can scrape the metrics exposed by the plugin
 apiVersion: v1
 kind: Service
 metadata:
-  name: infra-backend-v1
-  namespace: higress-conformance-infra
+  name: higress-gateway-metrics
+  namespace: higress-system
+  labels:
+    app: higress-gateway
   annotations:
     prometheus.io/scrape: "true"
-    prometheus.io/path: "/metrics"
-    prometheus.io/port: "8080"
+    prometheus.io/path: "/stats/prometheus"
+    prometheus.io/port: "15020"
 spec:
+  type: ClusterIP
   selector:
-    app: infra-backend-v1
+    app: higress-gateway
   ports:
-    - port: 8080
-      targetPort: 8080
+    - name: metrics
+      port: 15020
+      targetPort: 15020
+      protocol: TCP
