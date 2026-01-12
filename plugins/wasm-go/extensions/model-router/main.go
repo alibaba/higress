@@ -104,7 +104,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ModelRouterConfig) typ
 	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "multipart/form-data") {
 		_ = proxywasm.RemoveHttpRequestHeader("content-length")
 		// We need to buffer the body to parse it
-		return types.ActionContinue
+		return types.HeaderStopIteration
 	}
 
 	return types.ActionContinue

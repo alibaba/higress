@@ -154,7 +154,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	// 100MB buffer limit
 	ctx.SetRequestBodyBufferLimit(DefaultMaxBodyBytes)
 
-	return types.ActionContinue
+	return types.HeaderStopIteration
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
