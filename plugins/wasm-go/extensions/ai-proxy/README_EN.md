@@ -269,14 +269,22 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 
 #### AWS Bedrock
 
-For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
+For AWS Bedrock, the corresponding `type` is `bedrock`. It supports two authentication methods:
 
-| Name                      | Data Type | Requirement | Default | Description                                             |
-|---------------------------|-----------|-------------|---------|---------------------------------------------------------|
-| `awsAccessKey`            | string    | Required    | -       | AWS Access Key used for authentication                  |
-| `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
-| `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
-| `bedrockAdditionalFields` | map       | Optional    | -       | Additional inference parameters that the model supports |
+1. **AWS Signature V4 Authentication**: Uses `awsAccessKey` and `awsSecretKey` for standard AWS signature authentication
+2. **Bearer Token Authentication**: Uses `apiTokens` to configure AWS Bearer Token (suitable for IAM Identity Center and similar scenarios)
+
+**Note**: Choose one of the two authentication methods. If `apiTokens` is configured, Bearer Token authentication will be used preferentially.
+
+Its unique configuration fields are:
+
+| Name                      | Data Type       | Requirement              | Default | Description                                                       |
+|---------------------------|-----------------|--------------------------|---------|-------------------------------------------------------------------|
+| `apiTokens`               | array of string | Either this or ak/sk     | -       | AWS Bearer Token for Bearer Token authentication                   |
+| `awsAccessKey`            | string          | Either this or apiTokens | -       | AWS Access Key for AWS Signature V4 authentication                 |
+| `awsSecretKey`            | string          | Either this or apiTokens | -       | AWS Secret Access Key for AWS Signature V4 authentication          |
+| `awsRegion`               | string          | Required                 | -       | AWS region, e.g., us-east-1                                        |
+| `bedrockAdditionalFields` | map             | Optional                 | -       | Additional inference parameters that the model supports            |
 
 #### Cerebras
 
@@ -1792,6 +1800,10 @@ provider:
 
 ### Utilizing OpenAI Protocol Proxy for AWS Bedrock Services
 
+AWS Bedrock supports two authentication methods:
+
+#### Method 1: Using AWS Access Key/Secret Key Authentication (AWS Signature V4)
+
 **Configuration Information**
 
 ```yaml
@@ -1799,7 +1811,20 @@ provider:
   type: bedrock
   awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
   awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
-  awsRegion: "YOUR_AWS_REGION"
+  awsRegion: "us-east-1"
+  bedrockAdditionalFields:
+    top_k: 200
+```
+
+#### Method 2: Using Bearer Token Authentication (suitable for IAM Identity Center and similar scenarios)
+
+**Configuration Information**
+```yaml
+provider:
+  type: bedrock
+  apiTokens:
+    - "YOUR_AWS_BEARER_TOKEN"
+  awsRegion: "us-east-1"
   bedrockAdditionalFields:
     top_k: 200
 ```
@@ -1808,7 +1833,7 @@ provider:
 
 ```json
 {
-  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "model": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
   "messages": [
     {
       "role": "user",

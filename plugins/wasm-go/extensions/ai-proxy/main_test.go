@@ -106,6 +106,7 @@ func TestAzure(t *testing.T) {
 	test.RunAzureOnHttpRequestBodyTests(t)
 	test.RunAzureOnHttpResponseHeadersTests(t)
 	test.RunAzureOnHttpResponseBodyTests(t)
+	test.RunAzureBasePathHandlingTests(t)
 }
 
 func TestFireworks(t *testing.T) {
@@ -123,6 +124,10 @@ func TestCerebras(t *testing.T) {
 	test.RunCerebrasOnStreamingResponseBodyTests(t)
 }
 
+func TestMinimax(t *testing.T) {
+	test.RunMinimaxBasePathHandlingTests(t)
+}
+
 func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
 }
@@ -131,4 +136,12 @@ func TestGeneric(t *testing.T) {
 	test.RunGenericParseConfigTests(t)
 	test.RunGenericOnHttpRequestHeadersTests(t)
 	test.RunGenericOnHttpRequestBodyTests(t)
+}
+
+func TestBedrock(t *testing.T) {
+	test.RunBedrockParseConfigTests(t)
+	test.RunBedrockOnHttpRequestHeadersTests(t)
+	test.RunBedrockOnHttpRequestBodyTests(t)
+	test.RunBedrockOnHttpResponseHeadersTests(t)
+	test.RunBedrockOnHttpResponseBodyTests(t)
 }

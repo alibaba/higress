@@ -524,12 +524,19 @@ gateway:
 
   affinity: {}
 
+  topologySpreadConstraints: []
+
   # -- If specified, the gateway will act as a network gateway for the given network.
   networkGateway: ""
 
   metrics:
     # -- If true, create PodMonitor or VMPodScrape for gateway
     enabled: false
+    # -- Selector for PodMonitor
+    # When using monitoring.coreos.com/v1.PodMonitor, the selector must match
+    # the label "release: kube-prome" is the default for kube-prometheus-stack
+    podMonitorSelector:
+      release: kube-prome
     # -- provider group name for CustomResourceDefinition, can be monitoring.coreos.com or operator.victoriametrics.com
     provider: monitoring.coreos.com
     interval: ""
@@ -625,6 +632,8 @@ controller:
   tolerations: []
 
   affinity: {}
+
+  topologySpreadConstraints: []
 
   autoscaling:
     enabled: false
