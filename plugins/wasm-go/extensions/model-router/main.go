@@ -65,6 +65,8 @@ func parseConfig(json gjson.Result, config *ModelRouterConfig) error {
 			"/moderations",
 			"/image-synthesis",
 			"/video-synthesis",
+			"/rerank",
+			"/messages",
 		}
 	}
 	return nil

@@ -100,7 +100,6 @@ func parseConfig(json gjson.Result, config *Config) error {
 			config.enableOnPathSuffix = append(config.enableOnPathSuffix, item.String())
 		}
 	} else {
-		// Default values from README
 		config.enableOnPathSuffix = []string{
 			"/completions",
 			"/embeddings",
@@ -110,6 +109,8 @@ func parseConfig(json gjson.Result, config *Config) error {
 			"/moderations",
 			"/image-synthesis",
 			"/video-synthesis",
+			"/rerank",
+			"/messages",
 		}
 	}
 
@@ -162,9 +163,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 	}
 
 	oldModel := gjson.GetBytes(body, config.modelKey).String()
-	// If model key doesn't exist, oldModel is empty.
-	// C++: if (body_json.contains(model_key)) old_model = body_json[model_key];
-	// If not present, old_model is empty string.
 
 	newModel := config.defaultModel
 	if newModel == "" {
