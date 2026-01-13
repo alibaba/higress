@@ -141,6 +141,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	}
 
 	if !ctx.HasRequestBody() {
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
 
