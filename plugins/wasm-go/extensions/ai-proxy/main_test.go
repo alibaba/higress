@@ -136,3 +136,11 @@ func TestVertex(t *testing.T) {
 	test.RunVertexExpressModeOnHttpResponseBodyTests(t)
 	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
 }
+
+func TestBedrock(t *testing.T) {
+	test.RunBedrockParseConfigTests(t)
+	test.RunBedrockOnHttpRequestHeadersTests(t)
+	test.RunBedrockOnHttpRequestBodyTests(t)
+	test.RunBedrockOnHttpResponseHeadersTests(t)
+	test.RunBedrockOnHttpResponseBodyTests(t)
+}
