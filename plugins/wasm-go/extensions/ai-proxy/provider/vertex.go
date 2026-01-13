@@ -467,10 +467,19 @@ func (v *vertexProvider) getAhthropicRequestPath(apiName ApiName, modelId string
 	if v.isExpressMode() {
 		// Express Mode: 简化路径 + API Key 参数
 		basePath := fmt.Sprintf(vertexExpressPathAnthropicTemplate, modelId, action)
-		return basePath + "?key=" + v.config.GetRandomToken()
+		apiKey := v.config.GetRandomToken()
+		// 如果 action 已经包含 ?，使用 & 拼接
+		var fullPath string
+		if strings.Contains(action, "?") {
+			fullPath = basePath + "&key=" + apiKey
+		} else {
+			fullPath = basePath + "?key=" + apiKey
+		}
+		return fullPath
 	}
 
-	return fmt.Sprintf(vertexPathAnthropicTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+	path := fmt.Sprintf(vertexPathAnthropicTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+	return path
 }
 
 func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream bool) string {
@@ -486,10 +495,19 @@ func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream 
 	if v.isExpressMode() {
 		// Express Mode: 简化路径 + API Key 参数
 		basePath := fmt.Sprintf(vertexExpressPathTemplate, modelId, action)
-		return basePath + "?key=" + v.config.GetRandomToken()
+		apiKey := v.config.GetRandomToken()
+		// 如果 action 已经包含 ?（如 streamGenerateContent?alt=sse），使用 & 拼接
+		var fullPath string
+		if strings.Contains(action, "?") {
+			fullPath = basePath + "&key=" + apiKey
+		} else {
+			fullPath = basePath + "?key=" + apiKey
+		}
+		return fullPath
 	}
 
-	return fmt.Sprintf(vertexPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+	path := fmt.Sprintf(vertexPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+	return path
 }
 
 func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) *vertexChatRequest {
