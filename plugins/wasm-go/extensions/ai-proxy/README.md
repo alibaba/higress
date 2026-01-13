@@ -309,7 +309,9 @@ Dify 所对应的 `type` 为 `dify`。它特有的配置字段如下:
 
 #### Google Vertex AI
 
-Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下：
+Google Vertex AI 所对应的 type 为 vertex。支持两种认证模式：
+
+**标准模式**（使用 Service Account）：
 
 | 名称                         | 数据类型       | 填写要求   | 默认值    | 描述                                                                            |
 |-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
@@ -319,6 +321,15 @@ Google Vertex AI 所对应的 type 为 vertex。它特有的配置字段如下�
 | `vertexAuthServiceName`     | string        | 必填     | -      | 用于 OAuth2 认证的服务名称，该服务为了访问oauth2.googleapis.com                                |
 | `geminiSafetySetting`       | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
 | `vertexTokenRefreshAhead`   | number        | 非必填   | -      | Vertex access token刷新提前时间(单位秒)                                                |
+
+**Express Mode**（使用 API Key，简化配置）：
+
+Express Mode 是 Vertex AI 推出的简化访问模式，只需 API Key 即可快速开始使用，无需配置 Service Account。详见 [Vertex AI Express Mode 文档](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview)。
+
+| 名称                         | 数据类型       | 填写要求   | 默认值    | 描述                                                                            |
+|-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
+| `apiTokens`                 | array of string | 必填   | -      | Express Mode 使用的 API Key，从 Google Cloud Console 的 API & Services > Credentials 获取 |
+| `geminiSafetySetting`       | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
 
 #### AWS Bedrock
 
@@ -1955,7 +1966,7 @@ provider:
 }
 ```
 
-### 使用 OpenAI 协议代理 Google Vertex 服务
+### 使用 OpenAI 协议代理 Google Vertex 服务（标准模式）
 
 **配置信息**
 
@@ -2013,6 +2024,60 @@ provider:
     "prompt_tokens": 15,
     "completion_tokens": 43,
     "total_tokens": 58
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 Google Vertex 服务（Express Mode）
+
+Express Mode 是 Vertex AI 的简化访问模式，只需 API Key 即可快速开始使用。
+
+**配置信息**
+
+```yaml
+provider:
+  type: vertex
+  apiTokens:
+    - "YOUR_API_KEY"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gemini-2.5-flash",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是 Gemini，由 Google 开发的人工智能助手。有什么我可以帮您的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.5-flash",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 25,
+    "total_tokens": 35
   }
 }
 ```
