@@ -176,16 +176,23 @@ where
         let service_name =
             String::from_utf8(get_property(vec!["cluster_name"]).unwrap_or_default())
                 .unwrap_or_else(|_| "".to_string());
-
+        self.get_match_config_by_args(&host, &route_name, &service_name)
+    }
+    fn get_match_config_by_args(
+        &self,
+        host: &str,
+        route_name: &str,
+        service_name: &str,
+    ) -> Option<(i64, Rc<PluginConfig>)> {
         for (i, rule) in self.rule_config.iter().enumerate() {
             match rule.category {
                 Category::Host => {
-                    if self.host_match(rule, host.as_str()) {
+                    if self.host_match(rule, host) {
                         return Some((i as i64, rule.config.clone()));
                     }
                 }
                 Category::Route => {
-                    if rule.routes.contains(route_name.as_str()) {
+                    if rule.routes.contains(route_name) {
                         return Some((i as i64, rule.config.clone()));
                     }
                 }
@@ -197,7 +204,7 @@ where
                     }
                 }
                 Category::Service => {
-                    if self.service_match(rule, &service_name) {
+                    if self.service_match(rule, service_name) {
                         return Some((i as i64, rule.config.clone()));
                     }
                 }
@@ -639,6 +646,48 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_match_route_config() {
+        let mut rule: RuleMatcher<CustomConfig> = RuleMatcher::default();
+
+        let res = rule.parse_rule_config(
+            &serde_json::from_str(
+                r#"{"_rules_":[{"_match_route_":["test1","test2"],"name":"ann", "age":16}]}"#,
+            )
+            .unwrap(),
+        );
+        assert!(res.is_ok());
+        let config = rule.get_match_config_by_args("test", "test", "test");
+        assert!(config.is_none());
+        let config = rule.get_match_config_by_args("test", "test1", "test");
+        assert!(config.is_some());
+        let c = config.unwrap();
+        assert_eq!(c.1.name, "ann");
+        assert_eq!(c.1.age, 16);
+
+        let config = rule.get_match_config_by_args("test", "test2", "test");
+        assert!(config.is_some());
+        let c = config.unwrap();
+        assert_eq!(c.1.name, "ann");
+        assert_eq!(c.1.age, 16);
+    }
+
+    #[test]
+    fn test_match_route1_config() {
+        let mut rule: RuleMatcher<CustomConfig> = RuleMatcher::default();
+
+        let res = rule.parse_rule_config(
+            &serde_json::from_str(r#"{"_rules_":[{"_match_route_":["test1"]}]}"#).unwrap(),
+        );
+        assert!(res.is_ok());
+        let config = rule.get_match_config_by_args("test", "test", "test");
+        assert!(config.is_none());
+        let config = rule.get_match_config_by_args("test", "test1", "test");
+        assert!(config.is_some());
+        let c = config.unwrap();
+        assert_eq!(c.1.name, "");
+        assert_eq!(c.1.age, 0);
+    }
     #[derive(Default, Clone, Deserialize, PartialEq, Eq)]
     struct CompleteConfig {
         // global config

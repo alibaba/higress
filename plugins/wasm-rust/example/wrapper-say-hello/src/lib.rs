@@ -35,7 +35,6 @@ struct SayHelloRoot {
 }
 
 struct SayHello {
-    rule_matcher: SharedRuleMatcher<SayHelloConfig>,
     log: Log,
     config: Option<Rc<SayHelloConfig>>,
     weak: Weak<RefCell<Box<dyn HttpContextWrapper<SayHelloConfig>>>>,
@@ -43,6 +42,7 @@ struct SayHello {
 
 #[derive(Default, Debug, Deserialize, Clone)]
 struct SayHelloConfig {
+    #[serde(default)]
     name: String,
 }
 
@@ -92,7 +92,6 @@ impl RootContextWrapper<SayHelloConfig> for SayHelloRoot {
         Some(Box::new(SayHello {
             log: Log::new(PLUGIN_NAME.to_string()),
             config: None,
-            rule_matcher: Rc::new(RefCell::new(RuleMatcher::default())),
             weak: Default::default(),
         }))
     }
@@ -122,20 +121,15 @@ impl HttpContextWrapper<SayHelloConfig> for SayHello {
         &mut self,
         _headers: &multimap::MultiMap<String, String>,
     ) -> HeaderAction {
-        let binding = self.rule_matcher.borrow();
-        let config = match binding.get_match_config() {
-            None => {
-                self.send_http_response(200, vec![], Some("Hello, World!".as_bytes()));
-                return HeaderAction::Continue;
-            }
-            Some(config) => config.1,
-        };
-
-        self.send_http_response(
-            200,
-            vec![],
-            Some(format!("Hello, {}!", config.name).as_bytes()),
-        );
+        if let Some(config) = &self.config {
+            self.send_http_response(
+                200,
+                vec![],
+                Some(format!("Hello, {}!", config.name).as_bytes()),
+            );
+        } else {
+            self.send_http_response(200, vec![], Some("Hello, World!".as_bytes()));
+        }
         HeaderAction::Continue
     }
 

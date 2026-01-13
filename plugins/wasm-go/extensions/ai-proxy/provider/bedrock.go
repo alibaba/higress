@@ -43,8 +43,11 @@ const (
 type bedrockProviderInitializer struct{}
 
 func (b *bedrockProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if len(config.awsAccessKey) == 0 || len(config.awsSecretKey) == 0 {
-		return errors.New("missing bedrock access authentication parameters")
+	hasAkSk := len(config.awsAccessKey) > 0 && len(config.awsSecretKey) > 0
+	hasApiToken := len(config.apiTokens) > 0
+
+	if !hasAkSk && !hasApiToken {
+		return errors.New("missing bedrock access authentication parameters: either apiTokens or (awsAccessKey + awsSecretKey) is required")
 	}
 	if len(config.awsRegion) == 0 {
 		return errors.New("missing bedrock region parameters")
@@ -634,6 +637,13 @@ func (b *bedrockProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 
 func (b *bedrockProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestHostHeader(headers, fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion))
+
+	// If apiTokens is configured, set Bearer token authentication here
+	// This follows the same pattern as other providers (qwen, zhipuai, etc.)
+	// AWS SigV4 authentication is handled in setAuthHeaders because it requires the request body
+	if len(b.config.apiTokens) > 0 {
+		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+b.config.GetApiTokenInUse(ctx))
+	}
 }
 
 func (b *bedrockProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
@@ -659,18 +669,18 @@ func (b *bedrockProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName
 	case ApiNameChatCompletion:
 		return b.onChatCompletionResponseBody(ctx, body)
 	case ApiNameImageGeneration:
-		return b.onImageGenerationResponseBody(ctx, body)
+		return b.onImageGenerationResponseBody(body)
 	}
 	return nil, errUnsupportedApiName
 }
 
-func (b *bedrockProvider) onImageGenerationResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
+func (b *bedrockProvider) onImageGenerationResponseBody(body []byte) ([]byte, error) {
 	bedrockResponse := &bedrockImageGenerationResponse{}
 	if err := json.Unmarshal(body, bedrockResponse); err != nil {
 		log.Errorf("unable to unmarshal bedrock image gerneration response: %v", err)
 		return nil, fmt.Errorf("unable to unmarshal bedrock image generation response: %v", err)
 	}
-	response := b.buildBedrockImageGenerationResponse(ctx, bedrockResponse)
+	response := b.buildBedrockImageGenerationResponse(bedrockResponse)
 	return json.Marshal(response)
 }
 
@@ -710,7 +720,7 @@ func (b *bedrockProvider) buildBedrockImageGenerationRequest(origRequest *imageG
 	return requestBytes, err
 }
 
-func (b *bedrockProvider) buildBedrockImageGenerationResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockImageGenerationResponse) *imageGenerationResponse {
+func (b *bedrockProvider) buildBedrockImageGenerationResponse(bedrockResponse *bedrockImageGenerationResponse) *imageGenerationResponse {
 	data := make([]imageGenerationData, len(bedrockResponse.Images))
 	for i, image := range bedrockResponse.Images {
 		data[i] = imageGenerationData{
@@ -1138,6 +1148,13 @@ func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 }
 
 func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
+	// Bearer token authentication is already set in TransformRequestHeaders
+	// This function only handles AWS SigV4 authentication which requires the request body
+	if len(b.config.apiTokens) > 0 {
+		return
+	}
+
+	// Use AWS Signature V4 authentication
 	t := time.Now().UTC()
 	amzDate := t.Format("20060102T150405Z")
 	dateStamp := t.Format("20060102")
