@@ -96,13 +96,16 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ModelRouterConfig) typ
 		return types.ActionContinue
 	}
 
-	if ctx.HasRequestBody() {
-		_ = proxywasm.RemoveHttpRequestHeader("content-length")
-		// We need to buffer the body to parse it
-		return types.HeaderStopIteration
+	if !ctx.HasRequestBody() {
+		return types.ActionContinue
 	}
 
-	return types.ActionContinue
+	// Prepare for body processing
+	proxywasm.RemoveHttpRequestHeader("content-length")
+	// 100MB buffer limit
+	ctx.SetRequestBodyBufferLimit(DefaultMaxBodyBytes)
+
+	return types.HeaderStopIteration
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config ModelRouterConfig, body []byte) types.Action {

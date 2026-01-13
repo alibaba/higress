@@ -140,12 +140,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 		return types.ActionContinue
 	}
 
-	// Check Content-Type
-	contentType, err := proxywasm.GetHttpRequestHeader("content-type")
-	if err != nil {
-		return types.ActionContinue
-	}
-	if !strings.Contains(contentType, "json") {
+	if !ctx.HasRequestBody() {
 		return types.ActionContinue
 	}
 
