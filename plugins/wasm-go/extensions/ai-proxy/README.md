@@ -331,6 +331,20 @@ Express Mode 是 Vertex AI 推出的简化访问模式，只需 API Key 即可�
 | `apiTokens`                 | array of string | 必填   | -      | Express Mode 使用的 API Key，从 Google Cloud Console 的 API & Services > Credentials 获取 |
 | `geminiSafetySetting`       | map of string | 非必填   | -      | Gemini AI 内容过滤和安全级别设定。参考[Safety settings](https://ai.google.dev/gemini-api/docs/safety-settings)                             |
 
+**OpenAI 兼容模式**（使用 Vertex AI Chat Completions API）：
+
+Vertex AI 提供了 OpenAI 兼容的 Chat Completions API 端点，可以直接使用 OpenAI 格式的请求和响应，无需进行协议转换。详见 [Vertex AI OpenAI 兼容性文档](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/openai/overview)。
+
+| 名称                         | 数据类型       | 填写要求   | 默认值    | 描述                                                                            |
+|-----------------------------|---------------|--------|--------|-------------------------------------------------------------------------------|
+| `vertexOpenAICompatible`    | boolean       | 非必填   | false  | 启用 OpenAI 兼容模式。启用后将使用 Vertex AI 的 OpenAI-compatible Chat Completions API |
+| `vertexAuthKey`             | string        | 必填     | -      | 用于认证的 Google Service Account JSON Key |
+| `vertexRegion`              | string        | 必填     | -      | Google Cloud 区域（如 us-central1, europe-west4 等） |
+| `vertexProjectId`           | string        | 必填     | -      | Google Cloud 项目 ID |
+| `vertexAuthServiceName`     | string        | 必填     | -      | 用于 OAuth2 认证的服务名称 |
+
+**注意**：OpenAI 兼容模式与 Express Mode 互斥，不能同时配置 `apiTokens` 和 `vertexOpenAICompatible`。
+
 #### AWS Bedrock
 
 AWS Bedrock 所对应的 type 为 bedrock。它支持两种认证方式：
@@ -2078,6 +2092,74 @@ provider:
     "prompt_tokens": 10,
     "completion_tokens": 25,
     "total_tokens": 35
+  }
+}
+```
+
+### 使用 OpenAI 协议代理 Google Vertex 服务（OpenAI 兼容模式）
+
+OpenAI 兼容模式使用 Vertex AI 的 OpenAI-compatible Chat Completions API，请求和响应都使用 OpenAI 格式，无需进行协议转换。
+
+**配置信息**
+
+```yaml
+provider:
+  type: vertex
+  vertexOpenAICompatible: true
+  vertexAuthKey: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-private-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  vertexRegion: us-central1
+  vertexProjectId: your-project-id
+  vertexAuthServiceName: your-auth-service-name
+  modelMapping:
+    "gpt-4": "gemini-2.0-flash"
+    "*": "gemini-1.5-flash"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ],
+  "stream": false
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "chatcmpl-abc123",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是由 Google 开发的 Gemini 模型。我可以帮助回答问题、提供信息和进行对话。有什么我可以帮您的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.0-flash",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 35,
+    "total_tokens": 47
   }
 }
 ```
