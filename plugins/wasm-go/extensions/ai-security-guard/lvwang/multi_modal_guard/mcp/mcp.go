@@ -16,11 +16,91 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const DenyResponse = `{"jsonrpc":"2.0","id":0,"error":{"code":403,"message":"blocked by security guard"}}`
-const DenySSEResponse = `event: message
+const (
+	MethodToolCall  = "tools/call"
+	DenyResponse    = `{"jsonrpc":"2.0","id":0,"error":{"code":403,"message":"blocked by security guard"}}`
+	DenySSEResponse = `event: message
 data: {"jsonrpc":"2.0","id":0,"error":{"code":403,"message":"blocked by security guard"}}
 
 `
+)
+
+func HandleMcpRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+	consumer, _ := ctx.GetContext("consumer").(string)
+	checkService := config.GetRequestCheckService(consumer)
+	mcpMethod := gjson.GetBytes(body, "method").String()
+	if mcpMethod != MethodToolCall {
+		log.Infof("method is %s, skip request check", mcpMethod)
+		return types.ActionContinue
+	}
+	startTime := time.Now().UnixMilli()
+	content := gjson.GetBytes(body, config.RequestContentJsonPath).String()
+	log.Debugf("Raw request content is: %s", content)
+	if len(content) == 0 {
+		log.Info("request content is empty. skip")
+		return types.ActionContinue
+	}
+	contentIndex := 0
+	sessionID, _ := utils.GenerateHexID(20)
+	var singleCall func()
+	callback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		log.Info(string(responseBody))
+		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+		var response cfg.Response
+		err := json.Unmarshal(responseBody, &response)
+		if err != nil {
+			log.Errorf("%+v", err)
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+		if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
+			if contentIndex >= len(content) {
+				endTime := time.Now().UnixMilli()
+				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+				ctx.SetUserAttribute("safecheck_status", "request pass")
+				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+				proxywasm.ResumeHttpRequest()
+			} else {
+				singleCall()
+			}
+			return
+		}
+		ctx.DontReadResponseBody()
+		config.IncrementCounter("ai_sec_request_deny", 1)
+		endTime := time.Now().UnixMilli()
+		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
+		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
+		if response.Data.Advice != nil {
+			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
+			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
+		}
+		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+		proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(DenyResponse), -1)
+	}
+	singleCall = func() {
+		var nextContentIndex int
+		if contentIndex+cfg.LengthLimit >= len(content) {
+			nextContentIndex = len(content)
+		} else {
+			nextContentIndex = contentIndex + cfg.LengthLimit
+		}
+		contentPiece := content[contentIndex:nextContentIndex]
+		contentIndex = nextContentIndex
+		// log.Debugf("current content piece: %s", contentPiece)
+		path, headers, body := common.GenerateRequestForText(config, cfg.MultiModalGuard, checkService, contentPiece, sessionID)
+		err := config.Client.Post(path, headers, body, callback, config.Timeout)
+		if err != nil {
+			log.Errorf("failed call the safe check service: %v", err)
+			proxywasm.ResumeHttpRequest()
+		}
+	}
+
+	singleCall()
+	return types.ActionPause
+}
 
 func HandleMcpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, data []byte, endOfStream bool) []byte {
 	consumer, _ := ctx.GetContext("consumer").(string)
@@ -123,7 +203,6 @@ func HandleMcpResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig,
 			}
 			return
 		}
-		proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(DenyResponse), -1)
 		config.IncrementCounter("ai_sec_response_deny", 1)
 		endTime := time.Now().UnixMilli()
 		ctx.SetUserAttribute("safecheck_response_rt", endTime-startTime)
@@ -133,6 +212,10 @@ func HandleMcpResponseBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig,
 			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
 		}
 		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+		proxywasm.RemoveHttpResponseHeader("content-length")
+		proxywasm.ReplaceHttpResponseBody([]byte(DenyResponse))
+		proxywasm.ResumeHttpResponse()
+		// proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(DenyResponse), -1)
 	}
 	singleCall = func() {
 		var nextContentIndex int

@@ -30,7 +30,7 @@ func OnHttpRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, bod
 			return types.ActionContinue
 		}
 	case cfg.ApiMCP:
-		return types.ActionContinue
+		return mcp.HandleMcpRequestBody(ctx, config, body)
 	default:
 		log.Errorf("[on request body] multi_modal_guard don't support api: %s", config.ApiType)
 		return types.ActionContinue
