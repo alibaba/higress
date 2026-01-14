@@ -78,6 +78,52 @@ var invalidVertexStandardModeConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：Vertex OpenAI 兼容模式配置
+var vertexOpenAICompatibleModeConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":                    "vertex",
+			"vertexOpenAICompatible":  true,
+			"vertexAuthKey":           `{"type":"service_account","client_email":"test@test.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7k1v5C7y8L4SN\n-----END PRIVATE KEY-----\n","token_uri":"https://oauth2.googleapis.com/token"}`,
+			"vertexRegion":            "us-central1",
+			"vertexProjectId":         "test-project-id",
+			"vertexAuthServiceName":   "test-auth-service",
+		},
+	})
+	return data
+}()
+
+// 测试配置：Vertex OpenAI 兼容模式配置（含模型映射）
+var vertexOpenAICompatibleModeWithModelMappingConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":                    "vertex",
+			"vertexOpenAICompatible":  true,
+			"vertexAuthKey":           `{"type":"service_account","client_email":"test@test.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7k1v5C7y8L4SN\n-----END PRIVATE KEY-----\n","token_uri":"https://oauth2.googleapis.com/token"}`,
+			"vertexRegion":            "us-central1",
+			"vertexProjectId":         "test-project-id",
+			"vertexAuthServiceName":   "test-auth-service",
+			"modelMapping": map[string]string{
+				"gpt-4":         "gemini-2.0-flash",
+				"gpt-3.5-turbo": "gemini-1.5-flash",
+			},
+		},
+	})
+	return data
+}()
+
+// 测试配置：无效配置 - Express Mode 与 OpenAI 兼容模式互斥
+var invalidVertexExpressAndOpenAICompatibleConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":                   "vertex",
+			"apiTokens":              []string{"test-api-key"},
+			"vertexOpenAICompatible": true,
+		},
+	})
+	return data
+}()
+
 func RunVertexParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		// 测试 Vertex 标准模式配置解析
@@ -129,6 +175,35 @@ func RunVertexParseConfigTests(t *testing.T) {
 			config, err := host.GetMatchConfig()
 			require.NoError(t, err)
 			require.NotNil(t, config)
+		})
+
+		// 测试 Vertex OpenAI 兼容模式配置解析
+		t.Run("vertex openai compatible mode config", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			require.NotNil(t, config)
+		})
+
+		// 测试 Vertex OpenAI 兼容模式配置（含模型映射）
+		t.Run("vertex openai compatible mode with model mapping config", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeWithModelMappingConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			require.NotNil(t, config)
+		})
+
+		// 测试无效配置 - Express Mode 与 OpenAI 兼容模式互斥
+		t.Run("invalid config - express mode and openai compatible mode conflict", func(t *testing.T) {
+			host, status := test.NewTestHost(invalidVertexExpressAndOpenAICompatibleConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusFailed, status)
 		})
 	})
 }
@@ -446,6 +521,131 @@ func RunVertexExpressModeOnHttpResponseBodyTests(t *testing.T) {
 	})
 }
 
+func RunVertexOpenAICompatibleModeOnHttpRequestHeadersTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试 Vertex OpenAI 兼容模式请求头处理
+		t.Run("vertex openai compatible mode request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 设置请求头
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 应该返回HeaderStopIteration，因为需要处理请求体
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			// 验证请求头是否被正确处理
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			// 验证Host是否被改为 vertex 域名（带 region 前缀）
+			require.True(t, test.HasHeaderWithValue(requestHeaders, ":authority", "us-central1-aiplatform.googleapis.com"), "Host header should be changed to vertex domain with region prefix")
+		})
+	})
+}
+
+func RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试 Vertex OpenAI 兼容模式请求体处理（不转换格式，保持 OpenAI 格式）
+		t.Run("vertex openai compatible mode request body - no format conversion", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 设置请求体（OpenAI 格式）
+			requestBody := `{"model":"gemini-2.0-flash","messages":[{"role":"user","content":"test"}]}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// OpenAI 兼容模式需要等待 OAuth token，所以返回 ActionPause
+			require.Equal(t, types.ActionPause, action)
+
+			// 验证请求体保持 OpenAI 格式（不转换为 Vertex 原生格式）
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			// OpenAI 兼容模式应该保持 messages 字段，而不是转换为 contents
+			require.Contains(t, string(processedBody), "messages", "Request should keep OpenAI format with messages field")
+			require.NotContains(t, string(processedBody), "contents", "Request should NOT be converted to vertex native format")
+
+			// 验证路径为 OpenAI 兼容端点
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "/v1beta1/projects/", "Path should use OpenAI compatible endpoint format")
+			require.Contains(t, pathHeader, "/endpoints/openapi/chat/completions", "Path should contain openapi chat completions endpoint")
+		})
+
+		// 测试 Vertex OpenAI 兼容模式请求体处理（含模型映射）
+		t.Run("vertex openai compatible mode with model mapping", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeWithModelMappingConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 设置请求体（使用 OpenAI 模型名）
+			requestBody := `{"model":"gpt-4","messages":[{"role":"user","content":"test"}]}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+
+			require.Equal(t, types.ActionPause, action)
+
+			// 验证请求体中的模型名被映射
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			// 模型名应该被映射为 gemini-2.0-flash
+			require.Contains(t, string(processedBody), "gemini-2.0-flash", "Model name should be mapped to gemini-2.0-flash")
+		})
+
+		// 测试 Vertex OpenAI 兼容模式不支持 Embeddings API
+		t.Run("vertex openai compatible mode - embeddings not supported", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/embeddings"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 设置请求体
+			requestBody := `{"model":"text-embedding-001","input":"test text"}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// OpenAI 兼容模式只支持 chat completions，embeddings 应该返回错误
+			require.Equal(t, types.ActionContinue, action)
+		})
+	})
+}
+
 func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		// 测试 Vertex Express Mode 流式响应处理
@@ -494,6 +694,195 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 				}
 			}
 			require.True(t, hasStreamingLogs, "Should have streaming response processing logs")
+		})
+	})
+}
+
+func RunVertexOpenAICompatibleModeOnHttpResponseBodyTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试 Vertex OpenAI 兼容模式响应体处理（直接透传，不转换格式）
+		t.Run("vertex openai compatible mode response body - passthrough", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 设置请求体
+			requestBody := `{"model":"gemini-2.0-flash","messages":[{"role":"user","content":"test"}]}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// 设置响应属性，确保IsResponseFromUpstream()返回true
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
+			// 设置响应头
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			// 设置响应体（OpenAI 格式 - 因为 Vertex AI OpenAI-compatible API 返回的就是 OpenAI 格式）
+			responseBody := `{
+				"id": "chatcmpl-abc123",
+				"choices": [{
+					"index": 0,
+					"message": {
+						"role": "assistant",
+						"content": "Hello! How can I help you today?"
+					},
+					"finish_reason": "stop"
+				}],
+				"created": 1729986750,
+				"model": "gemini-2.0-flash",
+				"object": "chat.completion",
+				"usage": {
+					"prompt_tokens": 9,
+					"completion_tokens": 12,
+					"total_tokens": 21
+				}
+			}`
+			action := host.CallOnHttpResponseBody([]byte(responseBody))
+
+			require.Equal(t, types.ActionContinue, action)
+
+			// 验证响应体被直接透传（不进行格式转换）
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+
+			// 响应应该保持原样
+			responseStr := string(processedResponseBody)
+			require.Contains(t, responseStr, "chatcmpl-abc123", "Response should be passed through unchanged")
+			require.Contains(t, responseStr, "chat.completion", "Response should contain original object type")
+		})
+
+		// 测试 Vertex OpenAI 兼容模式流式响应处理（直接透传）
+		t.Run("vertex openai compatible mode streaming response - passthrough", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 设置流式请求体
+			requestBody := `{"model":"gemini-2.0-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// 设置流式响应头
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			// 模拟 OpenAI 格式的流式响应（Vertex AI OpenAI-compatible API 返回）
+			chunk1 := `data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1729986750,"model":"gemini-2.0-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello"},"finish_reason":null}]}`
+			chunk2 := `data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1729986750,"model":"gemini-2.0-flash","choices":[{"index":0,"delta":{"content":"!"},"finish_reason":"stop"}]}`
+
+			// 处理流式响应体 - 应该直接透传
+			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunk1), false)
+			require.Equal(t, types.ActionContinue, action1)
+
+			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunk2), true)
+			require.Equal(t, types.ActionContinue, action2)
+		})
+
+		// 测试 Vertex OpenAI 兼容模式流式响应处理（Unicode 转义解码）
+		t.Run("vertex openai compatible mode streaming response - unicode escape decoding", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 设置流式请求体
+			requestBody := `{"model":"gemini-2.0-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// 设置流式响应头
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			// 模拟带有 Unicode 转义的流式响应（Vertex AI OpenAI-compatible API 可能返回的格式）
+			// \u4e2d\u6587 = 中文
+			chunkWithUnicode := `data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1729986750,"model":"gemini-2.0-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"\u4e2d\u6587\u6d4b\u8bd5"},"finish_reason":null}]}`
+
+			// 处理流式响应体 - 应该解码 Unicode 转义
+			action := host.CallOnHttpStreamingResponseBody([]byte(chunkWithUnicode), false)
+			require.Equal(t, types.ActionContinue, action)
+
+			// 验证响应体中的 Unicode 转义已被解码
+			responseBody := host.GetResponseBody()
+			require.NotNil(t, responseBody)
+
+			responseStr := string(responseBody)
+			// 应该包含解码后的中文字符，而不是 \uXXXX 转义序列
+			require.Contains(t, responseStr, "中文测试", "Unicode escapes should be decoded to Chinese characters")
+			require.NotContains(t, responseStr, `\u4e2d`, "Should not contain Unicode escape sequences")
+		})
+
+		// 测试 Vertex OpenAI 兼容模式非流式响应处理（Unicode 转义解码）
+		t.Run("vertex openai compatible mode response body - unicode escape decoding", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 先设置请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// 设置请求体
+			requestBody := `{"model":"gemini-2.0-flash","messages":[{"role":"user","content":"test"}]}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// 设置响应头
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			// 模拟带有 Unicode 转义的响应体
+			// \u76c8\u5229\u80fd\u529b = 盈利能力
+			responseBodyWithUnicode := `{"id":"chatcmpl-abc123","object":"chat.completion","created":1729986750,"model":"gemini-2.0-flash","choices":[{"index":0,"message":{"role":"assistant","content":"\u76c8\u5229\u80fd\u529b\u5206\u6790"},"finish_reason":"stop"}]}`
+
+			// 处理响应体 - 应该解码 Unicode 转义
+			action := host.CallOnHttpResponseBody([]byte(responseBodyWithUnicode))
+			require.Equal(t, types.ActionContinue, action)
+
+			// 验证响应体中的 Unicode 转义已被解码
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+
+			responseStr := string(processedResponseBody)
+			// 应该包含解码后的中文字符
+			require.Contains(t, responseStr, "盈利能力分析", "Unicode escapes should be decoded to Chinese characters")
+			require.NotContains(t, responseStr, `\u76c8`, "Should not contain Unicode escape sequences")
 		})
 	})
 }
