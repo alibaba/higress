@@ -410,26 +410,44 @@ func (v *vertexProvider) buildVertexImageGenerationRequest(request *imageGenerat
 }
 
 // parseImageSize 解析 OpenAI 格式的尺寸字符串（如 "1024x1024"）为 Vertex AI 的 aspectRatio 和 imageSize
+// Vertex AI 支持的 aspectRatio: 1:1, 3:2, 2:3, 3:4, 4:3, 4:5, 5:4, 9:16, 16:9, 21:9
+// Vertex AI 支持的 imageSize: 1k, 2k, 4k
 func (v *vertexProvider) parseImageSize(size string) (aspectRatio, imageSize string) {
 	// 默认值
 	aspectRatio = "1:1"
-	imageSize = "1K"
+	imageSize = "1k"
 
 	if size == "" {
 		return
 	}
 
-	// 预定义的尺寸映射
+	// 预定义的尺寸映射（OpenAI 标准尺寸）
 	sizeMapping := map[string]struct {
 		aspectRatio string
 		imageSize   string
 	}{
-		"256x256":   {"1:1", "512"},
-		"512x512":   {"1:1", "512"},
-		"1024x1024": {"1:1", "1K"},
-		"1792x1024": {"16:9", "1K"},
-		"1024x1792": {"9:16", "1K"},
-		"2048x2048": {"1:1", "2K"},
+		// OpenAI DALL-E 标准尺寸
+		"256x256":   {"1:1", "1k"},
+		"512x512":   {"1:1", "1k"},
+		"1024x1024": {"1:1", "1k"},
+		"1792x1024": {"16:9", "2k"},
+		"1024x1792": {"9:16", "2k"},
+		// 扩展尺寸支持
+		"2048x2048": {"1:1", "2k"},
+		"4096x4096": {"1:1", "4k"},
+		// 3:2 和 2:3 比例
+		"1536x1024": {"3:2", "2k"},
+		"1024x1536": {"2:3", "2k"},
+		// 4:3 和 3:4 比例
+		"1024x768":  {"4:3", "1k"},
+		"768x1024":  {"3:4", "1k"},
+		"1365x1024": {"4:3", "1k"},
+		"1024x1365": {"3:4", "1k"},
+		// 5:4 和 4:5 比例
+		"1280x1024": {"5:4", "1k"},
+		"1024x1280": {"4:5", "1k"},
+		// 21:9 超宽比例
+		"2560x1080": {"21:9", "2k"},
 	}
 
 	if mapping, ok := sizeMapping[size]; ok {
