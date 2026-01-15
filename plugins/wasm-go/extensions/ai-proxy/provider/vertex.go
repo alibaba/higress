@@ -21,14 +21,21 @@ import (
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
 	vertexAuthDomain = "oauth2.googleapis.com"
 	vertexDomain     = "aiplatform.googleapis.com"
 	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{MODEL_ID}:{ACTION}
-	vertexPathTemplate                 = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
-	vertexPathAnthropicTemplate        = "/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s"
+	vertexPathTemplate          = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
+	vertexPathAnthropicTemplate = "/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s"
+	// Express Mode 路径模板 (不含 project/location)
+	vertexExpressPathTemplate          = "/v1/publishers/google/models/%s:%s"
+	vertexExpressPathAnthropicTemplate = "/v1/publishers/anthropic/models/%s:%s"
+	// OpenAI-compatible endpoint 路径模板
+	// /v1beta1/projects/{PROJECT_ID}/locations/{LOCATION}/endpoints/openapi/chat/completions
+	vertexOpenAICompatiblePathTemplate = "/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions"
 	vertexChatCompletionAction         = "generateContent"
 	vertexChatCompletionStreamAction   = "streamGenerateContent?alt=sse"
 	vertexAnthropicMessageAction       = "rawPredict"
@@ -36,12 +43,38 @@ const (
 	vertexEmbeddingAction              = "predict"
 	vertexGlobalRegion                 = "global"
 	contextClaudeMarker                = "isClaudeRequest"
+	contextOpenAICompatibleMarker      = "isOpenAICompatibleRequest"
 	vertexAnthropicVersion             = "vertex-2023-10-16"
 )
 
 type vertexProviderInitializer struct{}
 
 func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error {
+	// Express Mode: 如果配置了 apiTokens，则使用 API Key 认证
+	if len(config.apiTokens) > 0 {
+		// Express Mode 与 OpenAI 兼容模式互斥
+		if config.vertexOpenAICompatible {
+			return errors.New("vertexOpenAICompatible is not compatible with Express Mode (apiTokens)")
+		}
+		// Express Mode 不需要其他配置
+		return nil
+	}
+
+	// OpenAI 兼容模式: 需要 OAuth 认证配置
+	if config.vertexOpenAICompatible {
+		if config.vertexAuthKey == "" {
+			return errors.New("missing vertexAuthKey in vertex provider config for OpenAI compatible mode")
+		}
+		if config.vertexRegion == "" || config.vertexProjectId == "" {
+			return errors.New("missing vertexRegion or vertexProjectId in vertex provider config for OpenAI compatible mode")
+		}
+		if config.vertexAuthServiceName == "" {
+			return errors.New("missing vertexAuthServiceName in vertex provider config for OpenAI compatible mode")
+		}
+		return nil
+	}
+
+	// 标准模式: 保持原有验证逻辑
 	if config.vertexAuthKey == "" {
 		return errors.New("missing vertexAuthKey in vertex provider config")
 	}
@@ -63,19 +96,38 @@ func (v *vertexProviderInitializer) DefaultCapabilities() map[string]string {
 
 func (v *vertexProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	config.setDefaultCapabilities(v.DefaultCapabilities())
-	return &vertexProvider{
-		config: config,
-		client: wrapper.NewClusterClient(wrapper.DnsCluster{
-			Domain:      vertexAuthDomain,
-			ServiceName: config.vertexAuthServiceName,
-			Port:        443,
-		}),
+
+	provider := &vertexProvider{
+		config:       config,
 		contextCache: createContextCache(&config),
 		claude: &claudeProvider{
 			config:       config,
 			contextCache: createContextCache(&config),
 		},
-	}, nil
+	}
+
+	// 仅标准模式需要 OAuth 客户端（Express Mode 通过 apiTokens 配置）
+	if !provider.isExpressMode() {
+		provider.client = wrapper.NewClusterClient(wrapper.DnsCluster{
+			Domain:      vertexAuthDomain,
+			ServiceName: config.vertexAuthServiceName,
+			Port:        443,
+		})
+	}
+
+	return provider, nil
+}
+
+// isExpressMode 检测是否启用 Express Mode
+// 如果配置了 apiTokens，则使用 Express Mode（API Key 认证）
+func (v *vertexProvider) isExpressMode() bool {
+	return len(v.config.apiTokens) > 0
+}
+
+// isOpenAICompatibleMode 检测是否启用 OpenAI 兼容模式
+// 使用 Vertex AI 的 OpenAI-compatible Chat Completions API
+func (v *vertexProvider) isOpenAICompatibleMode() bool {
+	return v.config.vertexOpenAICompatible
 }
 
 type vertexProvider struct {
@@ -106,11 +158,19 @@ func (v *vertexProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (v *vertexProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	var finalVertexDomain string
-	if v.config.vertexRegion != vertexGlobalRegion {
-		finalVertexDomain = fmt.Sprintf("%s-%s", v.config.vertexRegion, vertexDomain)
-	} else {
+
+	if v.isExpressMode() {
+		// Express Mode: 固定域名，不带 region 前缀
 		finalVertexDomain = vertexDomain
+	} else {
+		// 标准模式: 带 region 前缀
+		if v.config.vertexRegion != vertexGlobalRegion {
+			finalVertexDomain = fmt.Sprintf("%s-%s", v.config.vertexRegion, vertexDomain)
+		} else {
+			finalVertexDomain = vertexDomain
+		}
 	}
+
 	util.OverwriteRequestHostHeader(headers, finalVertexDomain)
 }
 
@@ -153,9 +213,42 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if v.config.IsOriginal() {
 		return types.ActionContinue, nil
 	}
+
 	headers := util.GetRequestHeaders()
+
+	// OpenAI 兼容模式: 不转换请求体，只设置路径和进行模型映射
+	if v.isOpenAICompatibleMode() {
+		ctx.SetContext(contextOpenAICompatibleMarker, true)
+		body, err := v.onOpenAICompatibleRequestBody(ctx, apiName, body, headers)
+		headers.Set("Content-Length", fmt.Sprint(len(body)))
+		util.ReplaceRequestHeaders(headers)
+		_ = proxywasm.ReplaceHttpRequestBody(body)
+		if err != nil {
+			return types.ActionContinue, err
+		}
+		// OpenAI 兼容模式需要 OAuth token
+		cached, err := v.getToken()
+		if cached {
+			return types.ActionContinue, nil
+		}
+		if err == nil {
+			return types.ActionPause, nil
+		}
+		return types.ActionContinue, err
+	}
+
 	body, err := v.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 	headers.Set("Content-Length", fmt.Sprint(len(body)))
+
+	if v.isExpressMode() {
+		// Express Mode: 不需要 Authorization header，API Key 已在 URL 中
+		headers.Del("Authorization")
+		util.ReplaceRequestHeaders(headers)
+		_ = proxywasm.ReplaceHttpRequestBody(body)
+		return types.ActionContinue, err
+	}
+
+	// 标准模式: 需要获取 OAuth token
 	util.ReplaceRequestHeaders(headers)
 	_ = proxywasm.ReplaceHttpRequestBody(body)
 	if err != nil {
@@ -177,6 +270,32 @@ func (v *vertexProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, ap
 	} else {
 		return v.onEmbeddingsRequestBody(ctx, body, headers)
 	}
+}
+
+// onOpenAICompatibleRequestBody 处理 OpenAI 兼容模式的请求
+// 不转换请求体格式，只进行模型映射和路径设置
+func (v *vertexProvider) onOpenAICompatibleRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return nil, fmt.Errorf("OpenAI compatible mode only supports chat completions API")
+	}
+
+	// 解析请求进行模型映射
+	request := &chatCompletionRequest{}
+	if err := v.config.parseRequestAndMapModel(ctx, request, body); err != nil {
+		return nil, err
+	}
+
+	// 设置 OpenAI 兼容端点路径
+	path := v.getOpenAICompatibleRequestPath()
+	util.OverwriteRequestPathHeader(headers, path)
+
+	// 如果模型被映射，需要更新请求体中的模型字段
+	if request.Model != "" {
+		body, _ = sjson.SetBytes(body, "model", request.Model)
+	}
+
+	// 保持 OpenAI 格式，直接返回（可能更新了模型字段）
+	return body, nil
 }
 
 func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header) ([]byte, error) {
@@ -220,6 +339,12 @@ func (v *vertexProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body [
 }
 
 func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
+	// OpenAI 兼容模式: 透传响应，但需要解码 Unicode 转义序列
+	// Vertex AI OpenAI-compatible API 返回 ASCII-safe JSON，将非 ASCII 字符编码为 \uXXXX
+	if ctx.GetContext(contextOpenAICompatibleMarker) != nil && ctx.GetContext(contextOpenAICompatibleMarker).(bool) {
+		return util.DecodeUnicodeEscapesInSSE(chunk), nil
+	}
+
 	if ctx.GetContext(contextClaudeMarker) != nil && ctx.GetContext(contextClaudeMarker).(bool) {
 		return v.claude.OnStreamingResponseBody(ctx, name, chunk, isLastChunk)
 	}
@@ -260,6 +385,12 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 }
 
 func (v *vertexProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	// OpenAI 兼容模式: 透传响应，但需要解码 Unicode 转义序列
+	// Vertex AI OpenAI-compatible API 返回 ASCII-safe JSON，将非 ASCII 字符编码为 \uXXXX
+	if ctx.GetContext(contextOpenAICompatibleMarker) != nil && ctx.GetContext(contextOpenAICompatibleMarker).(bool) {
+		return util.DecodeUnicodeEscapes(body), nil
+	}
+
 	if ctx.GetContext(contextClaudeMarker) != nil && ctx.GetContext(contextClaudeMarker).(bool) {
 		return v.claude.TransformResponseBody(ctx, apiName, body)
 	}
@@ -422,7 +553,23 @@ func (v *vertexProvider) getAhthropicRequestPath(apiName ApiName, modelId string
 	} else {
 		action = vertexAnthropicMessageAction
 	}
-	return fmt.Sprintf(vertexPathAnthropicTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+
+	if v.isExpressMode() {
+		// Express Mode: 简化路径 + API Key 参数
+		basePath := fmt.Sprintf(vertexExpressPathAnthropicTemplate, modelId, action)
+		apiKey := v.config.GetRandomToken()
+		// 如果 action 已经包含 ?，使用 & 拼接
+		var fullPath string
+		if strings.Contains(action, "?") {
+			fullPath = basePath + "&key=" + apiKey
+		} else {
+			fullPath = basePath + "?key=" + apiKey
+		}
+		return fullPath
+	}
+
+	path := fmt.Sprintf(vertexPathAnthropicTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+	return path
 }
 
 func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream bool) string {
@@ -434,7 +581,28 @@ func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream 
 	} else {
 		action = vertexChatCompletionAction
 	}
-	return fmt.Sprintf(vertexPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+
+	if v.isExpressMode() {
+		// Express Mode: 简化路径 + API Key 参数
+		basePath := fmt.Sprintf(vertexExpressPathTemplate, modelId, action)
+		apiKey := v.config.GetRandomToken()
+		// 如果 action 已经包含 ?（如 streamGenerateContent?alt=sse），使用 & 拼接
+		var fullPath string
+		if strings.Contains(action, "?") {
+			fullPath = basePath + "&key=" + apiKey
+		} else {
+			fullPath = basePath + "?key=" + apiKey
+		}
+		return fullPath
+	}
+
+	path := fmt.Sprintf(vertexPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
+	return path
+}
+
+// getOpenAICompatibleRequestPath 获取 OpenAI 兼容模式的请求路径
+func (v *vertexProvider) getOpenAICompatibleRequestPath() string {
+	return fmt.Sprintf(vertexOpenAICompatiblePathTemplate, v.config.vertexProjectId, v.config.vertexRegion)
 }
 
 func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) *vertexChatRequest {
