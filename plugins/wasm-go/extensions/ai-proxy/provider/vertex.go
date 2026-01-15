@@ -89,8 +89,9 @@ func (v *vertexProviderInitializer) ValidateConfig(config *ProviderConfig) error
 
 func (v *vertexProviderInitializer) DefaultCapabilities() map[string]string {
 	return map[string]string{
-		string(ApiNameChatCompletion): vertexPathTemplate,
-		string(ApiNameEmbeddings):     vertexPathTemplate,
+		string(ApiNameChatCompletion):  vertexPathTemplate,
+		string(ApiNameEmbeddings):      vertexPathTemplate,
+		string(ApiNameImageGeneration): vertexPathTemplate,
 	}
 }
 
@@ -265,10 +266,15 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 }
 
 func (v *vertexProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
-	if apiName == ApiNameChatCompletion {
+	switch apiName {
+	case ApiNameChatCompletion:
 		return v.onChatCompletionRequestBody(ctx, body, headers)
-	} else {
+	case ApiNameEmbeddings:
 		return v.onEmbeddingsRequestBody(ctx, body, headers)
+	case ApiNameImageGeneration:
+		return v.onImageGenerationRequestBody(ctx, body, headers)
+	default:
+		return body, nil
 	}
 }
 
@@ -338,6 +344,101 @@ func (v *vertexProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body [
 	return json.Marshal(vertexRequest)
 }
 
+func (v *vertexProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header) ([]byte, error) {
+	request := &imageGenerationRequest{}
+	if err := v.config.parseRequestAndMapModel(ctx, request, body); err != nil {
+		return nil, err
+	}
+	// 图片生成不使用流式端点，需要完整响应
+	path := v.getRequestPath(ApiNameImageGeneration, request.Model, false)
+	util.OverwriteRequestPathHeader(headers, path)
+
+	vertexRequest := v.buildVertexImageGenerationRequest(request)
+	return json.Marshal(vertexRequest)
+}
+
+func (v *vertexProvider) buildVertexImageGenerationRequest(request *imageGenerationRequest) *vertexChatRequest {
+	// 构建安全设置
+	safetySettings := make([]vertexChatSafetySetting, 0)
+	for category, threshold := range v.config.geminiSafetySetting {
+		safetySettings = append(safetySettings, vertexChatSafetySetting{
+			Category:  category,
+			Threshold: threshold,
+		})
+	}
+
+	// 解析尺寸参数
+	aspectRatio, imageSize := v.parseImageSize(request.Size)
+
+	// 确定输出 MIME 类型
+	mimeType := "image/png"
+	if request.OutputFormat != "" {
+		switch request.OutputFormat {
+		case "jpeg", "jpg":
+			mimeType = "image/jpeg"
+		case "webp":
+			mimeType = "image/webp"
+		default:
+			mimeType = "image/png"
+		}
+	}
+
+	vertexRequest := &vertexChatRequest{
+		Contents: []vertexChatContent{{
+			Role: roleUser,
+			Parts: []vertexPart{{
+				Text: request.Prompt,
+			}},
+		}},
+		SafetySettings: safetySettings,
+		GenerationConfig: vertexChatGenerationConfig{
+			Temperature:        1.0,
+			MaxOutputTokens:    32768,
+			ResponseModalities: []string{"TEXT", "IMAGE"},
+			ImageConfig: &vertexImageConfig{
+				AspectRatio: aspectRatio,
+				ImageSize:   imageSize,
+				ImageOutputOptions: &vertexImageOutputOptions{
+					MimeType: mimeType,
+				},
+				PersonGeneration: "ALLOW_ALL",
+			},
+		},
+	}
+
+	return vertexRequest
+}
+
+// parseImageSize 解析 OpenAI 格式的尺寸字符串（如 "1024x1024"）为 Vertex AI 的 aspectRatio 和 imageSize
+func (v *vertexProvider) parseImageSize(size string) (aspectRatio, imageSize string) {
+	// 默认值
+	aspectRatio = "1:1"
+	imageSize = "1K"
+
+	if size == "" {
+		return
+	}
+
+	// 预定义的尺寸映射
+	sizeMapping := map[string]struct {
+		aspectRatio string
+		imageSize   string
+	}{
+		"256x256":   {"1:1", "512"},
+		"512x512":   {"1:1", "512"},
+		"1024x1024": {"1:1", "1K"},
+		"1792x1024": {"16:9", "1K"},
+		"1024x1792": {"9:16", "1K"},
+		"2048x2048": {"1:1", "2K"},
+	}
+
+	if mapping, ok := sizeMapping[size]; ok {
+		return mapping.aspectRatio, mapping.imageSize
+	}
+
+	return
+}
+
 func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
 	// OpenAI 兼容模式: 透传响应，但需要解码 Unicode 转义序列
 	// Vertex AI OpenAI-compatible API 返回 ASCII-safe JSON，将非 ASCII 字符编码为 \uXXXX
@@ -394,10 +495,16 @@ func (v *vertexProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 	if ctx.GetContext(contextClaudeMarker) != nil && ctx.GetContext(contextClaudeMarker).(bool) {
 		return v.claude.TransformResponseBody(ctx, apiName, body)
 	}
-	if apiName == ApiNameChatCompletion {
+
+	switch apiName {
+	case ApiNameChatCompletion:
 		return v.onChatCompletionResponseBody(ctx, body)
-	} else {
+	case ApiNameEmbeddings:
 		return v.onEmbeddingsResponseBody(ctx, body)
+	case ApiNameImageGeneration:
+		return v.onImageGenerationResponseBody(ctx, body)
+	default:
+		return body, nil
 	}
 }
 
@@ -490,6 +597,46 @@ func (v *vertexProvider) buildEmbeddingsResponse(ctx wrapper.HttpContext, vertex
 	return &response
 }
 
+func (v *vertexProvider) onImageGenerationResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
+	// Vertex AI 返回的是单个 JSON 对象（使用 generateContent 而非 streamGenerateContent）
+	vertexResponse := &vertexChatResponse{}
+	if err := json.Unmarshal(body, vertexResponse); err != nil {
+		return nil, fmt.Errorf("unable to unmarshal vertex image generation response: %v", err)
+	}
+	response := v.buildImageGenerationResponse(ctx, vertexResponse)
+	return json.Marshal(response)
+}
+
+func (v *vertexProvider) buildImageGenerationResponse(ctx wrapper.HttpContext, vertexResp *vertexChatResponse) *imageGenerationResponse {
+	data := make([]imageGenerationData, 0)
+
+	// 遍历所有 candidates，提取图片数据
+	for _, candidate := range vertexResp.Candidates {
+		for _, part := range candidate.Content.Parts {
+			// 跳过思考过程 (thought: true)
+			if part.Thounght != nil && *part.Thounght {
+				continue
+			}
+			// 提取图片数据
+			if part.InlineData != nil && part.InlineData.Data != "" {
+				data = append(data, imageGenerationData{
+					B64: part.InlineData.Data,
+				})
+			}
+		}
+	}
+
+	return &imageGenerationResponse{
+		Created: time.Now().UnixMilli() / 1000,
+		Data:    data,
+		Usage: &imageGenerationUsage{
+			TotalTokens:  vertexResp.UsageMetadata.TotalTokenCount,
+			InputTokens:  vertexResp.UsageMetadata.PromptTokenCount,
+			OutputTokens: vertexResp.UsageMetadata.CandidatesTokenCount,
+		},
+	}
+}
+
 func (v *vertexProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpContext, vertexResp *vertexChatResponse) *chatCompletionResponse {
 	var choice chatCompletionChoice
 	choice.Delta = &chatMessage{}
@@ -574,12 +721,18 @@ func (v *vertexProvider) getAhthropicRequestPath(apiName ApiName, modelId string
 
 func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream bool) string {
 	action := ""
-	if apiName == ApiNameEmbeddings {
+	switch apiName {
+	case ApiNameEmbeddings:
 		action = vertexEmbeddingAction
-	} else if stream {
-		action = vertexChatCompletionStreamAction
-	} else {
+	case ApiNameImageGeneration:
+		// 图片生成使用非流式端点，需要完整响应
 		action = vertexChatCompletionAction
+	default:
+		if stream {
+			action = vertexChatCompletionStreamAction
+		} else {
+			action = vertexChatCompletionAction
+		}
 	}
 
 	if v.isExpressMode() {
@@ -804,12 +957,25 @@ type vertexChatSafetySetting struct {
 }
 
 type vertexChatGenerationConfig struct {
-	Temperature     float64              `json:"temperature,omitempty"`
-	TopP            float64              `json:"topP,omitempty"`
-	TopK            int                  `json:"topK,omitempty"`
-	CandidateCount  int                  `json:"candidateCount,omitempty"`
-	MaxOutputTokens int                  `json:"maxOutputTokens,omitempty"`
-	ThinkingConfig  vertexThinkingConfig `json:"thinkingConfig,omitempty"`
+	Temperature        float64              `json:"temperature,omitempty"`
+	TopP               float64              `json:"topP,omitempty"`
+	TopK               int                  `json:"topK,omitempty"`
+	CandidateCount     int                  `json:"candidateCount,omitempty"`
+	MaxOutputTokens    int                  `json:"maxOutputTokens,omitempty"`
+	ThinkingConfig     vertexThinkingConfig `json:"thinkingConfig,omitempty"`
+	ResponseModalities []string             `json:"responseModalities,omitempty"`
+	ImageConfig        *vertexImageConfig   `json:"imageConfig,omitempty"`
+}
+
+type vertexImageConfig struct {
+	AspectRatio        string                    `json:"aspectRatio,omitempty"`
+	ImageSize          string                    `json:"imageSize,omitempty"`
+	ImageOutputOptions *vertexImageOutputOptions `json:"imageOutputOptions,omitempty"`
+	PersonGeneration   string                    `json:"personGeneration,omitempty"`
+}
+
+type vertexImageOutputOptions struct {
+	MimeType string `json:"mimeType,omitempty"`
 }
 
 type vertexThinkingConfig struct {
