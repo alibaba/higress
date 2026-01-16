@@ -868,7 +868,7 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 						})
 					}
 				case contentTypeImageUrl:
-					vpart, err := convertImageContent(part.ImageUrl.Url)
+					vpart, err := convertMediaContent(part.ImageUrl.Url)
 					if err != nil {
 						log.Errorf("unable to convert image content: %v", err)
 					} else {
@@ -1212,32 +1212,106 @@ func setCachedAccessToken(key string, accessToken string, expireTime int64) erro
 	return proxywasm.SetSharedData(key, data, cas)
 }
 
-func convertImageContent(imageUrl string) (vertexPart, error) {
+// convertMediaContent 将 OpenAI 格式的媒体 URL 转换为 Vertex AI 格式
+// 支持图片、视频、音频等多种媒体类型
+func convertMediaContent(mediaUrl string) (vertexPart, error) {
 	part := vertexPart{}
-	if strings.HasPrefix(imageUrl, "http") {
-		arr := strings.Split(imageUrl, ".")
-		mimeType := "image/" + arr[len(arr)-1]
+	if strings.HasPrefix(mediaUrl, "http") {
+		mimeType := detectMimeTypeFromURL(mediaUrl)
 		part.FileData = &fileData{
 			MimeType: mimeType,
-			FileUri:  imageUrl,
+			FileUri:  mediaUrl,
 		}
 		return part, nil
 	} else {
+		// Base64 data URL 格式: data:<mimeType>;base64,<data>
 		re := regexp.MustCompile(`^data:([^;]+);base64,`)
-		matches := re.FindStringSubmatch(imageUrl)
+		matches := re.FindStringSubmatch(mediaUrl)
 		if len(matches) < 2 {
-			return part, fmt.Errorf("invalid base64 format")
+			return part, fmt.Errorf("invalid base64 format, expected data:<mimeType>;base64,<data>")
 		}
 
-		mimeType := matches[1] // e.g. image/png
+		mimeType := matches[1] // e.g. image/png, video/mp4, audio/mp3
 		parts := strings.Split(mimeType, "/")
 		if len(parts) < 2 {
-			return part, fmt.Errorf("invalid mimeType")
+			return part, fmt.Errorf("invalid mimeType: %s", mimeType)
 		}
 		part.InlineData = &blob{
 			MimeType: mimeType,
-			Data:     strings.TrimPrefix(imageUrl, matches[0]),
+			Data:     strings.TrimPrefix(mediaUrl, matches[0]),
 		}
 		return part, nil
 	}
+}
+
+// detectMimeTypeFromURL 根据 URL 的文件扩展名检测 MIME 类型
+// 支持图片、视频、音频和文档类型
+func detectMimeTypeFromURL(url string) string {
+	// 移除查询参数和片段标识符
+	if idx := strings.Index(url, "?"); idx != -1 {
+		url = url[:idx]
+	}
+	if idx := strings.Index(url, "#"); idx != -1 {
+		url = url[:idx]
+	}
+
+	// 获取最后一个路径段
+	lastSlash := strings.LastIndex(url, "/")
+	if lastSlash != -1 {
+		url = url[lastSlash+1:]
+	}
+
+	// 获取扩展名
+	lastDot := strings.LastIndex(url, ".")
+	if lastDot == -1 || lastDot == len(url)-1 {
+		return "application/octet-stream"
+	}
+	ext := strings.ToLower(url[lastDot+1:])
+
+	// 扩展名到 MIME 类型的映射
+	mimeTypes := map[string]string{
+		// 图片格式
+		"jpg":  "image/jpeg",
+		"jpeg": "image/jpeg",
+		"png":  "image/png",
+		"gif":  "image/gif",
+		"webp": "image/webp",
+		"bmp":  "image/bmp",
+		"svg":  "image/svg+xml",
+		"ico":  "image/x-icon",
+		"heic": "image/heic",
+		"heif": "image/heif",
+		"tiff": "image/tiff",
+		"tif":  "image/tiff",
+		// 视频格式
+		"mp4":  "video/mp4",
+		"mpeg": "video/mpeg",
+		"mpg":  "video/mpeg",
+		"mov":  "video/quicktime",
+		"avi":  "video/x-msvideo",
+		"wmv":  "video/x-ms-wmv",
+		"webm": "video/webm",
+		"mkv":  "video/x-matroska",
+		"flv":  "video/x-flv",
+		"3gp":  "video/3gpp",
+		"3g2":  "video/3gpp2",
+		"m4v":  "video/x-m4v",
+		// 音频格式
+		"mp3":  "audio/mpeg",
+		"wav":  "audio/wav",
+		"ogg":  "audio/ogg",
+		"flac": "audio/flac",
+		"aac":  "audio/aac",
+		"m4a":  "audio/mp4",
+		"wma":  "audio/x-ms-wma",
+		"opus": "audio/opus",
+		// 文档格式
+		"pdf": "application/pdf",
+	}
+
+	if mimeType, ok := mimeTypes[ext]; ok {
+		return mimeType
+	}
+
+	return "application/octet-stream"
 }
