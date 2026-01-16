@@ -259,7 +259,9 @@ For DeepL, the corresponding `type` is `deepl`. Its unique configuration field i
 | `targetLang` | string    | Required    | -       | The target language required by the DeepL translation service |
 
 #### Google Vertex AI
-For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
+For Vertex, the corresponding `type` is `vertex`. It supports two authentication modes:
+
+**Standard Mode** (using Service Account):
 
 | Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
 |-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -269,6 +271,29 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 | `vertexAuthServiceName`     | string        | Required      | -      | Service name for OAuth2 authentication, used to access oauth2.googleapis.com                                                                                |
 | `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
 | `vertexTokenRefreshAhead`   | number        | Optional      | -      | Vertex access token refresh ahead time in seconds                                                                                                           |
+
+**Express Mode** (using API Key, simplified configuration):
+
+Express Mode is a simplified access mode introduced by Vertex AI. You can quickly get started with just an API Key, without configuring a Service Account. See [Vertex AI Express Mode documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview).
+
+| Name                        | Data Type        | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|------------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `apiTokens`                 | array of string  | Required      | -      | API Key for Express Mode, obtained from Google Cloud Console under API & Services > Credentials                                                              |
+| `vertexGeminiSafetySetting` | map of string    | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
+
+**OpenAI Compatible Mode** (using Vertex AI Chat Completions API):
+
+Vertex AI provides an OpenAI-compatible Chat Completions API endpoint, allowing you to use OpenAI format requests and responses directly without protocol conversion. See [Vertex AI OpenAI Compatibility documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/openai/overview).
+
+| Name                        | Data Type        | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|------------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `vertexOpenAICompatible`    | boolean          | Optional      | false  | Enable OpenAI compatible mode. When enabled, uses Vertex AI's OpenAI-compatible Chat Completions API |
+| `vertexAuthKey`             | string           | Required      | -      | Google Service Account JSON Key for authentication |
+| `vertexRegion`              | string           | Required      | -      | Google Cloud region (e.g., us-central1, europe-west4) |
+| `vertexProjectId`           | string           | Required      | -      | Google Cloud Project ID |
+| `vertexAuthServiceName`     | string           | Required      | -      | Service name for OAuth2 authentication |
+
+**Note**: OpenAI Compatible Mode and Express Mode are mutually exclusive. You cannot configure both `apiTokens` and `vertexOpenAICompatible` at the same time.
 
 #### AWS Bedrock
 
@@ -1788,7 +1813,7 @@ provider:
 }
 ```
 
-### Utilizing OpenAI Protocol Proxy for Google Vertex Services
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (Standard Mode)
 **Configuration Information**
 ```yaml
 provider:
@@ -1842,6 +1867,122 @@ provider:
     "prompt_tokens": 15,
     "completion_tokens": 43,
     "total_tokens": 58
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (Express Mode)
+
+Express Mode is a simplified access mode for Vertex AI. You only need an API Key to get started quickly.
+
+**Configuration Information**
+```yaml
+provider:
+  type: vertex
+  apiTokens:
+    - "YOUR_API_KEY"
+```
+
+**Request Example**
+```json
+{
+  "model": "gemini-2.5-flash",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am Gemini, an AI assistant developed by Google. How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.5-flash",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 25,
+    "total_tokens": 35
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (OpenAI Compatible Mode)
+
+OpenAI Compatible Mode uses Vertex AI's OpenAI-compatible Chat Completions API. Both requests and responses use OpenAI format, requiring no protocol conversion.
+
+**Configuration Information**
+```yaml
+provider:
+  type: vertex
+  vertexOpenAICompatible: true
+  vertexAuthKey: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-private-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  vertexRegion: us-central1
+  vertexProjectId: your-project-id
+  vertexAuthServiceName: your-auth-service-name
+  modelMapping:
+    "gpt-4": "gemini-2.0-flash"
+    "*": "gemini-1.5-flash"
+```
+
+**Request Example**
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "chatcmpl-abc123",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am Gemini, an AI model developed by Google. I can help answer questions, provide information, and engage in conversations. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.0-flash",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 35,
+    "total_tokens": 47
   }
 }
 ```

@@ -138,6 +138,14 @@ func TestGeneric(t *testing.T) {
 	test.RunGenericOnHttpRequestBodyTests(t)
 }
 
+func TestVertex(t *testing.T) {
+	test.RunVertexParseConfigTests(t)
+	test.RunVertexExpressModeOnHttpRequestHeadersTests(t)
+	test.RunVertexExpressModeOnHttpRequestBodyTests(t)
+	test.RunVertexExpressModeOnHttpResponseBodyTests(t)
+	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
+}
+
 func TestBedrock(t *testing.T) {
 	test.RunBedrockParseConfigTests(t)
 	test.RunBedrockOnHttpRequestHeadersTests(t)
