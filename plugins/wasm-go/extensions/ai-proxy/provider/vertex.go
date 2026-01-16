@@ -616,41 +616,49 @@ func (v *vertexProvider) buildEmbeddingsResponse(ctx wrapper.HttpContext, vertex
 }
 
 func (v *vertexProvider) onImageGenerationResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
-	// Vertex AI 返回的是单个 JSON 对象（使用 generateContent 而非 streamGenerateContent）
-	vertexResponse := &vertexChatResponse{}
-	if err := json.Unmarshal(body, vertexResponse); err != nil {
-		return nil, fmt.Errorf("unable to unmarshal vertex image generation response: %v", err)
-	}
-	response := v.buildImageGenerationResponse(ctx, vertexResponse)
+	// 使用 gjson 直接提取字段，避免完整反序列化大型 base64 数据
+	// 这样可以显著减少内存分配和复制次数
+	response := v.buildImageGenerationResponseFromJSON(body)
 	return json.Marshal(response)
 }
 
-func (v *vertexProvider) buildImageGenerationResponse(ctx wrapper.HttpContext, vertexResp *vertexChatResponse) *imageGenerationResponse {
+// buildImageGenerationResponseFromJSON 使用 gjson 从原始 JSON 中提取图片生成响应
+// 相比 json.Unmarshal 完整反序列化，这种方式内存效率更高
+func (v *vertexProvider) buildImageGenerationResponseFromJSON(body []byte) *imageGenerationResponse {
+	result := gjson.ParseBytes(body)
 	data := make([]imageGenerationData, 0)
 
 	// 遍历所有 candidates，提取图片数据
-	for _, candidate := range vertexResp.Candidates {
-		for _, part := range candidate.Content.Parts {
+	candidates := result.Get("candidates")
+	candidates.ForEach(func(_, candidate gjson.Result) bool {
+		parts := candidate.Get("content.parts")
+		parts.ForEach(func(_, part gjson.Result) bool {
 			// 跳过思考过程 (thought: true)
-			if part.Thounght != nil && *part.Thounght {
-				continue
+			if part.Get("thought").Bool() {
+				return true
 			}
 			// 提取图片数据
-			if part.InlineData != nil && part.InlineData.Data != "" {
+			inlineData := part.Get("inlineData.data")
+			if inlineData.Exists() && inlineData.String() != "" {
 				data = append(data, imageGenerationData{
-					B64: part.InlineData.Data,
+					B64: inlineData.String(),
 				})
 			}
-		}
-	}
+			return true
+		})
+		return true
+	})
+
+	// 提取 usage 信息
+	usage := result.Get("usageMetadata")
 
 	return &imageGenerationResponse{
 		Created: time.Now().UnixMilli() / 1000,
 		Data:    data,
 		Usage: &imageGenerationUsage{
-			TotalTokens:  vertexResp.UsageMetadata.TotalTokenCount,
-			InputTokens:  vertexResp.UsageMetadata.PromptTokenCount,
-			OutputTokens: vertexResp.UsageMetadata.CandidatesTokenCount,
+			TotalTokens:  int(usage.Get("totalTokenCount").Int()),
+			InputTokens:  int(usage.Get("promptTokenCount").Int()),
+			OutputTokens: int(usage.Get("candidatesTokenCount").Int()),
 		},
 	}
 }
