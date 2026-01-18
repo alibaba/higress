@@ -265,7 +265,7 @@ func (s *Server) Start(stop <-chan struct{}) error {
 	crdWarnings := higresskube.CheckCRDVersions(s.kubeClient.RESTConfig())
 	if len(crdWarnings) > 0 {
 		log.Warn("=================================================================")
-		log.Warn("                  CRD VERSION WARNINGS                          ")
+		log.Warn("                      CRD VERSION WARNINGS                       ")
 		log.Warn("=================================================================")
 		for i, warning := range crdWarnings {
 			log.Warnf("[%d] %s", i+1, warning)
