@@ -123,6 +123,13 @@ func CheckCRDVersions(config *rest.Config) []string {
 							required.Name, required.ExpectedVersion, missingFields,
 						))
 					}
+				} else if len(required.RequiredFields) > 0 {
+					// Schema is nil but we have required fields to check
+					warnings = append(warnings, fmt.Sprintf(
+						"CRD '%s' version '%s' has no schema configured; cannot verify required fields: %v. "+
+							"Please update CRDs to enable schema validation.",
+						required.Name, required.ExpectedVersion, required.RequiredFields,
+					))
 				}
 				break
 			}
@@ -156,6 +163,11 @@ func checkRequiredFields(schema *apiExtensionsV1.JSONSchemaProps, requiredFields
 // fieldExistsInSchema checks if a field path exists in the schema
 // Field path format: "spec.fieldName" or "spec.nested.fieldName"
 func fieldExistsInSchema(schema *apiExtensionsV1.JSONSchemaProps, fieldPath string) bool {
+	// Check for empty field path first
+	if fieldPath == "" {
+		return false
+	}
+
 	if schema.Properties == nil {
 		return false
 	}
