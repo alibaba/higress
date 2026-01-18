@@ -258,9 +258,9 @@ func TestGetCRDVersions(t *testing.T) {
 	}
 }
 
-func TestCheckCRDVersions_AllCRDsPresent(t *testing.T) {
-	// This test would require mocking the Kubernetes API client
-	// For now, we'll test the logic with mock data
+func TestCRDVersionHelpers_AllFieldsPresent(t *testing.T) {
+	// This test validates the helper functions with a complete CRD
+	// that has all required fields and the correct version
 
 	// Create a mock CRD with correct version and fields
 	mockCRD := &apiExtensionsV1.CustomResourceDefinition{
@@ -304,8 +304,8 @@ func TestCheckCRDVersions_AllCRDsPresent(t *testing.T) {
 	}
 }
 
-func TestCheckCRDVersions_MissingFields(t *testing.T) {
-	// Create a mock CRD with missing fields
+func TestCRDVersionHelpers_MissingFields(t *testing.T) {
+	// Test that checkRequiredFields correctly identifies missing fields
 	mockCRD := &apiExtensionsV1.CustomResourceDefinition{
 		ObjectMeta: metaV1.ObjectMeta{
 			Name: "wasmplugins.extensions.higress.io",
@@ -342,7 +342,7 @@ func TestCheckCRDVersions_MissingFields(t *testing.T) {
 	}
 }
 
-func TestCheckCRDVersions_WrongVersion(t *testing.T) {
+func TestCRDVersionHelpers_WrongVersion(t *testing.T) {
 	// Create a mock CRD with wrong version
 	mockCRD := &apiExtensionsV1.CustomResourceDefinition{
 		ObjectMeta: metaV1.ObjectMeta{
