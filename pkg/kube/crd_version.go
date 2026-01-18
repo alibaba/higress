@@ -19,7 +19,8 @@ import (
 	"fmt"
 	"strings"
 
-	apiExtensionsV1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
+	apiExtensionsV1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiExtensionsClient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
@@ -82,7 +83,7 @@ var RequiredCRDs = []CRDVersionInfo{
 func CheckCRDVersions(config *rest.Config) []string {
 	warnings := []string{}
 
-	apiExtClientset, err := apiExtensionsV1.NewForConfig(config)
+	apiExtClientset, err := apiExtensionsClient.NewForConfig(config)
 	if err != nil {
 		return []string{fmt.Sprintf("Failed to create API extension client: %v", err)}
 	}
