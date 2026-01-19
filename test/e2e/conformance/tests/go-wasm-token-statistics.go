@@ -173,7 +173,7 @@ var WasmPluginsTokenStatistics = suite.ConformanceTest{
 						return
 					}
 
-					// Verify Prometheus metrics
+					// Verify Prometheus metrics (optional, won't fail test if unavailable)
 					promAddr := os.Getenv("PROMETHEUS_ADDR")
 					if promAddr == "" {
 						t.Log("PROMETHEUS_ADDR not set; skipping metric assertion")
@@ -181,7 +181,7 @@ var WasmPluginsTokenStatistics = suite.ConformanceTest{
 					}
 
 					// Wait for metrics to be exported and scraped
-					time.Sleep(3 * time.Second)
+					time.Sleep(5 * time.Second)
 
 					// Query for specific metrics
 					queries := []struct {
@@ -198,12 +198,15 @@ var WasmPluginsTokenStatistics = suite.ConformanceTest{
 						t.Run("metric_"+q.name, func(t *testing.T) {
 							var found bool
 							var lastBody string
+							var lastErr error
 
-							for i := 0; i < 10; i++ {
+							// Retry up to 15 times with 3 second intervals (45 seconds total)
+							for i := 0; i < 15; i++ {
 								respBody, err := http.QueryPrometheus(promAddr, q.query)
 								if err != nil {
-									t.Logf("prometheus query %s attempt %d failed: %v", q.name, i+1, err)
-									time.Sleep(2 * time.Second)
+									lastErr = err
+									t.Logf("prometheus query %s attempt %d/%d failed: %v", q.name, i+1, 15, err)
+									time.Sleep(3 * time.Second)
 									continue
 								}
 
@@ -222,33 +225,45 @@ var WasmPluginsTokenStatistics = suite.ConformanceTest{
 								}
 
 								if err := json.Unmarshal(respBody, &promResp); err != nil {
-									t.Logf("failed to parse prometheus response for %s: %v", q.name, err)
-									time.Sleep(2 * time.Second)
+									lastErr = err
+									t.Logf("failed to parse prometheus response for %s (attempt %d/%d): %v", q.name, i+1, 15, err)
+									time.Sleep(3 * time.Second)
 									continue
 								}
 
 								// Check if we have results
 								if promResp.Status == "success" && len(promResp.Data.Result) > 0 {
 									found = true
-									t.Logf("Successfully found metric %s with %d result(s)", q.name, len(promResp.Data.Result))
+									t.Logf("✅ Successfully found metric %s with %d result(s) on attempt %d", q.name, len(promResp.Data.Result), i+1)
 
 									// Log metric values for debugging
 									for idx, result := range promResp.Data.Result {
 										if len(result.Value) >= 2 {
-											t.Logf("Metric %s result[%d]: value=%v, metric=%v", q.name, idx, result.Value[1], result.Metric)
+											t.Logf("  Metric %s[%d]: value=%v, labels=%v", q.name, idx, result.Value[1], result.Metric)
 										}
 									}
 									break
 								}
 
-								time.Sleep(2 * time.Second)
+								t.Logf("Metric %s not yet available (attempt %d/%d), waiting...", q.name, i+1, 15)
+								time.Sleep(3 * time.Second)
 							}
 
 							if !found {
-								t.Logf("WARNING: Prometheus metric %s not found after retries. Last response: %s", q.name, lastBody)
-								t.Logf("This may indicate: 1) Prometheus not scraping, 2) Plugin not exporting metrics, or 3) Metric naming mismatch")
-								// Don't fail the test, but warn
-								// In production, you might want to make this a hard failure
+								t.Logf("WARNING: Prometheus metric %s not found after 15 retries (45 seconds)", q.name)
+								if lastErr != nil {
+									t.Logf("  Last error: %v", lastErr)
+								}
+								if lastBody != "" {
+									t.Logf("  Last Prometheus response: %s", lastBody)
+								}
+								t.Logf("  Possible causes:")
+								t.Logf("    1. Prometheus not configured to scrape Higress metrics")
+								t.Logf("    2. Plugin not exporting metrics correctly")
+								t.Logf("    3. Metric naming mismatch")
+								t.Logf("    4. Network connectivity issues")
+								// Don't fail the test - metrics verification is optional
+								// This allows the test to pass in environments without Prometheus
 							}
 						})
 					}

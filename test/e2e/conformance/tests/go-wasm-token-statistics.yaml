@@ -74,7 +74,7 @@ spec:
         enable_content_types:
           - "application/json"
           - "text/event-stream"
-        # Exporter configuration
+        # Exporter configuration for metrics and logging
         exporters:
           - type: "log"
             config:
@@ -130,26 +130,4 @@ spec:
         - higress-conformance-infra/wasmplugin-token-statistics-openai
         - higress-conformance-infra/wasmplugin-token-statistics-qwen
   url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-proxy:2.0.0
----
-# Optional: Service Monitor for Prometheus scraping
-# This ensures Prometheus can scrape the metrics exposed by the plugin
-apiVersion: v1
-kind: Service
-metadata:
-  name: higress-gateway-metrics
-  namespace: higress-system
-  labels:
-    app: higress-gateway
-  annotations:
-    prometheus.io/scrape: "true"
-    prometheus.io/path: "/stats/prometheus"
-    prometheus.io/port: "15020"
-spec:
-  type: ClusterIP
-  selector:
-    app: higress-gateway
-  ports:
-    - name: metrics
-      port: 15020
-      targetPort: 15020
-      protocol: TCP
+
