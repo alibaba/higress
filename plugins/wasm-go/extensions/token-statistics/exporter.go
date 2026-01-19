@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/google/martian/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -38,36 +37,17 @@ type metricCounter interface {
 	Increment(uint64)
 }
 
-// noopCounter is a no-op implementation used in tests or non-wasm environments.
-type noopCounter struct{}
+// Global cache for defined counters (WASM is single-threaded, no lock needed)
+var metricCache = make(map[string]metricCounter)
 
-func (n noopCounter) Increment(_ uint64) {}
-
-var (
-	// 缓存命中计数器
-	hitCounter metricCounter = noopCounter{}
-	// 缓存未命中计数器
-	missCounter metricCounter = noopCounter{}
-	// 总请求计数器
-	totalCounter  metricCounter = noopCounter{}
-	metricCacheMu sync.Mutex
-	metricCache   = make(map[string]metricCounter)
-)
-
-// getOrDefineCounter will return an existing counter if cached, otherwise
-// attempt to define it via proxywasm.DefineCounterMetric. If DefineCounterMetric
-// panics or fails (e.g. non-wasm environment), a noopCounter will be cached and
-// returned to avoid repeated attempts.
+// getOrDefineCounter returns an existing counter if cached, otherwise
+// defines it via proxywasm.DefineCounterMetric.
 func getOrDefineCounter(name string) metricCounter {
-	metricCacheMu.Lock()
 	if c, ok := metricCache[name]; ok {
-		metricCacheMu.Unlock()
 		return c
 	}
-	// not cached yet
-	metricCacheMu.Unlock()
 
-	// attempt to define; protect from hostcall panics
+	// Attempt to define counter, protect from hostcall panics
 	defer func() {
 		if r := recover(); r != nil {
 			proxywasm.LogWarnf("[token-statistics] DefineCounterMetric panic for %s: %v", name, r)
@@ -75,10 +55,7 @@ func getOrDefineCounter(name string) metricCounter {
 	}()
 
 	c := proxywasm.DefineCounterMetric(name)
-	// cache the obtained counter
-	metricCacheMu.Lock()
 	metricCache[name] = c
-	metricCacheMu.Unlock()
 	return c
 }
 

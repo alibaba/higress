@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -210,19 +209,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if !strings.Contains(contentType, "text/event-stream") {
 		ctx.BufferResponseBody()
-	}
-	cacheStatus := ctx.GetUserAttribute("cache_status")
-	totalCounter.Increment(uint64(1))
-
-	switch cacheStatus {
-	case "hit":
-		proxywasm.LogInfo(fmt.Sprintf("cache status: hit, increment hit counter"))
-		hitCounter.Increment(uint64(1)) // 命中次数+1
-	case "miss":
-		proxywasm.LogInfo(fmt.Sprintf("cache status: miss, increment miss counter"))
-		missCounter.Increment(uint64(1)) // 未命中次数+1
-	default:
-		proxywasm.LogWarn(fmt.Sprintf("cache status unknown: %s", cacheStatus))
 	}
 	return types.ActionContinue
 }
