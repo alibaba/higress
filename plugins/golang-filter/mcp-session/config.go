@@ -26,8 +26,8 @@ type config struct {
 	matchList             []common.MatchRule
 	enableUserLevelServer bool
 	rateLimitConfig       *handler.MCPRatelimitConfig
-	defaultServer         *common.SSEServer
 	redisClient           *common.RedisClient
+	sharedMCPServer       *common.MCPServer // Created once, thread-safe with sync.RWMutex
 }
 
 func (c *config) Destroy() {
@@ -110,6 +110,9 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 	}
 	GlobalSSEPathSuffix = ssePathSuffix
 
+	// Create shared MCPServer once during config parsing (thread-safe with sync.RWMutex)
+	conf.sharedMCPServer = common.NewMCPServer(DefaultServerName, Version)
+
 	return conf, nil
 }
 
@@ -124,9 +127,6 @@ func (p *Parser) Merge(parent interface{}, child interface{}) interface{} {
 	newConfig.enableUserLevelServer = childConfig.enableUserLevelServer
 	if childConfig.rateLimitConfig != nil {
 		newConfig.rateLimitConfig = childConfig.rateLimitConfig
-	}
-	if childConfig.defaultServer != nil {
-		newConfig.defaultServer = childConfig.defaultServer
 	}
 	return &newConfig
 }

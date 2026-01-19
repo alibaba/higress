@@ -37,6 +37,7 @@ type filter struct {
 	skipRequestBody    bool
 	skipResponseBody   bool
 	cachedResponseBody []byte
+	sseServer          *common.SSEServer // SSE server instance for this filter (per-request, not shared)
 
 	userLevelConfig     bool
 	mcpConfigHandler    *handler.MCPConfigHandler
@@ -135,11 +136,13 @@ func (f *filter) processMcpRequestHeadersForRestUpstream(header api.RequestHeade
 			trimmed += "?" + rq
 		}
 
-		f.config.defaultServer = common.NewSSEServer(common.NewMCPServer(DefaultServerName, Version),
+		// Create SSE server instance for this filter (per-request, not shared)
+		// MCPServer is shared (thread-safe), but SSEServer must be per-request (contains request-specific messageEndpoint)
+		f.sseServer = common.NewSSEServer(f.config.sharedMCPServer,
 			common.WithSSEEndpoint(GlobalSSEPathSuffix),
 			common.WithMessageEndpoint(trimmed),
 			common.WithRedisClient(f.config.redisClient))
-		f.serverName = f.config.defaultServer.GetServerName()
+		f.serverName = f.sseServer.GetServerName()
 		body := "SSE connection create"
 		f.callbacks.DecoderFilterCallbacks().SendLocalReply(http.StatusOK, body, nil, 0, "")
 	}
@@ -275,9 +278,9 @@ func (f *filter) encodeDataFromRestUpstream(buffer api.BufferInstance, endStream
 
 	if f.serverName != "" {
 		if f.config.redisClient != nil {
-			// handle default server
+			// handle SSE server for this filter instance
 			buffer.Reset()
-			f.config.defaultServer.HandleSSE(f.callbacks, f.stopChan)
+			f.sseServer.HandleSSE(f.callbacks, f.stopChan)
 			return api.Running
 		} else {
 			_ = buffer.SetString(RedisNotEnabledResponseBody)
