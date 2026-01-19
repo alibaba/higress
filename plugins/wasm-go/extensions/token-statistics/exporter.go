@@ -70,7 +70,7 @@ func getOrDefineCounter(name string) metricCounter {
 	// attempt to define; protect from hostcall panics
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("[token-statistics] DefineCounterMetric panic for %s: %v\n", name, r)
+			proxywasm.LogWarnf("[token-statistics] DefineCounterMetric panic for %s: %v", name, r)
 		}
 	}()
 
