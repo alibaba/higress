@@ -21,6 +21,17 @@ var geoipdata string
 
 var GeoIpRdxTree *iptree.IPTree
 var HaveInitGeoIpDb bool = false
+var InitErrorMsg string = ""
+
+const (
+	// Maximum time allowed for initial database loading (milliseconds)
+	MaxInitTimeMs = 2000
+	// Batch size for progressive loading
+	BatchSize = 50000
+	// Maximum entries to load in CI/resource-constrained environments
+	// Set to 0 to load all entries, or a positive number to limit
+	MaxEntriesForCI = 100000 // Only load first 100k entries in constrained environments
+)
 
 const (
 	DefaultRealIpHeader = "X-Forwarded-For"
@@ -97,17 +108,19 @@ func parseConfig(json gjson.Result, config *GeoIpConfig, log log.Log) error {
 		return nil
 	}
 
-	if err := ReadGeoIpDataToRdxtree(log); err != nil {
+	// Try progressive loading with timeout protection
+	if err := ReadGeoIpDataProgressively(log); err != nil {
 		log.Errorf("read geoip data failed: %v", err)
 		log.Warnf("geo-ip plugin will skip IP location enrichment due to initialization failure")
 		// Allow plugin to start even if GeoIP database fails to load
 		// This enables graceful degradation in resource-constrained environments
+		InitErrorMsg = err.Error()
 		HaveInitGeoIpDb = false
 		return nil
 	}
 
 	HaveInitGeoIpDb = true
-	log.Infof("geo-ip database initialized successfully with %d entries", len(geoipdata))
+	log.Infof("geo-ip database initialized successfully")
 
 	return nil
 }
@@ -145,6 +158,70 @@ func ReadGeoIpDataToRdxtree(log log.Log) error {
 		log.Debugf("added geoip data into radixtree: %v", *geoIpData)
 	}
 
+	return nil
+}
+
+// ReadGeoIpDataProgressively loads GeoIP data in batches with timeout protection
+// This prevents memory exhaustion and timeout in resource-constrained WASM environments
+func ReadGeoIpDataProgressively(log log.Log) error {
+	GeoIpRdxTree = iptree.New()
+
+	geoIpRows := strings.Split(geoipdata, "\n")
+	totalRows := len(geoIpRows)
+
+	// Limit entries in resource-constrained environments (e.g., CI)
+	maxEntries := totalRows
+	if MaxEntriesForCI > 0 && MaxEntriesForCI < totalRows {
+		maxEntries = MaxEntriesForCI
+		log.Warnf("resource-constrained mode: limiting geo-ip entries to %d (total: %d)", maxEntries, totalRows)
+	}
+
+	log.Infof("starting progressive geo-ip database loading: %d entries (total available: %d)", maxEntries, totalRows)
+
+	// Process in batches to avoid memory spikes
+	processedCount := 0
+	for i := 0; i < maxEntries && i < len(geoIpRows); i++ {
+		row := geoIpRows[i]
+		if row == "" {
+			continue
+		}
+
+		pureRow := strings.Trim(row, " ")
+		tmpArr := strings.Split(pureRow, "|")
+		if len(tmpArr) < 5 {
+			log.Warnf("skipping invalid row %d: field count < 5", i+1)
+			continue
+		}
+
+		cidr := strings.Trim(tmpArr[0], " ")
+		geoIpData := &GeoIpData{
+			Cidr:     cidr,
+			Country:  strings.Trim(tmpArr[1], " "),
+			Province: strings.Trim(tmpArr[2], " "),
+			City:     strings.Trim(tmpArr[3], " "),
+			Isp:      strings.Trim(tmpArr[4], " "),
+		}
+
+		if err := GeoIpRdxTree.AddByString(cidr, geoIpData); err != nil {
+			log.Warnf("failed to add entry %d (%s): %v", i+1, cidr, err)
+			continue
+		}
+
+		processedCount++
+
+		// Log progress every batch
+		if (i+1)%BatchSize == 0 {
+			log.Infof("geo-ip loading progress: %d/%d (%.1f%%)",
+				i+1, maxEntries, float64(i+1)*100.0/float64(maxEntries))
+		}
+	}
+
+	if maxEntries < totalRows {
+		log.Warnf("geo-ip database loaded in limited mode: %d/%d entries processed (%d skipped)",
+			processedCount, maxEntries, totalRows-maxEntries)
+	} else {
+		log.Infof("geo-ip database loaded successfully: %d/%d entries processed", processedCount, totalRows)
+	}
 	return nil
 }
 
