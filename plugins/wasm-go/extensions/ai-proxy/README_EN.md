@@ -25,6 +25,8 @@ The plugin now supports **automatic protocol detection**, allowing seamless comp
 
 > When the request path suffix matches `/v1/embeddings`, it corresponds to text vector scenarios. The request body will be parsed using OpenAI's text vector protocol and then converted to the corresponding LLM vendor's text vector protocol.
 
+> When the request path suffix matches `/v1/images/generations`, it corresponds to text-to-image scenarios. The request body will be parsed using OpenAI's image generation protocol and then converted to the corresponding LLM vendor's image generation protocol.
+
 ## Execution Properties
 Plugin execution phase: `Default Phase`
 Plugin execution priority: `100`
@@ -1926,6 +1928,108 @@ provider:
   }
 }
 ```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Image Generation
+
+Vertex AI supports image generation using Gemini models. Through the ai-proxy plugin, you can use OpenAI's `/v1/images/generations` API to call Vertex AI's image generation capabilities.
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: vertex
+  apiTokens:
+    - "YOUR_API_KEY"
+  modelMapping:
+    "dall-e-3": "gemini-2.0-flash-exp"
+  geminiSafetySetting:
+    HARM_CATEGORY_HARASSMENT: "OFF"
+    HARM_CATEGORY_HATE_SPEECH: "OFF"
+    HARM_CATEGORY_SEXUALLY_EXPLICIT: "OFF"
+    HARM_CATEGORY_DANGEROUS_CONTENT: "OFF"
+```
+
+**Using curl**
+
+```bash
+curl -X POST "http://your-gateway-address/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-2.0-flash-exp",
+    "prompt": "A cute orange cat napping in the sunshine",
+    "size": "1024x1024"
+  }'
+```
+
+**Using OpenAI Python SDK**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="any-value",  # Can be any value, authentication is handled by the gateway
+    base_url="http://your-gateway-address/v1"
+)
+
+response = client.images.generate(
+    model="gemini-2.0-flash-exp",
+    prompt="A cute orange cat napping in the sunshine",
+    size="1024x1024",
+    n=1
+)
+
+# Get the generated image (base64 encoded)
+image_data = response.data[0].b64_json
+print(f"Generated image (base64): {image_data[:100]}...")
+```
+
+**Response Example**
+
+```json
+{
+  "created": 1729986750,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAIAAADwf7zUAAAA..."
+    }
+  ],
+  "usage": {
+    "total_tokens": 1356,
+    "input_tokens": 13,
+    "output_tokens": 1120
+  }
+}
+```
+
+**Supported Size Parameters**
+
+Vertex AI supported aspect ratios: `1:1`, `3:2`, `2:3`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`
+
+Vertex AI supported resolutions (imageSize): `1k`, `2k`, `4k`
+
+| OpenAI size parameter | Vertex AI aspectRatio | Vertex AI imageSize |
+|-----------------------|----------------------|---------------------|
+| 256x256               | 1:1                  | 1k                  |
+| 512x512               | 1:1                  | 1k                  |
+| 1024x1024             | 1:1                  | 1k                  |
+| 1792x1024             | 16:9                 | 2k                  |
+| 1024x1792             | 9:16                 | 2k                  |
+| 2048x2048             | 1:1                  | 2k                  |
+| 4096x4096             | 1:1                  | 4k                  |
+| 1536x1024             | 3:2                  | 2k                  |
+| 1024x1536             | 2:3                  | 2k                  |
+| 1024x768              | 4:3                  | 1k                  |
+| 768x1024              | 3:4                  | 1k                  |
+| 1280x1024             | 5:4                  | 1k                  |
+| 1024x1280             | 4:5                  | 1k                  |
+| 2560x1080             | 21:9                 | 2k                  |
+
+**Notes**
+
+- Image generation uses Gemini models (e.g., `gemini-2.0-flash-exp`, `gemini-3-pro-image-preview`). Model availability may vary by region
+- The returned image data is in base64 encoded format (`b64_json`)
+- Content safety filtering levels can be configured via `geminiSafetySetting`
+- If you need model mapping (e.g., mapping `dall-e-3` to a Gemini model), configure `modelMapping`
 
 ### Utilizing OpenAI Protocol Proxy for AWS Bedrock Services
 
