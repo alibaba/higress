@@ -98,11 +98,16 @@ func parseConfig(json gjson.Result, config *GeoIpConfig, log log.Log) error {
 	}
 
 	if err := ReadGeoIpDataToRdxtree(log); err != nil {
-		log.Errorf("read geoip data failed.%v", err)
-		return err
+		log.Errorf("read geoip data failed: %v", err)
+		log.Warnf("geo-ip plugin will skip IP location enrichment due to initialization failure")
+		// Allow plugin to start even if GeoIP database fails to load
+		// This enables graceful degradation in resource-constrained environments
+		HaveInitGeoIpDb = false
+		return nil
 	}
 
 	HaveInitGeoIpDb = true
+	log.Infof("geo-ip database initialized successfully with %d entries", len(geoipdata))
 
 	return nil
 }
@@ -205,6 +210,13 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.L
 		err error
 	)
 	ctx.DisableReroute()
+
+	// Check if GeoIP database is initialized
+	if !HaveInitGeoIpDb || GeoIpRdxTree == nil {
+		log.Debugf("geo-ip database not initialized, skipping IP location enrichment")
+		return types.ActionContinue
+	}
+
 	if config.IPSourceType == HeaderSourceType {
 		s, err = proxywasm.GetHttpRequestHeader(config.IPHeaderName)
 		if err == nil {
