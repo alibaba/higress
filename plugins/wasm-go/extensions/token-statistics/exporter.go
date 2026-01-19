@@ -15,9 +15,6 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/google/martian/log"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
@@ -30,6 +27,12 @@ type PrometheusExporter struct {
 	namespace string
 	subsystem string
 	model     string
+}
+
+// CacheExporter handles cache hit/miss statistics export
+type CacheExporter struct {
+	namespace string
+	subsystem string
 }
 
 // metricCounter defines the minimal interface we need from metrics.
@@ -67,6 +70,13 @@ func NewPrometheusExporter(namespace, subsystem, model string) *PrometheusExport
 	}
 }
 
+func NewCacheExporter(namespace, subsystem string) *CacheExporter {
+	return &CacheExporter{
+		namespace: namespace,
+		subsystem: subsystem,
+	}
+}
+
 func (p *PrometheusExporter) Export(usage *TokenUsage) {
 	// 创建指标名称
 	inputMetricName := fmt.Sprintf("%s_%s_%s_input_tokens_total", p.namespace, p.subsystem, p.model)
@@ -81,6 +91,34 @@ func (p *PrometheusExporter) Export(usage *TokenUsage) {
 	inputCounter.Increment(uint64(usage.InputTokens))
 	outputCounter.Increment(uint64(usage.OutputTokens))
 	totalCounter.Increment(uint64(usage.TotalTokens))
+}
+
+// ExportCacheStatus exports cache hit/miss statistics
+func (c *CacheExporter) ExportCacheStatus(status string) {
+	if status == "" {
+		return
+	}
+
+	// Increment total request counter
+	totalMetricName := fmt.Sprintf("%s_%s_requests_total", c.namespace, c.subsystem)
+	totalCounter := getOrDefineCounter(totalMetricName)
+	totalCounter.Increment(1)
+
+	// Increment specific cache status counter
+	switch status {
+	case "hit":
+		proxywasm.LogDebugf("[token-statistics] cache status: hit")
+		hitMetricName := fmt.Sprintf("%s_%s_hits_total", c.namespace, c.subsystem)
+		hitCounter := getOrDefineCounter(hitMetricName)
+		hitCounter.Increment(1)
+	case "miss":
+		proxywasm.LogDebugf("[token-statistics] cache status: miss")
+		missMetricName := fmt.Sprintf("%s_%s_misses_total", c.namespace, c.subsystem)
+		missCounter := getOrDefineCounter(missMetricName)
+		missCounter.Increment(1)
+	default:
+		proxywasm.LogWarnf("[token-statistics] unknown cache status: %s", status)
+	}
 }
 
 // 日志输出

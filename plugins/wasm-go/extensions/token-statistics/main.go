@@ -212,24 +212,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 	}
 
 	// Record cache hit/miss statistics if cache_status attribute is available
-	cacheStatus := ctx.GetUserAttribute("cache_status")
-	if cacheStatus != "" {
-		// Increment total request counter
-		totalCounter := getOrDefineCounter("higress_ai_cache_requests_total")
-		totalCounter.Increment(1)
-
-		// Increment specific cache status counter
-		switch cacheStatus {
-		case "hit":
-			proxywasm.LogDebugf("[token-statistics] cache status: hit")
-			hitCounter := getOrDefineCounter("higress_ai_cache_hits_total")
-			hitCounter.Increment(1)
-		case "miss":
-			proxywasm.LogDebugf("[token-statistics] cache status: miss")
-			missCounter := getOrDefineCounter("higress_ai_cache_misses_total")
-			missCounter.Increment(1)
-		default:
-			proxywasm.LogWarnf("[token-statistics] unknown cache status: %s", cacheStatus)
+	if cacheStatus := ctx.GetUserAttribute("cache_status"); cacheStatus != "" {
+		if status, ok := cacheStatus.(string); ok {
+			cacheExporter := NewCacheExporter("higress", "ai_cache")
+			cacheExporter.ExportCacheStatus(status)
 		}
 	}
 
