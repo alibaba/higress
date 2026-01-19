@@ -78,10 +78,10 @@ func NewCacheExporter(namespace, subsystem string) *CacheExporter {
 }
 
 func (p *PrometheusExporter) Export(usage *TokenUsage) {
-	// 创建指标名称
-	inputMetricName := fmt.Sprintf("%s_%s_%s_input_tokens_total", p.namespace, p.subsystem, p.model)
-	outputMetricName := fmt.Sprintf("%s_%s_%s_output_tokens_total", p.namespace, p.subsystem, p.model)
-	totalMetricName := fmt.Sprintf("%s_%s_%s_total_tokens_total", p.namespace, p.subsystem, p.model)
+	// 创建指标名称（使用字符串拼接，避免 fmt 依赖）
+	inputMetricName := p.namespace + "_" + p.subsystem + "_" + p.model + "_input_tokens_total"
+	outputMetricName := p.namespace + "_" + p.subsystem + "_" + p.model + "_output_tokens_total"
+	totalMetricName := p.namespace + "_" + p.subsystem + "_" + p.model + "_total_tokens_total"
 
 	// 定义（若尚未定义）并更新指标（懒初始化）
 	inputCounter := getOrDefineCounter(inputMetricName)
@@ -100,7 +100,7 @@ func (c *CacheExporter) ExportCacheStatus(status string) {
 	}
 
 	// Increment total request counter
-	totalMetricName := fmt.Sprintf("%s_%s_requests_total", c.namespace, c.subsystem)
+	totalMetricName := c.namespace + "_" + c.subsystem + "_requests_total"
 	totalCounter := getOrDefineCounter(totalMetricName)
 	totalCounter.Increment(1)
 
@@ -108,12 +108,12 @@ func (c *CacheExporter) ExportCacheStatus(status string) {
 	switch status {
 	case "hit":
 		proxywasm.LogDebugf("[token-statistics] cache status: hit")
-		hitMetricName := fmt.Sprintf("%s_%s_hits_total", c.namespace, c.subsystem)
+		hitMetricName := c.namespace + "_" + c.subsystem + "_hits_total"
 		hitCounter := getOrDefineCounter(hitMetricName)
 		hitCounter.Increment(1)
 	case "miss":
 		proxywasm.LogDebugf("[token-statistics] cache status: miss")
-		missMetricName := fmt.Sprintf("%s_%s_misses_total", c.namespace, c.subsystem)
+		missMetricName := c.namespace + "_" + c.subsystem + "_misses_total"
 		missCounter := getOrDefineCounter(missMetricName)
 		missCounter.Increment(1)
 	default:
@@ -124,6 +124,6 @@ func (c *CacheExporter) ExportCacheStatus(status string) {
 // 日志输出
 
 func (l *LogExporter) Export(ctx wrapper.HttpContext, model string, usage *TokenUsage) {
-	log.Infof("Token usage statistics: model=%s, input_tokens=%d, output_tokens=%d, total_tokens=%d",
+	proxywasm.LogInfof("[token-statistics] model=%s, input_tokens=%d, output_tokens=%d, total_tokens=%d",
 		model, usage.InputTokens, usage.OutputTokens, usage.TotalTokens)
 }
