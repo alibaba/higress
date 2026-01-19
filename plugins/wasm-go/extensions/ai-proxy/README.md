@@ -26,6 +26,8 @@ description: AI 代理插件配置参考
 
 > 请求路径后缀匹配 `/v1/embeddings` 时，对应文本向量场景，会用 OpenAI 的文本向量协议解析请求 Body，再转换为对应 LLM 厂商的文本向量协议
 
+> 请求路径后缀匹配 `/v1/images/generations` 时，对应文生图场景，会用 OpenAI 的图片生成协议解析请求 Body，再转换为对应 LLM 厂商的图片生成协议
+
 ## 运行属性
 
 插件执行阶段：`默认阶段`
@@ -2163,6 +2165,108 @@ provider:
   }
 }
 ```
+
+### 使用 OpenAI 协议代理 Google Vertex 图片生成服务
+
+Vertex AI 支持使用 Gemini 模型进行图片生成。通过 ai-proxy 插件，可以使用 OpenAI 的 `/v1/images/generations` 接口协议来调用 Vertex AI 的图片生成能力。
+
+**配置信息**
+
+```yaml
+provider:
+  type: vertex
+  apiTokens:
+    - "YOUR_API_KEY"
+  modelMapping:
+    "dall-e-3": "gemini-2.0-flash-exp"
+  geminiSafetySetting:
+    HARM_CATEGORY_HARASSMENT: "OFF"
+    HARM_CATEGORY_HATE_SPEECH: "OFF"
+    HARM_CATEGORY_SEXUALLY_EXPLICIT: "OFF"
+    HARM_CATEGORY_DANGEROUS_CONTENT: "OFF"
+```
+
+**使用 curl 请求**
+
+```bash
+curl -X POST "http://your-gateway-address/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-2.0-flash-exp",
+    "prompt": "一只可爱的橘猫在阳光下打盹",
+    "size": "1024x1024"
+  }'
+```
+
+**使用 OpenAI Python SDK**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="any-value",  # 可以是任意值，认证由网关处理
+    base_url="http://your-gateway-address/v1"
+)
+
+response = client.images.generate(
+    model="gemini-2.0-flash-exp",
+    prompt="一只可爱的橘猫在阳光下打盹",
+    size="1024x1024",
+    n=1
+)
+
+# 获取生成的图片（base64 编码）
+image_data = response.data[0].b64_json
+print(f"Generated image (base64): {image_data[:100]}...")
+```
+
+**响应示例**
+
+```json
+{
+  "created": 1729986750,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAIAAADwf7zUAAAA..."
+    }
+  ],
+  "usage": {
+    "total_tokens": 1356,
+    "input_tokens": 13,
+    "output_tokens": 1120
+  }
+}
+```
+
+**支持的尺寸参数**
+
+Vertex AI 支持的宽高比（aspectRatio）：`1:1`、`3:2`、`2:3`、`3:4`、`4:3`、`4:5`、`5:4`、`9:16`、`16:9`、`21:9`
+
+Vertex AI 支持的分辨率（imageSize）：`1k`、`2k`、`4k`
+
+| OpenAI size 参数 | Vertex AI aspectRatio | Vertex AI imageSize |
+|------------------|----------------------|---------------------|
+| 256x256          | 1:1                  | 1k                  |
+| 512x512          | 1:1                  | 1k                  |
+| 1024x1024        | 1:1                  | 1k                  |
+| 1792x1024        | 16:9                 | 2k                  |
+| 1024x1792        | 9:16                 | 2k                  |
+| 2048x2048        | 1:1                  | 2k                  |
+| 4096x4096        | 1:1                  | 4k                  |
+| 1536x1024        | 3:2                  | 2k                  |
+| 1024x1536        | 2:3                  | 2k                  |
+| 1024x768         | 4:3                  | 1k                  |
+| 768x1024         | 3:4                  | 1k                  |
+| 1280x1024        | 5:4                  | 1k                  |
+| 1024x1280        | 4:5                  | 1k                  |
+| 2560x1080        | 21:9                 | 2k                  |
+
+**注意事项**
+
+- 图片生成使用 Gemini 模型（如 `gemini-2.0-flash-exp`、`gemini-3-pro-image-preview`），不同模型的可用性可能因区域而异
+- 返回的图片数据为 base64 编码格式（`b64_json`）
+- 可以通过 `geminiSafetySetting` 配置内容安全过滤级别
+- 如果需要使用模型映射（如将 `dall-e-3` 映射到 Gemini 模型），可以配置 `modelMapping`
 
 ### 使用 OpenAI 协议代理 AWS Bedrock 服务
 
