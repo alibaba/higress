@@ -25,6 +25,8 @@ The plugin now supports **automatic protocol detection**, allowing seamless comp
 
 > When the request path suffix matches `/v1/embeddings`, it corresponds to text vector scenarios. The request body will be parsed using OpenAI's text vector protocol and then converted to the corresponding LLM vendor's text vector protocol.
 
+> When the request path suffix matches `/v1/images/generations`, it corresponds to text-to-image scenarios. The request body will be parsed using OpenAI's image generation protocol and then converted to the corresponding LLM vendor's image generation protocol.
+
 ## Execution Properties
 Plugin execution phase: `Default Phase`
 Plugin execution priority: `100`
@@ -255,7 +257,9 @@ For DeepL, the corresponding `type` is `deepl`. Its unique configuration field i
 | `targetLang` | string    | Required    | -       | The target language required by the DeepL translation service |
 
 #### Google Vertex AI
-For Vertex, the corresponding `type` is `vertex`. Its unique configuration field is:
+For Vertex, the corresponding `type` is `vertex`. It supports two authentication modes:
+
+**Standard Mode** (using Service Account):
 
 | Name                        | Data Type     | Requirement   | Default | Description                                                                                                                                                 |
 |-----------------------------|---------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -266,16 +270,47 @@ For Vertex, the corresponding `type` is `vertex`. Its unique configuration field
 | `vertexGeminiSafetySetting` | map of string | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
 | `vertexTokenRefreshAhead`   | number        | Optional      | -      | Vertex access token refresh ahead time in seconds                                                                                                           |
 
+**Express Mode** (using API Key, simplified configuration):
+
+Express Mode is a simplified access mode introduced by Vertex AI. You can quickly get started with just an API Key, without configuring a Service Account. See [Vertex AI Express Mode documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview).
+
+| Name                        | Data Type        | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|------------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `apiTokens`                 | array of string  | Required      | -      | API Key for Express Mode, obtained from Google Cloud Console under API & Services > Credentials                                                              |
+| `vertexGeminiSafetySetting` | map of string    | Optional      | -      | Gemini model content safety filtering settings.                                                                                                             |
+
+**OpenAI Compatible Mode** (using Vertex AI Chat Completions API):
+
+Vertex AI provides an OpenAI-compatible Chat Completions API endpoint, allowing you to use OpenAI format requests and responses directly without protocol conversion. See [Vertex AI OpenAI Compatibility documentation](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/openai/overview).
+
+| Name                        | Data Type        | Requirement   | Default | Description                                                                                                                                                 |
+|-----------------------------|------------------|---------------| ------ |-------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `vertexOpenAICompatible`    | boolean          | Optional      | false  | Enable OpenAI compatible mode. When enabled, uses Vertex AI's OpenAI-compatible Chat Completions API |
+| `vertexAuthKey`             | string           | Required      | -      | Google Service Account JSON Key for authentication |
+| `vertexRegion`              | string           | Required      | -      | Google Cloud region (e.g., us-central1, europe-west4) |
+| `vertexProjectId`           | string           | Required      | -      | Google Cloud Project ID |
+| `vertexAuthServiceName`     | string           | Required      | -      | Service name for OAuth2 authentication |
+
+**Note**: OpenAI Compatible Mode and Express Mode are mutually exclusive. You cannot configure both `apiTokens` and `vertexOpenAICompatible` at the same time.
+
 #### AWS Bedrock
 
-For AWS Bedrock, the corresponding `type` is `bedrock`. Its unique configuration field is:
+For AWS Bedrock, the corresponding `type` is `bedrock`. It supports two authentication methods:
 
-| Name                      | Data Type | Requirement | Default | Description                                             |
-|---------------------------|-----------|-------------|---------|---------------------------------------------------------|
-| `awsAccessKey`            | string    | Required    | -       | AWS Access Key used for authentication                  |
-| `awsSecretKey`            | string    | Required    | -       | AWS Secret Access Key used for authentication           |
-| `awsRegion`               | string    | Required    | -       | AWS region, e.g., us-east-1                             |
-| `bedrockAdditionalFields` | map       | Optional    | -       | Additional inference parameters that the model supports |
+1. **AWS Signature V4 Authentication**: Uses `awsAccessKey` and `awsSecretKey` for standard AWS signature authentication
+2. **Bearer Token Authentication**: Uses `apiTokens` to configure AWS Bearer Token (suitable for IAM Identity Center and similar scenarios)
+
+**Note**: Choose one of the two authentication methods. If `apiTokens` is configured, Bearer Token authentication will be used preferentially.
+
+Its unique configuration fields are:
+
+| Name                      | Data Type       | Requirement              | Default | Description                                                       |
+|---------------------------|-----------------|--------------------------|---------|-------------------------------------------------------------------|
+| `apiTokens`               | array of string | Either this or ak/sk     | -       | AWS Bearer Token for Bearer Token authentication                   |
+| `awsAccessKey`            | string          | Either this or apiTokens | -       | AWS Access Key for AWS Signature V4 authentication                 |
+| `awsSecretKey`            | string          | Either this or apiTokens | -       | AWS Secret Access Key for AWS Signature V4 authentication          |
+| `awsRegion`               | string          | Required                 | -       | AWS region, e.g., us-east-1                                        |
+| `bedrockAdditionalFields` | map             | Optional                 | -       | Additional inference parameters that the model supports            |
 
 ## Usage Examples
 
@@ -1720,7 +1755,7 @@ provider:
 }
 ```
 
-### Utilizing OpenAI Protocol Proxy for Google Vertex Services
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (Standard Mode)
 **Configuration Information**
 ```yaml
 provider:
@@ -1778,14 +1813,250 @@ provider:
 }
 ```
 
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (Express Mode)
+
+Express Mode is a simplified access mode for Vertex AI. You only need an API Key to get started quickly.
+
+**Configuration Information**
+```yaml
+provider:
+  type: vertex
+  apiTokens:
+    - "YOUR_API_KEY"
+```
+
+**Request Example**
+```json
+{
+  "model": "gemini-2.5-flash",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who are you?"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "chatcmpl-0000000000000",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am Gemini, an AI assistant developed by Google. How can I help you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.5-flash",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 25,
+    "total_tokens": 35
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Services (OpenAI Compatible Mode)
+
+OpenAI Compatible Mode uses Vertex AI's OpenAI-compatible Chat Completions API. Both requests and responses use OpenAI format, requiring no protocol conversion.
+
+**Configuration Information**
+```yaml
+provider:
+  type: vertex
+  vertexOpenAICompatible: true
+  vertexAuthKey: |
+    {
+      "type": "service_account",
+      "project_id": "your-project-id",
+      "private_key_id": "your-private-key-id",
+      "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+      "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+      "token_uri": "https://oauth2.googleapis.com/token"
+    }
+  vertexRegion: us-central1
+  vertexProjectId: your-project-id
+  vertexAuthServiceName: your-auth-service-name
+  modelMapping:
+    "gpt-4": "gemini-2.0-flash"
+    "*": "gemini-1.5-flash"
+```
+
+**Request Example**
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Hello, who are you?"
+    }
+  ],
+  "stream": false
+}
+```
+
+**Response Example**
+```json
+{
+  "id": "chatcmpl-abc123",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am Gemini, an AI model developed by Google. I can help answer questions, provide information, and engage in conversations. How can I assist you today?"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "created": 1729986750,
+  "model": "gemini-2.0-flash",
+  "object": "chat.completion",
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 35,
+    "total_tokens": 47
+  }
+}
+```
+
+### Utilizing OpenAI Protocol Proxy for Google Vertex Image Generation
+
+Vertex AI supports image generation using Gemini models. Through the ai-proxy plugin, you can use OpenAI's `/v1/images/generations` API to call Vertex AI's image generation capabilities.
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: vertex
+  apiTokens:
+    - "YOUR_API_KEY"
+  modelMapping:
+    "dall-e-3": "gemini-2.0-flash-exp"
+  geminiSafetySetting:
+    HARM_CATEGORY_HARASSMENT: "OFF"
+    HARM_CATEGORY_HATE_SPEECH: "OFF"
+    HARM_CATEGORY_SEXUALLY_EXPLICIT: "OFF"
+    HARM_CATEGORY_DANGEROUS_CONTENT: "OFF"
+```
+
+**Using curl**
+
+```bash
+curl -X POST "http://your-gateway-address/v1/images/generations" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemini-2.0-flash-exp",
+    "prompt": "A cute orange cat napping in the sunshine",
+    "size": "1024x1024"
+  }'
+```
+
+**Using OpenAI Python SDK**
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="any-value",  # Can be any value, authentication is handled by the gateway
+    base_url="http://your-gateway-address/v1"
+)
+
+response = client.images.generate(
+    model="gemini-2.0-flash-exp",
+    prompt="A cute orange cat napping in the sunshine",
+    size="1024x1024",
+    n=1
+)
+
+# Get the generated image (base64 encoded)
+image_data = response.data[0].b64_json
+print(f"Generated image (base64): {image_data[:100]}...")
+```
+
+**Response Example**
+
+```json
+{
+  "created": 1729986750,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAABAAAAAQACAIAAADwf7zUAAAA..."
+    }
+  ],
+  "usage": {
+    "total_tokens": 1356,
+    "input_tokens": 13,
+    "output_tokens": 1120
+  }
+}
+```
+
+**Supported Size Parameters**
+
+Vertex AI supported aspect ratios: `1:1`, `3:2`, `2:3`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`
+
+Vertex AI supported resolutions (imageSize): `1k`, `2k`, `4k`
+
+| OpenAI size parameter | Vertex AI aspectRatio | Vertex AI imageSize |
+|-----------------------|----------------------|---------------------|
+| 256x256               | 1:1                  | 1k                  |
+| 512x512               | 1:1                  | 1k                  |
+| 1024x1024             | 1:1                  | 1k                  |
+| 1792x1024             | 16:9                 | 2k                  |
+| 1024x1792             | 9:16                 | 2k                  |
+| 2048x2048             | 1:1                  | 2k                  |
+| 4096x4096             | 1:1                  | 4k                  |
+| 1536x1024             | 3:2                  | 2k                  |
+| 1024x1536             | 2:3                  | 2k                  |
+| 1024x768              | 4:3                  | 1k                  |
+| 768x1024              | 3:4                  | 1k                  |
+| 1280x1024             | 5:4                  | 1k                  |
+| 1024x1280             | 4:5                  | 1k                  |
+| 2560x1080             | 21:9                 | 2k                  |
+
+**Notes**
+
+- Image generation uses Gemini models (e.g., `gemini-2.0-flash-exp`, `gemini-3-pro-image-preview`). Model availability may vary by region
+- The returned image data is in base64 encoded format (`b64_json`)
+- Content safety filtering levels can be configured via `geminiSafetySetting`
+- If you need model mapping (e.g., mapping `dall-e-3` to a Gemini model), configure `modelMapping`
+
 ### Utilizing OpenAI Protocol Proxy for AWS Bedrock Services
+
+AWS Bedrock supports two authentication methods:
+
+#### Method 1: Using AWS Access Key/Secret Key Authentication (AWS Signature V4)
+
 **Configuration Information**
 ```yaml
 provider:
   type: bedrock
   awsAccessKey: "YOUR_AWS_ACCESS_KEY_ID"
   awsSecretKey: "YOUR_AWS_SECRET_ACCESS_KEY"
-  awsRegion: "YOUR_AWS_REGION"
+  awsRegion: "us-east-1"
+  bedrockAdditionalFields:
+    top_k: 200
+```
+
+#### Method 2: Using Bearer Token Authentication (suitable for IAM Identity Center and similar scenarios)
+
+**Configuration Information**
+```yaml
+provider:
+  type: bedrock
+  apiTokens:
+    - "YOUR_AWS_BEARER_TOKEN"
+  awsRegion: "us-east-1"
   bedrockAdditionalFields:
     top_k: 200
 ```
@@ -1793,7 +2064,7 @@ provider:
 **Request Example**
 ```json
 {
-  "model": "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-5-haiku-20241022-v1:0",
+  "model": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
   "messages": [
     {
       "role": "user",
