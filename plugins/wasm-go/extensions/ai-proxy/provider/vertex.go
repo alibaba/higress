@@ -150,16 +150,17 @@ func (v *vertexProvider) GetProviderType() string {
 }
 
 func (v *vertexProvider) GetApiName(path string) ApiName {
+	// 优先匹配原生 Vertex AI REST API 路径，支持任意 basePath 前缀
+	// 格式: [任意前缀]/{api-version}/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:{action}
+	// 必须在其他 action 检查之前，因为 :predict、:generateContent 等 action 会被其他规则匹配
+	if vertexRawPathRegex.MatchString(path) {
+		return ApiNameVertexRaw
+	}
 	if strings.HasSuffix(path, vertexChatCompletionAction) || strings.HasSuffix(path, vertexChatCompletionStreamAction) {
 		return ApiNameChatCompletion
 	}
 	if strings.HasSuffix(path, vertexEmbeddingAction) {
 		return ApiNameEmbeddings
-	}
-	// 匹配原生 Vertex AI REST API 路径，支持任意 basePath 前缀
-	// 格式: [任意前缀]/{api-version}/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:{action}
-	if vertexRawPathRegex.MatchString(path) {
-		return ApiNameVertexRaw
 	}
 	return ""
 }
