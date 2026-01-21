@@ -70,6 +70,7 @@ const (
 	ApiNameGeminiStreamGenerateContent ApiName = "gemini/v1beta/streamgeneratecontent"
 	ApiNameAnthropicMessages           ApiName = "anthropic/v1/messages"
 	ApiNameAnthropicComplete           ApiName = "anthropic/v1/complete"
+	ApiNameVertexRaw                   ApiName = "vertex/raw"
 
 	// OpenAI
 	PathOpenAIPrefix                               = "/v1"

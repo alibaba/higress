@@ -44,8 +44,14 @@ const (
 	vertexGlobalRegion                 = "global"
 	contextClaudeMarker                = "isClaudeRequest"
 	contextOpenAICompatibleMarker      = "isOpenAICompatibleRequest"
+	contextVertexRawMarker             = "isVertexRawRequest"
 	vertexAnthropicVersion             = "vertex-2023-10-16"
 )
+
+// vertexRawPathRegex 匹配原生 Vertex AI REST API 路径
+// 格式: [任意前缀]/{api-version}/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:{action}
+// 允许任意 basePath 前缀，兼容 basePathHandling 配置
+var vertexRawPathRegex = regexp.MustCompile(`^.*/([^/]+)/projects/([^/]+)/locations/([^/]+)/publishers/([^/]+)/models/([^/:]+):([^/?]+)`)
 
 type vertexProviderInitializer struct{}
 
@@ -92,6 +98,7 @@ func (v *vertexProviderInitializer) DefaultCapabilities() map[string]string {
 		string(ApiNameChatCompletion):  vertexPathTemplate,
 		string(ApiNameEmbeddings):      vertexPathTemplate,
 		string(ApiNameImageGeneration): vertexPathTemplate,
+		string(ApiNameVertexRaw):       "", // 空字符串表示保持原路径，不做路径转换
 	}
 }
 
@@ -143,6 +150,12 @@ func (v *vertexProvider) GetProviderType() string {
 }
 
 func (v *vertexProvider) GetApiName(path string) ApiName {
+	// 优先匹配原生 Vertex AI REST API 路径，支持任意 basePath 前缀
+	// 格式: [任意前缀]/{api-version}/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:{action}
+	// 必须在其他 action 检查之前，因为 :predict、:generateContent 等 action 会被其他规则匹配
+	if vertexRawPathRegex.MatchString(path) {
+		return ApiNameVertexRaw
+	}
 	if strings.HasSuffix(path, vertexChatCompletionAction) || strings.HasSuffix(path, vertexChatCompletionStreamAction) {
 		return ApiNameChatCompletion
 	}
@@ -211,6 +224,27 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if !v.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
+
+	// Vertex Raw 模式: 透传请求体，只做 OAuth 认证
+	// 用于直接访问 Vertex AI REST API，不做协议转换
+	// 注意：此检查必须在 IsOriginal() 之前，因为 Vertex Raw 模式通常与 original 协议一起使用
+	if apiName == ApiNameVertexRaw {
+		ctx.SetContext(contextVertexRawMarker, true)
+		// Express Mode 不需要 OAuth 认证
+		if v.isExpressMode() {
+			return types.ActionContinue, nil
+		}
+		// 标准模式需要获取 OAuth token
+		cached, err := v.getToken()
+		if cached {
+			return types.ActionContinue, nil
+		}
+		if err == nil {
+			return types.ActionPause, nil
+		}
+		return types.ActionContinue, err
+	}
+
 	if v.config.IsOriginal() {
 		return types.ActionContinue, nil
 	}
