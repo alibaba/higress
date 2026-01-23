@@ -166,6 +166,9 @@ func (v *vertexProvider) GetApiName(path string) ApiName {
 }
 
 func (v *vertexProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	if apiName == ApiNameAnthropicMessages {
+		ctx.SetContext("needClaudeResponseConversion", true)
+	}
 	v.config.handleRequestHeaders(v, ctx, apiName)
 	return nil
 }
@@ -345,6 +348,7 @@ func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 		return nil, err
 	}
 	if strings.HasPrefix(request.Model, "claude") {
+		ctx.SetContext("needClaudeResponseConversion", false)
 		ctx.SetContext(contextClaudeMarker, true)
 		path := v.getAhthropicRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
 		util.OverwriteRequestPathHeader(headers, path)
@@ -853,15 +857,22 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 		}
 		vertexRequest.GenerationConfig.ThinkingConfig = thinkingConfig
 	}
-	if request.Tools != nil {
+	if len(request.Tools) > 0 {
 		functions := make([]function, 0, len(request.Tools))
 		for _, tool := range request.Tools {
+			if tool.Function.Name == "" {
+				log.Warnf("skipping tool with empty function name")
+				continue
+			}
 			functions = append(functions, tool.Function)
 		}
-		vertexRequest.Tools = []vertexTool{
-			{
-				FunctionDeclarations: functions,
-			},
+		// Only add tools if we have valid functions
+		if len(functions) > 0 {
+			vertexRequest.Tools = []vertexTool{
+				{
+					FunctionDeclarations: functions,
+				},
+			}
 		}
 	}
 	shouldAddDummyModelMessage := false
