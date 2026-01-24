@@ -961,12 +961,50 @@ func removeSchemaFromParameters(parameters map[string]interface{}) map[string]in
 
 	cleaned := make(map[string]interface{}, len(parameters))
 	for key, value := range parameters {
-		if key == "$schema" {
+		if shouldStripSchemaKey(key) {
 			continue
 		}
-		cleaned[key] = value
+		cleaned[key] = sanitizeSchemaValue(value)
 	}
 	return cleaned
+}
+
+var schemaKeysToStrip = map[string]struct{}{
+	"$schema":          {},
+	"exclusiveMinimum": {},
+	"propertyNames":    {},
+}
+
+func shouldStripSchemaKey(key string) bool {
+	_, ok := schemaKeysToStrip[key]
+	return ok
+}
+
+func sanitizeSchemaValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}:
+		cleaned := make(map[string]interface{}, len(v))
+		for k, child := range v {
+			if k == "exclusiveMinimum" {
+				if _, exists := v["minimum"]; !exists {
+					cleaned["minimum"] = sanitizeSchemaValue(child)
+				}
+				continue
+			}
+			if shouldStripSchemaKey(k) {
+				continue
+			}
+			cleaned[k] = sanitizeSchemaValue(child)
+		}
+		return cleaned
+	case []interface{}:
+		for i := range v {
+			v[i] = sanitizeSchemaValue(v[i])
+		}
+		return v
+	default:
+		return value
+	}
 }
 
 func (v *vertexProvider) buildEmbeddingRequest(request *embeddingsRequest) *vertexEmbeddingRequest {
