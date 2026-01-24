@@ -73,6 +73,62 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 				"text": "yyy",
 				"type": "text"
 			}],
+			"tools": [
+				{
+					"name": "TaskOutput",
+					"description": "- Retrieves output from a running or completed task (background shell, agent, or remote session)\n- Takes a task_id parameter identifying the task\n- Returns the task output along with status information\n- Use block=true (default) to wait for task completion\n- Use block=false for non-blocking check of current status\n- Task IDs can be found using the /tasks command\n- Works with all task types: background shells, async agents, and remote sessions",
+					"input_schema": {
+						"$schema": "https://json-schema.org/draft/2020-12/schema",
+						"type": "object",
+						"properties": {
+						"task_id": {
+							"description": "The task ID to get output from",
+							"type": "string"
+						},
+						"block": {
+							"description": "Whether to wait for completion",
+							"default": true,
+							"type": "boolean"
+						},
+						"timeout": {
+							"description": "Max wait time in ms",
+							"default": 30000,
+							"type": "number",
+							"minimum": 0,
+							"maximum": 600000
+						}
+						},
+						"required": [
+						"task_id",
+						"block",
+						"timeout"
+						],
+						"additionalProperties": false
+					}
+				},
+				{
+					"name": "Glob",
+					"description": "- Fast file pattern matching tool that works with any codebase size\n- Supports glob patterns like \"**/*.js\" or \"src/**/*.ts\"\n- Returns matching file paths sorted by modification time\n- Use this tool when you need to find files by name patterns\n- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead\n- You can call multiple tools in a single response. It is always better to speculatively perform multiple searches in parallel if they are potentially useful.",
+					"input_schema": {
+						"$schema": "https://json-schema.org/draft/2020-12/schema",
+						"type": "object",
+						"properties": {
+						"pattern": {
+							"description": "The glob pattern to match files against",
+							"type": "string"
+						},
+						"path": {
+							"description": "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided.",
+							"type": "string"
+						}
+						},
+						"required": [
+						"pattern"
+						],
+						"additionalProperties": false
+					}
+				}
+			],
 			"temperature": 1,
 			"stream_options": {
 				"include_usage": true
@@ -81,6 +137,7 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 
 		result, err := converter.ConvertClaudeRequestToOpenAI([]byte(claudeRequest))
 		require.NoError(t, err)
+		t.Logf("OpenAI request JSON: %s", string(result))
 
 		// Parse the result to verify the conversion
 		var openaiRequest chatCompletionRequest
@@ -157,6 +214,35 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 		cacheControl, ok := thirdElement["cache_control"].(map[string]interface{})
 		require.True(t, ok)
 		assert.Equal(t, "ephemeral", cacheControl["type"])
+
+		// Verify tools conversion
+		require.Len(t, openaiRequest.Tools, 2)
+
+		// First tool: TaskOutput
+		tool1 := openaiRequest.Tools[0]
+		assert.Equal(t, "function", tool1.Type)
+		assert.Equal(t, "TaskOutput", tool1.Function.Name)
+		assert.Contains(t, tool1.Function.Description, "Retrieves output from a running or completed task")
+
+		// Verify input schema (parameters) for tool 1
+		params1 := tool1.Function.Parameters
+		assert.Equal(t, "object", params1["type"])
+		props1, ok := params1["properties"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Contains(t, props1, "task_id")
+
+		// Second tool: Glob
+		tool2 := openaiRequest.Tools[1]
+		assert.Equal(t, "function", tool2.Type)
+		assert.Equal(t, "Glob", tool2.Function.Name)
+		assert.Contains(t, tool2.Function.Description, "Fast file pattern matching tool")
+
+		// Verify input schema (parameters) for tool 2
+		params2 := tool2.Function.Parameters
+		assert.Equal(t, "object", params2["type"])
+		props2, ok := params2["properties"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Contains(t, props2, "pattern")
 	})
 
 	t.Run("convert_mixed_content_with_image", func(t *testing.T) {
