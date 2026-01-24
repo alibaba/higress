@@ -856,7 +856,9 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 	if len(request.Tools) > 0 {
 		functions := make([]function, 0, len(request.Tools))
 		for _, tool := range request.Tools {
-			functions = append(functions, tool.Function)
+			cleaned := tool.Function
+			cleaned.Parameters = removeSchemaFromParameters(cleaned.Parameters)
+			functions = append(functions, cleaned)
 		}
 		vertexRequest.Tools = []vertexTool{
 			{
@@ -939,6 +941,22 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 	}
 
 	return &vertexRequest
+}
+
+// removeSchemaFromParameters removes unsupported "$schema" keys to satisfy Vertex AI tool schema.
+func removeSchemaFromParameters(parameters map[string]interface{}) map[string]interface{} {
+	if parameters == nil {
+		return nil
+	}
+
+	cleaned := make(map[string]interface{}, len(parameters))
+	for key, value := range parameters {
+		if key == "$schema" {
+			continue
+		}
+		cleaned[key] = value
+	}
+	return cleaned
 }
 
 func (v *vertexProvider) buildEmbeddingRequest(request *embeddingsRequest) *vertexEmbeddingRequest {
