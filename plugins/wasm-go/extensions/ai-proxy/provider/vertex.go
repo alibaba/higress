@@ -249,6 +249,17 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		return types.ActionContinue, nil
 	}
 
+	// If main.go detected a Claude request that needs conversion, convert the body
+	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
+	if needClaudeConversion {
+		converter := &ClaudeToOpenAIConverter{}
+		convertedBody, err := converter.ConvertClaudeRequestToOpenAI(body)
+		if err != nil {
+			return types.ActionContinue, fmt.Errorf("failed to convert claude request to openai: %v", err)
+		}
+		body = convertedBody
+	}
+
 	headers := util.GetRequestHeaders()
 
 	// OpenAI 兼容模式: 不转换请求体，只设置路径和进行模型映射
@@ -939,7 +950,6 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 			shouldAddDummyModelMessage = false
 		}
 	}
-
 	return &vertexRequest
 }
 
