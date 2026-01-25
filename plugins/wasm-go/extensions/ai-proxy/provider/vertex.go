@@ -361,6 +361,7 @@ func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 		util.OverwriteRequestPathHeader(headers, path)
 
 		claudeRequest := v.claude.buildClaudeTextGenRequest(request)
+		sanitizeClaudeRequestForVertex(claudeRequest)
 		claudeRequest.Model = ""
 		claudeRequest.AnthropicVersion = vertexAnthropicVersion
 		claudeBody, err := json.Marshal(claudeRequest)
@@ -375,6 +376,51 @@ func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 		vertexRequest := v.buildVertexChatRequest(request)
 		return json.Marshal(vertexRequest)
 	}
+}
+
+func sanitizeClaudeRequestForVertex(req *claudeTextGenRequest) {
+	if req == nil {
+		return
+	}
+
+	if req.System != nil && req.System.IsArray {
+		req.System = &claudeSystemPrompt{
+			StringValue: req.System.String(),
+			IsArray:     false,
+		}
+	}
+
+	for i := range req.Messages {
+		msg := &req.Messages[i]
+		if msg.Content.IsString {
+			continue
+		}
+		if shouldFlattenClaudeTextBlocks(msg.Content.ArrayValue) {
+			msg.Content = NewStringContent(flattenClaudeTextBlocks(msg.Content.ArrayValue))
+		}
+	}
+}
+
+func shouldFlattenClaudeTextBlocks(blocks []claudeChatMessageContent) bool {
+	if len(blocks) == 0 {
+		return false
+	}
+	for _, block := range blocks {
+		if block.Type != contentTypeText {
+			return false
+		}
+	}
+	return true
+}
+
+func flattenClaudeTextBlocks(blocks []claudeChatMessageContent) string {
+	parts := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		if block.Text != "" {
+			parts = append(parts, block.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (v *vertexProvider) onEmbeddingsRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header) ([]byte, error) {
