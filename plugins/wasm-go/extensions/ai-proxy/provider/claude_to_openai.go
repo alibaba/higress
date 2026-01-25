@@ -763,7 +763,7 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 
 // openAIFinishReasonToClaude converts OpenAI finish reason to Claude format
 func openAIFinishReasonToClaude(reason string) string {
-	switch reason {
+	switch strings.ToLower(reason) {
 	case finishReasonStop:
 		return "end_turn"
 	case finishReasonLength:
