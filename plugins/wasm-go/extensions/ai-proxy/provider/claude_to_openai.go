@@ -252,6 +252,14 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 				reasoningText = choice.Message.ReasoningContent
 			}
 
+			textContent := choice.Message.StringContent()
+			if reasoningText == "" && textContent != "" {
+				if extractedThinking, cleanedText, ok := extractReasoningFromText(textContent); ok {
+					reasoningText = extractedThinking
+					textContent = cleanedText
+				}
+			}
+
 			if reasoningText != "" {
 				contents = append(contents, claudeTextGenContent{
 					Type:      "thinking",
@@ -262,10 +270,10 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 			}
 
 			// Add text content if present
-			if choice.Message.StringContent() != "" {
+			if textContent != "" {
 				contents = append(contents, claudeTextGenContent{
 					Type: "text",
-					Text: choice.Message.StringContent(),
+					Text: textContent,
 				})
 			}
 
@@ -773,6 +781,18 @@ func openAIFinishReasonToClaude(reason string) string {
 	default:
 		return reason
 	}
+}
+
+func extractReasoningFromText(text string) (thinking string, cleaned string, ok bool) {
+	startIdx := strings.Index(text, reasoningStartTag)
+	endIdx := strings.Index(text, reasoningEndTag)
+	if startIdx == -1 || endIdx == -1 || endIdx <= startIdx {
+		return "", text, false
+	}
+
+	thinking = strings.TrimSpace(text[startIdx+len(reasoningStartTag) : endIdx])
+	cleaned = strings.TrimSpace(text[:startIdx] + text[endIdx+len(reasoningEndTag):])
+	return thinking, cleaned, true
 }
 
 // convertContentArray converts an array of Claude content to OpenAI content format
