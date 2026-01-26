@@ -38,17 +38,16 @@ metadata:
   name: ai-model-filter
   namespace: higress-system
 spec:
-  defaultConfig:
-    allowed_models:
-      - "gpt-4"
-      - "gpt-3.5-turbo"
-      - "claude-3-*"
-      - "gemini-pro"
-    strict_mode: true
-    reject_message: "Model not allowed"
-    reject_status_code: 403
-  defaultConfigDisable: false
   matchRules:
     - config:
-      hosts:
-        - "ai-api.com"
+        allowed_models:
+          - "gpt-4"
+          - "gpt-3.5-turbo"
+          - "claude-3-*"
+          - "gemini-pro"
+        strict_mode: true
+        reject_message: "Model not allowed"
+        reject_status_code: 403
+      ingress:
+        - higress-conformance-infra/wasmplugin-ai-model-filter
+  url: file:///opt/plugins/wasm-go/extensions/ai-model-filter/plugin.wasm
