@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -134,8 +135,41 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 	} else {
 		util.OverwriteRequestHostHeader(headers, defaultOpenaiDomain)
 	}
+
+	var token string
 	if len(m.config.apiTokens) > 0 {
-		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+		token = m.config.GetApiTokenInUse(ctx)
+		if token == "" {
+			log.Warnf("[openaiProvider.TransformRequestHeaders] apiTokens count > 0 but GetApiTokenInUse returned empty")
+		}
+	} else {
+		// If no apiToken is configured, try to extract from original request
+		// This is useful when client sends x-api-key directly
+		originalApiKey, err := proxywasm.GetHttpRequestHeader("x-api-key")
+		if err == nil && originalApiKey != "" {
+			token = originalApiKey
+			log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from x-api-key header")
+		} else {
+			// Also check Authorization header
+			originalAuth, err := proxywasm.GetHttpRequestHeader("Authorization")
+			if err == nil && originalAuth != "" {
+				// Extract token from "Bearer <token>" format
+				if strings.HasPrefix(originalAuth, "Bearer ") {
+					token = strings.TrimPrefix(originalAuth, "Bearer ")
+					log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from Authorization header")
+				} else {
+					token = originalAuth
+					log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from Authorization header (no Bearer prefix)")
+				}
+			}
+		}
+	}
+
+	if token != "" {
+		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+token)
+		log.Debugf("[openaiProvider.TransformRequestHeaders] Set Authorization header: Bearer ...")
+	} else {
+		log.Warnf("[openaiProvider.TransformRequestHeaders] No auth token available - neither configured in apiTokens nor in request headers")
 	}
 	headers.Del("Content-Length")
 }
