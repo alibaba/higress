@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-collector
+  namespace: higress-system # 建议和 Higress 放在一起
+  labels:
+    app: log-collector
+spec:
+  replicas: 1 # 单实例，完美的性能瓶颈演示
+  selector:
+    matchLabels:
+      app: log-collector
+  template:
+    metadata:
+      labels:
+        app: log-collector
+    spec:
+      containers:
+      - name: collector
+        # 替换为你刚才构建的镜像
+        image: registry.cn-shanghai.aliyuncs.com/daofeng/tiny-collector:latest 
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        # 修改这里的 MySQL 地址
+        - name: MYSQL_DSN
+          value: "liyongjie_dev2:test123T@tcp(rm-2vc05z53dj3zn0496.mysql.cn-chengdu.rds.aliyuncs.com:3306)/higress_poc?charset=utf8mb4&parseTime=True&loc=Local"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: log-collector
+  namespace: higress-system
+spec:
+  selector:
+    app: log-collector
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP
