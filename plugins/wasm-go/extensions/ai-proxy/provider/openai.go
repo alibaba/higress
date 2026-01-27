@@ -137,37 +137,59 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 	}
 
 	var token string
+
+	// 1. If apiTokens is configured, use it first
 	if len(m.config.apiTokens) > 0 {
 		token = m.config.GetApiTokenInUse(ctx)
 		if token == "" {
 			log.Warnf("[openaiProvider.TransformRequestHeaders] apiTokens count > 0 but GetApiTokenInUse returned empty")
 		}
 	} else {
-		// If no apiToken is configured, try to extract from original request
-		// This is useful when client sends x-api-key directly
-		originalApiKey, err := proxywasm.GetHttpRequestHeader("x-api-key")
-		if err == nil && originalApiKey != "" {
-			token = originalApiKey
-			log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from x-api-key header")
-		} else {
-			// Also check Authorization header
-			originalAuth, err := proxywasm.GetHttpRequestHeader("Authorization")
-			if err == nil && originalAuth != "" {
+		// If no apiToken is configured, try to extract from original request headers
+
+		// 2. If authHeaderKey is configured, use the specified header
+		if m.config.authHeaderKey != "" {
+			if apiKey, err := proxywasm.GetHttpRequestHeader(m.config.authHeaderKey); err == nil && apiKey != "" {
+				token = apiKey
+				log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from configured header: %s", m.config.authHeaderKey)
+			}
+		}
+
+		// 3. If authHeaderKey is not configured, check default headers in priority order
+		if token == "" {
+			defaultHeaders := []string{"x-api-key", "x-authorization", "anthropic-api-key"}
+			for _, headerName := range defaultHeaders {
+				if apiKey, err := proxywasm.GetHttpRequestHeader(headerName); err == nil && apiKey != "" {
+					token = apiKey
+					log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from %s header", headerName)
+					break
+				}
+			}
+		}
+
+		// 4. Finally check Authorization header
+		if token == "" {
+			if auth, err := proxywasm.GetHttpRequestHeader("Authorization"); err == nil && auth != "" {
 				// Extract token from "Bearer <token>" format
-				if strings.HasPrefix(originalAuth, "Bearer ") {
-					token = strings.TrimPrefix(originalAuth, "Bearer ")
-					log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from Authorization header")
+				if strings.HasPrefix(auth, "Bearer ") {
+					token = strings.TrimPrefix(auth, "Bearer ")
+					log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from Authorization header (Bearer format)")
 				} else {
-					token = originalAuth
+					token = auth
 					log.Debugf("[openaiProvider.TransformRequestHeaders] Using token from Authorization header (no Bearer prefix)")
 				}
 			}
 		}
 	}
 
+	// 5. Set Authorization header (avoid duplicate Bearer prefix)
 	if token != "" {
-		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+token)
-		log.Debugf("[openaiProvider.TransformRequestHeaders] Set Authorization header: Bearer ...")
+		// Check if token already contains Bearer prefix
+		if !strings.HasPrefix(token, "Bearer ") {
+			token = "Bearer " + token
+		}
+		util.OverwriteRequestAuthorizationHeader(headers, token)
+		log.Debugf("[openaiProvider.TransformRequestHeaders] Set Authorization header successfully")
 	} else {
 		log.Warnf("[openaiProvider.TransformRequestHeaders] No auth token available - neither configured in apiTokens nor in request headers")
 	}
