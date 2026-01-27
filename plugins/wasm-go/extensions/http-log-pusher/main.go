@@ -11,7 +11,10 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
+	proxywasm.LogInfo("[http-log-pusher] plugin initializing...")
 	wrapper.SetCtx(
 		"http-log-pusher",
 		wrapper.ParseConfigBy(parseConfig),
