@@ -20,6 +20,7 @@ func main() {
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 	)
+	proxywasm.LogInfo("[http-log-pusher] plugin loaded successfully")
 }
 
 // PluginConfig 定义插件配置 (对应 WasmPlugin 资源中的 pluginConfig)
@@ -41,8 +42,11 @@ type LogEntry struct {
 
 // 解析配置
 func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) error {
+	log.Infof("[http-log-pusher] parsing config: %s", jsonConf.String())
+	
 	config.CollectorClientName = jsonConf.Get("collector_service").String()
 	if config.CollectorClientName == "" {
+		log.Errorf("[http-log-pusher] collector_service is required in config")
 		return errors.New("collector_service is required in config")
 	}
 	config.CollectorPath = jsonConf.Get("collector_path").String()
@@ -53,6 +57,9 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 	if config.SampleRate == 0 {
 		config.SampleRate = 100 // 默认全采
 	}
+	
+	log.Infof("[http-log-pusher] config parsed: collector_service=%s, collector_path=%s, sample_rate=%d",
+		config.CollectorClientName, config.CollectorPath, config.SampleRate)
 	return nil
 }
 
@@ -60,10 +67,12 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 
 // 1. 处理请求头
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	log.Debugf("[http-log-pusher] onHttpRequestHeaders called, path=%s, method=%s", ctx.Path(), ctx.Method())
+	
 	// 获取所有请求头并暂存
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
-		log.Errorf("failed to get request headers: %v", err)
+		log.Errorf("[http-log-pusher] failed to get request headers: %v", err)
 	}
 	ctx.SetContext("req_headers", headers)
 	ctx.SetContext("start_time", time.Now().UnixMilli())
@@ -75,6 +84,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 
 // 2. 处理请求体
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+	log.Debugf("[http-log-pusher] onHttpRequestBody called, body_size=%d", len(body))
+	
 	if len(body) > 0 {
 		// 注意：大包体可能会分多次回调，生产环境建议限制长度或做截断
 		ctx.SetContext("req_body", string(body))
@@ -84,6 +95,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 // 3. 处理响应头
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+	log.Debugf("[http-log-pusher] onHttpResponseHeaders called")
+	
 	headers, _ := proxywasm.GetHttpResponseHeaders()
 	ctx.SetContext("resp_headers", headers)
 	return types.ActionContinue
@@ -91,6 +104,8 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 
 // 4. 处理响应体 (也是发送日志的最佳时机)
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+	log.Debugf("[http-log-pusher] onHttpResponseBody called, body_size=%d", len(body))
+	
 	// 1. 组装数据
 	reqHeaders, _ := ctx.GetContext("req_headers").([][2]string)
 	reqBody, _ := ctx.GetContext("req_body").(string)
@@ -107,6 +122,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	}
 
 	payload, _ := json.Marshal(entry)
+	log.Infof("[http-log-pusher] sending log to collector: %s%s, payload_size=%d",
+		config.CollectorClientName, config.CollectorPath, len(payload))
 
 	// 2. 发送异步请求给 Collector
 	// 注意：DispatchHttpCall 是异步的，不会阻塞当前客户端响应
@@ -129,7 +146,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 			// 忽略响应
 		},
 	); err != nil {
-		log.Errorf("dispatch http call failed: %v", err)
+		log.Errorf("[http-log-pusher] dispatch http call failed: %v", err)
+	} else {
+		log.Infof("[http-log-pusher] log dispatched successfully")
 	}
 
 	return types.ActionContinue
