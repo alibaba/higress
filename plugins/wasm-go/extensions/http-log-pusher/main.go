@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
@@ -28,9 +29,10 @@ func init() {
 
 // PluginConfig 定义插件配置 (对应 WasmPlugin 资源中的 pluginConfig)
 type PluginConfig struct {
-	CollectorClientName string `json:"collector_service"` // Envoy 集群名，例如 "outbound|8080||collector-service.default.svc.cluster.local"
-	CollectorPath       string `json:"collector_path"`    // 接收日志的 API 路径，例如 "/api/log"
-	SampleRate          int64  `json:"sample_rate"`       // 采样率 0-100
+	CollectorClientName string             `json:"collector_service"` // Envoy 集群名，例如 "outbound|8080||collector-service.default.svc.cluster.local"
+	CollectorPath       string             `json:"collector_path"`    // 接收日志的 API 路径，例如 "/api/log"
+	SampleRate          int64              `json:"sample_rate"`       // 采样率 0-100
+	CollectorClient     wrapper.HttpClient `json:"-"`                 // HTTP 客户端，用于发送日志
 }
 
 // LogEntry 定义发给 Collector 的 JSON 数据结构
@@ -61,7 +63,12 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 		config.SampleRate = 100 // 默认全采
 	}
 	
-	log.Infof("[http-log-pusher] config parsed: collector_service=%s, collector_path=%s, sample_rate=%d",
+	// 创建 HTTP 客户端用于发送日志
+	config.CollectorClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
+		ServiceName: config.CollectorClientName,
+	})
+	
+	log.Infof("[http-log-pusher] config parsed successfully: collector_service=%s, collector_path=%s, sample_rate=%d",
 		config.CollectorClientName, config.CollectorPath, config.SampleRate)
 	return nil
 }
@@ -129,29 +136,28 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		config.CollectorClientName, config.CollectorPath, len(payload))
 
 	// 2. 发送异步请求给 Collector
-	// 注意：DispatchHttpCall 是异步的，不会阻塞当前客户端响应
+	// 使用 wrapper.HttpClient.Post 方法，它会自动处理 headers
 	headers := [][2]string{
-		{":method", "POST"},
-		{":path", config.CollectorPath},
-		{":authority", "collector"},
 		{"Content-Type", "application/json"},
 	}
 
 	// 这里的 5000 是超时时间(ms)
-	// Fire-and-forget: 不需要处理响应
-	if _, err := proxywasm.DispatchHttpCall(
-		config.CollectorClientName,
+	// Fire-and-forget: 回调函数简单记录结果
+	err := config.CollectorClient.Post(
+		config.CollectorPath,
 		headers,
 		payload,
-		nil,
-		5000,
-		func(numHeaders, bodySize, numTrailers int) {
-			// 忽略响应
+		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+			if statusCode == 200 || statusCode == 204 {
+				log.Infof("[http-log-pusher] log sent successfully, status=%d", statusCode)
+			} else {
+				log.Warnf("[http-log-pusher] collector returned status=%d, body=%s", statusCode, string(responseBody))
+			}
 		},
-	); err != nil {
-		log.Errorf("[http-log-pusher] dispatch http call failed: %v", err)
-	} else {
-		log.Infof("[http-log-pusher] log dispatched successfully")
+		5000, // 超时 5 秒
+	)
+	if err != nil {
+		log.Errorf("[http-log-pusher] failed to dispatch http call: %v", err)
 	}
 
 	return types.ActionContinue
