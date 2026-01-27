@@ -3,13 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm"
-	"github.com/tetratelabs/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/tidwall/gjson"
 )
 
@@ -120,12 +118,16 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	}
 
 	// 这里的 5000 是超时时间(ms)
+	// Fire-and-forget: 不需要处理响应
 	if _, err := proxywasm.DispatchHttpCall(
-		config.CollectorClientName, 
-		headers, 
-		payload, 
-		nil, // 不接收回调，Fire-and-forget
+		config.CollectorClientName,
+		headers,
+		payload,
+		nil,
 		5000,
+		func(numHeaders, bodySize, numTrailers int) {
+			// 忽略响应
+		},
 	); err != nil {
 		log.Errorf("dispatch http call failed: %v", err)
 	}
