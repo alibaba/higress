@@ -157,7 +157,7 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 
 		// 3. If authHeaderKey is not configured, check default headers in priority order
 		if token == "" {
-			defaultHeaders := []string{"x-api-key", "x-authorization", "anthropic-api-key"}
+			defaultHeaders := []string{"x-api-key", "x-authorization"}
 			for _, headerName := range defaultHeaders {
 				if apiKey, err := proxywasm.GetHttpRequestHeader(headerName); err == nil && apiKey != "" {
 					token = apiKey
