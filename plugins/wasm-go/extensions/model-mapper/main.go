@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -136,11 +137,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 			break
 		}
 	}
-	if !matched {
-		return types.ActionContinue
-	}
 
-	if !ctx.HasRequestBody() {
+	if !matched || !ctx.HasRequestBody() {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -155,6 +153,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
 	if len(body) == 0 {
+		return types.ActionContinue
+	}
+
+	if !json.Valid(body) {
+		log.Error("invalid json body")
 		return types.ActionContinue
 	}
 
