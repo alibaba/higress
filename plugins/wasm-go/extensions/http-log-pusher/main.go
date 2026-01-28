@@ -77,7 +77,21 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 
 // 1. 处理请求头
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Debugf("[http-log-pusher] onHttpRequestHeaders called, path=%s, method=%s", ctx.Path(), ctx.Method())
+	// 获取 Host 信息
+	host := ctx.Host()
+	log.Infof("[http-log-pusher] onHttpRequestHeaders called, host=%s, path=%s, method=%s", host, ctx.Path(), ctx.Method())
+	
+	// 采样率判断:生成 0-99 的随机数,如果超过采样率则跳过
+	randomValue := time.Now().UnixNano() % 100
+	shouldSample := randomValue < config.SampleRate
+	ctx.SetContext("should_sample", shouldSample)
+	
+	if !shouldSample {
+		log.Debugf("[http-log-pusher] request skipped by sampling (rate=%d%%, random=%d)", config.SampleRate, randomValue)
+		return types.ActionContinue
+	}
+	
+	log.Infof("[http-log-pusher] request sampled, host=%s, path=%s, rate=%d%%, random=%d", host, ctx.Path(), config.SampleRate, randomValue)
 	
 	// 获取所有请求头并暂存
 	headers, err := proxywasm.GetHttpRequestHeaders()
@@ -96,6 +110,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 	log.Debugf("[http-log-pusher] onHttpRequestBody called, body_size=%d", len(body))
 	
+	// 检查是否被采样
+	shouldSample, _ := ctx.GetContext("should_sample").(bool)
+	if !shouldSample {
+		return types.ActionContinue
+	}
+	
 	if len(body) > 0 {
 		// 注意：大包体可能会分多次回调，生产环境建议限制长度或做截断
 		ctx.SetContext("req_body", string(body))
@@ -107,6 +127,12 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	log.Debugf("[http-log-pusher] onHttpResponseHeaders called")
 	
+	// 检查是否被采样
+	shouldSample, _ := ctx.GetContext("should_sample").(bool)
+	if !shouldSample {
+		return types.ActionContinue
+	}
+	
 	headers, _ := proxywasm.GetHttpResponseHeaders()
 	ctx.SetContext("resp_headers", headers)
 	return types.ActionContinue
@@ -115,6 +141,12 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 // 4. 处理响应体 (也是发送日志的最佳时机)
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 	log.Debugf("[http-log-pusher] onHttpResponseBody called, body_size=%d", len(body))
+	
+	// 检查是否被采样
+	shouldSample, _ := ctx.GetContext("should_sample").(bool)
+	if !shouldSample {
+		return types.ActionContinue
+	}
 	
 	// 1. 组装数据
 	reqHeaders, _ := ctx.GetContext("req_headers").([][2]string)
