@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -91,12 +92,8 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ModelRouterConfig) typ
 		}
 	}
 
-	if !enable {
+	if !enable || !ctx.HasRequestBody() {
 		ctx.DontReadRequestBody()
-		return types.ActionContinue
-	}
-
-	if !ctx.HasRequestBody() {
 		return types.ActionContinue
 	}
 
@@ -124,7 +121,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config ModelRouterConfig, body [
 }
 
 func handleJsonBody(ctx wrapper.HttpContext, config ModelRouterConfig, body []byte) types.Action {
-
+	if !json.Valid(body) {
+		log.Error("invalid json body")
+		return types.ActionContinue
+	}
 	modelValue := gjson.GetBytes(body, config.modelKey).String()
 	if modelValue == "" {
 		return types.ActionContinue
