@@ -72,7 +72,7 @@ func HandleMcpRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, 
 		config.IncrementCounter("ai_sec_request_deny", 1)
 		endTime := time.Now().UnixMilli()
 		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
+		ctx.SetUserAttribute("safecheck_status", "request deny")
 		if response.Data.Advice != nil {
 			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
 			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
@@ -130,7 +130,7 @@ func HandleMcpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecuri
 		}
 	}
 	singleCall = func() {
-		if ctx.GetContext("during_call").(bool) {
+		if during_call, _ := ctx.GetContext("during_call").(bool); during_call {
 			return
 		}
 		if ctx.BufferQueueSize() > 0 {
@@ -155,7 +155,7 @@ func HandleMcpStreamingResponseBody(ctx wrapper.HttpContext, config cfg.AISecuri
 		event := data[index:]
 		if gjson.GetBytes(event, config.ResponseStreamContentJsonPath).Exists() {
 			ctx.PushBuffer(data)
-			if !ctx.GetContext("during_call").(bool) {
+			if during_call, _ := ctx.GetContext("during_call").(bool); !during_call {
 				singleCall()
 			}
 			return []byte{}
