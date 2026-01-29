@@ -70,6 +70,7 @@ const (
 	ApiNameGeminiStreamGenerateContent ApiName = "gemini/v1beta/streamgeneratecontent"
 	ApiNameAnthropicMessages           ApiName = "anthropic/v1/messages"
 	ApiNameAnthropicComplete           ApiName = "anthropic/v1/complete"
+	ApiNameVertexRaw                   ApiName = "vertex/raw"
 
 	// OpenAI
 	PathOpenAIPrefix                               = "/v1"
@@ -396,6 +397,9 @@ type ProviderConfig struct {
 	// @Title zh-CN  指定服务返回的响应需满足的JSON Schema
 	// @Description zh-CN 目前仅适用于OpenAI部分模型服务。参考：https://platform.openai.com/docs/guides/structured-outputs
 	responseJsonSchema map[string]interface{} `required:"false" yaml:"responseJsonSchema" json:"responseJsonSchema"`
+	// @Title zh-CN 自定义认证Header名称
+	// @Description zh-CN 用于从请求中提取认证token的自定义header名称。如不配置，则按默认优先级检查 x-api-key、x-authorization、anthropic-api-key 和 Authorization header。
+	authHeaderKey string `required:"false" yaml:"authHeaderKey" json:"authHeaderKey"`
 	// @Title zh-CN 自定义大模型参数配置
 	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
 	customSettings []CustomSetting
