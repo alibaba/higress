@@ -68,6 +68,7 @@ const (
 const (
 	ApiTextGeneration  = "text_generation"
 	ApiImageGeneration = "image_generation"
+	ApiMCP             = "mcp"
 )
 
 // provider types
