@@ -1,12 +1,12 @@
-# Higress 社区治理日报 - Claude Skill
+# Higress 社区治理日报 - Clawdbot Skill
 
-这个 skill 让 AI 助手（如 Claude）能够自动追踪 Higress 项目的 GitHub 活动，并生成结构化的每日社区治理报告。
+这个 skill 让 AI 助手通过 Clawdbot 自动追踪 Higress 项目的 GitHub 活动，并生成结构化的每日社区治理报告。
 
 ## 架构概览
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│    Clawdbot     │────▶│  Claude + Skill │────▶│   GitHub API    │
+│    Clawdbot     │────▶│  AI + Skill     │────▶│   GitHub API    │
 │   (Gateway)     │     │                 │     │   (gh CLI)      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
         │                       │
@@ -26,9 +26,9 @@
 
 ## 什么是 Clawdbot？
 
-[Clawdbot](https://github.com/clawdbot/clawdbot) 是一个 AI Agent 网关，可以将 Claude 等 AI 模型连接到各种消息平台（Discord、Slack、Telegram 等）和工具（GitHub CLI、浏览器、文件系统等）。
+[Clawdbot](https://github.com/clawdbot/clawdbot) 是一个 AI Agent 网关，可以将 Claude、GPT、GLM 等 AI 模型连接到各种消息平台（Discord、Slack、Telegram 等）和工具（GitHub CLI、浏览器、文件系统等）。
 
-通过 Clawdbot，Claude 可以：
+通过 Clawdbot，AI 助手可以：
 - 接收来自 Discord 等平台的消息
 - 执行 shell 命令（如 `gh` CLI）
 - 读写文件
@@ -50,7 +50,7 @@ cron:
 
 ### 2. Skill 加载
 
-当 Claude 收到生成日报的指令时，会自动加载此 skill（SKILL.md），获取：
+当 AI 助手收到生成日报的指令时，会自动加载此 skill（SKILL.md），获取：
 - 数据获取方法（gh CLI 命令）
 - 数据结构定义
 - 日报格式模板
@@ -58,13 +58,13 @@ cron:
 
 ### 3. 数据获取
 
-Claude 使用 GitHub CLI 获取数据：
+AI 助手使用 GitHub CLI 获取数据：
 
 ```bash
 # 获取昨日新建的 issues
 gh search issues --repo alibaba/higress --created yesterday --json number,title,author,url,body,state,labels
 
-# 获取昨日新建的 PRs  
+# 获取昨日新建的 PRs
 gh search prs --repo alibaba/higress --created yesterday --json number,title,author,url,body,state
 
 # 获取特定 issue 的评论
@@ -73,7 +73,7 @@ gh api repos/alibaba/higress/issues/{number}/comments
 
 ### 4. 状态追踪
 
-Claude 维护一个 JSON 文件追踪每个 issue 的状态：
+AI 助手维护一个 JSON 文件追踪每个 issue 的状态：
 
 ```json
 {
@@ -91,7 +91,7 @@ Claude 维护一个 JSON 文件追踪每个 issue 的状态：
 
 ### 5. 知识沉淀
 
-当 issue 被解决时，Claude 会将问题模式和解决方案记录到知识库：
+当 issue 被解决时，AI 助手会将问题模式和解决方案记录到知识库：
 
 ```markdown
 ## KB-001: OPTIONS 预检请求被认证拦截
@@ -114,7 +114,7 @@ Claude 维护一个 JSON 文件追踪每个 issue 的状态：
 
 ### 7. 消息推送
 
-Claude 通过 Clawdbot 将日报发送到指定的 Discord 频道。
+AI 助手通过 Clawdbot 将日报发送到指定的 Discord 频道。
 
 ## 快速开始
 
@@ -136,7 +136,7 @@ cp -r .claude/skills/higress-daily-report ~/.clawdbot/skills/
 
 **手动触发：**
 ```
-@Claude 生成 Higress 昨日日报
+生成 Higress 昨日日报
 ```
 
 **定时触发（推荐）：**
@@ -147,7 +147,7 @@ cp -r .claude/skills/higress-daily-report ~/.clawdbot/skills/
 ```
 higress-daily-report/
 ├── README.md           # 本文件
-├── SKILL.md            # Skill 定义（Claude 读取）
+├── SKILL.md            # Skill 定义（AI 助手读取）
 └── scripts/
     └── generate-report.sh  # 辅助脚本（可选）
 ```
