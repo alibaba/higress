@@ -364,7 +364,7 @@ global:
     enabled: false
     promtail:
       image:
-        repository: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/promtail
+        repository: "" # Will use global.hub if not set
         tag: 2.9.4
       port: 3101
       resources:
@@ -379,7 +379,7 @@ global:
   # The default value is "" and when caName="", the CA will be configured by other
   # mechanisms (e.g., environmental variable CA_PROVIDER).
   caName: ""
-hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+hub: "" # Will use global.hub if not set
 
 clusterName: ""
 # -- meshConfig defines runtime configuration of components, including Istiod and istio-agent behavior
@@ -435,7 +435,7 @@ gateway:
   # -- The readiness timeout seconds
   readinessTimeoutSeconds: 3
 
-  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  hub: "" # Will use global.hub if not set
   tag: ""
   # -- revision declares which revision this gateway is a part of
   revision: ""
@@ -557,7 +557,7 @@ controller:
   replicas: 1
   image: higress
 
-  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  hub: "" # Will use global.hub if not set
   tag: ""
   env: {}
 
@@ -653,7 +653,7 @@ pilot:
   rollingMaxSurge: 100%
   rollingMaxUnavailable: 25%
 
-  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  hub: "" # Will use global.hub if not set
   tag: ""
 
   # -- Can be a full hub/image:tag
@@ -806,7 +806,7 @@ pluginServer:
   replicas: 2
   image: plugin-server
 
-  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  hub: "" # Will use global.hub if not set
   tag: ""
 
   imagePullSecrets: []
