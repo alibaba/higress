@@ -52,6 +52,7 @@ Plugin execution priority: `100`
 | `context`        | object                 | Optional    | -       | Configuration for AI conversation context information                                                                                                                                                                                                                                                                                                                                     |
 | `customSettings` | array of customSetting | Optional    | -       | Specifies overrides or fills parameters for AI requests                                                                                                                                                                                                                                                                                                                                   |
 | `subPath`        | string                 | Optional    | -       | If subPath is configured, the prefix will be removed from the request path before further processing.                                                                                                                                                                                                                                                                                     |
+| `contextCleanupCommands` | array of string | Optional    | -       | List of context cleanup commands. When a user message in the request exactly matches any of the configured commands, that message and all non-system messages before it will be removed, keeping only system messages and messages after the command. This enables users to actively clear conversation history.                                                                           |
 
 **Details for the `context` configuration fields:**
 
@@ -2146,6 +2147,93 @@ providers:
     "model": "gpt2",
 }
 ```
+
+### Using Context Cleanup Commands
+
+After configuring context cleanup commands, users can actively clear conversation history by sending specific messages, achieving a "start over" effect.
+
+**Configuration**
+
+```yaml
+provider:
+  type: qwen
+  apiTokens:
+    - "YOUR_QWEN_API_TOKEN"
+  modelMapping:
+    "*": "qwen-turbo"
+  contextCleanupCommands:
+    - "clear context"
+    - "/clear"
+    - "start over"
+    - "new conversation"
+```
+
+**Request Example**
+
+When a user sends a request containing a cleanup command:
+
+```json
+{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are an assistant"
+    },
+    {
+      "role": "user",
+      "content": "Hello"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! How can I help you?"
+    },
+    {
+      "role": "user",
+      "content": "What's the weather like today"
+    },
+    {
+      "role": "assistant",
+      "content": "Sorry, I cannot get real-time weather information."
+    },
+    {
+      "role": "user",
+      "content": "clear context"
+    },
+    {
+      "role": "user",
+      "content": "Let's start a new topic, introduce yourself"
+    }
+  ]
+}
+```
+
+**Actual Request Sent to AI Service**
+
+The plugin automatically removes the cleanup command and all non-system messages before it:
+
+```json
+{
+  "model": "qwen-turbo",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are an assistant"
+    },
+    {
+      "role": "user",
+      "content": "Let's start a new topic, introduce yourself"
+    }
+  ]
+}
+```
+
+**Notes**
+
+- The cleanup command must exactly match the configured string; partial matches will not trigger cleanup
+- When multiple cleanup commands exist in messages, only the last matching command is processed
+- Cleanup preserves all system messages and removes user, assistant, and tool messages before the command
+- All messages after the cleanup command are preserved
 
 ## Full Configuration Example
 
