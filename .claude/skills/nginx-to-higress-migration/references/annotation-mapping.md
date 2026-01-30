@@ -1,17 +1,17 @@
-# Nginx to Higress Annotation Mapping
+# Nginx to Higress Annotation Compatibility
 
-## Native nginx Annotation Support
+## ⚠️ Important: Do NOT Modify Your Ingress Resources!
 
-**Higress natively supports `nginx.ingress.kubernetes.io/*` annotations** - no conversion needed!
+**Higress natively supports `nginx.ingress.kubernetes.io/*` annotations** - no conversion or modification needed!
 
-The Higress controller uses `ParseStringASAP()` which first tries `nginx.ingress.kubernetes.io/*` prefix, then falls back to `higress.io/*`. This means you can keep existing nginx annotations as-is.
+The Higress controller uses `ParseStringASAP()` which first tries `nginx.ingress.kubernetes.io/*` prefix, then falls back to `higress.io/*`. Your existing Ingress resources work as-is with Higress.
 
-## Fully Compatible Annotations (No Change Required)
+## Fully Compatible Annotations (Work As-Is)
 
-These nginx annotations work directly with Higress:
+These nginx annotations work directly with Higress without any changes:
 
-| nginx annotation (works as-is) | Alternative Higress annotation | Notes |
-|--------------------------------|-------------------------------|-------|
+| nginx annotation (keep as-is) | Higress also accepts | Notes |
+|-------------------------------|---------------------|-------|
 | `nginx.ingress.kubernetes.io/rewrite-target` | `higress.io/rewrite-target` | Supports capture groups |
 | `nginx.ingress.kubernetes.io/use-regex` | `higress.io/use-regex` | Enable regex path matching |
 | `nginx.ingress.kubernetes.io/ssl-redirect` | `higress.io/ssl-redirect` | Force HTTPS |

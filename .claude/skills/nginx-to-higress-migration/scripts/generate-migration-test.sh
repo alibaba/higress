@@ -19,9 +19,14 @@ TIMEOUT="${2:-5}"
 VERBOSE="${3:-false}"
 
 if [ -z "$GATEWAY_IP" ]; then
-    echo "Usage: $0 <higress-gateway-ip> [timeout] [verbose]"
+    echo "Usage: $0 <higress-gateway-ip[:port]> [timeout] [verbose]"
     echo ""
-    echo "Example: $0 10.0.0.100 5 true"
+    echo "Examples:"
+    echo "  # With LoadBalancer IP"
+    echo "  $0 10.0.0.100 5 true"
+    echo ""
+    echo "  # With port-forward (run this first: kubectl port-forward -n higress-system svc/higress-gateway 8080:80 &)"
+    echo "  $0 127.0.0.1:8080 5 true"
     exit 1
 fi
 

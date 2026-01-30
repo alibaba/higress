@@ -32,24 +32,25 @@ kubectl get configmap -n ingress-nginx ingress-nginx-controller -o yaml
 
 ### Phase 2: Compatibility Analysis
 
-**Supported nginx annotations** (native Higress support):
-- `nginx.ingress.kubernetes.io/rewrite-target` → `higress.io/rewrite-target`
-- `nginx.ingress.kubernetes.io/ssl-redirect` → `higress.io/ssl-redirect`
-- `nginx.ingress.kubernetes.io/cors-*` → `higress.io/cors-*`
-- `nginx.ingress.kubernetes.io/proxy-*-timeout` → `higress.io/timeout`
-- `nginx.ingress.kubernetes.io/canary*` → `higress.io/canary*`
-- `nginx.ingress.kubernetes.io/whitelist-source-range` → `higress.io/whitelist-source-range`
-- `nginx.ingress.kubernetes.io/auth-*` → `higress.io/auth-*`
-- `nginx.ingress.kubernetes.io/upstream-hash-by` → `higress.io/upstream-hash-by`
-- `nginx.ingress.kubernetes.io/load-balance` → `higress.io/load-balance`
+Run the analysis script to identify unsupported features:
 
-See [references/annotation-mapping.md](references/annotation-mapping.md) for complete mapping.
+```bash
+./scripts/analyze-ingress.sh [namespace]
+```
 
-**Unsupported annotations** (require WASM plugin):
+**Key point: No Ingress modification needed!**
+
+Higress natively supports `nginx.ingress.kubernetes.io/*` annotations - your existing Ingress resources work as-is.
+
+See [references/annotation-mapping.md](references/annotation-mapping.md) for the complete list of supported annotations.
+
+**Unsupported annotations** (require built-in plugin or custom WASM plugin):
 - `nginx.ingress.kubernetes.io/server-snippet`
 - `nginx.ingress.kubernetes.io/configuration-snippet`
 - `nginx.ingress.kubernetes.io/lua-resty-waf*`
 - Complex Lua logic in snippets
+
+For these, check [references/builtin-plugins.md](references/builtin-plugins.md) first - Higress may already have a plugin!
 
 ### Phase 3: Higress Installation (Parallel with nginx)
 
@@ -60,22 +61,45 @@ Higress natively supports `nginx.ingress.kubernetes.io/*` annotations. Install H
 INGRESS_CLASS=$(kubectl get ingressclass -o jsonpath='{.items[?(@.spec.controller=="k8s.io/ingress-nginx")].metadata.name}')
 echo "Current nginx ingressClass: $INGRESS_CLASS"
 
-# 2. Add Higress repo
+# 2. Detect timezone and select nearest registry
+# China/Asia: higress-registry.cn-hangzhou.cr.aliyuncs.com (default)
+# North America: higress-registry.us-west-1.cr.aliyuncs.com
+# Southeast Asia: higress-registry.ap-southeast-7.cr.aliyuncs.com
+TZ_OFFSET=$(date +%z)
+case "$TZ_OFFSET" in
+  -1*|-0*) REGISTRY="higress-registry.us-west-1.cr.aliyuncs.com" ;;      # Americas
+  +07*|+08*|+09*) REGISTRY="higress-registry.cn-hangzhou.cr.aliyuncs.com" ;; # Asia
+  +05*|+06*) REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" ;;   # Southeast Asia
+  *) REGISTRY="higress-registry.cn-hangzhou.cr.aliyuncs.com" ;;          # Default
+esac
+echo "Using registry: $REGISTRY"
+
+# 3. Add Higress repo
 helm repo add higress https://higress.io/helm-charts
 helm repo update
 
-# 3. Install Higress using the SAME ingressClass (both controllers will watch)
+# 4. Install Higress with parallel-safe settings
 helm install higress higress/higress \
   -n higress-system --create-namespace \
   --set global.ingressClass=${INGRESS_CLASS:-nginx} \
+  --set global.hub=${REGISTRY} \
+  --set higress-core.controller.ingressStatusUpdater.enabled=false \
   --set higress-core.gateway.replicas=2
 ```
 
-Key points:
+Key helm values:
 - `global.ingressClass`: Use the **same** class as ingress-nginx
+- `global.hub`: Image registry (auto-selected by timezone)
+- `higress-core.controller.ingressStatusUpdater.enabled=false`: **Disable Ingress status updates** to avoid conflicts with nginx (reduces API server pressure)
 - Both nginx and Higress will watch the same Ingress resources
 - Higress automatically recognizes `nginx.ingress.kubernetes.io/*` annotations
 - Traffic still flows through nginx until you switch the entry point
+
+⚠️ **Note**: After nginx is uninstalled, you can enable status updates:
+```bash
+helm upgrade higress higress/higress -n higress-system \
+  --set higress-core.controller.ingressStatusUpdater.enabled=true
+```
 
 ### Phase 4: Generate and Run Test Script
 
@@ -86,8 +110,15 @@ After Higress is running, generate a test script covering all Ingress routes:
 ./scripts/generate-migration-test.sh > migration-test.sh
 chmod +x migration-test.sh
 
-# Run tests against Higress gateway
+# Get Higress gateway address
+# Option A: If LoadBalancer is supported
 HIGRESS_IP=$(kubectl get svc -n higress-system higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+# Option B: If LoadBalancer is NOT supported, use port-forward
+kubectl port-forward -n higress-system svc/higress-gateway 8080:80 &
+HIGRESS_IP="127.0.0.1:8080"
+
+# Run tests
 ./migration-test.sh ${HIGRESS_IP}
 ```
 
@@ -121,11 +152,31 @@ Choose your cutover method based on infrastructure:
 # Update your external-facing Service selector or endpoints
 ```
 
-### Phase 5: WASM Plugin for Unsupported Features
+### Phase 6: Use Built-in Plugins or Create Custom WASM Plugin (If Needed)
 
-When nginx snippets or Lua logic detected, generate WASM plugin.
+Before writing custom plugins, check if Higress has a built-in plugin that meets your needs!
 
-#### Plugin Generation Flow
+#### Built-in Plugins (Recommended First)
+
+Higress provides many built-in plugins. Check [references/builtin-plugins.md](references/builtin-plugins.md) for the full list.
+
+Common replacements for nginx features:
+| nginx feature | Higress built-in plugin |
+|---------------|------------------------|
+| Basic Auth snippet | `basic-auth` |
+| IP restriction | `ip-restriction` |
+| Rate limiting | `key-rate-limit`, `cluster-key-rate-limit` |
+| WAF/ModSecurity | `waf` |
+| Request validation | `request-validation` |
+| Bot detection | `bot-detect` |
+| JWT auth | `jwt-auth` |
+| CORS headers | `cors` |
+| Custom response | `custom-response` |
+| Request/Response transform | `transformer` |
+
+#### Custom WASM Plugin (If No Built-in Matches)
+
+When nginx snippets or Lua logic has no built-in equivalent:
 
 1. **Analyze snippet** - Extract nginx directives/Lua code
 2. **Generate Go WASM code** - Use higress-wasm-go-plugin skill
