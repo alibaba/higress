@@ -79,18 +79,24 @@ helm repo add higress https://higress.io/helm-charts
 helm repo update
 
 # 4. Install Higress with parallel-safe settings
+# Note: Override ALL component hubs to use the selected registry
 helm install higress higress/higress \
   -n higress-system --create-namespace \
   --set global.ingressClass=${INGRESS_CLASS:-nginx} \
-  --set global.hub=${REGISTRY} \
-  --set higress-core.controller.ingressStatusUpdater.enabled=false \
+  --set global.hub=${REGISTRY}/higress \
+  --set global.enableStatus=false \
+  --set higress-core.controller.hub=${REGISTRY}/higress \
+  --set higress-core.gateway.hub=${REGISTRY}/higress \
+  --set higress-core.pilot.hub=${REGISTRY}/higress \
+  --set higress-core.pluginServer.hub=${REGISTRY}/higress \
   --set higress-core.gateway.replicas=2
 ```
 
 Key helm values:
 - `global.ingressClass`: Use the **same** class as ingress-nginx
 - `global.hub`: Image registry (auto-selected by timezone)
-- `higress-core.controller.ingressStatusUpdater.enabled=false`: **Disable Ingress status updates** to avoid conflicts with nginx (reduces API server pressure)
+- `global.enableStatus=false`: **Disable Ingress status updates** to avoid conflicts with nginx (reduces API server pressure)
+- Override all component hubs to ensure consistent registry usage
 - Both nginx and Higress will watch the same Ingress resources
 - Higress automatically recognizes `nginx.ingress.kubernetes.io/*` annotations
 - Traffic still flows through nginx until you switch the entry point
@@ -98,7 +104,8 @@ Key helm values:
 ⚠️ **Note**: After nginx is uninstalled, you can enable status updates:
 ```bash
 helm upgrade higress higress/higress -n higress-system \
-  --set higress-core.controller.ingressStatusUpdater.enabled=true
+  --reuse-values \
+  --set global.enableStatus=true
 ```
 
 ### Phase 4: Generate and Run Test Script
@@ -187,7 +194,15 @@ go mod tidy
 GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o main.wasm ./
 ```
 
-4. **Push to registry** (user provides registry):
+4. **Push to registry**:
+
+If you don't have an image registry, install Harbor:
+```bash
+./scripts/install-harbor.sh
+# Follow the prompts to install Harbor in your cluster
+```
+
+If you have your own registry:
 ```bash
 # Build OCI image
 docker build -t <registry>/higress-plugin-<name>:v1 .

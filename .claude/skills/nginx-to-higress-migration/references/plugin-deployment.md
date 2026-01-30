@@ -19,7 +19,8 @@ my-plugin/
 mkdir my-plugin && cd my-plugin
 go mod init my-plugin
 
-# Set proxy (China)
+# Set proxy (only needed in China due to network restrictions)
+# Skip this step if you're outside China or have direct access to GitHub
 go env -w GOPROXY=https://proxy.golang.com.cn,direct
 
 # Get dependencies
@@ -83,8 +84,10 @@ COPY main.wasm /plugin.wasm
 
 ### 5. Build and Push Image
 
+#### Option A: Use Your Own Registry
+
 ```bash
-# User must provide registry
+# User provides registry
 REGISTRY=your-registry.com/higress-plugins
 
 # Build
@@ -93,6 +96,49 @@ docker build -t ${REGISTRY}/my-plugin:v1 .
 # Push
 docker push ${REGISTRY}/my-plugin:v1
 ```
+
+#### Option B: Install Harbor (If No Registry Available)
+
+If you don't have an image registry, we can install Harbor for you:
+
+```bash
+# Prerequisites
+# - Kubernetes cluster with LoadBalancer or Ingress support
+# - Persistent storage (PVC)
+# - At least 4GB RAM and 2 CPU cores available
+
+# Install Harbor via Helm
+helm repo add harbor https://helm.goharbor.io
+helm repo update
+
+# Install with minimal configuration
+helm install harbor harbor/harbor \
+  --namespace harbor-system --create-namespace \
+  --set expose.type=nodePort \
+  --set expose.tls.enabled=false \
+  --set persistence.enabled=true \
+  --set harborAdminPassword=Harbor12345
+
+# Get Harbor access info
+export NODE_PORT=$(kubectl get svc -n harbor-system harbor-core -o jsonpath='{.spec.ports[0].nodePort}')
+export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+echo "Harbor URL: http://${NODE_IP}:${NODE_PORT}"
+echo "Username: admin"
+echo "Password: Harbor12345"
+
+# Login to Harbor
+docker login ${NODE_IP}:${NODE_PORT} -u admin -p Harbor12345
+
+# Create project in Harbor UI (http://${NODE_IP}:${NODE_PORT})
+# - Project Name: higress-plugins
+# - Access Level: Public
+
+# Build and push plugin
+docker build -t ${NODE_IP}:${NODE_PORT}/higress-plugins/my-plugin:v1 .
+docker push ${NODE_IP}:${NODE_PORT}/higress-plugins/my-plugin:v1
+```
+
+**Note**: For production use, enable TLS and use proper persistent storage.
 
 ## Deployment
 
