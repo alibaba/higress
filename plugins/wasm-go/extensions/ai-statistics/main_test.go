@@ -981,3 +981,639 @@ func TestCompleteFlow(t *testing.T) {
 		})
 	})
 }
+
+// ==================== Built-in Attributes Tests ====================
+
+// 测试配置：历史兼容配置（显式配置 value_source 和 value）
+var legacyQuestionAnswerConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"attributes": []map[string]interface{}{
+			{
+				"key":          "question",
+				"value_source": "request_body",
+				"value":        "messages.@reverse.0.content",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "answer",
+				"value_source": "response_streaming_body",
+				"value":        "choices.0.delta.content",
+				"rule":         "append",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "answer",
+				"value_source": "response_body",
+				"value":        "choices.0.message.content",
+				"apply_to_log": true,
+			},
+		},
+	})
+	return data
+}()
+
+// 测试配置：内置属性简化配置（不配置 value_source 和 value）
+var builtinAttributesConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"attributes": []map[string]interface{}{
+			{
+				"key":          "question",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "answer",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "reasoning",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "tool_calls",
+				"apply_to_log": true,
+			},
+		},
+	})
+	return data
+}()
+
+// 测试配置：session_id 配置
+var sessionIdConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"session_id_header": "x-custom-session",
+		"attributes": []map[string]interface{}{
+			{
+				"key":          "question",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "answer",
+				"apply_to_log": true,
+			},
+		},
+	})
+	return data
+}()
+
+// TestLegacyConfigCompatibility 测试历史配置兼容性
+func TestLegacyConfigCompatibility(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试使用显式 value_source 和 value 配置的 question/answer
+		t.Run("legacy question answer config", func(t *testing.T) {
+			host, status := test.NewTestHost(legacyQuestionAnswerConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"messages": [
+					{"role": "system", "content": "You are a helpful assistant."},
+					{"role": "user", "content": "What is 2+2?"}
+				]
+			}`)
+			action := host.CallOnHttpRequestBody(requestBody)
+			require.Equal(t, types.ActionContinue, action)
+
+			// 3. 处理响应头 (非流式)
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			// 4. 处理响应体
+			responseBody := []byte(`{
+				"choices": [{"message": {"role": "assistant", "content": "2+2 equals 4."}}],
+				"model": "gpt-4",
+				"usage": {"prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30}
+			}`)
+			action = host.CallOnHttpResponseBody(responseBody)
+			require.Equal(t, types.ActionContinue, action)
+
+			host.CompleteHttp()
+		})
+
+		// 测试使用显式配置的流式响应
+		t.Run("legacy streaming answer config", func(t *testing.T) {
+			host, status := test.NewTestHost(legacyQuestionAnswerConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"stream": true,
+				"messages": [{"role": "user", "content": "Hello"}]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 3. 处理流式响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/event-stream"},
+			})
+
+			// 4. 处理流式响应体
+			chunk1 := []byte(`data: {"choices":[{"delta":{"content":"Hello"}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk1, false)
+
+			chunk2 := []byte(`data: {"choices":[{"delta":{"content":" there!"}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk2, true)
+
+			host.CompleteHttp()
+		})
+	})
+}
+
+// TestBuiltinAttributesDefaultSource 测试内置属性的默认 value_source
+func TestBuiltinAttributesDefaultSource(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试不配置 value_source 的内置属性（非流式响应）
+		t.Run("builtin attributes non-streaming", func(t *testing.T) {
+			host, status := test.NewTestHost(builtinAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 2. 处理请求体 - question 应该自动从 request_body 提取
+			requestBody := []byte(`{
+				"model": "deepseek-reasoner",
+				"messages": [
+					{"role": "user", "content": "What is the capital of France?"}
+				]
+			}`)
+			action := host.CallOnHttpRequestBody(requestBody)
+			require.Equal(t, types.ActionContinue, action)
+
+			// 3. 处理响应头 (非流式)
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			// 4. 处理响应体 - answer, reasoning, tool_calls 应该自动从 response_body 提取
+			responseBody := []byte(`{
+				"choices": [{
+					"message": {
+						"role": "assistant",
+						"content": "The capital of France is Paris.",
+						"reasoning_content": "The user is asking about geography. France is a country in Europe, and its capital city is Paris."
+					}
+				}],
+				"model": "deepseek-reasoner",
+				"usage": {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40}
+			}`)
+			action = host.CallOnHttpResponseBody(responseBody)
+			require.Equal(t, types.ActionContinue, action)
+
+			host.CompleteHttp()
+		})
+
+		// 测试不配置 value_source 的内置属性（流式响应）
+		t.Run("builtin attributes streaming", func(t *testing.T) {
+			host, status := test.NewTestHost(builtinAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "deepseek-reasoner",
+				"stream": true,
+				"messages": [{"role": "user", "content": "Tell me a joke"}]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 3. 处理流式响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/event-stream"},
+			})
+
+			// 4. 处理流式响应体 - answer, reasoning 应该自动从 response_streaming_body 提取
+			chunk1 := []byte(`data: {"choices":[{"delta":{"reasoning_content":"Let me think of a good joke..."}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk1, false)
+
+			chunk2 := []byte(`data: {"choices":[{"delta":{"content":"Why did the chicken"}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk2, false)
+
+			chunk3 := []byte(`data: {"choices":[{"delta":{"content":" cross the road?"}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk3, true)
+
+			host.CompleteHttp()
+		})
+	})
+}
+
+// TestStreamingToolCalls 测试流式 tool_calls 解析
+func TestStreamingToolCalls(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试流式 tool_calls 拼接
+		t.Run("streaming tool calls assembly", func(t *testing.T) {
+			host, status := test.NewTestHost(builtinAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"stream": true,
+				"messages": [{"role": "user", "content": "What's the weather in Beijing?"}],
+				"tools": [{"type": "function", "function": {"name": "get_weather"}}]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 3. 处理流式响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/event-stream"},
+			})
+
+			// 4. 处理流式响应体 - 模拟分片的 tool_calls
+			// 第一个 chunk: tool call 的 id 和 function name
+			chunk1 := []byte(`data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_abc123","type":"function","function":{"name":"get_weather","arguments":""}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk1, false)
+
+			// 第二个 chunk: arguments 的第一部分
+			chunk2 := []byte(`data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"locat"}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk2, false)
+
+			// 第三个 chunk: arguments 的第二部分
+			chunk3 := []byte(`data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ion\": \"Bei"}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk3, false)
+
+			// 第四个 chunk: arguments 的最后部分
+			chunk4 := []byte(`data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"jing\"}"}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk4, false)
+
+			// 最后一个 chunk: 结束
+			chunk5 := []byte(`data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk5, true)
+
+			host.CompleteHttp()
+		})
+
+		// 测试多个 tool_calls 的流式拼接
+		t.Run("multiple streaming tool calls", func(t *testing.T) {
+			host, status := test.NewTestHost(builtinAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"stream": true,
+				"messages": [{"role": "user", "content": "Compare weather in Beijing and Shanghai"}]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 3. 处理流式响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/event-stream"},
+			})
+
+			// 4. 处理流式响应体 - 模拟多个 tool_calls
+			// 第一个 tool call
+			chunk1 := []byte(`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_001","type":"function","function":{"name":"get_weather","arguments":""}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk1, false)
+
+			// 第二个 tool call
+			chunk2 := []byte(`data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_002","type":"function","function":{"name":"get_weather","arguments":""}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk2, false)
+
+			// 第一个 tool call 的 arguments
+			chunk3 := []byte(`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"location\":\"Beijing\"}"}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk3, false)
+
+			// 第二个 tool call 的 arguments
+			chunk4 := []byte(`data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"location\":\"Shanghai\"}"}}]}}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk4, false)
+
+			// 结束
+			chunk5 := []byte(`data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}`)
+			host.CallOnHttpStreamingResponseBody(chunk5, true)
+
+			host.CompleteHttp()
+		})
+
+		// 测试非流式 tool_calls
+		t.Run("non-streaming tool calls", func(t *testing.T) {
+			host, status := test.NewTestHost(builtinAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"messages": [{"role": "user", "content": "What's the weather?"}]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 3. 处理响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			// 4. 处理响应体 - 非流式 tool_calls
+			responseBody := []byte(`{
+				"choices": [{
+					"message": {
+						"role": "assistant",
+						"content": null,
+						"tool_calls": [{
+							"id": "call_abc123",
+							"type": "function",
+							"function": {
+								"name": "get_weather",
+								"arguments": "{\"location\": \"Beijing\"}"
+							}
+						}]
+					},
+					"finish_reason": "tool_calls"
+				}],
+				"model": "gpt-4",
+				"usage": {"prompt_tokens": 20, "completion_tokens": 15, "total_tokens": 35}
+			}`)
+			action := host.CallOnHttpResponseBody(responseBody)
+			require.Equal(t, types.ActionContinue, action)
+
+			host.CompleteHttp()
+		})
+	})
+}
+
+// TestSessionIdExtraction 测试 session_id 提取
+func TestSessionIdExtraction(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试自定义 session_id header
+		t.Run("custom session id header", func(t *testing.T) {
+			host, status := test.NewTestHost(sessionIdConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 处理请求头 - 带自定义 session header
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"x-custom-session", "sess_custom_123"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			host.CompleteHttp()
+		})
+
+		// 测试默认 session_id headers 优先级
+		t.Run("default session id headers priority", func(t *testing.T) {
+			host, status := test.NewTestHost(builtinAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 处理请求头 - 带多个默认 session headers，应该使用优先级最高的
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"x-agent-session", "sess_agent_456"},
+				{"x-clawdbot-session-key", "sess_clawdbot_789"},
+				{"x-openclaw-session-key", "sess_openclaw_123"}, // 最高优先级
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			host.CompleteHttp()
+		})
+
+		// 测试 fallback 到次优先级 header
+		t.Run("session id fallback", func(t *testing.T) {
+			host, status := test.NewTestHost(builtinAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 处理请求头 - 只有低优先级的 session header
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"x-agent-session", "sess_agent_only"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			host.CompleteHttp()
+		})
+	})
+}
+
+// TestExtractStreamingToolCalls 单独测试 extractStreamingToolCalls 函数
+func TestExtractStreamingToolCalls(t *testing.T) {
+	t.Run("single tool call assembly", func(t *testing.T) {
+		// 模拟流式 chunks
+		chunks := [][]byte{
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_123","type":"function","function":{"name":"get_weather","arguments":""}}]}}]}`),
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"loc"}}]}}]}`),
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"ation"}}]}}]}`),
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\":\"Beijing\"}"}}]}}]}`),
+		}
+
+		var buffer *StreamingToolCallsBuffer
+		for _, chunk := range chunks {
+			buffer = extractStreamingToolCalls(chunk, buffer)
+		}
+
+		toolCalls := getToolCallsFromBuffer(buffer)
+		require.Len(t, toolCalls, 1)
+		require.Equal(t, "call_123", toolCalls[0].ID)
+		require.Equal(t, "function", toolCalls[0].Type)
+		require.Equal(t, "get_weather", toolCalls[0].Function.Name)
+		require.Equal(t, `{"location":"Beijing"}`, toolCalls[0].Function.Arguments)
+	})
+
+	t.Run("multiple tool calls assembly", func(t *testing.T) {
+		chunks := [][]byte{
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_001","type":"function","function":{"name":"get_weather","arguments":""}}]}}]}`),
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_002","type":"function","function":{"name":"get_time","arguments":""}}]}}]}`),
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"Beijing\"}"}}]}}]}`),
+			[]byte(`{"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"timezone\":\"UTC+8\"}"}}]}}]}`),
+		}
+
+		var buffer *StreamingToolCallsBuffer
+		for _, chunk := range chunks {
+			buffer = extractStreamingToolCalls(chunk, buffer)
+		}
+
+		toolCalls := getToolCallsFromBuffer(buffer)
+		require.Len(t, toolCalls, 2)
+
+		// 验证第一个 tool call
+		require.Equal(t, "call_001", toolCalls[0].ID)
+		require.Equal(t, "get_weather", toolCalls[0].Function.Name)
+		require.Equal(t, `{"city":"Beijing"}`, toolCalls[0].Function.Arguments)
+
+		// 验证第二个 tool call
+		require.Equal(t, "call_002", toolCalls[1].ID)
+		require.Equal(t, "get_time", toolCalls[1].Function.Name)
+		require.Equal(t, `{"timezone":"UTC+8"}`, toolCalls[1].Function.Arguments)
+	})
+
+	t.Run("empty chunks", func(t *testing.T) {
+		chunks := [][]byte{
+			[]byte(`{"choices":[{"delta":{}}]}`),
+			[]byte(`{"choices":[{"delta":{"content":"Hello"}}]}`),
+		}
+
+		var buffer *StreamingToolCallsBuffer
+		for _, chunk := range chunks {
+			buffer = extractStreamingToolCalls(chunk, buffer)
+		}
+
+		toolCalls := getToolCallsFromBuffer(buffer)
+		require.Len(t, toolCalls, 0)
+	})
+}
+
+// TestBuiltinAttributeHelpers 测试内置属性辅助函数
+func TestBuiltinAttributeHelpers(t *testing.T) {
+	t.Run("isBuiltinAttribute", func(t *testing.T) {
+		require.True(t, isBuiltinAttribute("question"))
+		require.True(t, isBuiltinAttribute("answer"))
+		require.True(t, isBuiltinAttribute("tool_calls"))
+		require.True(t, isBuiltinAttribute("reasoning"))
+		require.False(t, isBuiltinAttribute("custom_key"))
+		require.False(t, isBuiltinAttribute("model"))
+	})
+
+	t.Run("getBuiltinAttributeDefaultSources", func(t *testing.T) {
+		// question 应该默认从 request_body 提取
+		questionSources := getBuiltinAttributeDefaultSources("question")
+		require.Equal(t, []string{RequestBody}, questionSources)
+
+		// answer 应该支持 streaming 和 non-streaming
+		answerSources := getBuiltinAttributeDefaultSources("answer")
+		require.Contains(t, answerSources, ResponseStreamingBody)
+		require.Contains(t, answerSources, ResponseBody)
+
+		// tool_calls 应该支持 streaming 和 non-streaming
+		toolCallsSources := getBuiltinAttributeDefaultSources("tool_calls")
+		require.Contains(t, toolCallsSources, ResponseStreamingBody)
+		require.Contains(t, toolCallsSources, ResponseBody)
+
+		// reasoning 应该支持 streaming 和 non-streaming
+		reasoningSources := getBuiltinAttributeDefaultSources("reasoning")
+		require.Contains(t, reasoningSources, ResponseStreamingBody)
+		require.Contains(t, reasoningSources, ResponseBody)
+
+		// 非内置属性应该返回 nil
+		customSources := getBuiltinAttributeDefaultSources("custom_key")
+		require.Nil(t, customSources)
+	})
+
+	t.Run("shouldProcessBuiltinAttribute", func(t *testing.T) {
+		// 配置了 value_source 时，应该精确匹配
+		require.True(t, shouldProcessBuiltinAttribute("question", RequestBody, RequestBody))
+		require.False(t, shouldProcessBuiltinAttribute("question", RequestBody, ResponseBody))
+
+		// 没有配置 value_source 时，内置属性应该使用默认 source
+		require.True(t, shouldProcessBuiltinAttribute("question", "", RequestBody))
+		require.False(t, shouldProcessBuiltinAttribute("question", "", ResponseBody))
+
+		require.True(t, shouldProcessBuiltinAttribute("answer", "", ResponseBody))
+		require.True(t, shouldProcessBuiltinAttribute("answer", "", ResponseStreamingBody))
+		require.False(t, shouldProcessBuiltinAttribute("answer", "", RequestBody))
+
+		// 非内置属性没有配置 value_source 时，不应该处理
+		require.False(t, shouldProcessBuiltinAttribute("custom_key", "", RequestBody))
+		require.False(t, shouldProcessBuiltinAttribute("custom_key", "", ResponseBody))
+	})
+}
+
+// TestSessionIdDebugOutput 演示session_id的debug日志输出
+func TestSessionIdDebugOutput(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("session id with full flow", func(t *testing.T) {
+			host, status := test.NewTestHost(sessionIdConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头 - 带 session_id
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"x-custom-session", "sess_abc123xyz"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"messages": [
+					{"role": "user", "content": "What is 2+2?"}
+				]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 3. 处理响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			// 4. 处理响应体
+			responseBody := []byte(`{
+				"choices": [{"message": {"role": "assistant", "content": "2+2 equals 4."}}],
+				"model": "gpt-4",
+				"usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+			}`)
+			host.CallOnHttpResponseBody(responseBody)
+
+			host.CompleteHttp()
+		})
+	})
+}
