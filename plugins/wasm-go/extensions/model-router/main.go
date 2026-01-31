@@ -212,18 +212,30 @@ func handleJsonBody(ctx wrapper.HttpContext, config ModelRouterConfig, body []by
 	// Check if auto routing should be triggered
 	if config.enableAutoRouting && modelValue == AutoModelPrefix {
 		userMessage := extractLastUserMessage(body)
+		var targetModel string
 		if userMessage != "" {
 			if matchedModel, found := matchAutoRoutingRule(config, userMessage); found {
-				// Set the matched model to the header for routing
-				_ = proxywasm.ReplaceHttpRequestHeader("x-higress-llm-model", matchedModel)
+				targetModel = matchedModel
 				log.Infof("auto routing: user message matched, routing to model: %s", matchedModel)
-				return types.ActionContinue
 			}
 		}
 		// No rule matched, use default model if configured
-		if config.defaultModel != "" {
-			_ = proxywasm.ReplaceHttpRequestHeader("x-higress-llm-model", config.defaultModel)
+		if targetModel == "" && config.defaultModel != "" {
+			targetModel = config.defaultModel
 			log.Infof("auto routing: no rule matched, using default model: %s", config.defaultModel)
+		}
+
+		if targetModel != "" {
+			// Set the matched model to the header for routing
+			_ = proxywasm.ReplaceHttpRequestHeader("x-higress-llm-model", targetModel)
+			// Update the model field in the request body
+			newBody, err := sjson.SetBytes(body, config.modelKey, targetModel)
+			if err != nil {
+				log.Errorf("failed to update model in auto routing json body: %v", err)
+				return types.ActionContinue
+			}
+			_ = proxywasm.ReplaceHttpRequestBody(newBody)
+			log.Debugf("auto routing: updated body model field to: %s", targetModel)
 		} else {
 			log.Warnf("auto routing: no rule matched and no default model configured")
 		}
