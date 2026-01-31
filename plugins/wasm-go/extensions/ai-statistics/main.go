@@ -503,6 +503,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 	ctx.SetUserAttribute(ChatRound, userPromptCount)
 
 	// Write log
+	debugLogAiLog(ctx)
 	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 	return types.ActionContinue
 }
@@ -594,6 +595,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		}
 
 		// Write log
+		debugLogAiLog(ctx)
 		_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 		// Write metrics
@@ -639,6 +641,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 	setAttributeBySource(ctx, config, ResponseBody, body)
 
 	// Write log
+	debugLogAiLog(ctx)
 	_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
 
 	// Write metrics
@@ -847,6 +850,61 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) i
 		log.Errorf("unsupported rule type: %s", rule)
 	}
 	return value
+}
+
+// debugLogAiLog logs the current user attributes that will be written to ai_log
+func debugLogAiLog(ctx wrapper.HttpContext) {
+	// Get all user attributes as a map
+	userAttrs := make(map[string]interface{})
+	
+	// Try to reconstruct from GetUserAttribute (note: this is best-effort)
+	// The actual attributes are stored internally, we log what we know
+	if question := ctx.GetUserAttribute("question"); question != nil {
+		userAttrs["question"] = question
+	}
+	if answer := ctx.GetUserAttribute("answer"); answer != nil {
+		userAttrs["answer"] = answer
+	}
+	if reasoning := ctx.GetUserAttribute("reasoning"); reasoning != nil {
+		userAttrs["reasoning"] = reasoning
+	}
+	if toolCalls := ctx.GetUserAttribute("tool_calls"); toolCalls != nil {
+		userAttrs["tool_calls"] = toolCalls
+	}
+	if messages := ctx.GetUserAttribute("messages"); messages != nil {
+		userAttrs["messages"] = messages
+	}
+	if sessionId := ctx.GetUserAttribute("session_id"); sessionId != nil {
+		userAttrs["session_id"] = sessionId
+	}
+	if model := ctx.GetUserAttribute("model"); model != nil {
+		userAttrs["model"] = model
+	}
+	if inputToken := ctx.GetUserAttribute("input_token"); inputToken != nil {
+		userAttrs["input_token"] = inputToken
+	}
+	if outputToken := ctx.GetUserAttribute("output_token"); outputToken != nil {
+		userAttrs["output_token"] = outputToken
+	}
+	if totalToken := ctx.GetUserAttribute("total_token"); totalToken != nil {
+		userAttrs["total_token"] = totalToken
+	}
+	if chatId := ctx.GetUserAttribute("chat_id"); chatId != nil {
+		userAttrs["chat_id"] = chatId
+	}
+	if responseType := ctx.GetUserAttribute("response_type"); responseType != nil {
+		userAttrs["response_type"] = responseType
+	}
+	if llmFirstTokenDuration := ctx.GetUserAttribute("llm_first_token_duration"); llmFirstTokenDuration != nil {
+		userAttrs["llm_first_token_duration"] = llmFirstTokenDuration
+	}
+	if llmServiceDuration := ctx.GetUserAttribute("llm_service_duration"); llmServiceDuration != nil {
+		userAttrs["llm_service_duration"] = llmServiceDuration
+	}
+
+	// Log the attributes as JSON
+	logJson, _ := json.Marshal(userAttrs)
+	log.Debugf("[ai_log] attributes to be written: %s", string(logJson))
 }
 
 // Set the tracing span with value.
