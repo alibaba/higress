@@ -52,6 +52,10 @@ See [references/annotation-mapping.md](references/annotation-mapping.md) for the
 
 For these, check [references/builtin-plugins.md](references/builtin-plugins.md) first - Higress may already have a plugin!
 
+**📚 For detailed compatibility information and safe migration strategy:**
+- See [references/annotation-compatibility-matrix.md](references/annotation-compatibility-matrix.md) - Complete annotation compatibility matrix (50+ annotations)
+- See [references/MIGRATION_SAFE_STRATEGY.md](references/MIGRATION_SAFE_STRATEGY.md) - Comprehensive safe migration strategy with local simulation, testing, and gradual rollout
+
 ### Phase 3: Higress Installation (Parallel with nginx)
 
 Higress natively supports `nginx.ingress.kubernetes.io/*` annotations. Install Higress **alongside** nginx for safe parallel testing.
