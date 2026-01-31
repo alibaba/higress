@@ -222,93 +222,51 @@ attributes:
     apply_to_log: true
 ```
 
-#### Record complete multi-turn conversation history
+#### Record complete multi-turn conversation history (Recommended)
 
-For multi-turn Agent conversation scenarios, combined with the `session_id` tracking feature, you can record the complete conversation history and response:
+For multi-turn Agent conversation scenarios, using built-in attributes greatly simplifies the configuration:
 
 ```yaml
 session_id_header: "x-session-id"  # Optional, specify session ID header
 attributes:
-  - key: messages # Record complete conversation history (as list structure)
+  - key: messages     # Complete conversation history
     value_source: request_body
     value: messages
     apply_to_log: true
-  - key: answer # Extract complete answer from streaming response (concatenate all chunks)
-    value_source: response_streaming_body
-    value: choices.0.delta.content
-    rule: append
+  - key: question     # Built-in, auto-extracts last user message
     apply_to_log: true
-  - key: answer # Extract complete answer from non-streaming response
-    value_source: response_body
-    value: choices.0.message.content
+  - key: answer       # Built-in, auto-extracts answer
     apply_to_log: true
-  - key: reasoning # Extract model's reasoning process from streaming response (concatenate all chunks)
-    value_source: response_streaming_body
-    value: choices.0.delta.reasoning_content
-    rule: append
+  - key: reasoning    # Built-in, auto-extracts reasoning process
     apply_to_log: true
-  - key: reasoning # Extract model's reasoning process from non-streaming response
-    value_source: response_body
-    value: choices.0.message.reasoning_content
-    apply_to_log: true
-```
-
-Example log output (with complete conversation history, answer, and reasoning):
-
-```json
-{
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"reasoning\":\"The user is asking for a basic arithmetic calculation. 2+2 is a simple addition operation. The result is 4.\",\"model\":\"deepseek-reasoner\",\"input_token\":\"20\",\"output_token\":\"30\"}"
-}
-```
-
-**Field Description:**
-- `session_id`: Session identifier used to correlate all requests within the same session
-- `messages`: Complete input conversation history, recording each message's `role` (system/user/assistant) and `content` as a list
-- `answer`: Complete response content from the LLM (plain text)
-- `reasoning`: Model's reasoning/thinking process (some reasoning-capable models like DeepSeek-R1 return a `reasoning_content` field parallel to `content` in the response)
-
-#### Record Tool Calls
-
-For tool calling scenarios in Agent workflows, you can use the built-in `tool_calls` attribute to record complete tool call information:
-
-```yaml
-attributes:
-  - key: tool_calls # Built-in attribute, automatically handles streaming and non-streaming scenarios
-    value_source: response_streaming_body  # or response_body
-    apply_to_log: true
-  - key: reasoning # Record reasoning process
-    value_source: response_streaming_body
-    value: choices.0.delta.reasoning_content
-    rule: append
+  - key: tool_calls   # Built-in, auto-extracts tool calls
     apply_to_log: true
 ```
 
 **Built-in Attributes:**
 
-The plugin provides the following built-in attribute keys that automatically extract values without configuring the `value` field:
+The plugin provides the following built-in attribute keys that automatically extract values without configuring `value_source` and `value` fields:
 
-| Built-in Key | Description | Supported value_source |
+| Built-in Key | Description | Default value_source |
 |-------------|-------------|----------------------|
 | `question` | Automatically extracts the last user message | `request_body` |
-| `answer` | Automatically extracts answer content (supports OpenAI/Claude protocols) | `response_body`, `response_streaming_body` |
-| `tool_calls` | Automatically extracts and assembles tool calls (streaming scenarios auto-concatenate arguments by index) | `response_body`, `response_streaming_body` |
-| `reasoning` | Automatically extracts reasoning process (reasoning_content) | `response_body`, `response_streaming_body` |
+| `answer` | Automatically extracts answer content (supports OpenAI/Claude protocols) | `response_streaming_body` / `response_body` |
+| `tool_calls` | Automatically extracts and assembles tool calls (streaming scenarios auto-concatenate arguments by index) | `response_streaming_body` / `response_body` |
+| `reasoning` | Automatically extracts reasoning process (reasoning_content, e.g., DeepSeek-R1) | `response_streaming_body` / `response_body` |
 
-Example log output (tool call scenario):
+> **Note**: If `value_source` and `value` are configured, the configured values take priority for backward compatibility.
+
+Example log output:
 
 ```json
 {
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"reasoning\":\"The user wants to know the weather in Beijing, I need to call the weather query tool.\",\"model\":\"deepseek-reasoner\"}"
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"user\",\"content\":\"What's the weather in Beijing?\"}],\"question\":\"What's the weather in Beijing?\",\"reasoning\":\"The user wants to know the weather in Beijing, I need to call the weather query tool.\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"model\":\"deepseek-reasoner\"}"
 }
 ```
 
-**Streaming Response Handling:**
+**Streaming tool_calls handling:**
 
-For `tool_calls` in streaming responses, the plugin automatically:
-1. Identifies each independent tool call by the `index` field
-2. Concatenates the fragmented `arguments` string
-3. Merges `id`, `type`, `function.name` and other fields
-4. Outputs the complete tool call list at the end
+The plugin automatically identifies each independent tool call by the `index` field, concatenates fragmented `arguments` strings, and outputs the complete tool call list.
 
 ### Path and Content Type Filtering Configuration Examples
 

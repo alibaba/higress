@@ -226,93 +226,51 @@ attributes:
     apply_to_log: true
 ```
 
-#### 记录完整的多轮对话历史
+#### 记录完整的多轮对话历史（推荐配置）
 
-对于多轮 Agent 对话场景，配合 `session_id` 追踪功能，可以记录完整的对话历史和回答：
+对于多轮 Agent 对话场景，使用内置属性可以大幅简化配置：
 
 ```yaml
 session_id_header: "x-session-id"  # 可选，指定 session ID header
 attributes:
-  - key: messages # 记录完整的对话历史（列表结构）
+  - key: messages     # 完整对话历史
     value_source: request_body
     value: messages
     apply_to_log: true
-  - key: answer # 在流式响应中提取完整的回答（拼接所有 chunk）
-    value_source: response_streaming_body
-    value: choices.0.delta.content
-    rule: append
+  - key: question     # 内置属性，自动提取最后一条用户消息
     apply_to_log: true
-  - key: answer # 在非流式响应中提取完整的回答
-    value_source: response_body
-    value: choices.0.message.content
+  - key: answer       # 内置属性，自动提取回答
     apply_to_log: true
-  - key: reasoning # 在流式响应中提取模型的思考过程（拼接所有 chunk）
-    value_source: response_streaming_body
-    value: choices.0.delta.reasoning_content
-    rule: append
+  - key: reasoning    # 内置属性，自动提取思考过程
     apply_to_log: true
-  - key: reasoning # 在非流式响应中提取模型的思考过程
-    value_source: response_body
-    value: choices.0.message.reasoning_content
-    apply_to_log: true
-```
-
-日志输出示例（包含完整对话历史、回答和思考过程）：
-
-```json
-{
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"reasoning\":\"The user is asking for a basic arithmetic calculation. 2+2 is a simple addition operation. The result is 4.\",\"model\":\"deepseek-reasoner\",\"input_token\":\"20\",\"output_token\":\"30\"}"
-}
-```
-
-**字段说明：**
-- `session_id`：会话标识，用于关联同一会话中的所有请求
-- `messages`：完整的输入对话历史，以列表形式记录每条消息的 `role`（system/user/assistant）和 `content`
-- `answer`：大模型的完整回答内容（纯文本）
-- `reasoning`：模型的思考过程（部分支持思考的模型如 DeepSeek-R1 等会在响应中返回与 `content` 平级的 `reasoning_content` 字段）
-
-#### 记录工具调用（Tool Calls）
-
-对于 Agent 场景中的工具调用，可以使用内置的 `tool_calls` 属性来记录完整的工具调用信息：
-
-```yaml
-attributes:
-  - key: tool_calls # 内置属性，自动处理流式和非流式场景
-    value_source: response_streaming_body  # 或 response_body
-    apply_to_log: true
-  - key: reasoning # 记录思考过程
-    value_source: response_streaming_body
-    value: choices.0.delta.reasoning_content
-    rule: append
+  - key: tool_calls   # 内置属性，自动提取工具调用
     apply_to_log: true
 ```
 
 **内置属性说明：**
 
-插件提供以下内置属性 key，无需配置 `value` 字段即可自动提取：
+插件提供以下内置属性 key，无需配置 `value_source` 和 `value` 字段即可自动提取：
 
-| 内置 Key | 说明 | 支持的 value_source |
+| 内置 Key | 说明 | 默认 value_source |
 |---------|------|-------------------|
 | `question` | 自动提取最后一条用户消息 | `request_body` |
-| `answer` | 自动提取回答内容（支持 OpenAI/Claude 协议） | `response_body`, `response_streaming_body` |
-| `tool_calls` | 自动提取并拼接工具调用（流式场景自动按 index 拼接 arguments） | `response_body`, `response_streaming_body` |
-| `reasoning` | 自动提取思考过程（reasoning_content） | `response_body`, `response_streaming_body` |
+| `answer` | 自动提取回答内容（支持 OpenAI/Claude 协议） | `response_streaming_body` / `response_body` |
+| `tool_calls` | 自动提取并拼接工具调用（流式场景自动按 index 拼接 arguments） | `response_streaming_body` / `response_body` |
+| `reasoning` | 自动提取思考过程（reasoning_content，如 DeepSeek-R1） | `response_streaming_body` / `response_body` |
 
-日志输出示例（工具调用场景）：
+> **注意**：如果配置了 `value_source` 和 `value`，将优先使用配置的值，以保持向后兼容。
+
+日志输出示例：
 
 ```json
 {
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"reasoning\":\"用户想知道北京的天气，我需要调用天气查询工具。\",\"model\":\"deepseek-reasoner\"}"
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"user\",\"content\":\"北京天气怎么样？\"}],\"question\":\"北京天气怎么样？\",\"reasoning\":\"用户想知道北京的天气，我需要调用天气查询工具。\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"model\":\"deepseek-reasoner\"}"
 }
 ```
 
-**流式响应处理：**
+**流式响应中的 tool_calls 处理：**
 
-对于流式响应中的 `tool_calls`，插件会自动：
-1. 按 `index` 字段识别每个独立的工具调用
-2. 拼接分片返回的 `arguments` 字符串
-3. 合并 `id`、`type`、`function.name` 等字段
-4. 最终输出完整的工具调用列表
+插件会自动按 `index` 字段识别每个独立的工具调用，拼接分片返回的 `arguments` 字符串，最终输出完整的工具调用列表。
 
 ## 进阶
 

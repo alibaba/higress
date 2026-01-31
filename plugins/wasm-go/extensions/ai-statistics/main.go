@@ -653,8 +653,16 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 	for _, attribute := range config.attributes {
 		var key string
 		var value interface{}
-		if source == attribute.ValueSource {
-			key = attribute.Key
+		key = attribute.Key
+
+		// Check if this attribute should be processed for the current source
+		// For built-in attributes without value_source configured, use default source matching
+		if !shouldProcessBuiltinAttribute(key, attribute.ValueSource, source) {
+			continue
+		}
+
+		// If value is configured, try to extract using the configured path
+		if attribute.Value != "" {
 			switch source {
 			case FixedValue:
 				value = attribute.Value
@@ -670,42 +678,42 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 				value = gjson.GetBytes(body, attribute.Value).Value()
 			default:
 			}
+		}
 
-			// Handle built-in attributes with Claude/OpenAI protocol fallback logic
-			if (value == nil || value == "") && isBuiltinAttribute(key) {
-				value = getBuiltinAttributeFallback(ctx, config, key, source, body, attribute.Rule)
-				if value != nil && value != "" {
-					log.Debugf("[attribute] Used protocol fallback for %s: %+v", key, value)
-				}
+		// Handle built-in attributes: use fallback if value is empty or not configured
+		if (value == nil || value == "") && isBuiltinAttribute(key) {
+			value = getBuiltinAttributeFallback(ctx, config, key, source, body, attribute.Rule)
+			if value != nil && value != "" {
+				log.Debugf("[attribute] Used built-in extraction for %s: %+v", key, value)
 			}
+		}
 
-			if (value == nil || value == "") && attribute.DefaultValue != "" {
-				value = attribute.DefaultValue
-			}
-			if len(fmt.Sprint(value)) > config.valueLengthLimit {
-				value = fmt.Sprint(value)[:config.valueLengthLimit/2] + " [truncated] " + fmt.Sprint(value)[len(fmt.Sprint(value))-config.valueLengthLimit/2:]
-			}
-			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
-			if attribute.ApplyToLog {
-				if attribute.AsSeparateLogField {
-					marshalledJsonStr := wrapper.MarshalStr(fmt.Sprint(value))
-					if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
-						log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
-					}
-				} else {
-					ctx.SetUserAttribute(key, value)
+		if (value == nil || value == "") && attribute.DefaultValue != "" {
+			value = attribute.DefaultValue
+		}
+		if len(fmt.Sprint(value)) > config.valueLengthLimit {
+			value = fmt.Sprint(value)[:config.valueLengthLimit/2] + " [truncated] " + fmt.Sprint(value)[len(fmt.Sprint(value))-config.valueLengthLimit/2:]
+		}
+		log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
+		if attribute.ApplyToLog {
+			if attribute.AsSeparateLogField {
+				marshalledJsonStr := wrapper.MarshalStr(fmt.Sprint(value))
+				if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
+					log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
 				}
+			} else {
+				ctx.SetUserAttribute(key, value)
 			}
-			// for metrics
-			if key == tokenusage.CtxKeyModel || key == tokenusage.CtxKeyInputToken || key == tokenusage.CtxKeyOutputToken || key == tokenusage.CtxKeyTotalToken {
-				ctx.SetContext(key, value)
+		}
+		// for metrics
+		if key == tokenusage.CtxKeyModel || key == tokenusage.CtxKeyInputToken || key == tokenusage.CtxKeyOutputToken || key == tokenusage.CtxKeyTotalToken {
+			ctx.SetContext(key, value)
+		}
+		if attribute.ApplyToSpan {
+			if attribute.TraceSpanKey != "" {
+				key = attribute.TraceSpanKey
 			}
-			if attribute.ApplyToSpan {
-				if attribute.TraceSpanKey != "" {
-					key = attribute.TraceSpanKey
-				}
-				setSpanAttribute(key, value)
-			}
+			setSpanAttribute(key, value)
 		}
 	}
 }
@@ -713,6 +721,35 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 // isBuiltinAttribute checks if the given key is a built-in attribute
 func isBuiltinAttribute(key string) bool {
 	return key == BuiltinQuestionKey || key == BuiltinAnswerKey || key == BuiltinToolCallsKey || key == BuiltinReasoningKey
+}
+
+// getBuiltinAttributeDefaultSources returns the default value_source(s) for a built-in attribute
+// Returns nil if the key is not a built-in attribute
+func getBuiltinAttributeDefaultSources(key string) []string {
+	switch key {
+	case BuiltinQuestionKey:
+		return []string{RequestBody}
+	case BuiltinAnswerKey, BuiltinToolCallsKey, BuiltinReasoningKey:
+		return []string{ResponseStreamingBody, ResponseBody}
+	default:
+		return nil
+	}
+}
+
+// shouldProcessBuiltinAttribute checks if a built-in attribute should be processed for the given source
+func shouldProcessBuiltinAttribute(key, configuredSource, currentSource string) bool {
+	// If value_source is configured, use exact match
+	if configuredSource != "" {
+		return configuredSource == currentSource
+	}
+	// If value_source is not configured and it's a built-in attribute, check default sources
+	defaultSources := getBuiltinAttributeDefaultSources(key)
+	for _, src := range defaultSources {
+		if src == currentSource {
+			return true
+		}
+	}
+	return false
 }
 
 // getBuiltinAttributeFallback provides protocol compatibility fallback for built-in attributes
