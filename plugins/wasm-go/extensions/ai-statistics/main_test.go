@@ -1573,3 +1573,47 @@ func TestBuiltinAttributeHelpers(t *testing.T) {
 		require.False(t, shouldProcessBuiltinAttribute("custom_key", "", ResponseBody))
 	})
 }
+
+// TestSessionIdDebugOutput 演示session_id的debug日志输出
+func TestSessionIdDebugOutput(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("session id with full flow", func(t *testing.T) {
+			host, status := test.NewTestHost(sessionIdConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 1. 处理请求头 - 带 session_id
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"x-custom-session", "sess_abc123xyz"},
+			})
+
+			// 2. 处理请求体
+			requestBody := []byte(`{
+				"model": "gpt-4",
+				"messages": [
+					{"role": "user", "content": "What is 2+2?"}
+				]
+			}`)
+			host.CallOnHttpRequestBody(requestBody)
+
+			// 3. 处理响应头
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			// 4. 处理响应体
+			responseBody := []byte(`{
+				"choices": [{"message": {"role": "assistant", "content": "2+2 equals 4."}}],
+				"model": "gpt-4",
+				"usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}
+			}`)
+			host.CallOnHttpResponseBody(responseBody)
+
+			host.CompleteHttp()
+		})
+	})
+}
