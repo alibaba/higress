@@ -7,12 +7,63 @@ description: "Migrate from ingress-nginx to Higress in Kubernetes environments. 
 
 Automate migration from ingress-nginx to Higress in Kubernetes environments.
 
+## ⚠️ Critical Limitation: Snippet Annotations NOT Supported
+
+> **Before you begin:** Higress does **NOT** support the following nginx annotations:
+> - `nginx.ingress.kubernetes.io/server-snippet`
+> - `nginx.ingress.kubernetes.io/configuration-snippet`
+> - `nginx.ingress.kubernetes.io/http-snippet`
+>
+> These annotations will be **silently ignored**, causing functionality loss!
+>
+> **Pre-migration check (REQUIRED):**
+> ```bash
+> kubectl get ingress -A -o yaml | grep -E "snippet" | wc -l
+> ```
+> If count > 0, you MUST plan WASM plugin replacements before migration.
+> See [Phase 6](#phase-6-use-built-in-plugins-or-create-custom-wasm-plugin-if-needed) for alternatives.
+
 ## Prerequisites
 
 - kubectl configured with cluster access
 - helm 3.x installed
 - Go 1.24+ (for WASM plugin compilation)
 - Docker (for plugin image push)
+
+## Pre-Migration Checklist
+
+### Before Starting
+
+- [ ] Backup all Ingress resources
+  ```bash
+  kubectl get ingress -A -o yaml > ingress-backup.yaml
+  ```
+- [ ] Identify snippet usage (see warning above)
+- [ ] List all nginx annotations in use
+  ```bash
+  kubectl get ingress -A -o yaml | grep "nginx.ingress.kubernetes.io" | sort | uniq -c
+  ```
+- [ ] Verify Higress compatibility for each annotation (see [annotation-mapping.md](references/annotation-mapping.md))
+- [ ] Plan WASM plugins for unsupported features
+- [ ] Prepare test environment (Kind/Minikube for testing recommended)
+
+### During Migration
+
+- [ ] Install Higress in parallel with nginx
+- [ ] Verify all pods running in higress-system namespace
+- [ ] Run test script against Higress gateway
+- [ ] Compare responses between nginx and Higress
+- [ ] Deploy any required WASM plugins
+- [ ] Configure monitoring/alerting
+
+### After Migration
+
+- [ ] All routes verified working
+- [ ] Custom functionality (snippet replacements) tested
+- [ ] Monitoring dashboards configured
+- [ ] Team trained on Higress operations
+- [ ] Documentation updated
+- [ ] Rollback procedure tested
 
 ## Migration Workflow
 
@@ -108,6 +159,47 @@ helm upgrade higress higress/higress -n higress-system \
   --set global.enableStatus=true
 ```
 
+#### Kind/Local Environment Setup
+
+In Kind or local Kubernetes clusters, the LoadBalancer service will stay in `PENDING` state. Use one of these methods:
+
+**Option 1: Port Forward (Recommended for testing)**
+```bash
+# Forward Higress gateway to local port
+kubectl port-forward -n higress-system svc/higress-gateway 8080:80 8443:443 &
+
+# Test with Host header
+curl -H "Host: example.com" http://localhost:8080/
+```
+
+**Option 2: NodePort**
+```bash
+# Patch service to NodePort
+kubectl patch svc -n higress-system higress-gateway \
+  -p '{"spec":{"type":"NodePort"}}'
+
+# Get assigned port
+NODE_PORT=$(kubectl get svc -n higress-system higress-gateway \
+  -o jsonpath='{.spec.ports[?(@.port==80)].nodePort}')
+
+# Test (use docker container IP for Kind)
+curl -H "Host: example.com" http://localhost:${NODE_PORT}/
+```
+
+**Option 3: Kind with Port Mapping (Requires cluster recreation)**
+```yaml
+# kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 30080
+    hostPort: 80
+  - containerPort: 30443
+    hostPort: 443
+```
+
 ### Phase 4: Generate and Run Test Script
 
 After Higress is running, generate a test script covering all Ingress routes:
@@ -180,6 +272,15 @@ Common replacements for nginx features:
 | CORS headers | `cors` |
 | Custom response | `custom-response` |
 | Request/Response transform | `transformer` |
+
+#### Common Snippet Replacements
+
+| nginx snippet pattern | Higress solution |
+|----------------------|------------------|
+| Custom health endpoint (`location /health`) | WASM plugin: custom-location |
+| Add response headers | WASM plugin: custom-response-headers |
+| Request validation/blocking | WASM plugin with `OnHttpRequestHeaders` |
+| Lua rate limiting | `key-rate-limit` plugin |
 
 #### Custom WASM Plugin (If No Built-in Matches)
 
@@ -271,6 +372,78 @@ The test script will:
 - Provide a summary and next steps
 
 **Only proceed with traffic cutover after all tests pass!**
+
+## Troubleshooting
+
+### Common Issues
+
+#### Q1: Ingress created but routes return 404
+**Symptoms:** Ingress shows Ready, but curl returns 404
+
+**Check:**
+1. Verify IngressClass matches Higress config
+   ```bash
+   kubectl get ingress <name> -o yaml | grep ingressClassName
+   ```
+2. Check controller logs
+   ```bash
+   kubectl logs -n higress-system -l app=higress-controller --tail=100
+   ```
+3. Verify backend service is reachable
+   ```bash
+   kubectl run test --rm -it --image=curlimages/curl -- \
+     curl http://<service>.<namespace>.svc
+   ```
+
+#### Q2: rewrite-target not working
+**Symptoms:** Path not being rewritten, backend receives original path
+
+**Solution:** Ensure `use-regex: "true"` is also set:
+```yaml
+annotations:
+  nginx.ingress.kubernetes.io/rewrite-target: /$2
+  nginx.ingress.kubernetes.io/use-regex: "true"
+```
+
+#### Q3: Snippet annotations silently ignored
+**Symptoms:** nginx snippet features not working after migration
+
+**Cause:** Higress does not support snippet annotations (by design, for security)
+
+**Solution:** 
+- Check [references/builtin-plugins.md](references/builtin-plugins.md) for built-in alternatives
+- Create custom WASM plugin (see Phase 6)
+
+#### Q4: TLS certificate issues
+**Symptoms:** HTTPS not working or certificate errors
+
+**Check:**
+1. Verify Secret exists and is type `kubernetes.io/tls`
+   ```bash
+   kubectl get secret <secret-name> -o yaml
+   ```
+2. Check TLS configuration in Ingress
+   ```bash
+   kubectl get ingress <name> -o jsonpath='{.spec.tls}'
+   ```
+
+### Useful Debug Commands
+
+```bash
+# View Higress controller logs
+kubectl logs -n higress-system -l app=higress-controller -c higress-core
+
+# View gateway access logs
+kubectl logs -n higress-system -l app=higress-gateway | grep "GET\|POST"
+
+# Check Envoy config dump
+kubectl exec -n higress-system deploy/higress-gateway -c istio-proxy -- \
+  curl -s localhost:15000/config_dump | jq '.configs[2].dynamic_listeners'
+
+# View gateway stats
+kubectl exec -n higress-system deploy/higress-gateway -c istio-proxy -- \
+  curl -s localhost:15000/stats | grep http
+```
 
 ## Rollback
 
