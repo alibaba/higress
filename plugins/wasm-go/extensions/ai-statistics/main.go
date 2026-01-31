@@ -48,6 +48,9 @@ const (
 	RequestPath                = "request_path"
 	SkipProcessing             = "skip_processing"
 
+	// Session ID related
+	SessionID = "session_id"
+
 	// AI API Paths
 	PathOpenAIChatCompletions       = "/v1/chat/completions"
 	PathOpenAICompletions           = "/v1/completions"
@@ -104,6 +107,32 @@ const (
 	AnswerPathClaudeStreaming = "delta.text"
 )
 
+// Default session ID headers in priority order
+var defaultSessionHeaders = []string{
+	"x-openclaw-session-key",
+	"x-clawdbot-session-key",
+	"x-moltbot-session-key",
+	"x-agent-session",
+}
+
+// extractSessionId extracts session ID from request headers
+// If customHeader is configured, it takes priority; otherwise falls back to default headers
+func extractSessionId(customHeader string) string {
+	// If custom header is configured, try it first
+	if customHeader != "" {
+		if sessionId, _ := proxywasm.GetHttpRequestHeader(customHeader); sessionId != "" {
+			return sessionId
+		}
+	}
+	// Fall back to default session headers in priority order
+	for _, header := range defaultSessionHeaders {
+		if sessionId, _ := proxywasm.GetHttpRequestHeader(header); sessionId != "" {
+			return sessionId
+		}
+	}
+	return ""
+}
+
 // TracingSpan is the tracing span configuration.
 type Attribute struct {
 	Key                string `json:"key"`
@@ -132,6 +161,8 @@ type AIStatisticsConfig struct {
 	enablePathSuffixes []string
 	// Content types to enable response body buffering
 	enableContentTypes []string
+	// Session ID header name (if configured, takes priority over default headers)
+	sessionIdHeader string
 }
 
 func generateMetricName(route, cluster, model, consumer, metricName string) string {
@@ -272,6 +303,11 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 		config.enableContentTypes = append(config.enableContentTypes, contentTypeStr)
 	}
 
+	// Parse session ID header configuration
+	if sessionIdHeader := configJson.Get("session_id_header"); sessionIdHeader.Exists() {
+		config.sessionIdHeader = sessionIdHeader.String()
+	}
+
 	return nil
 }
 
@@ -306,6 +342,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 	}
 
 	ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
+
+	// Extract session ID from headers
+	sessionId := extractSessionId(config.sessionIdHeader)
+	if sessionId != "" {
+		ctx.SetUserAttribute(SessionID, sessionId)
+	}
 
 	// Set span attributes for ARMS.
 	setSpanAttribute(ArmsSpanKind, "LLM")
