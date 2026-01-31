@@ -272,6 +272,23 @@ attributes:
 
 插件会自动按 `index` 字段识别每个独立的工具调用，拼接分片返回的 `arguments` 字符串，最终输出完整的工具调用列表。
 
+## 调试
+
+### 验证 ai_log 内容
+
+在测试或调试过程中，可以通过开启 Higress 的 debug 日志来验证 ai_log 的内容：
+
+```bash
+# 日志格式示例
+2026/01/31 23:29:30 proxy_debug_log: [ai-statistics] [nil] [test-request-id] [ai_log] attributes to be written: {"question":"What is 2+2?","answer":"4","reasoning":"...","tool_calls":[...],"session_id":"sess_123","model":"gpt-4","input_token":20,"output_token":10}
+```
+
+通过这个debug日志可以验证：
+- question/answer/reasoning 是否正确提取
+- tool_calls 是否正确拼接（特别是流式场景下的arguments）
+- session_id 是否正确识别
+- 各个字段是否符合预期
+
 ## 进阶
 
 配合阿里云 SLS 数据加工，可以将 ai 相关的字段进行提取加工，例如原始日志为：

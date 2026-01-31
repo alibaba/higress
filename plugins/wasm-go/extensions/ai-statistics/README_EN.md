@@ -147,6 +147,23 @@ If the request contains a session ID header, the log will automatically include 
 
 When the configuration is empty, no additional attributes will be added to the span.
 
+## Debugging
+
+### Verifying ai_log Content
+
+During testing or debugging, you can enable Higress debug logging to verify the ai_log content:
+
+```bash
+# Log format example
+2026/01/31 23:29:30 proxy_debug_log: [ai-statistics] [nil] [test-request-id] [ai_log] attributes to be written: {"question":"What is 2+2?","answer":"4","reasoning":"...","tool_calls":[...],"session_id":"sess_123","model":"gpt-4","input_token":20,"output_token":10}
+```
+
+This debug log allows you to verify:
+- Whether question/answer/reasoning are correctly extracted
+- Whether tool_calls are properly concatenated (especially arguments in streaming scenarios)
+- Whether session_id is correctly identified
+- Whether all fields match expectations
+
 ### Extract token usage information from non-openai protocols
 
 When setting the protocol to original in ai-proxy, taking Alibaba Cloud Bailian as an example, you can make the following configuration to specify how to extract `model`, `input_token`, `output_token`
