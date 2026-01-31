@@ -267,6 +267,49 @@ Example log output (with complete conversation history, answer, and reasoning):
 - `answer`: Complete response content from the LLM (plain text)
 - `reasoning`: Model's reasoning/thinking process (some reasoning-capable models like DeepSeek-R1 return a `reasoning_content` field parallel to `content` in the response)
 
+#### Record Tool Calls
+
+For tool calling scenarios in Agent workflows, you can use the built-in `tool_calls` attribute to record complete tool call information:
+
+```yaml
+attributes:
+  - key: tool_calls # Built-in attribute, automatically handles streaming and non-streaming scenarios
+    value_source: response_streaming_body  # or response_body
+    apply_to_log: true
+  - key: reasoning # Record reasoning process
+    value_source: response_streaming_body
+    value: choices.0.delta.reasoning_content
+    rule: append
+    apply_to_log: true
+```
+
+**Built-in Attributes:**
+
+The plugin provides the following built-in attribute keys that automatically extract values without configuring the `value` field:
+
+| Built-in Key | Description | Supported value_source |
+|-------------|-------------|----------------------|
+| `question` | Automatically extracts the last user message | `request_body` |
+| `answer` | Automatically extracts answer content (supports OpenAI/Claude protocols) | `response_body`, `response_streaming_body` |
+| `tool_calls` | Automatically extracts and assembles tool calls (streaming scenarios auto-concatenate arguments by index) | `response_body`, `response_streaming_body` |
+| `reasoning` | Automatically extracts reasoning process (reasoning_content) | `response_body`, `response_streaming_body` |
+
+Example log output (tool call scenario):
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"reasoning\":\"The user wants to know the weather in Beijing, I need to call the weather query tool.\",\"model\":\"deepseek-reasoner\"}"
+}
+```
+
+**Streaming Response Handling:**
+
+For `tool_calls` in streaming responses, the plugin automatically:
+1. Identifies each independent tool call by the `index` field
+2. Concatenates the fragmented `arguments` string
+3. Merges `id`, `type`, `function.name` and other fields
+4. Outputs the complete tool call list at the end
+
 ### Path and Content Type Filtering Configuration Examples
 
 #### Process Only Specific AI Paths

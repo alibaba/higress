@@ -271,6 +271,49 @@ attributes:
 - `answer`：大模型的完整回答内容（纯文本）
 - `reasoning`：模型的思考过程（部分支持思考的模型如 DeepSeek-R1 等会在响应中返回与 `content` 平级的 `reasoning_content` 字段）
 
+#### 记录工具调用（Tool Calls）
+
+对于 Agent 场景中的工具调用，可以使用内置的 `tool_calls` 属性来记录完整的工具调用信息：
+
+```yaml
+attributes:
+  - key: tool_calls # 内置属性，自动处理流式和非流式场景
+    value_source: response_streaming_body  # 或 response_body
+    apply_to_log: true
+  - key: reasoning # 记录思考过程
+    value_source: response_streaming_body
+    value: choices.0.delta.reasoning_content
+    rule: append
+    apply_to_log: true
+```
+
+**内置属性说明：**
+
+插件提供以下内置属性 key，无需配置 `value` 字段即可自动提取：
+
+| 内置 Key | 说明 | 支持的 value_source |
+|---------|------|-------------------|
+| `question` | 自动提取最后一条用户消息 | `request_body` |
+| `answer` | 自动提取回答内容（支持 OpenAI/Claude 协议） | `response_body`, `response_streaming_body` |
+| `tool_calls` | 自动提取并拼接工具调用（流式场景自动按 index 拼接 arguments） | `response_body`, `response_streaming_body` |
+| `reasoning` | 自动提取思考过程（reasoning_content） | `response_body`, `response_streaming_body` |
+
+日志输出示例（工具调用场景）：
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"reasoning\":\"用户想知道北京的天气，我需要调用天气查询工具。\",\"model\":\"deepseek-reasoner\"}"
+}
+```
+
+**流式响应处理：**
+
+对于流式响应中的 `tool_calls`，插件会自动：
+1. 按 `index` 字段识别每个独立的工具调用
+2. 拼接分片返回的 `arguments` 字符串
+3. 合并 `id`、`type`、`function.name` 等字段
+4. 最终输出完整的工具调用列表
+
 ## 进阶
 
 配合阿里云 SLS 数据加工，可以将 ai 相关的字段进行提取加工，例如原始日志为：

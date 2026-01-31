@@ -90,8 +90,10 @@ const (
 	RuleAppend  = "append"
 
 	// Built-in attributes
-	BuiltinQuestionKey = "question"
-	BuiltinAnswerKey   = "answer"
+	BuiltinQuestionKey   = "question"
+	BuiltinAnswerKey     = "answer"
+	BuiltinToolCallsKey  = "tool_calls"
+	BuiltinReasoningKey  = "reasoning"
 
 	// Built-in attribute paths
 	// Question paths (from request body)
@@ -105,6 +107,17 @@ const (
 	// Answer paths (from response streaming body)
 	AnswerPathOpenAIStreaming = "choices.0.delta.content"
 	AnswerPathClaudeStreaming = "delta.text"
+
+	// Tool calls paths
+	ToolCallsPathNonStreaming = "choices.0.message.tool_calls"
+	ToolCallsPathStreaming    = "choices.0.delta.tool_calls"
+
+	// Reasoning paths
+	ReasoningPathNonStreaming = "choices.0.message.reasoning_content"
+	ReasoningPathStreaming    = "choices.0.delta.reasoning_content"
+
+	// Context key for streaming tool calls buffer
+	CtxStreamingToolCallsBuffer = "streamingToolCallsBuffer"
 )
 
 // Default session ID headers in priority order
@@ -131,6 +144,93 @@ func extractSessionId(customHeader string) string {
 		}
 	}
 	return ""
+}
+
+// ToolCall represents a single tool call in the response
+type ToolCall struct {
+	Index    int                    `json:"index,omitempty"`
+	ID       string                 `json:"id,omitempty"`
+	Type     string                 `json:"type,omitempty"`
+	Function ToolCallFunction       `json:"function,omitempty"`
+}
+
+// ToolCallFunction represents the function details in a tool call
+type ToolCallFunction struct {
+	Name      string `json:"name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+}
+
+// StreamingToolCallsBuffer holds the state for assembling streaming tool calls
+type StreamingToolCallsBuffer struct {
+	ToolCalls map[int]*ToolCall // keyed by index
+}
+
+// extractStreamingToolCalls extracts and assembles tool calls from streaming response chunks
+func extractStreamingToolCalls(data []byte, buffer *StreamingToolCallsBuffer) *StreamingToolCallsBuffer {
+	if buffer == nil {
+		buffer = &StreamingToolCallsBuffer{
+			ToolCalls: make(map[int]*ToolCall),
+		}
+	}
+
+	chunks := bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n"))
+	for _, chunk := range chunks {
+		toolCallsResult := gjson.GetBytes(chunk, ToolCallsPathStreaming)
+		if !toolCallsResult.Exists() || !toolCallsResult.IsArray() {
+			continue
+		}
+
+		for _, tcResult := range toolCallsResult.Array() {
+			index := int(tcResult.Get("index").Int())
+			
+			// Get or create tool call entry
+			tc, exists := buffer.ToolCalls[index]
+			if !exists {
+				tc = &ToolCall{Index: index}
+				buffer.ToolCalls[index] = tc
+			}
+
+			// Update fields if present
+			if id := tcResult.Get("id").String(); id != "" {
+				tc.ID = id
+			}
+			if tcType := tcResult.Get("type").String(); tcType != "" {
+				tc.Type = tcType
+			}
+			if funcName := tcResult.Get("function.name").String(); funcName != "" {
+				tc.Function.Name = funcName
+			}
+			// Append arguments (they come in chunks)
+			if args := tcResult.Get("function.arguments").String(); args != "" {
+				tc.Function.Arguments += args
+			}
+		}
+	}
+
+	return buffer
+}
+
+// getToolCallsFromBuffer converts the buffer to a sorted slice of tool calls
+func getToolCallsFromBuffer(buffer *StreamingToolCallsBuffer) []ToolCall {
+	if buffer == nil || len(buffer.ToolCalls) == 0 {
+		return nil
+	}
+
+	// Find max index to create properly sized slice
+	maxIndex := 0
+	for idx := range buffer.ToolCalls {
+		if idx > maxIndex {
+			maxIndex = idx
+		}
+	}
+
+	result := make([]ToolCall, 0, len(buffer.ToolCalls))
+	for i := 0; i <= maxIndex; i++ {
+		if tc, exists := buffer.ToolCalls[i]; exists {
+			result = append(result, *tc)
+		}
+	}
+	return result
 }
 
 // TracingSpan is the tracing span configuration.
@@ -612,10 +712,10 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 
 // isBuiltinAttribute checks if the given key is a built-in attribute
 func isBuiltinAttribute(key string) bool {
-	return key == BuiltinQuestionKey || key == BuiltinAnswerKey
+	return key == BuiltinQuestionKey || key == BuiltinAnswerKey || key == BuiltinToolCallsKey || key == BuiltinReasoningKey
 }
 
-// getBuiltinAttributeFallback provides protocol compatibility fallback for question/answer attributes
+// getBuiltinAttributeFallback provides protocol compatibility fallback for built-in attributes
 func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsConfig, key, source string, body []byte, rule string) interface{} {
 	switch key {
 	case BuiltinQuestionKey:
@@ -642,6 +742,35 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 			}
 			// Try Claude format
 			if value := gjson.GetBytes(body, AnswerPathClaudeNonStreaming).Value(); value != nil && value != "" {
+				return value
+			}
+		}
+	case BuiltinToolCallsKey:
+		if source == ResponseStreamingBody {
+			// Get or create buffer from context
+			var buffer *StreamingToolCallsBuffer
+			if existingBuffer, ok := ctx.GetContext(CtxStreamingToolCallsBuffer).(*StreamingToolCallsBuffer); ok {
+				buffer = existingBuffer
+			}
+			buffer = extractStreamingToolCalls(body, buffer)
+			ctx.SetContext(CtxStreamingToolCallsBuffer, buffer)
+			
+			toolCalls := getToolCallsFromBuffer(buffer)
+			if len(toolCalls) > 0 {
+				return toolCalls
+			}
+		} else if source == ResponseBody {
+			if value := gjson.GetBytes(body, ToolCallsPathNonStreaming).Value(); value != nil {
+				return value
+			}
+		}
+	case BuiltinReasoningKey:
+		if source == ResponseStreamingBody {
+			if value := extractStreamingBodyByJsonPath(body, ReasoningPathStreaming, RuleAppend); value != nil && value != "" {
+				return value
+			}
+		} else if source == ResponseBody {
+			if value := gjson.GetBytes(body, ReasoningPathNonStreaming).Value(); value != nil && value != "" {
 				return value
 			}
 		}
