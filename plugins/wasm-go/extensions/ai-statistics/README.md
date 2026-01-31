@@ -228,7 +228,7 @@ attributes:
 
 #### 记录完整的多轮对话历史
 
-对于多轮 Agent 对话场景，配合 `session_id` 追踪功能，可以记录完整的对话历史：
+对于多轮 Agent 对话场景，配合 `session_id` 追踪功能，可以记录完整的对话历史和回答：
 
 ```yaml
 session_id_header: "x-session-id"  # 可选，指定 session ID header
@@ -237,26 +237,34 @@ attributes:
     value_source: request_body
     value: messages
     apply_to_log: true
-  - key: answer # 在流式响应中提取大模型的回答
+  - key: answer # 在流式响应中提取完整的回答（拼接所有 chunk）
     value_source: response_streaming_body
     value: choices.0.delta.content
     rule: append
     apply_to_log: true
-  - key: answer # 在非流式响应中提取大模型的回答
+  - key: answer # 在非流式响应中提取完整的回答
     value_source: response_body
     value: choices.0.message.content
     apply_to_log: true
+  - key: output_message # 记录完整的响应消息结构（包含 role 和 content）
+    value_source: response_body
+    value: choices.0.message
+    apply_to_log: true
 ```
 
-日志输出示例（包含完整对话历史）：
+日志输出示例（包含完整对话历史和回答）：
 
 ```json
 {
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"10\"}"
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\",\"output_message\":{\"role\":\"assistant\",\"content\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\"},\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"25\"}"
 }
 ```
 
-通过 `session_id` 可以关联同一会话中的所有请求，而 `messages` 字段以列表形式记录了每个独立的消息，包含 `role`（system/user/assistant）和 `content` 字段，便于追踪完整的对话上下文。
+**字段说明：**
+- `session_id`：会话标识，用于关联同一会话中的所有请求
+- `messages`：完整的输入对话历史，以列表形式记录每条消息的 `role`（system/user/assistant）和 `content`
+- `answer`：大模型的完整回答内容（纯文本）
+- `output_message`：完整的响应消息结构，包含 `role` 和 `content` 字段，与 `messages` 中的消息格式一致
 
 ## 进阶
 

@@ -224,7 +224,7 @@ attributes:
 
 #### Record complete multi-turn conversation history
 
-For multi-turn Agent conversation scenarios, combined with the `session_id` tracking feature, you can record the complete conversation history:
+For multi-turn Agent conversation scenarios, combined with the `session_id` tracking feature, you can record the complete conversation history and response:
 
 ```yaml
 session_id_header: "x-session-id"  # Optional, specify session ID header
@@ -233,26 +233,34 @@ attributes:
     value_source: request_body
     value: messages
     apply_to_log: true
-  - key: answer
+  - key: answer # Extract complete answer from streaming response (concatenate all chunks)
     value_source: response_streaming_body
     value: choices.0.delta.content
     rule: append
     apply_to_log: true
-  - key: answer
+  - key: answer # Extract complete answer from non-streaming response
     value_source: response_body
     value: choices.0.message.content
     apply_to_log: true
+  - key: output_message # Record complete response message structure (including role and content)
+    value_source: response_body
+    value: choices.0.message
+    apply_to_log: true
 ```
 
-Example log output (with complete conversation history):
+Example log output (with complete conversation history and response):
 
 ```json
 {
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"10\"}"
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\",\"output_message\":{\"role\":\"assistant\",\"content\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\"},\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"25\"}"
 }
 ```
 
-The `session_id` can be used to correlate all requests within the same session, while the `messages` field records each individual message as a list, including `role` (system/user/assistant) and `content` fields, making it easy to trace the complete conversation context.
+**Field Description:**
+- `session_id`: Session identifier used to correlate all requests within the same session
+- `messages`: Complete input conversation history, recording each message's `role` (system/user/assistant) and `content` as a list
+- `answer`: Complete response content from the LLM (plain text)
+- `output_message`: Complete response message structure, including `role` and `content` fields, consistent with the message format in `messages`
 
 ### Path and Content Type Filtering Configuration Examples
 
