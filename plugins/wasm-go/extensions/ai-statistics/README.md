@@ -246,17 +246,22 @@ attributes:
     value_source: response_body
     value: choices.0.message.content
     apply_to_log: true
-  - key: output_message # 记录完整的响应消息结构（包含 role 和 content）
+  - key: reasoning # 在流式响应中提取模型的思考过程（拼接所有 chunk）
+    value_source: response_streaming_body
+    value: choices.0.delta.reasoning_content
+    rule: append
+    apply_to_log: true
+  - key: reasoning # 在非流式响应中提取模型的思考过程
     value_source: response_body
-    value: choices.0.message
+    value: choices.0.message.reasoning_content
     apply_to_log: true
 ```
 
-日志输出示例（包含完整对话历史和回答）：
+日志输出示例（包含完整对话历史、回答和思考过程）：
 
 ```json
 {
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\",\"output_message\":{\"role\":\"assistant\",\"content\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\"},\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"25\"}"
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"reasoning\":\"The user is asking for a basic arithmetic calculation. 2+2 is a simple addition operation. The result is 4.\",\"model\":\"deepseek-reasoner\",\"input_token\":\"20\",\"output_token\":\"30\"}"
 }
 ```
 
@@ -264,7 +269,7 @@ attributes:
 - `session_id`：会话标识，用于关联同一会话中的所有请求
 - `messages`：完整的输入对话历史，以列表形式记录每条消息的 `role`（system/user/assistant）和 `content`
 - `answer`：大模型的完整回答内容（纯文本）
-- `output_message`：完整的响应消息结构，包含 `role` 和 `content` 字段，与 `messages` 中的消息格式一致
+- `reasoning`：模型的思考过程（部分支持思考的模型如 DeepSeek-R1 等会在响应中返回与 `content` 平级的 `reasoning_content` 字段）
 
 ## 进阶
 

@@ -242,17 +242,22 @@ attributes:
     value_source: response_body
     value: choices.0.message.content
     apply_to_log: true
-  - key: output_message # Record complete response message structure (including role and content)
+  - key: reasoning # Extract model's reasoning process from streaming response (concatenate all chunks)
+    value_source: response_streaming_body
+    value: choices.0.delta.reasoning_content
+    rule: append
+    apply_to_log: true
+  - key: reasoning # Extract model's reasoning process from non-streaming response
     value_source: response_body
-    value: choices.0.message
+    value: choices.0.message.reasoning_content
     apply_to_log: true
 ```
 
-Example log output (with complete conversation history and response):
+Example log output (with complete conversation history, answer, and reasoning):
 
 ```json
 {
-  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\",\"output_message\":{\"role\":\"assistant\",\"content\":\"2+2 equals 4. This is a basic arithmetic operation where you add the number 2 to itself.\"},\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"25\"}"
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"reasoning\":\"The user is asking for a basic arithmetic calculation. 2+2 is a simple addition operation. The result is 4.\",\"model\":\"deepseek-reasoner\",\"input_token\":\"20\",\"output_token\":\"30\"}"
 }
 ```
 
@@ -260,7 +265,7 @@ Example log output (with complete conversation history and response):
 - `session_id`: Session identifier used to correlate all requests within the same session
 - `messages`: Complete input conversation history, recording each message's `role` (system/user/assistant) and `content` as a list
 - `answer`: Complete response content from the LLM (plain text)
-- `output_message`: Complete response message structure, including `role` and `content` fields, consistent with the message format in `messages`
+- `reasoning`: Model's reasoning/thinking process (some reasoning-capable models like DeepSeek-R1 return a `reasoning_content` field parallel to `content` in the response)
 
 ### Path and Content Type Filtering Configuration Examples
 
