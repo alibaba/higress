@@ -655,6 +655,23 @@ func generateDrForMcpServer(host, protocol string) *v1alpha3.DestinationRule {
 				},
 			},
 		}
+    case provider.McpStreamableProtocol:
+        // Streamable HTTP transport also maintains long-lived/stateful interactions.
+        // Apply the same consistent hash policy to enhance backend affinity.
+        return &v1alpha3.DestinationRule{
+            Host: host,
+            TrafficPolicy: &v1alpha3.TrafficPolicy{
+                LoadBalancer: &v1alpha3.LoadBalancerSettings{
+                    LbPolicy: &v1alpha3.LoadBalancerSettings_ConsistentHash{
+                        ConsistentHash: &v1alpha3.LoadBalancerSettings_ConsistentHashLB{
+                            HashKey: &v1alpha3.LoadBalancerSettings_ConsistentHashLB_UseSourceIp{
+                                UseSourceIp: true,
+                            },
+                        },
+                    },
+                },
+            },
+        }
 	case provider.HttpsProtocol:
 		return &v1alpha3.DestinationRule{
 			Host: host,
