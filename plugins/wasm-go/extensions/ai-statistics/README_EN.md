@@ -29,6 +29,7 @@ Users can also expand observable values ​​through configuration:
 | `value_length_limit` | int | optional  | 4000   | length limit for each value |
 | `enable_path_suffixes`   | []string    | optional | ["/v1/chat/completions","/v1/completions","/v1/embeddings","/v1/models","/generateContent","/streamGenerateContent"] | Only effective for requests with these specific path suffixes, can be configured as "\*" to match all paths                                         |
 | `enable_content_types` | []string    | optional | ["text/event-stream","application/json"]                                                                             | Only buffer response body for these content types                                                                                                   |
+| `session_id_header` | string | optional  | -   | Specify the header name to read session ID from. If not configured, it will automatically search in the following priority: `x-openclaw-session-key`, `x-clawdbot-session-key`, `x-moltbot-session-key`, `x-agent-session`. Session ID can be used to trace multi-turn Agent conversations |
 
 Attribute Configuration instructions:
 
@@ -134,9 +135,34 @@ irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 }
 ```
 
+If the request contains a session ID header, the log will automatically include a `session_id` field:
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
+}
+```
+
 #### Trace
 
 When the configuration is empty, no additional attributes will be added to the span.
+
+## Debugging
+
+### Verifying ai_log Content
+
+During testing or debugging, you can enable Higress debug logging to verify the ai_log content:
+
+```bash
+# Log format example
+2026/01/31 23:29:30 proxy_debug_log: [ai-statistics] [nil] [test-request-id] [ai_log] attributes to be written: {"question":"What is 2+2?","answer":"4","reasoning":"...","tool_calls":[...],"session_id":"sess_123","model":"gpt-4","input_token":20,"output_token":10}
+```
+
+This debug log allows you to verify:
+- Whether question/answer/reasoning are correctly extracted
+- Whether tool_calls are properly concatenated (especially arguments in streaming scenarios)
+- Whether session_id is correctly identified
+- Whether all fields match expectations
 
 ### Extract token usage information from non-openai protocols
 
@@ -194,9 +220,11 @@ attributes:
 
 ### Record questions and answers
 
+#### Record only current turn's question and answer
+
 ```yaml
 attributes:
-  - key: question
+  - key: question # Record the current turn's question (last user message)
     value_source: request_body
     value: messages.@reverse.0.content
     apply_to_log: true
@@ -210,6 +238,52 @@ attributes:
     value: choices.0.message.content
     apply_to_log: true
 ```
+
+#### Record complete multi-turn conversation history (Recommended)
+
+For multi-turn Agent conversation scenarios, using built-in attributes greatly simplifies the configuration:
+
+```yaml
+session_id_header: "x-session-id"  # Optional, specify session ID header
+attributes:
+  - key: messages     # Complete conversation history
+    value_source: request_body
+    value: messages
+    apply_to_log: true
+  - key: question     # Built-in, auto-extracts last user message
+    apply_to_log: true
+  - key: answer       # Built-in, auto-extracts answer
+    apply_to_log: true
+  - key: reasoning    # Built-in, auto-extracts reasoning process
+    apply_to_log: true
+  - key: tool_calls   # Built-in, auto-extracts tool calls
+    apply_to_log: true
+```
+
+**Built-in Attributes:**
+
+The plugin provides the following built-in attribute keys that automatically extract values without configuring `value_source` and `value` fields:
+
+| Built-in Key | Description | Default value_source |
+|-------------|-------------|----------------------|
+| `question` | Automatically extracts the last user message | `request_body` |
+| `answer` | Automatically extracts answer content (supports OpenAI/Claude protocols) | `response_streaming_body` / `response_body` |
+| `tool_calls` | Automatically extracts and assembles tool calls (streaming scenarios auto-concatenate arguments by index) | `response_streaming_body` / `response_body` |
+| `reasoning` | Automatically extracts reasoning process (reasoning_content, e.g., DeepSeek-R1) | `response_streaming_body` / `response_body` |
+
+> **Note**: If `value_source` and `value` are configured, the configured values take priority for backward compatibility.
+
+Example log output:
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"user\",\"content\":\"What's the weather in Beijing?\"}],\"question\":\"What's the weather in Beijing?\",\"reasoning\":\"The user wants to know the weather in Beijing, I need to call the weather query tool.\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"model\":\"deepseek-reasoner\"}"
+}
+```
+
+**Streaming tool_calls handling:**
+
+The plugin automatically identifies each independent tool call by the `index` field, concatenates fragmented `arguments` strings, and outputs the complete tool call list.
 
 ### Path and Content Type Filtering Configuration Examples
 
