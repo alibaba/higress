@@ -104,6 +104,13 @@ type RedisClient interface {
 	ZRem(key string, members []string, callback RedisResponseCallback) error
 	ZRange(key string, start, stop int, callback RedisResponseCallback) error
 	ZRevRange(key string, start, stop int, callback RedisResponseCallback) error
+
+	// Bit
+	SetBit(key string, offset int, value int, callback RedisResponseCallback) error
+	GetBit(key string, offset int, callback RedisResponseCallback) error
+	BitCount(key string, start, stop int, callback RedisResponseCallback) error
+	BitOp(operation string, destkey string, keys []string, callback RedisResponseCallback) error
+	BitPos(key string, bit int, start, stop int, callback RedisResponseCallback) error
 }
 
 type RedisClusterClient[C Cluster] struct {
@@ -896,6 +903,68 @@ func (c *RedisClusterClient[C]) ZRevRange(key string, start, stop int, callback 
 	args := make([]interface{}, 0)
 	args = append(args, "zrevrange")
 	args = append(args, key)
+	args = append(args, start)
+	args = append(args, stop)
+	return RedisCall(c.cluster, respString(args), callback)
+}
+
+// Bit
+func (c *RedisClusterClient[C]) SetBit(key string, offset int, value int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
+	args := make([]interface{}, 0)
+	args = append(args, "setbit")
+	args = append(args, key)
+	args = append(args, offset)
+	args = append(args, value)
+	return RedisCall(c.cluster, respString(args), callback)
+}
+
+func (c *RedisClusterClient[C]) GetBit(key string, offset int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
+	args := make([]interface{}, 0)
+	args = append(args, "getbit")
+	args = append(args, key)
+	args = append(args, offset)
+	return RedisCall(c.cluster, respString(args), callback)
+}
+
+func (c *RedisClusterClient[C]) BitCount(key string, start, stop int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
+	args := make([]interface{}, 0)
+	args = append(args, "bitcount")
+	args = append(args, key)
+	args = append(args, start)
+	args = append(args, stop)
+	return RedisCall(c.cluster, respString(args), callback)
+}
+
+func (c *RedisClusterClient[C]) BitOp(operation string, destkey string, keys []string, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
+	args := make([]interface{}, 0)
+	args = append(args, operation)
+	args = append(args, destkey)
+	for _, key := range keys {
+		args = append(args, key)
+	}
+	return RedisCall(c.cluster, respString(args), callback)
+}
+
+func (c *RedisClusterClient[C]) BitPos(key string, bit int, start, stop int, callback RedisResponseCallback) error {
+	if err := c.checkReadyFunc(); err != nil {
+		return err
+	}
+	args := make([]interface{}, 0)
+	args = append(args, "bitpos")
+	args = append(args, key)
+	args = append(args, bit)
 	args = append(args, start)
 	args = append(args, stop)
 	return RedisCall(c.cluster, respString(args), callback)
