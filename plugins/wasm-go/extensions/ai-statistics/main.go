@@ -795,8 +795,10 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 			buffer = extractStreamingToolCalls(body, buffer)
 			ctx.SetContext(CtxStreamingToolCallsBuffer, buffer)
 			
+			// Also set tool_calls to user attributes so they appear in ai_log
 			toolCalls := getToolCallsFromBuffer(buffer)
 			if len(toolCalls) > 0 {
+				ctx.SetUserAttribute(BuiltinToolCallsKey, toolCalls)
 				return toolCalls
 			}
 		} else if source == ResponseBody {
