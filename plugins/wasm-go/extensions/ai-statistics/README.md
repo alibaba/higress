@@ -29,6 +29,7 @@ description: AI可观测配置参考
 | `value_length_limit` | int | 非必填  | 4000   | 记录的单个value的长度限制 |
 | `enable_path_suffixes` | []string    | 非必填   | []     | 只对这些特定路径后缀的请求生效，可以配置为 "\*" 以匹配所有路径（通配符检查会优先进行以提高性能）。如果为空数组，则对所有路径生效 |
 | `enable_content_types` | []string    | 非必填   | []     | 只对这些内容类型的响应进行缓冲处理。如果为空数组，则对所有内容类型生效                                                           |
+| `session_id_header` | string | 非必填  | -   | 指定读取 session ID 的 header 名称。如果不配置，将按以下优先级自动查找：`x-openclaw-session-key`、`x-clawdbot-session-key`、`x-moltbot-session-key`、`x-agent-session`。session ID 可用于追踪多轮 Agent 对话 |
 
 Attribute 配置说明:
 
@@ -134,6 +135,14 @@ irate(route_upstream_model_consumer_metric_llm_duration_count[2m])
 }
 ```
 
+如果请求中携带了 session ID header，日志中会自动添加 `session_id` 字段：
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"model\":\"qwen-turbo\",\"input_token\":\"10\",\"output_token\":\"69\",\"llm_first_token_duration\":\"309\",\"llm_service_duration\":\"1955\"}"
+}
+```
+
 #### 链路追踪
 
 配置为空时，不会在 span 中添加额外的 attribute
@@ -198,9 +207,11 @@ attributes:
 
 ### 记录问题与回答
 
+#### 仅记录当前轮次的问题与回答
+
 ```yaml
 attributes:
-  - key: question # 记录问题
+  - key: question # 记录当前轮次的问题（最后一条用户消息）
     value_source: request_body
     value: messages.@reverse.0.content
     apply_to_log: true
@@ -214,6 +225,69 @@ attributes:
     value: choices.0.message.content
     apply_to_log: true
 ```
+
+#### 记录完整的多轮对话历史（推荐配置）
+
+对于多轮 Agent 对话场景，使用内置属性可以大幅简化配置：
+
+```yaml
+session_id_header: "x-session-id"  # 可选，指定 session ID header
+attributes:
+  - key: messages     # 完整对话历史
+    value_source: request_body
+    value: messages
+    apply_to_log: true
+  - key: question     # 内置属性，自动提取最后一条用户消息
+    apply_to_log: true
+  - key: answer       # 内置属性，自动提取回答
+    apply_to_log: true
+  - key: reasoning    # 内置属性，自动提取思考过程
+    apply_to_log: true
+  - key: tool_calls   # 内置属性，自动提取工具调用
+    apply_to_log: true
+```
+
+**内置属性说明：**
+
+插件提供以下内置属性 key，无需配置 `value_source` 和 `value` 字段即可自动提取：
+
+| 内置 Key | 说明 | 默认 value_source |
+|---------|------|-------------------|
+| `question` | 自动提取最后一条用户消息 | `request_body` |
+| `answer` | 自动提取回答内容（支持 OpenAI/Claude 协议） | `response_streaming_body` / `response_body` |
+| `tool_calls` | 自动提取并拼接工具调用（流式场景自动按 index 拼接 arguments） | `response_streaming_body` / `response_body` |
+| `reasoning` | 自动提取思考过程（reasoning_content，如 DeepSeek-R1） | `response_streaming_body` / `response_body` |
+
+> **注意**：如果配置了 `value_source` 和 `value`，将优先使用配置的值，以保持向后兼容。
+
+日志输出示例：
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"user\",\"content\":\"北京天气怎么样？\"}],\"question\":\"北京天气怎么样？\",\"reasoning\":\"用户想知道北京的天气，我需要调用天气查询工具。\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc123\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":\\\"Beijing\\\"}\"}}],\"model\":\"deepseek-reasoner\"}"
+}
+```
+
+**流式响应中的 tool_calls 处理：**
+
+插件会自动按 `index` 字段识别每个独立的工具调用，拼接分片返回的 `arguments` 字符串，最终输出完整的工具调用列表。
+
+## 调试
+
+### 验证 ai_log 内容
+
+在测试或调试过程中，可以通过开启 Higress 的 debug 日志来验证 ai_log 的内容：
+
+```bash
+# 日志格式示例
+2026/01/31 23:29:30 proxy_debug_log: [ai-statistics] [nil] [test-request-id] [ai_log] attributes to be written: {"question":"What is 2+2?","answer":"4","reasoning":"...","tool_calls":[...],"session_id":"sess_123","model":"gpt-4","input_token":20,"output_token":10}
+```
+
+通过这个debug日志可以验证：
+- question/answer/reasoning 是否正确提取
+- tool_calls 是否正确拼接（特别是流式场景下的arguments）
+- session_id 是否正确识别
+- 各个字段是否符合预期
 
 ## 进阶
 
