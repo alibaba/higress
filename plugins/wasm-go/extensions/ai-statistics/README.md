@@ -207,9 +207,11 @@ attributes:
 
 ### 记录问题与回答
 
+#### 仅记录当前轮次的问题与回答
+
 ```yaml
 attributes:
-  - key: question # 记录问题
+  - key: question # 记录当前轮次的问题（最后一条用户消息）
     value_source: request_body
     value: messages.@reverse.0.content
     apply_to_log: true
@@ -223,6 +225,38 @@ attributes:
     value: choices.0.message.content
     apply_to_log: true
 ```
+
+#### 记录完整的多轮对话历史
+
+对于多轮 Agent 对话场景，配合 `session_id` 追踪功能，可以记录完整的对话历史：
+
+```yaml
+session_id_header: "x-session-id"  # 可选，指定 session ID header
+attributes:
+  - key: messages # 记录完整的对话历史（列表结构）
+    value_source: request_body
+    value: messages
+    apply_to_log: true
+  - key: answer # 在流式响应中提取大模型的回答
+    value_source: response_streaming_body
+    value: choices.0.delta.content
+    rule: append
+    apply_to_log: true
+  - key: answer # 在非流式响应中提取大模型的回答
+    value_source: response_body
+    value: choices.0.message.content
+    apply_to_log: true
+```
+
+日志输出示例（包含完整对话历史）：
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"10\"}"
+}
+```
+
+通过 `session_id` 可以关联同一会话中的所有请求，而 `messages` 字段以列表形式记录了每个独立的消息，包含 `role`（system/user/assistant）和 `content` 字段，便于追踪完整的对话上下文。
 
 ## 进阶
 

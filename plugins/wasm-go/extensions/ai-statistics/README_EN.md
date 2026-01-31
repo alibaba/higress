@@ -203,9 +203,11 @@ attributes:
 
 ### Record questions and answers
 
+#### Record only current turn's question and answer
+
 ```yaml
 attributes:
-  - key: question
+  - key: question # Record the current turn's question (last user message)
     value_source: request_body
     value: messages.@reverse.0.content
     apply_to_log: true
@@ -219,6 +221,38 @@ attributes:
     value: choices.0.message.content
     apply_to_log: true
 ```
+
+#### Record complete multi-turn conversation history
+
+For multi-turn Agent conversation scenarios, combined with the `session_id` tracking feature, you can record the complete conversation history:
+
+```yaml
+session_id_header: "x-session-id"  # Optional, specify session ID header
+attributes:
+  - key: messages # Record complete conversation history (as list structure)
+    value_source: request_body
+    value: messages
+    apply_to_log: true
+  - key: answer
+    value_source: response_streaming_body
+    value: choices.0.delta.content
+    rule: append
+    apply_to_log: true
+  - key: answer
+    value_source: response_body
+    value: choices.0.message.content
+    apply_to_log: true
+```
+
+Example log output (with complete conversation history):
+
+```json
+{
+  "ai_log": "{\"session_id\":\"sess_abc123\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a helpful assistant.\"},{\"role\":\"user\",\"content\":\"Hello\"},{\"role\":\"assistant\",\"content\":\"Hi! How can I help you?\"},{\"role\":\"user\",\"content\":\"What is 2+2?\"}],\"answer\":\"2+2 equals 4.\",\"model\":\"gpt-4\",\"input_token\":\"50\",\"output_token\":\"10\"}"
+}
+```
+
+The `session_id` can be used to correlate all requests within the same session, while the `messages` field records each individual message as a list, including `role` (system/user/assistant) and `content` fields, making it easy to trace the complete conversation context.
 
 ### Path and Content Type Filtering Configuration Examples
 
