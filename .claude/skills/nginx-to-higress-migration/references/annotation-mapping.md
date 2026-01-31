@@ -96,6 +96,40 @@ These nginx annotations work directly with Higress without any changes:
 | `nginx.ingress.kubernetes.io/proxy-ssl-secret` | `higress.io/proxy-ssl-secret` |
 | `nginx.ingress.kubernetes.io/proxy-ssl-verify` | `higress.io/proxy-ssl-verify` |
 
+### TLS Protocol & Cipher Control
+
+Higress provides fine-grained TLS control via dedicated annotations:
+
+| nginx annotation | Higress annotation | Notes |
+|------------------|-------------------|-------|
+| `nginx.ingress.kubernetes.io/ssl-protocols` | (see below) | Use Higress-specific annotations |
+
+**Higress TLS annotations (no nginx equivalent - use these directly):**
+
+| Higress annotation | Description | Example value |
+|-------------------|-------------|---------------|
+| `higress.io/tls-min-protocol-version` | Minimum TLS version | `TLSv1.2` |
+| `higress.io/tls-max-protocol-version` | Maximum TLS version | `TLSv1.3` |
+| `higress.io/ssl-cipher` | Allowed cipher suites | `ECDHE-RSA-AES128-GCM-SHA256` |
+
+**Example: Restrict to TLS 1.2+**
+```yaml
+# nginx (using ssl-protocols)
+annotations:
+  nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+
+# Higress (use dedicated annotations)
+annotations:
+  higress.io/tls-min-protocol-version: "TLSv1.2"
+  higress.io/tls-max-protocol-version: "TLSv1.3"
+```
+
+**Example: Custom cipher suites**
+```yaml
+annotations:
+  higress.io/ssl-cipher: "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384"
+```
+
 ## Unsupported Annotations (Require WASM Plugin)
 
 These annotations have no direct Higress equivalent and require custom WASM plugins:
