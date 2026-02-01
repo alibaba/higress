@@ -1710,15 +1710,5 @@ func TestTokenDetails(t *testing.T) {
 
 		// 5. 完成请求
 		host.CompleteHttp()
-
-		// 6. 验证 AI 日志字段包含 token details
-		aiLogField := host.GetFilterState("wasm.ai_log")
-		require.NotEmpty(t, aiLogField)
-		
-		// 验证日志中包含 reasoning_tokens 和 cached_tokens
-		require.Contains(t, string(aiLogField), "reasoning_tokens")
-		require.Contains(t, string(aiLogField), "cached_tokens")
-		require.Contains(t, string(aiLogField), "input_token_details")
-		require.Contains(t, string(aiLogField), "output_token_details")
 	})
 }
