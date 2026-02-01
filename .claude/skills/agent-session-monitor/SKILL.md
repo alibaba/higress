@@ -36,14 +36,6 @@ python3 main.py --log-path /var/log/proxy/access.log --session-key <session-id>
 * * * * * python3 /path/to/main.py --log-path /var/log/proxy/access.log --output-dir /var/lib/sessions
 ```
 
-**Log Rotation Notes**:
-- Automatically scans `access.log`, `access.log.1`, `access.log.2`, etc.
-- Uses inode tracking to identify files even after renaming
-- State persistence prevents duplicate parsing
-- Session data accumulates correctly across multiple runs
-
-See: [LOG_ROTATION.md](LOG_ROTATION.md)
-
 ### 2. Start Web UI (Recommended)
 
 ```bash
