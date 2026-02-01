@@ -57,7 +57,7 @@ open http://localhost:8888
 ## 依赖
 
 - Python 3.8+
-- 可选：`watchdog`（用于实时文件监控）
+- 无第三方依赖（仅使用标准库）
 
 ## License
 

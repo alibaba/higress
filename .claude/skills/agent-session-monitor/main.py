@@ -15,11 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-try:
-    from watchdog.observers import Observer
-except ImportError:
-    Observer = None
-    print("Warning: watchdog not installed. Real-time file monitoring will be limited.", file=sys.stderr)
+# 使用定时轮询机制，不依赖watchdog
 
 # ============================================================================
 # 配置
@@ -516,50 +512,6 @@ class RealtimeMonitor:
         print(f"   Total Cost:     ${summary['total_cost_usd']:.4f}")
         print(f"{'=' * 50}")
         print()
-
-
-# ============================================================================
-# 文件监控器（如果watchdog可用）
-# ============================================================================
-
-class LogFileWatcher:
-    """监控日志文件变化，增量解析"""
-    
-    def __init__(self, log_path: str, session_manager: SessionManager):
-        self.log_path = Path(log_path)
-        self.session_manager = session_manager
-        self.last_size = 0
-        if self.log_path.exists():
-            self.last_size = self.log_path.stat().st_size
-    
-    def on_modified(self, event):
-        """文件修改事件处理"""
-        if event.src_path != self.log_path:
-            return
-        
-        # 读取新增内容
-        new_size = event.src_path.stat().st_size
-        if new_size <= self.last_size:
-            return
-        
-        try:
-            with open(event.src_path, 'r', encoding='utf-8') as f:
-                f.seek(self.last_size)
-                new_lines = f.readlines()
-            
-            self.last_size = new_size
-            
-            # 解析新增的日志
-            for line in new_lines:
-                ai_log = self.parse_log_line(line)
-                if ai_log:
-                    session_id = ai_log.get("session_id", "default")
-                    session_manager.update_session(session_id, ai_log)
-            
-            print(f"📝 Processed {len(new_lines)} new log lines, {len(session_manager.sessions)} sessions")
-            
-        except Exception as e:
-            print(f"❌ Error processing log changes: {e}", file=sys.stderr)
 
 
 # ============================================================================

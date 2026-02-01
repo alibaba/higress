@@ -125,7 +125,7 @@ A: 在ai-statistics插件中配置`session_id_header`，或使用默认header（
 A: 目前支持Qwen、DeepSeek、GPT-4、Claude等主流模型。可以在main.py的TOKEN_PRICING字典中添加新模型。
 
 **Q: 如何实时监控日志文件变化？**  
-A: 安装watchdog库（`pip3 install watchdog`），然后运行main.py即可自动监控文件变化。
+A: 直接运行main.py即可，程序使用定时轮询机制（每秒自动检查一次），无需安装额外依赖。
 
 **Q: CLI查询速度慢？**  
 A: 大量session时，可以使用`--limit`限制结果数量，或按条件过滤（如`--sort-by cost`只查看成本最高的session）。
