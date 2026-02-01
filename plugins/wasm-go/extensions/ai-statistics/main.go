@@ -969,9 +969,7 @@ func debugLogAiLog(ctx wrapper.HttpContext) {
 
 	// Get all user attributes as a map
 	userAttrs := make(map[string]interface{})
-	// Get all user attributes as a map
-	userAttrs := make(map[string]interface{})
-	
+
 	// Try to reconstruct from GetUserAttribute (note: this is best-effort)
 	// The actual attributes are stored internally, we log what we know
 	if question := ctx.GetUserAttribute("question"); question != nil {
