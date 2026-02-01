@@ -65,9 +65,6 @@ Click to see:
 
 - `SKILL.md`: Main skill documentation
 - `QUICKSTART.md`: Quick start guide
-- `LOG_ROTATION.md`: Log rotation support details
-- `TOKEN_DETAILS.md`: Token details support (PR #3424)
-- `USAGE_IN_CLAWDBOT.md`: Clawdbot integration guide
 
 ## License
 
