@@ -1,17 +1,11 @@
-# Higress Auto Router SKILL
+---
+name: higress-auto-router
+description: Configure automatic model routing using the get-ai-gateway.sh CLI tool for Higress AI Gateway. Use when: (1) User wants to configure automatic model routing, (2) User mentions "route to", "switch model", "use model when", "auto routing", (3) User describes scenarios that should trigger specific models, (4) User wants to add, list, or remove routing rules.
+---
 
-Configure automatic model routing using the get-ai-gateway.sh CLI tool.
+# Higress Auto Router
 
-## Description
-
-This skill helps users configure Higress AI Gateway's model auto-routing feature through the CLI tool. Auto-routing allows intelligent model selection based on message content triggers.
-
-## When to Use
-
-Use this skill when:
-- User wants to configure automatic model routing
-- User mentions "route to", "switch model", "use model when", "auto routing"
-- User describes scenarios that should trigger specific models
+Configure automatic model routing using the get-ai-gateway.sh CLI tool for intelligent model selection based on message content triggers.
 
 ## Prerequisites
 
