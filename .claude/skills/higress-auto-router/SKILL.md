@@ -1,6 +1,6 @@
 ---
 name: higress-auto-router
-description: Configure automatic model routing using the get-ai-gateway.sh CLI tool for Higress AI Gateway. Use when: (1) User wants to configure automatic model routing, (2) User mentions "route to", "switch model", "use model when", "auto routing", (3) User describes scenarios that should trigger specific models, (4) User wants to add, list, or remove routing rules.
+description: "Configure automatic model routing using the get-ai-gateway.sh CLI tool for Higress AI Gateway. Use when: (1) User wants to configure automatic model routing, (2) User mentions 'route to', 'switch model', 'use model when', 'auto routing', (3) User describes scenarios that should trigger specific models, (4) User wants to add, list, or remove routing rules."
 ---
 
 # Higress Auto Router
