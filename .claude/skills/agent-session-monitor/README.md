@@ -1,63 +1,73 @@
 # Agent Session Monitor
 
-实时Agent对话观测程序，专为Clawdbot设计，用于监控Higress访问日志，追踪多轮对话的token开销。
+Real-time agent conversation monitoring for Clawdbot, designed to monitor Higress access logs and track token usage across multi-turn conversations.
 
-## 特点
+## Features
 
-- 🔍 **完整对话追踪**：记录每轮的messages、question、answer、reasoning、tool_calls
-- 💰 **Token开销统计**：区分input/output/reasoning/cached token，实时计算成本
-- 🌐 **Web可视化界面**：浏览器访问，总览+下钻查看session详情
-- 🔗 **实时URL生成**：Clawdbot可根据当前会话ID生成观测链接
+- 🔍 **Complete Conversation Tracking**: Records messages, question, answer, reasoning, tool_calls for each turn
+- 💰 **Token Usage Statistics**: Distinguishes input/output/reasoning/cached tokens, calculates costs in real-time
+- 🌐 **Web Visualization**: Browser-based UI with overview and drill-down into session details
+- 🔗 **Real-time URL Generation**: Clawdbot can generate observation links based on current session ID
+- 🔄 **Log Rotation Support**: Automatically handles rotated log files (access.log, access.log.1, etc.)
+- 📊 **FinOps Reporting**: Export usage data in JSON/CSV formats
 
 ## Quick Start
 
-### 1. 运行Demo
+### 1. Run Demo
 
 ```bash
 cd example
 bash demo.sh
 ```
 
-### 2. 启动Web界面
+### 2. Start Web UI
 
 ```bash
-# 解析日志
+# Parse logs
 python3 main.py --log-path /var/log/higress/access.log --output-dir ./sessions
 
-# 启动Web服务器
+# Start web server
 python3 scripts/webserver.py --data-dir ./sessions --port 8888
 
-# 浏览器访问
+# Access in browser
 open http://localhost:8888
 ```
 
-### 3. 在Clawdbot中使用
+### 3. Use in Clawdbot
 
-当用户询问"我这次对话用了多少token"时，你可以：
+When users ask "How many tokens did this conversation use?", you can respond with:
 
 ```
-你的当前会话统计：
+Your current session statistics:
 - Session ID: agent:main:discord:channel:1465367993012981988
-- 查看详情: http://localhost:8888/session?id=agent:main:discord:channel:1465367993012981988
+- View details: http://localhost:8888/session?id=agent:main:discord:channel:1465367993012981988
 
-点击链接可以看到：
-✅ 完整对话历史
-✅ 每轮token消耗明细
-✅ 工具调用记录
-✅ 成本统计
+Click to see:
+✅ Complete conversation history
+✅ Token usage breakdown per turn
+✅ Tool call records
+✅ Cost statistics
 ```
 
-## 文件说明
+## Files
 
-- `main.py`: 后台监控程序，解析Higress访问日志
-- `scripts/webserver.py`: Web服务器，提供浏览器访问界面
-- `scripts/cli.py`: 命令行工具，支持查询和导出报表
-- `example/`: 演示示例和测试数据
+- `main.py`: Background monitor, parses Higress access logs
+- `scripts/webserver.py`: Web server, provides browser-based UI
+- `scripts/cli.py`: Command-line tools for queries and exports
+- `example/`: Demo examples and test data
 
-## 依赖
+## Dependencies
 
 - Python 3.8+
-- 无第三方依赖（仅使用标准库）
+- No external dependencies (uses only standard library)
+
+## Documentation
+
+- `SKILL.md`: Main skill documentation
+- `QUICKSTART.md`: Quick start guide
+- `LOG_ROTATION.md`: Log rotation support details
+- `TOKEN_DETAILS.md`: Token details support (PR #3424)
+- `USAGE_IN_CLAWDBOT.md`: Clawdbot integration guide
 
 ## License
 

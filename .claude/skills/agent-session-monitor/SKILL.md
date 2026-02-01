@@ -1,133 +1,129 @@
 ---
 name: agent-session-monitor
-description: 实时Agent对话观测程序 - 监控Higress访问日志，按session聚合对话，追踪token开销。支持Web界面实时查看当前会话的完整对话过程和具体开销。当用户询问当前会话token消耗、对话历史、成本统计时使用。
+description: Real-time agent conversation monitoring - monitors Higress access logs, aggregates conversations by session, tracks token usage. Supports web interface for viewing complete conversation history and costs. Use when users ask about current session token consumption, conversation history, or cost statistics.
 
 ---
 
-## 功能概述
+## Overview
 
-实时监控Higress访问日志，提取ai_log JSON，按session_id分组多轮对话，实时计算token开销并生成可视化报告。支持预算预警和模型切换建议。
+Real-time monitoring of Higress access logs, extracting ai_log JSON, grouping multi-turn conversations by session_id, and calculating token costs with visualization.
 
-### 核心特性
+### Core Features
 
-- **实时日志监控**：监控Higress访问日志文件，实时解析新增的ai_log
-- **日志轮转支持**：完全支持logrotate轮转，自动追踪access.log.1~5等文件
-- **增量解析**：基于inode追踪，只处理新增内容，不重复解析
-- **Session分组**：按session_id关联多轮对话（每次对话是独立请求）
-- **完整对话追踪**：记录每轮的messages、question、answer、reasoning、tool_calls
-- **Token开销追踪**：区分输入token、输出token、reasoning token、缓存token
-- **Web可视化界面**：浏览器访问，总览+下钻查看session详情
-- **实时URL生成**：Clawdbot可根据当前会话ID生成观测链接
-- **后台运行**：独立进程，持续解析访问日志
-- **状态持久化**：跨运行保持解析进度和session数据
+- **Real-time Log Monitoring**: Monitors Higress access log files, parses new ai_log entries in real-time
+- **Log Rotation Support**: Full logrotate support, automatically tracks access.log.1~5 etc.
+- **Incremental Parsing**: Inode-based tracking, processes only new content, no duplicates
+- **Session Grouping**: Associates multi-turn conversations by session_id (each turn is a separate request)
+- **Complete Conversation Tracking**: Records messages, question, answer, reasoning, tool_calls for each turn
+- **Token Usage Tracking**: Distinguishes input/output/reasoning/cached tokens
+- **Web Visualization**: Browser-based UI with overview and session drill-down
+- **Real-time URL Generation**: Clawdbot can generate observation links based on current session ID
+- **Background Processing**: Independent process, continuously parses access logs
+- **State Persistence**: Maintains parsing progress and session data across runs
 
-## 使用方法
+## Usage
 
-### 1. 后台监控（持续运行）
+### 1. Background Monitoring (Continuous)
 
 ```bash
-# 解析Higress访问日志（支持日志轮转）
+# Parse Higress access logs (with log rotation support)
 python3 main.py --log-path /var/log/proxy/access.log --output-dir ./sessions
 
-# 指定轮转文件数量
-python3 main.py --log-path /var/log/proxy/access.log --max-rotate 5
-
-# 指定session key过滤
+# Filter by session key
 python3 main.py --log-path /var/log/proxy/access.log --session-key <session-id>
 
-# 定时任务（每分钟增量解析）
+# Scheduled task (incremental parsing every minute)
 * * * * * python3 /path/to/main.py --log-path /var/log/proxy/access.log --output-dir /var/lib/sessions
 ```
 
-**日志轮转说明**：
-- 自动扫描 `access.log`, `access.log.1`, `access.log.2` 等轮转文件
-- 使用inode追踪文件，即使文件被重命名也能正确识别
-- 状态持久化，避免重复解析
-- Session数据累积，正确统计跨多次运行的token开销
+**Log Rotation Notes**:
+- Automatically scans `access.log`, `access.log.1`, `access.log.2`, etc.
+- Uses inode tracking to identify files even after renaming
+- State persistence prevents duplicate parsing
+- Session data accumulates correctly across multiple runs
 
-详见：[LOG_ROTATION.md](LOG_ROTATION.md)
+See: [LOG_ROTATION.md](LOG_ROTATION.md)
 
-### 2. 启动Web界面（推荐）
+### 2. Start Web UI (Recommended)
 
 ```bash
-# 启动Web服务器
+# Start web server
 python3 scripts/webserver.py --data-dir ./sessions --port 8888
 
-# 浏览器访问
+# Access in browser
 open http://localhost:8888
 ```
 
-Web界面功能：
-- 📊 总览页面：查看所有session统计、按模型分组
-- 🔍 Session详情：点击session ID下钻查看完整对话历史
-- 💬 对话记录：显示每轮的messages、question、answer、reasoning、tool_calls
-- 💰 成本统计：实时计算token开销和成本
-- 🔄 自动刷新：每30秒自动更新数据
+Web UI features:
+- 📊 Overview: View all session statistics and group by model
+- 🔍 Session Details: Click session ID to drill down into complete conversation history
+- 💬 Conversation Log: Display messages, question, answer, reasoning, tool_calls for each turn
+- 💰 Cost Statistics: Real-time token usage and cost calculation
+- 🔄 Auto Refresh: Updates every 30 seconds
 
-### 3. 在Clawdbot对话中使用
+### 3. Use in Clawdbot Conversations
 
-当用户询问当前会话的token消耗或对话历史时，你可以：
+When users ask about current session token consumption or conversation history:
 
-1. 获取当前会话的session_id（从runtime或context中）
-2. 生成Web界面URL并返回给用户
+1. Get current session_id (from runtime or context)
+2. Generate web UI URL and return to user
 
-示例回复：
+Example response:
 
 ```
-你的当前会话统计：
+Your current session statistics:
 - Session ID: agent:main:discord:channel:1465367993012981988
-- 查看详情：http://localhost:8888/session?id=agent:main:discord:channel:1465367993012981988
+- View details: http://localhost:8888/session?id=agent:main:discord:channel:1465367993012981988
 
-点击链接可以看到：
-✅ 完整的对话历史
-✅ 每轮token消耗明细
-✅ 工具调用记录
-✅ 成本统计
+Click the link to see:
+✅ Complete conversation history
+✅ Token usage breakdown per turn
+✅ Tool call records
+✅ Cost statistics
 ```
 
-### 4. CLI查询（可选）
+### 4. CLI Queries (Optional)
 
 ```bash
-# 查看特定session详情
+# View specific session details
 python3 scripts/cli.py show <session-id>
 
-# 列出所有session
+# List all sessions
 python3 scripts/cli.py list --sort-by cost --limit 10
 
-# 按模型统计
+# Statistics by model
 python3 scripts/cli.py stats-model
 
-# 按日期统计（最近7天）
+# Statistics by date (last 7 days)
 python3 scripts/cli.py stats-date --days 7
 
-# 导出报表
+# Export reports
 python3 scripts/cli.py export finops-report.json
 ```
 
-## 配置参数
+## Configuration
 
-### main.py (后台监控)
+### main.py (Background Monitor)
 
-| 参数 | 说明 | 必填 | 默认值 |
-|------|------|--------|----------|
-| `--log-path` | Higress访问日志文件路径 | 是 | /var/log/higress/access.log |
-| `--output-dir` | session数据存储目录 | 否 | ./sessions |
-| `--session-key` | 只监控指定session key | 否 | 监控所有session |
-| `--max-rotate` | 最大轮转文件数量 | 否 | 5 |
-| `--state-file` | 状态文件路径（记录已读offset） | 否 | <output-dir>/.state.json |
-| `--refresh-interval` | 日志刷新间隔（秒） | 否 | 1 |
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `--log-path` | Higress access log file path | Yes | /var/log/higress/access.log |
+| `--output-dir` | Session data storage directory | No | ./sessions |
+| `--session-key` | Monitor only specified session key | No | Monitor all sessions |
+| `--state-file` | State file path (records read offsets) | No | <output-dir>/.state.json |
+| `--refresh-interval` | Log refresh interval (seconds) | No | 1 |
 
-### webserver.py (Web界面)
+### webserver.py (Web UI)
 
-| 参数 | 说明 | 必填 | 默认值 |
-|------|------|--------|----------|
-| `--data-dir` | session数据目录 | 否 | ./sessions |
-| `--port` | HTTP服务器端口 | 否 | 8888 |
-| `--host` | HTTP服务器地址 | 否 | 0.0.0.0 |
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `--data-dir` | Session data directory | No | ./sessions |
+| `--port` | HTTP server port | No | 8888 |
+| `--host` | HTTP server address | No | 0.0.0.0 |
 
-## 输出示例
+## Output Examples
 
-### 1. 实时监控输出
+### 1. Real-time Monitor
 
 ```
 🔍 Session Monitor - Active
@@ -135,25 +131,23 @@ python3 scripts/cli.py export finops-report.json
 
 📊 Active Sessions: 3
 
-┌──────────────┬─────────────────┬──────────────┬────────────────┐
-│ Session ID   │ Messages       │ Input Tokens  │ Output Tokens │
-├──────────────┼─────────────────┼──────────────┼────────────────┤
-│ sess_abc123  │ 5              │ 1250         │ 800          │
-│ sess_xyz789  │ 3              │ 890          │ 650          │
-│ sess_def456  │ 8              │ 2100         │ 1200         │
-└──────────────┴─────────────────┴──────────────┴────────────────┘
+┌──────────────────────────┬─────────┬──────────┬───────────┐
+│ Session ID               │ Msgs    │ Input    │ Output    │
+├──────────────────────────┼─────────┼──────────┼───────────┤
+│ sess_abc123              │       5 │    1,250 │       800 │
+│ sess_xyz789              │       3 │      890 │       650 │
+│ sess_def456              │       8 │    2,100 │     1,200 │
+└──────────────────────────┴─────────┴──────────┴───────────┘
 
 📈 Token Statistics
   Total Input:   4240 tokens
   Total Output:  2650 tokens
   Total Cached:  0 tokens
   Total Cost:    $0.00127
-
-🎯 Budget: 6890 / 1000000 (0.7%)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-### 2. CLI查询session详情
+### 2. CLI Session Details
 
 ```bash
 $ python3 scripts/cli.py show agent:main:discord:channel:1465367993012981988
@@ -173,7 +167,7 @@ $ python3 scripts/cli.py show agent:main:discord:channel:1465367993012981988
    Reasoning:         150 tokens
    Total:           2,200 tokens
 
-💰 Estimated Cost: $0.001260 USD
+💰 Estimated Cost: $0.00126000 USD
 
 📝 Conversation Rounds (5):
 ──────────────────────────────────────────────────────────────────────
@@ -182,25 +176,15 @@ $ python3 scripts/cli.py show agent:main:discord:channel:1465367993012981988
     Tokens: 250 in → 160 out
     🔧 Tool calls: Yes
     Messages (2):
-      [user] 查询北京天气
-    ❓ Question: 查询北京天气
-    ✅ Answer: 正在为您查询北京天气...
-    🧠 Reasoning: 用户想知道北京的天气，我需要调用天气查询工具。
+      [user] Check Beijing weather
+    ❓ Question: Check Beijing weather
+    ✅ Answer: Checking Beijing weather for you...
+    🧠 Reasoning: User wants to know Beijing weather, I need to call weather API.
     🛠️  Tool Calls:
        - get_weather({"location":"Beijing"})
-
-  Round 2 @ 2026-02-01T09:32:00+08:00
-    Tokens: 320 in → 180 out
-    Messages (1):
-      [tool] {"temperature": 15, "weather": "晴"}
-    ✅ Answer: 北京今天天气晴朗，温度15°C。
-
-──────────────────────────────────────────────────────────────────────
-
-======================================================================
 ```
 
-### 3. 按模型统计
+### 3. Statistics by Model
 
 ```bash
 $ python3 scripts/cli.py stats-model
@@ -211,17 +195,17 @@ $ python3 scripts/cli.py stats-model
 
 Model                Sessions   Input           Output          Cost (USD)  
 ────────────────────────────────────────────────────────────────────────────
-Qwen3-rerank         12         15,230          9,840           $  0.0168
-DeepSeek-R1          5          8,450           6,200           $  0.0106
-Qwen-Max             3          4,200           3,100           $  0.0083
-GPT-4                2          2,100           1,800           $  0.0171
+Qwen3-rerank         12         15,230          9,840           $  0.016800
+DeepSeek-R1          5          8,450           6,200           $  0.010600
+Qwen-Max             3          4,200           3,100           $  0.008300
+GPT-4                2          2,100           1,800           $  0.017100
 ────────────────────────────────────────────────────────────────────────────
-TOTAL                22         29,980          20,940          $  0.0528
+TOTAL                22         29,980          20,940          $  0.052800
 
 ================================================================================
 ```
 
-### 4. 按日期统计
+### 4. Statistics by Date
 
 ```bash
 $ python3 scripts/cli.py stats-date --days 7
@@ -231,42 +215,38 @@ $ python3 scripts/cli.py stats-date --days 7
 ================================================================================
 
 Date         Sessions   Input           Output          Cost (USD)   Models              
-────────────────────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────────
 2026-01-26   3          2,100           1,450           $  0.0042   Qwen3-rerank
 2026-01-27   5          4,850           3,200           $  0.0096   Qwen3-rerank, GPT-4
 2026-01-28   4          3,600           2,800           $  0.0078   DeepSeek-R1, Qwen
-2026-01-29   6          7,200           5,100           $  0.0144   Qwen3-rerank +2
-2026-01-30   2          5,400           3,900           $  0.0102   Qwen-Max
-2026-01-31   1          4,200           3,100           $  0.0083   Qwen-Max
-2026-02-01   1          2,630           1,390           $  0.0063   Qwen3-rerank
-────────────────────────────────────────────────────────────────────────────────────────
+────────────────────────────────────────────────────────────────────────────
 TOTAL        22         29,980          20,940          $  0.0528
 
 ================================================================================
 ```
 
-### 5. Web界面（推荐）
+### 5. Web UI (Recommended)
 
-访问 `http://localhost:8888` 可以看到：
+Access `http://localhost:8888` to see:
 
-**首页：**
-- 📊 总会话数、总Token消耗、总成本卡片
-- 📋 最近会话列表（可点击查看详情）
-- 📈 按模型统计表格
+**Home Page:**
+- 📊 Total sessions, token consumption, cost cards
+- 📋 Recent sessions list (clickable for details)
+- 📈 Statistics by model table
 
-**Session详情页：**
-- 💬 完整对话记录（每轮的messages、question、answer、reasoning、tool_calls）
-- 🔧 工具调用历史
-- 💰 Token消耗明细和成本
+**Session Detail Page:**
+- 💬 Complete conversation log (messages, question, answer, reasoning, tool_calls per turn)
+- 🔧 Tool call history
+- 💰 Token usage breakdown and costs
 
-**特点：**
-- 🔄 每30秒自动刷新
-- 📱 响应式设计，支持移动端
-- 🎨 优雅的UI，易于阅读
+**Features:**
+- 🔄 Auto-refresh every 30 seconds
+- 📱 Responsive design, mobile-friendly
+- 🎨 Clean UI, easy to read
 
-## Session数据结构
+## Session Data Structure
 
-每个session存储为独立JSON文件，包含完整的对话历史和token统计：
+Each session is stored as an independent JSON file with complete conversation history and token statistics:
 
 ```json
 {
@@ -285,6 +265,8 @@ TOTAL        22         29,980          20,940          $  0.0528
       "timestamp": "2026-02-01T10:30:15Z",
       "input_tokens": 250,
       "output_tokens": 160,
+      "reasoning_tokens": 0,
+      "cached_tokens": 0,
       "model": "Qwen3-rerank",
       "has_tool_calls": true,
       "response_type": "normal",
@@ -295,12 +277,12 @@ TOTAL        22         29,980          20,940          $  0.0528
         },
         {
           "role": "user",
-          "content": "查询北京天气"
+          "content": "Check Beijing weather"
         }
       ],
-      "question": "查询北京天气",
-      "answer": "正在为您查询北京天气...",
-      "reasoning": "用户想知道北京的天气，我需要调用天气查询工具。",
+      "question": "Check Beijing weather",
+      "answer": "Checking Beijing weather for you...",
+      "reasoning": "User wants to know Beijing weather, need to call weather API.",
       "tool_calls": [
         {
           "index": 0,
@@ -311,87 +293,92 @@ TOTAL        22         29,980          20,940          $  0.0528
             "arguments": "{\"location\":\"Beijing\"}"
           }
         }
-      ]
-    },
-    {
-      "round": 2,
-      "timestamp": "2026-02-01T10:32:00Z",
-      "input_tokens": 320,
-      "output_tokens": 180,
-      "model": "Qwen3-rerank",
-      "has_tool_calls": false,
-      "response_type": "normal",
-      "messages": [
-        {
-          "role": "tool",
-          "content": "{\"temperature\": 15, \"weather\": \"晴\"}"
-        }
       ],
-      "question": "",
-      "answer": "北京今天天气晴朗，温度15°C。",
-      "reasoning": "",
-      "tool_calls": []
+      "input_token_details": {"cached_tokens": 0},
+      "output_token_details": {}
     }
   ]
 }
 ```
 
-### 字段说明
+### Field Descriptions
 
-**会话级别：**
-- `session_id`: 会话唯一标识（来自ai_log的session_id字段）
-- `created_at`: 会话创建时间
-- `updated_at`: 最后更新时间
-- `messages_count`: 对话轮次数
-- `total_input_tokens`: 累计输入token
-- `total_output_tokens`: 累计输出token
-- `total_reasoning_tokens`: 累计reasoning token（DeepSeek等模型）
-- `total_cached_tokens`: 累计缓存token
-- `model`: 当前使用的模型
+**Session Level:**
+- `session_id`: Unique session identifier (from ai_log's session_id field)
+- `created_at`: Session creation time
+- `updated_at`: Last update time
+- `messages_count`: Number of conversation turns
+- `total_input_tokens`: Cumulative input tokens
+- `total_output_tokens`: Cumulative output tokens
+- `total_reasoning_tokens`: Cumulative reasoning tokens (DeepSeek, o1, etc.)
+- `total_cached_tokens`: Cumulative cached tokens (prompt caching)
+- `model`: Current model in use
 
-**轮次级别（rounds）：**
-- `round`: 轮次序号
-- `timestamp`: 当前轮次时间戳
-- `input_tokens`: 当前轮次输入token
-- `output_tokens`: 当前轮次输出token
-- `model`: 当前轮次使用的模型
-- `has_tool_calls`: 是否包含工具调用
-- `response_type`: 响应类型（normal/error等）
-- `messages`: 完整的对话历史（OpenAI messages格式）
-- `question`: 当前轮次的用户问题（最后一条用户消息）
-- `answer`: 当前轮次的AI回答
-- `reasoning`: AI的思考过程（如果模型支持）
-- `tool_calls`: 工具调用列表（如果有）
+**Round Level (rounds):**
+- `round`: Turn number
+- `timestamp`: Current turn timestamp
+- `input_tokens`: Input tokens for this turn
+- `output_tokens`: Output tokens for this turn
+- `reasoning_tokens`: Reasoning tokens (o1, etc.)
+- `cached_tokens`: Cached tokens (prompt caching)
+- `model`: Model used for this turn
+- `has_tool_calls`: Whether includes tool calls
+- `response_type`: Response type (normal/error, etc.)
+- `messages`: Complete conversation history (OpenAI messages format)
+- `question`: User's question for this turn (last user message)
+- `answer`: AI's answer for this turn
+- `reasoning`: AI's thinking process (if model supports)
+- `tool_calls`: Tool call list (if any)
+- `input_token_details`: Complete input token details (JSON)
+- `output_token_details`: Complete output token details (JSON)
 
-## FinOps Skill封装
+## Log Format Requirements
 
-本程序将被封装为Higress的FinOps skill，提供以下能力：
+Higress access logs must include ai_log field (JSON format). Example:
 
-1. **Token成本分析**：详细的token使用统计和成本计算
-2. **Session趋势分析**：多轮对话的增长模式识别
-3. **预算管理**：预设预算和超支防护
-4. **模型选择优化**：基于token使用情况推荐最优模型
-5. **实时监控面板**：Web界面查看会话状态
+```json
+{
+  "__file_offset__": "1000",
+  "timestamp": "2026-02-01T09:30:15Z",
+  "ai_log": "{\"session_id\":\"sess_abc\",\"messages\":[...],\"question\":\"...\",\"answer\":\"...\",\"input_token\":250,\"output_token\":160,\"model\":\"Qwen3-rerank\"}"
+}
+```
 
-## 实现说明
+Supported ai_log attributes:
+- `session_id`: Session identifier (required)
+- `messages`: Complete conversation history
+- `question`: Question for current turn
+- `answer`: AI answer
+- `reasoning`: Thinking process (DeepSeek, o1, etc.)
+- `reasoning_tokens`: Reasoning token count (from PR #3424)
+- `cached_tokens`: Cached token count (from PR #3424)
+- `tool_calls`: Tool call list
+- `input_token`: Input token count
+- `output_token`: Output token count
+- `input_token_details`: Complete input token details (JSON)
+- `output_token_details`: Complete output token details (JSON)
+- `model`: Model name
+- `response_type`: Response type
 
-### 核心技术栈
+## Implementation
 
-- **日志解析**：使用gjson库解析ai_log JSON
-- **文件监控**：fsnotify实现日志文件变更检测
-- **Session管理**：内存+磁盘混合存储策略
-- **Token计算**：支持GPT-4、Qwen、Claude等多种模型定价
-- **告警系统**：支持Discord、Slack、Telegram等多种渠道
+### Technology Stack
 
-### 隐私和安全
+- **Log Parsing**: Direct JSON parsing, no regex needed
+- **File Monitoring**: Polling-based (no watchdog dependency)
+- **Session Management**: In-memory + disk hybrid storage
+- **Token Calculation**: Model-specific pricing for GPT-4, Qwen, Claude, o1, etc.
 
-- ✅ 不记录对话内容，仅存储token统计
-- ✅ Session数据本地存储，不上传到外部服务
-- ✅ 支持日志文件路径白名单
-- ✅ Session key访问控制
+### Privacy and Security
 
-### 性能优化
+- ✅ Does not record conversation content in logs, only token statistics
+- ✅ Session data stored locally, not uploaded to external services
+- ✅ Supports log file path allowlist
+- ✅ Session key access control
 
-- 增量日志解析，避免全量扫描
-- 内存中的session数据定期持久化
-- 日志文件读取优化（offset追踪）
+### Performance Optimization
+
+- Incremental log parsing, avoids full scans
+- In-memory session data with periodic persistence
+- Optimized log file reading (offset tracking)
+- Inode-based file identification (handles rotation efficiently)
