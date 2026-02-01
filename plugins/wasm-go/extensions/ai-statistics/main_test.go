@@ -1617,3 +1617,98 @@ func TestSessionIdDebugOutput(t *testing.T) {
 		})
 	})
 }
+
+// 测试配置：Token Details 配置
+var tokenDetailsConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"attributes": []map[string]interface{}{
+			{
+				"key":          "reasoning_tokens",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "cached_tokens",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "input_token_details",
+				"apply_to_log": true,
+			},
+			{
+				"key":          "output_token_details",
+				"apply_to_log": true,
+			},
+		},
+		"disable_openai_usage": false,
+	})
+	return data
+}()
+
+// TestTokenDetails 测试 token details 功能
+func TestTokenDetails(t *testing.T) {
+	t.Run("test builtin token details attributes", func(t *testing.T) {
+		host, status := test.NewTestHost(tokenDetailsConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		// 设置路由和集群名称
+		host.SetRouteName("api-v1")
+		host.SetClusterName("cluster-1")
+
+		// 1. 处理请求头
+		action := host.CallOnHttpRequestHeaders([][2]string{
+			{":authority", "example.com"},
+			{":path", "/v1/chat/completions"},
+			{":method", "POST"},
+		})
+		require.Equal(t, types.ActionContinue, action)
+
+		// 2. 处理请求体
+		requestBody := []byte(`{
+			"model": "gpt-4o",
+			"messages": [
+				{"role": "user", "content": "Test question"}
+			]
+		}`)
+		action = host.CallOnHttpRequestBody(requestBody)
+		require.Equal(t, types.ActionContinue, action)
+
+		// 3. 处理响应头
+		action = host.CallOnHttpResponseHeaders([][2]string{
+			{":status", "200"},
+			{"content-type", "application/json"},
+		})
+		require.Equal(t, types.ActionContinue, action)
+
+		// 4. 处理响应体（包含 token details）
+		responseBody := []byte(`{
+			"id": "chatcmpl-123",
+			"object": "chat.completion",
+			"created": 1677652288,
+			"model": "gpt-4o",
+			"usage": {
+				"prompt_tokens": 100,
+				"completion_tokens": 50,
+				"total_tokens": 150,
+				"completion_tokens_details": {
+					"reasoning_tokens": 25
+				},
+				"prompt_tokens_details": {
+					"cached_tokens": 80
+				}
+			},
+			"choices": [{
+				"message": {
+					"role": "assistant",
+					"content": "Test answer"
+				},
+				"finish_reason": "stop"
+			}]
+		}`)
+		action = host.CallOnHttpResponseBody(responseBody)
+		require.Equal(t, types.ActionContinue, action)
+
+		// 5. 完成请求
+		host.CompleteHttp()
+	})
+}
