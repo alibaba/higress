@@ -122,25 +122,6 @@ echo "Configuring provider..."
 $RUNTIME models auth login --provider higress
 ```
 
-#### Plugin Features
-
-The plugin provides:
-
-- **Auto-routing support**: Use `higress/auto` to enable intelligent model routing
-- **Dynamic model discovery**: Auto-detect available models from Higress Console
-- **Smart URL handling**: Automatic URL normalization and validation
-- **Flexible authentication**: Support for both local and remote gateway deployments
-
-After installation, configure Higress as a model provider:
-
-```bash
-# For Clawdbot
-clawdbot models auth login --provider higress
-
-# For OpenClaw
-openclaw models auth login --provider higress
-```
-
 The plugin will guide you through an interactive setup for:
 1. Gateway URL (default: `http://localhost:8080`)
 2. Console URL (default: `http://localhost:8001`)
