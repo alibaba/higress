@@ -59,6 +59,25 @@ When `value_source` is `response_streaming_body`, `rule` should be configured to
 - `replace`: extract value from the last valid chunk
 - `append`: join value pieces from all valid chunks
 
+### Built-in Attributes
+
+The plugin provides several built-in attribute keys that can be used directly without configuring `value_source` and `value`. These built-in attributes automatically extract corresponding values from requests/responses:
+
+| Built-in Key | Description | Use Case |
+|--------------|-------------|----------|
+| `question` | User's question content | Supports OpenAI/Claude message formats |
+| `answer` | AI's answer content | Supports OpenAI/Claude message formats, both streaming and non-streaming |
+| `reasoning_tokens` | Number of reasoning tokens (e.g., o1 model) | OpenAI Chat Completions, extracted from `output_token_details.reasoning_tokens` |
+| `cached_tokens` | Number of cached tokens | OpenAI Chat Completions, extracted from `input_token_details.cached_tokens` |
+| `input_token_details` | Complete input token details (object) | OpenAI/Gemini/Anthropic, includes cache, tool usage, etc. |
+| `output_token_details` | Complete output token details (object) | OpenAI/Gemini/Anthropic, includes reasoning tokens, generated images, etc. |
+
+When using built-in attributes, you only need to set `key`, `apply_to_log`, etc., without setting `value_source` and `value`.
+
+**Notes**:
+- `reasoning_tokens` and `cached_tokens` are convenience fields extracted from token details, applicable to OpenAI Chat Completions API
+- `input_token_details` and `output_token_details` will record the complete token details object as a JSON string
+
 ## Configuration example
 
 If you want to record ai-statistic related statistical values in the gateway access log, you need to modify log_format and add a new field based on the original log_format. The example is as follows:
@@ -210,6 +229,45 @@ attributes:
     value: choices.0.message.content
     apply_to_log: true
 ```
+
+### Record Token Details
+
+Use built-in attributes to record token details for OpenAI Chat Completions:
+
+```yaml
+attributes:
+  # Use convenient built-in attributes to extract specific fields
+  - key: reasoning_tokens  # Reasoning tokens (o1 and other reasoning models)
+    apply_to_log: true
+  - key: cached_tokens  # Cached tokens from prompt caching
+    apply_to_log: true
+  # Record complete token details objects
+  - key: input_token_details
+    apply_to_log: true
+  - key: output_token_details
+    apply_to_log: true
+```
+
+#### Log Example
+
+For requests using prompt caching and reasoning models, the log might look like:
+
+```json
+{
+  "ai_log": "{\"model\":\"gpt-4o\",\"input_token\":\"100\",\"output_token\":\"50\",\"reasoning_tokens\":\"25\",\"cached_tokens\":\"80\",\"input_token_details\":\"{\\\"cached_tokens\\\":80}\",\"output_token_details\":\"{\\\"reasoning_tokens\\\":25}\",\"llm_service_duration\":\"2000\"}"
+}
+```
+
+Where:
+- `reasoning_tokens`: 25 - Number of tokens generated during reasoning
+- `cached_tokens`: 80 - Number of tokens read from cache
+- `input_token_details`: Complete input token details (JSON format)
+- `output_token_details`: Complete output token details (JSON format)
+
+These details are useful for:
+1. **Cost optimization**: Understanding cache hit rates to optimize prompt caching strategy
+2. **Performance analysis**: Analyzing reasoning token ratio to evaluate actual overhead of reasoning models
+3. **Usage statistics**: Fine-grained statistics of various token types
 
 ### Path and Content Type Filtering Configuration Examples
 

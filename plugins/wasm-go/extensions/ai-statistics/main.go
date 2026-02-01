@@ -87,8 +87,12 @@ const (
 	RuleAppend  = "append"
 
 	// Built-in attributes
-	BuiltinQuestionKey = "question"
-	BuiltinAnswerKey   = "answer"
+	BuiltinQuestionKey      = "question"
+	BuiltinAnswerKey        = "answer"
+	BuiltinReasoningTokens  = "reasoning_tokens"
+	BuiltinCachedTokens     = "cached_tokens"
+	BuiltinInputTokenDetails  = "input_token_details"
+	BuiltinOutputTokenDetails = "output_token_details"
 
 	// Built-in attribute paths
 	// Question paths (from request body)
@@ -435,6 +439,14 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 			setSpanAttribute(ArmsModelName, usage.Model)
 			setSpanAttribute(ArmsInputToken, usage.InputToken)
 			setSpanAttribute(ArmsOutputToken, usage.OutputToken)
+			
+			// Set token details to context for later use in attributes
+			if len(usage.InputTokenDetails) > 0 {
+				ctx.SetContext(tokenusage.CtxKeyInputTokenDetails, usage.InputTokenDetails)
+			}
+			if len(usage.OutputTokenDetails) > 0 {
+				ctx.SetContext(tokenusage.CtxKeyOutputTokenDetails, usage.OutputTokenDetails)
+			}
 		}
 	}
 	// If the end of the stream is reached, record metrics/logs/spans.
@@ -490,6 +502,14 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body
 			setSpanAttribute(ArmsInputToken, usage.InputToken)
 			setSpanAttribute(ArmsOutputToken, usage.OutputToken)
 			setSpanAttribute(ArmsTotalToken, usage.TotalToken)
+			
+			// Set token details to context for later use in attributes
+			if len(usage.InputTokenDetails) > 0 {
+				ctx.SetContext(tokenusage.CtxKeyInputTokenDetails, usage.InputTokenDetails)
+			}
+			if len(usage.OutputTokenDetails) > 0 {
+				ctx.SetContext(tokenusage.CtxKeyOutputTokenDetails, usage.OutputTokenDetails)
+			}
 		}
 	}
 
@@ -511,8 +531,24 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 	for _, attribute := range config.attributes {
 		var key string
 		var value interface{}
+		var shouldProcess bool
+		
+		key = attribute.Key
+		
+		// Determine if this attribute should be processed in the current source phase
 		if source == attribute.ValueSource {
-			key = attribute.Key
+			shouldProcess = true
+		} else if isBuiltinAttribute(key) && attribute.ValueSource == "" {
+			// Built-in attributes without explicit value_source can be processed in response phases
+			shouldProcess = (source == ResponseBody || source == ResponseStreamingBody)
+		}
+		
+		if !shouldProcess {
+			continue
+		}
+		
+		// Extract value based on value_source
+		if attribute.ValueSource != "" {
 			switch source {
 			case FixedValue:
 				value = attribute.Value
@@ -536,41 +572,73 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 					log.Debugf("[attribute] Used protocol fallback for %s: %+v", key, value)
 				}
 			}
+		} else if isBuiltinAttribute(key) {
+			// For built-in attributes without value_source, directly extract
+			value = getBuiltinAttributeFallback(ctx, config, key, source, body, attribute.Rule)
+			if value != nil && value != "" {
+				log.Debugf("[attribute] Extracted builtin attribute %s: %+v", key, value)
+			}
+		}
 
-			if (value == nil || value == "") && attribute.DefaultValue != "" {
-				value = attribute.DefaultValue
-			}
+		if (value == nil || value == "") && attribute.DefaultValue != "" {
+			value = attribute.DefaultValue
+		}
+		
+		// Skip if still no value
+		if value == nil || value == "" {
+			continue
+		}
+		
+		// Format value for logging/span
+		var formattedValue interface{}
+		switch v := value.(type) {
+		case map[string]int64:
+			// For token details maps, convert to JSON string
+			formattedValue = wrapper.MarshalStr(v)
+		default:
+			formattedValue = value
 			if len(fmt.Sprint(value)) > config.valueLengthLimit {
-				value = fmt.Sprint(value)[:config.valueLengthLimit/2] + " [truncated] " + fmt.Sprint(value)[len(fmt.Sprint(value))-config.valueLengthLimit/2:]
+				formattedValue = fmt.Sprint(value)[:config.valueLengthLimit/2] + " [truncated] " + fmt.Sprint(value)[len(fmt.Sprint(value))-config.valueLengthLimit/2:]
 			}
-			log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, value)
-			if attribute.ApplyToLog {
-				if attribute.AsSeparateLogField {
-					marshalledJsonStr := wrapper.MarshalStr(fmt.Sprint(value))
-					if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
-						log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
-					}
+		}
+		
+		log.Debugf("[attribute] source type: %s, key: %s, value: %+v", source, key, formattedValue)
+		
+		if attribute.ApplyToLog {
+			if attribute.AsSeparateLogField {
+				var marshalledJsonStr string
+				if _, ok := value.(map[string]int64); ok {
+					// Already marshaled
+					marshalledJsonStr = fmt.Sprint(formattedValue)
 				} else {
-					ctx.SetUserAttribute(key, value)
+					marshalledJsonStr = wrapper.MarshalStr(fmt.Sprint(formattedValue))
 				}
-			}
-			// for metrics
-			if key == tokenusage.CtxKeyModel || key == tokenusage.CtxKeyInputToken || key == tokenusage.CtxKeyOutputToken || key == tokenusage.CtxKeyTotalToken {
-				ctx.SetContext(key, value)
-			}
-			if attribute.ApplyToSpan {
-				if attribute.TraceSpanKey != "" {
-					key = attribute.TraceSpanKey
+				if err := proxywasm.SetProperty([]string{key}, []byte(marshalledJsonStr)); err != nil {
+					log.Warnf("failed to set %s in filter state, raw is %s, err is %v", key, marshalledJsonStr, err)
 				}
-				setSpanAttribute(key, value)
+			} else {
+				ctx.SetUserAttribute(key, formattedValue)
 			}
+		}
+		// for metrics
+		if key == tokenusage.CtxKeyModel || key == tokenusage.CtxKeyInputToken || key == tokenusage.CtxKeyOutputToken || key == tokenusage.CtxKeyTotalToken {
+			ctx.SetContext(key, value)
+		}
+		if attribute.ApplyToSpan {
+			spanKey := key
+			if attribute.TraceSpanKey != "" {
+				spanKey = attribute.TraceSpanKey
+			}
+			setSpanAttribute(spanKey, formattedValue)
 		}
 	}
 }
 
 // isBuiltinAttribute checks if the given key is a built-in attribute
 func isBuiltinAttribute(key string) bool {
-	return key == BuiltinQuestionKey || key == BuiltinAnswerKey
+	return key == BuiltinQuestionKey || key == BuiltinAnswerKey || 
+		key == BuiltinReasoningTokens || key == BuiltinCachedTokens ||
+		key == BuiltinInputTokenDetails || key == BuiltinOutputTokenDetails
 }
 
 // getBuiltinAttributeFallback provides protocol compatibility fallback for question/answer attributes
@@ -601,6 +669,38 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 			// Try Claude format
 			if value := gjson.GetBytes(body, AnswerPathClaudeNonStreaming).Value(); value != nil && value != "" {
 				return value
+			}
+		}
+	case BuiltinReasoningTokens:
+		// Extract reasoning_tokens from output_token_details (only available after response)
+		if source == ResponseBody || source == ResponseStreamingBody {
+			if outputTokenDetails, ok := ctx.GetContext(tokenusage.CtxKeyOutputTokenDetails).(map[string]int64); ok {
+				if reasoningTokens, exists := outputTokenDetails["reasoning_tokens"]; exists {
+					return reasoningTokens
+				}
+			}
+		}
+	case BuiltinCachedTokens:
+		// Extract cached_tokens from input_token_details (only available after response)
+		if source == ResponseBody || source == ResponseStreamingBody {
+			if inputTokenDetails, ok := ctx.GetContext(tokenusage.CtxKeyInputTokenDetails).(map[string]int64); ok {
+				if cachedTokens, exists := inputTokenDetails["cached_tokens"]; exists {
+					return cachedTokens
+				}
+			}
+		}
+	case BuiltinInputTokenDetails:
+		// Return the entire input_token_details map (only available after response)
+		if source == ResponseBody || source == ResponseStreamingBody {
+			if inputTokenDetails, ok := ctx.GetContext(tokenusage.CtxKeyInputTokenDetails).(map[string]int64); ok {
+				return inputTokenDetails
+			}
+		}
+	case BuiltinOutputTokenDetails:
+		// Return the entire output_token_details map (only available after response)
+		if source == ResponseBody || source == ResponseStreamingBody {
+			if outputTokenDetails, ok := ctx.GetContext(tokenusage.CtxKeyOutputTokenDetails).(map[string]int64); ok {
+				return outputTokenDetails
 			}
 		}
 	}

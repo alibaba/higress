@@ -59,6 +59,25 @@ Attribute 配置说明:
 - `replace`：多个 chunk 中取最后一个有效 chunk 的值
 - `append`：拼接多个有效 chunk 中的值，可用于获取回答内容
 
+### 内置属性 (Built-in Attributes)
+
+插件提供了一些内置属性键（key），可以直接使用而无需配置 `value_source` 和 `value`。这些内置属性会自动从请求/响应中提取相应的值：
+
+| 内置属性键 | 说明 | 适用场景 |
+|---------|------|---------|
+| `question` | 用户提问内容 | 支持 OpenAI/Claude 消息格式 |
+| `answer` | AI 回答内容 | 支持 OpenAI/Claude 消息格式，流式和非流式 |
+| `reasoning_tokens` | 推理 token 数（如 o1 模型） | OpenAI Chat Completions，从 `output_token_details.reasoning_tokens` 提取 |
+| `cached_tokens` | 缓存命中的 token 数 | OpenAI Chat Completions，从 `input_token_details.cached_tokens` 提取 |
+| `input_token_details` | 输入 token 详细信息（完整对象） | OpenAI/Gemini/Anthropic，包含缓存、工具使用等详情 |
+| `output_token_details` | 输出 token 详细信息（完整对象） | OpenAI/Gemini/Anthropic，包含推理 token、生成图片数等详情 |
+
+使用内置属性时，只需设置 `key`、`apply_to_log` 等参数，无需设置 `value_source` 和 `value`。
+
+**注意**：
+- `reasoning_tokens` 和 `cached_tokens` 是从 token details 中提取的便捷字段，适用于 OpenAI Chat Completions API
+- `input_token_details` 和 `output_token_details` 会以 JSON 字符串形式记录完整的 token 详情对象
+
 ## 配置示例
 
 如果希望在网关访问日志中记录 ai-statistic 相关的统计值，需要修改 log_format，在原 log_format 基础上添加一个新字段，示例如下：
@@ -214,6 +233,45 @@ attributes:
     value: choices.0.message.content
     apply_to_log: true
 ```
+
+### 记录 Token 详情
+
+使用内置属性记录 OpenAI Chat Completions 的 token 详细信息：
+
+```yaml
+attributes:
+  # 使用便捷的内置属性提取特定字段
+  - key: reasoning_tokens  # 推理token数（o1等推理模型）
+    apply_to_log: true
+  - key: cached_tokens  # 缓存命中的token数
+    apply_to_log: true
+  # 记录完整的token详情对象
+  - key: input_token_details
+    apply_to_log: true
+  - key: output_token_details
+    apply_to_log: true
+```
+
+#### 日志示例
+
+对于使用了 prompt caching 和推理模型的请求，日志可能如下：
+
+```json
+{
+  "ai_log": "{\"model\":\"gpt-4o\",\"input_token\":\"100\",\"output_token\":\"50\",\"reasoning_tokens\":\"25\",\"cached_tokens\":\"80\",\"input_token_details\":\"{\\\"cached_tokens\\\":80}\",\"output_token_details\":\"{\\\"reasoning_tokens\\\":25}\",\"llm_service_duration\":\"2000\"}"
+}
+```
+
+其中：
+- `reasoning_tokens`: 25 - 推理过程产生的 token 数
+- `cached_tokens`: 80 - 从缓存中读取的 token 数
+- `input_token_details`: 完整的输入 token 详情（JSON 格式）
+- `output_token_details`: 完整的输出 token 详情（JSON 格式）
+
+这些详情对于：
+1. **成本优化**：了解缓存命中率，优化 prompt caching 策略
+2. **性能分析**：分析推理 token 占比，评估推理模型的实际开销
+3. **使用统计**：细粒度统计各类 token 的使用情况
 
 ## 进阶
 
