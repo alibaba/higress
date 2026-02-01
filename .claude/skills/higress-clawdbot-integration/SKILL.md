@@ -97,6 +97,24 @@ clawdbot models auth login --provider higress
 
 This will configure Clawdbot to use Higress AI Gateway as a model provider.
 
+### Step 6: Manage API Keys (optional)
+
+After deployment, you can manage API keys without redeploying:
+
+```bash
+# View configured API keys
+./get-ai-gateway.sh config list
+
+# Add or update an API key
+./get-ai-gateway.sh config add --provider <provider> --key <api-key>
+
+# Remove an API key
+./get-ai-gateway.sh config remove --provider <provider>
+
+# Restart gateway to apply changes
+./get-ai-gateway.sh stop && ./get-ai-gateway.sh start
+```
+
 ## CLI Parameters Reference
 
 ### Basic Options
@@ -147,6 +165,48 @@ $DATA_FOLDER/logs/access.log
 ```
 
 These logs can be used with the **agent-session-monitor** skill for token tracking and conversation analysis.
+
+## Managing API Keys
+
+After deployment, use the `config` subcommand to manage LLM provider API keys:
+
+```bash
+# List all configured API keys
+./get-ai-gateway.sh config list
+
+# Add or update an API key
+./get-ai-gateway.sh config add --provider deepseek --key sk-xxx
+
+# Remove an API key
+./get-ai-gateway.sh config remove --provider deepseek
+```
+
+**Note:** After updating API keys using the `config` command, restart the gateway to apply changes:
+```bash
+./get-ai-gateway.sh stop && ./get-ai-gateway.sh start
+```
+
+**Supported providers:**
+- `dashscope` (or `qwen`) - Aliyun Dashscope (Qwen)
+- `deepseek` - DeepSeek
+- `moonshot` (or `kimi`) - Moonshot (Kimi)
+- `zhipuai` (or `zhipu`) - Zhipu AI
+- `openai` - OpenAI
+- `openrouter` - OpenRouter
+- `claude` - Claude
+- `gemini` - Google Gemini
+- `groq` - Groq
+- `doubao` - Doubao
+- `baichuan` - Baichuan AI
+- `yi` - 01.AI (Yi)
+- `stepfun` - Stepfun
+- `minimax` - Minimax
+- `cohere` - Cohere
+- `mistral` - Mistral AI
+- `github` - Github Models
+- `fireworks` - Fireworks AI
+- `togetherai` (or `together`) - Together AI
+- `grok` - Grok
 
 ## Managing Routing Rules
 
@@ -270,7 +330,48 @@ curl 'http://localhost:8080/v1/chat/completions' \
 - deep thinking What's the best architecture for this system?
 ```
 
-### Example 4: Full Integration with Clawdbot
+### Example 4: Manage API Keys
+
+**User:** 帮我查看当前配置的API keys，并添加一个DeepSeek的key
+
+**Steps:**
+1. List current API keys:
+   ```bash
+   ./get-ai-gateway.sh config list
+   ```
+
+2. Add DeepSeek API key:
+   ```bash
+   ./get-ai-gateway.sh config add --provider deepseek --key sk-xxx
+   ```
+
+3. Restart gateway:
+   ```bash
+   ./get-ai-gateway.sh stop && ./get-ai-gateway.sh start
+   ```
+
+**Response:**
+```
+当前配置的API keys:
+
+  Aliyun Dashscope (Qwen): sk-ab***ef12
+  OpenAI:                  sk-cd***gh34
+
+添加 DeepSeek API key...
+
+✅ API key updated successfully!
+
+Provider: DeepSeek
+Key: sk-xx***yy56
+
+Restart the gateway to apply changes:
+  ./get-ai-gateway.sh stop && ./get-ai-gateway.sh start
+
+正在重启网关...
+✅ 网关已重启，新的API key已生效！
+```
+
+### Example 5: Full Integration with Clawdbot
 
 **User:** 完整配置Higress和Clawdbot的集成
 
