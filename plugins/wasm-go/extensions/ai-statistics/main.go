@@ -952,7 +952,11 @@ func shouldLogDebug() bool {
 		// If we can't get log level, default to not logging debug info
 		return false
 	}
-	envoyLogLevel := binary.LittleEndian.Uint32(value)
+	if len(value) < 4 {
+		// Invalid log level value length
+		return false
+	}
+	envoyLogLevel := binary.LittleEndian.Uint32(value[:4])
 	return envoyLogLevel == LogLevelTrace || envoyLogLevel == LogLevelDebug
 }
 
