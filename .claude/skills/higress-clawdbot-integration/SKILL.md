@@ -29,21 +29,12 @@ chmod +x get-ai-gateway.sh
 Ask the user for:
 
 1. **LLM Provider API Keys** (at least one required):
-   
-   **Top Commonly Used Providers:**
-   - Aliyun Dashscope (Qwen): `--dashscope-key`
+   - Dashscope (Qwen): `--dashscope-key`
    - DeepSeek: `--deepseek-key`
-   - Moonshot (Kimi): `--moonshot-key`
-   - Zhipu AI: `--zhipuai-key`
-   - Minimax: `--minimax-key`
-   - Azure OpenAI: `--azure-key`
-   - AWS Bedrock: `--bedrock-key`
-   - Google Vertex AI: `--vertex-key`
    - OpenAI: `--openai-key`
    - OpenRouter: `--openrouter-key`
-   - Grok: `--grok-key`
-   
-   See CLI Parameters Reference for complete list with model pattern options.
+   - Claude: `--claude-key`
+   - See CLI Parameters Reference for complete list
 
 2. **Port Configuration** (optional):
    - HTTP port: `--http-port` (default: 8080)
@@ -407,3 +398,188 @@ Configuration has been hot-reloaded (no restart needed).
 - Verify the API key is correct
 - Check provider documentation for key format
 - Some providers require additional configuration (e.g., Azure, Bedrock)
+
+## Clawdbot/OpenClaw Plugin Integration
+
+The Higress AI Gateway plugin enables Clawdbot and OpenClaw to use Higress as a model provider with full support for auto-routing and model management.
+
+### Installation
+
+The plugin is automatically available as part of this skill. To install it into your Clawdbot/OpenClaw environment:
+
+```bash
+# Detect runtime and set variables
+if command -v clawdbot &> /dev/null; then
+  RUNTIME="clawdbot"
+  RUNTIME_DIR="$HOME/.clawdbot"
+elif command -v openclaw &> /dev/null; then
+  RUNTIME="openclaw"
+  RUNTIME_DIR="$HOME/.openclaw"
+else
+  echo "Error: Neither clawdbot nor openclaw is installed"
+  exit 1
+fi
+
+# Install the plugin
+PLUGIN_SRC_DIR="scripts/plugin"
+PLUGIN_DEST_DIR="$RUNTIME_DIR/extensions/higress-ai-gateway"
+
+if [ ! -d "$PLUGIN_SRC_DIR" ]; then
+  echo "Error: Plugin source not found at $PLUGIN_SRC_DIR"
+  exit 1
+fi
+
+echo "Installing Higress AI Gateway plugin for $RUNTIME..."
+mkdir -p "$(dirname "$PLUGIN_DEST_DIR")"
+if [ -d "$PLUGIN_DEST_DIR" ]; then
+  echo "Plugin already exists, updating..."
+  rm -rf "$PLUGIN_DEST_DIR"
+fi
+
+cp -r "$PLUGIN_SRC_DIR" "$PLUGIN_DEST_DIR"
+echo "✓ Higress AI Gateway plugin installed at: $PLUGIN_DEST_DIR"
+
+echo
+echo "To configure the provider, run:"
+echo "  $RUNTIME models auth login --provider higress"
+```
+
+### Configuration
+
+After installation, configure Higress as a model provider:
+
+```bash
+# For Clawdbot
+clawdbot models auth login --provider higress
+
+# For OpenClaw
+openclaw models auth login --provider higress
+```
+
+The plugin will guide you through an interactive setup:
+
+1. **Gateway URL**: HTTP endpoint for Higress AI Gateway (default: `http://localhost:8080`)
+2. **Console URL**: Higress Console endpoint for routing config (default: `http://localhost:8001`)
+3. **API Key**: Optional API key for authentication (leave empty for local deployments)
+4. **Model List**: Comma-separated model IDs (plugin auto-detects available models)
+5. **Auto-routing**: If you include `higress/auto` in the model list, configure the default fallback model
+
+### Plugin Features
+
+#### 1. Auto-routing Support
+
+The plugin provides first-class support for Higress auto-routing:
+
+- Use `higress/auto` as the model ID to enable intelligent routing
+- Configure default fallback model during setup
+- Auto-routing rules are managed separately via the `higress-auto-router` skill
+
+#### 2. Dynamic Model Discovery
+
+During configuration, the plugin:
+- Tests connectivity to the gateway
+- Fetches available models from the Console API
+- Pre-populates the model list with discovered models
+- Allows customization of the model list
+
+#### 3. Smart URL Normalization
+
+The plugin automatically:
+- Strips trailing slashes from URLs
+- Appends `/v1` suffix if missing
+- Validates URL format before saving
+
+#### 4. Profile Management
+
+Creates appropriate credential profiles:
+- `higress:local` - for local deployments without API key
+- `higress:default` - for remote deployments with API key
+
+### Plugin Structure
+
+```
+scripts/plugin/
+├── index.ts              # Plugin implementation (TypeScript)
+├── package.json          # NPM package metadata
+└── openclaw.plugin.json  # OpenClaw plugin manifest
+```
+
+**index.ts**: Main plugin code implementing the provider registration and authentication flow.
+
+**package.json**: Declares the plugin as an OpenClaw extension with proper metadata.
+
+**openclaw.plugin.json**: Plugin manifest describing supported providers and configuration schema.
+
+### Integration with Skills
+
+The plugin works seamlessly with related skills:
+
+#### higress-auto-router
+After plugin setup, use this skill to configure routing rules:
+```bash
+./get-ai-gateway.sh route add --model claude-opus-4.5 --trigger "深入思考"
+```
+
+See: [higress-auto-router](../higress-auto-router/SKILL.md)
+
+#### agent-session-monitor
+Track token usage and costs across sessions using gateway access logs:
+```bash
+python3 agent-session-monitor/scripts/webserver.py --log-path ./higress/logs/access.log
+```
+
+See: [agent-session-monitor](../agent-session-monitor/SKILL.md)
+
+### Example: Full Setup Flow
+
+```bash
+# 1. Deploy Higress AI Gateway (via get-ai-gateway.sh)
+./get-ai-gateway.sh start --non-interactive \
+  --dashscope-key sk-xxx \
+  --auto-routing
+
+# 2. Detect and install plugin
+if command -v clawdbot &> /dev/null; then
+  RUNTIME="clawdbot"
+  RUNTIME_DIR="$HOME/.clawdbot"
+else
+  RUNTIME="openclaw"
+  RUNTIME_DIR="$HOME/.openclaw"
+fi
+
+mkdir -p "$RUNTIME_DIR/extensions"
+cp -r scripts/plugin "$RUNTIME_DIR/extensions/higress-ai-gateway"
+
+# 3. Configure provider
+$RUNTIME models auth login --provider higress
+# Follow interactive prompts to configure gateway URL, models, etc.
+
+# 4. Test the integration
+$RUNTIME chat --model higress/auto "Hello, test auto-routing!"
+
+# 5. Configure routing rules (optional)
+./get-ai-gateway.sh route add --model claude-opus-4.5 --trigger "深入思考"
+```
+
+### Troubleshooting
+
+#### Plugin not recognized
+- Verify plugin is installed at `~/.clawdbot/extensions/higress-ai-gateway` or `~/.openclaw/extensions/higress-ai-gateway`
+- Check `package.json` contains correct `openclaw.extensions` field
+- Restart Clawdbot/OpenClaw after installation
+
+#### Gateway connection fails
+- Ensure Higress AI Gateway container is running: `docker ps`
+- Verify gateway URL is accessible: `curl http://localhost:8080/v1/models`
+- Check firewall/network settings if using remote gateway
+
+#### Models not available
+- Run `clawdbot models list` or `openclaw models list` to verify provider is configured
+- Check gateway logs: `docker logs higress-ai-gateway`
+- Verify API keys are correctly configured in gateway
+
+#### Auto-routing not working
+- Confirm `higress/auto` is in your model list
+- Check routing rules exist: `./get-ai-gateway.sh route list`
+- Verify default model is configured
+- Check gateway logs for routing decisions
