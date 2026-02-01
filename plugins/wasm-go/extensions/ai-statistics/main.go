@@ -983,6 +983,18 @@ func debugLogAiLog(ctx wrapper.HttpContext) {
 	if llmServiceDuration := ctx.GetUserAttribute("llm_service_duration"); llmServiceDuration != nil {
 		userAttrs["llm_service_duration"] = llmServiceDuration
 	}
+	if reasoningTokens := ctx.GetUserAttribute("reasoning_tokens"); reasoningTokens != nil {
+		userAttrs["reasoning_tokens"] = reasoningTokens
+	}
+	if cachedTokens := ctx.GetUserAttribute("cached_tokens"); cachedTokens != nil {
+		userAttrs["cached_tokens"] = cachedTokens
+	}
+	if inputTokenDetails := ctx.GetUserAttribute("input_token_details"); inputTokenDetails != nil {
+		userAttrs["input_token_details"] = inputTokenDetails
+	}
+	if outputTokenDetails := ctx.GetUserAttribute("output_token_details"); outputTokenDetails != nil {
+		userAttrs["output_token_details"] = outputTokenDetails
+	}
 
 	// Log the attributes as JSON
 	logJson, _ := json.Marshal(userAttrs)
