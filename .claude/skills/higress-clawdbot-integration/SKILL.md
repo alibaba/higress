@@ -1,23 +1,11 @@
-# Higress Clawdbot Integration SKILL
+---
+name: higress-clawdbot-integration
+description: Deploy and configure Higress AI Gateway for Clawdbot integration. Use when: (1) User wants to deploy Higress AI Gateway, (2) User wants to configure Clawdbot to use Higress as a model provider, (3) User mentions "higress", "ai gateway", "model gateway", "统一网关", (4) User wants to set up model routing or auto-routing, (5) User needs to manage LLM provider API keys, (6) User wants to track token usage and conversation history.
+---
 
-Deploy and configure Higress AI Gateway for Clawdbot integration.
+# Higress Clawdbot Integration
 
-## Description
-
-This skill helps users deploy Higress AI Gateway and integrate it with Clawdbot. It provides:
-
-1. **One-click deployment**: Download and run the AI Gateway setup script
-2. **Model provider configuration**: Configure LLM providers via CLI parameters
-3. **Auto-routing setup**: Enable intelligent model routing based on message content
-4. **Session monitoring**: Track token usage and conversation history
-
-## When to Use
-
-Use this skill when:
-- User wants to deploy Higress AI Gateway
-- User wants to configure Clawdbot to use Higress as a model provider
-- User mentions "higress", "ai gateway", "model gateway", "统一网关"
-- User wants to set up model routing or auto-routing
+Deploy and configure Higress AI Gateway for Clawdbot integration with one-click deployment, model provider configuration, auto-routing, and session monitoring.
 
 ## Prerequisites
 
@@ -39,13 +27,14 @@ chmod +x get-ai-gateway.sh
 ### Step 2: Gather Configuration
 
 Ask the user for:
-1. **LLM Provider API Keys**: At least one provider is required
+
+1. **LLM Provider API Keys** (at least one required):
    - Dashscope (Qwen): `--dashscope-key`
    - DeepSeek: `--deepseek-key`
    - OpenAI: `--openai-key`
    - OpenRouter: `--openrouter-key`
    - Claude: `--claude-key`
-   - And more...
+   - See CLI Parameters Reference for complete list
 
 2. **Port Configuration** (optional):
    - HTTP port: `--http-port` (default: 8080)
@@ -58,7 +47,7 @@ Ask the user for:
 
 ### Step 3: Run Setup Script
 
-Run the script in non-interactive mode with the gathered parameters:
+Run the script in non-interactive mode with gathered parameters:
 
 ```bash
 ./get-ai-gateway.sh start --non-interactive \
@@ -70,7 +59,7 @@ Run the script in non-interactive mode with the gathered parameters:
 
 ### Step 4: Verify Deployment
 
-After the script completes:
+After script completion:
 
 1. Check container is running:
    ```bash
@@ -95,11 +84,11 @@ If the user wants to use Higress with Clawdbot:
 clawdbot models auth login --provider higress
 ```
 
-This will configure Clawdbot to use Higress AI Gateway as a model provider.
+This configures Clawdbot to use Higress AI Gateway as a model provider.
 
 ### Step 6: Manage API Keys (optional)
 
-After deployment, you can manage API keys without redeploying:
+After deployment, manage API keys without redeploying:
 
 ```bash
 # View configured API keys
@@ -155,15 +144,6 @@ After deployment, you can manage API keys without redeploying:
 | `--fireworks-key` | Fireworks AI |
 | `--togetherai-key` | Together AI |
 | `--grok-key` | Grok |
-
-## Access Logs
-
-After deployment, gateway access logs are available at:
-```
-$DATA_FOLDER/logs/access.log
-```
-
-These logs can be used with the **agent-session-monitor** skill for token tracking and conversation analysis.
 
 ## Managing API Keys
 
@@ -221,9 +201,16 @@ After deployment, use the `route` subcommand to manage auto-routing rules:
 
 See [higress-auto-router](../higress-auto-router/SKILL.md) for detailed documentation.
 
-## Related Skills
+## Access Logs
 
-This skill works with:
+After deployment, gateway access logs are available at:
+```
+$DATA_FOLDER/logs/access.log
+```
+
+These logs can be used with the **agent-session-monitor** skill for token tracking and conversation analysis.
+
+## Related Skills
 
 ### higress-auto-router
 Configure automatic model routing using CLI commands. Example:
