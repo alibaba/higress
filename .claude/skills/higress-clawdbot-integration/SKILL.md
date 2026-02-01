@@ -29,12 +29,21 @@ chmod +x get-ai-gateway.sh
 Ask the user for:
 
 1. **LLM Provider API Keys** (at least one required):
-   - Dashscope (Qwen): `--dashscope-key`
+   
+   **Top Commonly Used Providers:**
+   - Aliyun Dashscope (Qwen): `--dashscope-key`
    - DeepSeek: `--deepseek-key`
+   - Moonshot (Kimi): `--moonshot-key`
+   - Zhipu AI: `--zhipuai-key`
+   - Minimax: `--minimax-key`
+   - Azure OpenAI: `--azure-key`
+   - AWS Bedrock: `--bedrock-key`
+   - Google Vertex AI: `--vertex-key`
    - OpenAI: `--openai-key`
    - OpenRouter: `--openrouter-key`
-   - Claude: `--claude-key`
-   - See CLI Parameters Reference for complete list
+   - Grok: `--grok-key`
+   
+   See CLI Parameters Reference for complete list with model pattern options.
 
 2. **Port Configuration** (optional):
    - HTTP port: `--http-port` (default: 8080)
