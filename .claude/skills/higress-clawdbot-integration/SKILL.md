@@ -118,8 +118,8 @@ echo "✓ Plugin installed at: $PLUGIN_DEST"
 
 # Configure provider
 echo
-echo "To configure the provider, run:"
-echo "  $RUNTIME models auth login --provider higress"
+echo "Configuring provider..."
+$RUNTIME models auth login --provider higress
 ```
 
 #### Plugin Features
