@@ -61,7 +61,7 @@ spec:
 ```
 nginx snippet → AI analysis → Go WASM code → Build → Test → Deploy → Validate
      ↓              ↓              ↓           ↓       ↓       ↓         ↓
-   minutes       seconds        seconds      1min    1min   instant   instant
+   minutes       seconds        seconds     seconds   1min   instant   instant
 ```
 
 **Example: Custom IP-based routing + HMAC signature validation**
