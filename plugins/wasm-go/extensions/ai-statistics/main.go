@@ -135,6 +135,54 @@ const (
 	CtxStreamingToolCallsBuffer = "streamingToolCallsBuffer"
 )
 
+// getDefaultAttributes returns the default attributes configuration for empty config
+func getDefaultAttributes() []Attribute {
+	return []Attribute{
+		// Extract complete conversation history from request body
+		{
+			Key:        "messages",
+			ValueSource: RequestBody,
+			Value:      "messages",
+			ApplyToLog: true,
+		},
+		// Built-in attributes (no value_source needed, will be auto-extracted)
+		{
+			Key:        BuiltinQuestionKey,
+			ApplyToLog: true,
+		},
+		{
+			Key:        BuiltinAnswerKey,
+			ApplyToLog: true,
+		},
+		{
+			Key:        BuiltinReasoningKey,
+			ApplyToLog: true,
+		},
+		{
+			Key:        BuiltinToolCallsKey,
+			ApplyToLog: true,
+		},
+		// Token statistics (auto-extracted from response)
+		{
+			Key:        BuiltinReasoningTokens,
+			ApplyToLog: true,
+		},
+		{
+			Key:        BuiltinCachedTokens,
+			ApplyToLog: true,
+		},
+		// Detailed token information
+		{
+			Key:        BuiltinInputTokenDetails,
+			ApplyToLog: true,
+		},
+		{
+			Key:        BuiltinOutputTokenDetails,
+			ApplyToLog: true,
+		},
+	}
+}
+
 // Default session ID headers in priority order
 var defaultSessionHeaders = []string{
 	"x-openclaw-session-key",
@@ -361,28 +409,44 @@ func isContentTypeEnabled(contentType string, enabledContentTypes []string) bool
 }
 
 func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
+	// Check if use_default_attributes is enabled
+	useDefaultAttributes := configJson.Get("use_default_attributes").Bool()
+
 	// Parse tracing span attributes setting.
 	attributeConfigs := configJson.Get("attributes").Array()
+
+	// Set value_length_limit
 	if configJson.Get("value_length_limit").Exists() {
 		config.valueLengthLimit = int(configJson.Get("value_length_limit").Int())
 	} else {
 		config.valueLengthLimit = 4000
 	}
-	config.attributes = make([]Attribute, len(attributeConfigs))
-	for i, attributeConfig := range attributeConfigs {
-		attribute := Attribute{}
-		err := json.Unmarshal([]byte(attributeConfig.Raw), &attribute)
-		if err != nil {
-			log.Errorf("parse config failed, %v", err)
-			return err
+
+	// Parse attributes or use defaults
+	if useDefaultAttributes {
+		config.attributes = getDefaultAttributes()
+		// Update value_length_limit to default when using default attributes
+		if !configJson.Get("value_length_limit").Exists() {
+			config.valueLengthLimit = 10485760 // 10MB
 		}
-		if attribute.ValueSource == ResponseStreamingBody {
-			config.shouldBufferStreamingBody = true
+		log.Infof("Using default attributes configuration")
+	} else {
+		config.attributes = make([]Attribute, len(attributeConfigs))
+		for i, attributeConfig := range attributeConfigs {
+			attribute := Attribute{}
+			err := json.Unmarshal([]byte(attributeConfig.Raw), &attribute)
+			if err != nil {
+				log.Errorf("parse config failed, %v", err)
+				return err
+			}
+			if attribute.ValueSource == ResponseStreamingBody {
+				config.shouldBufferStreamingBody = true
+			}
+			if attribute.Rule != "" && attribute.Rule != RuleFirst && attribute.Rule != RuleReplace && attribute.Rule != RuleAppend {
+				return errors.New("value of rule must be one of [nil, first, replace, append]")
+			}
+			config.attributes[i] = attribute
 		}
-		if attribute.Rule != "" && attribute.Rule != RuleFirst && attribute.Rule != RuleReplace && attribute.Rule != RuleAppend {
-			return errors.New("value of rule must be one of [nil, first, replace, append]")
-		}
-		config.attributes[i] = attribute
 	}
 	// Metric settings
 	config.counterMetrics = make(map[string]proxywasm.MetricCounter)
@@ -394,14 +458,21 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 	pathSuffixes := configJson.Get("enable_path_suffixes").Array()
 	config.enablePathSuffixes = make([]string, 0, len(pathSuffixes))
 
-	for _, suffix := range pathSuffixes {
-		suffixStr := suffix.String()
-		if suffixStr == "*" {
-			// Clear the suffixes list since * means all paths are enabled
-			config.enablePathSuffixes = make([]string, 0)
-			break
+	// If use_default_attributes is enabled and enable_path_suffixes is not configured, use default path suffixes
+	if useDefaultAttributes && !configJson.Get("enable_path_suffixes").Exists() {
+		config.enablePathSuffixes = []string{"/completions", "/messages"}
+		log.Infof("Using default path suffixes: /completions, /messages")
+	} else {
+		// Process manually configured path suffixes
+		for _, suffix := range pathSuffixes {
+			suffixStr := suffix.String()
+			if suffixStr == "*" {
+				// Clear the suffixes list since * means all paths are enabled
+				config.enablePathSuffixes = make([]string, 0)
+				break
+			}
+			config.enablePathSuffixes = append(config.enablePathSuffixes, suffixStr)
 		}
-		config.enablePathSuffixes = append(config.enablePathSuffixes, suffixStr)
 	}
 
 	// Parse content type configuration
