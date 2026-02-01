@@ -1,11 +1,11 @@
 ---
 name: higress-clawdbot-integration
-description: Deploy and configure Higress AI Gateway for Clawdbot integration. Use when: (1) User wants to deploy Higress AI Gateway, (2) User wants to configure Clawdbot to use Higress as a model provider, (3) User mentions "higress", "ai gateway", "model gateway", "统一网关", (4) User wants to set up model routing or auto-routing, (5) User needs to manage LLM provider API keys, (6) User wants to track token usage and conversation history.
+description: "Deploy and configure Higress AI Gateway for Clawdbot/OpenClaw integration. Use when: (1) User wants to deploy Higress AI Gateway, (2) User wants to configure Clawdbot/OpenClaw to use Higress as a model provider, (3) User mentions 'higress', 'ai gateway', 'model gateway', 'AI网关', (4) User wants to set up model routing or auto-routing, (5) User needs to manage LLM provider API keys, (6) User wants to track token usage and conversation history."
 ---
 
-# Higress Clawdbot Integration
+# Higress AI Gateway Integration
 
-Deploy and configure Higress AI Gateway for Clawdbot integration with one-click deployment, model provider configuration, auto-routing, and session monitoring.
+Deploy and configure Higress AI Gateway for Clawdbot/OpenClaw integration with one-click deployment, model provider configuration, auto-routing, and session monitoring.
 
 ## Prerequisites
 
@@ -76,15 +76,19 @@ After script completion:
    http://localhost:8001
    ```
 
-### Step 5: Configure Clawdbot (if applicable)
+### Step 5: Configure Clawdbot/OpenClaw (if applicable)
 
-If the user wants to use Higress with Clawdbot:
+If the user wants to use Higress with Clawdbot/OpenClaw:
 
 ```bash
+# For Clawdbot
 clawdbot models auth login --provider higress
+
+# For OpenClaw
+openclaw models auth login --provider higress
 ```
 
-This configures Clawdbot to use Higress AI Gateway as a model provider.
+This configures Clawdbot/OpenClaw to use Higress AI Gateway as a model provider.
 
 ### Step 6: Manage API Keys (optional)
 
@@ -346,13 +350,13 @@ Key: sk-xx***yy56
 Configuration has been hot-reloaded (no restart needed).
 ```
 
-### Example 5: Full Integration with Clawdbot
+### Example 5: Full Integration with Clawdbot/OpenClaw
 
 **User:** 完整配置Higress和Clawdbot的集成
 
 **Steps:**
 1. Deploy Higress AI Gateway
-2. Configure Clawdbot provider
+2. Configure Clawdbot/OpenClaw provider
 3. Enable auto-routing
 4. Set up session monitoring
 
@@ -364,8 +368,9 @@ Configuration has been hot-reloaded (no restart needed).
    - HTTP: http://localhost:8080
    - Console: http://localhost:8001
 
-2. Clawdbot 配置:
-   运行 `clawdbot models auth login --provider higress`
+2. Clawdbot/OpenClaw 配置:
+   - Clawdbot: `clawdbot models auth login --provider higress`
+   - OpenClaw: `openclaw models auth login --provider higress`
 
 3. 自动路由:
    已启用，使用 model="higress/auto"
