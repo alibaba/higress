@@ -720,7 +720,13 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 		switch v := value.(type) {
 		case map[string]int64:
 			// For token details maps, convert to JSON string
-			formattedValue = wrapper.MarshalStr(v)
+			jsonBytes, err := json.Marshal(v)
+			if err != nil {
+				log.Warnf("failed to marshal token details: %v", err)
+				formattedValue = fmt.Sprint(v)
+			} else {
+				formattedValue = string(jsonBytes)
+			}
 		default:
 			formattedValue = value
 			if len(fmt.Sprint(value)) > config.valueLengthLimit {
