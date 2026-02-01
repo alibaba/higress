@@ -29,12 +29,41 @@ chmod +x get-ai-gateway.sh
 Ask the user for:
 
 1. **LLM Provider API Keys** (at least one required):
-   - Dashscope (Qwen): `--dashscope-key`
+   
+   **Top Commonly Used Providers:**
+   - Aliyun Dashscope (Qwen): `--dashscope-key`
    - DeepSeek: `--deepseek-key`
+   - Moonshot (Kimi): `--moonshot-key`
+   - Zhipu AI: `--zhipuai-key`
+   - Minimax: `--minimax-key`
+   - Azure OpenAI: `--azure-key`
+   - AWS Bedrock: `--bedrock-key`
+   - Google Vertex AI: `--vertex-key`
    - OpenAI: `--openai-key`
    - OpenRouter: `--openrouter-key`
+   - Grok: `--grok-key`
+   
+   **Other Available Providers:**
    - Claude: `--claude-key`
-   - See CLI Parameters Reference for complete list
+   - Google Gemini: `--gemini-key`
+   - Groq: `--groq-key`
+   - Doubao: `--doubao-key`
+   - Baichuan AI: `--baichuan-key`
+   - 01.AI (Yi): `--yi-key`
+   - Stepfun: `--stepfun-key`
+   - Cohere: `--cohere-key`
+   - Mistral AI: `--mistral-key`
+   - GitHub Models: `--github-key`
+   - Fireworks AI: `--fireworks-key`
+   - Together AI: `--togetherai-key`
+   - Baidu AI Cloud: `--baidu-key`
+   - Cloudflare Workers AI: `--cloudflare-key`
+   - DeepL: `--deepl-key`
+   - Dify: `--dify-key`
+   - iFlyTek Spark: `--spark-key`
+   - Tencent Hunyuan: `--hunyuan-key`
+
+   See CLI Parameters Reference for complete list with model pattern options.
 
 2. **Port Configuration** (optional):
    - HTTP port: `--http-port` (default: 8080)
@@ -47,7 +76,7 @@ Ask the user for:
 
 ### Step 3: Run Setup Script
 
-Run the script in non-interactive mode with gathered parameters:
+Run the setup script in non-interactive mode with gathered parameters:
 
 ```bash
 ./get-ai-gateway.sh start --non-interactive \
@@ -56,6 +85,22 @@ Run the script in non-interactive mode with gathered parameters:
   --auto-routing \
   --auto-routing-default-model qwen-turbo
 ```
+
+**Alternative: Use Clawdbot Integration Script**
+
+If you want to configure auto-routing interactively:
+
+```bash
+cd .claude/skills/higress-clawdbot-integration
+./configure-clawdbot.sh setup
+```
+
+This script will:
+1. Detect Clawdbot/OpenClaw installation
+2. Ask if you want to enable auto-routing
+3. Configure the default model
+4. Apply configuration to Higress AI Gateway
+5. Set up provider authentication automatically
 
 ### Step 4: Verify Deployment
 
@@ -80,6 +125,26 @@ After script completion:
 
 If the user wants to use Higress with Clawdbot/OpenClaw:
 
+**Option 1: Quick Setup (Recommended)**
+
+Use the dedicated integration script:
+
+```bash
+cd .claude/skills/higress-clawdbot-integration
+chmod +x configure-clawdbot.sh
+
+# Full setup (configure + apply + provider setup)
+./configure-clawdbot.sh setup
+
+# Or step-by-step
+./configure-clawdbot.sh configure  # Ask for configuration
+./configure-clawdbot.sh apply        # Apply to Higress
+# Then run the auth command
+clawdbot models auth login --provider higress
+```
+
+**Option 2: Manual Setup**
+
 ```bash
 # For Clawdbot
 clawdbot models auth login --provider higress
@@ -89,6 +154,19 @@ openclaw models auth login --provider higress
 ```
 
 This configures Clawdbot/OpenClaw to use Higress AI Gateway as a model provider.
+
+**Integration Script Features:**
+
+The `configure-clawdbot.sh` script provides:
+- ✅ Auto-detects Clawdbot/OpenClaw installation
+- ✅ Interactive auto-routing configuration
+- ✅ Applies configuration to Higress AI Gateway
+- ✅ Sets up provider authentication automatically
+
+**Script Commands:**
+- `configure` - Interactive configuration wizard
+- `apply` - Apply configuration to running Higress
+- `setup` - Complete setup (configure + apply + provider)
 
 ### Step 6: Manage API Keys (optional)
 
