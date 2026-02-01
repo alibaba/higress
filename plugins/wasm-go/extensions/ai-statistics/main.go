@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,16 @@ import (
 	"github.com/higress-group/wasm-go/pkg/tokenusage"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+)
+
+const (
+	// Envoy log levels
+	LogLevelTrace = iota
+	LogLevelDebug
+	LogLevelInfo
+	LogLevelWarn
+	LogLevelError
+	LogLevelCritical
 )
 
 func main() {}
@@ -934,8 +945,26 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) i
 	return value
 }
 
+// shouldLogDebug returns true if the log level is debug or trace
+func shouldLogDebug() bool {
+	value, err := proxywasm.CallForeignFunction("get_log_level", nil)
+	if err != nil {
+		// If we can't get log level, default to not logging debug info
+		return false
+	}
+	envoyLogLevel := binary.LittleEndian.Uint32(value)
+	return envoyLogLevel == LogLevelTrace || envoyLogLevel == LogLevelDebug
+}
+
 // debugLogAiLog logs the current user attributes that will be written to ai_log
 func debugLogAiLog(ctx wrapper.HttpContext) {
+	// Only log in debug/trace mode
+	if !shouldLogDebug() {
+		return
+	}
+
+	// Get all user attributes as a map
+	userAttrs := make(map[string]interface{})
 	// Get all user attributes as a map
 	userAttrs := make(map[string]interface{})
 	
