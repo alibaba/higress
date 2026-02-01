@@ -54,6 +54,12 @@ Ask the user for:
    - Enable: `--auto-routing`
    - Default model: `--auto-routing-default-model`
 
+4. **Image Repository Selection** (optional):
+   - Choose based on geographic location for faster download:
+     - **Hangzhou/China**: `higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one` (default)
+     - **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one`
+     - **North America**: `higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one`
+
 ### Step 3: Run Setup Script
 
 Run the script in non-interactive mode with gathered parameters:
@@ -65,6 +71,22 @@ Run the script in non-interactive mode with gathered parameters:
   --auto-routing \
   --auto-routing-default-model qwen-turbo
 ```
+
+**To use a specific image repository based on location:**
+
+```bash
+# For Southeast Asia
+IMAGE_REPO=higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one \
+./get-ai-gateway.sh start --non-interactive \
+  --dashscope-key sk-xxx
+
+# For North America
+IMAGE_REPO=higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one \
+./get-ai-gateway.sh start --non-interactive \
+  --dashscope-key sk-xxx
+```
+
+**Note:** The `IMAGE_REPO` environment variable overrides the default image repository. This is recommended for users outside mainland China to ensure faster image downloads.
 
 ### Step 4: Verify Deployment
 
@@ -160,6 +182,17 @@ After deployment, manage API keys without redeploying:
 | `--data-folder` | Data folder path | ./higress |
 | `--auto-routing` | Enable auto-routing feature | - |
 | `--auto-routing-default-model` | Default model when no rule matches | - |
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `IMAGE_REPO` | Docker image repository URL | `higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one` |
+
+**Available Image Repositories:**
+- **Hangzhou/China**: `higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one` (default)
+- **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one`
+- **North America**: `higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one`
 
 ### LLM Provider API Keys
 
@@ -325,6 +358,36 @@ Key: sk-xx***yy56
 Configuration has been hot-reloaded (no restart needed).
 ```
 
+### Example 4: Deploy with Regional Mirror
+
+**User:** 我在北美，帮我部署Higress AI网关
+
+**Steps:**
+1. Download script
+2. Get API keys from user
+3. Run with North America mirror:
+   ```bash
+   IMAGE_REPO=higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one \
+   ./get-ai-gateway.sh start --non-interactive \
+     --openai-key sk-xxx \
+     --openrouter-key sk-xxx
+   ```
+
+**Response:**
+```
+✅ Higress AI Gateway 部署完成！
+
+使用镜像: higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one (北美镜像)
+
+网关地址: http://localhost:8080/v1/chat/completions
+控制台: http://localhost:8001
+日志目录: ./higress/logs
+
+已配置的模型提供商:
+- OpenAI
+- OpenRouter
+```
+
 ## Troubleshooting
 
 ### Container fails to start
@@ -347,3 +410,7 @@ Configuration has been hot-reloaded (no restart needed).
 - Check routing rules exist: `./get-ai-gateway.sh route list`
 - Verify default model is configured
 - Check gateway logs for routing decisions
+
+### Slow image download
+- Use a regional mirror closer to your location via `IMAGE_REPO` environment variable
+- Consider using a mirror service or registry proxy
