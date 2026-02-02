@@ -21,11 +21,23 @@ echo "=========================================="
 echo "发送测试请求"
 echo "=========================================="
 
-# 发送请求
+# 发送请求 - 测试 model-api-qwen72b-0 Ingress
 curl -v "http://${GATEWAY_IP}/qwen0113/v1/chat/completions" \
   -H "User-Agent: plugin-test-$(date +%s)" \
   -H "Content-Type: application/json" \
-  -d '{"model": "qwen-72b", "messages": [{"role": "user", "content": "test"}]}'
+  -d '{
+    "stream": true,
+    "model": "qwen3-max",
+    "messages": [
+      { "role": "system", "content": "You are a helpful assistant." },
+      { "role": "user", "content": "who are you?" }
+    ],
+    "temperature": 1,
+    "top_p": 0.95,
+    "max_tokens": 1024,
+    "presence_penalty": 0,
+    "frequency_penalty": 0
+  }'
 
 echo ""
 echo ""
