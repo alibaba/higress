@@ -16,14 +16,14 @@ import (
 
 // 1. 定义与 Wasm 插件发送格式一致的结构体
 type LogEntry struct {
-	Ts      int64       `json:"ts"`
-	Service string      `json:"service"`
-	TraceID string      `json:"trace_id"`
-	Method  string      `json:"method"`
-	Path    string      `json:"path"`
-	Status  int         `json:"status"`
-	Latency int         `json:"latency"`
-	Details interface{} `json:"details"` // 接收任何 JSON 对象
+	StartTime    string `json:"start_time"`    // 请求开始时间 (RFC3339)
+	Authority    string `json:"authority"`     // 对应数据库中的 service
+	TraceID      string `json:"trace_id"`
+	Method       string `json:"method"`
+	Path         string `json:"path"`
+	ResponseCode int    `json:"response_code"` // 响应状态码
+	Duration     int64  `json:"duration"`      // 请求总耗时(ms)
+	AILog        string `json:"ai_log"`        // WASM AI 日志 (JSON 字符串)
 }
 
 // 全局变量
@@ -142,24 +142,21 @@ func flushLogs() {
 	valueArgs := []interface{}{}
 
 	for _, entry := range chunk {
-		valueStrings = append(valueStrings, "(FROM_UNIXTIME(?), ?, ?, ?, ?, ?, ?, ?)")
-		
-		// 将 Details 序列化为 JSON 字符串存储
-		detailsBytes, _ := json.Marshal(entry.Details)
-		
-		valueArgs = append(valueArgs, 
-			entry.Ts, 
-			entry.TraceID, 
-			entry.Service, 
-			entry.Method, 
-			entry.Path, 
-			entry.Status, 
-			entry.Latency, 
-			string(detailsBytes),
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?)")
+
+		valueArgs = append(valueArgs,
+			entry.StartTime,
+			entry.TraceID,
+			entry.Authority,
+			entry.Method,
+			entry.Path,
+			entry.ResponseCode,
+			entry.Duration,
+			entry.AILog,
 		)
 	}
 
-	stmt := fmt.Sprintf("INSERT INTO access_logs (ts, trace_id, service, method, path, status, latency_ms, details) VALUES %s", 
+	stmt := fmt.Sprintf("INSERT INTO access_logs (start_time, trace_id, authority, method, path, response_code, duration, ai_log) VALUES %s",
 		strings.Join(valueStrings, ","))
 
 	// 执行写入
@@ -282,7 +279,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	
 	// 构建查询 SQL
 	querySQL := fmt.Sprintf(
-		"SELECT ts, trace_id, service, method, path, status, latency_ms, details FROM access_logs %s ORDER BY %s %s LIMIT ? OFFSET ?",
+		"SELECT start_time, trace_id, authority, method, path, response_code, duration, ai_log FROM access_logs %s ORDER BY %s %s LIMIT ? OFFSET ?",
 		whereSQL, sortBy, sortOrder,
 	)
 	
@@ -306,28 +303,18 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	logs := []LogEntry{}
 	for rows.Next() {
 		var entry LogEntry
-		var ts time.Time
-		var detailsStr string
-		
+		var startTime time.Time
+
 		err := rows.Scan(
-			&ts, &entry.TraceID, &entry.Service, &entry.Method, 
-			&entry.Path, &entry.Status, &entry.Latency, &detailsStr,
+			&startTime, &entry.TraceID, &entry.Authority, &entry.Method,
+			&entry.Path, &entry.ResponseCode, &entry.Duration, &entry.AILog,
 		)
 		if err != nil {
 			log.Printf("Error scanning log entry: %v", err)
 			continue
 		}
-		
-		// 转换时间戳
-		entry.Ts = ts.Unix()
-		
-		// 解析 details JSON
-		var details interface{}
-		if detailsStr != "" {
-			json.Unmarshal([]byte(detailsStr), &details)
-		}
-		entry.Details = details
-		
+
+		entry.StartTime = startTime.Format(time.RFC3339)
 		logs = append(logs, entry)
 	}
 	
