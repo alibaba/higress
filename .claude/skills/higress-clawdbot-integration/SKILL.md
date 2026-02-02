@@ -435,29 +435,12 @@ Configuration has been hot-reloaded (no restart needed).
 
 ## Troubleshooting
 
-### Container fails to start
-- Check Docker is running: `docker info`
-- Check port availability: `netstat -tlnp | grep 8080`
-- View container logs: `docker logs higress-ai-gateway`
+For detailed troubleshooting guides, see [TROUBLESHOOTING.md](references/TROUBLESHOOTING.md).
 
-### Gateway not responding
-- Check container status: `docker ps -a`
-- Verify port mapping: `docker port higress-ai-gateway`
-- Test locally: `curl http://localhost:8080/v1/models`
-
-### Plugin not recognized
-- Verify plugin is installed at `~/.clawdbot/extensions/higress-ai-gateway` or `~/.openclaw/extensions/higress-ai-gateway`
-- Check `package.json` contains correct extension field (`clawdbot.extensions` or `openclaw.extensions`)
-- Restart Clawdbot/OpenClaw after installation
-
-### Auto-routing not working
-- Confirm `higress/auto` is in your model list
-- Check routing rules exist: `./get-ai-gateway.sh route list`
-- Verify default model is configured
-- Check gateway logs for routing decisions
-
-### Timezone detection fails
-- Manually check timezone: `timedatectl show --property=Timezone --value`
-- Or check `/etc/timezone` file
-- Fallback to default Hangzhou mirror if detection fails
-- Consider manually setting `IMAGE_REPO` environment variable if auto-detection is incorrect
+Common issues:
+- **Container fails to start**: Check Docker status, port availability, and container logs
+- **"too many open files" error**: Increase `fs.inotify.max_user_instances` to 8192
+- **Gateway not responding**: Verify container status and port mapping
+- **Plugin not recognized**: Check installation path and restart runtime
+- **Auto-routing not working**: Verify model list and routing rules
+- **Timezone detection fails**: Manually set `IMAGE_REPO` environment variable
