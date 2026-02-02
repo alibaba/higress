@@ -118,8 +118,19 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 	} else if config.CollectorClientName != "" {
 		// 仅当未配置host/port时才使用预定义集群名(需确保该集群在Envoy中存在)
 		log.Infof("[http-log-pusher] using predefined cluster: %s", config.CollectorClientName)
+		
+		// 从集群名称中提取主机名（格式：outbound|port||host）
+		host := config.CollectorHost
+		if host == "" && strings.Contains(config.CollectorClientName, "||") {
+			parts := strings.Split(config.CollectorClientName, "||")
+			if len(parts) == 2 {
+				host = parts[1]
+				log.Infof("[http-log-pusher] extracted host from cluster name: %s", host)
+			}
+		}
+		
 		config.CollectorClient = wrapper.NewClusterClient(wrapper.TargetCluster{
-			Host:    config.CollectorHost,
+			Host:    host,
 			Cluster: config.CollectorClientName,
 		})
 	}
@@ -130,8 +141,8 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 		return err
 	}
 	
-	log.Infof("[http-log-pusher] config parsed successfully: collector_service=%s, collector_host=%s, collector_port=%d, collector_path=%s, filter_mode=%s, filter_rules=%d",
-		config.CollectorClientName, config.CollectorHost, config.CollectorPort, config.CollectorPath, config.FilterRules.Mode, len(config.FilterRules.RuleList))
+	log.Infof("[http-log-pusher] config parsed successfully: collector_service=%s, collector_host=%s, collector_port=%d, collector_path=%s, filter_mode=%s, filter_rules=%d, final_cluster=%s",
+		config.CollectorClientName, config.CollectorHost, config.CollectorPort, config.CollectorPath, config.FilterRules.Mode, len(config.FilterRules.RuleList), config.CollectorClient.ClusterName())
 	return nil
 }
 
@@ -214,7 +225,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	method := ctx.Method()
 	path := ctx.Path()
 	
-	log.Infof("[http-log-pusher] onHttpRequestHeaders called, host=%s, path=%s, method=%s", host, path, method)
 	
 	// 根据过滤规则判断是否需要记录日志
 	shouldLog := config.FilterRules.ShouldLog(host, method, path)
@@ -365,8 +375,12 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	}
 
 	payload, _ := json.Marshal(entry)
-	log.Infof("[http-log-pusher] sending log to collector: %s%s, payload_size=%d",
-		config.CollectorClientName, config.CollectorPath, len(payload))
+	
+	// 获取最终使用的集群名
+	clusterName := config.CollectorClient.ClusterName()
+	
+	log.Infof("[http-log-pusher] preparing http call: cluster=%s, path=%s, payload_size=%d",
+		clusterName, config.CollectorPath, len(payload))
 
 	// 2. 发送异步请求给 Collector
 	// 使用 wrapper.HttpClient.Post 方法，它会自动处理 headers
