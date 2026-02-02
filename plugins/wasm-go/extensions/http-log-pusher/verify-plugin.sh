@@ -78,56 +78,56 @@ echo ""
 
 kubectl apply -f "$CONFIG_FILE"
 
-echo ""
-echo "=========================================="
-echo "Step 2: 等待并监控插件热加载状态"
-echo "=========================================="
-echo "等待 Gateway 热加载新插件 (最多等待 90 秒)..."
+# echo ""
+# echo "=========================================="
+# echo "Step 2: 等待并监控插件热加载状态"
+# echo "=========================================="
+# echo "等待 Gateway 热加载新插件 (最多等待 90 秒)..."
 
-# 记录当前时间戳，用于后续过滤新日志
-CURRENT_TIME=$(date +%s)
-MAX_WAIT=90
-WAIT_COUNT=0
-RELOAD_SUCCESS=false
+# # 记录当前时间戳，用于后续过滤新日志
+# CURRENT_TIME=$(date +%s)
+# MAX_WAIT=90
+# WAIT_COUNT=0
+# RELOAD_SUCCESS=false
 
-while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-    # 检查最近的插件加载日志（包含新的 timestamp）
-    RECENT_LOGS=$(kubectl logs -n "$NAMESPACE" -l app=higress-gateway -c higress-gateway --since=60s 2>/dev/null | grep -i "http-log-pusher" || echo "")
+# while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+#     # 检查最近的插件加载日志（包含新的 timestamp）
+#     RECENT_LOGS=$(kubectl logs -n "$NAMESPACE" -l app=higress-gateway -c higress-gateway --since=60s 2>/dev/null | grep -i "http-log-pusher" || echo "")
     
-    # 检查是否有成功加载的标志
-    if echo "$RECENT_LOGS" | grep -q "loaded successfully\|plugin initializing"; then
-        echo "✅ 检测到插件热加载成功！"
-        echo "加载日志:"
-        echo "$RECENT_LOGS" | grep "http-log-pusher"
-        RELOAD_SUCCESS=true
-        break
-    fi
+#     # 检查是否有成功加载的标志
+#     if echo "$RECENT_LOGS" | grep -q "loaded successfully\|plugin initializing"; then
+#         echo "✅ 检测到插件热加载成功！"
+#         echo "加载日志:"
+#         echo "$RECENT_LOGS" | grep "http-log-pusher"
+#         RELOAD_SUCCESS=true
+#         break
+#     fi
     
-    # 每 5 秒检查一次
-    if [ $((WAIT_COUNT % 5)) -eq 0 ]; then
-        echo "  等待中... (${WAIT_COUNT}s / ${MAX_WAIT}s)"
-    fi
+#     # 每 5 秒检查一次
+#     if [ $((WAIT_COUNT % 5)) -eq 0 ]; then
+#         echo "  等待中... (${WAIT_COUNT}s / ${MAX_WAIT}s)"
+#     fi
     
-    sleep 1
-    WAIT_COUNT=$((WAIT_COUNT + 1))
-done
+#     sleep 1
+#     WAIT_COUNT=$((WAIT_COUNT + 1))
+# done
 
-if [ "$RELOAD_SUCCESS" = false ]; then
-    echo "❌ 错误: 在 ${MAX_WAIT} 秒内未检测到插件热加载日志"
-    echo ""
-    echo "可能原因:"
-    echo "  1. Gateway 正在拉取 WASM 文件（网络慢）- 建议手动检查后重试"
-    echo "  2. redeploy-timestamp 或 URL 未更新 - 检查 YAML 文件"
-    echo "  3. WASM 文件拉取失败 - 检查 OSS URL 是否可访问"
-    echo "  4. WASM 文件编译错误 - 检查构建日志"
-    echo ""
-    echo "调试命令:"
-    echo "  kubectl logs -n $NAMESPACE -l app=higress-gateway -c higress-gateway --tail=300 | grep -iE 'http-log-pusher|wasm|error'"
-    echo ""
-    exit 1
-fi
+# if [ "$RELOAD_SUCCESS" = false ]; then
+#     echo "❌ 错误: 在 ${MAX_WAIT} 秒内未检测到插件热加载日志"
+#     echo ""
+#     echo "可能原因:"
+#     echo "  1. Gateway 正在拉取 WASM 文件（网络慢）- 建议手动检查后重试"
+#     echo "  2. redeploy-timestamp 或 URL 未更新 - 检查 YAML 文件"
+#     echo "  3. WASM 文件拉取失败 - 检查 OSS URL 是否可访问"
+#     echo "  4. WASM 文件编译错误 - 检查构建日志"
+#     echo ""
+#     echo "调试命令:"
+#     echo "  kubectl logs -n $NAMESPACE -l app=higress-gateway -c higress-gateway --tail=300 | grep -iE 'http-log-pusher|wasm|error'"
+#     echo ""
+#     exit 1
+# fi
 
-echo ""
+# echo ""
 
 echo "=========================================="
 echo "Step 3: 验证插件版本和配置"
@@ -151,11 +151,12 @@ if [ "$ACTUAL_URL" = "$OSS_WASM_URL" ] && [ "$ACTUAL_TIMESTAMP" = "$NEW_TIMESTAM
 else
     echo "  ❌ 配置更新失败！"
     echo "  建议执行: kubectl get wasmplugin -n $NAMESPACE $PLUGIN_NAME -o yaml"
+    exit 1
 fi
 echo ""
 
-echo "(b) 检查最近的插件加载日志 (最近 200 行):"
-LOAD_LOGS=$(kubectl logs -n "$NAMESPACE" "$GATEWAY_POD" -c higress-gateway --tail=200 | grep -i "http-log-pusher" || echo "")
+echo "(b) 检查最近的插件加载日志 (最近 20 行):"
+LOAD_LOGS=$(kubectl logs -n "$NAMESPACE" "$GATEWAY_POD" -c higress-gateway --tail=20 | grep -i "http-log-pusher" || echo "")
 if [ -n "$LOAD_LOGS" ]; then
     echo "  ✅ 找到插件日志："
     echo "$LOAD_LOGS" | tail -10
@@ -165,7 +166,7 @@ fi
 echo ""
 
 echo "(c) 检查 WASM 文件拉取日志:"
-WASM_FETCH_LOGS=$(kubectl logs -n "$NAMESPACE" "$GATEWAY_POD" -c higress-gateway --tail=300 | grep -iE "wasm.*fetch|wasm.*download|wasm.*load.*$OSS_WASM_NAME" | tail -5 || echo "")
+WASM_FETCH_LOGS=$(kubectl logs -n "$NAMESPACE" "$GATEWAY_POD" -c higress-gateway --tail=30 | grep -iE "wasm.*fetch|wasm.*download|wasm.*load.*$OSS_WASM_NAME" | tail -5 || echo "")
 if [ -n "$WASM_FETCH_LOGS" ]; then
     echo "  ✅ WASM 拉取日志："
     echo "$WASM_FETCH_LOGS"

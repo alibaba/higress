@@ -25,7 +25,7 @@ spec:
         env:
         # 修改这里的 MySQL 地址
         - name: MYSQL_DSN
-          value: "liyongjie_dev2:test123T@tcp(rm-2vc05z53dj3zn0496.mysql.cn-chengdu.rds.aliyuncs.com:3306)/higress_poc?charset=utf8mb4&parseTime=True&loc=Local"
+          value: "liyongjie_dev2:test123T@tcp(rm-uf6sv90bm3v6lhv20io.mysql.rds.aliyuncs.com:3306)/higress_poc?charset=utf8mb4&parseTime=True&loc=Local"
         resources:
           limits:
             cpu: "500m"
