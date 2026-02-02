@@ -31,12 +31,12 @@ func init() {
 
 // PluginConfig 定义插件配置 (对应 WasmPlugin 资源中的 pluginConfig)
 type PluginConfig struct {
-	CollectorClientName string             `json:"collector_service"` // Envoy 集群名，例如 "outbound|8080||collector-service.default.svc.cluster.local"
-	CollectorHost       string             `json:"collector_host"`    // Collector 主机名或 IP，例如 "collector-service.default.svc.cluster.local" 或 "192.168.1.100"
-	CollectorPort       int64              `json:"collector_port"`    // Collector 端口，例如 8080
-	CollectorPath       string             `json:"collector_path"`    // 接收日志的 API 路径，例如 "/api/log"
-	SampleRate          int64              `json:"sample_rate"`       // 采样率 0-100
-	CollectorClient     wrapper.HttpClient `json:"-"`                 // HTTP 客户端，用于发送日志
+	CollectorClientName string             `json:"collector_service"` // Envoy 集群名,例如 "outbound|8080||collector-service.default.svc.cluster.local"
+	CollectorHost       string             `json:"collector_host"`    // Collector 主机名或 IP,例如 "collector-service.default.svc.cluster.local" 或 "192.168.1.100"
+	CollectorPort       int64              `json:"collector_port"`    // Collector 端口,例如 8080
+	CollectorPath       string             `json:"collector_path"`    // 接收日志的 API 路径,例如 "/api/log"
+	FilterRules         FilterRules        `json:"-"`                 // 日志过滤规则
+	CollectorClient     wrapper.HttpClient `json:"-"`                 // HTTP 客户端,用于发送日志
 }
 
 // LogEntry 定义发给 Collector 的 JSON 数据结构 (参考 Envoy accessLogFormat)
@@ -105,31 +105,103 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 	if config.CollectorPath == "" {
 		config.CollectorPath = "/"
 	}
-	config.SampleRate = jsonConf.Get("sample_rate").Int()
-	if config.SampleRate == 0 {
-		config.SampleRate = 100 // 默认全采
-	}
 	
 	// 创建 HTTP 客户端用于发送日志
-	if config.CollectorClientName != "" {
-		// 使用完整的 Envoy 集群名
-		log.Infof("[http-log-pusher] using predefined cluster: %s", config.CollectorClientName)
-		config.CollectorClient = wrapper.NewClusterClient(wrapper.TargetCluster{
-			Host:    config.CollectorHost,
-			Cluster: config.CollectorClientName,
-		})
-	} else {
-		// 使用 host + port 动态构建 StaticIpCluster
-		log.Infof("[http-log-pusher] using dynamic cluster: host=%s, port=%d", config.CollectorHost, config.CollectorPort)
+	// 优先使用 host + port 方式,更稳定可靠
+	if config.CollectorHost != "" && config.CollectorPort > 0 {
+		log.Infof("[http-log-pusher] using host+port cluster: host=%s, port=%d", config.CollectorHost, config.CollectorPort)
 		config.CollectorClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
 			ServiceName: config.CollectorHost,
 			Port:        config.CollectorPort,
 			Host:        config.CollectorHost,
 		})
+	} else if config.CollectorClientName != "" {
+		// 仅当未配置host/port时才使用预定义集群名(需确保该集群在Envoy中存在)
+		log.Infof("[http-log-pusher] using predefined cluster: %s", config.CollectorClientName)
+		config.CollectorClient = wrapper.NewClusterClient(wrapper.TargetCluster{
+			Host:    config.CollectorHost,
+			Cluster: config.CollectorClientName,
+		})
 	}
 	
-	log.Infof("[http-log-pusher] config parsed successfully: collector_service=%s, collector_host=%s, collector_port=%d, collector_path=%s, sample_rate=%d",
-		config.CollectorClientName, config.CollectorHost, config.CollectorPort, config.CollectorPath, config.SampleRate)
+	// 解析过滤规则
+	if err := parseFilterRules(jsonConf, config, log); err != nil {
+		log.Errorf("[http-log-pusher] failed to parse filter rules: %v", err)
+		return err
+	}
+	
+	log.Infof("[http-log-pusher] config parsed successfully: collector_service=%s, collector_host=%s, collector_port=%d, collector_path=%s, filter_mode=%s, filter_rules=%d",
+		config.CollectorClientName, config.CollectorHost, config.CollectorPort, config.CollectorPath, config.FilterRules.Mode, len(config.FilterRules.RuleList))
+	return nil
+}
+
+// 解析过滤规则
+func parseFilterRules(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) error {
+	// 默认值：白名单模式，空规则列表（记录所有日志）
+	config.FilterRules = FilterRulesDefaults()
+	
+	// 解析 filter_mode
+	filterMode := jsonConf.Get("filter_mode").String()
+	if filterMode != "" {
+		if filterMode != ModeWhitelist && filterMode != ModeBlacklist {
+			log.Warnf("[http-log-pusher] invalid filter_mode '%s', using default 'whitelist'", filterMode)
+			filterMode = ModeWhitelist
+		}
+		config.FilterRules.Mode = filterMode
+	}
+	
+	// 解析 filter_list
+	filterList := jsonConf.Get("filter_list")
+	if !filterList.Exists() || !filterList.IsArray() {
+		// 未配置 filter_list，使用默认值
+		log.Infof("[http-log-pusher] no filter_list configured, all requests will be logged")
+		return nil
+	}
+	
+	var rules []FilterRule
+	for _, item := range filterList.Array() {
+		rule := FilterRule{}
+		
+		// 解析 filter_rule_domain
+		domain := item.Get("filter_rule_domain").String()
+		if domain != "" {
+			rule.Domain = domain
+		}
+		
+		// 解析 filter_rule_method
+		methods := item.Get("filter_rule_method")
+		if methods.Exists() && methods.IsArray() {
+			for _, m := range methods.Array() {
+				method := strings.ToUpper(m.String())
+				if method != "" {
+					rule.Method = append(rule.Method, method)
+				}
+			}
+		}
+		
+		// 解析 filter_rule_path 和 filter_rule_type
+		path := item.Get("filter_rule_path").String()
+		ruleType := item.Get("filter_rule_type").String()
+		if path != "" && ruleType != "" {
+			matcher, err := BuildStringMatcher(ruleType, path, false)
+			if err != nil {
+				log.Errorf("[http-log-pusher] failed to build path matcher for rule: %v", err)
+				continue
+			}
+			rule.Path = matcher
+		}
+		
+		// 至少需要有一个条件
+		if rule.Domain == "" && rule.Path == nil && len(rule.Method) == 0 {
+			log.Warnf("[http-log-pusher] skipping empty filter rule")
+			continue
+		}
+		
+		rules = append(rules, rule)
+	}
+	
+	config.FilterRules.RuleList = rules
+	log.Infof("[http-log-pusher] parsed %d filter rules in %s mode", len(rules), config.FilterRules.Mode)
 	return nil
 }
 
@@ -139,19 +211,20 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	// 获取 Host 信息
 	host := ctx.Host()
-	log.Infof("[http-log-pusher] onHttpRequestHeaders called, host=%s, path=%s, method=%s", host, ctx.Path(), ctx.Method())
+	method := ctx.Method()
+	path := ctx.Path()
 	
-	// 采样率判断:生成 0-99 的随机数,如果超过采样率则跳过
-	randomValue := time.Now().UnixNano() % 100
-	shouldSample := randomValue < config.SampleRate
-	ctx.SetContext("should_sample", shouldSample)
+	log.Infof("[http-log-pusher] onHttpRequestHeaders called, host=%s, path=%s, method=%s", host, path, method)
 	
-	if !shouldSample {
-		log.Debugf("[http-log-pusher] request skipped by sampling (rate=%d%%, random=%d)", config.SampleRate, randomValue)
+	// 根据过滤规则判断是否需要记录日志
+	shouldLog := config.FilterRules.ShouldLog(host, method, path)
+	ctx.SetContext("should_log", shouldLog)
+	
+	if !shouldLog {
+		log.Infof("[http-log-pusher] request filtered out by rules, host=%s, path=%s, method=%s", host, path, method)
+		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
-	
-	log.Infof("[http-log-pusher] request sampled, host=%s, path=%s, rate=%d%%, random=%d", host, ctx.Path(), config.SampleRate, randomValue)
 	
 	// 获取所有请求头并暂存
 	headers, err := proxywasm.GetHttpRequestHeaders()
@@ -161,23 +234,21 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 	ctx.SetContext("req_headers", headers)
 	ctx.SetContext("start_time", time.Now().UnixMilli())
 
-	// 必须允许继续，否则请求会卡住
-	// 如果需要读取 Body，必须在 return 时不打断流
+	// 必须允许继续,否则请求会卡住
+	// 如果需要读取 Body,必须在 return 时不打断流
 	return types.ActionContinue
 }
 
 // 2. 处理请求体
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	log.Debugf("[http-log-pusher] onHttpRequestBody called, body_size=%d", len(body))
-	
-	// 检查是否被采样
-	shouldSample, _ := ctx.GetContext("should_sample").(bool)
-	if !shouldSample {
+	// 检查是否应该记录日志
+	shouldLog, _ := ctx.GetContext("should_log").(bool)
+	if !shouldLog {
 		return types.ActionContinue
 	}
 	
 	if len(body) > 0 {
-		// 注意：大包体可能会分多次回调，生产环境建议限制长度或做截断
+		// 注意:大包体可能会分多次回调,生产环境建议限制长度或做截断
 		ctx.SetContext("req_body", string(body))
 	}
 	return types.ActionContinue
@@ -185,11 +256,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 // 3. 处理响应头
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	log.Debugf("[http-log-pusher] onHttpResponseHeaders called")
-	
-	// 检查是否被采样
-	shouldSample, _ := ctx.GetContext("should_sample").(bool)
-	if !shouldSample {
+	// 检查是否应该记录日志
+	shouldLog, _ := ctx.GetContext("should_log").(bool)
+	if !shouldLog {
 		return types.ActionContinue
 	}
 	
@@ -200,11 +269,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 
 // 4. 处理响应体 (也是发送日志的最佳时机)
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	log.Debugf("[http-log-pusher] onHttpResponseBody called, body_size=%d", len(body))
-	
-	// 检查是否被采样
-	shouldSample, _ := ctx.GetContext("should_sample").(bool)
-	if !shouldSample {
+	// 检查是否应该记录日志
+	shouldLog, _ := ctx.GetContext("should_log").(bool)
+	if !shouldLog {
 		return types.ActionContinue
 	}
 	
