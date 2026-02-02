@@ -1,5 +1,8 @@
+NAMESPACE="himarket-system"
 # 1. 获取 higress-gateway Pod
-POD=$(kubectl get pod -n ls-test -l app=higress-gateway -o jsonpath='{.items[0].metadata.name}')
+POD=$(kubectl get pod -n "$NAMESPACE" -l app=higress-gateway -o jsonpath='{.items[0].metadata.name}')
+
+kubectl logs -n "$NAMESPACE" "$POD" -c higress-gateway --tail=100 | grep "http-log-pusher" > http-log-pusher.log
 
 # 2. 检查 travel-assistant 路由是否加载了 wasm filter
 # kubectl exec -n ls-test $POD -c higress-gateway -- \
@@ -24,6 +27,6 @@ POD=$(kubectl get pod -n ls-test -l app=higress-gateway -o jsonpath='{.items[0].
 
 # POD=$(kubectl get pod -n ls-test -l app=higress-gateway -o jsonpath='{.items[0].metadata.name}')
 
-# 查找所有包含 "travel-assistant" 的路由（不严格匹配路径）
-kubectl exec -n ls-test $POD -c higress-gateway -- \
-  curl -s localhost:15000/config_dump > config_dump.json
+# # 查找所有包含 "travel-assistant" 的路由（不严格匹配路径）
+# kubectl exec -n ls-test $POD -c higress-gateway -- \
+#   curl -s localhost:15000/config_dump > config_dump.json
