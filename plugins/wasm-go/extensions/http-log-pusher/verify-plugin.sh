@@ -76,7 +76,27 @@ echo "  - redeploy-timestamp: $NEW_TIMESTAMP"
 echo "  - url: $OSS_WASM_URL"
 echo ""
 
+echo "=========================================="
+echo "Step 1.5: 删除旧的 WasmPlugin 并重新创建"
+echo "=========================================="
+echo "⚠️  强制删除并重新创建以确保配置生效..."
+
+# 删除旧的 WasmPlugin
+kubectl delete wasmplugin -n "$NAMESPACE" "$PLUGIN_NAME" --ignore-not-found=true
+
+echo "✅ 已删除旧的 WasmPlugin (如果存在)"
+
+# 等待 2 秒确保删除完成
+sleep 2
+
+# 重新创建
 kubectl apply -f "$CONFIG_FILE"
+echo "✅ 已重新创建 WasmPlugin"
+
+# 等待 5 秒让 Gateway 拉取并加载新插件
+echo "等待 Gateway 加载新插件... (5秒)"
+sleep 5
+echo ""
 
 # echo ""
 # echo "=========================================="
