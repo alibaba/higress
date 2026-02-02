@@ -54,59 +54,44 @@ Ask the user for:
    - Enable: `--auto-routing`
    - Default model: `--auto-routing-default-model`
 
-### Step 3: Detect Optimal Image Repository
+### Step 3: Run Setup Script
 
-Before running the deployment script, automatically detect the current timezone and select the geographically closest image repository for faster downloads:
-
-```bash
-# Detect timezone and select optimal image repository
-TZ=$(timedatectl show --property=Timezone --value 2>/dev/null || cat /etc/timezone 2>/dev/null || echo "UTC")
-
-case "$TZ" in
-  Asia/Shanghai|Asia/Hong_Kong|Asia/Taipei|Asia/Chongqing|Asia/Urumqi|Asia/Harbin)
-    # China and nearby regions
-    IMAGE_REPO="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one"
-    ;;
-  Asia/Singapore|Asia/Jakarta|Asia/Bangkok|Asia/Kuala_Lumpur|Asia/Manila|Asia/Ho_Chi_Minh)
-    # Southeast Asia
-    IMAGE_REPO="higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one"
-    ;;
-  America/*|US/*|Canada/*)
-    # North America
-    IMAGE_REPO="higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one"
-    ;;
-  *)
-    # Default to Hangzhou for other regions
-    IMAGE_REPO="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one"
-    ;;
-esac
-
-echo "Auto-selected image repository based on timezone ($TZ): $IMAGE_REPO"
-```
-
-**Available Image Repositories:**
-- **Hangzhou/China**: `higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one` (default)
-  - Optimal for: China (Asia/Shanghai, Asia/Hong_Kong, etc.)
-- **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one`
-  - Optimal for: Singapore, Indonesia, Thailand, Malaysia, Philippines, Vietnam
-- **North America**: `higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one`
-  - Optimal for: United States, Canada, Mexico
-
-### Step 4: Run Setup Script
-
-Run the script in non-interactive mode with gathered parameters and auto-selected image repository:
+Run the script in non-interactive mode with gathered parameters:
 
 ```bash
-IMAGE_REPO="$IMAGE_REPO" ./get-ai-gateway.sh start --non-interactive \
+./get-ai-gateway.sh start --non-interactive \
   --dashscope-key sk-xxx \
   --openai-key sk-xxx \
   --auto-routing \
   --auto-routing-default-model qwen-turbo
 ```
 
-**Note:** The `IMAGE_REPO` environment variable is automatically set based on the detected timezone. This ensures optimal download speeds without user intervention.
+**Automatic Repository Selection:**
 
-### Step 5: Verify Deployment
+The script automatically detects your timezone and selects the geographically closest registry for both:
+- **Container image** (`IMAGE_REPO`)
+- **WASM plugins** (`PLUGIN_REGISTRY`)
+
+| Region | Timezone Examples | Selected Registry |
+|--------|------------------|-------------------|
+| China & nearby | Asia/Shanghai, Asia/Hong_Kong, etc. | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
+| Southeast Asia | Asia/Singapore, Asia/Jakarta, etc. | `higress-registry.ap-southeast-7.cr.aliyuncs.com` |
+| North America | America/*, US/*, Canada/* | `higress-registry.us-west-1.cr.aliyuncs.com` |
+| Others | Default fallback | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
+
+**Manual Override (optional):**
+
+If you want to use a specific registry:
+
+```bash
+IMAGE_REPO="higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one" \
+PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
+  ./get-ai-gateway.sh start --non-interactive \
+  --dashscope-key sk-xxx \
+  --openai-key sk-xxx
+```
+
+### Step 4: Verify Deployment
 
 After script completion:
 
@@ -125,7 +110,7 @@ After script completion:
    http://localhost:8001
    ```
 
-### Step 6: Configure Clawdbot/OpenClaw Plugin
+### Step 5: Configure Clawdbot/OpenClaw Plugin
 
 If the user wants to use Higress with Clawdbot/OpenClaw, install the appropriate plugin:
 
@@ -169,7 +154,7 @@ The plugin will guide you through an interactive setup for:
 4. Model list (auto-detected or manually specified)
 5. Auto-routing default model (if using `higress/auto`)
 
-### Step 7: Manage API Keys (optional)
+### Step 6: Manage API Keys (optional)
 
 After deployment, manage API keys without redeploying:
 
@@ -205,13 +190,25 @@ After deployment, manage API keys without redeploying:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `IMAGE_REPO` | Docker image repository URL (auto-selected based on timezone) | `higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one` |
+| `IMAGE_REPO` | Container image repository URL (auto-selected based on timezone) | `higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one` |
+| `PLUGIN_REGISTRY` | WASM plugin registry URL (auto-selected based on timezone) | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
 
 **Auto-Selection Logic:**
-- Asia/Shanghai and China timezones → Hangzhou mirror
-- Southeast Asia timezones → Singapore mirror
-- America/* timezones → North America mirror
-- Other timezones → Hangzhou mirror (default)
+
+Both `IMAGE_REPO` and `PLUGIN_REGISTRY` are automatically selected based on your timezone:
+
+- **China & nearby** (Asia/Shanghai, etc.) → Hangzhou mirror
+- **Southeast Asia** (Asia/Singapore, etc.) → Singapore mirror  
+- **North America** (America/*, etc.) → North America mirror
+- **Others** → Hangzhou mirror (default)
+
+**Manual Override:**
+
+```bash
+IMAGE_REPO="higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one" \
+PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
+  ./get-ai-gateway.sh start --non-interactive ...
+```
 
 ### LLM Provider API Keys
 
@@ -291,23 +288,16 @@ These logs can be used with the **agent-session-monitor** skill for token tracki
 **Steps:**
 1. Download script
 2. Get Dashscope API key from user
-3. Auto-detect timezone and select image repository
-4. Run:
+3. Run (script auto-detects timezone and selects optimal registry):
    ```bash
-   # Auto-detect timezone
-   TZ=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "Asia/Shanghai")
-   
-   # Select repository (Asia/Shanghai detected, using Hangzhou mirror)
-   IMAGE_REPO="higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one"
-   
-   IMAGE_REPO="$IMAGE_REPO" ./get-ai-gateway.sh start --non-interactive \
+   ./get-ai-gateway.sh start --non-interactive \
      --dashscope-key sk-xxx
    ```
 
 **Response:**
 ```
-检测到时区: Asia/Shanghai
-自动选择镜像: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one
+Auto-detected timezone: Asia/Shanghai
+Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
 
 ✅ Higress AI Gateway 部署完成！
 
@@ -329,23 +319,23 @@ curl 'http://localhost:8080/v1/chat/completions' \
 **User:** 完整配置Higress和Clawdbot的集成
 
 **Steps:**
-1. Auto-detect timezone and select optimal image repository
-2. Deploy Higress AI Gateway
-3. Install and configure Clawdbot plugin
-4. Enable auto-routing
-5. Set up session monitoring
+1. Deploy Higress AI Gateway (auto-detects timezone)
+2. Install and configure Clawdbot plugin
+3. Enable auto-routing
+4. Set up session monitoring
 
 **Response:**
 ```
-检测到时区: Asia/Shanghai
-自动选择镜像: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one (杭州镜像)
+Auto-detected timezone: Asia/Shanghai
+Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
 
 ✅ Higress AI Gateway 集成完成！
 
 1. 网关已部署:
    - HTTP: http://localhost:8080
    - Console: http://localhost:8001
-   - 镜像: 杭州镜像 (基于时区自动选择)
+   - 容器镜像: Hangzhou (自动选择)
+   - 插件镜像: Hangzhou (自动选择)
 
 2. Clawdbot 插件配置:
    Plugin installed at: /root/.clawdbot/extensions/higress-ai-gateway
@@ -401,32 +391,27 @@ Configuration has been hot-reloaded (no restart needed).
 **Steps:**
 1. Download script
 2. Get API keys from user
-3. Auto-detect timezone (America/Los_Angeles detected)
-4. Auto-select North America mirror
-5. Run deployment:
+3. Run (script auto-detects timezone and selects North America mirror):
    ```bash
-   # Auto-detect timezone
-   TZ=$(timedatectl show --property=Timezone --value)  # Returns: America/Los_Angeles
-   
-   # Auto-select North America mirror
-   IMAGE_REPO="higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one"
-   
-   IMAGE_REPO="$IMAGE_REPO" ./get-ai-gateway.sh start --non-interactive \
+   ./get-ai-gateway.sh start --non-interactive \
      --openai-key sk-xxx \
      --openrouter-key sk-xxx
    ```
 
 **Response:**
 ```
-检测到时区: America/Los_Angeles
-自动选择镜像: higress-registry.us-west-1.cr.aliyuncs.com/higress/all-in-one (北美镜像)
+Auto-detected timezone: America/Los_Angeles
+Selected plugin registry: higress-registry.us-west-1.cr.aliyuncs.com
 
 ✅ Higress AI Gateway 部署完成！
 
 网关地址: http://localhost:8080/v1/chat/completions
 控制台: http://localhost:8001
 日志目录: ./higress/logs
-使用镜像: 北美镜像 (基于时区自动选择，优化下载速度)
+
+镜像优化:
+- 容器镜像: North America (基于时区自动选择)
+- 插件镜像: North America (基于时区自动选择)
 
 已配置的模型提供商:
 - OpenAI
