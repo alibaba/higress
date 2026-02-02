@@ -80,25 +80,97 @@ kubectl apply -f "$CONFIG_FILE"
 
 echo ""
 echo "=========================================="
-echo "Step 2: 等待 10 秒让 Gateway 拉取新配置"
+echo "Step 2: 等待并监控插件热加载状态"
 echo "=========================================="
-sleep 10
+echo "等待 Gateway 热加载新插件 (最多等待 90 秒)..."
+
+# 记录当前时间戳，用于后续过滤新日志
+CURRENT_TIME=$(date +%s)
+MAX_WAIT=90
+WAIT_COUNT=0
+RELOAD_SUCCESS=false
+
+while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+    # 检查最近的插件加载日志（包含新的 timestamp）
+    RECENT_LOGS=$(kubectl logs -n "$NAMESPACE" -l app=higress-gateway -c higress-gateway --since=60s 2>/dev/null | grep -i "http-log-pusher" || echo "")
+    
+    # 检查是否有成功加载的标志
+    if echo "$RECENT_LOGS" | grep -q "loaded successfully\|plugin initializing"; then
+        echo "✅ 检测到插件热加载成功！"
+        echo "加载日志:"
+        echo "$RECENT_LOGS" | grep "http-log-pusher"
+        RELOAD_SUCCESS=true
+        break
+    fi
+    
+    # 每 5 秒检查一次
+    if [ $((WAIT_COUNT % 5)) -eq 0 ]; then
+        echo "  等待中... (${WAIT_COUNT}s / ${MAX_WAIT}s)"
+    fi
+    
+    sleep 1
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+done
+
+if [ "$RELOAD_SUCCESS" = false ]; then
+    echo "❌ 错误: 在 ${MAX_WAIT} 秒内未检测到插件热加载日志"
+    echo ""
+    echo "可能原因:"
+    echo "  1. Gateway 正在拉取 WASM 文件（网络慢）- 建议手动检查后重试"
+    echo "  2. redeploy-timestamp 或 URL 未更新 - 检查 YAML 文件"
+    echo "  3. WASM 文件拉取失败 - 检查 OSS URL 是否可访问"
+    echo "  4. WASM 文件编译错误 - 检查构建日志"
+    echo ""
+    echo "调试命令:"
+    echo "  kubectl logs -n $NAMESPACE -l app=higress-gateway -c higress-gateway --tail=300 | grep -iE 'http-log-pusher|wasm|error'"
+    echo ""
+    exit 1
+fi
 
 echo ""
+
 echo "=========================================="
-echo "Step 3: 检查插件加载日志"
+echo "Step 3: 验证插件版本和配置"
 echo "=========================================="
 # 动态获取 Gateway Pod 名称
 GATEWAY_POD=$(kubectl get pod -n "$NAMESPACE" -l app=higress-gateway -o jsonpath='{.items[0].metadata.name}')
 echo "Gateway Pod: $GATEWAY_POD"
 echo ""
 
+echo "(a) 检查 WasmPlugin 配置是否正确更新:"
+ACTUAL_URL=$(kubectl get wasmplugin -n "$NAMESPACE" "$PLUGIN_NAME" -o jsonpath='{.spec.url}')
+ACTUAL_TIMESTAMP=$(kubectl get wasmplugin -n "$NAMESPACE" "$PLUGIN_NAME" -o jsonpath='{.metadata.annotations.higress\.io/redeploy-timestamp}')
+
+echo "  当前 URL: $ACTUAL_URL"
+echo "  当前 Timestamp: $ACTUAL_TIMESTAMP"
+echo "  预期 URL: $OSS_WASM_URL"
+echo "  预期 Timestamp: $NEW_TIMESTAMP"
+
+if [ "$ACTUAL_URL" = "$OSS_WASM_URL" ] && [ "$ACTUAL_TIMESTAMP" = "$NEW_TIMESTAMP" ]; then
+    echo "  ✅ 配置已正确更新"
+else
+    echo "  ❌ 配置更新失败！"
+    echo "  建议执行: kubectl get wasmplugin -n $NAMESPACE $PLUGIN_NAME -o yaml"
+fi
+echo ""
+
+echo "(b) 检查最近的插件加载日志 (最近 200 行):"
 LOAD_LOGS=$(kubectl logs -n "$NAMESPACE" "$GATEWAY_POD" -c higress-gateway --tail=200 | grep -i "http-log-pusher" || echo "")
 if [ -n "$LOAD_LOGS" ]; then
-    echo "✅ 找到插件日志："
-    echo "$LOAD_LOGS"
+    echo "  ✅ 找到插件日志："
+    echo "$LOAD_LOGS" | tail -10
 else
-    echo "⚠️  未找到插件加载日志"
+    echo "  ⚠️  未找到插件加载日志"
+fi
+echo ""
+
+echo "(c) 检查 WASM 文件拉取日志:"
+WASM_FETCH_LOGS=$(kubectl logs -n "$NAMESPACE" "$GATEWAY_POD" -c higress-gateway --tail=300 | grep -iE "wasm.*fetch|wasm.*download|wasm.*load.*$OSS_WASM_NAME" | tail -5 || echo "")
+if [ -n "$WASM_FETCH_LOGS" ]; then
+    echo "  ✅ WASM 拉取日志："
+    echo "$WASM_FETCH_LOGS"
+else
+    echo "  ⚠️  未找到 WASM 拉取日志（可能已缓存或拉取中）"
 fi
 
 echo ""
@@ -109,10 +181,26 @@ kubectl get wasmplugin -n "$NAMESPACE" "$PLUGIN_NAME" -o yaml | grep -A 10 "stat
 
 echo ""
 echo "=========================================="
-echo "Step 5: 发送测试请求触发插件"
+echo "Step 5: 发送测试请求触发插件 (测试 model-api-qwen72b-0 Ingress)"
 echo "=========================================="
-echo "发送请求到: http://$GATEWAY_IP/test"
-RESPONSE=$(curl -s -X POST "http://$GATEWAY_IP/test" -d '{"test":"data"}' -w "\nHTTP Status: %{http_code}\n" || echo "请求失败")
+echo "发送请求到: http://$GATEWAY_IP/qwen0113/v1/chat/completions"
+RESPONSE=$(curl -s -X POST "http://$GATEWAY_IP/qwen0113/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -H "User-Agent: verify-plugin-test-$(date +%s)" \
+  -d '{
+    "stream": true,
+    "model": "qwen3-max",
+    "messages": [
+      { "role": "system", "content": "You are a helpful assistant." },
+      { "role": "user", "content": "who are you?" }
+    ],
+    "temperature": 1,
+    "top_p": 0.95,
+    "max_tokens": 1024,
+    "presence_penalty": 0,
+    "frequency_penalty": 0
+  }' \
+  -w "\nHTTP Status: %{http_code}\n" || echo "请求失败")
 echo "$RESPONSE"
 
 echo ""
