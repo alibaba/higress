@@ -190,22 +190,22 @@ After deployment, manage API keys without redeploying:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `IMAGE_REPO` | Container image repository URL (auto-selected based on timezone) | `higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/all-in-one` |
-| `PLUGIN_REGISTRY` | WASM plugin registry URL (auto-selected based on timezone) | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
+| `PLUGIN_REGISTRY` | Registry URL for container images and WASM plugins (auto-selected based on timezone) | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
 
 **Auto-Selection Logic:**
 
-Both `IMAGE_REPO` and `PLUGIN_REGISTRY` are automatically selected based on your timezone:
+The registry is automatically selected based on your timezone:
 
-- **China & nearby** (Asia/Shanghai, etc.) → Hangzhou mirror
-- **Southeast Asia** (Asia/Singapore, etc.) → Singapore mirror  
-- **North America** (America/*, etc.) → North America mirror
-- **Others** → Hangzhou mirror (default)
+- **China & nearby** (Asia/Shanghai, etc.) → `higress-registry.cn-hangzhou.cr.aliyuncs.com`
+- **Southeast Asia** (Asia/Singapore, etc.) → `higress-registry.ap-southeast-7.cr.aliyuncs.com`
+- **North America** (America/*, etc.) → `higress-registry.us-west-1.cr.aliyuncs.com`
+- **Others** → `higress-registry.cn-hangzhou.cr.aliyuncs.com` (default)
+
+Both container images and WASM plugins use the same registry for consistency.
 
 **Manual Override:**
 
 ```bash
-IMAGE_REPO="higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one" \
 PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
   ./get-ai-gateway.sh start --non-interactive ...
 ```
