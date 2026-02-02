@@ -2,8 +2,8 @@
 
 set -e
 
-NAMESPACE="ls-test"
-GATEWAY_IP="8.137.23.26"
+NAMESPACE="himarket-system"
+GATEWAY_IP="8.153.103.221"
 PLUGIN_NAME="http-log-push-plugin"
 CONFIG_FILE="/Users/terry/work/higress/plugins/wasm-go/extensions/http-log-pusher/higress-wasm-plugin-improved.yaml"
 WASM_GO_DIR="/Users/terry/work/higress/plugins/wasm-go"
@@ -184,8 +184,8 @@ echo ""
 echo "=========================================="
 echo "Step 5: 发送测试请求触发插件 (测试 model-api-qwen72b-0 Ingress)"
 echo "=========================================="
-echo "发送请求到: http://$GATEWAY_IP/qwen0113/v1/chat/completions"
-RESPONSE=$(curl -s -X POST "http://$GATEWAY_IP/qwen0113/v1/chat/completions" \
+echo "发送请求到: http://$GATEWAY_IP/test-ai/v1/chat/completions"
+RESPONSE=$(curl -s -X POST "http://$GATEWAY_IP/test-ai/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -H "User-Agent: verify-plugin-test-$(date +%s)" \
   -d '{
