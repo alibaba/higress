@@ -334,6 +334,11 @@ func (m *qwenProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, qwen
 }
 
 func (m *qwenProvider) buildChatCompletionStreamingResponse(ctx wrapper.HttpContext, qwenResponse *qwenTextGenResponse, incrementalStreaming bool) []*chatCompletionResponse {
+	if len(qwenResponse.Output.Choices) == 0 {
+		log.Warnf("qwen response has no choices, request_id: %s", qwenResponse.RequestId)
+		return nil
+	}
+
 	baseMessage := chatCompletionResponse{
 		Id:                qwenResponse.RequestId,
 		Created:           time.Now().UnixMilli() / 1000,
