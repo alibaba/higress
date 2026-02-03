@@ -153,6 +153,7 @@ func parseFilterRules(jsonConf gjson.Result, config *PluginConfig, log wrapper.L
 	
 	// 解析 filter_mode
 	filterMode := jsonConf.Get("filter_mode").String()
+	log.Infof("[http-log-pusher] parsing filter mode: %s", filterMode)
 	if filterMode != "" {
 		if filterMode != ModeWhitelist && filterMode != ModeBlacklist {
 			log.Warnf("[http-log-pusher] invalid filter_mode '%s', using default 'whitelist'", filterMode)
@@ -163,6 +164,7 @@ func parseFilterRules(jsonConf gjson.Result, config *PluginConfig, log wrapper.L
 	
 	// 解析 filter_list
 	filterList := jsonConf.Get("filter_list")
+	log.Infof("[http-log-pusher] parsing filter list: %s", filterList.String())
 	if !filterList.Exists() || !filterList.IsArray() {
 		// 未配置 filter_list，使用默认值
 		log.Infof("[http-log-pusher] no filter_list configured, all requests will be logged")
