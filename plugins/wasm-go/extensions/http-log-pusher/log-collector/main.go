@@ -14,16 +14,49 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// 1. 定义与 Wasm 插件发送格式一致的结构体
+// 1. 定义与 Wasm 插件发送格式一致的结构体（完整 27 字段，对齐 log-format.json）
 type LogEntry struct {
-	StartTime    string `json:"start_time"`    // 请求开始时间 (RFC3339)
-	Authority    string `json:"authority"`     // 对应数据库中的 service
-	TraceID      string `json:"trace_id"`
-	Method       string `json:"method"`
-	Path         string `json:"path"`
-	ResponseCode int    `json:"response_code"` // 响应状态码
-	Duration     int64  `json:"duration"`      // 请求总耗时(ms)
-	AILog        string `json:"ai_log"`        // WASM AI 日志 (JSON 字符串)
+	// 基础请求信息
+	StartTime     string `json:"start_time"`               // 请求开始时间 (RFC3339)
+	Authority     string `json:"authority"`                // Host/Authority
+	TraceID       string `json:"trace_id"`                 // X-B3-TraceID
+	Method        string `json:"method"`                   // HTTP 方法
+	Path          string `json:"path"`                     // 请求路径
+	Protocol      string `json:"protocol"`                 // HTTP 协议版本
+	RequestID     string `json:"request_id"`               // X-Request-ID
+	UserAgent     string `json:"user_agent"`               // User-Agent
+	XForwardedFor string `json:"x_forwarded_for"`          // X-Forwarded-For
+	
+	// 响应信息
+	ResponseCode        int    `json:"response_code"`                  // 响应状态码
+	ResponseFlags       string `json:"response_flags"`                 // Envoy 响应标志
+	ResponseCodeDetails string `json:"response_code_details"`          // 响应码详情
+	
+	// 流量信息
+	BytesReceived int64 `json:"bytes_received"` // 接收字节数
+	BytesSent     int64 `json:"bytes_sent"`     // 发送字节数
+	Duration      int64 `json:"duration"`       // 请求总耗时(ms)
+	
+	// 上游信息
+	UpstreamCluster                  string `json:"upstream_cluster"`                        // 上游集群名
+	UpstreamHost                     string `json:"upstream_host"`                           // 上游主机
+	UpstreamServiceTime              string `json:"upstream_service_time"`                   // 上游服务耗时
+	UpstreamTransportFailureReason   string `json:"upstream_transport_failure_reason"`       // 上游传输失败原因
+	UpstreamLocalAddress             string `json:"upstream_local_address"`                  // 上游本地地址
+	
+	// 连接信息
+	DownstreamLocalAddress  string `json:"downstream_local_address"`  // 下游本地地址
+	DownstreamRemoteAddress string `json:"downstream_remote_address"` // 下游远程地址
+	
+	// 路由信息
+	RouteName           string `json:"route_name"`            // 路由名称
+	RequestedServerName string `json:"requested_server_name"` // SNI
+	
+	// Istio 相关
+	IstioPolicyStatus string `json:"istio_policy_status"` // Istio 策略状态
+	
+	// AI 日志
+	AILog string `json:"ai_log"` // WASM AI 日志 (JSON 字符串)
 }
 
 // 全局变量
@@ -142,7 +175,8 @@ func flushLogs() {
 	valueArgs := []interface{}{}
 
 	for _, entry := range chunk {
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?)")
+		// 27 个字段的占位符
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
 		// 转换 RFC3339 时间为 MySQL datetime 格式
 		startTime := entry.StartTime
@@ -150,20 +184,55 @@ func flushLogs() {
 			startTime = t.Format("2006-01-02 15:04:05")
 		}
 
+		// 按表结构顺序：27 个字段完整映射
 		valueArgs = append(valueArgs,
+			// 基础请求信息
 			startTime,
 			entry.TraceID,
 			entry.Authority,
 			entry.Method,
 			entry.Path,
+			entry.Protocol,
+			entry.RequestID,
+			entry.UserAgent,
+			entry.XForwardedFor,
+			// 响应信息
 			entry.ResponseCode,
+			entry.ResponseFlags,
+			entry.ResponseCodeDetails,
+			// 流量信息
+			entry.BytesReceived,
+			entry.BytesSent,
 			entry.Duration,
+			// 上游信息
+			entry.UpstreamCluster,
+			entry.UpstreamHost,
+			entry.UpstreamServiceTime,
+			entry.UpstreamTransportFailureReason,
+			entry.UpstreamLocalAddress,
+			// 连接信息
+			entry.DownstreamLocalAddress,
+			entry.DownstreamRemoteAddress,
+			// 路由信息
+			entry.RouteName,
+			entry.RequestedServerName,
+			// Istio 相关
+			entry.IstioPolicyStatus,
+			// AI 日志
 			entry.AILog,
 		)
 	}
 
-	stmt := fmt.Sprintf("INSERT INTO access_logs (start_time, trace_id, authority, method, path, response_code, duration, ai_log) VALUES %s",
-		strings.Join(valueStrings, ","))
+	stmt := fmt.Sprintf(`INSERT INTO access_logs (
+		start_time, trace_id, authority, method, path, protocol, request_id, user_agent, x_forwarded_for,
+		response_code, response_flags, response_code_details,
+		bytes_received, bytes_sent, duration,
+		upstream_cluster, upstream_host, upstream_service_time, upstream_transport_failure_reason, upstream_local_address,
+		downstream_local_address, downstream_remote_address,
+		route_name, requested_server_name,
+		istio_policy_status,
+		ai_log
+	) VALUES %s`, strings.Join(valueStrings, ","))
 
 	// 执行写入
 	start := time.Now()
@@ -269,11 +338,24 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * pageSize
 	
-	// 排序参数
+	// 排序参数（必须使用数据库真实字段名）
 	sortBy := "start_time"
 	sortOrder := "DESC"
 	if sb := params.Get("sort_by"); sb != "" {
-		if sb == "start_time" || sb == "response_code" || sb == "duration" || sb == "authority" || sb == "method" {
+		// 允许的排序字段白名单
+		allowedFields := map[string]bool{
+			"start_time":          true,
+			"response_code":       true,
+			"duration":            true,
+			"authority":           true,
+			"method":              true,
+			"path":                true,
+			"bytes_received":      true,
+			"bytes_sent":          true,
+			"upstream_cluster":    true,
+			"route_name":          true,
+		}
+		if allowedFields[sb] {
 			sortBy = sb
 		}
 	}
@@ -283,9 +365,17 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	
-	// 构建查询 SQL
-	querySQL := fmt.Sprintf(
-		"SELECT start_time, trace_id, authority, method, path, response_code, duration, ai_log FROM access_logs %s ORDER BY %s %s LIMIT ? OFFSET ?",
+	// 构建查询 SQL（查询所有 27 个字段）
+	querySQL := fmt.Sprintf(`
+		SELECT start_time, trace_id, authority, method, path, protocol, request_id, user_agent, x_forwarded_for,
+		       response_code, response_flags, response_code_details,
+		       bytes_received, bytes_sent, duration,
+		       upstream_cluster, upstream_host, upstream_service_time, upstream_transport_failure_reason, upstream_local_address,
+		       downstream_local_address, downstream_remote_address,
+		       route_name, requested_server_name,
+		       istio_policy_status,
+		       ai_log
+		FROM access_logs %s ORDER BY %s %s LIMIT ? OFFSET ?`,
 		whereSQL, sortBy, sortOrder,
 	)
 	
@@ -305,15 +395,31 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 	
-	// 解析查询结果
+	// 解析查询结果（读取所有 27 个字段）
 	logs := []LogEntry{}
 	for rows.Next() {
 		var entry LogEntry
 		var startTime time.Time
 
 		err := rows.Scan(
-			&startTime, &entry.TraceID, &entry.Authority, &entry.Method,
-			&entry.Path, &entry.ResponseCode, &entry.Duration, &entry.AILog,
+			// 基础请求信息
+			&startTime, &entry.TraceID, &entry.Authority, &entry.Method, &entry.Path,
+			&entry.Protocol, &entry.RequestID, &entry.UserAgent, &entry.XForwardedFor,
+			// 响应信息
+			&entry.ResponseCode, &entry.ResponseFlags, &entry.ResponseCodeDetails,
+			// 流量信息
+			&entry.BytesReceived, &entry.BytesSent, &entry.Duration,
+			// 上游信息
+			&entry.UpstreamCluster, &entry.UpstreamHost, &entry.UpstreamServiceTime,
+			&entry.UpstreamTransportFailureReason, &entry.UpstreamLocalAddress,
+			// 连接信息
+			&entry.DownstreamLocalAddress, &entry.DownstreamRemoteAddress,
+			// 路由信息
+			&entry.RouteName, &entry.RequestedServerName,
+			// Istio 相关
+			&entry.IstioPolicyStatus,
+			// AI 日志
+			&entry.AILog,
 		)
 		if err != nil {
 			log.Printf("Error scanning log entry: %v", err)

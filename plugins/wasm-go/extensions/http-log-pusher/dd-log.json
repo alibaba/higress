@@ -1,0 +1,15 @@
+{
+  "answer": "Hello! How can I help you today? 😊",
+  "api": "-",
+  "chat_id": "816858a1-e573-478c-82a3-40a31217e7de",
+  "chat_round": 1,
+  "input_token": 10,
+  "input_token_details": {},
+  "llm_service_duration": 811,
+  "model": "qwen3-max",
+  "output_token": 11,
+  "output_token_details": {},
+  "question": "Hello!",
+  "response_type": "normal",
+  "total_token": 21
+}
