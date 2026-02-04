@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -290,7 +291,13 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	args := []interface{}{}
 	filters := []string{} // 记录使用的过滤条件
 	
-	// 时间范围查询
+	// 时间范围查询 (支持 start_time 参数)
+	if start := params.Get("start_time"); start != "" {
+		whereClause = append(whereClause, "start_time >= ?")
+		args = append(args, start)
+		filters = append(filters, fmt.Sprintf("start_time>=%s", start))
+	}
+	// 兼容旧参数 start
 	if start := params.Get("start"); start != "" {
 		whereClause = append(whereClause, "start_time >= ?")
 		args = append(args, start)
@@ -302,7 +309,13 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		filters = append(filters, fmt.Sprintf("end<=%s", end))
 	}
 	
-	// 服务名查询
+	// authority 查询 (原始字段名)
+	if authority := params.Get("authority"); authority != "" {
+		whereClause = append(whereClause, "authority = ?")
+		args = append(args, authority)
+		filters = append(filters, fmt.Sprintf("authority=%s", authority))
+	}
+	// 兼容旧参数 service
 	if service := params.Get("service"); service != "" {
 		whereClause = append(whereClause, "authority = ?")
 		args = append(args, service)
@@ -316,14 +329,28 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		filters = append(filters, fmt.Sprintf("method=%s", method))
 	}
 	
-	// 路径查询
+	// 路径查询 (支持精确匹配和模糊匹配)
 	if path := params.Get("path"); path != "" {
-		whereClause = append(whereClause, "path LIKE ?")
-		args = append(args, "%"+path+"%")
-		filters = append(filters, fmt.Sprintf("path~=%s", path))
+		if pathLike := params.Get("path_like"); pathLike == "true" {
+			// 模糊查询
+			whereClause = append(whereClause, "path LIKE ?")
+			args = append(args, "%"+path+"%")
+			filters = append(filters, fmt.Sprintf("path LIKE %%%s%%", path))
+		} else {
+			// 默认模糊查询 (兼容原有行为)
+			whereClause = append(whereClause, "path LIKE ?")
+			args = append(args, "%"+path+"%")
+			filters = append(filters, fmt.Sprintf("path LIKE %%%s%%", path))
+		}
 	}
 	
-	// 状态码查询
+	// 状态码查询 (原始字段名 response_code)
+	if responseCode := params.Get("response_code"); responseCode != "" {
+		whereClause = append(whereClause, "response_code = ?")
+		args = append(args, responseCode)
+		filters = append(filters, fmt.Sprintf("response_code=%s", responseCode))
+	}
+	// 兼容旧参数 status
 	if status := params.Get("status"); status != "" {
 		whereClause = append(whereClause, "response_code = ?")
 		args = append(args, status)
@@ -361,20 +388,31 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("[Query] COUNT result: total=%d (duration=%v)", total, countDuration)
 	
-	// 分页参数
+	// 分页参数 (带错误处理)
 	page := 1
 	pageSize := 10
 	if p := params.Get("page"); p != "" {
-		fmt.Sscanf(p, "%d", &page)
+		if n, err := strconv.Atoi(p); err == nil {
+			page = n
+		} else {
+			log.Printf("[Query] Invalid page parameter: %s, using default: 1", p)
+		}
 		if page < 1 {
+			log.Printf("[Query] Page < 1 (%d), corrected to 1", page)
 			page = 1
 		}
 	}
 	if ps := params.Get("page_size"); ps != "" {
-		fmt.Sscanf(ps, "%d", &pageSize)
+		if n, err := strconv.Atoi(ps); err == nil {
+			pageSize = n
+		} else {
+			log.Printf("[Query] Invalid page_size parameter: %s, using default: 10", ps)
+		}
 		if pageSize < 1 {
+			log.Printf("[Query] Page_size < 1 (%d), corrected to 10", pageSize)
 			pageSize = 10
 		} else if pageSize > 100 {
+			log.Printf("[Query] Page_size > 100 (%d), limited to 100", pageSize)
 			pageSize = 100 // 限制最大页面大小
 		}
 	}
