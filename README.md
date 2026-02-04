@@ -45,7 +45,7 @@ Higress was born within Alibaba to solve the issues of Tengine reload affecting 
 
 You can click the button below to install the enterprise version of Higress:
 
-[![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i1/O1CN01e6vwe71EWTHoZEcpK_!!6000000000359-55-tps-170-40.svg)](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
+[![Deploy on AlibabaCloud](https://img.alicdn.com/imgextra/i1/O1CN01e6vwe71EWTHoZEcpK_!!6000000000359-55-tps-170-40.svg)](https://www.aliyun.com/product/api-gateway?spm=higress-github.topbar.0.0.0)
 
 
 If you use open-source Higress and wish to obtain enterprise-level support, you can contact the project maintainer johnlanni's email: **zty98751@alibaba-inc.com** or social media accounts (WeChat ID: **nomadao**, DingTalk ID: **chengtanzty**). Please note **Higress** when adding as a friend :)
@@ -119,7 +119,16 @@ If you are deploying on the cloud, it is recommended to use the [Enterprise Edit
 
   Higress can function as a feature-rich ingress controller, which is compatible with many annotations of K8s' nginx ingress controller.
   
-  [Gateway API](https://gateway-api.sigs.k8s.io/) support is coming soon and will support smooth migration from Ingress API to Gateway API.
+  [Gateway API](https://gateway-api.sigs.k8s.io/) is already supported, and it supports a smooth migration from Ingress API to Gateway API.
+
+  Compared to ingress-nginx, the resource overhead has significantly decreased, and the speed at which route changes take effect has improved by ten times.
+
+  > The following resource overhead comparison comes from [sealos](https://github.com/labring).
+  >
+  > For details, you can read this [article](https://sealos.io/blog/sealos-envoy-vs-nginx-2000-tenants) to understand how sealos migrates the monitoring of **tens of thousands of ingress** resources from nginx ingress to higress.
+
+   ![](https://img.alicdn.com/imgextra/i1/O1CN01bhEtb229eeMNBWmdP_!!6000000008093-2-tps-750-547.png)
+
   
 - **Microservice gateway**:
 
