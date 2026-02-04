@@ -44,7 +44,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | controller.autoscaling.minReplicas | int | `1` |  |
 | controller.autoscaling.targetCPUUtilizationPercentage | int | `80` |  |
 | controller.env | object | `{}` |  |
-| controller.hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
+| controller.hub | string | `""` |  |
 | controller.image | string | `"higress"` |  |
 | controller.imagePullSecrets | list | `[]` |  |
 | controller.labels | object | `{}` |  |
@@ -96,7 +96,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.hostNetwork | bool | `false` |  |
 | gateway.httpPort | int | `80` |  |
 | gateway.httpsPort | int | `443` |  |
-| gateway.hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
+| gateway.hub | string | `""` |  |
 | gateway.image | string | `"gateway"` |  |
 | gateway.kind | string | `"Deployment"` | Use a `DaemonSet` or `Deployment` |
 | gateway.labels | object | `{}` | Labels to apply to all resources |
@@ -195,7 +195,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.multiCluster.clusterName | string | `""` | Should be set to the name of the cluster this installation will run in. This is required for sidecar injection to properly label proxies |
 | global.multiCluster.enabled | bool | `true` | Set to true to connect two kubernetes clusters via their respective ingressgateway services when pods in each cluster cannot directly talk to one another. All clusters should be using Istio mTLS and must have a shared root CA for this model to work. |
 | global.network | string | `""` | Network defines the network this cluster belong to. This name corresponds to the networks in the map of mesh networks. |
-| global.o11y | object | `{"enabled":false,"promtail":{"image":{"repository":"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/promtail","tag":"2.9.4"},"port":3101,"resources":{"limits":{"cpu":"500m","memory":"2Gi"}},"securityContext":{}}}` | Observability (o11y) configurations |
+| global.o11y | object | `{"enabled":false,"promtail":{"image":{"repository":"","tag":"2.9.4"},"port":3101,"resources":{"limits":{"cpu":"500m","memory":"2Gi"}},"securityContext":{}}}` | Observability (o11y) configurations |
 | global.omitSidecarInjectorConfigMap | bool | `false` |  |
 | global.onDemandRDS | bool | `false` |  |
 | global.oneNamespace | bool | `false` | Whether to restrict the applications namespace the controller manages; If not set, controller watches all namespaces |
@@ -247,7 +247,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | global.watchNamespace | string | `""` | If not empty, Higress Controller will only watch resources in the specified namespace. When isolating different business systems using K8s namespace, if each namespace requires a standalone gateway instance, this parameter can be used to confine the Ingress watching of Higress within the given namespace. |
 | global.xdsMaxRecvMsgSize | string | `"104857600"` |  |
 | gzip | object | `{"chunkSize":4096,"compressionLevel":"BEST_COMPRESSION","compressionStrategy":"DEFAULT_STRATEGY","contentType":["text/html","text/css","text/plain","text/xml","application/json","application/javascript","application/xhtml+xml","image/svg+xml"],"disableOnEtagHeader":true,"enable":true,"memoryLevel":5,"minContentLength":1024,"windowBits":12}` | Gzip compression settings |
-| hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
+| hub | string | `""` |  |
 | meshConfig | object | `{"enablePrometheusMerge":true,"rootNamespace":null,"trustDomain":"cluster.local"}` | meshConfig defines runtime configuration of components, including Istiod and istio-agent behavior See https://istio.io/docs/reference/config/istio.mesh.v1alpha1/ for all available options |
 | meshConfig.rootNamespace | string | `nil` | The namespace to treat as the administrative root namespace for Istio configuration. When processing a leaf namespace Istio will search for declarations in that namespace first and if none are found it will search in the root namespace. Any matching declaration found in the root namespace is processed as if it were declared in the leaf namespace. |
 | meshConfig.trustDomain | string | `"cluster.local"` | The trust domain corresponds to the trust root of a system Refer to https://github.com/spiffe/spiffe/blob/master/standards/SPIFFE-ID.md#21-trust-domain |
@@ -264,7 +264,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | pilot.env.PILOT_ENABLE_METADATA_EXCHANGE | string | `"false"` |  |
 | pilot.env.PILOT_SCOPE_GATEWAY_TO_NAMESPACE | string | `"false"` |  |
 | pilot.env.VALIDATION_ENABLED | string | `"false"` |  |
-| pilot.hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
+| pilot.hub | string | `""` |  |
 | pilot.image | string | `"pilot"` | Can be a full hub/image:tag |
 | pilot.jwksResolverExtraRootCA | string | `""` | You can use jwksResolverExtraRootCA to provide a root certificate in PEM format. This will then be trusted by pilot when resolving JWKS URIs. |
 | pilot.keepaliveMaxServerConnectionAge | string | `"30m"` | The following is used to limit how long a sidecar can be connected to a pilot. It balances out load across pilot instances at the cost of increasing system churn. |
@@ -279,7 +279,7 @@ The command removes all the Kubernetes components associated with the chart and 
 | pilot.serviceAnnotations | object | `{}` |  |
 | pilot.tag | string | `""` |  |
 | pilot.traceSampling | float | `1` |  |
-| pluginServer.hub | string | `"higress-registry.cn-hangzhou.cr.aliyuncs.com/higress"` |  |
+| pluginServer.hub | string | `""` |  |
 | pluginServer.image | string | `"plugin-server"` |  |
 | pluginServer.imagePullSecrets | list | `[]` |  |
 | pluginServer.labels | object | `{}` |  |

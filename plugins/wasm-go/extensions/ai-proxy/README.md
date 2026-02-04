@@ -57,6 +57,7 @@ description: AI 代理插件配置参考
 | `reasoningContentMode` | string                 | 非必填   | -      | 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 passthrough。仅支持通义千问服务。                                                                                                                                                                                                                                        |
 | `capabilities`         | map of string          | 非必填   | -      | 部分 provider 的部分 ai 能力原生兼容 openai/v1 格式，不需要重写，可以直接转发，通过此配置项指定来开启转发, key 表示的是采用的厂商协议能力，values 表示的真实的厂商该能力的 api path, 厂商协议能力当前支持: openai/v1/chatcompletions, openai/v1/embeddings, openai/v1/imagegeneration, openai/v1/audiospeech, cohere/v1/rerank                                                                                                             |
 | `subPath`              | string                 | 非必填   | -      | 如果配置了subPath，将会先移除请求path中该前缀，再进行后续处理                                                                                                                                                                                                                                                                                                                                                                              |
+| `contextCleanupCommands` | array of string      | 非必填   | -      | 上下文清理命令列表。当请求的 messages 中存在完全匹配任意一个命令的 user 消息时，将该消息及之前所有非 system 消息清理掉，只保留 system 消息和该命令之后的消息。可用于主动清理对话上下文。                                                                                                                                                                                                                                                    |
 
 `context`的配置字段说明如下：
 
@@ -2389,11 +2390,92 @@ providers:
 }
 ```
 
+### 使用上下文清理命令
 
+配置上下文清理命令后，用户可以通过发送特定消息来主动清理对话历史，实现"重新开始对话"的效果。
 
+**配置信息**
 
+```yaml
+provider:
+  type: qwen
+  apiTokens:
+    - "YOUR_QWEN_API_TOKEN"
+  modelMapping:
+    "*": "qwen-turbo"
+  contextCleanupCommands:
+    - "清理上下文"
+    - "/clear"
+    - "重新开始"
+    - "新对话"
+```
 
+**请求示例**
 
+当用户发送包含清理命令的请求时：
+
+```json
+{
+  "model": "gpt-3",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个助手"
+    },
+    {
+      "role": "user",
+      "content": "你好"
+    },
+    {
+      "role": "assistant",
+      "content": "你好！有什么可以帮助你的？"
+    },
+    {
+      "role": "user",
+      "content": "今天天气怎么样"
+    },
+    {
+      "role": "assistant",
+      "content": "抱歉，我无法获取实时天气信息。"
+    },
+    {
+      "role": "user",
+      "content": "清理上下文"
+    },
+    {
+      "role": "user",
+      "content": "现在开始新话题，介绍一下你自己"
+    }
+  ]
+}
+```
+
+**实际发送给 AI 服务的请求**
+
+插件会自动清理"清理上下文"命令及之前的所有非 system 消息：
+
+```json
+{
+  "model": "qwen-turbo",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一个助手"
+    },
+    {
+      "role": "user",
+      "content": "现在开始新话题，介绍一下你自己"
+    }
+  ]
+}
+```
+
+**说明**
+
+- 清理命令必须完全匹配配置的字符串，部分匹配不会触发清理
+- 当存在多个清理命令时，只处理最后一个匹配的命令
+- 清理会保留所有 system 消息，删除命令及之前的 user、assistant、tool 消息
+- 清理命令之后的所有消息都会保留
 
 ## 完整配置示例
 

@@ -397,6 +397,9 @@ type ProviderConfig struct {
 	// @Title zh-CN  指定服务返回的响应需满足的JSON Schema
 	// @Description zh-CN 目前仅适用于OpenAI部分模型服务。参考：https://platform.openai.com/docs/guides/structured-outputs
 	responseJsonSchema map[string]interface{} `required:"false" yaml:"responseJsonSchema" json:"responseJsonSchema"`
+	// @Title zh-CN 自定义认证Header名称
+	// @Description zh-CN 用于从请求中提取认证token的自定义header名称。如不配置，则按默认优先级检查 x-api-key、x-authorization、anthropic-api-key 和 Authorization header。
+	authHeaderKey string `required:"false" yaml:"authHeaderKey" json:"authHeaderKey"`
 	// @Title zh-CN 自定义大模型参数配置
 	// @Description zh-CN 用于填充或者覆盖大模型调用时的参数
 	customSettings []CustomSetting
@@ -418,6 +421,9 @@ type ProviderConfig struct {
 	// @Title zh-CN generic Provider 对应的Host
 	// @Description zh-CN 仅适用于generic provider，用于覆盖请求转发的目标Host
 	genericHost string `required:"false" yaml:"genericHost" json:"genericHost"`
+	// @Title zh-CN 上下文清理命令
+	// @Description zh-CN 配置清理命令文本列表，当请求的 messages 中存在完全匹配任意一个命令的 user 消息时，将该消息及之前所有非 system 消息清理掉，实现主动清理上下文的效果
+	contextCleanupCommands []string `required:"false" yaml:"contextCleanupCommands" json:"contextCleanupCommands"`
 	// @Title zh-CN 首包超时
 	// @Description zh-CN 流式请求中收到上游服务第一个响应包的超时时间，单位为毫秒。默认值为 0，表示不开启首包超时
 	firstByteTimeout uint32 `required:"false" yaml:"firstByteTimeout" json:"firstByteTimeout"`
@@ -456,6 +462,10 @@ func (c *ProviderConfig) GetVllmCustomUrl() string {
 
 func (c *ProviderConfig) GetVllmServerHost() string {
 	return c.vllmServerHost
+}
+
+func (c *ProviderConfig) GetContextCleanupCommands() []string {
+	return c.contextCleanupCommands
 }
 
 func (c *ProviderConfig) IsOpenAIProtocol() bool {
@@ -636,6 +646,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
+	c.contextCleanupCommands = make([]string, 0)
+	for _, cmd := range json.Get("contextCleanupCommands").Array() {
+		if cmd.String() != "" {
+			c.contextCleanupCommands = append(c.contextCleanupCommands, cmd.String())
+		}
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -944,6 +960,16 @@ func (c *ProviderConfig) handleRequestBody(
 			return types.ActionContinue, fmt.Errorf("failed to convert claude request to openai: %v", err)
 		}
 		log.Debugf("[Auto Protocol] converted Claude request body to OpenAI format")
+	}
+
+	// handle context cleanup command for chat completion requests
+	if apiName == ApiNameChatCompletion && len(c.contextCleanupCommands) > 0 {
+		body, err = cleanupContextMessages(body, c.contextCleanupCommands)
+		if err != nil {
+			log.Warnf("[contextCleanup] failed to cleanup context messages: %v", err)
+			// Continue processing even if cleanup fails
+			err = nil
+		}
 	}
 
 	// use openai protocol (either original openai or converted from claude)
