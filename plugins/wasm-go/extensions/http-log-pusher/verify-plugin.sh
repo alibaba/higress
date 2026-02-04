@@ -196,12 +196,6 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Step 4: 检查 WasmPlugin 状态"
-echo "=========================================="
-kubectl get wasmplugin -n "$NAMESPACE" "$PLUGIN_NAME" -o yaml | grep -A 10 "status:" || echo "无 status 字段"
-
-echo ""
-echo "=========================================="
 echo "Step 5: 发送测试请求触发插件 (测试 model-api-qwen72b-0 Ingress)"
 echo "=========================================="
 echo "发送请求到: http://$GATEWAY_IP/test-ai/v1/chat/completions"

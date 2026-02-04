@@ -144,8 +144,14 @@ func flushLogs() {
 	for _, entry := range chunk {
 		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?)")
 
+		// 转换 RFC3339 时间为 MySQL datetime 格式
+		startTime := entry.StartTime
+		if t, err := time.Parse(time.RFC3339, entry.StartTime); err == nil {
+			startTime = t.Format("2006-01-02 15:04:05")
+		}
+
 		valueArgs = append(valueArgs,
-			entry.StartTime,
+			startTime,
 			entry.TraceID,
 			entry.Authority,
 			entry.Method,

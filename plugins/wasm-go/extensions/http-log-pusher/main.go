@@ -31,7 +31,7 @@ func init() {
 
 // PluginConfig 定义插件配置 (对应 WasmPlugin 资源中的 pluginConfig)
 type PluginConfig struct {
-	CollectorClientName string             `json:"collector_service"` // Envoy 集群名,例如 "outbound|8080||collector-service.default.svc.cluster.local"
+	CollectorServiceName string             `json:"collector_service_name"` // fqdn,例如 "log-collector.higress-system.svc.cluster.local"
 	CollectorHost       string             `json:"collector_host"`    // Collector 主机名或 IP,例如 "collector-service.default.svc.cluster.local" 或 "192.168.1.100"
 	CollectorPort       int64              `json:"collector_port"`    // Collector 端口,例如 8080
 	CollectorPath       string             `json:"collector_path"`    // 接收日志的 API 路径,例如 "/api/log"
@@ -91,14 +91,14 @@ type LogEntry struct {
 func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) error {
 	log.Infof("[http-log-pusher] parsing config: %s", jsonConf.String())
 	
-	config.CollectorClientName = jsonConf.Get("collector_service").String()
+	config.CollectorServiceName = jsonConf.Get("collector_service_name").String()
 	config.CollectorHost = jsonConf.Get("collector_host").String()
 	config.CollectorPort = jsonConf.Get("collector_port").Int()
 	
 	// 校验必填参数
-	if config.CollectorClientName == "" && (config.CollectorHost == "" || config.CollectorPort == 0) {
-		log.Errorf("[http-log-pusher] either collector_service or (collector_host + collector_port) is required")
-		return errors.New("either collector_service or (collector_host + collector_port) is required")
+	if config.CollectorServiceName == "" || config.CollectorHost == "" || config.CollectorPort == 0 {
+		log.Errorf("[http-log-pusher] either collector_service_name or (collector_host + collector_port) is required")
+		return errors.New("either collector_service_name or (collector_host + collector_port) is required")
 	}
 	
 	config.CollectorPath = jsonConf.Get("collector_path").String()
@@ -108,32 +108,12 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 	
 	// 创建 HTTP 客户端用于发送日志
 	// 优先使用 host + port 方式,更稳定可靠
-	if config.CollectorHost != "" && config.CollectorPort > 0 {
-		log.Infof("[http-log-pusher] using host+port cluster: host=%s, port=%d", config.CollectorHost, config.CollectorPort)
-		config.CollectorClient = wrapper.NewClusterClient(wrapper.StaticIpCluster{
-			ServiceName: config.CollectorHost,
-			Port:        config.CollectorPort,
-			Host:        config.CollectorHost,
-		})
-	} else if config.CollectorClientName != "" {
-		// 仅当未配置host/port时才使用预定义集群名(需确保该集群在Envoy中存在)
-		log.Infof("[http-log-pusher] using predefined cluster: %s", config.CollectorClientName)
-		
-		// 从集群名称中提取主机名（格式：outbound|port||host）
-		host := config.CollectorHost
-		if host == "" && strings.Contains(config.CollectorClientName, "||") {
-			parts := strings.Split(config.CollectorClientName, "||")
-			if len(parts) == 2 {
-				host = parts[1]
-				log.Infof("[http-log-pusher] extracted host from cluster name: %s", host)
-			}
-		}
-		
-		config.CollectorClient = wrapper.NewClusterClient(wrapper.TargetCluster{
-			Host:    host,
-			Cluster: config.CollectorClientName,
-		})
-	}
+	log.Infof("[http-log-pusher] using host+port cluster: host=%s, port=%d", config.CollectorHost, config.CollectorPort)
+	config.CollectorClient = wrapper.NewClusterClient(wrapper.DnsCluster{
+		ServiceName: config.CollectorServiceName,
+		Port:        config.CollectorPort,
+		Domain:        config.CollectorHost,
+	})
 	
 	// 解析过滤规则
 	if err := parseFilterRules(jsonConf, config, log); err != nil {
@@ -141,8 +121,6 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 		return err
 	}
 	
-	log.Infof("[http-log-pusher] config parsed successfully: collector_service=%s, collector_host=%s, collector_port=%d, collector_path=%s, filter_mode=%s, filter_rules=%d, final_cluster=%s",
-		config.CollectorClientName, config.CollectorHost, config.CollectorPort, config.CollectorPath, config.FilterRules.Mode, len(config.FilterRules.RuleList), config.CollectorClient.ClusterName())
 	return nil
 }
 
