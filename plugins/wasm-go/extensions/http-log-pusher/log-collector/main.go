@@ -192,17 +192,17 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	
 	// 时间范围查询
 	if start := params.Get("start"); start != "" {
-		whereClause = append(whereClause, "ts >= ?")
+		whereClause = append(whereClause, "start_time >= ?")
 		args = append(args, start)
 	}
 	if end := params.Get("end"); end != "" {
-		whereClause = append(whereClause, "ts <= ?")
+		whereClause = append(whereClause, "start_time <= ?")
 		args = append(args, end)
 	}
 	
 	// 服务名查询
 	if service := params.Get("service"); service != "" {
-		whereClause = append(whereClause, "service = ?")
+		whereClause = append(whereClause, "authority = ?")
 		args = append(args, service)
 	}
 	
@@ -220,7 +220,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	
 	// 状态码查询
 	if status := params.Get("status"); status != "" {
-		whereClause = append(whereClause, "status = ?")
+		whereClause = append(whereClause, "response_code = ?")
 		args = append(args, status)
 	}
 	
@@ -270,10 +270,10 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * pageSize
 	
 	// 排序参数
-	sortBy := "ts"
+	sortBy := "start_time"
 	sortOrder := "DESC"
 	if sb := params.Get("sort_by"); sb != "" {
-		if sb == "ts" || sb == "status" || sb == "latency" || sb == "service" || sb == "method" {
+		if sb == "start_time" || sb == "response_code" || sb == "duration" || sb == "authority" || sb == "method" {
 			sortBy = sb
 		}
 	}
