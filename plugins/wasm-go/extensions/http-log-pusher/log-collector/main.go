@@ -183,8 +183,8 @@ func flushLogs() {
 	valueArgs := []interface{}{}
 
 	for idx, entry := range chunk {
-		// 27 个字段的占位符
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		// 26 个字段的占位符 (对齐 log-format.json)
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
 		// 转换 RFC3339 时间为 MySQL datetime 格式
 		startTime := entry.StartTime
@@ -194,50 +194,50 @@ func flushLogs() {
 			log.Printf("[FlushLogs] Entry %d: Failed to parse start_time '%s': %v", idx, entry.StartTime, err)
 		}
 
-		// 按表结构顺序:27 个字段完整映射
+		// 按表结构顺序:26 个字段完整映射 (对齐 log-format.json)
 		valueArgs = append(valueArgs,
-			// 基础请求信息
-			startTime,
-			entry.TraceID,
-			entry.Authority,
-			entry.Method,
-			entry.Path,
-			entry.Protocol,
-			entry.RequestID,
-			entry.UserAgent,
-			entry.XForwardedFor,
-			// 响应信息
-			entry.ResponseCode,
-			entry.ResponseFlags,
-			entry.ResponseCodeDetails,
-			// 流量信息
-			entry.BytesReceived,
-			entry.BytesSent,
-			entry.Duration,
-			// 上游信息
-			entry.UpstreamCluster,
-			entry.UpstreamHost,
-			entry.UpstreamServiceTime,
-			entry.UpstreamTransportFailureReason,
-			entry.UpstreamLocalAddress,
-			// 连接信息
-			entry.DownstreamLocalAddress,
-			entry.DownstreamRemoteAddress,
-			// 路由信息
-			entry.RouteName,
-			entry.RequestedServerName,
-			// Istio 相关
-			entry.IstioPolicyStatus,
-			// AI 日志
-			entry.AILog,
+			// 基础请求信息 (9字段)
+			startTime,                  // start_time
+			entry.TraceID,              // trace_id
+			entry.Authority,            // authority
+			entry.Method,               // method
+			entry.Path,                 // path
+			entry.Protocol,             // protocol
+			entry.RequestID,            // request_id
+			entry.UserAgent,            // user_agent
+			entry.XForwardedFor,        // x_forwarded_for
+			// 响应信息 (3字段)
+			entry.ResponseCode,         // response_code
+			entry.ResponseFlags,        // response_flags
+			entry.ResponseCodeDetails,  // response_code_details
+			// 流量信息 (3字段)
+			entry.BytesReceived,        // bytes_received
+			entry.BytesSent,            // bytes_sent
+			entry.Duration,             // duration
+			// 上游信息 (5字段)
+			entry.UpstreamCluster,                  // upstream_cluster
+			entry.UpstreamHost,                     // upstream_host
+			entry.UpstreamServiceTime,              // upstream_service_time
+			entry.UpstreamTransportFailureReason,   // upstream_transport_failure_reason
+			entry.UpstreamLocalAddress,             // upstream_local_address
+			// 连接信息 (2字段)
+			entry.DownstreamLocalAddress,   // downstream_local_address
+			entry.DownstreamRemoteAddress,  // downstream_remote_address
+			// 路由信息 (2字段)
+			entry.RouteName,            // route_name
+			entry.RequestedServerName,  // requested_server_name
+			// Istio + AI (2字段)
+			entry.IstioPolicyStatus,    // istio_policy_status
+			entry.AILog,                // ai_log
 		)
+		// 总计: 9+3+3+5+2+2+2 = 26 字段
 		
 		log.Printf("[FlushLogs] Entry %d: path=%s, method=%s, status=%d, authority=%s", 
 			idx, entry.Path, entry.Method, entry.ResponseCode, entry.Authority)
 	}
 
 	// 统计实际参数数量
-	expectedParamsPerRow := 27
+	expectedParamsPerRow := 26  // 对齐 log-format.json 的 26 个字段
 	actualParamsTotal := len(valueArgs)
 	actualRowCount := len(chunk)
 	expectedParamsTotal := expectedParamsPerRow * actualRowCount
@@ -250,6 +250,7 @@ func flushLogs() {
 			expectedParamsTotal, actualParamsTotal)
 	}
 
+	// 构建 INSERT 语句 (26个字段,对齐 log-format.json)
 	stmt := fmt.Sprintf(`INSERT INTO access_logs (
 		start_time, trace_id, authority, method, path, protocol, request_id, user_agent, x_forwarded_for,
 		response_code, response_flags, response_code_details,
@@ -261,9 +262,7 @@ func flushLogs() {
 		ai_log
 	) VALUES %s`, strings.Join(valueStrings, ","))
 	
-	// 统计 SQL 中的列数
-	columnCount := 26 // 手动数 INSERT INTO 语句中的列数
-	log.Printf("[FlushLogs] SQL Column Count: %d", columnCount)
+	log.Printf("[FlushLogs] SQL Column Count: 26 (对齐 log-format.json)")
 	log.Printf("[FlushLogs] SQL Preview (first 500 chars): %s", stmt[:min(500, len(stmt))])
 
 	// 执行写入
@@ -273,7 +272,7 @@ func flushLogs() {
 		// 这里体现了 POC 方案的脆弱性:如果 DB 挂了,这一批日志就直接丢了
 		log.Printf("[FlushLogs] Failed to insert batch logs: %v", err)
 		log.Printf("[FlushLogs] Failed SQL: %s", stmt)
-		log.Printf("[FlushLogs] First row args (%d params): %v", min(27, len(valueArgs)), valueArgs[:min(27, len(valueArgs))])
+		log.Printf("[FlushLogs] First row args (%d params): %v", min(26, len(valueArgs)), valueArgs[:min(26, len(valueArgs))])
 	} else {
 		log.Printf("[FlushLogs] SUCCESS: Flushed %d logs to MySQL in %v", len(chunk), time.Since(start))
 	}
