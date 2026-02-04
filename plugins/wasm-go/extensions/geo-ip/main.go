@@ -72,6 +72,8 @@ type GeoIpData struct {
 }
 
 func parseConfig(json gjson.Result, config *GeoIpConfig, log log.Log) error {
+	log.Infof("geo-ip plugin parseConfig started, MaxEntriesForCI=%d", MaxEntriesForCI)
+
 	sourceType := json.Get("ip_source_type")
 	if sourceType.Exists() && sourceType.String() != "" {
 		switch sourceType.String() {
@@ -105,9 +107,15 @@ func parseConfig(json gjson.Result, config *GeoIpConfig, log log.Log) error {
 		}
 	}
 
+	log.Infof("geo-ip plugin config: IPSourceType=%s, IPHeaderName=%s, IpProtocol=%s",
+		config.IPSourceType, config.IPHeaderName, config.IpProtocol)
+
 	if HaveInitGeoIpDb {
+		log.Infof("geo-ip database already initialized, skipping initialization")
 		return nil
 	}
+
+	log.Infof("starting geo-ip database initialization")
 
 	// Try progressive loading with timeout protection
 	if err := ReadGeoIpDataProgressively(log); err != nil {
@@ -183,17 +191,20 @@ func ReadGeoIpDataProgressively(log log.Log) error {
 		city     string
 		isp      string
 	}{
-		// Test IP: 70.155.208.224 (US)
-		{"70.155.0.0/18", "美国", "佛罗里达", "", "美国电话电报"},
-		{"70.155.64.0/18", "美国", "佐治亚", "亚特兰大", "美国电话电报"},
-		{"70.155.128.0/20", "美国", "田纳西", "纳什维尔", "美国电话电报"},
-		{"70.155.144.0/20", "美国", "路易斯安那", "巴吞鲁日", "美国电话电报"},
-		{"70.155.160.0/19", "美国", "密西西比", "", "美国电话电报"},
-		{"70.155.192.0/18", "美国", "阿拉巴马", "伯明翰", "美国电话电报"},
-		// Test IP: 2.2.128.100 (France)
+		// Test IP: 70.155.208.224 (US) - expects "密西西比"
+		// 70.155.208.224 falls in 70.155.208.0/20 range (208.0-223.255)
+		{"70.155.0.0/18", "美国", "佛罗里达", "", "美国电话电报"},        // 0.0-63.255
+		{"70.155.64.0/18", "美国", "佐治亚", "亚特兰大", "美国电话电报"},    // 64.0-127.255
+		{"70.155.128.0/20", "美国", "田纳西", "纳什维尔", "美国电话电报"},   // 128.0-143.255
+		{"70.155.144.0/20", "美国", "路易斯安那", "巴吞鲁日", "美国电话电报"}, // 144.0-159.255
+		{"70.155.160.0/19", "美国", "密西西比", "", "美国电话电报"},      // 160.0-191.255
+		{"70.155.192.0/20", "美国", "阿拉巴马", "伯明翰", "美国电话电报"},   // 192.0-207.255
+		{"70.155.208.0/20", "美国", "密西西比", "", "美国电话电报"},      // 208.0-223.255 - covers 70.155.208.224
+		{"70.155.224.0/19", "美国", "阿拉巴马", "伯明翰", "美国电话电报"},   // 224.0-255.255
+		// Test IP: 2.2.128.100 (France) - expects "Var"
 		{"2.2.0.0/19", "法国", "", "", "橘子电信"},
 		{"2.2.96.0/19", "法国", "巴黎", "", "橘子电信"},
-		{"2.2.128.0/19", "法国", "Var", "", "橘子电信"},
+		{"2.2.128.0/19", "法国", "Var", "", "橘子电信"}, // covers 2.2.128.100
 	}
 
 	for _, entry := range testEntries {
@@ -338,7 +349,15 @@ func isInternalIp(ip string) (string, error) {
 	return "", nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.Log) (action types.Action) {
+	// Panic recovery to prevent WASM plugin crash causing HTTP 500
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("panic recovered in onHttpRequestHeaders: %v", r)
+			action = types.ActionContinue
+		}
+	}()
+
 	var (
 		s   string
 		err error
@@ -347,9 +366,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.L
 
 	// Check if GeoIP database is initialized
 	if !HaveInitGeoIpDb || GeoIpRdxTree == nil {
-		log.Debugf("geo-ip database not initialized, skipping IP location enrichment")
+		log.Warnf("geo-ip database not initialized (HaveInitGeoIpDb=%v, GeoIpRdxTree=%v), InitErrorMsg=%s",
+			HaveInitGeoIpDb, GeoIpRdxTree != nil, InitErrorMsg)
 		return types.ActionContinue
 	}
+
+	log.Debugf("geo-ip plugin processing request with IP source type: %s", config.IPSourceType)
 
 	if config.IPSourceType == HeaderSourceType {
 		s, err = proxywasm.GetHttpRequestHeader(config.IPHeaderName)
@@ -366,6 +388,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.L
 		return types.ActionContinue
 	}
 	clientIp := parseIP(s)
+	log.Debugf("processing client IP: %s (raw: %s)", clientIp, s)
 
 	//ipv6 will be implemented in the future.
 	if config.IpProtocol == "ipv6" || strings.Contains(clientIp, ":") {
@@ -388,12 +411,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config GeoIpConfig, log log.L
 			Country:  "内网IP",
 			Isp:      "内网IP",
 		}
+		log.Debugf("client IP %s is internal, using default geo data", clientIp)
 	} else {
 		geoIpData, err = SearchGeoIpDataInRdxtree(clientIp, log)
 		if err != nil {
-			log.Errorf("search geo info failed.%v", err)
+			log.Errorf("search geo info failed for IP %s: %v", clientIp, err)
 			return types.ActionContinue
 		}
+		log.Debugf("found geo data for IP %s: country=%s, province=%s, city=%s, isp=%s",
+			clientIp, geoIpData.Country, geoIpData.Province, geoIpData.City, geoIpData.Isp)
 	}
 
 	proxywasm.SetProperty([]string{"geo-city"}, []byte(geoIpData.City))
