@@ -35,7 +35,6 @@ type PluginConfig struct {
 	CollectorHost       string             `json:"collector_host"`    // Collector 主机名或 IP,例如 "collector-service.default.svc.cluster.local" 或 "192.168.1.100"
 	CollectorPort       int64              `json:"collector_port"`    // Collector 端口,例如 8080
 	CollectorPath       string             `json:"collector_path"`    // 接收日志的 API 路径,例如 "/api/log"
-	FilterRules         FilterRules        `json:"-"`                 // 日志过滤规则
 	CollectorClient     wrapper.HttpClient `json:"-"`                 // HTTP 客户端,用于发送日志
 }
 
@@ -115,107 +114,14 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 		Domain:        config.CollectorHost,
 	})
 	
-	// 解析过滤规则
-	if err := parseFilterRules(jsonConf, config, log); err != nil {
-		log.Errorf("[http-log-pusher] failed to parse filter rules: %v", err)
-		return err
-	}
-	
 	return nil
 }
 
-// 解析过滤规则
-func parseFilterRules(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) error {
-	// 默认值：白名单模式，空规则列表（记录所有日志）
-	config.FilterRules = FilterRulesDefaults()
-	
-	// 解析 filter_mode
-	filterMode := jsonConf.Get("filter_mode").String()
-	log.Infof("[http-log-pusher] parsing filter mode: %s", filterMode)
-	if filterMode != "" {
-		if filterMode != ModeWhitelist && filterMode != ModeBlacklist {
-			log.Warnf("[http-log-pusher] invalid filter_mode '%s', using default 'whitelist'", filterMode)
-			filterMode = ModeWhitelist
-		}
-		config.FilterRules.Mode = filterMode
-	}
-	
-	// 解析 filter_list
-	filterList := jsonConf.Get("filter_list")
-	log.Infof("[http-log-pusher] parsing filter list: %s", filterList.String())
-	if !filterList.Exists() || !filterList.IsArray() {
-		// 未配置 filter_list，使用默认值
-		log.Infof("[http-log-pusher] no filter_list configured, all requests will be logged")
-		return nil
-	}
-	
-	var rules []FilterRule
-	for _, item := range filterList.Array() {
-		rule := FilterRule{}
-		
-		// 解析 filter_rule_domain
-		domain := item.Get("filter_rule_domain").String()
-		if domain != "" {
-			rule.Domain = domain
-		}
-		
-		// 解析 filter_rule_method
-		methods := item.Get("filter_rule_method")
-		if methods.Exists() && methods.IsArray() {
-			for _, m := range methods.Array() {
-				method := strings.ToUpper(m.String())
-				if method != "" {
-					rule.Method = append(rule.Method, method)
-				}
-			}
-		}
-		
-		// 解析 filter_rule_path 和 filter_rule_type
-		path := item.Get("filter_rule_path").String()
-		ruleType := item.Get("filter_rule_type").String()
-		if path != "" && ruleType != "" {
-			matcher, err := BuildStringMatcher(ruleType, path, false)
-			if err != nil {
-				log.Errorf("[http-log-pusher] failed to build path matcher for rule: %v", err)
-				continue
-			}
-			rule.Path = matcher
-		}
-		
-		// 至少需要有一个条件
-		if rule.Domain == "" && rule.Path == nil && len(rule.Method) == 0 {
-			log.Warnf("[http-log-pusher] skipping empty filter rule")
-			continue
-		}
-		
-		rules = append(rules, rule)
-	}
-	
-	config.FilterRules.RuleList = rules
-	log.Infof("[http-log-pusher] parsed %d filter rules in %s mode", len(rules), config.FilterRules.Mode)
-	return nil
-}
 
 // ---------------- 核心逻辑 ----------------
 
 // 1. 处理请求头
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	// 获取 Host 信息
-	host := ctx.Host()
-	method := ctx.Method()
-	path := ctx.Path()
-	
-	
-	// 根据过滤规则判断是否需要记录日志
-	shouldLog := config.FilterRules.ShouldLog(host, method, path)
-	ctx.SetContext("should_log", shouldLog)
-	
-	if !shouldLog {
-		log.Infof("[http-log-pusher] request filtered out by rules, host=%s, path=%s, method=%s", host, path, method)
-		ctx.DontReadRequestBody()
-		return types.ActionContinue
-	}
-	
 	// 获取所有请求头并暂存
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
@@ -231,12 +137,6 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 
 // 2. 处理请求体
 func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	// 检查是否应该记录日志
-	shouldLog, _ := ctx.GetContext("should_log").(bool)
-	if !shouldLog {
-		return types.ActionContinue
-	}
-	
 	if len(body) > 0 {
 		// 注意:大包体可能会分多次回调,生产环境建议限制长度或做截断
 		ctx.SetContext("req_body", string(body))
@@ -246,12 +146,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 // 3. 处理响应头
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
-	// 检查是否应该记录日志
-	shouldLog, _ := ctx.GetContext("should_log").(bool)
-	if !shouldLog {
-		return types.ActionContinue
-	}
-	
 	headers, _ := proxywasm.GetHttpResponseHeaders()
 	ctx.SetContext("resp_headers", headers)
 	return types.ActionContinue
@@ -259,12 +153,6 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wra
 
 // 4. 处理响应体 (也是发送日志的最佳时机)
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
-	// 检查是否应该记录日志
-	shouldLog, _ := ctx.GetContext("should_log").(bool)
-	if !shouldLog {
-		return types.ActionContinue
-	}
-	
 	// 1. 组装数据 - 参考 Envoy accessLogFormat 字段
 	reqHeaders, _ := ctx.GetContext("req_headers").([][2]string)
 	reqBody, _ := ctx.GetContext("req_body").(string)
