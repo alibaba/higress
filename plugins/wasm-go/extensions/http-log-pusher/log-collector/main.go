@@ -99,12 +99,20 @@ func main() {
 		log.Println("Database connected successfully")
 	}
 
-	// 3. 启动后台 Flush 协程
+	// 3. 启动后台 Flush 协程（定时刷新）
+	flushInterval := 1 * time.Second
+	log.Printf("[Batch] Starting background flush goroutine, interval=%v, threshold=%d logs", flushInterval, flushSize)
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(flushInterval)
 		defer ticker.Stop()
 		for range ticker.C {
-			flushLogs()
+			bufferLock.Lock()
+			bufferSize := len(logBuffer)
+			bufferLock.Unlock()
+			if bufferSize > 0 {
+				log.Printf("[Batch] Trigger flush by timer: buffer=%d", bufferSize)
+				flushLogs()
+			}
 		}
 	}()
 
@@ -138,20 +146,15 @@ func handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	log.Printf("[Ingest] Received log: path=%s, method=%s, status=%d, trace_id=%s",
-		entry.Path, entry.Method, entry.ResponseCode, entry.TraceID)
-
 	// 加锁写入内存 Buffer
 	bufferLock.Lock()
 	logBuffer = append(logBuffer, entry)
 	currentLen := len(logBuffer)
 	bufferLock.Unlock()
-	
-	log.Printf("[Ingest] Buffer size: %d/%d", currentLen, flushSize)
 
 	// 达到阈值主动触发 Flush (非阻塞)
 	if currentLen >= flushSize {
-		log.Printf("[Ingest] Buffer full, triggering flush")
+		log.Printf("[Batch] Trigger flush by count: buffer=%d/%d", currentLen, flushSize)
 		go flushLogs()
 	}
 
@@ -175,14 +178,14 @@ func flushLogs() {
 		return
 	}
 
-	log.Printf("[FlushLogs] Preparing to flush %d log entries", len(chunk))
+	log.Printf("[Batch] Start flushing %d logs to MySQL", len(chunk))
 
 	// 警告:这里的代码是为了 POC 写的,简单粗暴。
 	// 生产环境应该使用 sqlx 或者 GORM 的 Batch Insert。
 	valueStrings := []string{}
 	valueArgs := []interface{}{}
 
-	for idx, entry := range chunk {
+	for _, entry := range chunk {
 		// 26 个字段的占位符 (对齐 log-format.json)
 		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
@@ -190,8 +193,6 @@ func flushLogs() {
 		startTime := entry.StartTime
 		if t, err := time.Parse(time.RFC3339, entry.StartTime); err == nil {
 			startTime = t.Format("2006-01-02 15:04:05")
-		} else {
-			log.Printf("[FlushLogs] Entry %d: Failed to parse start_time '%s': %v", idx, entry.StartTime, err)
 		}
 
 		// 按表结构顺序:26 个字段完整映射 (对齐 log-format.json)
@@ -231,23 +232,6 @@ func flushLogs() {
 			entry.AILog,                // ai_log
 		)
 		// 总计: 9+3+3+5+2+2+2 = 26 字段
-		
-		log.Printf("[FlushLogs] Entry %d: path=%s, method=%s, status=%d, authority=%s", 
-			idx, entry.Path, entry.Method, entry.ResponseCode, entry.Authority)
-	}
-
-	// 统计实际参数数量
-	expectedParamsPerRow := 26  // 对齐 log-format.json 的 26 个字段
-	actualParamsTotal := len(valueArgs)
-	actualRowCount := len(chunk)
-	expectedParamsTotal := expectedParamsPerRow * actualRowCount
-	
-	log.Printf("[FlushLogs] SQL Stats: rows=%d, expected_params_total=%d, actual_params_total=%d, params_per_row=%d",
-		actualRowCount, expectedParamsTotal, actualParamsTotal, actualParamsTotal/actualRowCount)
-	
-	if actualParamsTotal != expectedParamsTotal {
-		log.Printf("[FlushLogs] ERROR: Parameter count mismatch! Expected %d but got %d", 
-			expectedParamsTotal, actualParamsTotal)
 	}
 
 	// 构建 INSERT 语句 (26个字段,对齐 log-format.json)
@@ -261,20 +245,17 @@ func flushLogs() {
 		istio_policy_status,
 		ai_log
 	) VALUES %s`, strings.Join(valueStrings, ","))
-	
-	log.Printf("[FlushLogs] SQL Column Count: 26 (对齐 log-format.json)")
-	log.Printf("[FlushLogs] SQL Preview (first 500 chars): %s", stmt[:min(500, len(stmt))])
 
 	// 执行写入
 	start := time.Now()
 	_, err := db.Exec(stmt, valueArgs...)
+	duration := time.Since(start)
 	if err != nil {
 		// 这里体现了 POC 方案的脆弱性:如果 DB 挂了,这一批日志就直接丢了
-		log.Printf("[FlushLogs] Failed to insert batch logs: %v", err)
-		log.Printf("[FlushLogs] Failed SQL: %s", stmt)
-		log.Printf("[FlushLogs] First row args (%d params): %v", min(26, len(valueArgs)), valueArgs[:min(26, len(valueArgs))])
+		log.Printf("[Batch] ❌ FAILED to flush %d logs (duration=%v): %v", len(chunk), duration, err)
 	} else {
-		log.Printf("[FlushLogs] SUCCESS: Flushed %d logs to MySQL in %v", len(chunk), time.Since(start))
+		log.Printf("[Batch] ✓ SUCCESS flushed %d logs to MySQL (duration=%v, avg=%v/log)", 
+			len(chunk), duration, duration/time.Duration(len(chunk)))
 	}
 }
 
@@ -285,8 +266,16 @@ func min(a, b int) int {
 	return b
 }
 
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // 处理日志查询请求
 func handleQuery(w http.ResponseWriter, r *http.Request) {
+	queryStart := time.Now()
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -294,49 +283,58 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	// 解析查询参数
 	params := r.URL.Query()
+	log.Printf("[Query] Request received: %s", r.URL.RawQuery)
 	
 	// 构建查询条件
 	whereClause := []string{}
 	args := []interface{}{}
+	filters := []string{} // 记录使用的过滤条件
 	
 	// 时间范围查询
 	if start := params.Get("start"); start != "" {
 		whereClause = append(whereClause, "start_time >= ?")
 		args = append(args, start)
+		filters = append(filters, fmt.Sprintf("start>=%s", start))
 	}
 	if end := params.Get("end"); end != "" {
 		whereClause = append(whereClause, "start_time <= ?")
 		args = append(args, end)
+		filters = append(filters, fmt.Sprintf("end<=%s", end))
 	}
 	
 	// 服务名查询
 	if service := params.Get("service"); service != "" {
 		whereClause = append(whereClause, "authority = ?")
 		args = append(args, service)
+		filters = append(filters, fmt.Sprintf("service=%s", service))
 	}
 	
 	// HTTP 方法查询
 	if method := params.Get("method"); method != "" {
 		whereClause = append(whereClause, "method = ?")
 		args = append(args, method)
+		filters = append(filters, fmt.Sprintf("method=%s", method))
 	}
 	
 	// 路径查询
 	if path := params.Get("path"); path != "" {
 		whereClause = append(whereClause, "path LIKE ?")
 		args = append(args, "%"+path+"%")
+		filters = append(filters, fmt.Sprintf("path~=%s", path))
 	}
 	
 	// 状态码查询
 	if status := params.Get("status"); status != "" {
 		whereClause = append(whereClause, "response_code = ?")
 		args = append(args, status)
+		filters = append(filters, fmt.Sprintf("status=%s", status))
 	}
 	
 	// TraceID 查询
 	if traceID := params.Get("trace_id"); traceID != "" {
 		whereClause = append(whereClause, "trace_id = ?")
 		args = append(args, traceID)
+		filters = append(filters, fmt.Sprintf("trace_id=%s", traceID))
 	}
 	
 	// 构建完整的 WHERE 子句
@@ -344,13 +342,16 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	if len(whereClause) > 0 {
 		whereSQL = "WHERE " + strings.Join(whereClause, " AND ")
 	}
+	log.Printf("[Query] Filters applied: [%s]", strings.Join(filters, ", "))
 	
 	// 计算总记录数
+	countStart := time.Now()
 	countSQL := "SELECT COUNT(*) FROM access_logs " + whereSQL
 	var total int64
 	err := db.QueryRow(countSQL, args...).Scan(&total)
+	countDuration := time.Since(countStart)
 	if err != nil {
-		log.Printf("Error counting logs: %v", err)
+		log.Printf("[Query] ❌ COUNT failed (duration=%v): %v", countDuration, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(QueryResponse{
 			Status: "error",
@@ -358,6 +359,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	log.Printf("[Query] COUNT result: total=%d (duration=%v)", total, countDuration)
 	
 	// 分页参数
 	page := 1
@@ -377,6 +379,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	offset := (page - 1) * pageSize
+	log.Printf("[Query] Pagination: page=%d, page_size=%d, offset=%d", page, pageSize, offset)
 	
 	// 排序参数（必须使用数据库真实字段名）
 	sortBy := "start_time"
@@ -404,6 +407,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 			sortOrder = "ASC"
 		}
 	}
+	log.Printf("[Query] Sorting: sort_by=%s, sort_order=%s", sortBy, sortOrder)
 	
 	// 构建查询 SQL（查询所有 27 个字段）
 	querySQL := fmt.Sprintf(`
@@ -423,9 +427,11 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	args = append(args, pageSize, offset)
 	
 	// 执行查询
+	queryExecStart := time.Now()
 	rows, err := db.Query(querySQL, args...)
+	queryExecDuration := time.Since(queryExecStart)
 	if err != nil {
-		log.Printf("Error querying logs: %v", err)
+		log.Printf("[Query] ❌ SELECT failed (duration=%v): %v", queryExecDuration, err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(QueryResponse{
 			Status: "error",
@@ -434,8 +440,10 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
+	log.Printf("[Query] SELECT executed (duration=%v)", queryExecDuration)
 	
 	// 解析查询结果（读取所有 27 个字段）
+	parseScanStart := time.Now()
 	logs := []LogEntry{}
 	for rows.Next() {
 		var entry LogEntry
@@ -462,16 +470,19 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 			&entry.AILog,
 		)
 		if err != nil {
-			log.Printf("Error scanning log entry: %v", err)
+			log.Printf("[Query] Error scanning row: %v", err)
 			continue
 		}
 
 		entry.StartTime = startTime.Format(time.RFC3339)
 		logs = append(logs, entry)
 	}
+	parseScanDuration := time.Since(parseScanStart)
+	log.Printf("[Query] Rows scanned: count=%d (duration=%v, avg=%v/row)", 
+		len(logs), parseScanDuration, parseScanDuration/time.Duration(max(1, len(logs))))
 	
 	if err = rows.Err(); err != nil {
-		log.Printf("Error iterating rows: %v", err)
+		log.Printf("[Query] Error iterating rows: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(QueryResponse{
 			Status: "error",
@@ -479,6 +490,10 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	
+	totalDuration := time.Since(queryStart)
+	log.Printf("[Query] ✓ SUCCESS: returned=%d/%d logs (total_duration=%v, count=%v, query=%v, scan=%v)",
+		len(logs), total, totalDuration, countDuration, queryExecDuration, parseScanDuration)
 	
 	// 返回查询结果
 	w.Header().Set("Content-Type", "application/json")
