@@ -567,6 +567,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body 
 			}
 		}
 	}
+	ctx.SetContext(tokenusage.CtxKeyRequestModel, requestModel)
 	setSpanAttribute(ArmsRequestModel, requestModel)
 	// Set the number of conversation rounds
 
