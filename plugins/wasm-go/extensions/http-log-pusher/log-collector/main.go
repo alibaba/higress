@@ -133,19 +133,25 @@ func handleIngest(w http.ResponseWriter, r *http.Request) {
 	var entry LogEntry
 	// 简单粗暴的 JSON 解析
 	if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
-		log.Printf("Error decoding JSON: %v", err)
+		log.Printf("[Ingest] Error decoding JSON: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	
+	log.Printf("[Ingest] Received log: path=%s, method=%s, status=%d, trace_id=%s",
+		entry.Path, entry.Method, entry.ResponseCode, entry.TraceID)
 
 	// 加锁写入内存 Buffer
 	bufferLock.Lock()
 	logBuffer = append(logBuffer, entry)
 	currentLen := len(logBuffer)
 	bufferLock.Unlock()
+	
+	log.Printf("[Ingest] Buffer size: %d/%d", currentLen, flushSize)
 
 	// 达到阈值主动触发 Flush (非阻塞)
 	if currentLen >= flushSize {
+		log.Printf("[Ingest] Buffer full, triggering flush")
 		go flushLogs()
 	}
 
@@ -169,12 +175,14 @@ func flushLogs() {
 		return
 	}
 
-	// 警告：这里的代码是为了 POC 写的，简单粗暴。
+	log.Printf("[FlushLogs] Preparing to flush %d log entries", len(chunk))
+
+	// 警告:这里的代码是为了 POC 写的,简单粗暴。
 	// 生产环境应该使用 sqlx 或者 GORM 的 Batch Insert。
 	valueStrings := []string{}
 	valueArgs := []interface{}{}
 
-	for _, entry := range chunk {
+	for idx, entry := range chunk {
 		// 27 个字段的占位符
 		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
@@ -182,9 +190,11 @@ func flushLogs() {
 		startTime := entry.StartTime
 		if t, err := time.Parse(time.RFC3339, entry.StartTime); err == nil {
 			startTime = t.Format("2006-01-02 15:04:05")
+		} else {
+			log.Printf("[FlushLogs] Entry %d: Failed to parse start_time '%s': %v", idx, entry.StartTime, err)
 		}
 
-		// 按表结构顺序：27 个字段完整映射
+		// 按表结构顺序:27 个字段完整映射
 		valueArgs = append(valueArgs,
 			// 基础请求信息
 			startTime,
@@ -221,6 +231,23 @@ func flushLogs() {
 			// AI 日志
 			entry.AILog,
 		)
+		
+		log.Printf("[FlushLogs] Entry %d: path=%s, method=%s, status=%d, authority=%s", 
+			idx, entry.Path, entry.Method, entry.ResponseCode, entry.Authority)
+	}
+
+	// 统计实际参数数量
+	expectedParamsPerRow := 27
+	actualParamsTotal := len(valueArgs)
+	actualRowCount := len(chunk)
+	expectedParamsTotal := expectedParamsPerRow * actualRowCount
+	
+	log.Printf("[FlushLogs] SQL Stats: rows=%d, expected_params_total=%d, actual_params_total=%d, params_per_row=%d",
+		actualRowCount, expectedParamsTotal, actualParamsTotal, actualParamsTotal/actualRowCount)
+	
+	if actualParamsTotal != expectedParamsTotal {
+		log.Printf("[FlushLogs] ERROR: Parameter count mismatch! Expected %d but got %d", 
+			expectedParamsTotal, actualParamsTotal)
 	}
 
 	stmt := fmt.Sprintf(`INSERT INTO access_logs (
@@ -233,16 +260,30 @@ func flushLogs() {
 		istio_policy_status,
 		ai_log
 	) VALUES %s`, strings.Join(valueStrings, ","))
+	
+	// 统计 SQL 中的列数
+	columnCount := 26 // 手动数 INSERT INTO 语句中的列数
+	log.Printf("[FlushLogs] SQL Column Count: %d", columnCount)
+	log.Printf("[FlushLogs] SQL Preview (first 500 chars): %s", stmt[:min(500, len(stmt))])
 
 	// 执行写入
 	start := time.Now()
 	_, err := db.Exec(stmt, valueArgs...)
 	if err != nil {
-		// 这里体现了 POC 方案的脆弱性：如果 DB 挂了，这一批日志就直接丢了
-		log.Printf("Failed to insert batch logs: %v", err)
+		// 这里体现了 POC 方案的脆弱性:如果 DB 挂了,这一批日志就直接丢了
+		log.Printf("[FlushLogs] Failed to insert batch logs: %v", err)
+		log.Printf("[FlushLogs] Failed SQL: %s", stmt)
+		log.Printf("[FlushLogs] First row args (%d params): %v", min(27, len(valueArgs)), valueArgs[:min(27, len(valueArgs))])
 	} else {
-		log.Printf("Flushed %d logs to MySQL in %v", len(chunk), time.Since(start))
+		log.Printf("[FlushLogs] SUCCESS: Flushed %d logs to MySQL in %v", len(chunk), time.Since(start))
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // 处理日志查询请求
