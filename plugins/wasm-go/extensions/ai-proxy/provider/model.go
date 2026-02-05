@@ -130,6 +130,68 @@ type function struct {
 	Parameters  map[string]interface{} `json:"parameters,omitempty"`
 }
 
+// cleanFunctionParameters 清理 function parameters 中某些 AI 服务（如 Vertex AI、Gemini）不支持的 JSON Schema 字段
+// 这些服务基于 OpenAPI 3.0 规范，不支持标准 JSON Schema 的元数据字段如 $schema, $id, $ref 等
+// 注意：某些客户端可能使用不带 $ 前缀的变体（如 ref 代替 $ref），也需要一并清理
+func cleanFunctionParameters(params map[string]interface{}) map[string]interface{} {
+	if params == nil {
+		return nil
+	}
+
+	// 需要移除的 JSON Schema 元数据字段
+	// 包括带 $ 前缀的标准字段和不带 $ 前缀的变体
+	unsupportedKeys := []string{
+		// 标准 JSON Schema 元数据字段
+		"$schema",
+		"$id",
+		"$ref",
+		"$defs",
+		"definitions",
+		"$comment",
+		"$vocabulary",
+		"$anchor",
+		"$dynamicRef",
+		"$dynamicAnchor",
+		// 不带 $ 前缀的变体（某些客户端可能使用）
+		"ref",
+	}
+
+	result := make(map[string]interface{})
+	for key, value := range params {
+		// 检查是否是不支持的字段
+		isUnsupported := false
+		for _, unsupportedKey := range unsupportedKeys {
+			if key == unsupportedKey {
+				isUnsupported = true
+				break
+			}
+		}
+		if isUnsupported {
+			continue
+		}
+
+		// 递归清理嵌套的 map
+		switch v := value.(type) {
+		case map[string]interface{}:
+			result[key] = cleanFunctionParameters(v)
+		case []interface{}:
+			// 处理数组中的 map 元素
+			cleanedArray := make([]interface{}, len(v))
+			for i, item := range v {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					cleanedArray[i] = cleanFunctionParameters(itemMap)
+				} else {
+					cleanedArray[i] = item
+				}
+			}
+			result[key] = cleanedArray
+		default:
+			result[key] = value
+		}
+	}
+	return result
+}
+
 type toolChoice struct {
 	Type     string   `json:"type"`
 	Function function `json:"function"`
