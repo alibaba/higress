@@ -32,4 +32,4 @@
 	path = envoy/envoy
 	url = https://github.com/higress-group/envoy
 	branch = envoy-1.36
-	shallow = false
+	shallow = true
