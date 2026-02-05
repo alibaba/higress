@@ -21,7 +21,7 @@
 [submodule "istio/proxy"]
 	path = istio/proxy
 	url = https://github.com/higress-group/proxy
-	branch = istio-1.19
+	branch = envoy-1.36
 	shallow = true
 [submodule "envoy/go-control-plane"]
 	path = envoy/go-control-plane
@@ -31,5 +31,5 @@
 [submodule "envoy/envoy"]
 	path = envoy/envoy
 	url = https://github.com/higress-group/envoy
-	branch = envoy-1.27
-	shallow = true
+	branch = envoy-1.36
+	shallow = false
