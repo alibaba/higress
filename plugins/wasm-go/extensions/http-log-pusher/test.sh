@@ -1,4 +1,4 @@
-NAMESPACE="himarket-system"
+NAMESPACE="ls-test"
 # 1. 获取 higress-gateway Pod
 POD=$(kubectl get pod -n "$NAMESPACE" -l app=higress-gateway -o jsonpath='{.items[0].metadata.name}')
 

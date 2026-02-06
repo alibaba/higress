@@ -2,7 +2,7 @@
 
 set -e
 
-NAMESPACE="himarket-system"
+NAMESPACE="ls-test"
 GATEWAY_IP="8.153.103.221"
 PLUGIN_NAME="http-log-push-plugin"
 CONFIG_FILE="/Users/terry/work/higress/plugins/wasm-go/extensions/http-log-pusher/higress-wasm-plugin-improved.yaml"
