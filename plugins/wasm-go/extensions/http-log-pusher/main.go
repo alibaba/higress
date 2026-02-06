@@ -190,7 +190,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	upstreamLocalAddr := getEnvoyProperty("upstream_local_address", "")
 	routeName := getEnvoyProperty("route_name", "")
 	sni := getEnvoyProperty("requested_server_name", "")
-	aiLog := getEnvoyProperty("wasm.ai_log", "")
+	// aiLog 从 WASM filter state 的 "ai_log" 读取，而不是 "wasm.ai_log"
+	aiLogBytes, _ := proxywasm.GetProperty([]string{wrapper.AILogKey})
+	aiLog := string(aiLogBytes)
 	
 	// 计算耗时
 	duration := time.Now().UnixMilli() - startTime
