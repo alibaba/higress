@@ -5,7 +5,7 @@
 
 set -e
 
-NAMESPACE="himarket-system"
+NAMESPACE="ls-test"
 DEFAULT_LEVEL="debug"
 
 # 颜色定义

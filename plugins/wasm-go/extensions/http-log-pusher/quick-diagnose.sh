@@ -1,8 +1,8 @@
 #!/bin/bash
 # 快速诊断 log-collector 连通性
 
-# 注意：Gateway 在 himarket-system，log-collector 在 higress-system
-GATEWAY_NS="himarket-system"
+# 注意：Gateway 在 ls-test，log-collector 在 higress-system
+GATEWAY_NS="ls-test"
 COLLECTOR_NS="higress-system"
 
 echo "1. 检查 Service 状态..."

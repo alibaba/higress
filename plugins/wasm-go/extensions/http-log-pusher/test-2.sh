@@ -1,4 +1,4 @@
-NAMESPACE="himarket-system"
+NAMESPACE="ls-test"
 # 1. 获取 higress-gateway Pod
 POD=$(kubectl get pod -n "$NAMESPACE" -l app=higress-controller -o jsonpath='{.items[0].metadata.name}')
 
@@ -31,5 +31,5 @@ kubectl logs -n "$NAMESPACE" "$POD" -c higress-core --tail=100 -f --timestamps |
 # POD=$(kubectl get pod -n ls-test -l app=higress-gateway -o jsonpath='{.items[0].metadata.name}')
 
 # # 查找所有包含 "travel-assistant" 的路由（不严格匹配路径）
-# kubectl exec -n himarket-system $POD -c higress-gateway -- \
+# kubectl exec -n ls-test $POD -c higress-gateway -- \
 #   curl -s localhost:15000/config_dump > config_dump.json
