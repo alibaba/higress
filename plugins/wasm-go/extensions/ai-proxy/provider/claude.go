@@ -21,11 +21,9 @@ const (
 	claudeDefaultMaxTokens = 4096
 
 	// Claude Code mode constants
-	claudeCodeUserAgent      = "claude-cli/2.1.2 (external, cli)"
-	claudeCodeBetaFeatures   = "oauth-2025-04-20,interleaved-thinking-2025-05-14,claude-code-20250219"
-	claudeCodeSystemPrompt   = "You are Claude Code, Anthropic's official CLI for Claude."
-	claudeCodeBashToolName   = "Bash"
-	claudeCodeBashToolDesc   = "Run bash commands"
+	claudeCodeUserAgent    = "claude-cli/2.1.2 (external, cli)"
+	claudeCodeBetaFeatures = "oauth-2025-04-20,interleaved-thinking-2025-05-14,claude-code-20250219"
+	claudeCodeSystemPrompt = "You are Claude Code, Anthropic's official CLI for Claude."
 )
 
 type claudeProviderInitializer struct{}
@@ -550,32 +548,6 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 			InputSchema: tool.Function.Parameters,
 		}
 		claudeRequest.Tools = append(claudeRequest.Tools, claudeTool)
-	}
-
-	// In Claude Code mode, add Bash tool if not present
-	if c.config.claudeCodeMode {
-		hasBashTool := false
-		for _, tool := range claudeRequest.Tools {
-			if tool.Name == claudeCodeBashToolName {
-				hasBashTool = true
-				break
-			}
-		}
-		if !hasBashTool {
-			claudeRequest.Tools = append(claudeRequest.Tools, claudeTool{
-				Name:        claudeCodeBashToolName,
-				Description: claudeCodeBashToolDesc,
-				InputSchema: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"command": map[string]interface{}{
-							"type": "string",
-						},
-					},
-					"required": []string{"command"},
-				},
-			})
-		}
 	}
 
 	if tc := origRequest.getToolChoiceObject(); tc != nil {

@@ -199,7 +199,6 @@ When `claudeCodeMode: true` is enabled, the plugin will:
 - Set Claude Code-specific request headers (user-agent, x-app, anthropic-beta)
 - Add `?beta=true` query parameter to request URLs
 - Automatically inject Claude Code system prompt if not provided
-- Automatically inject Bash tool definition if not provided
 
 This enables direct use of Claude Code OAuth tokens for authentication in Higress.
 
@@ -1177,7 +1176,7 @@ provider:
 Once this mode is enabled, the plugin will automatically:
 - Use Bearer Token authentication (instead of x-api-key)
 - Set Claude Code-specific request headers and query parameters
-- Inject Claude Code system prompt and Bash tool definitions if not provided
+- Inject Claude Code system prompt if not provided
 
 **Request Example**
 
@@ -1196,7 +1195,6 @@ Once this mode is enabled, the plugin will automatically:
 
 The plugin will automatically transform the request into Claude Code format, including:
 - Adding system prompt: `"You are Claude Code, Anthropic's official CLI for Claude."`
-- Adding Bash tool definition (for command execution)
 - Setting appropriate authentication and request headers
 
 ### Using Intelligent Protocol Conversion
