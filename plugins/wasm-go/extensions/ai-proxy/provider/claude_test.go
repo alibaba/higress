@@ -237,104 +237,6 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ClaudeCodeMode(t *testing.T) {
 		assert.Equal(t, "ephemeral", claudeReq.System.ArrayValue[0].CacheControl["type"])
 	})
 
-	t.Run("injects_bash_tool_when_missing", func(t *testing.T) {
-		request := &chatCompletionRequest{
-			Model:     "claude-sonnet-4-5-20250929",
-			MaxTokens: 8192,
-			Messages: []chatMessage{
-				{Role: roleUser, Content: "List files"},
-			},
-		}
-
-		claudeReq := provider.buildClaudeTextGenRequest(request)
-
-		// Should have Bash tool injected
-		require.Len(t, claudeReq.Tools, 1)
-		assert.Equal(t, claudeCodeBashToolName, claudeReq.Tools[0].Name)
-		assert.Equal(t, claudeCodeBashToolDesc, claudeReq.Tools[0].Description)
-		// Verify input schema
-		assert.NotNil(t, claudeReq.Tools[0].InputSchema)
-		assert.Equal(t, "object", claudeReq.Tools[0].InputSchema["type"])
-	})
-
-	t.Run("does_not_duplicate_bash_tool", func(t *testing.T) {
-		request := &chatCompletionRequest{
-			Model:     "claude-sonnet-4-5-20250929",
-			MaxTokens: 8192,
-			Messages: []chatMessage{
-				{Role: roleUser, Content: "List files"},
-			},
-			Tools: []tool{
-				{
-					Type: "function",
-					Function: function{
-						Name:        "Bash",
-						Description: "Custom bash tool",
-						Parameters: map[string]interface{}{
-							"type": "object",
-							"properties": map[string]interface{}{
-								"command": map[string]interface{}{"type": "string"},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		claudeReq := provider.buildClaudeTextGenRequest(request)
-
-		// Should not duplicate Bash tool
-		assert.Len(t, claudeReq.Tools, 1)
-		assert.Equal(t, "Bash", claudeReq.Tools[0].Name)
-		// Should preserve the original description
-		assert.Equal(t, "Custom bash tool", claudeReq.Tools[0].Description)
-	})
-
-	t.Run("adds_bash_tool_alongside_existing_tools", func(t *testing.T) {
-		request := &chatCompletionRequest{
-			Model:     "claude-sonnet-4-5-20250929",
-			MaxTokens: 8192,
-			Messages: []chatMessage{
-				{Role: roleUser, Content: "Hello"},
-			},
-			Tools: []tool{
-				{
-					Type: "function",
-					Function: function{
-						Name:        "Read",
-						Description: "Read files",
-						Parameters: map[string]interface{}{
-							"type": "object",
-						},
-					},
-				},
-				{
-					Type: "function",
-					Function: function{
-						Name:        "Write",
-						Description: "Write files",
-						Parameters: map[string]interface{}{
-							"type": "object",
-						},
-					},
-				},
-			},
-		}
-
-		claudeReq := provider.buildClaudeTextGenRequest(request)
-
-		// Should have original tools plus Bash tool
-		assert.Len(t, claudeReq.Tools, 3)
-
-		toolNames := make([]string, len(claudeReq.Tools))
-		for i, tool := range claudeReq.Tools {
-			toolNames[i] = tool.Name
-		}
-		assert.Contains(t, toolNames, "Read")
-		assert.Contains(t, toolNames, "Write")
-		assert.Contains(t, toolNames, "Bash")
-	})
-
 	t.Run("full_request_transformation", func(t *testing.T) {
 		request := &chatCompletionRequest{
 			Model:       "claude-sonnet-4-5-20250929",
@@ -363,9 +265,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ClaudeCodeMode(t *testing.T) {
 		require.Len(t, claudeReq.Messages, 1)
 		assert.Equal(t, roleUser, claudeReq.Messages[0].Role)
 
-		// Verify Bash tool
-		require.Len(t, claudeReq.Tools, 1)
-		assert.Equal(t, "Bash", claudeReq.Tools[0].Name)
+		// Verify no tools are injected by default
+		assert.Empty(t, claudeReq.Tools)
 
 		// Verify the request can be serialized to JSON
 		jsonBytes, err := json.Marshal(claudeReq)
@@ -388,8 +289,6 @@ func TestClaudeConstants(t *testing.T) {
 	assert.Equal(t, "claude-cli/2.1.2 (external, cli)", claudeCodeUserAgent)
 	assert.Equal(t, "oauth-2025-04-20,interleaved-thinking-2025-05-14,claude-code-20250219", claudeCodeBetaFeatures)
 	assert.Equal(t, "You are Claude Code, Anthropic's official CLI for Claude.", claudeCodeSystemPrompt)
-	assert.Equal(t, "Bash", claudeCodeBashToolName)
-	assert.Equal(t, "Run bash commands", claudeCodeBashToolDesc)
 }
 
 func TestClaudeProvider_GetApiName(t *testing.T) {
