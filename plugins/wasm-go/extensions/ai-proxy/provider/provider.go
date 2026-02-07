@@ -442,6 +442,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 豆包服务域名
 	// @Description zh-CN 仅适用于豆包服务，默认转发域名为 ark.cn-beijing.volces.com
 	doubaoDomain string `required:"false" yaml:"doubaoDomain" json:"doubaoDomain"`
+	// @Title zh-CN Claude Code 模式
+	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
+	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -646,6 +649,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
+	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
 	c.contextCleanupCommands = make([]string, 0)
 	for _, cmd := range json.Get("contextCleanupCommands").Array() {
 		if cmd.String() != "" {

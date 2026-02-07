@@ -185,11 +185,23 @@ For MiniMax, the corresponding `type` is `minimax`. Its unique configuration fie
 
 #### Anthropic Claude
 
-For Anthropic Claude, the corresponding `type` is `claude`. Its unique configuration field is:
+For Anthropic Claude, the corresponding `type` is `claude`. Its unique configuration fields are:
 
 | Name        | Data Type   | Filling Requirements | Default Value | Description                                                                                                    |
 |------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------------|
 | `claudeVersion` | string | Optional             | -             | The version of the Claude service's API, default is 2023-06-01.                                               |
+| `claudeCodeMode` | boolean | Optional             | false         | Enable Claude Code mode for OAuth token authentication. When enabled, requests will be formatted as Claude Code client requests. |
+
+**Claude Code Mode**
+
+When `claudeCodeMode: true` is enabled, the plugin will:
+- Use Bearer Token authentication instead of x-api-key (compatible with Claude Code OAuth tokens)
+- Set Claude Code-specific request headers (user-agent, x-app, anthropic-beta)
+- Add `?beta=true` query parameter to request URLs
+- Automatically inject Claude Code system prompt if not provided
+- Automatically inject Bash tool definition if not provided
+
+This enables direct use of Claude Code OAuth tokens for authentication in Higress.
 
 #### Ollama
 
@@ -1147,6 +1159,45 @@ Both protocol formats will return responses in their respective formats:
   }
 }
 ```
+
+### Using Claude Code Mode
+
+Claude Code is Anthropic's official CLI tool. By enabling `claudeCodeMode`, you can authenticate using Claude Code OAuth tokens:
+
+**Configuration Information**
+
+```yaml
+provider:
+  type: claude
+  apiTokens:
+    - "sk-ant-oat01-xxxxx"  # Claude Code OAuth Token
+  claudeCodeMode: true  # Enable Claude Code mode
+```
+
+Once this mode is enabled, the plugin will automatically:
+- Use Bearer Token authentication (instead of x-api-key)
+- Set Claude Code-specific request headers and query parameters
+- Inject Claude Code system prompt and Bash tool definitions if not provided
+
+**Request Example**
+
+```json
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "max_tokens": 8192,
+  "messages": [
+    {
+      "role": "user",
+      "content": "List files in current directory"
+    }
+  ]
+}
+```
+
+The plugin will automatically transform the request into Claude Code format, including:
+- Adding system prompt: `"You are Claude Code, Anthropic's official CLI for Claude."`
+- Adding Bash tool definition (for command execution)
+- Setting appropriate authentication and request headers
 
 ### Using Intelligent Protocol Conversion
 
