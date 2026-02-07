@@ -233,7 +233,6 @@ Anthropic Claude 所对应的 `type` 为 `claude`。它特有的配置字段如�
 - 设置 Claude Code 特定的请求头（user-agent、x-app、anthropic-beta）
 - 为请求 URL 添加 `?beta=true` 查询参数
 - 自动注入 Claude Code 的系统提示词（如未提供）
-- 自动注入 Bash 工具定义（如未提供）
 
 这允许在 Higress 中直接使用 Claude Code 的 OAuth Token 进行身份验证。
 
@@ -1240,7 +1239,7 @@ provider:
 启用此模式后，插件将自动：
 - 使用 Bearer Token 认证（而非 x-api-key）
 - 设置 Claude Code 特定的请求头和查询参数
-- 注入 Claude Code 的系统提示词和 Bash 工具（如未提供）
+- 注入 Claude Code 的系统提示词（如未提供）
 
 **请求示例**
 
@@ -1259,7 +1258,6 @@ provider:
 
 插件将自动转换为适合 Claude Code 的请求格式，包括：
 - 添加系统提示词：`"You are Claude Code, Anthropic's official CLI for Claude."`
-- 添加 Bash 工具定义（用于执行命令）
 - 设置适当的认证和请求头
 
 ### 使用智能协议转换
