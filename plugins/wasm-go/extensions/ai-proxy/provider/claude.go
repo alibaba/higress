@@ -19,6 +19,13 @@ const (
 	claudeDomain           = "api.anthropic.com"
 	claudeDefaultVersion   = "2023-06-01"
 	claudeDefaultMaxTokens = 4096
+
+	// Claude Code mode constants
+	claudeCodeUserAgent      = "claude-cli/2.1.2 (external, cli)"
+	claudeCodeBetaFeatures   = "oauth-2025-04-20,interleaved-thinking-2025-05-14,claude-code-20250219"
+	claudeCodeSystemPrompt   = "You are Claude Code, Anthropic's official CLI for Claude."
+	claudeCodeBashToolName   = "Bash"
+	claudeCodeBashToolDesc   = "Run bash commands"
 )
 
 type claudeProviderInitializer struct{}
@@ -319,13 +326,36 @@ func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), c.config.capabilities)
 	util.OverwriteRequestHostHeader(headers, claudeDomain)
 
-	headers.Set("x-api-key", c.config.GetApiTokenInUse(ctx))
-
 	if c.config.apiVersion == "" {
 		c.config.apiVersion = claudeDefaultVersion
 	}
-
 	headers.Set("anthropic-version", c.config.apiVersion)
+
+	// Check if Claude Code mode is enabled
+	if c.config.claudeCodeMode {
+		// Claude Code mode: use OAuth token with Bearer authorization
+		token := c.config.GetApiTokenInUse(ctx)
+		headers.Set("authorization", "Bearer "+token)
+		headers.Del("x-api-key")
+
+		// Set Claude Code specific headers
+		headers.Set("user-agent", claudeCodeUserAgent)
+		headers.Set("x-app", "cli")
+		headers.Set("anthropic-beta", claudeCodeBetaFeatures)
+
+		// Add ?beta=true query parameter to the path
+		currentPath := headers.Get(":path")
+		if currentPath != "" && !strings.Contains(currentPath, "beta=true") {
+			if strings.Contains(currentPath, "?") {
+				headers.Set(":path", currentPath+"&beta=true")
+			} else {
+				headers.Set(":path", currentPath+"?beta=true")
+			}
+		}
+	} else {
+		// Standard mode: use x-api-key
+		headers.Set("x-api-key", c.config.GetApiTokenInUse(ctx))
+	}
 }
 
 func (c *claudeProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
@@ -413,11 +443,30 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 		claudeRequest.MaxTokens = claudeDefaultMaxTokens
 	}
 
+	// Track if system message exists in original request
+	hasSystemMessage := false
 	for _, message := range origRequest.Messages {
 		if message.Role == roleSystem {
-			claudeRequest.System = &claudeSystemPrompt{
-				StringValue: message.StringContent(),
-				IsArray:     false,
+			hasSystemMessage = true
+			// In Claude Code mode, use array format with cache_control
+			if c.config.claudeCodeMode {
+				claudeRequest.System = &claudeSystemPrompt{
+					ArrayValue: []claudeChatMessageContent{
+						{
+							Type: contentTypeText,
+							Text: message.StringContent(),
+							CacheControl: map[string]interface{}{
+								"type": "ephemeral",
+							},
+						},
+					},
+					IsArray: true,
+				}
+			} else {
+				claudeRequest.System = &claudeSystemPrompt{
+					StringValue: message.StringContent(),
+					IsArray:     false,
+				}
 			}
 			continue
 		}
@@ -478,6 +527,22 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 		claudeRequest.Messages = append(claudeRequest.Messages, claudeMessage)
 	}
 
+	// In Claude Code mode, add default system prompt if not present
+	if c.config.claudeCodeMode && !hasSystemMessage {
+		claudeRequest.System = &claudeSystemPrompt{
+			ArrayValue: []claudeChatMessageContent{
+				{
+					Type: contentTypeText,
+					Text: claudeCodeSystemPrompt,
+					CacheControl: map[string]interface{}{
+						"type": "ephemeral",
+					},
+				},
+			},
+			IsArray: true,
+		}
+	}
+
 	for _, tool := range origRequest.Tools {
 		claudeTool := claudeTool{
 			Name:        tool.Function.Name,
@@ -485,6 +550,32 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 			InputSchema: tool.Function.Parameters,
 		}
 		claudeRequest.Tools = append(claudeRequest.Tools, claudeTool)
+	}
+
+	// In Claude Code mode, add Bash tool if not present
+	if c.config.claudeCodeMode {
+		hasBashTool := false
+		for _, tool := range claudeRequest.Tools {
+			if tool.Name == claudeCodeBashToolName {
+				hasBashTool = true
+				break
+			}
+		}
+		if !hasBashTool {
+			claudeRequest.Tools = append(claudeRequest.Tools, claudeTool{
+				Name:        claudeCodeBashToolName,
+				Description: claudeCodeBashToolDesc,
+				InputSchema: map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"command": map[string]interface{}{
+							"type": "string",
+						},
+					},
+					"required": []string{"command"},
+				},
+			})
+		}
 	}
 
 	if tc := origRequest.getToolChoiceObject(); tc != nil {
