@@ -224,6 +224,18 @@ Anthropic Claude 所对应的 `type` 为 `claude`。它特有的配置字段如�
 | 名称            | 数据类型 | 填写要求 | 默认值 | 描述                                      |
 | --------------- | -------- | -------- | ------ | ----------------------------------------- |
 | `claudeVersion` | string   | 可选     | -      | Claude 服务的 API 版本，默认为 2023-06-01 |
+| `claudeCodeMode` | boolean | 可选     | false  | 启用 Claude Code 模式，用于支持 Claude Code OAuth 令牌认证。启用后将伪装成 Claude Code 客户端发起请求 |
+
+**Claude Code 模式说明**
+
+启用 `claudeCodeMode: true` 时，插件将：
+- 使用 Bearer Token 认证替代 x-api-key（适配 Claude Code OAuth 令牌）
+- 设置 Claude Code 特定的请求头（user-agent、x-app、anthropic-beta）
+- 为请求 URL 添加 `?beta=true` 查询参数
+- 自动注入 Claude Code 的系统提示词（如未提供）
+- 自动注入 Bash 工具定义（如未提供）
+
+这允许在 Higress 中直接使用 Claude Code 的 OAuth Token 进行身份验证。
 
 #### Ollama
 
@@ -1210,6 +1222,45 @@ URL: `http://your-domain/v1/messages`
   }
 }
 ```
+
+### 使用 Claude Code 模式
+
+Claude Code 是 Anthropic 提供的官方 CLI 工具。通过启用 `claudeCodeMode`，可以使用 Claude Code 的 OAuth Token 进行身份验证：
+
+**配置信息**
+
+```yaml
+provider:
+  type: claude
+  apiTokens:
+    - 'sk-ant-oat01-xxxxx'  # Claude Code OAuth Token
+  claudeCodeMode: true  # 启用 Claude Code 模式
+```
+
+启用此模式后，插件将自动：
+- 使用 Bearer Token 认证（而非 x-api-key）
+- 设置 Claude Code 特定的请求头和查询参数
+- 注入 Claude Code 的系统提示词和 Bash 工具（如未提供）
+
+**请求示例**
+
+```json
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "max_tokens": 8192,
+  "messages": [
+    {
+      "role": "user",
+      "content": "List files in current directory"
+    }
+  ]
+}
+```
+
+插件将自动转换为适合 Claude Code 的请求格式，包括：
+- 添加系统提示词：`"You are Claude Code, Anthropic's official CLI for Claude."`
+- 添加 Bash 工具定义（用于执行命令）
+- 设置适当的认证和请求头
 
 ### 使用智能协议转换
 
