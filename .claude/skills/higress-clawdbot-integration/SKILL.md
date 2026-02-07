@@ -10,14 +10,14 @@ Deploy and configure Higress AI Gateway for Clawdbot/OpenClaw integration with o
 ## Prerequisites
 
 - Docker installed and running
-- Internet access to download the setup script
+- Internet access to download setup script
 - LLM provider API keys (at least one)
 
 ## Workflow
 
 ### Step 1: Download Setup Script
 
-Download the official get-ai-gateway.sh script:
+Download official get-ai-gateway.sh script:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/higress-group/higress-standalone/main/all-in-one/get-ai-gateway.sh -o get-ai-gateway.sh
@@ -26,15 +26,17 @@ chmod +x get-ai-gateway.sh
 
 ### Step 2: Gather Configuration
 
-Ask the user for:
+Ask user for:
 
 1. **LLM Provider API Keys** (at least one required):
-   
+
    **Top Commonly Used Providers:**
    - Aliyun Dashscope (Qwen): `--dashscope-key`
    - DeepSeek: `--deepseek-key`
    - Moonshot (Kimi): `--moonshot-key`
    - Zhipu AI: `--zhipuai-key`
+   - Claude Code (OAuth mode): `--claude-code-key` (run `claude setup-token` to get token)
+   - Claude: `--claude-key`
    - Minimax: `--minimax-key`
    - Azure OpenAI: `--azure-key`
    - AWS Bedrock: `--bedrock-key`
@@ -42,8 +44,8 @@ Ask the user for:
    - OpenAI: `--openai-key`
    - OpenRouter: `--openrouter-key`
    - Grok: `--grok-key`
-   
-   See CLI Parameters Reference for complete list with model pattern options.
+
+   To configure additional providers beyond the above, run `./get-ai-gateway.sh --help` to view the complete list of supported models and providers.
 
 2. **Port Configuration** (optional):
    - HTTP port: `--http-port` (default: 8080)
@@ -56,7 +58,7 @@ Ask the user for:
 
 ### Step 3: Run Setup Script
 
-Run the script in non-interactive mode with gathered parameters:
+Run script in non-interactive mode with gathered parameters:
 
 ```bash
 ./get-ai-gateway.sh start --non-interactive \
@@ -100,23 +102,23 @@ After script completion:
    docker ps --filter "name=higress-ai-gateway"
    ```
 
-2. Test the gateway endpoint:
+2. Test gateway endpoint:
    ```bash
    curl http://localhost:8080/v1/models
    ```
 
-3. Access the console (optional):
+3. Access console (optional):
    ```
    http://localhost:8001
    ```
 
 ### Step 5: Configure Clawdbot/OpenClaw Plugin
 
-If the user wants to use Higress with Clawdbot/OpenClaw, install the appropriate plugin:
+If user wants to use Higress with Clawdbot/OpenClaw, install appropriate plugin:
 
 #### Automatic Installation
 
-Detect runtime and install the correct plugin version:
+Detect runtime and install correct plugin version:
 
 ```bash
 # Detect which runtime is installed
@@ -133,7 +135,7 @@ else
   exit 1
 fi
 
-# Install the plugin
+# Install plugin
 PLUGIN_DEST="$RUNTIME_DIR/extensions/higress-ai-gateway"
 echo "Installing Higress AI Gateway plugin for $RUNTIME..."
 mkdir -p "$(dirname "$PLUGIN_DEST")"
@@ -142,7 +144,7 @@ cp -r "$PLUGIN_SRC" "$PLUGIN_DEST"
 echo "✓ Plugin installed at: $PLUGIN_DEST"
 
 # Configure provider
-echo
+echo ""
 echo "Configuring provider..."
 $RUNTIME models auth login --provider higress
 ```
@@ -161,10 +163,8 @@ After deployment, manage API keys without redeploying:
 ```bash
 # View configured API keys
 ./get-ai-gateway.sh config list
-
 # Add or update an API key (hot-reload, no restart needed)
 ./get-ai-gateway.sh config add --provider <provider> --key <api-key>
-
 # Remove an API key (hot-reload, no restart needed)
 ./get-ai-gateway.sh config remove --provider <provider>
 ```
@@ -220,13 +220,15 @@ PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
 | `--deepseek-key` | DeepSeek |
 | `--moonshot-key` | Moonshot (Kimi) |
 | `--zhipuai-key` | Zhipu AI |
+| `--claude-code-key` | Claude Code (OAuth mode - run `claude setup-token` to get token) |
+| `--claude-key` | Claude |
 | `--openai-key` | OpenAI |
 | `--openrouter-key` | OpenRouter |
-| `--claude-key` | Claude |
 | `--gemini-key` | Google Gemini |
 | `--groq-key` | Groq |
 
 **Additional Providers:**
+
 `--doubao-key`, `--baichuan-key`, `--yi-key`, `--stepfun-key`, `--minimax-key`, `--cohere-key`, `--mistral-key`, `--github-key`, `--fireworks-key`, `--togetherai-key`, `--grok-key`, `--azure-key`, `--bedrock-key`, `--vertex-key`
 
 ## Managing Configuration
@@ -236,15 +238,14 @@ PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
 ```bash
 # List all configured API keys
 ./get-ai-gateway.sh config list
-
 # Add or update an API key (hot-reload)
 ./get-ai-gateway.sh config add --provider deepseek --key sk-xxx
-
 # Remove an API key (hot-reload)
 ./get-ai-gateway.sh config remove --provider deepseek
 ```
 
 **Supported provider aliases:**
+
 `dashscope`/`qwen`, `moonshot`/`kimi`, `zhipuai`/`zhipu`, `togetherai`/`together`
 
 ### Routing Rules
@@ -252,10 +253,8 @@ PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
 ```bash
 # Add a routing rule
 ./get-ai-gateway.sh route add --model claude-opus-4.5 --trigger "深入思考|deep thinking"
-
 # List all rules
 ./get-ai-gateway.sh route list
-
 # Remove a rule
 ./get-ai-gateway.sh route remove --rule-id 0
 ```
@@ -265,11 +264,12 @@ See [higress-auto-router](../higress-auto-router/SKILL.md) for detailed document
 ## Access Logs
 
 Gateway access logs are available at:
+
 ```
 $DATA_FOLDER/logs/access.log
 ```
 
-These logs can be used with the **agent-session-monitor** skill for token tracking and conversation analysis.
+These logs can be used with **agent-session-monitor** skill for token tracking and conversation analysis.
 
 ## Related Skills
 
@@ -295,6 +295,7 @@ These logs can be used with the **agent-session-monitor** skill for token tracki
    ```
 
 **Response:**
+
 ```
 Auto-detected timezone: Asia/Shanghai
 Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
@@ -325,6 +326,7 @@ curl 'http://localhost:8080/v1/chat/completions' \
 4. Set up session monitoring
 
 **Response:**
+
 ```
 Auto-detected timezone: Asia/Shanghai
 Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
@@ -366,6 +368,7 @@ Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
    ```
 
 **Response:**
+
 ```
 当前配置的API keys:
 
@@ -399,6 +402,7 @@ Configuration has been hot-reloaded (no restart needed).
    ```
 
 **Response:**
+
 ```
 Auto-detected timezone: America/Los_Angeles
 Selected plugin registry: higress-registry.us-west-1.cr.aliyuncs.com
