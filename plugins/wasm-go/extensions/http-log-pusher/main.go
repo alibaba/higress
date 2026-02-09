@@ -406,20 +406,43 @@ func getEnvoyProperty(path string, defaultValue string) string {
 
 // 获取实例ID
 func getInstanceID(log wrapper.Log) string {
-    // 1. 从 Envoy 属性获取实例ID
-    instanceID := getEnvoyProperty("instance_id", "")
-    if instanceID != "" {
-        return instanceID
-    }
-    
-    // 2. 从请求头获取
-    instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
-    if instanceID != "" {
-        return instanceID
-    }
-    
-    log.Debugf("[http-log-pusher] instance_id not found, using default")
-    return "unknown"
+	// 1. 从 Envoy 节点元数据获取 Pod 名称（这是最准确的网关实例标识）
+	// Pod 名称格式通常是：higress-gateway-<hash>-<random>
+	podNameBytes, err := proxywasm.GetProperty([]string{"node", "metadata", "POD_NAME"})
+	if err == nil && len(podNameBytes) > 0 {
+		podName := string(podNameBytes)
+		if podName != "" {
+			log.Debugf("[http-log-pusher] got instance_id from POD_NAME: %s", podName)
+			return podName
+		}
+	}
+	
+	// 2. 从 Envoy 属性获取实例ID
+	instanceID := getEnvoyProperty("instance_id", "")
+	if instanceID != "" {
+		log.Debugf("[http-log-pusher] got instance_id from envoy property: %s", instanceID)
+		return instanceID
+	}
+	
+	// 3. 从请求头获取
+	instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
+	if instanceID != "" {
+		log.Debugf("[http-log-pusher] got instance_id from header: %s", instanceID)
+		return instanceID
+	}
+	
+	// 4. 尝试从节点名称获取（作为备选方案）
+	nodeNameBytes, err := proxywasm.GetProperty([]string{"node", "id"})
+	if err == nil && len(nodeNameBytes) > 0 {
+		nodeName := string(nodeNameBytes)
+		if nodeName != "" {
+			log.Debugf("[http-log-pusher] got instance_id from node.id: %s", nodeName)
+			return nodeName
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] instance_id not found, using default")
+	return "unknown"
 }
 
 // 获取API名称
