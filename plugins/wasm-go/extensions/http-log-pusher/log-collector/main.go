@@ -1082,12 +1082,12 @@ func queryQPSChart(whereSQL string, args []interface{}, interval string) (map[st
 	
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
 			COUNT(*) as total_qps,
 			SUM(CASE WHEN path LIKE '%%stream%%' THEN 1 ELSE 0 END) as stream_qps,
 			SUM(CASE WHEN path NOT LIKE '%%stream%%' THEN 1 ELSE 0 END) as request_qps
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
 		ORDER BY timestamp`, whereSQL)
 	
 	rows, err := db.Query(sql, args...)
