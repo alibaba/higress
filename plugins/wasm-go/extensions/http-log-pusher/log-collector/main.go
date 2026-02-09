@@ -1125,6 +1125,7 @@ func queryQPSChart(whereSQL string, args []interface{}, interval string) (map[st
 func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
 	intervalSec := parseInterval(interval)
 	
+	// 直接使用数据库中的token字段进行聚合
 	sql := fmt.Sprintf(`
 		SELECT 
 			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
@@ -1155,6 +1156,8 @@ func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (
 		outputRate = append(outputRate, float64(outputTokens)/float64(intervalSec))
 		totalRate = append(totalRate, float64(totalTokens)/float64(intervalSec))
 	}
+	
+	log.Printf("[TokenRate] Processed %d time windows, interval=%ds", len(timestamps), intervalSec)
 	
 	return map[string]interface{}{
 		"timestamps": timestamps,
