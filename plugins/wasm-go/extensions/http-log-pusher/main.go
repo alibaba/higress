@@ -595,15 +595,39 @@ func getMCPTool(ctx wrapper.HttpContext, log wrapper.Log) string {
 		return toolName
 	}
 	
+	// 方法2: 从请求体中提取工具名称（备选方案）
+	// 适用于tools/call请求，从params.name字段提取
+	requestBody := ctx.GetContext("req_body")
+	if requestBody != nil {
+		if bodyStr, ok := requestBody.(string); ok && bodyStr != "" {
+			// 尝试从JSON请求体中提取tool name
+			toolNameFromBody := extractToolNameFromJson(bodyStr)
+			if toolNameFromBody != "" {
+				log.Debugf("[http-log-pusher] got mcp_tool from request body: %s", toolNameFromBody)
+				return toolNameFromBody
+			}
+		}
+	}
+	
 	// 获取路径用于日志记录
 	path := ctx.Path()
-	log.Debugf("[http-log-pusher] mcp_tool not determined from header/route/path: %s", path)
+	log.Debugf("[http-log-pusher] mcp_tool not determined from header/body/path: %s", path)
 	return "unknown"
 }
 
 // 从请求体提取模型名称
 func extractModelFromRequestBody(body string) string {
 	result := gjson.Get(body, "model")
+	if result.Exists() {
+		return result.String()
+	}
+	return ""
+}
+
+// 从JSON请求体中提取MCP工具名称
+func extractToolNameFromJson(body string) string {
+	// 对于tools/call请求，工具名称在params.name字段中
+	result := gjson.Get(body, "params.name")
 	if result.Exists() {
 		return result.String()
 	}
