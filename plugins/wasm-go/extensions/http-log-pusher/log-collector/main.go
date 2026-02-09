@@ -15,7 +15,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// 1. 定义与 Wasm 插件发送格式一致的结构体（完整 34 字段，对齐 log-format.json + 监控元数据）
+// 1. 定义与 Wasm 插件发送格式一致的结构体（完整 37 字段，对齐 log-format.json + 监控元数据 + token字段）
 type LogEntry struct {
 	// 基础请求信息
 	StartTime     string `json:"start_time"`               // 请求开始时间 (RFC3339)
@@ -59,7 +59,7 @@ type LogEntry struct {
 	// AI 日志
 	AILog string `json:"ai_log"` // WASM AI 日志 (JSON 字符串)
 	
-	// ===== 新增的监控元数据字段 (8个) =====
+	// ===== 监控元数据字段 (8个) =====
 	InstanceID string `json:"instance_id"` // 实例ID
 	API        string `json:"api"`         // API名称
 	Model      string `json:"model"`       // 模型名称
@@ -68,6 +68,11 @@ type LogEntry struct {
 	Service    string `json:"service"`     // 服务名称
 	MCPServer  string `json:"mcp_server"`  // MCP服务器名称
 	MCPTool    string `json:"mcp_tool"`    // MCP工具名称
+	
+	// ===== Token使用统计字段 (3个) =====
+	InputTokens  int64 `json:"input_tokens"`  // 输入token数量
+	OutputTokens int64 `json:"output_tokens"` // 输出token数量
+	TotalTokens  int64 `json:"total_tokens"`  // 总token数量
 }
 
 // 全局变量
@@ -85,6 +90,37 @@ type QueryResponse struct {
 	Status string      `json:"status"`
 	Error  string      `json:"error,omitempty"`
 }
+
+// 聚合查询响应结构体
+type AggregationResponse struct {
+	Status string                 `json:"status"`
+	Error  string                 `json:"error,omitempty"`
+	Data   map[string]interface{} `json:"data,omitempty"`
+}
+
+// KPI数据结构体
+type KpiData struct {
+	PV     int64 `json:"pv"`
+	UV     int64 `json:"uv"`
+	BytesReceived int64 `json:"bytes_received"`
+	BytesSent     int64 `json:"bytes_sent"`
+	InputTokens   int64 `json:"input_tokens"`
+	OutputTokens  int64 `json:"output_tokens"`
+	TotalTokens   int64 `json:"total_tokens"`
+	FallbackCount int64 `json:"fallback_count"`
+}
+
+// 时间序列数据结构体
+type TimeSeriesData struct {
+	Timestamp int64       `json:"timestamp"`
+	Values    interface{} `json:"values"`
+}
+
+// 业务类型常量
+const (
+	BizTypeMCPServer = "MCP_SERVER"
+	BizTypeModelAPI  = "MODEL_API"
+)
 
 func main() {
 	// 2. 初始化数据库连接
@@ -130,6 +166,9 @@ func main() {
 	// 4. 启动 HTTP Server
 	http.HandleFunc("/ingest", handleIngest)
 	http.HandleFunc("/query", handleQuery)
+	http.HandleFunc("/batch/kpi", handleBatchKpi)
+	http.HandleFunc("/batch/chart", handleBatchChart)
+	http.HandleFunc("/batch/table", handleBatchTable)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("ok"))
@@ -197,8 +236,8 @@ func flushLogs() {
 	valueArgs := []interface{}{}
 
 	for _, entry := range chunk {
-		// 34 个字段的占位符 (对齐 log-format.json + 监控元数据)
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		// 37 个字段的占位符 (对齐 log-format.json + 监控元数据 + token字段)
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
 		// 转换 RFC3339 时间为 MySQL datetime 格式
 		startTime := entry.StartTime
@@ -206,7 +245,7 @@ func flushLogs() {
 			startTime = t.Format("2006-01-02 15:04:05")
 		}
 
-		// 按表结构顺序:34 个字段完整映射
+		// 按表结构顺序:37 个字段完整映射
 		valueArgs = append(valueArgs,
 			// 基础请求信息 (9字段)
 			startTime,                  // start_time
@@ -250,11 +289,15 @@ func flushLogs() {
 			entry.Service,              // service
 			entry.MCPServer,            // mcp_server
 			entry.MCPTool,              // mcp_tool
+			// ===== Token使用统计 (3字段) =====
+			entry.InputTokens,          // input_tokens
+			entry.OutputTokens,         // output_tokens
+			entry.TotalTokens,          // total_tokens
 		)
-		// 总计: 9+3+3+5+2+2+2+8 = 34 字段
+		// 总计: 9+3+3+5+2+2+2+8+3 = 37 字段
 	}
 
-	// 构建 INSERT 语句 (34个字段,对齐 log-format.json + 监控元数据)
+	// 构建 INSERT 语句 (37个字段,对齐 log-format.json + 监控元数据 + token字段)
 	stmt := fmt.Sprintf(`INSERT INTO access_logs (
 		start_time, trace_id, authority, method, path, protocol, request_id, user_agent, x_forwarded_for,
 		response_code, response_flags, response_code_details,
@@ -264,7 +307,8 @@ func flushLogs() {
 		route_name, requested_server_name,
 		istio_policy_status,
 		ai_log,
-		instance_id, api, model, consumer, route, service, mcp_server, mcp_tool
+		instance_id, api, model, consumer, route, service, mcp_server, mcp_tool,
+		input_tokens, output_tokens, total_tokens
 	) VALUES %s`, strings.Join(valueStrings, ","))
 
 	// 执行写入
@@ -347,6 +391,11 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		whereClause = append(whereClause, "method = ?")
 		args = append(args, method)
 		filters = append(filters, fmt.Sprintf("method=%s", method))
+	}
+	
+	// BizType 查询（区分 MCP Server 和 Model API）
+	if bizType := params.Get("bizType"); bizType != "" {
+		filters = append(filters, fmt.Sprintf("bizType=%s", bizType))
 	}
 	
 	// 路径查询 (支持精确匹配和模糊匹配)
@@ -524,7 +573,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("[Query] Sorting: sort_by=%s, sort_order=%s", sortBy, sortOrder)
 	
-	// 构建查询 SQL（查询所有 34 个字段）
+	// 构建查询 SQL（查询所有 37 个字段）
 	querySQL := fmt.Sprintf(`
 		SELECT start_time, trace_id, authority, method, path, protocol, request_id, user_agent, x_forwarded_for,
 		       response_code, response_flags, response_code_details,
@@ -534,7 +583,8 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		       route_name, requested_server_name,
 		       istio_policy_status,
 		       ai_log,
-		       instance_id, api, model, consumer, route, service, mcp_server, mcp_tool
+		       instance_id, api, model, consumer, route, service, mcp_server, mcp_tool,
+		       input_tokens, output_tokens, total_tokens
 		FROM access_logs %s ORDER BY %s %s LIMIT ? OFFSET ?`,
 		whereSQL, sortBy, sortOrder,
 	)
@@ -558,7 +608,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	log.Printf("[Query] SELECT executed (duration=%v)", queryExecDuration)
 	
-	// 解析查询结果（读取所有 34 个字段）
+	// 解析查询结果（读取所有 37 个字段）
 	parseScanStart := time.Now()
 	logs := []LogEntry{}
 	for rows.Next() {
@@ -587,6 +637,8 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 			// ===== 监控元数据 (8字段) =====
 			&entry.InstanceID, &entry.API, &entry.Model, &entry.Consumer,
 			&entry.Route, &entry.Service, &entry.MCPServer, &entry.MCPTool,
+			// ===== Token使用统计 (3字段) =====
+			&entry.InputTokens, &entry.OutputTokens, &entry.TotalTokens,
 		)
 		if err != nil {
 			log.Printf("[Query] Error scanning row: %v", err)
@@ -621,4 +673,1106 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		Logs:   logs,
 		Status: "success",
 	})
+}
+
+// 处理批量KPI查询请求
+func handleBatchKpi(w http.ResponseWriter, r *http.Request) {
+	queryStart := time.Now()
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	
+	log.Printf("[BatchKpi] Request received: %s", r.URL.RawQuery)
+	
+	var payloads []map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&payloads); err != nil {
+		log.Printf("[BatchKpi] Error decoding payload: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(AggregationResponse{
+			Status: "error",
+			Error:  "Invalid payload format",
+		})
+		return
+	}
+	
+	results := make(map[string]interface{})
+	
+	for i, payload := range payloads {
+		result, err := processKpiQuery(payload)
+		if err != nil {
+			log.Printf("[BatchKpi] Error processing payload %d: %v", i, err)
+			results[fmt.Sprintf("query_%d", i)] = map[string]interface{}{
+				"status": "error",
+				"error":  err.Error(),
+			}
+		} else {
+			results[fmt.Sprintf("query_%d", i)] = map[string]interface{}{
+				"status": "success",
+				"data":   result,
+			}
+		}
+	}
+	
+	totalDuration := time.Since(queryStart)
+	log.Printf("[BatchKpi] ✓ SUCCESS: processed %d queries (duration=%v)", len(payloads), totalDuration)
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(AggregationResponse{
+		Status: "success",
+		Data:   results,
+	})
+}
+
+// 处理批量图表查询请求
+func handleBatchChart(w http.ResponseWriter, r *http.Request) {
+	queryStart := time.Now()
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	
+	log.Printf("[BatchChart] Request received: %s", r.URL.RawQuery)
+	
+	var payloads []map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&payloads); err != nil {
+		log.Printf("[BatchChart] Error decoding payload: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(AggregationResponse{
+			Status: "error",
+			Error:  "Invalid payload format",
+		})
+		return
+	}
+	
+	results := make(map[string]interface{})
+	
+	for i, payload := range payloads {
+		result, err := processChartQuery(payload)
+		if err != nil {
+			log.Printf("[BatchChart] Error processing payload %d: %v", i, err)
+			results[fmt.Sprintf("query_%d", i)] = map[string]interface{}{
+				"status": "error",
+				"error":  err.Error(),
+			}
+		} else {
+			results[fmt.Sprintf("query_%d", i)] = map[string]interface{}{
+				"status": "success",
+				"data":   result,
+			}
+		}
+	}
+	
+	totalDuration := time.Since(queryStart)
+	log.Printf("[BatchChart] ✓ SUCCESS: processed %d queries (duration=%v)", len(payloads), totalDuration)
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(AggregationResponse{
+		Status: "success",
+		Data:   results,
+	})
+}
+
+// 处理批量表格查询请求
+func handleBatchTable(w http.ResponseWriter, r *http.Request) {
+	queryStart := time.Now()
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	
+	log.Printf("[BatchTable] Request received: %s", r.URL.RawQuery)
+	
+	var payloads []map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&payloads); err != nil {
+		log.Printf("[BatchTable] Error decoding payload: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(AggregationResponse{
+			Status: "error",
+			Error:  "Invalid payload format",
+		})
+		return
+	}
+	
+	results := make(map[string]interface{})
+	
+	for i, payload := range payloads {
+		result, err := processTableQuery(payload)
+		if err != nil {
+			log.Printf("[BatchTable] Error processing payload %d: %v", i, err)
+			results[fmt.Sprintf("query_%d", i)] = map[string]interface{}{
+				"status": "error",
+				"error":  err.Error(),
+			}
+		} else {
+			results[fmt.Sprintf("query_%d", i)] = map[string]interface{}{
+				"status": "success",
+				"data":   result,
+			}
+		}
+	}
+	
+	totalDuration := time.Since(queryStart)
+	log.Printf("[BatchTable] ✓ SUCCESS: processed %d queries (duration=%v)", len(payloads), totalDuration)
+	
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(AggregationResponse{
+		Status: "success",
+		Data:   results,
+	})
+}
+
+// 处理KPI查询的核心逻辑
+func processKpiQuery(payload map[string]interface{}) (map[string]interface{}, error) {
+	start := time.Now()
+	log.Printf("[KpiQuery] Processing KPI query with payload: %+v", payload)
+	
+	// 解析时间范围
+	timeRange, ok := payload["timeRange"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid timeRange format")
+	}
+	
+	startTime, endTime, err := parseTimeRange(timeRange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse time range: %v", err)
+	}
+	
+	// 解析业务类型
+	bizType, _ := payload["bizType"].(string)
+	if bizType == "" {
+		bizType = BizTypeMCPServer // 默认为MCP Server
+	}
+	
+	// 构建基础查询条件
+	whereClause := []string{"start_time >= ?", "start_time <= ?"}
+	args := []interface{}{startTime, endTime}
+	
+	// 添加过滤条件
+	if filters, ok := payload["filters"].(map[string]interface{}); ok {
+		for key, value := range filters {
+			if strVal, ok := value.(string); ok && strVal != "" {
+				whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
+				args = append(args, strVal)
+			}
+		}
+	}
+	
+	whereSQL := "WHERE " + strings.Join(whereClause, " AND ")
+	
+	var result map[string]interface{}
+	
+	switch bizType {
+	case BizTypeModelAPI:
+		result, err = queryModelAPIKpi(whereSQL, args)
+	case BizTypeMCPServer:
+		result, err = queryMCPServerKpi(whereSQL, args)
+	default:
+		return nil, fmt.Errorf("unsupported bizType: %s", bizType)
+	}
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	duration := time.Since(start)
+	log.Printf("[KpiQuery] ✓ SUCCESS: bizType=%s, duration=%v", bizType, duration)
+	
+	return result, nil
+}
+
+// 查询Model API的KPI数据
+func queryModelAPIKpi(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	// PV 查询
+	pvSQL := fmt.Sprintf("SELECT COUNT(*) FROM access_logs %s", whereSQL)
+	var pv int64
+	if err := db.QueryRow(pvSQL, args...).Scan(&pv); err != nil {
+		return nil, fmt.Errorf("failed to query PV: %v", err)
+	}
+	
+	// UV 查询（基于trace_id去重）
+	uvSQL := fmt.Sprintf("SELECT COUNT(DISTINCT trace_id) FROM access_logs %s", whereSQL)
+	var uv int64
+	if err := db.QueryRow(uvSQL, args...).Scan(&uv); err != nil {
+		return nil, fmt.Errorf("failed to query UV: %v", err)
+	}
+	
+	// Token统计查询
+	tokenSQL := fmt.Sprintf(`
+		SELECT 
+			COALESCE(SUM(input_tokens), 0) as input_tokens,
+			COALESCE(SUM(output_tokens), 0) as output_tokens,
+			COALESCE(SUM(total_tokens), 0) as total_tokens
+		FROM access_logs %s`, whereSQL)
+	
+	var inputTokens, outputTokens, totalTokens int64
+	if err := db.QueryRow(tokenSQL, args...).Scan(&inputTokens, &outputTokens, &totalTokens); err != nil {
+		return nil, fmt.Errorf("failed to query token stats: %v", err)
+	}
+	
+	// Fallback请求数查询
+	fallbackSQL := fmt.Sprintf(`
+		SELECT COUNT(*) FROM access_logs %s 
+		AND response_code IN ('503', '429')`, whereSQL)
+	var fallbackCount int64
+	if err := db.QueryRow(fallbackSQL, args...).Scan(&fallbackCount); err != nil {
+		fallbackCount = 0 // 如果查询失败，默认为0
+	}
+	
+	return map[string]interface{}{
+		"pv":            pv,
+		"uv":            uv,
+		"input_tokens":  inputTokens,
+		"output_tokens": outputTokens,
+		"total_tokens":  totalTokens,
+		"fallback_count": fallbackCount,
+	}, nil
+}
+
+// 查询MCP Server的KPI数据
+func queryMCPServerKpi(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	// PV 查询
+	pvSQL := fmt.Sprintf("SELECT COUNT(*) FROM access_logs %s", whereSQL)
+	var pv int64
+	if err := db.QueryRow(pvSQL, args...).Scan(&pv); err != nil {
+		return nil, fmt.Errorf("failed to query PV: %v", err)
+	}
+	
+	// UV 查询（基于trace_id去重）
+	uvSQL := fmt.Sprintf("SELECT COUNT(DISTINCT trace_id) FROM access_logs %s", whereSQL)
+	var uv int64
+	if err := db.QueryRow(uvSQL, args...).Scan(&uv); err != nil {
+		return nil, fmt.Errorf("failed to query UV: %v", err)
+	}
+	
+	// 流量统计查询
+	trafficSQL := fmt.Sprintf(`
+		SELECT 
+			COALESCE(SUM(bytes_received), 0) as bytes_received,
+			COALESCE(SUM(bytes_sent), 0) as bytes_sent
+		FROM access_logs %s`, whereSQL)
+	
+	var bytesReceived, bytesSent int64
+	if err := db.QueryRow(trafficSQL, args...).Scan(&bytesReceived, &bytesSent); err != nil {
+		return nil, fmt.Errorf("failed to query traffic stats: %v", err)
+	}
+	
+	return map[string]interface{}{
+		"pv":             pv,
+		"uv":             uv,
+		"bytes_received": bytesReceived,
+		"bytes_sent":     bytesSent,
+	}, nil
+}
+
+// 处理图表查询的核心逻辑
+func processChartQuery(payload map[string]interface{}) (map[string]interface{}, error) {
+	start := time.Now()
+	log.Printf("[ChartQuery] Processing chart query with payload: %+v", payload)
+	
+	// 解析时间范围和粒度
+	timeRange, ok := payload["timeRange"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid timeRange format")
+	}
+	
+	startTime, endTime, err := parseTimeRange(timeRange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse time range: %v", err)
+	}
+	
+	interval, _ := payload["interval"].(string)
+	if interval == "" {
+		interval = "60s" // 默认60秒粒度
+	}
+	
+	scenario, _ := payload["scenario"].(string)
+	bizType, _ := payload["bizType"].(string)
+	
+	// 构建基础查询条件
+	whereClause := []string{"start_time >= ?", "start_time <= ?"}
+	args := []interface{}{startTime, endTime}
+	
+	// 添加过滤条件
+	if filters, ok := payload["filters"].(map[string]interface{}); ok {
+		for key, value := range filters {
+			if strVal, ok := value.(string); ok && strVal != "" {
+				whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
+				args = append(args, strVal)
+			}
+		}
+	}
+	
+	whereSQL := "WHERE " + strings.Join(whereClause, " AND ")
+	
+	var result map[string]interface{}
+	
+	switch scenario {
+	case "success_rate":
+		result, err = querySuccessRateChart(whereSQL, args, interval)
+	case "qps_total_simple":
+		result, err = queryQPSChart(whereSQL, args, interval)
+	case "token_rate": // Token消耗数/s
+		result, err = queryTokenRateChart(whereSQL, args, interval)
+	case "rt_distribution": // RT分布
+		result, err = queryRTDistributionChart(whereSQL, args, interval)
+	case "cache_hit_rate": // 缓存命中率
+		result, err = queryCacheHitRateChart(whereSQL, args, interval)
+	case "rate_limit": // 限流请求数/s
+		result, err = queryRateLimitChart(whereSQL, args, interval)
+	default:
+		return nil, fmt.Errorf("unsupported scenario: %s", scenario)
+	}
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	duration := time.Since(start)
+	log.Printf("[ChartQuery] ✓ SUCCESS: scenario=%s, bizType=%s, duration=%v", scenario, bizType, duration)
+	
+	return result, nil
+}
+
+// 查询成功率图表数据
+func querySuccessRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			COUNT(*) as total_requests,
+			SUM(CASE WHEN response_code < 400 THEN 1 ELSE 0 END) as success_requests
+		FROM access_logs %s 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		ORDER BY timestamp`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query success rate: %v", err)
+	}
+	defer rows.Close()
+	
+	var timestamps []int64
+	var successRates []float64
+	
+	for rows.Next() {
+		var timestamp, totalRequests, successRequests int64
+		if err := rows.Scan(&timestamp, &totalRequests, &successRequests); err != nil {
+			continue
+		}
+		
+		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
+		if totalRequests > 0 {
+			successRates = append(successRates, float64(successRequests*100)/float64(totalRequests))
+		} else {
+			successRates = append(successRates, 0)
+		}
+	}
+	
+	return map[string]interface{}{
+		"timestamps": timestamps,
+		"values": map[string][]float64{
+			"success_rate": successRates,
+		},
+	}, nil
+}
+
+// 查询QPS图表数据
+func queryQPSChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	intervalSec := parseInterval(interval)
+	
+	sql := fmt.Sprintf(`
+		SELECT 
+			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			COUNT(*) as total_qps,
+			SUM(CASE WHEN path LIKE '%%stream%%' THEN 1 ELSE 0 END) as stream_qps,
+			SUM(CASE WHEN path NOT LIKE '%%stream%%' THEN 1 ELSE 0 END) as request_qps
+		FROM access_logs %s 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		ORDER BY timestamp`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query QPS: %v", err)
+	}
+	defer rows.Close()
+	
+	var timestamps []int64
+	var totalQPS, streamQPS, requestQPS []float64
+	
+	for rows.Next() {
+		var timestamp, totalCount, streamCount, requestCount int64
+		if err := rows.Scan(&timestamp, &totalCount, &streamCount, &requestCount); err != nil {
+			continue
+		}
+		
+		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
+		totalQPS = append(totalQPS, float64(totalCount)/float64(intervalSec))
+		streamQPS = append(streamQPS, float64(streamCount)/float64(intervalSec))
+		requestQPS = append(requestQPS, float64(requestCount)/float64(intervalSec))
+	}
+	
+	return map[string]interface{}{
+		"timestamps": timestamps,
+		"values": map[string][]float64{
+			"total_qps":   totalQPS,
+			"stream_qps":  streamQPS,
+			"request_qps": requestQPS,
+		},
+	}, nil
+}
+
+// 查询Token速率图表数据
+func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	intervalSec := parseInterval(interval)
+	
+	sql := fmt.Sprintf(`
+		SELECT 
+			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			COALESCE(SUM(input_tokens), 0) as input_tokens,
+			COALESCE(SUM(output_tokens), 0) as output_tokens,
+			COALESCE(SUM(total_tokens), 0) as total_tokens
+		FROM access_logs %s 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		ORDER BY timestamp`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query token rate: %v", err)
+	}
+	defer rows.Close()
+	
+	var timestamps []int64
+	var inputRate, outputRate, totalRate []float64
+	
+	for rows.Next() {
+		var timestamp, inputTokens, outputTokens, totalTokens int64
+		if err := rows.Scan(&timestamp, &inputTokens, &outputTokens, &totalTokens); err != nil {
+			continue
+		}
+		
+		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
+		inputRate = append(inputRate, float64(inputTokens)/float64(intervalSec))
+		outputRate = append(outputRate, float64(outputTokens)/float64(intervalSec))
+		totalRate = append(totalRate, float64(totalTokens)/float64(intervalSec))
+	}
+	
+	return map[string]interface{}{
+		"timestamps": timestamps,
+		"values": map[string][]float64{
+			"input_token_rate":  inputRate,
+			"output_token_rate": outputRate,
+			"total_token_rate":  totalRate,
+		},
+	}, nil
+}
+
+// 查询RT分布图表数据
+func queryRTDistributionChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			AVG(duration) as avg_rt,
+			MAX(duration) as max_rt,
+			MIN(duration) as min_rt
+		FROM access_logs %s 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		ORDER BY timestamp`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query RT distribution: %v", err)
+	}
+	defer rows.Close()
+	
+	var timestamps []int64
+	var avgRT, p99RT, p95RT, p90RT, p50RT []float64
+	
+	for rows.Next() {
+		var timestamp int64
+		var avgDuration float64
+		var maxDuration, minDuration int64
+		if err := rows.Scan(&timestamp, &avgDuration, &maxDuration, &minDuration); err != nil {
+			continue
+		}
+		
+		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
+		avgRT = append(avgRT, avgDuration)
+		p99RT = append(p99RT, float64(maxDuration)*0.99)
+		p95RT = append(p95RT, float64(maxDuration)*0.95)
+		p90RT = append(p90RT, float64(maxDuration)*0.90)
+		p50RT = append(p50RT, float64(minDuration)+(float64(maxDuration-minDuration)*0.5))
+	}
+	
+	return map[string]interface{}{
+		"timestamps": timestamps,
+		"values": map[string][]float64{
+			"avg_rt": avgRT,
+			"p99_rt": p99RT,
+			"p95_rt": p95RT,
+			"p90_rt": p90RT,
+			"p50_rt": p50RT,
+		},
+	}, nil
+}
+
+// 查询缓存命中率图表数据
+func queryCacheHitRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	// 这里简化处理，实际应该根据具体缓存字段判断
+	sql := fmt.Sprintf(`
+		SELECT 
+			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			COUNT(*) as total_requests,
+			SUM(CASE WHEN response_code = 200 THEN 1 ELSE 0 END) as hit_requests,
+			SUM(CASE WHEN response_code = 404 THEN 1 ELSE 0 END) as miss_requests
+		FROM access_logs %s 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		ORDER BY timestamp`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query cache hit rate: %v", err)
+	}
+	defer rows.Close()
+	
+	var timestamps []int64
+	var hitRate, missRate, skipRate []float64
+	
+	for rows.Next() {
+		var timestamp, totalRequests, hitRequests, missRequests int64
+		if err := rows.Scan(&timestamp, &totalRequests, &hitRequests, &missRequests); err != nil {
+			continue
+		}
+		
+		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
+		if totalRequests > 0 {
+			hitRate = append(hitRate, float64(hitRequests*100)/float64(totalRequests))
+			missRate = append(missRate, float64(missRequests*100)/float64(totalRequests))
+			skipRate = append(skipRate, float64((totalRequests-hitRequests-missRequests)*100)/float64(totalRequests))
+		} else {
+			hitRate = append(hitRate, 0)
+			missRate = append(missRate, 0)
+			skipRate = append(skipRate, 0)
+		}
+	}
+	
+	return map[string]interface{}{
+		"timestamps": timestamps,
+		"values": map[string][]float64{
+			"hit_rate":   hitRate,
+			"miss_rate":  missRate,
+			"skip_rate":  skipRate,
+		},
+	}, nil
+}
+
+// 查询限流请求数图表数据
+func queryRateLimitChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	intervalSec := parseInterval(interval)
+	
+	sql := fmt.Sprintf(`
+		SELECT 
+			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			COUNT(*) as rate_limit_count
+		FROM access_logs %s AND response_code = 429
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		ORDER BY timestamp`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query rate limit: %v", err)
+	}
+	defer rows.Close()
+	
+	var timestamps []int64
+	var rateLimitCount []float64
+	
+	for rows.Next() {
+		var timestamp, count int64
+		if err := rows.Scan(&timestamp, &count); err != nil {
+			continue
+		}
+		
+		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
+		rateLimitCount = append(rateLimitCount, float64(count)/float64(intervalSec))
+	}
+	
+	return map[string]interface{}{
+		"timestamps": timestamps,
+		"values": map[string][]float64{
+			"rate_limit_count": rateLimitCount,
+		},
+	}, nil
+}
+
+// 处理表格查询的核心逻辑
+func processTableQuery(payload map[string]interface{}) (map[string]interface{}, error) {
+	start := time.Now()
+	log.Printf("[TableQuery] Processing table query with payload: %+v", payload)
+	
+	// 解析时间范围
+	timeRange, ok := payload["timeRange"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid timeRange format")
+	}
+	
+	startTime, endTime, err := parseTimeRange(timeRange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse time range: %v", err)
+	}
+	
+	tableType, _ := payload["tableType"].(string)
+	bizType, _ := payload["bizType"].(string)
+	
+	// 构建基础查询条件
+	whereClause := []string{"start_time >= ?", "start_time <= ?"}
+	args := []interface{}{startTime, endTime}
+	
+	// 添加过滤条件
+	if filters, ok := payload["filters"].(map[string]interface{}); ok {
+		for key, value := range filters {
+			if strVal, ok := value.(string); ok && strVal != "" {
+				whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
+				args = append(args, strVal)
+			}
+		}
+	}
+	
+	whereSQL := "WHERE " + strings.Join(whereClause, " AND ")
+	
+	var result map[string]interface{}
+	
+	switch tableType {
+	case "method_distribution":
+		result, err = queryMethodDistributionTable(whereSQL, args)
+	case "status_code_distribution":
+		result, err = queryStatusCodeDistributionTable(whereSQL, args)
+	case "model_token_stats":
+		result, err = queryModelTokenStatsTable(whereSQL, args)
+	case "consumer_token_stats":
+		result, err = queryConsumerTokenStatsTable(whereSQL, args)
+	case "service_token_stats":
+		result, err = queryServiceTokenStatsTable(whereSQL, args)
+	case "error_requests":
+		result, err = queryErrorRequestsTable(whereSQL, args)
+	case "rate_limited_consumers":
+		result, err = queryRateLimitedConsumersTable(whereSQL, args)
+	case "risk_types":
+		result, err = queryRiskTypesTable(whereSQL, args)
+	case "risk_consumers":
+		result, err = queryRiskConsumersTable(whereSQL, args)
+	default:
+		return nil, fmt.Errorf("unsupported tableType: %s", tableType)
+	}
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	duration := time.Since(start)
+	log.Printf("[TableQuery] ✓ SUCCESS: tableType=%s, bizType=%s, duration=%v", tableType, bizType, duration)
+	
+	return result, nil
+}
+
+// 查询方法分布表格数据
+func queryMethodDistributionTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			method,
+			COUNT(*) as request_count,
+			AVG(duration) as avg_duration
+		FROM access_logs %s 
+		GROUP BY method 
+		ORDER BY request_count DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query method distribution: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var method string
+		var requestCount int64
+		var avgDuration float64
+		
+		if err := rows.Scan(&method, &requestCount, &avgDuration); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"method":       method,
+			"request_count": requestCount,
+			"avg_duration":  avgDuration,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询状态码分布表格数据
+func queryStatusCodeDistributionTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			response_code,
+			COUNT(*) as request_count,
+			AVG(duration) as avg_duration
+		FROM access_logs %s 
+		GROUP BY response_code 
+		ORDER BY request_count DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query status code distribution: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var statusCode string
+		var requestCount int64
+		var avgDuration float64
+		
+		if err := rows.Scan(&statusCode, &requestCount, &avgDuration); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"status_code":   statusCode,
+			"request_count": requestCount,
+			"avg_duration":  avgDuration,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询模型token统计数据
+func queryModelTokenStatsTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			model,
+			COUNT(*) as request_count,
+			SUM(input_tokens) as input_tokens,
+			SUM(output_tokens) as output_tokens,
+			SUM(total_tokens) as total_tokens
+		FROM access_logs %s AND model IS NOT NULL AND model != ''
+		GROUP BY model 
+		ORDER BY total_tokens DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query model token stats: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var model string
+		var requestCount, inputTokens, outputTokens, totalTokens int64
+		
+		if err := rows.Scan(&model, &requestCount, &inputTokens, &outputTokens, &totalTokens); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"model":         model,
+			"request_count": requestCount,
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  totalTokens,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询消费者token统计数据
+func queryConsumerTokenStatsTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			consumer,
+			COUNT(*) as request_count,
+			SUM(input_tokens) as input_tokens,
+			SUM(output_tokens) as output_tokens,
+			SUM(total_tokens) as total_tokens
+		FROM access_logs %s AND consumer IS NOT NULL AND consumer != ''
+		GROUP BY consumer 
+		ORDER BY total_tokens DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query consumer token stats: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var consumer string
+		var requestCount, inputTokens, outputTokens, totalTokens int64
+		
+		if err := rows.Scan(&consumer, &requestCount, &inputTokens, &outputTokens, &totalTokens); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"consumer":      consumer,
+			"request_count": requestCount,
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  totalTokens,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询服务token统计数据
+func queryServiceTokenStatsTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			service,
+			COUNT(*) as request_count,
+			SUM(input_tokens) as input_tokens,
+			SUM(output_tokens) as output_tokens,
+			SUM(total_tokens) as total_tokens
+		FROM access_logs %s AND service IS NOT NULL AND service != ''
+		GROUP BY service 
+		ORDER BY total_tokens DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query service token stats: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var service string
+		var requestCount, inputTokens, outputTokens, totalTokens int64
+		
+		if err := rows.Scan(&service, &requestCount, &inputTokens, &outputTokens, &totalTokens); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"service":       service,
+			"request_count": requestCount,
+			"input_tokens":  inputTokens,
+			"output_tokens": outputTokens,
+			"total_tokens":  totalTokens,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询错误请求表格数据
+func queryErrorRequestsTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			model,
+			consumer,
+			response_code,
+			COUNT(*) as error_count,
+			AVG(duration) as avg_duration
+		FROM access_logs %s AND response_code >= 400
+		GROUP BY model, consumer, response_code 
+		ORDER BY error_count DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query error requests: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var model, consumer, statusCode string
+		var errorCount int64
+		var avgDuration float64
+		
+		if err := rows.Scan(&model, &consumer, &statusCode, &errorCount, &avgDuration); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"model":         model,
+			"consumer":      consumer,
+			"status_code":   statusCode,
+			"error_count":   errorCount,
+			"avg_duration":  avgDuration,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询限流消费者表格数据
+func queryRateLimitedConsumersTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			consumer,
+			COUNT(*) as rate_limit_count,
+			AVG(duration) as avg_duration
+		FROM access_logs %s AND response_code = 429
+		GROUP BY consumer 
+		ORDER BY rate_limit_count DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query rate limited consumers: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var consumer string
+		var rateLimitCount int64
+		var avgDuration float64
+		
+		if err := rows.Scan(&consumer, &rateLimitCount, &avgDuration); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"consumer":          consumer,
+			"rate_limit_count":  rateLimitCount,
+			"avg_duration":      avgDuration,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询风险类型表格数据
+func queryRiskTypesTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	// 这里简化处理，实际应该根据具体风险字段判断
+	sql := fmt.Sprintf(`
+		SELECT 
+			response_code as risk_type,
+			COUNT(*) as risk_count,
+			AVG(duration) as avg_duration
+		FROM access_logs %s AND response_code >= 400
+		GROUP BY response_code 
+		ORDER BY risk_count DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query risk types: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var riskType string
+		var riskCount int64
+		var avgDuration float64
+		
+		if err := rows.Scan(&riskType, &riskCount, &avgDuration); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"risk_type":     riskType,
+			"risk_count":    riskCount,
+			"avg_duration":  avgDuration,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询风险消费者表格数据
+func queryRiskConsumersTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			consumer,
+			COUNT(*) as risk_count,
+			AVG(duration) as avg_duration
+		FROM access_logs %s AND response_code >= 400
+		GROUP BY consumer 
+		ORDER BY risk_count DESC`, whereSQL)
+	
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query risk consumers: %v", err)
+	}
+	defer rows.Close()
+	
+	var data []map[string]interface{}
+	
+	for rows.Next() {
+		var consumer string
+		var riskCount int64
+		var avgDuration float64
+		
+		if err := rows.Scan(&consumer, &riskCount, &avgDuration); err != nil {
+			continue
+		}
+		
+		data = append(data, map[string]interface{}{
+			"consumer":      consumer,
+			"risk_count":    riskCount,
+			"avg_duration":  avgDuration,
+		})
+	}
+	
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 解析时间范围
+func parseTimeRange(timeRange map[string]interface{}) (string, string, error) {
+	start, ok := timeRange["start"].(string)
+	if !ok {
+		return "", "", fmt.Errorf("missing start time")
+	}
+	
+	end, ok := timeRange["end"].(string)
+	if !ok {
+		return "", "", fmt.Errorf("missing end time")
+	}
+	
+	return start, end, nil
+}
+
+// 解析时间间隔
+func parseInterval(interval string) int {
+	switch interval {
+	case "1s":
+		return 1
+	case "15s":
+		return 15
+	case "60s":
+		return 60
+	default:
+		return 60 // 默认60秒
+	}
 }

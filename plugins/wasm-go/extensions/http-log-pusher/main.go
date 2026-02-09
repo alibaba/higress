@@ -12,6 +12,7 @@ import (
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/tokenusage"
 	"github.com/tidwall/gjson"
 )
 
@@ -81,14 +82,17 @@ type LogEntry struct {
 	AILog string `json:"ai_log,omitempty"` // WASM AI 日志
 	
 	// 监控元数据字段
-	InstanceID string `json:"instance_id"`      // 实例ID
-	API        string `json:"api"`              // API名称
-	Model      string `json:"model"`            // 模型名称
-	Consumer   string `json:"consumer"`         // 消费者
-	Route      string `json:"route"`            // 路由
-	Service    string `json:"service"`          // 服务
-	MCPServer  string `json:"mcp_server"`       // MCP Server
-	MCPTool    string `json:"mcp_tool"`         // MCP Tool
+	InstanceID   string `json:"instance_id"`      // 实例ID
+	API          string `json:"api"`              // API名称
+	Model        string `json:"model"`            // 模型名称
+	Consumer     string `json:"consumer"`         // 消费者
+	Route        string `json:"route"`            // 路由
+	Service      string `json:"service"`          // 服务
+	MCPServer    string `json:"mcp_server"`       // MCP Server
+	MCPTool      string `json:"mcp_tool"`         // MCP Tool
+	InputTokens  int64  `json:"input_tokens"`     // 输入token数量
+	OutputTokens int64  `json:"output_tokens"`    // 输出token数量
+	TotalTokens  int64  `json:"total_tokens"`     // 总token数量
 	
 	// 详细数据 (可选)
 	ReqHeaders  map[string]string `json:"req_headers,omitempty"`  // 完整请求头
@@ -220,6 +224,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	mcpServer := getMCPServer(log)
 	mcpTool := getMCPTool(ctx, log)
 	
+	// 提取token信息
+	inputTokens := getInputTokens(ctx, body, log)
+	outputTokens := getOutputTokens(ctx, body, log)
+	totalTokens := getTotalTokens(ctx, body, log)
+	
 	// 计算耗时
 	duration := time.Now().UnixMilli() - startTime
 	
@@ -264,14 +273,17 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		AILog: aiLog,
 		
 		// 监控元数据
-		InstanceID: instanceID,
-		API:        apiName,
-		Model:      modelName,
-		Consumer:   consumer,
-		Route:      routeNameMeta,
-		Service:    serviceName,
-		MCPServer:  mcpServer,
-		MCPTool:    mcpTool,
+		InstanceID:   instanceID,
+		API:          apiName,
+		Model:        modelName,
+		Consumer:     consumer,
+		Route:        routeNameMeta,
+		Service:      serviceName,
+		MCPServer:    mcpServer,
+		MCPTool:      mcpTool,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		TotalTokens:  totalTokens,
 		
 		// 详细数据 (可选，根据需要采集)
 		ReqHeaders:  toMap(reqHeaders),
@@ -293,6 +305,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		entry.InstanceID, entry.API, entry.Model, entry.Consumer)
 	log.Infof("[http-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
 		entry.Route, entry.Service, entry.MCPServer, entry.MCPTool)
+	log.Infof("[http-log-pusher] Token信息: Input=%d, Output=%d, Total=%d", 
+		entry.InputTokens, entry.OutputTokens, entry.TotalTokens)
 	// log.Infof("[http-log-pusher] AI日志: AILog=%s", entry.AILog)
 	log.Infof("[http-log-pusher] =========================")
 
@@ -613,6 +627,91 @@ func getMCPTool(ctx wrapper.HttpContext, log wrapper.Log) string {
 	path := ctx.Path()
 	log.Debugf("[http-log-pusher] mcp_tool not determined from header/body/path: %s", path)
 	return "unknown"
+}
+
+// 获取输入token数量
+func getInputTokens(ctx wrapper.HttpContext, respBody []byte, log wrapper.Log) int64 {
+	// 方法1: 从tokenusage包获取（优先）
+	if usage := tokenusage.GetTokenUsage(ctx, respBody); usage.TotalToken > 0 {
+		log.Debugf("[http-log-pusher] got tokens from tokenusage: input=%d, output=%d, total=%d", 
+			usage.InputToken, usage.OutputToken, usage.TotalToken)
+		return usage.InputToken
+	}
+	
+	// 方法2: 从响应体直接解析usage字段
+	if len(respBody) > 0 {
+		// 解析OpenAI格式的usage字段
+		inputTokens := gjson.GetBytes(respBody, "usage.prompt_tokens").Int()
+		if inputTokens > 0 {
+			log.Debugf("[http-log-pusher] got input_tokens from response body: %d", inputTokens)
+			return inputTokens
+		}
+		
+		// 解析Claude/Bedrock格式
+		inputTokens = gjson.GetBytes(respBody, "usage.input_tokens").Int()
+		if inputTokens > 0 {
+			log.Debugf("[http-log-pusher] got input_tokens from response body (claude format): %d", inputTokens)
+			return inputTokens
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] input_tokens not found")
+	return 0
+}
+
+// 获取输出token数量
+func getOutputTokens(ctx wrapper.HttpContext, respBody []byte, log wrapper.Log) int64 {
+	// 方法1: 从tokenusage包获取（优先）
+	if usage := tokenusage.GetTokenUsage(ctx, respBody); usage.TotalToken > 0 {
+		return usage.OutputToken
+	}
+	
+	// 方法2: 从响应体直接解析usage字段
+	if len(respBody) > 0 {
+		// 解析OpenAI格式的usage字段
+		outputTokens := gjson.GetBytes(respBody, "usage.completion_tokens").Int()
+		if outputTokens > 0 {
+			log.Debugf("[http-log-pusher] got output_tokens from response body: %d", outputTokens)
+			return outputTokens
+		}
+		
+		// 解析Claude/Bedrock格式
+		outputTokens = gjson.GetBytes(respBody, "usage.output_tokens").Int()
+		if outputTokens > 0 {
+			log.Debugf("[http-log-pusher] got output_tokens from response body (claude format): %d", outputTokens)
+			return outputTokens
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] output_tokens not found")
+	return 0
+}
+
+// 获取总token数量
+func getTotalTokens(ctx wrapper.HttpContext, respBody []byte, log wrapper.Log) int64 {
+	// 方法1: 从tokenusage包获取（优先）
+	if usage := tokenusage.GetTokenUsage(ctx, respBody); usage.TotalToken > 0 {
+		return usage.TotalToken
+	}
+	
+	// 方法2: 从响应体直接解析usage字段
+	if len(respBody) > 0 {
+		totalTokens := gjson.GetBytes(respBody, "usage.total_tokens").Int()
+		if totalTokens > 0 {
+			log.Debugf("[http-log-pusher] got total_tokens from response body: %d", totalTokens)
+			return totalTokens
+		}
+		
+		// 解析Claude/Bedrock格式
+		totalTokens = gjson.GetBytes(respBody, "usage.inputTokens").Int() + gjson.GetBytes(respBody, "usage.outputTokens").Int()
+		if totalTokens > 0 {
+			log.Debugf("[http-log-pusher] calculated total_tokens from claude format: %d", totalTokens)
+			return totalTokens
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] total_tokens not found")
+	return 0
 }
 
 // 从请求体提取模型名称
