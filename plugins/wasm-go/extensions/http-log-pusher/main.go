@@ -406,20 +406,20 @@ func getEnvoyProperty(path string, defaultValue string) string {
 
 // 获取实例ID
 func getInstanceID(log wrapper.Log) string {
-	// 从 Envoy 属性获取实例ID
-	instanceID := getEnvoyProperty("instance_id", "")
-	if instanceID != "" {
-		return instanceID
-	}
-	
-	// 从请求头获取
-	instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
-	if instanceID != "" {
-		return instanceID
-	}
-	
-	log.Debugf("[http-log-pusher] instance_id not found, using default")
-	return "unknown"
+    // 1. 从 Envoy 属性获取实例ID
+    instanceID := getEnvoyProperty("instance_id", "")
+    if instanceID != "" {
+        return instanceID
+    }
+    
+    // 2. 从请求头获取
+    instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
+    if instanceID != "" {
+        return instanceID
+    }
+    
+    log.Debugf("[http-log-pusher] instance_id not found, using default")
+    return "unknown"
 }
 
 // 获取API名称

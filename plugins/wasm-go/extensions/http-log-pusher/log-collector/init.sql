@@ -2,7 +2,7 @@
 -- Higress HTTP Log Collector - 数据库初始化脚本
 -- ================================================================
 -- 功能: 创建 access_logs 表并建立性能优化索引
--- 对齐: log-format.json 定义的 27 个字段
+-- 对齐: log-format.json 定义的 27 个字段 + 8 个监控元数据字段
 -- ================================================================
 
 -- 创建数据库（如果不存在）
@@ -57,8 +57,18 @@ CREATE TABLE `access_logs` (
   `istio_policy_status` varchar(64) NULL DEFAULT NULL COMMENT 'Istio 策略状态',
   `ai_log` text NULL DEFAULT NULL COMMENT 'WASM AI 日志 (JSON序列化字符串)',
   
+  -- ===== 新增监控元数据字段（8字段）=====
+  `instance_id` varchar(128) NULL DEFAULT NULL COMMENT '实例ID（Pod名称或容器ID）',
+  `api` varchar(128) NULL DEFAULT NULL COMMENT 'API名称（如 chat/completions）',
+  `model` varchar(128) NULL DEFAULT NULL COMMENT '模型名称（如 qwen-max）',
+  `consumer` varchar(256) NULL DEFAULT NULL COMMENT '消费者信息（用户名/API Key等）',
+  `route` varchar(256) NULL DEFAULT NULL COMMENT '路由名称（冗余字段，便于查询）',
+  `service` varchar(256) NULL DEFAULT NULL COMMENT '服务名称（上游服务）',
+  `mcp_server` varchar(256) NULL DEFAULT NULL COMMENT 'MCP服务器名称',
+  `mcp_tool` varchar(256) NULL DEFAULT NULL COMMENT 'MCP工具名称',
+  
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='HTTP 访问日志表（对齐 log-format.json 27字段）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='HTTP 访问日志表（对齐 log-format.json 27字段 + 8监控元数据字段）';
 
 -- ================================================================
 -- 性能优化索引（根据查询场景设计）
@@ -91,7 +101,29 @@ CREATE INDEX `idx_upstream_cluster` ON `access_logs` (`upstream_cluster`, `start
 -- 9. 路由名称索引（路由级别性能分析）
 CREATE INDEX `idx_route_name` ON `access_logs` (`route_name`, `start_time` DESC);
 
+-- ===== 新增监控元数据索引 =====
+-- 10. 实例ID索引（实例级别监控）
+CREATE INDEX `idx_instance_id` ON `access_logs` (`instance_id`, `start_time` DESC);
+
+-- 11. API名称索引（API调用分析）
+CREATE INDEX `idx_api` ON `access_logs` (`api`, `start_time` DESC);
+
+-- 12. 模型名称索引（模型使用统计）
+CREATE INDEX `idx_model` ON `access_logs` (`model`, `start_time` DESC);
+
+-- 13. 消费者索引（用户行为分析）
+CREATE INDEX `idx_consumer` ON `access_logs` (`consumer`, `start_time` DESC);
+
+-- 14. 服务名称索引（服务级别监控）
+CREATE INDEX `idx_service` ON `access_logs` (`service`, `start_time` DESC);
+
+-- 15. MCP Server索引（MCP服务分析）
+CREATE INDEX `idx_mcp_server` ON `access_logs` (`mcp_server`, `start_time` DESC);
+
+-- 16. MCP Tool索引（工具使用分析）
+CREATE INDEX `idx_mcp_tool` ON `access_logs` (`mcp_tool`, `start_time` DESC);
+
 -- ================================================================
 -- 初始化完成提示
 -- ================================================================
-SELECT '✅ access_logs 表创建成功！包含 27 个字段 + 9 个性能索引' AS status;
+SELECT '✅ access_logs 表创建成功！包含 35 个字段 (27基础+8监控) + 16 个性能索引' AS status;
