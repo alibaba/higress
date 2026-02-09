@@ -2,7 +2,7 @@
 -- Higress HTTP Log Collector - 数据库初始化脚本
 -- ================================================================
 -- 功能: 创建 access_logs 表并建立性能优化索引
--- 对齐: log-format.json 定义的 27 个字段 + 8 个监控元数据字段
+-- 对齐: log-format.json 定义的 27 个字段 + 8 个监控元数据字段 + 3 个 token 字段
 -- ================================================================
 
 -- 创建数据库（如果不存在）
@@ -57,7 +57,7 @@ CREATE TABLE `access_logs` (
   `istio_policy_status` varchar(64) NULL DEFAULT NULL COMMENT 'Istio 策略状态',
   `ai_log` text NULL DEFAULT NULL COMMENT 'WASM AI 日志 (JSON序列化字符串)',
   
-  -- ===== 新增监控元数据字段（8字段）=====
+  -- ===== 监控元数据字段（8字段）=====
   `instance_id` varchar(128) NULL DEFAULT NULL COMMENT '实例ID（Pod名称或容器ID）',
   `api` varchar(128) NULL DEFAULT NULL COMMENT 'API名称（如 chat/completions）',
   `model` varchar(128) NULL DEFAULT NULL COMMENT '模型名称（如 qwen-max）',
@@ -67,8 +67,13 @@ CREATE TABLE `access_logs` (
   `mcp_server` varchar(256) NULL DEFAULT NULL COMMENT 'MCP服务器名称',
   `mcp_tool` varchar(256) NULL DEFAULT NULL COMMENT 'MCP工具名称',
   
+  -- ===== Token使用统计字段（3字段）=====
+  `input_tokens` bigint NULL DEFAULT NULL COMMENT '输入token数量',
+  `output_tokens` bigint NULL DEFAULT NULL COMMENT '输出token数量',
+  `total_tokens` bigint NULL DEFAULT NULL COMMENT '总token数量',
+  
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='HTTP 访问日志表（对齐 log-format.json 27字段 + 8监控元数据字段）';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='HTTP 访问日志表（对齐 log-format.json 27字段 + 8监控元数据 + 3 token字段）';
 
 -- ================================================================
 -- 性能优化索引（根据查询场景设计）

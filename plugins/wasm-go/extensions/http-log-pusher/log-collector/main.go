@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -734,6 +735,22 @@ func handleBatchChart(w http.ResponseWriter, r *http.Request) {
 	
 	log.Printf("[BatchChart] Request received: %s", r.URL.RawQuery)
 	
+	// 读取请求体内容用于调试
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("[BatchChart] Error reading request body: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(AggregationResponse{
+			Status: "error",
+			Error:  "Failed to read request body",
+		})
+		return
+	}
+	log.Printf("[BatchChart] Request body: %s", string(body))
+	
+	// 重新包装body以供后续解码使用
+	r.Body = io.NopCloser(strings.NewReader(string(body)))
+	
 	var payloads []map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&payloads); err != nil {
 		log.Printf("[BatchChart] Error decoding payload: %v", err)
@@ -743,6 +760,11 @@ func handleBatchChart(w http.ResponseWriter, r *http.Request) {
 			Error:  "Invalid payload format",
 		})
 		return
+	}
+	
+	log.Printf("[BatchChart] Parsed %d queries from payload", len(payloads))
+	for i, payload := range payloads {
+		log.Printf("[BatchChart] Query %d: %+v", i, payload)
 	}
 	
 	results := make(map[string]interface{})
@@ -1038,11 +1060,11 @@ func processChartQuery(payload map[string]interface{}) (map[string]interface{}, 
 func querySuccessRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
 			COUNT(*) as total_requests,
 			SUM(CASE WHEN response_code < 400 THEN 1 ELSE 0 END) as success_requests
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
 		ORDER BY timestamp`, whereSQL)
 	
 	rows, err := db.Query(sql, args...)
@@ -1054,19 +1076,29 @@ func querySuccessRateChart(whereSQL string, args []interface{}, interval string)
 	var timestamps []int64
 	var successRates []float64
 	
+	rowCount := 0
 	for rows.Next() {
-		var timestamp, totalRequests, successRequests int64
-		if err := rows.Scan(&timestamp, &totalRequests, &successRequests); err != nil {
+		var timestampFloat float64
+		var totalRequests, successRequests int64
+		if err := rows.Scan(&timestampFloat, &totalRequests, &successRequests); err != nil {
+			log.Printf("[DEBUG] Scan error: %v", err)
 			continue
 		}
+		timestamp := int64(timestampFloat)
+		
+		log.Printf("[DEBUG] Row %d: timestamp=%d, total=%d, success=%d", rowCount, timestamp, totalRequests, successRequests)
 		
 		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
 		if totalRequests > 0 {
-			successRates = append(successRates, float64(successRequests*100)/float64(totalRequests))
+			successRate := float64(successRequests*100) / float64(totalRequests)
+			successRates = append(successRates, successRate)
+			log.Printf("[DEBUG] Success rate calculated: %.2f%%", successRate)
 		} else {
 			successRates = append(successRates, 0)
 		}
+		rowCount++
 	}
+	log.Printf("[DEBUG] Total rows processed: %d", rowCount)
 	
 	return map[string]interface{}{
 		"timestamps": timestamps,
@@ -1090,8 +1122,12 @@ func queryQPSChart(whereSQL string, args []interface{}, interval string) (map[st
 		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
 		ORDER BY timestamp`, whereSQL)
 	
+	log.Printf("[DEBUG] QPS Chart SQL: %s", sql)
+	log.Printf("[DEBUG] QPS Chart Args: %v", args)
+	
 	rows, err := db.Query(sql, args...)
 	if err != nil {
+		log.Printf("[ERROR] Failed to execute QPS query: %v", err)
 		return nil, fmt.Errorf("failed to query QPS: %v", err)
 	}
 	defer rows.Close()
@@ -1099,26 +1135,45 @@ func queryQPSChart(whereSQL string, args []interface{}, interval string) (map[st
 	var timestamps []int64
 	var totalQPS, streamQPS, requestQPS []float64
 	
+	rowCount := 0
 	for rows.Next() {
-		var timestamp, totalCount, streamCount, requestCount int64
-		if err := rows.Scan(&timestamp, &totalCount, &streamCount, &requestCount); err != nil {
+		var timestampFloat float64
+		var totalCount, streamCount, requestCount int64
+		if err := rows.Scan(&timestampFloat, &totalCount, &streamCount, &requestCount); err != nil {
+			log.Printf("[ERROR] Failed to scan QPS row: %v", err)
 			continue
 		}
+		timestamp := int64(timestampFloat)
+		
+		log.Printf("[DEBUG] QPS Row %d: timestamp=%d, total=%d, stream=%d, request=%d", 
+			rowCount, timestamp, totalCount, streamCount, requestCount)
 		
 		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
 		totalQPS = append(totalQPS, float64(totalCount)/float64(intervalSec))
 		streamQPS = append(streamQPS, float64(streamCount)/float64(intervalSec))
 		requestQPS = append(requestQPS, float64(requestCount)/float64(intervalSec))
+		rowCount++
 	}
 	
-	return map[string]interface{}{
+	if err = rows.Err(); err != nil {
+		log.Printf("[ERROR] QPS query iteration error: %v", err)
+		return nil, fmt.Errorf("failed to iterate QPS results: %v", err)
+	}
+	
+	log.Printf("[DEBUG] QPS Chart Results: timestamps=%d items, total_qps=%d items, stream_qps=%d items, request_qps=%d items", 
+		len(timestamps), len(totalQPS), len(streamQPS), len(requestQPS))
+	
+	result := map[string]interface{}{
 		"timestamps": timestamps,
 		"values": map[string][]float64{
 			"total_qps":   totalQPS,
 			"stream_qps":  streamQPS,
 			"request_qps": requestQPS,
 		},
-	}, nil
+	}
+	
+	log.Printf("[DEBUG] QPS Chart Final Result: %+v", result)
+	return result, nil
 }
 
 // 查询Token速率图表数据
@@ -1128,12 +1183,12 @@ func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (
 	// 直接使用数据库中的token字段进行聚合
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
 			COALESCE(SUM(input_tokens), 0) as input_tokens,
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
 			COALESCE(SUM(total_tokens), 0) as total_tokens
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
 		ORDER BY timestamp`, whereSQL)
 	
 	rows, err := db.Query(sql, args...)
@@ -1146,10 +1201,12 @@ func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (
 	var inputRate, outputRate, totalRate []float64
 	
 	for rows.Next() {
-		var timestamp, inputTokens, outputTokens, totalTokens int64
-		if err := rows.Scan(&timestamp, &inputTokens, &outputTokens, &totalTokens); err != nil {
+		var timestampFloat float64
+		var inputTokens, outputTokens, totalTokens int64
+		if err := rows.Scan(&timestampFloat, &inputTokens, &outputTokens, &totalTokens); err != nil {
 			continue
 		}
+		timestamp := int64(timestampFloat)
 		
 		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
 		inputRate = append(inputRate, float64(inputTokens)/float64(intervalSec))
@@ -1173,12 +1230,12 @@ func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (
 func queryRTDistributionChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
 			AVG(duration) as avg_rt,
 			MAX(duration) as max_rt,
 			MIN(duration) as min_rt
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
 		ORDER BY timestamp`, whereSQL)
 	
 	rows, err := db.Query(sql, args...)
@@ -1191,12 +1248,13 @@ func queryRTDistributionChart(whereSQL string, args []interface{}, interval stri
 	var avgRT, p99RT, p95RT, p90RT, p50RT []float64
 	
 	for rows.Next() {
-		var timestamp int64
+		var timestampFloat float64
 		var avgDuration float64
 		var maxDuration, minDuration int64
-		if err := rows.Scan(&timestamp, &avgDuration, &maxDuration, &minDuration); err != nil {
+		if err := rows.Scan(&timestampFloat, &avgDuration, &maxDuration, &minDuration); err != nil {
 			continue
 		}
+		timestamp := int64(timestampFloat)
 		
 		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
 		avgRT = append(avgRT, avgDuration)
@@ -1223,12 +1281,12 @@ func queryCacheHitRateChart(whereSQL string, args []interface{}, interval string
 	// 这里简化处理，实际应该根据具体缓存字段判断
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
 			COUNT(*) as total_requests,
 			SUM(CASE WHEN response_code = 200 THEN 1 ELSE 0 END) as hit_requests,
 			SUM(CASE WHEN response_code = 404 THEN 1 ELSE 0 END) as miss_requests
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
 		ORDER BY timestamp`, whereSQL)
 	
 	rows, err := db.Query(sql, args...)
@@ -1241,10 +1299,12 @@ func queryCacheHitRateChart(whereSQL string, args []interface{}, interval string
 	var hitRate, missRate, skipRate []float64
 	
 	for rows.Next() {
-		var timestamp, totalRequests, hitRequests, missRequests int64
-		if err := rows.Scan(&timestamp, &totalRequests, &hitRequests, &missRequests); err != nil {
+		var timestampFloat float64
+		var totalRequests, hitRequests, missRequests int64
+		if err := rows.Scan(&timestampFloat, &totalRequests, &hitRequests, &missRequests); err != nil {
 			continue
 		}
+		timestamp := int64(timestampFloat)
 		
 		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
 		if totalRequests > 0 {
@@ -1274,10 +1334,10 @@ func queryRateLimitChart(whereSQL string, args []interface{}, interval string) (
 	
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00')) as timestamp,
+			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
 			COUNT(*) as rate_limit_count
 		FROM access_logs %s AND response_code = 429
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:00') 
+		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
 		ORDER BY timestamp`, whereSQL)
 	
 	rows, err := db.Query(sql, args...)
@@ -1290,10 +1350,12 @@ func queryRateLimitChart(whereSQL string, args []interface{}, interval string) (
 	var rateLimitCount []float64
 	
 	for rows.Next() {
-		var timestamp, count int64
-		if err := rows.Scan(&timestamp, &count); err != nil {
+		var timestampFloat float64
+		var count int64
+		if err := rows.Scan(&timestampFloat, &count); err != nil {
 			continue
 		}
+		timestamp := int64(timestampFloat)
 		
 		timestamps = append(timestamps, timestamp*1000) // 转换为毫秒
 		rateLimitCount = append(rateLimitCount, float64(count)/float64(intervalSec))
