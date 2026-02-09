@@ -4,7 +4,7 @@ metadata:
   name: http-log-push-plugin
   namespace: ls-test
   annotations:
-    higress.io/redeploy-timestamp: "20260209-142240"
+    higress.io/redeploy-timestamp: "20260209-153954"
     higress.io/comment: "HTTP Log Push Plugin for collecting request logs"
     higress.io/wasm-plugin-title: "HTTP Log Push"
     higress.io/wasm-plugin-description: "Push HTTP request logs to external collector"
@@ -12,7 +12,7 @@ metadata:
     higress.io/wasm-plugin-name: http-log-push
     higress.io/wasm-plugin-category: logging
 spec:
-  url: https://pysrc-test.oss-cn-beijing.aliyuncs.com/higress-plugin/plugin-20260209-135104.wasm
+  url: https://pysrc-test.oss-cn-beijing.aliyuncs.com/higress-plugin/plugin-20260209-153853.wasm
   sha256: ""  # 建议填入WASM文件的SHA256校验和
   defaultConfigDisable: true  # 默认关闭全局配置
   failStrategy: FAIL_OPEN      # 失败时放行，避免影响业务
@@ -24,6 +24,7 @@ spec:
     - configDisable: false
       ingress:
         - model-api-eliot-test-text-0
+        - travel-assistant
       config:
         log_level: info  # 必须在这里配置 log_level
         collector_host: "log-collector.higress-system.svc.cluster.local"

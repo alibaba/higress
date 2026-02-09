@@ -466,21 +466,35 @@ func getModelName(ctx wrapper.HttpContext, log wrapper.Log) string {
 
 // 获取消费者信息
 func getConsumer(log wrapper.Log) string {
-	// 从认证头获取
+	// 优先从认证插件设置的头获取（jwt-auth/key-auth等插件认证通过后会设置此header）
 	consumer, _ := proxywasm.GetHttpRequestHeader("x-mse-consumer")
 	if consumer != "" {
 		return consumer
 	}
 	
-	// 从 Authorization 头解析
+	// 从 Authorization 头解析完整凭证信息
 	authHeader, _ := proxywasm.GetHttpRequestHeader("authorization")
 	if authHeader != "" {
-		// 解析 Bearer token
+		// 解析 Bearer token - 存储完整token用于审计和查询
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			token := strings.TrimPrefix(authHeader, "Bearer ")
-			// 这里可以根据需要解析 token 获取消费者信息
-			return fmt.Sprintf("token:%s", token[:8]) // 简化示例
+			// 返回完整token以便后续审计查询
+			// 注意：如果token过长可能影响日志存储，建议配合数据库字段长度设置
+			return fmt.Sprintf("bearer:%s", token)
 		}
+		// 解析 Basic 认证
+		if strings.HasPrefix(authHeader, "Basic ") {
+			credential := strings.TrimPrefix(authHeader, "Basic ")
+			return fmt.Sprintf("basic:%s", credential)
+		}
+		// 其他认证方式
+		return fmt.Sprintf("auth:%s", authHeader)
+	}
+	
+	// 检查其他常见的认证头
+	apiKey, _ := proxywasm.GetHttpRequestHeader("x-api-key")
+	if apiKey != "" {
+		return fmt.Sprintf("apikey:%s", apiKey)
 	}
 	
 	log.Debugf("[http-log-pusher] consumer not found")
@@ -538,92 +552,29 @@ func getServiceName(log wrapper.Log) string {
 
 // 获取MCP Server
 func getMCPServer(log wrapper.Log) string {
-	// 方法1: 从上游集群名称获取（更准确）
-	clusterName := getEnvoyProperty("cluster_name", "")
-	if clusterName != "" {
-		// 清理集群名称格式: outbound|8080||mcp-server-name.namespace.svc.cluster.local
-		// 提取服务名称部分
-		parts := strings.Split(clusterName, "|")
-		if len(parts) >= 4 {
-			servicePart := parts[3] // mcp-server-name.namespace.svc.cluster.local
-			serviceName := strings.Split(servicePart, ".")[0] // mcp-server-name
-			if strings.Contains(serviceName, "-mcp-") || strings.HasSuffix(serviceName, "-mcp") {
-				return serviceName
-			}
-		}
-	}
-	
-	// 方法2: 从路由名称获取
+	// 方法1: 从路由名称获取
 	routeName := getEnvoyProperty("route_name", "")
-	if routeName != "" && strings.Contains(routeName, "-mcp-") {
-		// 格式: mcp-server-name-mcp-tool-name-0
-		parts := strings.Split(routeName, "-")
-		if len(parts) >= 3 {
-			// 查找包含 "mcp" 的部分作为分界点
-			for i, part := range parts {
-				if part == "mcp" && i > 0 {
-					return strings.Join(parts[:i], "-") // 返回 mcp 前面的部分
-				}
-			}
-		}
+	if routeName == "" {
+		log.Debugf("[http-log-pusher] route_name not found")
+		return "unknown"
 	}
 	
-	// 方法3: 从上游主机获取（原有方式作为fallback）
-	upstreamHost := getEnvoyProperty("upstream_host", "")
-	if upstreamHost != "" {
-		hostParts := strings.Split(upstreamHost, ":")
-		if len(hostParts) > 0 {
-			return hostParts[0]
-		}
-		return upstreamHost
-	}
-	
-	log.Debugf("[http-log-pusher] mcp_server not found")
-	return "unknown"
+	return routeName
 }
 
 // 获取MCP Tool
 func getMCPTool(ctx wrapper.HttpContext, log wrapper.Log) string {
-	// 方法1: 从路由名称解析（最准确）
-	routeName := getEnvoyProperty("route_name", "")
-	if routeName != "" && strings.Contains(routeName, "-mcp-") {
-		// 格式: mcp-server-name-mcp-tool-name-0
-		parts := strings.Split(routeName, "-")
-		mcpIndex := -1
-		for i, part := range parts {
-			if part == "mcp" {
-				mcpIndex = i
-				break
-			}
-		}
-		// MCP后面的部分就是工具名
-		if mcpIndex != -1 && mcpIndex+1 < len(parts) && parts[mcpIndex+1] != "0" {
-			// 获取从mcp之后到倒数第二个部分
-			if mcpIndex+1 < len(parts)-1 {
-				return strings.Join(parts[mcpIndex+1:len(parts)-1], "-")
-			}
-		}
+	// 方法1: 从标准MCP工具头获取（最准确）
+	// Higress系统通过x-envoy-mcp-tool-name header传递工具名称
+	toolName, err := proxywasm.GetHttpRequestHeader("x-envoy-mcp-tool-name")
+	if err == nil && toolName != "" {
+		log.Debugf("[http-log-pusher] got mcp_tool from header: %s", toolName)
+		return toolName
 	}
 	
-	// 方法2: 从请求路径推断（原有方式作为fallback）
+	// 获取路径用于日志记录
 	path := ctx.Path()
-	if strings.Contains(path, "/chat/completions") {
-		return "chat-completions"
-	} else if strings.Contains(path, "/embeddings") {
-		return "embeddings"
-	} else if strings.Contains(path, "/images/generations") {
-		return "image-generation"
-	} else if strings.Contains(path, "/audio/transcriptions") {
-		return "audio-transcription"
-	} else if strings.Contains(path, "/mcp/") {
-		// 处理MCP特定路径
-		pathParts := strings.Split(strings.Trim(path, "/"), "/")
-		if len(pathParts) >= 3 && pathParts[0] == "mcp" {
-			return pathParts[1] // /mcp/tool-name/...
-		}
-	}
-	
-	log.Debugf("[http-log-pusher] mcp_tool not determined from route/path: %s", path)
+	log.Debugf("[http-log-pusher] mcp_tool not determined from header/route/path: %s", path)
 	return "unknown"
 }
 
