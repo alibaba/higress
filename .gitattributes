@@ -1,0 +1,12 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+* text eol=lf
+
+# Binary files - treat as binary, no line ending conversion
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.pdf binary
