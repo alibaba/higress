@@ -15,7 +15,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// 1. 定义与 Wasm 插件发送格式一致的结构体（完整 27 字段，对齐 log-format.json）
+// 1. 定义与 Wasm 插件发送格式一致的结构体（完整 34 字段，对齐 log-format.json + 监控元数据）
 type LogEntry struct {
 	// 基础请求信息
 	StartTime     string `json:"start_time"`               // 请求开始时间 (RFC3339)
@@ -58,6 +58,16 @@ type LogEntry struct {
 	
 	// AI 日志
 	AILog string `json:"ai_log"` // WASM AI 日志 (JSON 字符串)
+	
+	// ===== 新增的监控元数据字段 (8个) =====
+	InstanceID string `json:"instance_id"` // 实例ID
+	API        string `json:"api"`         // API名称
+	Model      string `json:"model"`       // 模型名称
+	Consumer   string `json:"consumer"`    // 消费者信息
+	Route      string `json:"route"`       // 路由名称(冗余字段，便于查询)
+	Service    string `json:"service"`     // 服务名称
+	MCPServer  string `json:"mcp_server"`  // MCP服务器名称
+	MCPTool    string `json:"mcp_tool"`    // MCP工具名称
 }
 
 // 全局变量
@@ -187,8 +197,8 @@ func flushLogs() {
 	valueArgs := []interface{}{}
 
 	for _, entry := range chunk {
-		// 26 个字段的占位符 (对齐 log-format.json)
-		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		// 34 个字段的占位符 (对齐 log-format.json + 监控元数据)
+		valueStrings = append(valueStrings, "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 
 		// 转换 RFC3339 时间为 MySQL datetime 格式
 		startTime := entry.StartTime
@@ -196,7 +206,7 @@ func flushLogs() {
 			startTime = t.Format("2006-01-02 15:04:05")
 		}
 
-		// 按表结构顺序:26 个字段完整映射 (对齐 log-format.json)
+		// 按表结构顺序:34 个字段完整映射
 		valueArgs = append(valueArgs,
 			// 基础请求信息 (9字段)
 			startTime,                  // start_time
@@ -231,11 +241,20 @@ func flushLogs() {
 			// Istio + AI (2字段)
 			entry.IstioPolicyStatus,    // istio_policy_status
 			entry.AILog,                // ai_log
+			// ===== 监控元数据 (8字段) =====
+			entry.InstanceID,           // instance_id
+			entry.API,                  // api
+			entry.Model,                // model
+			entry.Consumer,             // consumer
+			entry.Route,                // route
+			entry.Service,              // service
+			entry.MCPServer,            // mcp_server
+			entry.MCPTool,              // mcp_tool
 		)
-		// 总计: 9+3+3+5+2+2+2 = 26 字段
+		// 总计: 9+3+3+5+2+2+2+8 = 34 字段
 	}
 
-	// 构建 INSERT 语句 (26个字段,对齐 log-format.json)
+	// 构建 INSERT 语句 (34个字段,对齐 log-format.json + 监控元数据)
 	stmt := fmt.Sprintf(`INSERT INTO access_logs (
 		start_time, trace_id, authority, method, path, protocol, request_id, user_agent, x_forwarded_for,
 		response_code, response_flags, response_code_details,
@@ -244,7 +263,8 @@ func flushLogs() {
 		downstream_local_address, downstream_remote_address,
 		route_name, requested_server_name,
 		istio_policy_status,
-		ai_log
+		ai_log,
+		instance_id, api, model, consumer, route, service, mcp_server, mcp_tool
 	) VALUES %s`, strings.Join(valueStrings, ","))
 
 	// 执行写入
@@ -364,6 +384,63 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		filters = append(filters, fmt.Sprintf("trace_id=%s", traceID))
 	}
 	
+	// ===== 新增监控元数据查询支持 =====
+	// 实例ID查询
+	if instanceID := params.Get("instance_id"); instanceID != "" {
+		whereClause = append(whereClause, "instance_id = ?")
+		args = append(args, instanceID)
+		filters = append(filters, fmt.Sprintf("instance_id=%s", instanceID))
+	}
+	
+	// API名称查询
+	if api := params.Get("api"); api != "" {
+		whereClause = append(whereClause, "api = ?")
+		args = append(args, api)
+		filters = append(filters, fmt.Sprintf("api=%s", api))
+	}
+	
+	// 模型名称查询
+	if model := params.Get("model"); model != "" {
+		whereClause = append(whereClause, "model = ?")
+		args = append(args, model)
+		filters = append(filters, fmt.Sprintf("model=%s", model))
+	}
+	
+	// 消费者查询
+	if consumer := params.Get("consumer"); consumer != "" {
+		whereClause = append(whereClause, "consumer = ?")
+		args = append(args, consumer)
+		filters = append(filters, fmt.Sprintf("consumer=%s", consumer))
+	}
+	
+	// 路由查询
+	if route := params.Get("route"); route != "" {
+		whereClause = append(whereClause, "route = ?")
+		args = append(args, route)
+		filters = append(filters, fmt.Sprintf("route=%s", route))
+	}
+	
+	// 服务查询
+	if service := params.Get("service"); service != "" {
+		whereClause = append(whereClause, "service = ?")
+		args = append(args, service)
+		filters = append(filters, fmt.Sprintf("service=%s", service))
+	}
+	
+	// MCP Server查询
+	if mcpServer := params.Get("mcp_server"); mcpServer != "" {
+		whereClause = append(whereClause, "mcp_server = ?")
+		args = append(args, mcpServer)
+		filters = append(filters, fmt.Sprintf("mcp_server=%s", mcpServer))
+	}
+	
+	// MCP Tool查询
+	if mcpTool := params.Get("mcp_tool"); mcpTool != "" {
+		whereClause = append(whereClause, "mcp_tool = ?")
+		args = append(args, mcpTool)
+		filters = append(filters, fmt.Sprintf("mcp_tool=%s", mcpTool))
+	}
+	
 	// 构建完整的 WHERE 子句
 	whereSQL := ""
 	if len(whereClause) > 0 {
@@ -447,7 +524,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("[Query] Sorting: sort_by=%s, sort_order=%s", sortBy, sortOrder)
 	
-	// 构建查询 SQL（查询所有 27 个字段）
+	// 构建查询 SQL（查询所有 34 个字段）
 	querySQL := fmt.Sprintf(`
 		SELECT start_time, trace_id, authority, method, path, protocol, request_id, user_agent, x_forwarded_for,
 		       response_code, response_flags, response_code_details,
@@ -456,7 +533,8 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 		       downstream_local_address, downstream_remote_address,
 		       route_name, requested_server_name,
 		       istio_policy_status,
-		       ai_log
+		       ai_log,
+		       instance_id, api, model, consumer, route, service, mcp_server, mcp_tool
 		FROM access_logs %s ORDER BY %s %s LIMIT ? OFFSET ?`,
 		whereSQL, sortBy, sortOrder,
 	)
@@ -480,7 +558,7 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	log.Printf("[Query] SELECT executed (duration=%v)", queryExecDuration)
 	
-	// 解析查询结果（读取所有 27 个字段）
+	// 解析查询结果（读取所有 34 个字段）
 	parseScanStart := time.Now()
 	logs := []LogEntry{}
 	for rows.Next() {
@@ -506,6 +584,9 @@ func handleQuery(w http.ResponseWriter, r *http.Request) {
 			&entry.IstioPolicyStatus,
 			// AI 日志
 			&entry.AILog,
+			// ===== 监控元数据 (8字段) =====
+			&entry.InstanceID, &entry.API, &entry.Model, &entry.Consumer,
+			&entry.Route, &entry.Service, &entry.MCPServer, &entry.MCPTool,
 		)
 		if err != nil {
 			log.Printf("[Query] Error scanning row: %v", err)
