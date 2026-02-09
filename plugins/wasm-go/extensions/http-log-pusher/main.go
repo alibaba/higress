@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -78,6 +79,16 @@ type LogEntry struct {
 	
 	// AI 日志 (如果有)
 	AILog string `json:"ai_log,omitempty"` // WASM AI 日志
+	
+	// 监控元数据字段
+	InstanceID string `json:"instance_id"`      // 实例ID
+	API        string `json:"api"`              // API名称
+	Model      string `json:"model"`            // 模型名称
+	Consumer   string `json:"consumer"`         // 消费者
+	Route      string `json:"route"`            // 路由
+	Service    string `json:"service"`          // 服务
+	MCPServer  string `json:"mcp_server"`       // MCP Server
+	MCPTool    string `json:"mcp_tool"`         // MCP Tool
 	
 	// 详细数据 (可选)
 	ReqHeaders  map[string]string `json:"req_headers,omitempty"`  // 完整请求头
@@ -188,11 +199,26 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	downstreamLocalAddr := getEnvoyProperty("downstream_local_address", "")
 	downstreamRemoteAddr := getEnvoyProperty("downstream_remote_address", "")
 	upstreamLocalAddr := getEnvoyProperty("upstream_local_address", "")
-	routeName := getEnvoyProperty("route_name", "")
 	sni := getEnvoyProperty("requested_server_name", "")
-	// aiLog 从 WASM filter state 的 "ai_log" 读取，而不是 "wasm.ai_log"
-	aiLogBytes, _ := proxywasm.GetProperty([]string{wrapper.AILogKey})
-	aiLog := string(aiLogBytes)
+	// 从 Envoy Filter State 读取 AI 日志
+	// ai-statistics 插件通过 WriteUserAttributeToLogWithKey() 将数据写入此处
+	aiLogBytes, err := proxywasm.GetProperty([]string{wrapper.AILogKey})
+	var aiLog string
+	if err == nil && len(aiLogBytes) > 0 {
+		aiLog = string(aiLogBytes)
+	} else {
+		aiLog = "-" // 无 AI 日志时的默认值
+	}
+	
+	// 提取监控所需的元数据字段
+	instanceID := getInstanceID(log)
+	apiName := getAPIName(ctx, log)
+	modelName := getModelName(ctx, log)
+	consumer := getConsumer(log)
+	routeNameMeta := getRouteName(log)
+	serviceName := getServiceName(log)
+	mcpServer := getMCPServer(log)
+	mcpTool := getMCPTool(ctx, log)
 	
 	// 计算耗时
 	duration := time.Now().UnixMilli() - startTime
@@ -231,11 +257,21 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		UpstreamLocalAddress:    upstreamLocalAddr,
 		
 		// 路由信息
-		RouteName:           routeName,
+		RouteName:           routeNameMeta,
 		RequestedServerName: sni,
 		
 		// AI 日志
 		AILog: aiLog,
+		
+		// 监控元数据
+		InstanceID: instanceID,
+		API:        apiName,
+		Model:      modelName,
+		Consumer:   consumer,
+		Route:      routeNameMeta,
+		Service:    serviceName,
+		MCPServer:  mcpServer,
+		MCPTool:    mcpTool,
 		
 		// 详细数据 (可选，根据需要采集)
 		ReqHeaders:  toMap(reqHeaders),
@@ -243,6 +279,22 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		RespHeaders: toMap(respHeaders),
 		RespBody:    string(body),
 	}
+
+	// 🔍 调试日志：打印即将存储的所有字段内容
+	log.Infof("[http-log-pusher] === 即将存储的日志内容 ===")
+	// log.Infof("[http-log-pusher] 基础信息: StartTime=%s, Authority=%s, Method=%s, Path=%s, Protocol=%s", 
+	// 	entry.StartTime, entry.Authority, entry.Method, entry.Path, entry.Protocol)
+	// log.Infof("[http-log-pusher] 请求标识: RequestID=%s, TraceID=%s", entry.RequestID, entry.TraceID)
+	// log.Infof("[http-log-pusher] 响应信息: ResponseCode=%d, ResponseFlags=%s", entry.ResponseCode, entry.ResponseFlags)
+	// log.Infof("[http-log-pusher] 流量统计: BytesReceived=%d, BytesSent=%d, Duration=%d ms", 
+	// 	entry.BytesReceived, entry.BytesSent, entry.Duration)
+	// log.Infof("[http-log-pusher] 上游信息: UpstreamCluster=%s, UpstreamHost=%s", entry.UpstreamCluster, entry.UpstreamHost)
+	log.Infof("[http-log-pusher] 监控元数据: InstanceID=%s, API=%s, Model=%s, Consumer=%s", 
+		entry.InstanceID, entry.API, entry.Model, entry.Consumer)
+	log.Infof("[http-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
+		entry.Route, entry.Service, entry.MCPServer, entry.MCPTool)
+	// log.Infof("[http-log-pusher] AI日志: AILog=%s", entry.AILog)
+	log.Infof("[http-log-pusher] =========================")
 
 	payload, _ := json.Marshal(entry)
 	
@@ -260,7 +312,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 
 	// 这里的 5000 是超时时间(ms)
 	// Fire-and-forget: 回调函数简单记录结果
-	err := config.CollectorClient.Post(
+	postErr := config.CollectorClient.Post(
 		config.CollectorPath,
 		headers,
 		payload,
@@ -273,8 +325,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		},
 		5000, // 超时 5 秒
 	)
-	if err != nil {
-		log.Errorf("[http-log-pusher] failed to dispatch http call: %v", err)
+	if postErr != nil {
+		log.Errorf("[http-log-pusher] failed to dispatch http call: %v", postErr)
 	}
 
 	return types.ActionContinue
@@ -352,15 +404,248 @@ func getEnvoyProperty(path string, defaultValue string) string {
 	return string(value)
 }
 
+// 获取实例ID
+func getInstanceID(log wrapper.Log) string {
+	// 从 Envoy 属性获取实例ID
+	instanceID := getEnvoyProperty("instance_id", "")
+	if instanceID != "" {
+		return instanceID
+	}
+	
+	// 从请求头获取
+	instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
+	if instanceID != "" {
+		return instanceID
+	}
+	
+	log.Debugf("[http-log-pusher] instance_id not found, using default")
+	return "unknown"
+}
+
+// 获取API名称
+func getAPIName(ctx wrapper.HttpContext, log wrapper.Log) string {
+	// 从路由名称解析
+	routeName := getEnvoyProperty("route_name", "")
+	if routeName != "" {
+		// 格式: model-api-{api-name}-0
+		parts := strings.Split(routeName, "-")
+		if len(parts) >= 3 && parts[0] == "model" && parts[1] == "api" {
+			// 提取从第3个部分开始的所有内容作为 API 名称
+			// 例如: model-api-test-by-lisi-0 -> test-by-lisi
+			apiName := strings.Join(parts[2:len(parts)-1], "-")
+			return apiName
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] api_name not determined from route/path")
+	return "unknown"
+}
+
+// 获取模型名称
+func getModelName(ctx wrapper.HttpContext, log wrapper.Log) string {
+	// 优先从 ai-statistics 获取
+	model := ctx.GetUserAttribute("model")
+	if model != nil {
+		if modelStr, ok := model.(string); ok && modelStr != "" {
+			return modelStr
+		}
+	}
+	
+	// 从请求体解析
+	reqBody, _ := ctx.GetContext("req_body").(string)
+	if reqBody != "" {
+		modelFromReq := extractModelFromRequestBody(reqBody)
+		if modelFromReq != "" {
+			return modelFromReq
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] model_name not found")
+	return "unknown"
+}
+
+// 获取消费者信息
+func getConsumer(log wrapper.Log) string {
+	// 从认证头获取
+	consumer, _ := proxywasm.GetHttpRequestHeader("x-mse-consumer")
+	if consumer != "" {
+		return consumer
+	}
+	
+	// 从 Authorization 头解析
+	authHeader, _ := proxywasm.GetHttpRequestHeader("authorization")
+	if authHeader != "" {
+		// 解析 Bearer token
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			// 这里可以根据需要解析 token 获取消费者信息
+			return fmt.Sprintf("token:%s", token[:8]) // 简化示例
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] consumer not found")
+	return "anonymous"
+}
+
+// 获取路由名称 - 区分MCP场景和Model API场景
+func getRouteName(log wrapper.Log) string {
+	routeName := getEnvoyProperty("route_name", "")
+	if routeName == "" {
+		log.Debugf("[http-log-pusher] route_name not found")
+		return "unknown"
+	}
+	
+	// 判断是否为MCP场景
+	if strings.Contains(routeName, "-mcp-") {
+		// MCP场景：路由名称格式为 {mcp-server-name}-mcp-{mcp-tool-name}-0
+		// 在Route字段中存储MCP Server名称（即mcp前面的部分）
+		parts := strings.Split(routeName, "-")
+		mcpIndex := -1
+		for i, part := range parts {
+			if part == "mcp" {
+				mcpIndex = i
+				break
+			}
+		}
+		if mcpIndex > 0 {
+			// 返回MCP Server名称
+			return strings.Join(parts[:mcpIndex], "-")
+		}
+	}
+	
+	// Model API场景或其他场景：直接返回原始路由名称
+	return routeName
+}
+
+// 获取服务名称
+func getServiceName(log wrapper.Log) string {
+	// 从上游集群获取
+	clusterName := getEnvoyProperty("cluster_name", "")
+	if clusterName != "" {
+		// 清理集群名称格式
+		service := strings.TrimPrefix(clusterName, "outbound|")
+		service = strings.TrimPrefix(service, "inbound|")
+		parts := strings.Split(service, "|")
+		if len(parts) > 0 {
+			return parts[len(parts)-1] // 取最后一部分作为服务名
+		}
+		return service
+	}
+	
+	log.Debugf("[http-log-pusher] service_name not found")
+	return "unknown"
+}
+
+// 获取MCP Server
+func getMCPServer(log wrapper.Log) string {
+	// 方法1: 从上游集群名称获取（更准确）
+	clusterName := getEnvoyProperty("cluster_name", "")
+	if clusterName != "" {
+		// 清理集群名称格式: outbound|8080||mcp-server-name.namespace.svc.cluster.local
+		// 提取服务名称部分
+		parts := strings.Split(clusterName, "|")
+		if len(parts) >= 4 {
+			servicePart := parts[3] // mcp-server-name.namespace.svc.cluster.local
+			serviceName := strings.Split(servicePart, ".")[0] // mcp-server-name
+			if strings.Contains(serviceName, "-mcp-") || strings.HasSuffix(serviceName, "-mcp") {
+				return serviceName
+			}
+		}
+	}
+	
+	// 方法2: 从路由名称获取
+	routeName := getEnvoyProperty("route_name", "")
+	if routeName != "" && strings.Contains(routeName, "-mcp-") {
+		// 格式: mcp-server-name-mcp-tool-name-0
+		parts := strings.Split(routeName, "-")
+		if len(parts) >= 3 {
+			// 查找包含 "mcp" 的部分作为分界点
+			for i, part := range parts {
+				if part == "mcp" && i > 0 {
+					return strings.Join(parts[:i], "-") // 返回 mcp 前面的部分
+				}
+			}
+		}
+	}
+	
+	// 方法3: 从上游主机获取（原有方式作为fallback）
+	upstreamHost := getEnvoyProperty("upstream_host", "")
+	if upstreamHost != "" {
+		hostParts := strings.Split(upstreamHost, ":")
+		if len(hostParts) > 0 {
+			return hostParts[0]
+		}
+		return upstreamHost
+	}
+	
+	log.Debugf("[http-log-pusher] mcp_server not found")
+	return "unknown"
+}
+
+// 获取MCP Tool
+func getMCPTool(ctx wrapper.HttpContext, log wrapper.Log) string {
+	// 方法1: 从路由名称解析（最准确）
+	routeName := getEnvoyProperty("route_name", "")
+	if routeName != "" && strings.Contains(routeName, "-mcp-") {
+		// 格式: mcp-server-name-mcp-tool-name-0
+		parts := strings.Split(routeName, "-")
+		mcpIndex := -1
+		for i, part := range parts {
+			if part == "mcp" {
+				mcpIndex = i
+				break
+			}
+		}
+		// MCP后面的部分就是工具名
+		if mcpIndex != -1 && mcpIndex+1 < len(parts) && parts[mcpIndex+1] != "0" {
+			// 获取从mcp之后到倒数第二个部分
+			if mcpIndex+1 < len(parts)-1 {
+				return strings.Join(parts[mcpIndex+1:len(parts)-1], "-")
+			}
+		}
+	}
+	
+	// 方法2: 从请求路径推断（原有方式作为fallback）
+	path := ctx.Path()
+	if strings.Contains(path, "/chat/completions") {
+		return "chat-completions"
+	} else if strings.Contains(path, "/embeddings") {
+		return "embeddings"
+	} else if strings.Contains(path, "/images/generations") {
+		return "image-generation"
+	} else if strings.Contains(path, "/audio/transcriptions") {
+		return "audio-transcription"
+	} else if strings.Contains(path, "/mcp/") {
+		// 处理MCP特定路径
+		pathParts := strings.Split(strings.Trim(path, "/"), "/")
+		if len(pathParts) >= 3 && pathParts[0] == "mcp" {
+			return pathParts[1] // /mcp/tool-name/...
+		}
+	}
+	
+	log.Debugf("[http-log-pusher] mcp_tool not determined from route/path: %s", path)
+	return "unknown"
+}
+
+// 从请求体提取模型名称
+func extractModelFromRequestBody(body string) string {
+	result := gjson.Get(body, "model")
+	if result.Exists() {
+		return result.String()
+	}
+	return ""
+}
+
 // 获取 Envoy 属性 (int64 类型)
 func getEnvoyPropertyInt64(path string, defaultValue int64) int64 {
+	// Envoy 属性路径格式，参考: https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/advanced/attributes
 	var propertyPath []string
 	
 	switch path {
 	case "request.total_size":
-		propertyPath = []string{"request", "total_size"}
+		propertyPath = []string{"request", "size"}
 	case "response.total_size":
-		propertyPath = []string{"response", "total_size"}
+		propertyPath = []string{"response", "size"}
 	default:
 		return defaultValue
 	}
@@ -370,15 +655,12 @@ func getEnvoyPropertyInt64(path string, defaultValue int64) int64 {
 		return defaultValue
 	}
 	
-	// 尝试解析为 int64
-	if len(value) >= 8 {
-		// Envoy 返回的是 little-endian 字节序
-		var result int64
-		for i := 0; i < 8 && i < len(value); i++ {
-			result |= int64(value[i]) << (i * 8)
-		}
-		return result
+	// 将字节转换为字符串再解析为int64
+	strValue := string(value)
+	intValue, err := strconv.ParseInt(strValue, 10, 64)
+	if err != nil {
+		return defaultValue
 	}
 	
-	return defaultValue
+	return intValue
 }
