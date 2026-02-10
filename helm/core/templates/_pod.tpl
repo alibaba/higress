@@ -123,6 +123,8 @@ template:
         - name: LITE_METRICS
           value: "on"
         {{- end }}
+        - name: ISTIO_DELTA_XDS
+          value: "{{ .Values.global.enableDeltaXDS }}"
         {{- if include "skywalking.enabled" . }}
         - name: ISTIO_BOOTSTRAP_OVERRIDE
           value: /etc/istio/custom-bootstrap/custom_bootstrap.json
