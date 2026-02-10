@@ -173,6 +173,8 @@ spec:
             value: "{{ .Values.global.xdsMaxRecvMsgSize }}"
           - name: ENBALE_SCOPED_RDS
             value: "{{ .Values.global.enableSRDS }}"
+          - name: ISTIO_DELTA_XDS
+            value: "{{ .Values.global.enableDeltaXDS }}"
           - name: ON_DEMAND_RDS
             value: "{{ .Values.global.onDemandRDS }}"
           - name: HOST_RDS_MERGE_SUBSET
