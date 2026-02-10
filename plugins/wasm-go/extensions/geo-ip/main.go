@@ -31,7 +31,8 @@ const (
 	// Maximum entries to load in CI/resource-constrained environments
 	// Set to 0 to load all entries, or a positive number to limit
 	// In CI, we load minimal entries plus hardcoded test IPs to pass e2e tests
-	MaxEntriesForCI = 50000 // Load first 50k entries (fast startup)
+	// Reduced from 50000 to 10000 to reduce memory pressure and initialization time in resource-constrained CI
+	MaxEntriesForCI = 10000 // Load first 10k entries (fast startup, lower memory footprint)
 )
 
 const (
