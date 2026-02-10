@@ -137,6 +137,10 @@ func TestVertex(t *testing.T) {
 	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
 	test.RunVertexExpressModeImageGenerationRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationResponseBodyTests(t)
+	// Vertex Raw 模式测试
+	test.RunVertexRawModeOnHttpRequestHeadersTests(t)
+	test.RunVertexRawModeOnHttpRequestBodyTests(t)
+	test.RunVertexRawModeOnHttpResponseBodyTests(t)
 }
 
 func TestBedrock(t *testing.T) {
@@ -145,4 +149,10 @@ func TestBedrock(t *testing.T) {
 	test.RunBedrockOnHttpRequestBodyTests(t)
 	test.RunBedrockOnHttpResponseHeadersTests(t)
 	test.RunBedrockOnHttpResponseBodyTests(t)
+}
+
+func TestClaude(t *testing.T) {
+	test.RunClaudeParseConfigTests(t)
+	test.RunClaudeOnHttpRequestHeadersTests(t)
+	test.RunClaudeOnHttpRequestBodyTests(t)
 }
