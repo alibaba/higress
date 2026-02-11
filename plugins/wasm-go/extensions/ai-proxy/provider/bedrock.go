@@ -769,7 +769,15 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		case roleSystem:
 			systemMessages = append(systemMessages, systemContentBlock{Text: msg.StringContent()})
 		case roleTool:
-			messages = append(messages, chatToolMessage2BedrockMessage(msg))
+			toolResultContent := chatToolMessage2BedrockToolResultContent(msg)
+			if len(messages) > 0 && messages[len(messages)-1].Role == roleUser && messages[len(messages)-1].Content[0].ToolResult != nil {
+				messages[len(messages)-1].Content = append(messages[len(messages)-1].Content, toolResultContent)
+			} else {
+				messages = append(messages, bedrockMessage{
+					Role:    roleUser,
+					Content: []bedrockMessageContent{toolResultContent},
+				})
+			}
 		default:
 			messages = append(messages, chatMessage2BedrockMessage(msg))
 		}
@@ -1060,7 +1068,7 @@ type tokenUsage struct {
 	TotalTokens int `json:"totalTokens"`
 }
 
-func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
+func chatToolMessage2BedrockToolResultContent(chatMessage chatMessage) bedrockMessageContent {
 	toolResultContent := &toolResultBlock{}
 	toolResultContent.ToolUseId = chatMessage.ToolCallId
 	if text, ok := chatMessage.Content.(string); ok {
@@ -1083,29 +1091,29 @@ func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 	} else {
 		log.Warnf("the content type is not supported, current content is %v", chatMessage.Content)
 	}
-	return bedrockMessage{
-		Role: roleUser,
-		Content: []bedrockMessageContent{
-			{
-				ToolResult: toolResultContent,
-			},
-		},
+	return bedrockMessageContent{
+		ToolResult: toolResultContent,
 	}
 }
 
 func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 	var result bedrockMessage
 	if len(chatMessage.ToolCalls) > 0 {
+		contents := make([]bedrockMessageContent, 0, len(chatMessage.ToolCalls))
+		for _, toolCall := range chatMessage.ToolCalls {
+			params := map[string]interface{}{}
+			json.Unmarshal([]byte(toolCall.Function.Arguments), &params)
+			contents = append(contents, bedrockMessageContent{
+				ToolUse: &toolUseBlock{
+					Input:     params,
+					Name:      toolCall.Function.Name,
+					ToolUseId: toolCall.Id,
+				},
+			})
+		}
 		result = bedrockMessage{
 			Role:    chatMessage.Role,
-			Content: []bedrockMessageContent{{}},
-		}
-		params := map[string]interface{}{}
-		json.Unmarshal([]byte(chatMessage.ToolCalls[0].Function.Arguments), &params)
-		result.Content[0].ToolUse = &toolUseBlock{
-			Input:     params,
-			Name:      chatMessage.ToolCalls[0].Function.Name,
-			ToolUseId: chatMessage.ToolCalls[0].Id,
+			Content: contents,
 		}
 	} else if chatMessage.IsStringContent() {
 		result = bedrockMessage{
