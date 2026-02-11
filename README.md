@@ -182,6 +182,8 @@ Higress would not be possible without the valuable open-source work of projects 
 
 - Higress Console: https://github.com/higress-group/higress-console
 - Higress Standalone: https://github.com/higress-group/higress-standalone
+- Higress Plugin Server：https://github.com/higress-group/plugin-server
+- Higress Wasm Plugin Golang SDK：https://github.com/higress-group/wasm-go
 
 ### Contributors
 
