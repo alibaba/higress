@@ -9,27 +9,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	pluginlog "github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/tokenusage"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
 func main() {}
 
 func init() {
-	pluginlog.Info("[http-log-pusher] plugin initializing...")
+	proxywasm.LogInfo("[http-log-pusher] plugin initializing...")
 	wrapper.SetCtx(
 		"http-log-pusher",
-		wrapper.ParseConfig(parseConfig),
-		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
-		wrapper.ProcessRequestBody(onHttpRequestBody),
-		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
-		wrapper.ProcessResponseBody(onHttpResponseBody),
+		wrapper.ParseConfigBy(parseConfig),
+		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
+		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
+		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
 	)
-	pluginlog.Info("[http-log-pusher] plugin loaded successfully")
+	proxywasm.LogInfo("[http-log-pusher] plugin loaded successfully")
 }
 
 // PluginConfig 定义插件配置 (对应 WasmPlugin 资源中的 pluginConfig)
@@ -83,17 +81,14 @@ type LogEntry struct {
 	AILog string `json:"ai_log,omitempty"` // WASM AI 日志
 	
 	// 监控元数据字段
-	InstanceID   string `json:"instance_id"`      // 实例ID
-	API          string `json:"api"`              // API名称
-	Model        string `json:"model"`            // 模型名称
-	Consumer     string `json:"consumer"`         // 消费者
-	Route        string `json:"route"`            // 路由
-	Service      string `json:"service"`          // 服务
-	MCPServer    string `json:"mcp_server"`       // MCP Server
-	MCPTool      string `json:"mcp_tool"`         // MCP Tool
-	InputTokens  int64  `json:"input_tokens"`     // 输入token数量
-	OutputTokens int64  `json:"output_tokens"`    // 输出token数量
-	TotalTokens  int64  `json:"total_tokens"`     // 总token数量
+	InstanceID string `json:"instance_id"`      // 实例ID
+	API        string `json:"api"`              // API名称
+	Model      string `json:"model"`            // 模型名称
+	Consumer   string `json:"consumer"`         // 消费者
+	Route      string `json:"route"`            // 路由
+	Service    string `json:"service"`          // 服务
+	MCPServer  string `json:"mcp_server"`       // MCP Server
+	MCPTool    string `json:"mcp_tool"`         // MCP Tool
 	
 	// 详细数据 (可选)
 	ReqHeaders  map[string]string `json:"req_headers,omitempty"`  // 完整请求头
@@ -103,8 +98,8 @@ type LogEntry struct {
 }
 
 // 解析配置
-func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
-	pluginlog.Infof("[http-log-pusher] parsing config: %s", jsonConf.String())
+func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) error {
+	log.Infof("[http-log-pusher] parsing config: %s", jsonConf.String())
 	
 	config.CollectorServiceName = jsonConf.Get("collector_service_name").String()
 	config.CollectorHost = jsonConf.Get("collector_host").String()
@@ -112,7 +107,7 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
 	
 	// 校验必填参数
 	if config.CollectorServiceName == "" || config.CollectorHost == "" || config.CollectorPort == 0 {
-		pluginlog.Errorf("[http-log-pusher] either collector_service_name or (collector_host + collector_port) is required")
+		log.Errorf("[http-log-pusher] either collector_service_name or (collector_host + collector_port) is required")
 		return errors.New("either collector_service_name or (collector_host + collector_port) is required")
 	}
 	
@@ -123,7 +118,7 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
 	
 	// 创建 HTTP 客户端用于发送日志
 	// 优先使用 host + port 方式,更稳定可靠
-	pluginlog.Infof("[http-log-pusher] using host+port cluster: host=%s, port=%d", config.CollectorHost, config.CollectorPort)
+	log.Infof("[http-log-pusher] using host+port cluster: host=%s, port=%d", config.CollectorHost, config.CollectorPort)
 	config.CollectorClient = wrapper.NewClusterClient(wrapper.DnsCluster{
 		ServiceName: config.CollectorServiceName,
 		Port:        config.CollectorPort,
@@ -137,11 +132,11 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
 // ---------------- 核心逻辑 ----------------
 
 // 1. 处理请求头
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	// 获取所有请求头并暂存
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
-		pluginlog.Errorf("[http-log-pusher] failed to get request headers: %v", err)
+		log.Errorf("[http-log-pusher] failed to get request headers: %v", err)
 	}
 	ctx.SetContext("req_headers", headers)
 	ctx.SetContext("start_time", time.Now().UnixMilli())
@@ -152,7 +147,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Ac
 }
 
 // 2. 处理请求体
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 	if len(body) > 0 {
 		// 注意:大包体可能会分多次回调,生产环境建议限制长度或做截断
 		ctx.SetContext("req_body", string(body))
@@ -161,14 +156,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 // 3. 处理响应头
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
 	headers, _ := proxywasm.GetHttpResponseHeaders()
 	ctx.SetContext("resp_headers", headers)
 	return types.ActionContinue
 }
 
 // 4. 处理响应体 (也是发送日志的最佳时机)
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
 	// 1. 组装数据 - 参考 Envoy accessLogFormat 字段
 	reqHeaders, _ := ctx.GetContext("req_headers").([][2]string)
 	reqBody, _ := ctx.GetContext("req_body").(string)
@@ -216,19 +211,14 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	}
 	
 	// 提取监控所需的元数据字段
-	instanceID := getInstanceID()
-	apiName := getAPIName(ctx)
-	modelName := getModelName(ctx)
-	consumer := getConsumer()
-	routeNameMeta := getRouteName()
-	serviceName := getServiceName()
-	mcpServer := getMCPServer()
-	mcpTool := getMCPTool(ctx)
-	
-	// 提取token信息
-	inputTokens := getInputTokens(ctx, body)
-	outputTokens := getOutputTokens(ctx, body)
-	totalTokens := getTotalTokens(ctx, body)
+	instanceID := getInstanceID(log)
+	apiName := getAPIName(ctx, log)
+	modelName := getModelName(ctx, log)
+	consumer := getConsumer(log)
+	routeNameMeta := getRouteName(log)
+	serviceName := getServiceName(log)
+	mcpServer := getMCPServer(log)
+	mcpTool := getMCPTool(ctx, log)
 	
 	// 计算耗时
 	duration := time.Now().UnixMilli() - startTime
@@ -274,17 +264,14 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		AILog: aiLog,
 		
 		// 监控元数据
-		InstanceID:   instanceID,
-		API:          apiName,
-		Model:        modelName,
-		Consumer:     consumer,
-		Route:        routeNameMeta,
-		Service:      serviceName,
-		MCPServer:    mcpServer,
-		MCPTool:      mcpTool,
-		InputTokens:  inputTokens,
-		OutputTokens: outputTokens,
-		TotalTokens:  totalTokens,
+		InstanceID: instanceID,
+		API:        apiName,
+		Model:      modelName,
+		Consumer:   consumer,
+		Route:      routeNameMeta,
+		Service:    serviceName,
+		MCPServer:  mcpServer,
+		MCPTool:    mcpTool,
 		
 		// 详细数据 (可选，根据需要采集)
 		ReqHeaders:  toMap(reqHeaders),
@@ -294,29 +281,27 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	}
 
 	// 🔍 调试日志：打印即将存储的所有字段内容
-	pluginlog.Infof("[http-log-pusher] === 即将存储的日志内容 ===")
-	// pluginlog.Infof("[http-log-pusher] 基础信息: StartTime=%s, Authority=%s, Method=%s, Path=%s, Protocol=%s", 
+	log.Infof("[http-log-pusher] === 即将存储的日志内容 ===")
+	// log.Infof("[http-log-pusher] 基础信息: StartTime=%s, Authority=%s, Method=%s, Path=%s, Protocol=%s", 
 	// 	entry.StartTime, entry.Authority, entry.Method, entry.Path, entry.Protocol)
-	// pluginlog.Infof("[http-log-pusher] 请求标识: RequestID=%s, TraceID=%s", entry.RequestID, entry.TraceID)
-	// pluginlog.Infof("[http-log-pusher] 响应信息: ResponseCode=%d, ResponseFlags=%s", entry.ResponseCode, entry.ResponseFlags)
-	// pluginlog.Infof("[http-log-pusher] 流量统计: BytesReceived=%d, BytesSent=%d, Duration=%d ms", 
+	// log.Infof("[http-log-pusher] 请求标识: RequestID=%s, TraceID=%s", entry.RequestID, entry.TraceID)
+	// log.Infof("[http-log-pusher] 响应信息: ResponseCode=%d, ResponseFlags=%s", entry.ResponseCode, entry.ResponseFlags)
+	// log.Infof("[http-log-pusher] 流量统计: BytesReceived=%d, BytesSent=%d, Duration=%d ms", 
 	// 	entry.BytesReceived, entry.BytesSent, entry.Duration)
-	// pluginlog.Infof("[http-log-pusher] 上游信息: UpstreamCluster=%s, UpstreamHost=%s", entry.UpstreamCluster, entry.UpstreamHost)
-	pluginlog.Infof("[http-log-pusher] 监控元数据: InstanceID=%s, API=%s, Model=%s, Consumer=%s", 
+	// log.Infof("[http-log-pusher] 上游信息: UpstreamCluster=%s, UpstreamHost=%s", entry.UpstreamCluster, entry.UpstreamHost)
+	log.Infof("[http-log-pusher] 监控元数据: InstanceID=%s, API=%s, Model=%s, Consumer=%s", 
 		entry.InstanceID, entry.API, entry.Model, entry.Consumer)
-	pluginlog.Infof("[http-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
+	log.Infof("[http-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
 		entry.Route, entry.Service, entry.MCPServer, entry.MCPTool)
-	pluginlog.Infof("[http-log-pusher] Token信息: Input=%d, Output=%d, Total=%d", 
-		entry.InputTokens, entry.OutputTokens, entry.TotalTokens)
-	// pluginlog.Infof("[http-log-pusher] AI日志: AILog=%s", entry.AILog)
-	pluginlog.Infof("[http-log-pusher] =========================")
+	// log.Infof("[http-log-pusher] AI日志: AILog=%s", entry.AILog)
+	log.Infof("[http-log-pusher] =========================")
 
 	payload, _ := json.Marshal(entry)
 	
 	// 获取最终使用的集群名
 	clusterName := config.CollectorClient.ClusterName()
 	
-	pluginlog.Infof("[http-log-pusher] preparing http call: cluster=%s, path=%s, payload_size=%d",
+	log.Infof("[http-log-pusher] preparing http call: cluster=%s, path=%s, payload_size=%d",
 		clusterName, config.CollectorPath, len(payload))
 
 	// 2. 发送异步请求给 Collector
@@ -333,15 +318,15 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		payload,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode == 200 || statusCode == 204 {
-				pluginlog.Infof("[http-log-pusher] log sent successfully, status=%d", statusCode)
+				log.Infof("[http-log-pusher] log sent successfully, status=%d", statusCode)
 			} else {
-				pluginlog.Warnf("[http-log-pusher] collector returned status=%d, body=%s", statusCode, string(responseBody))
+				log.Warnf("[http-log-pusher] collector returned status=%d, body=%s", statusCode, string(responseBody))
 			}
 		},
 		5000, // 超时 5 秒
 	)
 	if postErr != nil {
-		pluginlog.Errorf("[http-log-pusher] failed to dispatch http call: %v", postErr)
+		log.Errorf("[http-log-pusher] failed to dispatch http call: %v", postErr)
 	}
 
 	return types.ActionContinue
@@ -420,14 +405,14 @@ func getEnvoyProperty(path string, defaultValue string) string {
 }
 
 // 获取实例ID
-func getInstanceID() string {
+func getInstanceID(log wrapper.Log) string {
 	// 1. 从 Envoy 节点元数据获取 Pod 名称（这是最准确的网关实例标识）
 	// Pod 名称格式通常是：higress-gateway-<hash>-<random>
 	podNameBytes, err := proxywasm.GetProperty([]string{"node", "metadata", "POD_NAME"})
 	if err == nil && len(podNameBytes) > 0 {
 		podName := string(podNameBytes)
 		if podName != "" {
-			pluginlog.Debugf("[http-log-pusher] got instance_id from POD_NAME: %s", podName)
+			log.Debugf("[http-log-pusher] got instance_id from POD_NAME: %s", podName)
 			return podName
 		}
 	}
@@ -435,14 +420,14 @@ func getInstanceID() string {
 	// 2. 从 Envoy 属性获取实例ID
 	instanceID := getEnvoyProperty("instance_id", "")
 	if instanceID != "" {
-		pluginlog.Debugf("[http-log-pusher] got instance_id from envoy property: %s", instanceID)
+		log.Debugf("[http-log-pusher] got instance_id from envoy property: %s", instanceID)
 		return instanceID
 	}
 	
 	// 3. 从请求头获取
 	instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
 	if instanceID != "" {
-		pluginlog.Debugf("[http-log-pusher] got instance_id from header: %s", instanceID)
+		log.Debugf("[http-log-pusher] got instance_id from header: %s", instanceID)
 		return instanceID
 	}
 	
@@ -451,17 +436,17 @@ func getInstanceID() string {
 	if err == nil && len(nodeNameBytes) > 0 {
 		nodeName := string(nodeNameBytes)
 		if nodeName != "" {
-			pluginlog.Debugf("[http-log-pusher] got instance_id from node.id: %s", nodeName)
+			log.Debugf("[http-log-pusher] got instance_id from node.id: %s", nodeName)
 			return nodeName
 		}
 	}
 	
-	pluginlog.Debugf("[http-log-pusher] instance_id not found, using default")
+	log.Debugf("[http-log-pusher] instance_id not found, using default")
 	return "unknown"
 }
 
 // 获取API名称
-func getAPIName(ctx wrapper.HttpContext) string {
+func getAPIName(ctx wrapper.HttpContext, log wrapper.Log) string {
 	// 从路由名称解析
 	routeName := getEnvoyProperty("route_name", "")
 	if routeName != "" {
@@ -475,12 +460,12 @@ func getAPIName(ctx wrapper.HttpContext) string {
 		}
 	}
 	
-	pluginlog.Debugf("[http-log-pusher] api_name not determined from route/path")
+	log.Debugf("[http-log-pusher] api_name not determined from route/path")
 	return "unknown"
 }
 
 // 获取模型名称
-func getModelName(ctx wrapper.HttpContext) string {
+func getModelName(ctx wrapper.HttpContext, log wrapper.Log) string {
 	// 优先从 ai-statistics 获取
 	model := ctx.GetUserAttribute("model")
 	if model != nil {
@@ -498,12 +483,12 @@ func getModelName(ctx wrapper.HttpContext) string {
 		}
 	}
 	
-	pluginlog.Debugf("[http-log-pusher] model_name not found")
+	log.Debugf("[http-log-pusher] model_name not found")
 	return "unknown"
 }
 
 // 获取消费者信息
-func getConsumer() string {
+func getConsumer(log wrapper.Log) string {
 	// 优先从认证插件设置的头获取（jwt-auth/key-auth等插件认证通过后会设置此header）
 	consumer, _ := proxywasm.GetHttpRequestHeader("x-mse-consumer")
 	if consumer != "" {
@@ -535,15 +520,15 @@ func getConsumer() string {
 		return fmt.Sprintf("apikey:%s", apiKey)
 	}
 	
-	pluginlog.Debugf("[http-log-pusher] consumer not found")
+	log.Debugf("[http-log-pusher] consumer not found")
 	return "anonymous"
 }
 
 // 获取路由名称 - 区分MCP场景和Model API场景
-func getRouteName() string {
+func getRouteName(log wrapper.Log) string {
 	routeName := getEnvoyProperty("route_name", "")
 	if routeName == "" {
-		pluginlog.Debugf("[http-log-pusher] route_name not found")
+		log.Debugf("[http-log-pusher] route_name not found")
 		return "unknown"
 	}
 	
@@ -570,7 +555,7 @@ func getRouteName() string {
 }
 
 // 获取服务名称
-func getServiceName() string {
+func getServiceName(log wrapper.Log) string {
 	// 从上游集群获取
 	clusterName := getEnvoyProperty("cluster_name", "")
 	if clusterName != "" {
@@ -584,16 +569,16 @@ func getServiceName() string {
 		return service
 	}
 	
-	pluginlog.Debugf("[http-log-pusher] service_name not found")
+	log.Debugf("[http-log-pusher] service_name not found")
 	return "unknown"
 }
 
 // 获取MCP Server
-func getMCPServer() string {
+func getMCPServer(log wrapper.Log) string {
 	// 方法1: 从路由名称获取
 	routeName := getEnvoyProperty("route_name", "")
 	if routeName == "" {
-		pluginlog.Debugf("[http-log-pusher] route_name not found")
+		log.Debugf("[http-log-pusher] route_name not found")
 		return "unknown"
 	}
 	
@@ -601,12 +586,12 @@ func getMCPServer() string {
 }
 
 // 获取MCP Tool
-func getMCPTool(ctx wrapper.HttpContext) string {
+func getMCPTool(ctx wrapper.HttpContext, log wrapper.Log) string {
 	// 方法1: 从标准MCP工具头获取（最准确）
 	// Higress系统通过x-envoy-mcp-tool-name header传递工具名称
 	toolName, err := proxywasm.GetHttpRequestHeader("x-envoy-mcp-tool-name")
 	if err == nil && toolName != "" {
-		pluginlog.Debugf("[http-log-pusher] got mcp_tool from header: %s", toolName)
+		log.Debugf("[http-log-pusher] got mcp_tool from header: %s", toolName)
 		return toolName
 	}
 	
@@ -618,7 +603,7 @@ func getMCPTool(ctx wrapper.HttpContext) string {
 			// 尝试从JSON请求体中提取tool name
 			toolNameFromBody := extractToolNameFromJson(bodyStr)
 			if toolNameFromBody != "" {
-				pluginlog.Debugf("[http-log-pusher] got mcp_tool from request body: %s", toolNameFromBody)
+				log.Debugf("[http-log-pusher] got mcp_tool from request body: %s", toolNameFromBody)
 				return toolNameFromBody
 			}
 		}
@@ -626,93 +611,8 @@ func getMCPTool(ctx wrapper.HttpContext) string {
 	
 	// 获取路径用于日志记录
 	path := ctx.Path()
-	pluginlog.Debugf("[http-log-pusher] mcp_tool not determined from header/body/path: %s", path)
+	log.Debugf("[http-log-pusher] mcp_tool not determined from header/body/path: %s", path)
 	return "unknown"
-}
-
-// 获取输入token数量
-func getInputTokens(ctx wrapper.HttpContext, respBody []byte) int64 {
-	// 方法1: 从tokenusage包获取（优先）
-	if usage := tokenusage.GetTokenUsage(ctx, respBody); usage.TotalToken > 0 {
-		pluginlog.Debugf("[http-log-pusher] got tokens from tokenusage: input=%d, output=%d, total=%d", 
-			usage.InputToken, usage.OutputToken, usage.TotalToken)
-		return usage.InputToken
-	}
-	
-	// 方法2: 从响应体直接解析usage字段
-	if len(respBody) > 0 {
-		// 解析OpenAI格式的usage字段
-		inputTokens := gjson.GetBytes(respBody, "usage.prompt_tokens").Int()
-		if inputTokens > 0 {
-			pluginlog.Debugf("[http-log-pusher] got input_tokens from response body: %d", inputTokens)
-			return inputTokens
-		}
-		
-		// 解析Claude/Bedrock格式
-		inputTokens = gjson.GetBytes(respBody, "usage.input_tokens").Int()
-		if inputTokens > 0 {
-			pluginlog.Debugf("[http-log-pusher] got input_tokens from response body (claude format): %d", inputTokens)
-			return inputTokens
-		}
-	}
-	
-	pluginlog.Debugf("[http-log-pusher] input_tokens not found")
-	return 0
-}
-
-// 获取输出token数量
-func getOutputTokens(ctx wrapper.HttpContext, respBody []byte) int64 {
-	// 方法1: 从tokenusage包获取（优先）
-	if usage := tokenusage.GetTokenUsage(ctx, respBody); usage.TotalToken > 0 {
-		return usage.OutputToken
-	}
-	
-	// 方法2: 从响应体直接解析usage字段
-	if len(respBody) > 0 {
-		// 解析OpenAI格式的usage字段
-		outputTokens := gjson.GetBytes(respBody, "usage.completion_tokens").Int()
-		if outputTokens > 0 {
-			pluginlog.Debugf("[http-log-pusher] got output_tokens from response body: %d", outputTokens)
-			return outputTokens
-		}
-		
-		// 解析Claude/Bedrock格式
-		outputTokens = gjson.GetBytes(respBody, "usage.output_tokens").Int()
-		if outputTokens > 0 {
-			pluginlog.Debugf("[http-log-pusher] got output_tokens from response body (claude format): %d", outputTokens)
-			return outputTokens
-		}
-	}
-	
-	pluginlog.Debugf("[http-log-pusher] output_tokens not found")
-	return 0
-}
-
-// 获取总token数量
-func getTotalTokens(ctx wrapper.HttpContext, respBody []byte) int64 {
-	// 方法1: 从tokenusage包获取（优先）
-	if usage := tokenusage.GetTokenUsage(ctx, respBody); usage.TotalToken > 0 {
-		return usage.TotalToken
-	}
-	
-	// 方法2: 从响应体直接解析usage字段
-	if len(respBody) > 0 {
-		totalTokens := gjson.GetBytes(respBody, "usage.total_tokens").Int()
-		if totalTokens > 0 {
-			pluginlog.Debugf("[http-log-pusher] got total_tokens from response body: %d", totalTokens)
-			return totalTokens
-		}
-		
-		// 解析Claude/Bedrock格式
-		totalTokens = gjson.GetBytes(respBody, "usage.inputTokens").Int() + gjson.GetBytes(respBody, "usage.outputTokens").Int()
-		if totalTokens > 0 {
-			pluginlog.Debugf("[http-log-pusher] calculated total_tokens from claude format: %d", totalTokens)
-			return totalTokens
-		}
-	}
-	
-	pluginlog.Debugf("[http-log-pusher] total_tokens not found")
-	return 0
 }
 
 // 从请求体提取模型名称
