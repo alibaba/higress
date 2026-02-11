@@ -128,3 +128,32 @@ func TestGeneric(t *testing.T) {
 	test.RunGenericOnHttpRequestHeadersTests(t)
 	test.RunGenericOnHttpRequestBodyTests(t)
 }
+
+func TestVertex(t *testing.T) {
+	test.RunVertexParseConfigTests(t)
+	test.RunVertexExpressModeOnHttpRequestHeadersTests(t)
+	test.RunVertexExpressModeOnHttpRequestBodyTests(t)
+	test.RunVertexExpressModeOnHttpResponseBodyTests(t)
+	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
+	test.RunVertexExpressModeImageGenerationRequestBodyTests(t)
+	test.RunVertexExpressModeImageGenerationResponseBodyTests(t)
+	// Vertex Raw 模式测试
+	test.RunVertexRawModeOnHttpRequestHeadersTests(t)
+	test.RunVertexRawModeOnHttpRequestBodyTests(t)
+	test.RunVertexRawModeOnHttpResponseBodyTests(t)
+}
+
+func TestBedrock(t *testing.T) {
+	test.RunBedrockParseConfigTests(t)
+	test.RunBedrockOnHttpRequestHeadersTests(t)
+	test.RunBedrockOnHttpRequestBodyTests(t)
+	test.RunBedrockOnHttpResponseHeadersTests(t)
+	test.RunBedrockOnHttpResponseBodyTests(t)
+	test.RunBedrockToolCallTests(t)
+}
+
+func TestClaude(t *testing.T) {
+	test.RunClaudeParseConfigTests(t)
+	test.RunClaudeOnHttpRequestHeadersTests(t)
+	test.RunClaudeOnHttpRequestBodyTests(t)
+}

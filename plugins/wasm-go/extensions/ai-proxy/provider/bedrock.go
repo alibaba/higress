@@ -43,8 +43,11 @@ const (
 type bedrockProviderInitializer struct{}
 
 func (b *bedrockProviderInitializer) ValidateConfig(config *ProviderConfig) error {
-	if len(config.awsAccessKey) == 0 || len(config.awsSecretKey) == 0 {
-		return errors.New("missing bedrock access authentication parameters")
+	hasAkSk := len(config.awsAccessKey) > 0 && len(config.awsSecretKey) > 0
+	hasApiToken := len(config.apiTokens) > 0
+
+	if !hasAkSk && !hasApiToken {
+		return errors.New("missing bedrock access authentication parameters: either apiTokens or (awsAccessKey + awsSecretKey) is required")
 	}
 	if len(config.awsRegion) == 0 {
 		return errors.New("missing bedrock region parameters")
@@ -634,6 +637,13 @@ func (b *bedrockProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiN
 
 func (b *bedrockProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestHostHeader(headers, fmt.Sprintf(bedrockDefaultDomain, b.config.awsRegion))
+
+	// If apiTokens is configured, set Bearer token authentication here
+	// This follows the same pattern as other providers (qwen, zhipuai, etc.)
+	// AWS SigV4 authentication is handled in setAuthHeaders because it requires the request body
+	if len(b.config.apiTokens) > 0 {
+		util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+b.config.GetApiTokenInUse(ctx))
+	}
 }
 
 func (b *bedrockProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
@@ -659,18 +669,18 @@ func (b *bedrockProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName
 	case ApiNameChatCompletion:
 		return b.onChatCompletionResponseBody(ctx, body)
 	case ApiNameImageGeneration:
-		return b.onImageGenerationResponseBody(ctx, body)
+		return b.onImageGenerationResponseBody(body)
 	}
 	return nil, errUnsupportedApiName
 }
 
-func (b *bedrockProvider) onImageGenerationResponseBody(ctx wrapper.HttpContext, body []byte) ([]byte, error) {
+func (b *bedrockProvider) onImageGenerationResponseBody(body []byte) ([]byte, error) {
 	bedrockResponse := &bedrockImageGenerationResponse{}
 	if err := json.Unmarshal(body, bedrockResponse); err != nil {
 		log.Errorf("unable to unmarshal bedrock image gerneration response: %v", err)
 		return nil, fmt.Errorf("unable to unmarshal bedrock image generation response: %v", err)
 	}
-	response := b.buildBedrockImageGenerationResponse(ctx, bedrockResponse)
+	response := b.buildBedrockImageGenerationResponse(bedrockResponse)
 	return json.Marshal(response)
 }
 
@@ -710,7 +720,7 @@ func (b *bedrockProvider) buildBedrockImageGenerationRequest(origRequest *imageG
 	return requestBytes, err
 }
 
-func (b *bedrockProvider) buildBedrockImageGenerationResponse(ctx wrapper.HttpContext, bedrockResponse *bedrockImageGenerationResponse) *imageGenerationResponse {
+func (b *bedrockProvider) buildBedrockImageGenerationResponse(bedrockResponse *bedrockImageGenerationResponse) *imageGenerationResponse {
 	data := make([]imageGenerationData, len(bedrockResponse.Images))
 	for i, image := range bedrockResponse.Images {
 		data[i] = imageGenerationData{
@@ -759,7 +769,15 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		case roleSystem:
 			systemMessages = append(systemMessages, systemContentBlock{Text: msg.StringContent()})
 		case roleTool:
-			messages = append(messages, chatToolMessage2BedrockMessage(msg))
+			toolResultContent := chatToolMessage2BedrockToolResultContent(msg)
+			if len(messages) > 0 && messages[len(messages)-1].Role == roleUser && messages[len(messages)-1].Content[0].ToolResult != nil {
+				messages[len(messages)-1].Content = append(messages[len(messages)-1].Content, toolResultContent)
+			} else {
+				messages = append(messages, bedrockMessage{
+					Role:    roleUser,
+					Content: []bedrockMessageContent{toolResultContent},
+				})
+			}
 		default:
 			messages = append(messages, chatMessage2BedrockMessage(msg))
 		}
@@ -1050,7 +1068,7 @@ type tokenUsage struct {
 	TotalTokens int `json:"totalTokens"`
 }
 
-func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
+func chatToolMessage2BedrockToolResultContent(chatMessage chatMessage) bedrockMessageContent {
 	toolResultContent := &toolResultBlock{}
 	toolResultContent.ToolUseId = chatMessage.ToolCallId
 	if text, ok := chatMessage.Content.(string); ok {
@@ -1073,29 +1091,29 @@ func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 	} else {
 		log.Warnf("the content type is not supported, current content is %v", chatMessage.Content)
 	}
-	return bedrockMessage{
-		Role: roleUser,
-		Content: []bedrockMessageContent{
-			{
-				ToolResult: toolResultContent,
-			},
-		},
+	return bedrockMessageContent{
+		ToolResult: toolResultContent,
 	}
 }
 
 func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 	var result bedrockMessage
 	if len(chatMessage.ToolCalls) > 0 {
+		contents := make([]bedrockMessageContent, 0, len(chatMessage.ToolCalls))
+		for _, toolCall := range chatMessage.ToolCalls {
+			params := map[string]interface{}{}
+			json.Unmarshal([]byte(toolCall.Function.Arguments), &params)
+			contents = append(contents, bedrockMessageContent{
+				ToolUse: &toolUseBlock{
+					Input:     params,
+					Name:      toolCall.Function.Name,
+					ToolUseId: toolCall.Id,
+				},
+			})
+		}
 		result = bedrockMessage{
 			Role:    chatMessage.Role,
-			Content: []bedrockMessageContent{{}},
-		}
-		params := map[string]interface{}{}
-		json.Unmarshal([]byte(chatMessage.ToolCalls[0].Function.Arguments), &params)
-		result.Content[0].ToolUse = &toolUseBlock{
-			Input:     params,
-			Name:      chatMessage.ToolCalls[0].Function.Name,
-			ToolUseId: chatMessage.ToolCalls[0].Id,
+			Content: contents,
 		}
 	} else if chatMessage.IsStringContent() {
 		result = bedrockMessage{
@@ -1138,6 +1156,13 @@ func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 }
 
 func (b *bedrockProvider) setAuthHeaders(body []byte, headers http.Header) {
+	// Bearer token authentication is already set in TransformRequestHeaders
+	// This function only handles AWS SigV4 authentication which requires the request body
+	if len(b.config.apiTokens) > 0 {
+		return
+	}
+
+	// Use AWS Signature V4 authentication
 	t := time.Now().UTC()
 	amzDate := t.Format("20060102T150405Z")
 	dateStamp := t.Format("20060102")
