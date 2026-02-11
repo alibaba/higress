@@ -1096,16 +1096,21 @@ func chatToolMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 func chatMessage2BedrockMessage(chatMessage chatMessage) bedrockMessage {
 	var result bedrockMessage
 	if len(chatMessage.ToolCalls) > 0 {
+		contents := make([]bedrockMessageContent, 0, len(chatMessage.ToolCalls))
+		for _, toolCall := range chatMessage.ToolCalls {
+			params := map[string]interface{}{}
+			json.Unmarshal([]byte(toolCall.Function.Arguments), &params)
+			contents = append(contents, bedrockMessageContent{
+				ToolUse: &toolUseBlock{
+					Input:     params,
+					Name:      toolCall.Function.Name,
+					ToolUseId: toolCall.Id,
+				},
+			})
+		}
 		result = bedrockMessage{
 			Role:    chatMessage.Role,
-			Content: []bedrockMessageContent{{}},
-		}
-		params := map[string]interface{}{}
-		json.Unmarshal([]byte(chatMessage.ToolCalls[0].Function.Arguments), &params)
-		result.Content[0].ToolUse = &toolUseBlock{
-			Input:     params,
-			Name:      chatMessage.ToolCalls[0].Function.Name,
-			ToolUseId: chatMessage.ToolCalls[0].Id,
+			Content: contents,
 		}
 	} else if chatMessage.IsStringContent() {
 		result = bedrockMessage{
