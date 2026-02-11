@@ -123,6 +123,8 @@ template:
         - name: LITE_METRICS
           value: "on"
         {{- end }}
+        - name: ISTIO_DELTA_XDS
+          value: "{{ .Values.global.enableDeltaXDS }}"
         {{- if include "skywalking.enabled" . }}
         - name: ISTIO_BOOTSTRAP_OVERRIDE
           value: /etc/istio/custom-bootstrap/custom_bootstrap.json
@@ -203,7 +205,7 @@ template:
       {{- if $o11y.enabled }}
         {{- $config := $o11y.promtail }}
       - name: promtail
-        image: {{ $config.image.repository }}:{{ $config.image.tag }}
+        image: {{ $config.image.repository | default (printf "%s/promtail" .Values.global.hub) }}:{{ $config.image.tag }}
         imagePullPolicy: IfNotPresent
         args:
           - -config.file=/etc/promtail/promtail.yaml
