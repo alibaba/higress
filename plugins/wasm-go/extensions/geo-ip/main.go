@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -72,7 +73,18 @@ type GeoIpData struct {
 	Isp      string `json:"isp"`
 }
 
-func parseConfig(json gjson.Result, config *GeoIpConfig, log log.Log) error {
+func parseConfig(json gjson.Result, config *GeoIpConfig, log log.Log) (err error) {
+	// Critical: Prevent panic from causing OnPluginStartStatusFailed
+	// Without panic recovery, any panic in parseConfig or ReadGeoIpDataProgressively
+	// will cause OnPluginStart to fail, and even with fail_strategy: FAIL_OPEN,
+	// the plugin failure mechanism may not work correctly.
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("panic recovered in parseConfig: %v", r)
+			err = fmt.Errorf("parseConfig panic: %v", r)
+		}
+	}()
+
 	log.Infof("geo-ip plugin parseConfig started, MaxEntriesForCI=%d", MaxEntriesForCI)
 
 	sourceType := json.Get("ip_source_type")
@@ -173,7 +185,16 @@ func ReadGeoIpDataToRdxtree(log log.Log) error {
 
 // ReadGeoIpDataProgressively loads GeoIP data in batches with timeout protection
 // This prevents memory exhaustion and timeout in resource-constrained WASM environments
-func ReadGeoIpDataProgressively(log log.Log) error {
+func ReadGeoIpDataProgressively(log log.Log) (err error) {
+	// Critical: Prevent panic from causing plugin initialization failure
+	// This is the last line of defense before OnPluginStart fails
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("panic recovered in ReadGeoIpDataProgressively: %v", r)
+			err = fmt.Errorf("ReadGeoIpDataProgressively panic: %v", r)
+		}
+	}()
+
 	// Fast path: skip initialization if MaxEntriesForCI is -1
 	if MaxEntriesForCI == -1 {
 		log.Warnf("geo-ip initialization skipped (MaxEntriesForCI=-1) for fast startup")
@@ -182,6 +203,9 @@ func ReadGeoIpDataProgressively(log log.Log) error {
 	}
 
 	GeoIpRdxTree = iptree.New()
+	if GeoIpRdxTree == nil {
+		return fmt.Errorf("failed to create IPTree")
+	}
 
 	// Pre-populate test IPs for e2e testing
 	// These are the IPs used in go-wasm-geo-ip.go test cases
