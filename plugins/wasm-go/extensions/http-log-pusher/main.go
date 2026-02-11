@@ -207,8 +207,15 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	sni := getEnvoyProperty("requested_server_name", "")
 	// 从 Envoy Filter State 读取 AI 日志
 	// ai-statistics 插件通过 WriteUserAttributeToLogWithKey() 将数据写入此处
-	aiLogBytes, err := proxywasm.GetProperty([]string{wrapper.AILogKey})
 	var aiLog string
+	defer func() {
+		if r := recover(); r != nil {
+			pluginlog.Debugf("[http-log-pusher] recovered from panic when getting ai_log: %v", r)
+			aiLog = "-" // panic 时使用默认值
+		}
+	}()
+	
+	aiLogBytes, err := proxywasm.GetProperty([]string{wrapper.AILogKey})
 	if err == nil && len(aiLogBytes) > 0 {
 		aiLog = string(aiLogBytes)
 	} else {
@@ -406,11 +413,20 @@ func getEnvoyProperty(path string, defaultValue string) string {
 		propertyPath = []string{"route_name"}
 	case "requested_server_name":
 		propertyPath = []string{"connection", "requested_server_name"}
+	case "instance_id":
+		propertyPath = []string{"node", "id"}
 	case "wasm.ai_log":
 		propertyPath = []string{"wasm", "ai_log"}
 	default:
 		return defaultValue
 	}
+	
+	// 添加 panic 恢复保护
+	defer func() {
+		if r := recover(); r != nil {
+			pluginlog.Debugf("[http-log-pusher] recovered from panic when getting property %s: %v", path, r)
+		}
+	}()
 	
 	value, err := proxywasm.GetProperty(propertyPath)
 	if err != nil || len(value) == 0 {
@@ -421,32 +437,27 @@ func getEnvoyProperty(path string, defaultValue string) string {
 
 // 获取实例ID
 func getInstanceID() string {
-	// 1. 从 Envoy 节点元数据获取 Pod 名称（这是最准确的网关实例标识）
-	// Pod 名称格式通常是：higress-gateway-<hash>-<random>
-	podNameBytes, err := proxywasm.GetProperty([]string{"node", "metadata", "POD_NAME"})
-	if err == nil && len(podNameBytes) > 0 {
-		podName := string(podNameBytes)
-		if podName != "" {
-			pluginlog.Debugf("[http-log-pusher] got instance_id from POD_NAME: %s", podName)
-			return podName
-		}
-	}
-	
-	// 2. 从 Envoy 属性获取实例ID
+	// 1. 从 Envoy 属性获取实例ID（最安全的方式）
 	instanceID := getEnvoyProperty("instance_id", "")
 	if instanceID != "" {
 		pluginlog.Debugf("[http-log-pusher] got instance_id from envoy property: %s", instanceID)
 		return instanceID
 	}
 	
-	// 3. 从请求头获取
+	// 2. 从请求头获取
 	instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
 	if instanceID != "" {
 		pluginlog.Debugf("[http-log-pusher] got instance_id from header: %s", instanceID)
 		return instanceID
 	}
 	
-	// 4. 尝试从节点名称获取（作为备选方案）
+	// 3. 尝试从节点名称获取（作为备选方案）
+	defer func() {
+		if r := recover(); r != nil {
+			pluginlog.Debugf("[http-log-pusher] recovered from panic when getting node.id: %v", r)
+		}
+	}()
+	
 	nodeNameBytes, err := proxywasm.GetProperty([]string{"node", "id"})
 	if err == nil && len(nodeNameBytes) > 0 {
 		nodeName := string(nodeNameBytes)
@@ -747,6 +758,13 @@ func getEnvoyPropertyInt64(path string, defaultValue int64) int64 {
 	default:
 		return defaultValue
 	}
+	
+	// 添加 panic 恢复保护
+	defer func() {
+		if r := recover(); r != nil {
+			pluginlog.Debugf("[http-log-pusher] recovered from panic when getting int64 property %s: %v", path, r)
+		}
+	}()
 	
 	value, err := proxywasm.GetProperty(propertyPath)
 	if err != nil || len(value) == 0 {

@@ -2,7 +2,7 @@ NAMESPACE="ls-test"
 # 1. 获取 higress-gateway Pod
 POD=$(kubectl get pod -n "$NAMESPACE" -l app=higress-gateway -o jsonpath='{.items[0].metadata.name}')
 
-kubectl logs -n "$NAMESPACE" "$POD" -c higress-gateway --tail=100 -f --timestamps | grep --color -E "^|$|ERROR|WARN|404|500|http-log-pusher|error|collector_service|using|predefined"
+kubectl logs -n "$NAMESPACE" "$POD" -c higress-gateway --tail=100 -f --timestamps | grep --color -E "^|$|ERROR|WARN|404|500|http-log-pusher|tokenusage|got"
 
 
 # POD=$(kubectl get pod -n "$NAMESPACE" -l app=higress-controller -o jsonpath='{.items[0].metadata.name}')

@@ -12,7 +12,7 @@ metadata:
     higress.io/wasm-plugin-name: http-log-push
     higress.io/wasm-plugin-category: logging
 spec:
-  url: https://pysrc-test.oss-cn-beijing.aliyuncs.com/higress-plugin/plugin-20260211-150441.wasm
+  url: https://pysrc-test.oss-cn-beijing.aliyuncs.com/higress-plugin/plugin-20260211-150201.wasm
   sha256: ""  # 建议填入WASM文件的SHA256校验和
   defaultConfigDisable: true  # 默认关闭全局配置
   failStrategy: FAIL_OPEN      # 失败时放行，避免影响业务
