@@ -1056,16 +1056,20 @@ func processChartQuery(payload map[string]interface{}) (map[string]interface{}, 
 	return result, nil
 }
 
-// 查询成功率图表数据
+// 查询成功率先图表数据
 func querySuccessRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	intervalSec := parseInterval(interval)
+	groupByExpr := buildGroupByExpression(intervalSec)
+	timestampExpr := buildTimestampExpression(intervalSec)
+	
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
+			%s as timestamp,
 			COUNT(*) as total_requests,
 			SUM(CASE WHEN response_code < 400 THEN 1 ELSE 0 END) as success_requests
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
-		ORDER BY timestamp`, whereSQL)
+		GROUP BY %s 
+		ORDER BY timestamp`, timestampExpr, whereSQL, groupByExpr)
 	
 	rows, err := db.Query(sql, args...)
 	if err != nil {
@@ -1111,16 +1115,18 @@ func querySuccessRateChart(whereSQL string, args []interface{}, interval string)
 // 查询QPS图表数据
 func queryQPSChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
 	intervalSec := parseInterval(interval)
+	groupByExpr := buildGroupByExpression(intervalSec)
+	timestampExpr := buildTimestampExpression(intervalSec)
 	
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
+			%s as timestamp,
 			COUNT(*) as total_qps,
 			SUM(CASE WHEN path LIKE '%%stream%%' THEN 1 ELSE 0 END) as stream_qps,
 			SUM(CASE WHEN path NOT LIKE '%%stream%%' THEN 1 ELSE 0 END) as request_qps
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
-		ORDER BY timestamp`, whereSQL)
+		GROUP BY %s 
+		ORDER BY timestamp`, timestampExpr, whereSQL, groupByExpr)
 	
 	log.Printf("[DEBUG] QPS Chart SQL: %s", sql)
 	log.Printf("[DEBUG] QPS Chart Args: %v", args)
@@ -1179,17 +1185,19 @@ func queryQPSChart(whereSQL string, args []interface{}, interval string) (map[st
 // 查询Token速率图表数据
 func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
 	intervalSec := parseInterval(interval)
+	groupByExpr := buildGroupByExpression(intervalSec)
+	timestampExpr := buildTimestampExpression(intervalSec)
 	
 	// 直接使用数据库中的token字段进行聚合
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
+			%s as timestamp,
 			COALESCE(SUM(input_tokens), 0) as input_tokens,
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
 			COALESCE(SUM(total_tokens), 0) as total_tokens
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
-		ORDER BY timestamp`, whereSQL)
+		GROUP BY %s 
+		ORDER BY timestamp`, timestampExpr, whereSQL, groupByExpr)
 	
 	rows, err := db.Query(sql, args...)
 	if err != nil {
@@ -1228,15 +1236,19 @@ func queryTokenRateChart(whereSQL string, args []interface{}, interval string) (
 
 // 查询RT分布图表数据
 func queryRTDistributionChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	intervalSec := parseInterval(interval)
+	groupByExpr := buildGroupByExpression(intervalSec)
+	timestampExpr := buildTimestampExpression(intervalSec)
+	
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
+			%s as timestamp,
 			AVG(duration) as avg_rt,
 			MAX(duration) as max_rt,
 			MIN(duration) as min_rt
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
-		ORDER BY timestamp`, whereSQL)
+		GROUP BY %s 
+		ORDER BY timestamp`, timestampExpr, whereSQL, groupByExpr)
 	
 	rows, err := db.Query(sql, args...)
 	if err != nil {
@@ -1278,16 +1290,20 @@ func queryRTDistributionChart(whereSQL string, args []interface{}, interval stri
 
 // 查询缓存命中率图表数据
 func queryCacheHitRateChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
+	intervalSec := parseInterval(interval)
+	groupByExpr := buildGroupByExpression(intervalSec)
+	timestampExpr := buildTimestampExpression(intervalSec)
+	
 	// 这里简化处理，实际应该根据具体缓存字段判断
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
+			%s as timestamp,
 			COUNT(*) as total_requests,
 			SUM(CASE WHEN response_code = 200 THEN 1 ELSE 0 END) as hit_requests,
 			SUM(CASE WHEN response_code = 404 THEN 1 ELSE 0 END) as miss_requests
 		FROM access_logs %s 
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
-		ORDER BY timestamp`, whereSQL)
+		GROUP BY %s 
+		ORDER BY timestamp`, timestampExpr, whereSQL, groupByExpr)
 	
 	rows, err := db.Query(sql, args...)
 	if err != nil {
@@ -1331,14 +1347,16 @@ func queryCacheHitRateChart(whereSQL string, args []interface{}, interval string
 // 查询限流请求数图表数据
 func queryRateLimitChart(whereSQL string, args []interface{}, interval string) (map[string]interface{}, error) {
 	intervalSec := parseInterval(interval)
+	groupByExpr := buildGroupByExpression(intervalSec)
+	timestampExpr := buildTimestampExpression(intervalSec)
 	
 	sql := fmt.Sprintf(`
 		SELECT 
-			UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:00:00')) as timestamp,
+			%s as timestamp,
 			COUNT(*) as rate_limit_count
 		FROM access_logs %s AND response_code = 429
-		GROUP BY DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H') 
-		ORDER BY timestamp`, whereSQL)
+		GROUP BY %s 
+		ORDER BY timestamp`, timestampExpr, whereSQL, groupByExpr)
 	
 	rows, err := db.Query(sql, args...)
 	if err != nil {
@@ -1837,7 +1855,61 @@ func parseInterval(interval string) int {
 		return 15
 	case "60s":
 		return 60
+	case "300s":  // 5分钟
+		return 300
+	case "600s":  // 10分钟
+		return 600
+	case "1800s": // 30分钟
+		return 1800
+	case "3600s": // 1小时
+		return 3600
+	case "86400s": // 1天
+		return 86400
 	default:
 		return 60 // 默认60秒
+	}
+}
+
+// 构建GROUP BY表达式
+func buildGroupByExpression(intervalSec int) string {
+	switch {
+	case intervalSec == 1: // 1s
+		// 按秒精确分组
+		return "DATE_FORMAT(start_time, '%Y-%m-%d %H:%i:%s')"
+	case intervalSec <= 60: // 15s, 30s, 60s
+		// 按指定秒数区间分组
+		return fmt.Sprintf("CONCAT(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:%%i:'), LPAD(FLOOR(SECOND(start_time)/%d)*%d, 2, '0'))", intervalSec, intervalSec)
+	case intervalSec <= 3600: // 5分钟到1小时
+		// 按分钟分组
+		minutes := intervalSec / 60
+		return fmt.Sprintf("CONCAT(DATE_FORMAT(start_time, '%%Y-%%m-%%d %%H:'), LPAD(FLOOR(MINUTE(start_time)/%d)*%d, 2, '0'))", minutes, minutes)
+	case intervalSec <= 86400: // 1天
+		// 按小时分组
+		return "DATE_FORMAT(start_time, '%Y-%m-%d %H')"
+	default: // 超过1天
+		// 按天分组
+		return "DATE_FORMAT(start_time, '%Y-%m-%d')"
+	}
+}
+
+// 构建时间戳表达式
+func buildTimestampExpression(intervalSec int) string {
+	switch {
+	case intervalSec == 1: // 1s
+		// 秒级精度时间戳
+		return "UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%Y-%m-%d %H:%i:%s'))"
+	case intervalSec <= 60: // 15s, 30s, 60s
+		// 按指定秒数区间的起始时间
+		return fmt.Sprintf("UNIX_TIMESTAMP(CONCAT(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:%%i:'), LPAD(FLOOR(SECOND(MIN(start_time))/%d)*%d, 2, '0')))" , intervalSec, intervalSec)
+	case intervalSec <= 3600: // 5分钟到1小时
+		// 分钟级精度时间戳
+		minutes := intervalSec / 60
+		return fmt.Sprintf("UNIX_TIMESTAMP(CONCAT(DATE_FORMAT(MIN(start_time), '%%Y-%%m-%%d %%H:'), LPAD(FLOOR(MINUTE(MIN(start_time))/%d)*%d, 2, '0'), ':00'))", minutes, minutes)
+	case intervalSec <= 86400: // 1天
+		// 小时级精度时间戳
+		return "UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%Y-%m-%d %H:00:00'))"
+	default: // 超过1天
+		// 天级精度时间戳
+		return "UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%Y-%m-%d 00:00:00'))"
 	}
 }
