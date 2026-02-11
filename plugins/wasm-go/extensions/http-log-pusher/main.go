@@ -9,25 +9,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/tokenusage"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
 func main() {}
 
 func init() {
-	proxywasm.LogInfo("[http-log-pusher] plugin initializing...")
 	wrapper.SetCtx(
 		"http-log-pusher",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
-		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
-		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.ParseConfig(parseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
+		wrapper.ProcessResponseBody(onHttpResponseBody),
 	)
-	proxywasm.LogInfo("[http-log-pusher] plugin loaded successfully")
 }
 
 // PluginConfig 定义插件配置 (对应 WasmPlugin 资源中的 pluginConfig)
@@ -90,6 +90,11 @@ type LogEntry struct {
 	MCPServer  string `json:"mcp_server"`       // MCP Server
 	MCPTool    string `json:"mcp_tool"`         // MCP Tool
 	
+	// Token 统计信息
+	InputTokens  int64 `json:"input_tokens,omitempty"`   // 输入token数量
+	OutputTokens int64 `json:"output_tokens,omitempty"`  // 输出token数量
+	TotalTokens  int64 `json:"total_tokens,omitempty"`   // 总token数量
+	
 	// 详细数据 (可选)
 	ReqHeaders  map[string]string `json:"req_headers,omitempty"`  // 完整请求头
 	ReqBody     string            `json:"req_body,omitempty"`     // 请求体
@@ -98,7 +103,7 @@ type LogEntry struct {
 }
 
 // 解析配置
-func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) error {
+func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
 	log.Infof("[http-log-pusher] parsing config: %s", jsonConf.String())
 	
 	config.CollectorServiceName = jsonConf.Get("collector_service_name").String()
@@ -132,7 +137,7 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig, log wrapper.Log) e
 // ---------------- 核心逻辑 ----------------
 
 // 1. 处理请求头
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Action {
 	// 获取所有请求头并暂存
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
@@ -147,7 +152,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrap
 }
 
 // 2. 处理请求体
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte) types.Action {
 	if len(body) > 0 {
 		// 注意:大包体可能会分多次回调,生产环境建议限制长度或做截断
 		ctx.SetContext("req_body", string(body))
@@ -156,14 +161,14 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 }
 
 // 3. 处理响应头
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Action {
 	headers, _ := proxywasm.GetHttpResponseHeaders()
 	ctx.SetContext("resp_headers", headers)
 	return types.ActionContinue
 }
 
 // 4. 处理响应体 (也是发送日志的最佳时机)
-func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte) types.Action {
 	// 1. 组装数据 - 参考 Envoy accessLogFormat 字段
 	reqHeaders, _ := ctx.GetContext("req_headers").([][2]string)
 	reqBody, _ := ctx.GetContext("req_body").(string)
@@ -211,14 +216,29 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	}
 	
 	// 提取监控所需的元数据字段
-	instanceID := getInstanceID(log)
-	apiName := getAPIName(ctx, log)
-	modelName := getModelName(ctx, log)
-	consumer := getConsumer(log)
-	routeNameMeta := getRouteName(log)
-	serviceName := getServiceName(log)
-	mcpServer := getMCPServer(log)
-	mcpTool := getMCPTool(ctx, log)
+	instanceID := getInstanceID()
+	apiName := getAPIName(ctx)
+	modelName := getModelName(ctx)
+	consumer := getConsumer()
+	routeNameMeta := getRouteName()
+	serviceName := getServiceName()
+	mcpServer := getMCPServer()
+	mcpTool := getMCPTool(ctx)
+	
+	// 🔍 非流式响应 Token 获取逻辑
+	var inputTokens, outputTokens, totalTokens int64 = 0, 0, 0
+	if len(body) > 0 {
+		// 使用 tokenusage 包从响应体中提取 token 信息
+		if usage := tokenusage.GetTokenUsage(ctx, body); usage.TotalToken > 0 {
+			inputTokens = usage.InputToken
+			outputTokens = usage.OutputToken
+			totalTokens = usage.TotalToken
+			log.Debugf("[http-log-pusher] extracted tokens from response body: input=%d, output=%d, total=%d", 
+				inputTokens, outputTokens, totalTokens)
+		} else {
+			log.Debugf("[http-log-pusher] no token usage found in response body")
+		}
+	}
 	
 	// 计算耗时
 	duration := time.Now().UnixMilli() - startTime
@@ -273,6 +293,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		MCPServer:  mcpServer,
 		MCPTool:    mcpTool,
 		
+		// Token 统计信息
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		TotalTokens:  totalTokens,
+		
 		// 详细数据 (可选，根据需要采集)
 		ReqHeaders:  toMap(reqHeaders),
 		ReqBody:     reqBody,
@@ -293,6 +318,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		entry.InstanceID, entry.API, entry.Model, entry.Consumer)
 	log.Infof("[http-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
 		entry.Route, entry.Service, entry.MCPServer, entry.MCPTool)
+	log.Infof("[http-log-pusher] Token统计: InputTokens=%d, OutputTokens=%d, TotalTokens=%d", 
+		entry.InputTokens, entry.OutputTokens, entry.TotalTokens)
 	// log.Infof("[http-log-pusher] AI日志: AILog=%s", entry.AILog)
 	log.Infof("[http-log-pusher] =========================")
 
@@ -405,7 +432,7 @@ func getEnvoyProperty(path string, defaultValue string) string {
 }
 
 // 获取实例ID
-func getInstanceID(log wrapper.Log) string {
+func getInstanceID() string {
 	// 1. 从 Envoy 节点元数据获取 Pod 名称（这是最准确的网关实例标识）
 	// Pod 名称格式通常是：higress-gateway-<hash>-<random>
 	podNameBytes, err := proxywasm.GetProperty([]string{"node", "metadata", "POD_NAME"})
@@ -446,7 +473,7 @@ func getInstanceID(log wrapper.Log) string {
 }
 
 // 获取API名称
-func getAPIName(ctx wrapper.HttpContext, log wrapper.Log) string {
+func getAPIName(ctx wrapper.HttpContext) string {
 	// 从路由名称解析
 	routeName := getEnvoyProperty("route_name", "")
 	if routeName != "" {
@@ -465,7 +492,7 @@ func getAPIName(ctx wrapper.HttpContext, log wrapper.Log) string {
 }
 
 // 获取模型名称
-func getModelName(ctx wrapper.HttpContext, log wrapper.Log) string {
+func getModelName(ctx wrapper.HttpContext) string {
 	// 优先从 ai-statistics 获取
 	model := ctx.GetUserAttribute("model")
 	if model != nil {
@@ -488,7 +515,7 @@ func getModelName(ctx wrapper.HttpContext, log wrapper.Log) string {
 }
 
 // 获取消费者信息
-func getConsumer(log wrapper.Log) string {
+func getConsumer() string {
 	// 优先从认证插件设置的头获取（jwt-auth/key-auth等插件认证通过后会设置此header）
 	consumer, _ := proxywasm.GetHttpRequestHeader("x-mse-consumer")
 	if consumer != "" {
@@ -525,7 +552,7 @@ func getConsumer(log wrapper.Log) string {
 }
 
 // 获取路由名称 - 区分MCP场景和Model API场景
-func getRouteName(log wrapper.Log) string {
+func getRouteName() string {
 	routeName := getEnvoyProperty("route_name", "")
 	if routeName == "" {
 		log.Debugf("[http-log-pusher] route_name not found")
@@ -555,7 +582,7 @@ func getRouteName(log wrapper.Log) string {
 }
 
 // 获取服务名称
-func getServiceName(log wrapper.Log) string {
+func getServiceName() string {
 	// 从上游集群获取
 	clusterName := getEnvoyProperty("cluster_name", "")
 	if clusterName != "" {
@@ -574,7 +601,7 @@ func getServiceName(log wrapper.Log) string {
 }
 
 // 获取MCP Server
-func getMCPServer(log wrapper.Log) string {
+func getMCPServer() string {
 	// 方法1: 从路由名称获取
 	routeName := getEnvoyProperty("route_name", "")
 	if routeName == "" {
@@ -586,7 +613,7 @@ func getMCPServer(log wrapper.Log) string {
 }
 
 // 获取MCP Tool
-func getMCPTool(ctx wrapper.HttpContext, log wrapper.Log) string {
+func getMCPTool(ctx wrapper.HttpContext) string {
 	// 方法1: 从标准MCP工具头获取（最准确）
 	// Higress系统通过x-envoy-mcp-tool-name header传递工具名称
 	toolName, err := proxywasm.GetHttpRequestHeader("x-envoy-mcp-tool-name")

@@ -5,12 +5,10 @@ go 1.24.1
 toolchain go1.24.4
 
 require (
-	github.com/alibaba/higress/plugins/wasm-go v0.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250822030947-8345453fddd0
 	github.com/tidwall/gjson v1.18.0
 )
 
-replace github.com/alibaba/higress/plugins/wasm-go => ../..
 
 require (
 	github.com/google/uuid v1.6.0 // indirect
