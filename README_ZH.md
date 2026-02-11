@@ -221,6 +221,8 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 - Higress 控制台：https://github.com/higress-group/higress-console
 - Higress（独立运行版）：https://github.com/higress-group/higress-standalone
+- Higress 插件服务器：https://github.com/higress-group/plugin-server
+- Higress Wasm 插件 Golang SDK：https://github.com/higress-group/wasm-go
 
 ### 贡献者
 
