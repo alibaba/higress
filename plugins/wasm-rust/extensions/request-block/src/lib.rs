@@ -41,7 +41,7 @@ struct RquestBlockRoot {
 
 struct RquestBlock {
     log: Log,
-    config: Option<RquestBlockConfig>,
+    config: Option<Rc<RquestBlockConfig>>,
     cache_request: bool,
 }
 
@@ -104,17 +104,17 @@ impl RquestBlockRoot {
 impl Context for RquestBlockRoot {}
 
 impl RootContext for RquestBlockRoot {
-    fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
+    fn on_configure(&mut self, plugin_configuration_size: usize) -> bool {
         let ret = on_configure(
             self,
-            _plugin_configuration_size,
+            plugin_configuration_size,
             self.rule_matcher.borrow_mut().deref_mut(),
             &self.log,
         );
         ret
     }
-    fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
-        self.create_http_context_use_wrapper(_context_id)
+    fn create_http_context(&self, context_id: u32) -> Option<Box<dyn HttpContext>> {
+        self.create_http_context_use_wrapper(context_id)
     }
     fn get_type(&self) -> Option<ContextType> {
         Some(ContextType::HttpContext)
@@ -141,9 +141,9 @@ impl RootContextWrapper<RquestBlockConfig> for RquestBlockRoot {
 impl Context for RquestBlock {}
 impl HttpContext for RquestBlock {}
 impl HttpContextWrapper<RquestBlockConfig> for RquestBlock {
-    fn on_config(&mut self, _config: &RquestBlockConfig) {
-        self.config = Some(_config.clone());
-        self.cache_request = !_config.block_bodies.is_empty();
+    fn on_config(&mut self, config: Rc<RquestBlockConfig>) {
+        self.cache_request = !config.block_bodies.is_empty();
+        self.config = Some(config.clone());
     }
     fn cache_request_body(&self) -> bool {
         self.cache_request

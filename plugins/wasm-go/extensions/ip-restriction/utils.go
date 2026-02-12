@@ -1,10 +1,15 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/asergeyev/nradix"
 	"github.com/tidwall/gjson"
 	"github.com/zmap/go-iptree/iptree"
-	"strings"
+
+	"github.com/higress-group/wasm-go/pkg/log"
 )
 
 // parseIPNets 解析Ip段配置
@@ -16,7 +21,12 @@ func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 		for _, result := range array {
 			err := tree.AddByString(result.String(), 0)
 			if err != nil {
-				return nil, fmt.Errorf("invalid IP[%s]", result.String())
+				if errors.Is(err, nradix.ErrNodeBusy) {
+					// ErrNodeBusy means the IP already exists in the tree
+					log.Warnf("ignore duplicate IP [%s]", result.String())
+				} else {
+					return nil, fmt.Errorf("add IP [%s] into tree failed: %v", result.String(), err)
+				}
 			}
 		}
 		return tree, nil
@@ -24,7 +34,12 @@ func parseIPNets(array []gjson.Result) (*iptree.IPTree, error) {
 }
 
 // parseIP 解析IP
-func parseIP(source string) string {
+func parseIP(source string, fromHeader bool) string {
+
+	if fromHeader {
+		source = strings.Split(source, ",")[0]
+	}
+	source = strings.Trim(source, " ")
 	if strings.Contains(source, ".") {
 		// parse ipv4
 		return strings.Split(source, ":")[0]

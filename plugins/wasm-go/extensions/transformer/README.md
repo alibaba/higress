@@ -1,13 +1,25 @@
-# 功能说明
+---
+title: 请求响应转换
+keywords: [higress,transformer]
+description: 请求响应转换插件配置参考
+---
+
+
+## 功能说明
 `transformer` 插件可以对请求/响应头、请求查询参数、请求/响应体参数进行转换，支持的转换操作类型包括删除、重命名、更新、添加、追加、映射、去重。
 
+## 运行属性
 
-# 配置字段
+插件执行阶段：`认证阶段`
+插件执行优先级：`410`
 
-| 名称 | 数据类型 | 填写要求 |  默认值 | 描述 |
-| :----: | :----: | :----: | :----: | -------- |
-|  reqRules |  string  | 选填，reqRules和respRules至少填一个 |   -  |  请求转换器配置，指定转换操作类型以及请求头、请求查询参数、请求体的转换规则  |
-|  respRules |  string  | 选填，reqRules和respRules至少填一个 |   -  |  响应转换器配置，指定转换操作类型以及响应头、响应体的转换规则  |
+## 配置字段
+
+| 名称 |  数据类型   | 填写要求 | 默认值  | 描述 |
+| :----: |:-------:| :----: |:----:| -------- |
+|  reroute | boolean | 选填 | true |  是否在请求转换过程中对路由目标进行重新选择  |
+|  reqRules | string  | 选填，reqRules和respRules至少填一个 |  -   |  请求转换器配置，指定转换操作类型以及请求头、请求查询参数、请求体的转换规则 |
+|  respRules | string  | 选填，reqRules和respRules至少填一个 |  -   |  响应转换器配置，指定转换操作类型以及响应头、响应体的转换规则 |
 
 `reqRules`和`respRules`中每一项的配置字段说明如下：
 
@@ -52,26 +64,112 @@
 
 
 
-# 转换操作类型
+## 转换操作类型
 
-| 操作类型      | key 字段含义 | value 字段含义     | 描述                                                         |
-| :----: | :----: | :----: | ------------------------------------------------------------ |
-| 删除 remove   | 目标 key     |无需设置| 若存在指定的 `key`，则删除；否则无操作                 |
-| 重命名 rename | 目标 oldKey |新的 key 名称 newKey| 若存在指定的 `oldKey:value`，则将其键名重命名为 `newKey`，得到 `newKey:value`；否则无操作 |
-| 更新 replace  | 目标 key |新的 value 值 newValue| 若存在指定的 `key:value`，则将其 value 更新为 `newValue`，得到 `key:newValue`；否则无操作 |
-| 添加 add      | 添加的 key | 添加的 value |若不存在指定的 `key:value`，则添加；否则无操作               |
-| 追加 append   | 目标 key |追加的 value值 appendValue| 若存在指定的 `key:value`，则追加 appendValue 得到 `key:[value..., appendValue]`；否则相当于执行 add 操作，得到 `key:appendValue` |
-| 映射 map      | 映射来源 fromKey |映射目标 toKey| 若存在指定的 `fromKey:fromValue`，则将其值 fromValue 映射给 toKey 的值，得到 `toKey:fromValue`，同时保留 `fromKey:fromValue`（注：若 toKey 已存在则其值会被覆盖）；否则无操作 |
-| 去重 dedupe   | 目标 key |指定去重策略 strategy| `strategy` 可选值为：<br>`RETAIN_UNIQUE`: 按顺序保留所有唯一值，如 `k1:[v1,v2,v3,v3,v2,v1]`，去重后得到 `k1:[v1,v2,v3]` <br>`RETAIN_LAST`: 保留最后一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v3` <br>`RETAIN_FIRST` (default): 保留第一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v1`<br>（注：若去重后只剩下一个元素 v1 时，键值对变为 `k1:v1`, 而不是 `k1:[v1]`） |
-
-
+| 操作类型      | key 字段含义 | value 字段含义     | 描述                                                                                                                                                                                                                                                                                    |
+| :----: | :----: | :----: |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 删除 remove   | 目标 key     |无需设置| 若存在指定的 `key`，则删除；否则无操作                                                                                                                                                                                                                                                                |
+| 重命名 rename | 目标 oldKey |新的 key 名称 newKey| 若存在指定的 `oldKey:value`，则将其键名重命名为 `newKey`，得到 `newKey:value`；否则无操作                                                                                                                                                                                                                      |
+| 更新 replace  | 目标 key |新的 value 值 newValue| 若存在指定的 `key:value`，则将其 value 更新为 `newValue`，得到 `key:newValue`；否则等效于 add 操作                                                                                                                                                                                                            |
+| 添加 add      | 添加的 key | 添加的 value | 若不存在指定的 `key:value`，则添加；否则无操作                                                                                                                                                                                                                                                         |
+| 追加 append   | 目标 key |追加的 value值 appendValue| 若存在指定的 `key:value`，则追加 appendValue 得到 `key:[value..., appendValue]`；否则相当于执行 add 操作，得到 `key:appendValue`                                                                                                                                                                               |
+| 映射 map      | 映射来源 fromKey |映射目标 toKey| 若存在指定的 `fromKey:fromValue`，则将其值 fromValue 映射给 toKey 的值，得到 `toKey:fromValue`，同时保留 `fromKey:fromValue`（注：若 toKey 已存在则其值会被覆盖）；否则无操作                                                                                                                                                      |
+| 去重 dedupe   | 目标 key |指定去重策略 strategy| `strategy` 可选值为：<br>`RETAIN_UNIQUE`: 按顺序保留所有唯一值，如 `k1:[v1,v2,v3,v3,v2,v1]`，去重后得到 `k1:[v1,v2,v3]` <br>`RETAIN_LAST`: 保留最后一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v3` <br>`RETAIN_FIRST` (default): 保留第一个值，如 `k1:[v1,v2,v3]`，去重后得到 `k1:v1`<br>`SPLIT_AND_RETAIN_FIRST`: 对值按逗号进行切割，并保留第一个值，如 `k1:"v1,v2,v3"`，去重后得到 `k1:v1`<br>`SPLIT_AND_RETAIN_LAST`: 对值按逗号进行切割，并保留最后一个值，如 `k1:"v1,v2,v3"`，去重后得到 `k1:v3`<br>（注：若去重后只剩下一个元素 v1 时，键值对变为 `k1:v1`, 而不是 `k1:[v1]`） |
 
 
-# 配置示例
 
-## Request Transformer
 
-### 转换请求头部
+## 配置示例
+
+### 实现基于Body参数路由
+
+配置示例：
+
+```yaml
+reqRules:
+- operate: map
+  headers:
+  - fromKey: userId
+    toKey: x-user-id
+  mapSource: body
+```
+
+此规则将请求body中的`userId`解析出后，设置到请求Header`x-user-id`中，这样就可以基于Higress请求Header匹配路由的能力来实现基于Body参数的路由了。
+
+此配置同时支持`application/json`和`application/x-www-form-urlencoded`两种类型的请求Body。
+
+举例来说：
+
+**对于application/json类型的body**
+
+```bash
+curl localhost -d '{"userId":12, "userName":"johnlanni"}' -H 'content-type:application/json'
+```
+
+将从json中提取出`userId`字段的值，设置到`x-user-id`中，后端服务收到的请求头将增加:`x-usr-id: 12`。
+
+因为在插件新增这个Header后，网关将重新计算路由，所以可以实现网关路由配置根据这个请求头来匹配路由到特定的目标服务。
+
+
+**对于application/x-www-form-urlencoded类型的body**
+
+```bash
+curl localhost -d 'userId=12&userName=johnlanni'
+```
+
+将从`k1=v1&k2=v2`这样的表单格式中提取出`userId`字段的值，设置到`x-user-id`中，后端服务收到的请求头将增加:`x-usr-id: 12`。
+
+因为在插件新增这个Header后，网关将重新计算路由，所以可以实现网关路由配置根据这个请求头来匹配路由到特定的目标服务。
+
+#### json path 支持
+
+可以根据 [GJSON Path 语法](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)，从复杂的 json 中提取出字段。
+
+比较常用的操作举例，对于以下 json:
+
+```json
+{
+  "name": {"first": "Tom", "last": "Anderson"},
+  "age":37,
+  "children": ["Sara","Alex","Jack"],
+  "fav.movie": "Deer Hunter",
+  "friends": [
+    {"first": "Dale", "last": "Murphy", "age": 44, "nets": ["ig", "fb", "tw"]},
+    {"first": "Roger", "last": "Craig", "age": 68, "nets": ["fb", "tw"]},
+    {"first": "Jane", "last": "Murphy", "age": 47, "nets": ["ig", "tw"]}
+  ]
+}
+```
+
+可以实现这样的提取:
+
+```text
+name.last              "Anderson"
+name.first             "Tom"
+age                    37
+children               ["Sara","Alex","Jack"]
+children.0             "Sara"
+children.1             "Alex"
+friends.1              {"first": "Roger", "last": "Craig", "age": 68}
+friends.1.first        "Roger"
+```
+
+现在如果想从上面这个 json 格式的 body 中提取出 friends 中第二项的 first 字段，来设置到 Header `x-first-name` 中，同时抽取 last 字段，来设置到 Header `x-last-name` 中，则可以使用这份插件配置:
+
+```yaml
+reqRules:
+- operate: map
+  headers:
+  - fromKey: friends.1.first
+    toKey: x-first-name
+  - fromKey: friends.1.last
+    toKey: x-last-name
+  mapSource: body
+```
+
+### Request Transformer
+
+#### 转换请求头部
 
 ```yaml
 reqRules:
@@ -139,7 +237,7 @@ $ curl -v console.higress.io/get -H 'host: foo.bar.com' \
 }
 ```
 
-### 转换请求查询参数
+#### 转换请求查询参数
 
 ```yaml
 reqRules:
@@ -193,7 +291,7 @@ $ curl -v "console.higress.io/get?k1=v11&k1=v12&k2=v2"
 }
 ```
 
-### 转换请求体
+#### 转换请求体
 
 ```yaml
 reqRules:
@@ -313,11 +411,43 @@ $ curl -v -X POST console.higress.io/post -H 'host: foo.bar.com' \
 }
 ```
 
-## Response Transformer
+#### 禁止重新选择路由目标
+
+在请求转换过程中，默认情况下会对路由目标进行重新选择。如果不希望重新选择路由目标，可以设置 `reroute` 为 `false`：
+
+```yaml
+reroute: false
+reqRules:
+  - operate: replace
+    headers:
+      - key: reroute
+        newValue: true
+```
+
+假设路由配置为：
+
+- path 前缀匹配 /，header 精准匹配 reroute: false，路由的目标服务响应为 200 "no rerouting"
+- path 前缀匹配 /，header 精准匹配 reroute: true，路由的目标服务响应为 200 "rerouting"
+
+那么根据上述配置，请求得到的结果为：
+
+```bash
+# 插件将 header 从 reroute: false 替换为 reroute: true，但禁止了重新选择路由目标
+$ curl console.higress.io/get -H 'host: foo.bar.com' -H 'reroute: false'
+no rerouting%
+
+# 去掉插件中的 reroute 配置或将其设置为 true，则
+# 插件将 header 从 reroute: false 替换为 reroute: true，并重新选择路由目标
+$ curl console.higress.io/get -H 'host: foo.bar.com' -H 'reroute: false'
+rerouting% 
+```
+
+
+### Response Transformer
 
 与 Request Transformer 类似，在此仅说明转换 JSON 形式的请求/响应体时的注意事项：
 
-### key 嵌套 `.`
+#### key 嵌套 `.`
 
 1.通常情况下，指定的 key 中含有 `.` 表示嵌套含义，如下：
 
@@ -365,7 +495,7 @@ $ curl -v console.higress.io/get
 }
 ```
 
-### 访问数组元素 `.index`
+#### 访问数组元素 `.index`
 
 可以通过数组下标 `array.index 访问数组元素，下标从 0 开始：
 
@@ -449,7 +579,7 @@ $ curl -v -X POST console.higress.io/post \
 }
 ```
 
-### 遍历数组元素 `.#`
+#### 遍历数组元素 `.#`
 
 可以使用 `array.#` 对数组进行遍历操作：
 
@@ -501,96 +631,4 @@ $ curl -v -X POST console.higress.io/post \
   },
   ...
 }
-```
-# 特殊用法：实现基于Body参数路由
-
-**Note**
-
-> 需要数据面的proxy wasm版本大于等于0.2.100
-
-> 编译时，需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
-
-
-配置示例：
-
-```yaml
-reqRules:
-- operate: map
-  headers:
-  - fromKey: userId
-    toKey: x-user-id
-  mapSource: body
-```
-
-此规则将请求body中的`userId`解析出后，设置到请求Header`x-user-id`中，这样就可以基于Higress请求Header匹配路由的能力来实现基于Body参数的路由了。
-
-此配置同时支持`application/json`和`application/x-www-form-urlencoded`两种类型的请求Body。
-
-举例来说：
-
-**对于application/json类型的body**
-
-```bash
-curl localhost -d '{"userId":12, "userName":"johnlanni"}' -H 'content-type:application/json'
-```
-
-将从json中提取出`userId`字段的值，设置到`x-user-id`中，后端服务收到的请求头将增加:`x-usr-id: 12`。
-
-因为在插件新增这个Header后，网关将重新计算路由，所以可以实现网关路由配置根据这个请求头来匹配路由到特定的目标服务。
-
-
-**对于application/x-www-form-urlencoded类型的body**
-
-```bash
-curl localhost -d 'userId=12&userName=johnlanni'
-```
-
-将从`k1=v1&k2=v2`这样的表单格式中提取出`userId`字段的值，设置到`x-user-id`中，后端服务收到的请求头将增加:`x-usr-id: 12`。
-
-因为在插件新增这个Header后，网关将重新计算路由，所以可以实现网关路由配置根据这个请求头来匹配路由到特定的目标服务。
-
-## json path 支持
-
-可以根据 [GJSON Path 语法](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)，从复杂的 json 中提取出字段。
-
-比较常用的操作举例，对于以下 json:
-
-```json
-{
-  "name": {"first": "Tom", "last": "Anderson"},
-  "age":37,
-  "children": ["Sara","Alex","Jack"],
-  "fav.movie": "Deer Hunter",
-  "friends": [
-    {"first": "Dale", "last": "Murphy", "age": 44, "nets": ["ig", "fb", "tw"]},
-    {"first": "Roger", "last": "Craig", "age": 68, "nets": ["fb", "tw"]},
-    {"first": "Jane", "last": "Murphy", "age": 47, "nets": ["ig", "tw"]}
-  ]
-}
-```
-
-可以实现这样的提取:
-
-```text
-name.last              "Anderson"
-name.first             "Tom"
-age                    37
-children               ["Sara","Alex","Jack"]
-children.0             "Sara"
-children.1             "Alex"
-friends.1              {"first": "Roger", "last": "Craig", "age": 68}
-friends.1.first        "Roger"
-```
-
-现在如果想从上面这个 json 格式的 body 中提取出 friends 中第二项的 first 字段，来设置到 Header `x-first-name` 中，同时抽取 last 字段，来设置到 Header `x-last-name` 中，则可以使用这份插件配置:
-
-```yaml
-reqRules:
-- operate: map
-  headers:
-  - fromKey: friends.1.first
-    toKey: x-first-name
-  - fromKey: friends.1.last
-    toKey: x-last-name
-  mapSource: body
 ```

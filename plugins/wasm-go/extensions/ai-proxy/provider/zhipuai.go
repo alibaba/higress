@@ -2,29 +2,48 @@ package provider
 
 import (
 	"errors"
-	"fmt"
+	"net/http"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 const (
-	zhipuAiDomain             = "open.bigmodel.cn"
-	zhipuAiChatCompletionPath = "/api/paas/v4/chat/completions"
+	zhipuAiDefaultDomain         = "open.bigmodel.cn"
+	zhipuAiInternationalDomain   = "api.z.ai"
+	zhipuAiChatCompletionPath    = "/api/paas/v4/chat/completions"
+	zhipuAiCodePlanPath          = "/api/coding/paas/v4/chat/completions"
+	zhipuAiEmbeddingsPath        = "/api/paas/v4/embeddings"
+	zhipuAiAnthropicMessagesPath = "/api/anthropic/v1/messages"
 )
 
 type zhipuAiProviderInitializer struct{}
 
-func (m *zhipuAiProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (m *zhipuAiProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.apiTokens == nil || len(config.apiTokens) == 0 {
 		return errors.New("no apiToken found in provider config")
 	}
 	return nil
 }
 
+func (m *zhipuAiProviderInitializer) DefaultCapabilities(codePlanMode bool) map[string]string {
+	chatPath := zhipuAiChatCompletionPath
+	if codePlanMode {
+		chatPath = zhipuAiCodePlanPath
+	}
+	return map[string]string{
+		string(ApiNameChatCompletion): chatPath,
+		string(ApiNameEmbeddings):     zhipuAiEmbeddingsPath,
+		// string(ApiNameAnthropicMessages): zhipuAiAnthropicMessagesPath,
+	}
+}
+
 func (m *zhipuAiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(m.DefaultCapabilities(config.zhipuCodePlanMode))
 	return &zhipuAiProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -40,43 +59,56 @@ func (m *zhipuAiProvider) GetProviderType() string {
 	return providerTypeZhipuAi
 }
 
-func (m *zhipuAiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
-	}
-	_ = util.OverwriteRequestPath(zhipuAiChatCompletionPath)
-	_ = util.OverwriteRequestHost(zhipuAiDomain)
-	_ = util.OverwriteRequestAuthorization("Bearer " + m.config.GetRandomToken())
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	return types.ActionContinue, nil
+func (m *zhipuAiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	m.config.handleRequestHeaders(m, ctx, apiName)
+	return nil
 }
 
-func (m *zhipuAiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+func (m *zhipuAiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	if !m.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	if m.contextCache == nil {
-		return types.ActionContinue, nil
+	return m.config.handleRequestBody(m, m.contextCache, ctx, apiName, body)
+}
+
+func (m *zhipuAiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
+	// Use configured domain or default to China domain
+	domain := m.config.zhipuDomain
+	if domain == "" {
+		domain = zhipuAiDefaultDomain
 	}
-	request := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest(body, request); err != nil {
-		return types.ActionContinue, err
+	util.OverwriteRequestHostHeader(headers, domain)
+	util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+m.config.GetApiTokenInUse(ctx))
+	headers.Del("Content-Length")
+}
+
+func (m *zhipuAiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	if apiName != ApiNameChatCompletion {
+		return m.config.defaultTransformRequestBody(ctx, apiName, body)
 	}
-	err := m.contextCache.GetContent(func(content string, err error) {
-		defer func() {
-			_ = proxywasm.ResumeHttpRequest()
-		}()
-		if err != nil {
-			log.Errorf("failed to load context file: %v", err)
-			_ = util.SendResponse(500, "ai-proxy.zhihupai.load_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to load context file: %v", err))
-		}
-		insertContextMessage(request, content)
-		if err := replaceJsonRequestBody(request, log); err != nil {
-			_ = util.SendResponse(500, "ai-proxy.zhihupai.insert_ctx_failed", util.MimeTypeTextPlain, fmt.Sprintf("failed to replace request body: %v", err))
-		}
-	}, log)
-	if err == nil {
-		return types.ActionPause, nil
+
+	// Check if reasoning_effort is set
+	reasoningEffort := gjson.GetBytes(body, "reasoning_effort").String()
+	if reasoningEffort != "" {
+		// Add thinking config for ZhipuAI
+		body, _ = sjson.SetBytes(body, "thinking", map[string]string{"type": "enabled"})
+		// Remove reasoning_effort field as ZhipuAI doesn't recognize it
+		body, _ = sjson.DeleteBytes(body, "reasoning_effort")
 	}
-	return types.ActionContinue, err
+
+	return m.config.defaultTransformRequestBody(ctx, apiName, body)
+}
+
+func (m *zhipuAiProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, zhipuAiChatCompletionPath) || strings.Contains(path, zhipuAiCodePlanPath) {
+		return ApiNameChatCompletion
+	}
+	if strings.Contains(path, zhipuAiEmbeddingsPath) {
+		return ApiNameEmbeddings
+	}
+	if strings.Contains(path, zhipuAiAnthropicMessagesPath) {
+		return ApiNameAnthropicMessages
+	}
+	return ""
 }

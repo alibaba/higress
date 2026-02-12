@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
@@ -56,14 +57,21 @@ type deeplResponseTranslation struct {
 	Text                   string `json:"text"`
 }
 
-func (d *deeplProviderInitializer) ValidateConfig(config ProviderConfig) error {
+func (d *deeplProviderInitializer) ValidateConfig(config *ProviderConfig) error {
 	if config.targetLang == "" {
 		return errors.New("missing targetLang in deepl provider config")
 	}
 	return nil
 }
 
+func (d *deeplProviderInitializer) DefaultCapabilities() map[string]string {
+	return map[string]string{
+		string(ApiNameChatCompletion): deeplChatCompletionPath,
+	}
+}
+
 func (d *deeplProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
+	config.setDefaultCapabilities(d.DefaultCapabilities())
 	return &deeplProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -74,67 +82,53 @@ func (d *deeplProvider) GetProviderType() string {
 	return providerTypeDeepl
 }
 
-func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	if apiName != ApiNameChatCompletion {
+func (d *deeplProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiName) error {
+	d.config.handleRequestHeaders(d, ctx, apiName)
+	return nil
+}
+
+func (d *deeplProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
+	if apiName != "" {
+		util.OverwriteRequestPathHeader(headers, deeplChatCompletionPath)
+	}
+	// TODO: Support default host through configuration
+	util.OverwriteRequestHostHeader(headers, deeplHostFree)
+	util.OverwriteRequestAuthorizationHeader(headers, "DeepL-Auth-Key "+d.config.GetApiTokenInUse(ctx))
+}
+
+func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
+	if !d.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
 	}
-	_ = util.OverwriteRequestPath(deeplChatCompletionPath)
-	_ = util.OverwriteRequestAuthorization("DeepL-Auth-Key " + d.config.GetRandomToken())
-	_ = proxywasm.RemoveHttpRequestHeader("Content-Length")
-	_ = proxywasm.RemoveHttpRequestHeader("Accept-Encoding")
-	return types.HeaderStopIteration, nil
+	return d.config.handleRequestBody(d, d.contextCache, ctx, apiName, body)
 }
 
-func (d *deeplProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
+func (d *deeplProvider) TransformRequestBodyHeaders(ctx wrapper.HttpContext, apiName ApiName, body []byte, headers http.Header) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	if err := decodeChatCompletionRequest(body, request); err != nil {
+		return nil, err
+	}
+	ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
+
+	err := d.overwriteRequestHost(headers, request.Model)
+	if err != nil {
+		return nil, err
+	}
+
+	baiduRequest := d.deeplTextGenRequest(request)
+	return json.Marshal(baiduRequest)
+}
+
+func (d *deeplProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
 	if apiName != ApiNameChatCompletion {
-		return types.ActionContinue, errUnsupportedApiName
+		return body, nil
 	}
-	if d.config.protocol == protocolOriginal {
-		request := &deeplRequest{}
-		if err := json.Unmarshal(body, request); err != nil {
-			return types.ActionContinue, fmt.Errorf("unable to unmarshal request: %v", err)
-		}
-		if err := d.overwriteRequestHost(request.Model); err != nil {
-			return types.ActionContinue, err
-		}
-		ctx.SetContext(ctxKeyFinalRequestModel, request.Model)
-		return types.ActionContinue, replaceJsonRequestBody(request, log)
-	} else {
-		originRequest := &chatCompletionRequest{}
-		if err := decodeChatCompletionRequest(body, originRequest); err != nil {
-			return types.ActionContinue, err
-		}
-		if err := d.overwriteRequestHost(originRequest.Model); err != nil {
-			return types.ActionContinue, err
-		}
-		ctx.SetContext(ctxKeyFinalRequestModel, originRequest.Model)
-		deeplRequest := &deeplRequest{
-			Text:       make([]string, 0),
-			TargetLang: d.config.targetLang,
-		}
-		for _, msg := range originRequest.Messages {
-			if msg.Role == roleSystem {
-				deeplRequest.Context = msg.StringContent()
-			} else {
-				deeplRequest.Text = append(deeplRequest.Text, msg.StringContent())
-			}
-		}
-		return types.ActionContinue, replaceJsonRequestBody(deeplRequest, log)
-	}
-}
-
-func (d *deeplProvider) OnResponseHeaders(ctx wrapper.HttpContext, apiName ApiName, log wrapper.Log) (types.Action, error) {
-	_ = proxywasm.RemoveHttpResponseHeader("Content-Length")
-	return types.ActionContinue, nil
-}
-
-func (d *deeplProvider) OnResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, log wrapper.Log) (types.Action, error) {
 	deeplResponse := &deeplResponse{}
 	if err := json.Unmarshal(body, deeplResponse); err != nil {
-		return types.ActionContinue, fmt.Errorf("unable to unmarshal deepl response: %v", err)
+		return nil, fmt.Errorf("unable to unmarshal deepl response: %v", err)
 	}
 	response := d.responseDeepl2OpenAI(ctx, deeplResponse)
-	return types.ActionContinue, replaceJsonResponseBody(response, log)
+	return json.Marshal(response)
 }
 
 func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplResponse *deeplResponse) *chatCompletionResponse {
@@ -164,13 +158,35 @@ func (d *deeplProvider) responseDeepl2OpenAI(ctx wrapper.HttpContext, deeplRespo
 	}
 }
 
-func (d *deeplProvider) overwriteRequestHost(model string) error {
+func (d *deeplProvider) overwriteRequestHost(headers http.Header, model string) error {
 	if model == "Pro" {
-		_ = util.OverwriteRequestHost(deeplHostPro)
+		util.OverwriteRequestHostHeader(headers, deeplHostPro)
 	} else if model == "Free" {
-		_ = util.OverwriteRequestHost(deeplHostFree)
+		util.OverwriteRequestHostHeader(headers, deeplHostFree)
 	} else {
 		return errors.New(`deepl model should be "Free" or "Pro"`)
 	}
 	return nil
+}
+
+func (d *deeplProvider) deeplTextGenRequest(request *chatCompletionRequest) *deeplRequest {
+	deeplRequest := &deeplRequest{
+		Text:       make([]string, 0),
+		TargetLang: d.config.targetLang,
+	}
+	for _, msg := range request.Messages {
+		if msg.Role == roleSystem {
+			deeplRequest.Context = msg.StringContent()
+		} else {
+			deeplRequest.Text = append(deeplRequest.Text, msg.StringContent())
+		}
+	}
+	return deeplRequest
+}
+
+func (d *deeplProvider) GetApiName(path string) ApiName {
+	if strings.Contains(path, deeplChatCompletionPath) {
+		return ApiNameChatCompletion
+	}
+	return ""
 }

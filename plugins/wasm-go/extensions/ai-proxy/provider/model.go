@@ -1,6 +1,12 @@
 package provider
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
+)
 
 const (
 	streamEventIdItemKey        = "id:"
@@ -14,27 +20,99 @@ const (
 
 	httpStatus200 = "200"
 
-	contentTypeText     = "text"
-	contentTypeImageUrl = "image_url"
+	contentTypeText       = "text"
+	contentTypeImageUrl   = "image_url"
+	contentTypeInputAudio = "input_audio"
+	contentTypeFile       = "file"
+
+	reasoningStartTag = "<think>"
+	reasoningEndTag   = "</think>"
 )
 
+type NonOpenAIStyleOptions struct {
+	ReasoningMaxTokens int `json:"reasoning_max_tokens,omitempty"`
+}
+
 type chatCompletionRequest struct {
+	NonOpenAIStyleOptions
+	Messages            []chatMessage          `json:"messages"`
+	Model               string                 `json:"model"`
+	Store               bool                   `json:"store,omitempty"`
+	ReasoningEffort     string                 `json:"reasoning_effort,omitempty"`
+	Metadata            map[string]string      `json:"metadata,omitempty"`
+	FrequencyPenalty    float64                `json:"frequency_penalty,omitempty"`
+	LogitBias           map[string]int         `json:"logit_bias,omitempty"`
+	Logprobs            bool                   `json:"logprobs,omitempty"`
+	TopLogprobs         int                    `json:"top_logprobs,omitempty"`
+	MaxTokens           int                    `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int                    `json:"max_completion_tokens,omitempty"`
+	N                   int                    `json:"n,omitempty"`
+	Modalities          []string               `json:"modalities,omitempty"`
+	Prediction          map[string]interface{} `json:"prediction,omitempty"`
+	Audio               map[string]interface{} `json:"audio,omitempty"`
+	PresencePenalty     float64                `json:"presence_penalty,omitempty"`
+	ResponseFormat      map[string]interface{} `json:"response_format,omitempty"`
+	Seed                int                    `json:"seed,omitempty"`
+	ServiceTier         string                 `json:"service_tier,omitempty"`
+	Stop                []string               `json:"stop,omitempty"`
+	Stream              bool                   `json:"stream,omitempty"`
+	StreamOptions       *streamOptions         `json:"stream_options,omitempty"`
+	Temperature         float64                `json:"temperature,omitempty"`
+	TopP                float64                `json:"top_p,omitempty"`
+	Tools               []tool                 `json:"tools,omitempty"`
+	ToolChoice          interface{}            `json:"tool_choice,omitempty"`
+	ParallelToolCalls   bool                   `json:"parallel_tool_calls,omitempty"`
+	User                string                 `json:"user,omitempty"`
+}
+
+func (c *chatCompletionRequest) getMaxTokens() int {
+	if c.MaxCompletionTokens > 0 {
+		return c.MaxCompletionTokens
+	}
+	return c.MaxTokens
+}
+
+func (c *chatCompletionRequest) getToolChoiceString() string {
+	if c.ToolChoice == nil {
+		return ""
+	}
+
+	if tc, ok := c.ToolChoice.(string); ok {
+		return tc
+	}
+	return ""
+}
+
+func (c *chatCompletionRequest) getToolChoiceObject() *toolChoice {
+	if c.ToolChoice == nil {
+		return nil
+	}
+
+	if tc, ok := c.ToolChoice.(*toolChoice); ok {
+		return tc
+	}
+	return nil
+}
+
+type CompletionRequest struct {
 	Model            string         `json:"model"`
-	Messages         []chatMessage  `json:"messages"`
-	MaxTokens        int            `json:"max_tokens,omitempty"`
+	Prompt           string         `json:"prompt"`
+	BestOf           int            `json:"best_of,omitempty"`
+	Echo             bool           `json:"echo,omitempty"`
 	FrequencyPenalty float64        `json:"frequency_penalty,omitempty"`
+	LogitBias        map[string]int `json:"logit_bias,omitempty"`
+	Logprobs         int            `json:"logprobs,omitempty"`
+	MaxTokens        int            `json:"max_tokens,omitempty"`
 	N                int            `json:"n,omitempty"`
 	PresencePenalty  float64        `json:"presence_penalty,omitempty"`
 	Seed             int            `json:"seed,omitempty"`
+	Stop             []string       `json:"stop,omitempty"`
 	Stream           bool           `json:"stream,omitempty"`
 	StreamOptions    *streamOptions `json:"stream_options,omitempty"`
+	Suffix           string         `json:"suffix,omitempty"`
 	Temperature      float64        `json:"temperature,omitempty"`
 	TopP             float64        `json:"top_p,omitempty"`
-	Tools            []tool         `json:"tools,omitempty"`
-	ToolChoice       *toolChoice    `json:"tool_choice,omitempty"`
 	User             string         `json:"user,omitempty"`
-	Stop             []string       `json:"stop,omitempty"`
-	ResponseFormat   map[string]interface{} `json:"response_format,omitempty"`
 }
 
 type streamOptions struct {
@@ -62,43 +140,141 @@ type chatCompletionResponse struct {
 	Choices           []chatCompletionChoice `json:"choices"`
 	Created           int64                  `json:"created,omitempty"`
 	Model             string                 `json:"model,omitempty"`
+	ServiceTier       string                 `json:"service_tier,omitempty"`
 	SystemFingerprint string                 `json:"system_fingerprint,omitempty"`
 	Object            string                 `json:"object,omitempty"`
-	Usage             usage                  `json:"usage,omitempty"`
+	Usage             *usage                 `json:"usage"`
 }
 
 type chatCompletionChoice struct {
-	Index        int          `json:"index"`
-	Message      *chatMessage `json:"message,omitempty"`
-	Delta        *chatMessage `json:"delta,omitempty"`
-	FinishReason string       `json:"finish_reason,omitempty"`
+	Index        int                    `json:"index"`
+	Message      *chatMessage           `json:"message,omitempty"`
+	Delta        *chatMessage           `json:"delta,omitempty"`
+	FinishReason *string                `json:"finish_reason"`
+	Logprobs     map[string]interface{} `json:"logprobs"`
 }
 
 type usage struct {
-	PromptTokens     int `json:"prompt_tokens,omitempty"`
-	CompletionTokens int `json:"completion_tokens,omitempty"`
-	TotalTokens      int `json:"total_tokens,omitempty"`
+	PromptTokens            int                      `json:"prompt_tokens,omitempty"`
+	CompletionTokens        int                      `json:"completion_tokens,omitempty"`
+	TotalTokens             int                      `json:"total_tokens,omitempty"`
+	CompletionTokensDetails *completionTokensDetails `json:"completion_tokens_details,omitempty"`
+	PromptTokensDetails     *promptTokensDetails     `json:"prompt_tokens_details,omitempty"`
+}
+
+type promptTokensDetails struct {
+	AudioTokens  int `json:"audio_tokens,omitempty"`
+	CachedTokens int `json:"cached_tokens,omitempty"`
+}
+
+type completionTokensDetails struct {
+	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
+	AudioTokens              int `json:"audio_tokens,omitempty"`
+	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
+	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`
 }
 
 type chatMessage struct {
-	Name      string     `json:"name,omitempty"`
-	Role      string     `json:"role,omitempty"`
-	Content   any        `json:"content,omitempty"`
-	ToolCalls []toolCall `json:"tool_calls,omitempty"`
+	Id               string                 `json:"id,omitempty"`
+	Audio            map[string]interface{} `json:"audio,omitempty"`
+	Name             string                 `json:"name,omitempty"`
+	Role             string                 `json:"role,omitempty"`
+	Content          any                    `json:"content,omitempty"`
+	ReasoningContent string                 `json:"reasoning_content,omitempty"`
+	Reasoning        string                 `json:"reasoning,omitempty"` // For streaming responses
+	ToolCalls        []toolCall             `json:"tool_calls,omitempty"`
+	FunctionCall     *functionCall          `json:"function_call,omitempty"` // For legacy OpenAI format
+	Refusal          string                 `json:"refusal,omitempty"`
+	ToolCallId       string                 `json:"tool_call_id,omitempty"`
 }
 
-type messageContent struct {
-	Type     string    `json:"type,omitempty"`
-	Text     string    `json:"text"`
-	ImageUrl *imageUrl `json:"image_url,omitempty"`
+func (m *chatMessage) handleNonStreamingReasoningContent(reasoningContentMode string) {
+	if m.ReasoningContent == "" {
+		return
+	}
+	switch reasoningContentMode {
+	case reasoningBehaviorIgnore:
+		m.ReasoningContent = ""
+		break
+	case reasoningBehaviorConcat:
+		m.Content = fmt.Sprintf("%s%v%s\n%v", reasoningStartTag, m.ReasoningContent, reasoningEndTag, m.Content)
+		m.ReasoningContent = ""
+		break
+	case reasoningBehaviorPassThrough:
+	default:
+		break
+	}
 }
 
-type imageUrl struct {
+func (m *chatMessage) handleStreamingReasoningContent(ctx wrapper.HttpContext, reasoningContentMode string) {
+	switch reasoningContentMode {
+	case reasoningBehaviorIgnore:
+		m.ReasoningContent = ""
+		break
+	case reasoningBehaviorConcat:
+		contentPushed, _ := ctx.GetContext(ctxKeyContentPushed).(bool)
+		reasoningContentPushed, _ := ctx.GetContext(ctxKeyReasoningContentPushed).(bool)
+
+		if contentPushed {
+			if m.ReasoningContent != "" {
+				// This shouldn't happen, but if it does, we can add a log here.
+				log.Warnf("[ai-proxy] Content already pushed, but reasoning content is not empty: %v", m)
+			}
+			return
+		}
+
+		if m.ReasoningContent != "" && !reasoningContentPushed {
+			m.ReasoningContent = reasoningStartTag + m.ReasoningContent
+			reasoningContentPushed = true
+		}
+		if m.Content != "" {
+			if reasoningContentPushed && !contentPushed /* Keep the second part just to make it easy to understand*/ {
+				m.ReasoningContent += reasoningEndTag
+			}
+			contentPushed = true
+		}
+
+		m.Content = fmt.Sprintf("%s\n%v", m.ReasoningContent, m.Content)
+		m.ReasoningContent = ""
+
+		ctx.SetContext(ctxKeyContentPushed, contentPushed)
+		ctx.SetContext(ctxKeyReasoningContentPushed, reasoningContentPushed)
+		break
+	case reasoningBehaviorPassThrough:
+	default:
+		break
+	}
+}
+
+type chatMessageContent struct {
+	CacheControl map[string]interface{}      `json:"cache_control,omitempty"`
+	Type         string                      `json:"type,omitempty"`
+	Text         string                      `json:"text"`
+	ImageUrl     *chatMessageContentImageUrl `json:"image_url,omitempty"`
+	File         *chatMessageContentFile     `json:"file,omitempty"`
+	InputAudio   *chatMessageContentAudio    `json:"input_audio,omitempty"`
+}
+
+type chatMessageContentAudio struct {
+	Data   string `json:"data"`
+	Format string `json:"format"`
+}
+
+type chatMessageContentFile struct {
+	FileData string `json:"file_data,omitempty"`
+	FileId   string `json:"file_id,omitempty"`
+	FileName string `json:"file_name,omitempty"`
+}
+
+type chatMessageContentImageUrl struct {
 	Url    string `json:"url,omitempty"`
 	Detail string `json:"detail,omitempty"`
 }
 
 func (m *chatMessage) IsEmpty() bool {
+	if m.ReasoningContent != "" {
+		return false
+	}
 	if m.IsStringContent() && m.Content != "" {
 		return false
 	}
@@ -150,11 +326,11 @@ func (m *chatMessage) StringContent() string {
 	return ""
 }
 
-func (m *chatMessage) ParseContent() []messageContent {
-	var contentList []messageContent
+func (m *chatMessage) ParseContent() []chatMessageContent {
+	var contentList []chatMessageContent
 	content, ok := m.Content.(string)
 	if ok {
-		contentList = append(contentList, messageContent{
+		contentList = append(contentList, chatMessageContent{
 			Type: contentTypeText,
 			Text: content,
 		})
@@ -170,17 +346,42 @@ func (m *chatMessage) ParseContent() []messageContent {
 			switch contentMap["type"] {
 			case contentTypeText:
 				if subStr, ok := contentMap[contentTypeText].(string); ok {
-					contentList = append(contentList, messageContent{
+					contentList = append(contentList, chatMessageContent{
 						Type: contentTypeText,
 						Text: subStr,
 					})
 				}
 			case contentTypeImageUrl:
 				if subObj, ok := contentMap[contentTypeImageUrl].(map[string]any); ok {
-					contentList = append(contentList, messageContent{
+					msg := chatMessageContent{
 						Type: contentTypeImageUrl,
-						ImageUrl: &imageUrl{
+						ImageUrl: &chatMessageContentImageUrl{
 							Url: subObj["url"].(string),
+						},
+					}
+					if detail, ok := subObj["detail"].(string); ok {
+						msg.ImageUrl.Detail = detail
+					}
+					contentList = append(contentList, msg)
+				}
+			case contentTypeInputAudio:
+				if subObj, ok := contentMap[contentTypeInputAudio].(map[string]any); ok {
+					contentList = append(contentList, chatMessageContent{
+						Type: contentTypeInputAudio,
+						InputAudio: &chatMessageContentAudio{
+							Data:   subObj["data"].(string),
+							Format: subObj["format"].(string),
+						},
+					})
+				}
+			case contentTypeFile:
+				if subObj, ok := contentMap[contentTypeFile].(map[string]any); ok {
+					contentList = append(contentList, chatMessageContent{
+						Type: contentTypeFile,
+						File: &chatMessageContentFile{
+							FileId: subObj["file_id"].(string),
+							// FileName: subObj["file_name"].(string),
+							// FileData: subObj["file_data"].(string),
 						},
 					})
 				}
@@ -193,13 +394,13 @@ func (m *chatMessage) ParseContent() []messageContent {
 
 type toolCall struct {
 	Index    int          `json:"index"`
-	Id       string       `json:"id"`
+	Id       string       `json:"id,omitempty"`
 	Type     string       `json:"type"`
 	Function functionCall `json:"function"`
 }
 
 type functionCall struct {
-	Id        string `json:"id"`
+	Id        string `json:"id,omitempty"`
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
@@ -208,14 +409,19 @@ func (m *functionCall) IsEmpty() bool {
 	return m.Name == "" && m.Arguments == ""
 }
 
-type streamEvent struct {
+type StreamEvent struct {
+	RawEvent   string `json:"-"`
 	Id         string `json:"id"`
 	Event      string `json:"event"`
 	Data       string `json:"data"`
 	HttpStatus string `json:"http_status"`
 }
 
-func (e *streamEvent) setValue(key, value string) {
+func (e *StreamEvent) IsEndData() bool {
+	return e.Data == streamEndDataValue
+}
+
+func (e *StreamEvent) SetValue(key, value string) {
 	switch key {
 	case streamEventIdItemKey:
 		e.Id = value
@@ -228,6 +434,54 @@ func (e *streamEvent) setValue(key, value string) {
 			e.HttpStatus = value[len(streamHttpStatusValuePrefix):]
 		}
 	}
+}
+
+func (e *StreamEvent) ToHttpString() string {
+	return fmt.Sprintf("%s %s\n\n", streamDataItemKey, e.Data)
+}
+
+// https://platform.openai.com/docs/guides/images
+type imageGenerationRequest struct {
+	Model             string `json:"model"`
+	Prompt            string `json:"prompt"`
+	Background        string `json:"background,omitempty"`
+	Moderation        string `json:"moderation,omitempty"`
+	OutputCompression int    `json:"output_compression,omitempty"`
+	OutputFormat      string `json:"output_format,omitempty"`
+	Quality           string `json:"quality,omitempty"`
+	ResponseFormat    string `json:"response_format,omitempty"`
+	Style             string `json:"style,omitempty"`
+	N                 int    `json:"n,omitempty"`
+	Size              string `json:"size,omitempty"`
+}
+
+type imageGenerationData struct {
+	URL           string `json:"url,omitempty"`
+	B64           string `json:"b64_json,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+}
+
+type imageGenerationUsage struct {
+	TotalTokens        int `json:"total_tokens"`
+	InputTokens        int `json:"input_tokens"`
+	OutputTokens       int `json:"output_tokens"`
+	InputTokensDetails struct {
+		TextTokens  int `json:"text_tokens"`
+		ImageTokens int `json:"image_tokens"`
+	} `json:"input_tokens_details"`
+}
+
+type imageGenerationResponse struct {
+	Created int64                 `json:"created"`
+	Data    []imageGenerationData `json:"data"`
+	Usage   *imageGenerationUsage `json:"usage,omitempty"`
+}
+
+// https://platform.openai.com/docs/guides/speech-to-text
+type audioSpeechRequest struct {
+	Model string `json:"model"`
+	Input string `json:"input"`
+	Voice string `json:"voice"`
 }
 
 type embeddingsRequest struct {

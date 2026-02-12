@@ -16,156 +16,180 @@ package main
 
 import (
 	"net/http"
-	"net/url"
+	"path"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"ext-auth/config"
+	"ext-auth/util"
+
+	"github.com/higress-group/wasm-go/pkg/log"
+
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ext-auth",
-		wrapper.ParseConfigBy(parseConfig),
-		wrapper.ProcessRequestHeadersBy(onHttpRequestHeaders),
-		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
+		wrapper.ParseConfig(config.ParseConfig),
+		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
+		wrapper.ProcessRequestBody(onHttpRequestBody),
 	)
 }
 
 const (
-	HeaderAuthorization    string = "authorization"
-	HeaderFailureModeAllow string = "x-envoy-auth-failure-mode-allowed"
-	HeaderOriginalMethod   string = "x-original-method"
-	HeaderOriginalUri      string = "x-original-uri"
-
-	// Currently, x-forwarded-xxx headers only apply for forward_auth.
-	HeaderXForwardedProto  = "x-forwarded-proto"
-	HeaderXForwardedMethod = "x-forwarded-method"
-	HeaderXForwardedUri    = "x-Forwarded-uri"
-	HeaderXForwardedHost   = "x-Forwarded-host"
+	HeaderAuthorization    = "authorization"
+	HeaderFailureModeAllow = "x-envoy-auth-failure-mode-allowed"
 )
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config ExtAuthConfig, log wrapper.Log) types.Action {
-	if wrapper.HasRequestBody() {
-		ctx.SetRequestBodyBufferLimit(config.httpService.authorizationRequest.maxRequestBodyBytes)
+// Currently, x-forwarded-xxx headers only apply for forward_auth.
+const (
+	HeaderOriginalMethod   = "x-original-method"
+	HeaderOriginalUri      = "x-original-uri"
+	HeaderXForwardedProto  = "x-forwarded-proto"
+	HeaderXForwardedMethod = "x-forwarded-method"
+	HeaderXForwardedUri    = "x-forwarded-uri"
+	HeaderXForwardedHost   = "x-forwarded-host"
+)
 
-		// If withRequestBody is true AND the HTTP request contains a request body,
-		// it will be handled in the onHttpRequestBody phase.
-		if config.httpService.authorizationRequest.withRequestBody {
-			// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
-			ctx.DisableReroute()
-			// The request has a body and requires delaying the header transmission until a cache miss occurs,
-			// at which point the header should be sent.
-			return types.HeaderStopIteration
-		}
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config config.ExtAuthConfig) types.Action {
+	// If the request's domain and path match the MatchRules, skip authentication
+	if config.MatchRules.IsAllowedByMode(ctx.Host(), ctx.Method(), wrapper.GetRequestPathWithoutQuery()) {
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
+
+	// Disable the route re-calculation since the plugin may modify some headers related to the chosen route.
+	ctx.DisableReroute()
+
+	// If withRequestBody is true AND the HTTP request contains a request body,
+	// it will be handled in the onHttpRequestBody phase.
+	if wrapper.HasRequestBody() && config.HttpService.AuthorizationRequest.WithRequestBody {
+		ctx.SetRequestBodyBufferLimit(config.HttpService.AuthorizationRequest.MaxRequestBodyBytes)
+		// The request has a body and requires delaying the header transmission until a cache miss occurs,
+		// at which point the header should be sent.
+		return types.HeaderStopIteration
 	}
 
 	ctx.DontReadRequestBody()
-	return checkExtAuth(ctx, config, nil, log, types.HeaderStopAllIterationAndWatermark)
+	return checkExtAuth(ctx, config, nil, types.HeaderStopAllIterationAndWatermark)
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log) types.Action {
-	if config.httpService.authorizationRequest.withRequestBody {
-		return checkExtAuth(ctx, config, body, log, types.ActionPause)
+func onHttpRequestBody(ctx wrapper.HttpContext, config config.ExtAuthConfig, body []byte) types.Action {
+	if config.HttpService.AuthorizationRequest.WithRequestBody {
+		return checkExtAuth(ctx, config, body, types.DataStopIterationAndBuffer)
 	}
 	return types.ActionContinue
 }
 
-func checkExtAuth(ctx wrapper.HttpContext, config ExtAuthConfig, body []byte, log wrapper.Log, pauseAction types.Action) types.Action {
-	// build extAuth request headers
-	extAuthReqHeaders := http.Header{}
+func checkExtAuth(ctx wrapper.HttpContext, cfg config.ExtAuthConfig, body []byte, pauseAction types.Action) types.Action {
+	httpServiceConfig := cfg.HttpService
 
-	httpServiceConfig := config.httpService
-	requestConfig := httpServiceConfig.authorizationRequest
-	reqHeaders, _ := proxywasm.GetHttpRequestHeaders()
-	if requestConfig.allowedHeaders != nil {
-		for _, header := range reqHeaders {
-			headK := header[0]
-			if requestConfig.allowedHeaders.Match(headK) {
-				extAuthReqHeaders.Set(headK, header[1])
-			}
-		}
-	}
+	extAuthReqHeaders := buildExtAuthRequestHeaders(ctx, cfg)
 
-	for key, value := range requestConfig.headersToAdd {
-		extAuthReqHeaders.Set(key, value)
-	}
-
-	// add Authorization header
-	authorization := extractFromHeader(reqHeaders, HeaderAuthorization)
-	if authorization != "" {
-		extAuthReqHeaders.Set(HeaderAuthorization, authorization)
-	}
-
-	// when endpoint_mode is forward_auth, add x-original-method and x-original-uri headers
-	if httpServiceConfig.endpointMode == EndpointModeForwardAuth {
-		extAuthReqHeaders.Set(HeaderOriginalMethod, ctx.Method())
-		extAuthReqHeaders.Set(HeaderOriginalUri, ctx.Path())
-		extAuthReqHeaders.Set(HeaderXForwardedProto, ctx.Scheme())
-		extAuthReqHeaders.Set(HeaderXForwardedMethod, ctx.Method())
-		extAuthReqHeaders.Set(HeaderXForwardedUri, ctx.Path())
-		extAuthReqHeaders.Set(HeaderXForwardedHost, ctx.Host())
-	}
-
-	requestMethod := httpServiceConfig.requestMethod
-	requestPath := httpServiceConfig.path
-	if httpServiceConfig.endpointMode == EndpointModeEnvoy {
+	// Set the requestMethod and requestPath based on the endpoint_mode
+	requestMethod := httpServiceConfig.RequestMethod
+	requestPath := httpServiceConfig.Path
+	if httpServiceConfig.EndpointMode == config.EndpointModeEnvoy {
 		requestMethod = ctx.Method()
-		requestPath, _ = url.JoinPath(httpServiceConfig.pathPrefix, ctx.Path())
+		requestPath = path.Join(httpServiceConfig.PathPrefix, ctx.Path())
 	}
 
-	// call ext auth server
-	err := httpServiceConfig.client.Call(requestMethod, requestPath, reconvertHeaders(extAuthReqHeaders), body,
+	// Call ext auth server
+	err := httpServiceConfig.Client.Call(requestMethod, requestPath, util.ReconvertHeaders(extAuthReqHeaders), body,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-			defer proxywasm.ResumeHttpRequest()
 			if statusCode != http.StatusOK {
 				log.Errorf("failed to call ext auth server, status: %d", statusCode)
-				callExtAuthServerErrorHandler(config, statusCode, responseHeaders)
+				callExtAuthServerErrorHandler(cfg, statusCode, responseHeaders, responseBody)
 				return
 			}
 
-			if httpServiceConfig.authorizationResponse.allowedUpstreamHeaders != nil {
+			if httpServiceConfig.AuthorizationResponse.AllowedUpstreamHeaders != nil {
 				for headK, headV := range responseHeaders {
-					if httpServiceConfig.authorizationResponse.allowedUpstreamHeaders.Match(headK) {
+					if httpServiceConfig.AuthorizationResponse.AllowedUpstreamHeaders.Match(headK) {
 						_ = proxywasm.ReplaceHttpRequestHeader(headK, headV[0])
 					}
 				}
 			}
+			proxywasm.ResumeHttpRequest()
 
-		}, httpServiceConfig.timeout)
+		}, httpServiceConfig.Timeout)
 
 	if err != nil {
 		log.Errorf("failed to call ext auth server: %v", err)
 		// Since the handling logic for call errors and HTTP status code 500 is the same, we directly use 500 here.
-		callExtAuthServerErrorHandler(config, http.StatusInternalServerError, nil)
+		callExtAuthServerErrorHandler(cfg, http.StatusInternalServerError, nil, nil)
 		return types.ActionContinue
 	}
 	return pauseAction
 }
 
-func callExtAuthServerErrorHandler(config ExtAuthConfig, statusCode int, extAuthRespHeaders http.Header) {
-	if statusCode >= http.StatusInternalServerError && config.failureModeAllow {
-		if config.failureModeAllowHeaderAdd {
+// buildExtAuthRequestHeaders builds the request headers to be sent to the ext auth server.
+func buildExtAuthRequestHeaders(ctx wrapper.HttpContext, cfg config.ExtAuthConfig) http.Header {
+	extAuthReqHeaders := http.Header{}
+
+	httpServiceConfig := cfg.HttpService
+	requestConfig := httpServiceConfig.AuthorizationRequest
+	reqHeaders, _ := proxywasm.GetHttpRequestHeaders()
+	if requestConfig.AllowedHeaders != nil {
+		for _, header := range reqHeaders {
+			headK := header[0]
+			if requestConfig.AllowedHeaders.Match(headK) {
+				extAuthReqHeaders.Set(headK, header[1])
+			}
+		}
+	}
+
+	for key, value := range requestConfig.HeadersToAdd {
+		extAuthReqHeaders.Set(key, value)
+	}
+
+	// Add the Authorization header if present
+	authorization := util.ExtractFromHeader(reqHeaders, HeaderAuthorization)
+	if authorization != "" {
+		extAuthReqHeaders.Set(HeaderAuthorization, authorization)
+	}
+
+	// Add additional headers when endpoint_mode is forward_auth
+	if httpServiceConfig.EndpointMode == config.EndpointModeForwardAuth {
+		// Compatible with older versions
+		extAuthReqHeaders.Set(HeaderOriginalMethod, ctx.Method())
+		extAuthReqHeaders.Set(HeaderOriginalUri, ctx.Path())
+		// Add x-forwarded-xxx headers
+		extAuthReqHeaders.Set(HeaderXForwardedProto, ctx.Scheme())
+		extAuthReqHeaders.Set(HeaderXForwardedMethod, ctx.Method())
+		extAuthReqHeaders.Set(HeaderXForwardedUri, ctx.Path())
+		extAuthReqHeaders.Set(HeaderXForwardedHost, ctx.Host())
+	}
+	return extAuthReqHeaders
+}
+
+func callExtAuthServerErrorHandler(config config.ExtAuthConfig, statusCode int, extAuthRespHeaders http.Header, responseBody []byte) {
+	if statusCode >= http.StatusInternalServerError && config.FailureModeAllow {
+		if config.FailureModeAllowHeaderAdd {
 			_ = proxywasm.ReplaceHttpRequestHeader(HeaderFailureModeAllow, "true")
 		}
+		proxywasm.ResumeHttpRequest()
 		return
 	}
 
 	var respHeaders = extAuthRespHeaders
-	if config.httpService.authorizationResponse.allowedClientHeaders != nil {
+	if config.HttpService.AuthorizationResponse.AllowedClientHeaders != nil {
 		respHeaders = http.Header{}
 		for headK, headV := range extAuthRespHeaders {
-			if config.httpService.authorizationResponse.allowedClientHeaders.Match(headK) {
+			if config.HttpService.AuthorizationResponse.AllowedClientHeaders.Match(headK) {
 				respHeaders.Set(headK, headV[0])
 			}
 		}
 	}
 
-	// rejects client requests with statusOnError on extAuth unavailability or 5xx.
-	// otherwise, uses the extAuth's returned status code to reject requests
+	// Rejects client requests with StatusOnError if extAuth is unavailable or returns a 5xx status.
+	// Otherwise, uses the status code returned by extAuth to reject requests.
 	statusToUse := statusCode
 	if statusCode >= http.StatusInternalServerError {
-		statusToUse = int(config.statusOnError)
+		statusToUse = int(config.StatusOnError)
 	}
-	_ = sendResponse(uint32(statusToUse), "ext-auth.unauthorized", respHeaders)
+	_ = util.SendResponse(uint32(statusToUse), "ext-auth.unauthorized", respHeaders, responseBody)
 }

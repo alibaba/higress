@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	networking "istio.io/api/networking/v1alpha3"
@@ -43,19 +44,19 @@ import (
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	ingress "knative.dev/networking/pkg/apis/networking/v1alpha1"
-	networkingv1alpha1 "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
+	"knative.dev/networking/pkg/client/clientset/versioned"
+	informernetworkingv1alpha1 "knative.dev/networking/pkg/client/informers/externalversions/networking/v1alpha1"
+	listernetworkingv1alpha1 "knative.dev/networking/pkg/client/listers/networking/v1alpha1"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/kingress/resources"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/kingress/resources"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/kube"
 )
 
-var (
-	_ common.KIngressController = &controller{}
-)
+var _ common.KIngressController = &controller{}
 
 const (
 	// ClassAnnotationKey points to the annotation for the class of this resource.
@@ -76,7 +77,7 @@ type controller struct {
 	ingresses map[string]*ingress.Ingress
 
 	ingressInformer  cache.SharedInformer
-	ingressLister    networkingv1alpha1.IngressLister
+	ingressLister    listernetworkingv1alpha1.IngressLister
 	serviceInformer  informerfactory.StartableInformer
 	serviceLister    listerv1.ServiceLister
 	secretController secret.SecretController
@@ -85,17 +86,25 @@ type controller struct {
 
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kube.Client, options common.Options,
-	secretController secret.SecretController) common.KIngressController {
-	//var namespace string = "default"
-	ingressInformer := client.KIngressInformer().Networking().V1alpha1().Ingresses()
-	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, ktypes.InformerOptions{}, gvr.Service)
+	secretController secret.SecretController,
+) common.KIngressController {
+	var ingressInformer cache.SharedIndexInformer
+	if options.WatchNamespace == "" {
+		ingressInformer = client.KIngressInformer().Networking().V1alpha1().Ingresses().Informer()
+	} else {
+		ingressInformer = client.KIngressInformer().InformerFor(&ingress.Ingress{}, func(c versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+			return informernetworkingv1alpha1.NewIngressInformer(c, options.WatchNamespace, resyncPeriod, nil)
+		})
+	}
+	ingressLister := listernetworkingv1alpha1.NewIngressLister(ingressInformer.GetIndexer())
+	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, ktypes.InformerOptions{Namespace: options.WatchNamespace}, gvr.Service)
 	serviceLister := listerv1.NewServiceLister(serviceInformer.Informer.GetIndexer())
 
 	c := &controller{
 		options:          options,
 		ingresses:        make(map[string]*ingress.Ingress),
-		ingressInformer:  ingressInformer.Informer(),
-		ingressLister:    ingressInformer.Lister(),
+		ingressInformer:  ingressInformer,
+		ingressLister:    ingressLister,
 		serviceInformer:  serviceInformer,
 		serviceLister:    serviceLister,
 		secretController: secretController,
@@ -339,7 +348,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 						},
 						Hosts: []string{ruleHost},
 					})
-
 				} else {
 					wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 						Port: &networking.Port{
@@ -360,7 +368,7 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 					wrapperGateway.WrapperConfig.AnnotationsConfig.DownstreamTLS = wrapper.AnnotationsConfig.DownstreamTLS
 				}
 			}
-			//Redirect option
+			// Redirect option
 			if isIngressPublic(&kingressv1alpha1) && (kingressv1alpha1.HTTPOption == ingress.HTTPOptionRedirected) {
 				for _, server := range wrapperGateway.Gateway.Servers {
 					if protocol.Parse(server.Port.Protocol).IsHTTP() {
@@ -419,7 +427,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			// Update domain builder
 			convertOptions.IngressDomainCache.Valid[ruleHost] = domainBuilder
 		}
-
 	}
 
 	return nil
@@ -448,11 +455,9 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
 	definedRules := sets.New[string]()
 
-	var (
-		// But in across ingresses case, we will restrict this limit.
-		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
-		tempRuleKey []string
-	)
+	// But in across ingresses case, we will restrict this limit.
+	// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
+	var tempRuleKey []string
 
 	for _, rule := range KingressV1.Rules {
 		for _, rulehost := range rule.Hosts {
@@ -550,14 +555,14 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 			IngressLog.Debugf("routes of host %s is %v", rulehost, routes)
 			common.SortHTTPRoutes(routes)
 		}
-
 	}
 	return nil
 }
-func (c *controller) IngressRouteBuilderServicesCheck(httppath *ingress.HTTPIngressPath, namespace string,
-	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) common.Event {
 
-	//backend check
+func (c *controller) IngressRouteBuilderServicesCheck(httppath *ingress.HTTPIngressPath, namespace string,
+	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig,
+) common.Event {
+	// backend check
 	if httppath.Splits == nil {
 		return common.InvalidBackendService
 	}
@@ -585,7 +590,7 @@ func (c *controller) shouldProcessIngressWithClass(ing *ingress.Ingress) bool {
 }
 
 func (c *controller) shouldProcessIngress(i *ingress.Ingress) (bool, error) {
-	//check namespace
+	// check namespace
 	if c.shouldProcessIngressWithClass(i) {
 		switch c.options.WatchNamespace {
 		case "":
@@ -595,7 +600,6 @@ func (c *controller) shouldProcessIngress(i *ingress.Ingress) (bool, error) {
 		}
 	}
 	return false, nil
-
 }
 
 // shouldProcessIngressUpdate checks whether we should renotify registered handlers about an update event

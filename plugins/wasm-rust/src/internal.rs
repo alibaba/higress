@@ -14,7 +14,7 @@
 
 #![allow(dead_code)]
 
-use proxy_wasm::hostcalls;
+use proxy_wasm::hostcalls::{self, RedisCallbackFn};
 use proxy_wasm::types::{BufferType, Bytes, MapType, Status};
 use std::time::{Duration, SystemTime};
 
@@ -380,4 +380,25 @@ pub(crate) fn send_http_response(
     body: Option<&[u8]>,
 ) {
     hostcalls::send_http_response(status_code, headers, body).unwrap()
+}
+
+pub(crate) fn redis_init(
+    upstream: &str,
+    username: Option<&[u8]>,
+    password: Option<&[u8]>,
+    timeout: Duration,
+) -> Result<(), Status> {
+    hostcalls::redis_init(upstream, username, password, timeout)
+}
+
+pub(crate) fn dispatch_redis_call(
+    upstream: &str,
+    query: &[u8],
+    call_fn: Box<RedisCallbackFn>,
+) -> Result<u32, Status> {
+    hostcalls::dispatch_redis_call(upstream, query, call_fn)
+}
+
+pub(crate) fn get_redis_call_response(start: usize, max_size: usize) -> Option<Bytes> {
+    hostcalls::get_buffer(BufferType::RedisCallResponse, start, max_size).unwrap()
 }

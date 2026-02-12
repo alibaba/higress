@@ -43,6 +43,8 @@ cat <<EOF > "tools/hack/cluster.conf"
 # cluster.conf
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  ipFamily: dual
 nodes:
 - role: control-plane
   kubeadmConfigPatches:

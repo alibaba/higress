@@ -23,8 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 type Controller[lister any] interface {
@@ -55,7 +55,8 @@ type CommonController[lister any] struct {
 }
 
 func NewCommonController[lister any](typeName string, listerObj lister, informer cache.SharedIndexInformer,
-	getFunc GetObjectFunc[lister], clusterId cluster.ID) Controller[lister] {
+	getFunc GetObjectFunc[lister], clusterId cluster.ID,
+) Controller[lister] {
 	c := &CommonController[lister]{
 		typeName:  typeName,
 		lister:    listerObj,

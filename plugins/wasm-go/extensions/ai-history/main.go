@@ -11,9 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/resp"
 )
@@ -29,7 +30,9 @@ const (
 	ChatHistories            = "chatHistories"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"ai-history",
 		wrapper.ParseConfigBy(parseConfig),
@@ -76,6 +79,9 @@ type RedisInfo struct {
 	// @Title zh-CN 请求超时
 	// @Description zh-CN 请求 redis 的超时时间，单位为毫秒。默认值是1000，即1秒
 	Timeout int `required:"false" yaml:"timeout" json:"timeout"`
+	// @Title zh-CN Database
+	// @Description zh-CN redis database
+	Database int `required:"false" yaml:"database" json:"database"`
 }
 
 type KVExtractor struct {
@@ -118,7 +124,7 @@ type ChatHistory struct {
 	Content string `json:"content"`
 }
 
-func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, c *PluginConfig, log log.Log) error {
 	c.RedisInfo.ServiceName = json.Get("redis.serviceName").String()
 	if c.RedisInfo.ServiceName == "" {
 		return errors.New("redis service name must not be empty")
@@ -138,6 +144,7 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 	if c.RedisInfo.Timeout == 0 {
 		c.RedisInfo.Timeout = 1000
 	}
+	c.RedisInfo.Database = int(json.Get("redis.database").Int())
 	c.QuestionFrom.RequestBody = "messages.@reverse.0.content"
 	c.AnswerValueFrom.ResponseBody = "choices.0.message.content"
 	c.AnswerStreamValueFrom.ResponseBody = "choices.0.delta.content"
@@ -159,10 +166,11 @@ func parseConfig(json gjson.Result, c *PluginConfig, log wrapper.Log) error {
 		FQDN: c.RedisInfo.ServiceName,
 		Port: int64(c.RedisInfo.ServicePort),
 	})
-	return c.redisClient.Init(c.RedisInfo.Username, c.RedisInfo.Password, int64(c.RedisInfo.Timeout))
+	return c.redisClient.Init(c.RedisInfo.Username, c.RedisInfo.Password, int64(c.RedisInfo.Timeout), wrapper.WithDataBase(c.RedisInfo.Database))
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
+	ctx.DisableReroute()
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	if !strings.Contains(contentType, "application/json") {
 		log.Warnf("content is not json, can't process:%s", contentType)
@@ -188,12 +196,18 @@ func TrimQuote(source string) string {
 	return strings.Trim(source, `"`)
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte, log log.Log) types.Action {
 	bodyJson := gjson.ParseBytes(body)
 	if bodyJson.Get("stream").Bool() {
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
 	identityKey := ctx.GetStringContext(IdentityKey, "")
+	question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).String())
+	if question == "" {
+		log.Debug("parse question from request body failed")
+		return types.ActionContinue
+	}
+	ctx.SetContext(QuestionContextKey, question)
 	err := config.redisClient.Get(config.CacheKeyPrefix+identityKey, func(response resp.Value) {
 		if err := response.Error(); err != nil {
 			log.Errorf("redis get  failed, err:%v", err)
@@ -230,13 +244,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			_ = proxywasm.SendHttpResponseWithDetail(200, "OK", [][2]string{{"content-type", "application/json; charset=utf-8"}}, res, -1)
 			return
 		}
-		question := TrimQuote(bodyJson.Get(config.QuestionFrom.RequestBody).String())
-		if question == "" {
-			log.Debug("parse question from request body failed")
-			_ = proxywasm.ResumeHttpRequest()
-			return
-		}
-		ctx.SetContext(QuestionContextKey, question)
 		fillHistoryCnt := getIntQueryParameter("fill_history_cnt", path, config.FillHistoryCnt) * 2
 		currJson := bodyJson.Get("messages").String()
 		var currMessage []ChatHistory
@@ -316,49 +323,50 @@ func getIntQueryParameter(name string, path string, defaultValue int) int {
 	return num
 }
 
-func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage string, log wrapper.Log) string {
-	subMessages := strings.Split(sseMessage, "\n")
-	var message string
-	for _, msg := range subMessages {
-		if strings.HasPrefix(msg, "data:") {
-			message = msg
-			break
+func processSSEMessage(ctx wrapper.HttpContext, config PluginConfig, sseMessage string, log log.Log) string {
+	content := ""
+	for _, chunk := range strings.Split(sseMessage, "\n\n") {
+		subMessages := strings.Split(chunk, "\n")
+		var message string
+		for _, msg := range subMessages {
+			if strings.HasPrefix(msg, "data:") {
+				message = msg
+				break
+			}
 		}
-	}
-	if len(message) < 6 {
-		log.Errorf("invalid message:%s", message)
-		return ""
-	}
-	// skip the prefix "data:"
-	bodyJson := message[5:]
-	if gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Exists() {
-		tempContentI := ctx.GetContext(AnswerContentContextKey)
-		if tempContentI == nil {
-			content := TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
-			ctx.SetContext(AnswerContentContextKey, content)
+		if len(message) < 6 {
+			log.Errorf("invalid message:%s", message)
 			return content
 		}
-		append := TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
-		content := tempContentI.(string) + append
-		ctx.SetContext(AnswerContentContextKey, content)
-		return content
-	} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
-		// TODO: compatible with other providers
-		ctx.SetContext(ToolCallsContextKey, struct{}{})
-		return ""
+		// skip the prefix "data:"
+		bodyJson := message[5:]
+		if gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Exists() {
+			tempContentI := ctx.GetContext(AnswerContentContextKey)
+			if tempContentI == nil {
+				content = TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
+				ctx.SetContext(AnswerContentContextKey, content)
+			} else {
+				append := TrimQuote(gjson.Get(bodyJson, config.AnswerStreamValueFrom.ResponseBody).Raw)
+				content = tempContentI.(string) + append
+				ctx.SetContext(AnswerContentContextKey, content)
+			}
+		} else if gjson.Get(bodyJson, "choices.0.delta.content.tool_calls").Exists() {
+			// TODO: compatible with other providers
+			ctx.SetContext(ToolCallsContextKey, struct{}{})
+		}
+		log.Debugf("unknown message:%s", bodyJson)
 	}
-	log.Debugf("unknown message:%s", bodyJson)
-	return ""
+	return content
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.Log) types.Action {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "text/event-stream") {
 		ctx.SetContext(StreamContextKey, struct{}{})
 	}
 	return types.ActionContinue
 }
-func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log wrapper.Log) []byte {
+func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chunk []byte, isLastChunk bool, log log.Log) []byte {
 	if ctx.GetContext(ToolCallsContextKey) != nil {
 		// we should not cache tool call result
 		return chunk
@@ -450,7 +458,7 @@ func onHttpStreamResponseBody(ctx wrapper.HttpContext, config PluginConfig, chun
 	return chunk
 }
 
-func saveChatHistory(ctx wrapper.HttpContext, config PluginConfig, questionI any, value string, log wrapper.Log) {
+func saveChatHistory(ctx wrapper.HttpContext, config PluginConfig, questionI any, value string, log log.Log) {
 	question := questionI.(string)
 	identityKey := ctx.GetStringContext(IdentityKey, "")
 	var chat []ChatHistory

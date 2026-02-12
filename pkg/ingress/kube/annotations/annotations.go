@@ -21,6 +21,8 @@ import (
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/util/sets"
 	listersv1 "k8s.io/client-go/listers/core/v1"
+
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
 )
 
 type GlobalContext struct {
@@ -30,6 +32,8 @@ type GlobalContext struct {
 	ClusterSecretLister map[cluster.ID]listersv1.SecretLister
 
 	ClusterServiceList map[cluster.ID]listersv1.ServiceLister
+
+	McpServers []*mcpserver.McpServer
 }
 
 type Meta struct {
@@ -68,6 +72,8 @@ type Ingress struct {
 	Fallback *FallbackConfig
 
 	Auth *AuthConfig
+
+	Mirror *MirrorConfig
 
 	Destination *DestinationConfig
 
@@ -161,11 +167,13 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			localRateLimit{},
 			fallback{},
 			auth{},
+			mirror{},
 			destination{},
 			ignoreCaseMatching{},
 			match{},
 			headerControl{},
 			http2rpc{},
+			mcpServer{},
 		},
 		gatewayHandlers: []GatewayHandler{
 			downstreamTLS{},
@@ -182,6 +190,7 @@ func NewAnnotationHandlerManager() AnnotationHandler {
 			retry{},
 			localRateLimit{},
 			fallback{},
+			mirror{},
 			ignoreCaseMatching{},
 			match{},
 			headerControl{},

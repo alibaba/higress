@@ -3,10 +3,14 @@ package util
 import (
 	"testing"
 
+	"github.com/bmatcuk/doublestar/v4"
+
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/frontend-gray/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/gjson"
 )
 
-func TestExtractCookieValueByKey(t *testing.T) {
+func TestGetCookieValue(t *testing.T) {
 	var tests = []struct {
 		cookie, cookieKey, output string
 	}{
@@ -19,7 +23,7 @@ func TestExtractCookieValueByKey(t *testing.T) {
 	for _, test := range tests {
 		testName := test.cookie
 		t.Run(testName, func(t *testing.T) {
-			output := ExtractCookieValueByKey(test.cookie, test.cookieKey)
+			output := GetCookieValue(test.cookie, test.cookieKey)
 			assert.Equal(t, test.output, output)
 		})
 	}
@@ -41,6 +45,30 @@ func TestIndexRewrite(t *testing.T) {
 		{"/app1/index.jsp", "/mfe/app1/v1.0.0/index.html"},
 		{"/app1/xxx", "/mfe/app1/v1.0.0/index.html"},
 		{"/xxxx", "/mfe/app1/v1.0.0/index.html"},
+	}
+	for _, test := range tests {
+		testName := test.path
+		t.Run(testName, func(t *testing.T) {
+			output := IndexRewrite(testName, "v1.0.0", matchRules)
+			assert.Equal(t, test.output, output)
+		})
+	}
+}
+
+func TestIndexRewrite2(t *testing.T) {
+	matchRules := map[string]string{
+		"/":       "/{version}/index.html",
+		"/sta":    "/sta/{version}/index.html",
+		"/static": "/static/{version}/index.html",
+	}
+
+	var tests = []struct {
+		path, output string
+	}{
+		{"/static123", "/static/v1.0.0/index.html"},
+		{"/static", "/static/v1.0.0/index.html"},
+		{"/sta", "/sta/v1.0.0/index.html"},
+		{"/", "/v1.0.0/index.html"},
 	}
 	for _, test := range tests {
 		testName := test.path
@@ -80,25 +108,59 @@ func TestPrefixFileRewrite(t *testing.T) {
 	}
 }
 
-func TestIsIndexRequest(t *testing.T) {
+func TestCheckIsHtmlRequest(t *testing.T) {
 	var tests = []struct {
-		fetchMode string
-		p         string
-		output    bool
+		p      string
+		output bool
 	}{
-		{"cors", "/js/a.js", false},
-		{"no-cors", "/js/a.js", false},
-		{"no-cors", "/images/a.png", false},
-		{"no-cors", "/index", true},
-		{"cors", "/inde", false},
-		{"no-cors", "/index.html", true},
-		{"no-cors", "/demo.php", true},
+		{"/js/a.js", false},
+		{"/js/a.js", false},
+		{"/images/a.png", false},
+		{"/index", true},
+		{"/index.html", true},
+		{"/demo.php", true},
 	}
 	for _, test := range tests {
 		testPath := test.p
 		t.Run(testPath, func(t *testing.T) {
-			output := IsIndexRequest(test.fetchMode, testPath)
+			output := CheckIsHtmlRequest(testPath)
 			assert.Equal(t, test.output, output)
+		})
+	}
+}
+func TestReplaceHtml(t *testing.T) {
+	var tests = []struct {
+		name  string
+		input string
+	}{
+		{"demo", `{"injection":{"head":["<script>console.log('Head')</script>"],"body":{"first":["<script>console.log('BodyFirst')</script>"],"last":["<script>console.log('BodyLast')</script>"]},"last":["<script>console.log('BodyLast')</script>"]},"html": "<!DOCTYPE html>\n   <html lang=\"zh-CN\">\n<head>\n<title>app1</title>\n<meta charset=\"utf-8\" />\n</head>\n<body>\n\t测试替换html版本\n\t<br />\n\t版本: {version}\n\t<br />\n\t<script src=\"./{version}/a.js\"></script>\n</body>\n</html>"}`},
+		{"demo-noBody", `{"injection":{"head":["<script>console.log('Head')</script>"],"body":{"first":["<script>console.log('BodyFirst')</script>"],"last":["<script>console.log('BodyLast')</script>"]},"last":["<script>console.log('BodyLast')</script>"]},"html": "<!DOCTYPE html>\n   <html lang=\"zh-CN\">\n<head>\n<title>app1</title>\n<meta charset=\"utf-8\" />\n</head>\n</html>"}`},
+	}
+	for _, test := range tests {
+		testName := test.name
+		t.Run(testName, func(t *testing.T) {
+			grayConfig := &config.GrayConfig{}
+			config.JsonToGrayConfig(gjson.Parse(test.input), grayConfig)
+			result := InjectContent(grayConfig.Html, grayConfig.Injection, "")
+			t.Logf("result-----: %v", result)
+		})
+	}
+}
+
+func TestIsIndexRequest(t *testing.T) {
+	var tests = []struct {
+		name   string
+		input  string
+		output bool
+	}{
+		{"/api/user.json", "/api/**", true},
+		{"/api/blade-auth/oauth/captcha", "/api/**", true},
+	}
+	for _, test := range tests {
+		testName := test.name
+		t.Run(testName, func(t *testing.T) {
+			matchResult, _ := doublestar.Match(test.input, testName)
+			assert.Equal(t, test.output, matchResult)
 		})
 	}
 }

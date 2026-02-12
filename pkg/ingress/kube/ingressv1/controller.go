@@ -48,12 +48,12 @@ import (
 	networkinglister "k8s.io/client-go/listers/networking/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/cert"
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/cert"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -92,7 +92,7 @@ type controller struct {
 
 // NewController creates a new Kubernetes controller
 func NewController(localKubeClient, client kubeclient.Client, options common.Options, secretController secret.SecretController) common.IngressController {
-	opts := ktypes.InformerOptions{}
+	opts := ktypes.InformerOptions{Namespace: options.WatchNamespace}
 	ingressInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Ingress)
 	ingressLister := networkinglister.NewIngressLister(ingressInformer.Informer.GetIndexer())
 	serviceInformer := schemakubeclient.GetInformerFilteredFromGVR(client, opts, gvr.Service)
@@ -162,6 +162,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 			delete(c.ingresses, namespacedName.String())
 			c.mutex.Unlock()
 		} else {
+			IngressLog.Warnf("ingressLister Get failed, ingress: %s, err: %v", namespacedName, err)
 			return err
 		}
 	}
@@ -171,7 +172,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 		return nil
 	}
 
-	IngressLog.Debugf("ingress: %s, event: %s", namespacedName, event)
+	IngressLog.Infof("ingress: %s, event: %s", namespacedName, event)
 
 	// we should check need process only when event is not delete,
 	// if it is delete event, and previously processed, we need to process too.
@@ -181,7 +182,7 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 			return err
 		}
 		if !shouldProcess {
-			IngressLog.Infof("no need process, ingress %s", namespacedName)
+			IngressLog.Infof("no need process, ingress: %s", namespacedName)
 			return nil
 		}
 	}
@@ -279,10 +280,17 @@ func (c *controller) List() []config.Config {
 	for _, raw := range c.ingressInformer.Informer.GetStore().List() {
 		ing, ok := raw.(*ingress.Ingress)
 		if !ok {
+			IngressLog.Warnf("get ingress from informer failed: %v", raw)
 			continue
 		}
 
-		if should, err := c.shouldProcessIngress(ing); !should || err != nil {
+		should, err := c.shouldProcessIngress(ing)
+		if err != nil {
+			IngressLog.Warnf("check should process ingress failed: %v", err)
+			continue
+		}
+		if !should {
+			IngressLog.Debugf("no need process ingress: %s/%s", ing.Namespace, ing.Name)
 			continue
 		}
 
@@ -367,7 +375,6 @@ func (c *controller) ConvertGateway(convertOptions *common.ConvertOptions, wrapp
 			}
 			if c.options.GatewaySelectorKey != "" {
 				wrapperGateway.Gateway.Selector = map[string]string{c.options.GatewaySelectorKey: c.options.GatewaySelectorValue}
-
 			}
 			wrapperGateway.Gateway.Servers = append(wrapperGateway.Gateway.Servers, &networking.Server{
 				Port: &networking.Port{
@@ -496,11 +503,9 @@ func (c *controller) ConvertHTTPRoute(convertOptions *common.ConvertOptions, wra
 	// When the host, pathType, path of two rule are same, we think there is a conflict event.
 	definedRules := sets.New[string]()
 
-	var (
-		// But in across ingresses case, we will restrict this limit.
-		// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
-		tempRuleKey []string
-	)
+	// But in across ingresses case, we will restrict this limit.
+	// When the {host, path, headers, method, params} of two rule in different ingress are same, we think there is a conflict event.
+	var tempRuleKey []string
 
 	for _, rule := range ingressV1.Rules {
 		if rule.HTTP == nil || len(rule.HTTP.Paths) == 0 {
@@ -900,12 +905,7 @@ func (c *controller) storeBackendTrafficPolicy(wrapper *common.WrapperConfig, ba
 	if common.ValidateBackendResource(backend.Resource) && wrapper.AnnotationsConfig.Destination != nil {
 		for _, dest := range wrapper.AnnotationsConfig.Destination.McpDestination {
 			portNumber := dest.Destination.GetPort().GetNumber()
-			serviceKey := common.ServiceKey{
-				Namespace:   "mcp",
-				Name:        dest.Destination.Host,
-				Port:        int32(portNumber),
-				ServiceFQDN: dest.Destination.Host,
-			}
+			serviceKey := common.CreateMcpServiceKey(dest.Destination.Host, int32(portNumber))
 			if _, exist := store[serviceKey]; !exist {
 				if serviceKey.Port != 0 {
 					store[serviceKey] = &common.WrapperTrafficPolicy{
@@ -1027,7 +1027,8 @@ func isCanaryRoute(canary, route *common.WrapperHTTPRoute) bool {
 }
 
 func (c *controller) backendToRouteDestination(backend *ingress.IngressBackend, namespace string,
-	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig) ([]*networking.HTTPRouteDestination, common.Event) {
+	builder *common.IngressRouteBuilder, config *annotations.DestinationConfig,
+) ([]*networking.HTTPRouteDestination, common.Event) {
 	if backend == nil || (backend.Service == nil && backend.Resource == nil) {
 		return nil, common.InvalidBackendService
 	}

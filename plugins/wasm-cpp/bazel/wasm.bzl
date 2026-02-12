@@ -9,9 +9,9 @@ load(
 def wasm_libraries():
     http_archive(
         name = "com_google_absl",
-        sha256 = "ec8ef47335310cc3382bdc0d0cc1097a001e67dc83fcba807845aa5696e7e1e4",
-        strip_prefix = "abseil-cpp-302b250e1d917ede77b5ff00a6fd9f28430f1563",
-        url = "https://github.com/abseil/abseil-cpp/archive/302b250e1d917ede77b5ff00a6fd9f28430f1563.tar.gz",
+        sha256 = "3a0bb3d2e6f53352526a8d1a7e7b5749c68cd07f2401766a404fb00d2853fa49",
+        strip_prefix = "abseil-cpp-4bbdb026899fea9f882a95cbd7d6a4adaf49b2dd",
+        url = "https://github.com/abseil/abseil-cpp/archive/4bbdb026899fea9f882a95cbd7d6a4adaf49b2dd.tar.gz",
         patch_args = ["-p1"],
         patches = ["//bazel:absl.patch"],
     )
@@ -33,14 +33,14 @@ def wasm_libraries():
         urls = ["https://github.com/google/googletest/archive/release-1.10.0.tar.gz"],
     )
 
-    PROXY_WASM_CPP_HOST_SHA = "f38347360feaaf5b2a733f219c4d8c9660d626f0"
-    PROXY_WASM_CPP_HOST_SHA256 = "bf10de946eb5785813895c2bf16504afc0cd590b9655d9ee52fb1074d0825ea3"
+    PROXY_WASM_CPP_HOST_SHA = "ecf42a27fcf78f42e64037d4eff1a0ca5a61e403"
+    PROXY_WASM_CPP_HOST_SHA256 = "9748156731e9521837686923321bf12725c32c9fa8355218209831cc3ee87080"
 
     http_archive(
         name = "proxy_wasm_cpp_host",
         sha256 = PROXY_WASM_CPP_HOST_SHA256,
         strip_prefix = "proxy-wasm-cpp-host-" + PROXY_WASM_CPP_HOST_SHA,
-        url = "https://github.com/proxy-wasm/proxy-wasm-cpp-host/archive/" + PROXY_WASM_CPP_HOST_SHA +".tar.gz",
+        url = "https://github.com/higress-group/proxy-wasm-cpp-host/archive/" + PROXY_WASM_CPP_HOST_SHA +".tar.gz",
     )
 
     http_archive(

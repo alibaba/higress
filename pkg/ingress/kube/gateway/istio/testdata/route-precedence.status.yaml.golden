@@ -1,14 +1,12 @@
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: GatewayClass
 metadata:
-  creationTimestamp: null
-  name: higress
-  namespace: default
+  name: istio
 spec: null
 status:
   conditions:
   - lastTransitionTime: fake
-    message: Handled by Higress controller
+    message: Handled by Istio controller
     reason: Accepted
     status: "True"
     type: Accepted
@@ -16,9 +14,8 @@ status:
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: Gateway
 metadata:
-  creationTimestamp: null
   name: gateway
-  namespace: higress-system
+  namespace: istio-system
 spec: null
 status:
   addresses:
@@ -31,7 +28,7 @@ status:
     status: "True"
     type: Accepted
   - lastTransitionTime: fake
-    message: Resource programmed, assigned to service(s) higress-gateway.higress-system.svc.domain.suffix:80
+    message: Resource programmed, assigned to service(s) istio-ingressgateway.istio-system.svc.domain.suffix:80
     reason: Programmed
     status: "True"
     type: Programmed
@@ -62,16 +59,32 @@ status:
     supportedKinds:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
+    - group: gateway.networking.k8s.io
+      kind: GRPCRoute
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http
   namespace: allowed-1
 spec: null
 status:
   parents:
+  - conditions:
+    - lastTransitionTime: fake
+      message: Route was valid
+      reason: Accepted
+      status: "True"
+      type: Accepted
+    - lastTransitionTime: fake
+      message: All references resolved
+      reason: ResolvedRefs
+      status: "True"
+      type: ResolvedRefs
+    controllerName: higress.io/gateway-controller
+    parentRef:
+      name: gateway
+      namespace: istio-system
   - conditions:
     - lastTransitionTime: fake
       message: Route was valid
@@ -104,26 +117,10 @@ status:
       group: ""
       kind: Service
       name: a-example
-  - conditions:
-    - lastTransitionTime: fake
-      message: Route was valid
-      reason: Accepted
-      status: "True"
-      type: Accepted
-    - lastTransitionTime: fake
-      message: All references resolved
-      reason: ResolvedRefs
-      status: "True"
-      type: ResolvedRefs
-    controllerName: higress.io/gateway-controller
-    parentRef:
-      name: gateway
-      namespace: higress-system
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http
   namespace: allowed-2
 spec: null
@@ -142,9 +139,8 @@ status:
       type: ResolvedRefs
     controllerName: higress.io/gateway-controller
     parentRef:
-      group: ""
-      kind: Service
-      name: a-example
+      name: gateway
+      namespace: istio-system
   - conditions:
     - lastTransitionTime: fake
       message: Route was valid
@@ -158,13 +154,13 @@ status:
       type: ResolvedRefs
     controllerName: higress.io/gateway-controller
     parentRef:
-      name: gateway
-      namespace: higress-system
+      group: ""
+      kind: Service
+      name: a-example
 ---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: HTTPRoute
 metadata:
-  creationTimestamp: null
   name: http
   namespace: default
 spec: null
@@ -185,5 +181,5 @@ status:
     controllerName: higress.io/gateway-controller
     parentRef:
       name: gateway
-      namespace: higress-system
+      namespace: istio-system
 ---

@@ -29,10 +29,11 @@ spec:
     spec:
       containers:
         - name: opa
-          image: openpolicyagent/opa:latest
+          image: openpolicyagent/opa:0.61.0
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8181
-          command: [ "opa", "run", "-s" ]
+          command: [ "opa", "run", "-s", "-a", ":8181"]
 ---
 apiVersion: v1
 kind: Service
@@ -57,6 +58,7 @@ spec:
   containers:
     - name: opa-test
       image: curlimages/curl:latest
+      imagePullPolicy: IfNotPresent
       command:
         - sh
         - -c

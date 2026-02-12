@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-GO_VERSION=1.20
+GO_VERSION=1.24
 
 WORK_DIR=`cd $(dirname "$0")/../..;pwd`
 
@@ -15,12 +15,9 @@ for repo in ${envoy_repos[@]}; do
     if [ -e external/$repo ];then
         continue
     fi
-    cp -r envoy/$repo  external/$repo
+    cp -RP envoy/$repo  external/$repo
     cd external/$repo
     echo "gitdir: /parent/.git/modules/envoy/$repo" > .git
-    if [ -f "go.mod" ]; then
-        go mod tidy -go=${GO_VERSION}
-    fi
     cd $WORK_DIR
 done
 
@@ -30,11 +27,11 @@ for repo in ${istio_repos[@]}; do
     if [ -e external/$repo ];then
         continue
     fi
-    cp -r istio/$repo external/$repo
+    cp -RP istio/$repo external/$repo
     cd external/$repo
     echo "gitdir: /parent/.git/modules/istio/$repo" > .git
-    if [ -f "go.mod" ]; then
-        go mod tidy -go=${GO_VERSION}
-    fi
     cd $WORK_DIR
 done
+
+# Update root go.mod after all external dependencies are ready
+go mod tidy

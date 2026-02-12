@@ -1,0 +1,205 @@
+server:
+  name: vehicle-info-query
+  config:
+    appCode: ""
+tools:
+  - name: vin-query
+    description: 根据车架号，返回车辆信息
+    args:
+      - name: vin
+        description: 车架号
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmfaceip.market.alicloudapi.com/vehicle/vin-query
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.bodystructure**: 车体结构 (Type: string)
+          - **data.bodytype**: 车身型式 (Type: string)
+          - **data.brand**: 品牌 (Type: string)
+          - **data.carid**: 车ID 对应车型API中的ID，可获取车型详细信息 (Type: integer)
+          - **data.carlist**:  (Type: array)
+            - **data.carlist[].carid**: 车ID 对应车型API中的ID (Type: integer)
+            - **data.carlist[].model**: 工信部型号 (Type: string)
+            - **data.carlist[].name**: 名称 (Type: string)
+            - **data.carlist[].typeid**: 车型ID 对应车型大全里的根据车型获取车的parentid (Type: integer)
+            - **data.carlist[].typename**: 车型名称 对应typeid (Type: string)
+          - **data.comfuelconsumption**: 油耗 (Type: string)
+          - **data.cylindernum**: 气缸数 (Type: string)
+          - **data.displacement**: 排量 L (Type: string)
+          - **data.displacementml**: 排量(mL) (Type: string)
+          - **data.doornum**: 车门数 (Type: string)
+          - **data.drivemode**: 驱动方式 (Type: string)
+          - **data.engine**: 发动机 (Type: string)
+          - **data.enginemodel**: 发动机型号 (Type: string)
+          - **data.environmentalstandards**: 排放标准 (Type: string)
+          - **data.frontbraketype**: 前制动类型 (Type: string)
+          - **data.fronttiresize**: 前轮胎尺寸 (Type: string)
+          - **data.fuelgrade**: 燃油标号 (Type: string)
+          - **data.fuelmethod**: 喷射方式 (Type: string)
+          - **data.fueltype**: 燃油类型 (Type: string)
+          - **data.gearbox**: 变速箱 (Type: string)
+          - **data.gearboxinfo**:  (Type: object)
+            - **data.gearboxinfo.gearboxbrand**: 变速箱品牌 (Type: string)
+            - **data.gearboxinfo.gearboxmodel**: 变速箱型号 (Type: string)
+            - **data.gearboxinfo.gravityoil**: 重力加油量 (Type: string)
+            - **data.gearboxinfo.jointpiclist**: 接口图片列表 (Type: array)
+              - **data.gearboxinfo.jointpiclist[]**: Items of type string
+            - **data.gearboxinfo.mechanicaloil**: 机械加油量 (Type: string)
+            - **data.gearboxinfo.positionpiclist**: 位置图片列表 (Type: array)
+              - **data.gearboxinfo.positionpiclist[]**: Items of type string
+          - **data.gearnum**: 档位数 (Type: string)
+          - **data.geartype**: 变速箱类型 (Type: string)
+          - **data.groupid**: 车型组ID (Type: string)
+          - **data.groupname**: 车型组名称 (Type: string)
+          - **data.height**: 高 (Type: string)
+          - **data.iscorrect**:  (Type: integer)
+          - **data.isimport**:  (Type: integer)
+          - **data.len**: 长 mm (Type: string)
+          - **data.listdate**: 上市日期 (Type: string)
+          - **data.logo**:  (Type: string)
+          - **data.machineoil**:  (Type: object)
+            - **data.machineoil.grade**: 机油分类 (Type: string)
+            - **data.machineoil.level**: 质量等级 (Type: string)
+            - **data.machineoil.viscosity**: 粘稠度 (Type: string)
+            - **data.machineoil.volume**: 参考用量 (Type: string)
+          - **data.manufacturer**: 厂家名称 (Type: string)
+          - **data.marketprice**:  (Type: string)
+          - **data.maxhorsepower**: 最大马力(Ps) (Type: string)
+          - **data.maxpower**: 最大功率 KW (Type: string)
+          - **data.model**: 工信部型号 (Type: string)
+          - **data.name**: 名称 (Type: string)
+          - **data.parkingbraketype**: 驻车制动类型 (Type: string)
+          - **data.price**: 厂商指导价 (Type: string)
+          - **data.rearbraketype**: 后制动类型 (Type: string)
+          - **data.reartiresize**: 后轮胎尺寸 (Type: string)
+          - **data.seatnum**: 座位数 (Type: string)
+          - **data.sizetype**: 尺寸类型 (Type: string)
+          - **data.typename**: 车型名称 对应typeid (Type: string)
+          - **data.version**:  (Type: string)
+          - **data.vin**: 车架号 (Type: string)
+          - **data.weight**: 整备质量 kg (Type: string)
+          - **data.wheelbase**: 轴距 (Type: string)
+          - **data.width**: 宽 (Type: string)
+          - **data.yeartype**: 年款 (Type: string)
+        - **msg**:  (Type: string)
+        - **success**:  (Type: boolean)
+        - **taskNo**:  (Type: string)
+
+        ## Original Response
+
+  - name: vin-upgrade-query
+    description: VIN码 车辆信息查询_升级版
+    args:
+      - name: vin
+        description: 车架号
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmfaceip.market.alicloudapi.com/vehicle/vin-upgrade-query
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.body_type**: 车体结构 (Type: string)
+          - **data.brand_name**: 品牌名称 (Type: string)
+          - **data.chassis_number**: 底盘号 (Type: string)
+          - **data.cms**: 车门数(个) (Type: string)
+          - **data.csjg**: 车身结构 (Type: string)
+          - **data.displacement**: 排量(L) (Type: string)
+          - **data.displacement_ml**: 排量(mL) (Type: string)
+          - **data.driven_type**: 驱动方式 (Type: string)
+          - **data.effluent_standard**: 环保标准 (Type: string)
+          - **data.engine_model**: 发动机型号 (Type: string)
+          - **data.front_brake_type**: 前制动器类型 (Type: string)
+          - **data.front_tyre_size**: 前轮胎规格 (Type: string)
+          - **data.full_weight**: 整备质量(kg) (Type: string)
+          - **data.full_weight_max**: 最大满载质量(kg) (Type: string)
+          - **data.full_weight_zz**: 核载质量 (Type: string)
+          - **data.gearbox**: 变速箱 (Type: string)
+          - **data.gearbox_number**: 变速箱号 (Type: string)
+          - **data.gearnum**: 变速箱档位数 (Type: string)
+          - **data.geartype**: 变速箱类型 (Type: string)
+          - **data.gyfs**: 供油方式 (Type: string)
+          - **data.high**: 高度(mm) (Type: string)
+          - **data.img**: 车型图片，有效期30天。建议自行下载保存，避免丢失 (Type: string)
+          - **data.is_commercial**: 是否商用 1 是 0 否 (Type: integer)
+          - **data.is_import**: 是否进口 0国产 1进口 (Type: integer)
+          - **data.is_rules**: vin是否合规 1是 0否 (Type: integer)
+          - **data.length**: 长度(mm) (Type: string)
+          - **data.manufacturer**: 厂商 (Type: string)
+          - **data.market_date**: 上市时间 (Type: string)
+          - **data.market_price**: 市场参考价 (Type: string)
+          - **data.model_list**:  (Type: array)
+            - **data.model_list[].brand_name**: 品牌名称 (Type: string)
+            - **data.model_list[].name**: 车型车款 (Type: string)
+            - **data.model_list[].series_name**: 车系 (Type: string)
+          - **data.name**: 车型车款 (Type: string)
+          - **data.nedczhyh**: 油耗 (Type: string)
+          - **data.parking_brake_type**: 驻车制动类型 (Type: string)
+          - **data.price**: 厂家指导价 (Type: string)
+          - **data.qfs**: 气缸数 (Type: string)
+          - **data.rear_brake_type**: 后制动器类型 (Type: string)
+          - **data.rear_tyre_size**: 后轮胎规格 (Type: string)
+          - **data.rlxs**: 燃料形式 (Type: string)
+          - **data.ryxh**: 燃油标号 (Type: string)
+          - **data.scale**: 车辆级别 (Type: string)
+          - **data.series_name**: 车系 (Type: string)
+          - **data.stop_date**: 停产日期 (Type: string)
+          - **data.trackfront**: 前轮距(mm) (Type: string)
+          - **data.trackrear**: 后轮距(mm) (Type: string)
+          - **data.version**: 销售版本 (Type: string)
+          - **data.vin**: 车架号 (Type: string)
+          - **data.wheelbase**: 轴距(mm) (Type: string)
+          - **data.width**: 宽度(mm) (Type: string)
+          - **data.year**: 年款 (Type: string)
+          - **data.zdgl**: 最大功率 (Type: string)
+          - **data.zdml**: 最大马力 (Type: string)
+          - **data.zws**: 座位数(个) (Type: string)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
