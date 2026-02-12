@@ -68,7 +68,7 @@ chmod +x get-ai-gateway.sh
 ./get-ai-gateway.sh start --non-interactive \
   --zhipuai-key sk-xxx \
   --auto-routing \
-  --auto-routing-default-model glm-4
+  --auto-routing-default-model glm-5
 ```
 
 ### Step 3: Install OpenClaw Plugin
@@ -104,7 +104,7 @@ The `openclaw models auth login` command will interactively prompt for:
 4. Model list (auto-detected or manually specified)
 5. Auto-routing default model (if using `higress/auto`)
 
-After configuration and restart, Higress models are available in OpenClaw with `higress/` prefix (e.g., `higress/glm-4`, `higress/auto`).
+After configuration and restart, Higress models are available in OpenClaw with `higress/` prefix (e.g., `higress/glm-5`, `higress/auto`).
 
 **Future Configuration Updates (No Restart Needed)**
 
