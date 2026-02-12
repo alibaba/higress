@@ -90,12 +90,17 @@ function buildModelDefinition(modelId: string) {
 
 async function testGatewayConnection(gatewayUrl: string): Promise<boolean> {
   try {
-    const response = await fetch(`${gatewayUrl}/v1/models`, {
-      method: "GET",
+    // gatewayUrl already ends with /v1 from normalizeBaseUrl()
+    // Use chat/completions endpoint with empty body to test connection
+    // Higress doesn't support /models endpoint
+    const response = await fetch(`${gatewayUrl}/chat/completions`, {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
       signal: AbortSignal.timeout(5000),
     });
-    return response.ok || response.status === 401; // 401 means gateway is up but needs auth
+    // Any response (including 400/401/422) means gateway is reachable
+    return true;
   } catch {
     return false;
   }
@@ -232,7 +237,8 @@ const higressPlugin = {
                 models: {
                   providers: {
                     higress: {
-                      baseUrl: `${gatewayUrl}/v1`,
+                      // gatewayUrl already ends with /v1 from normalizeBaseUrl()
+                      baseUrl: gatewayUrl,
                       apiKey: apiKey,
                       api: "openai-completions",
                       authHeader: apiKey !== "higress-local",
@@ -272,7 +278,8 @@ const higressPlugin = {
                 hasAutoModel
                   ? `Auto-routing enabled: use model "higress/auto" to route based on message content.`
                   : "Add 'higress/auto' to models to enable auto-routing.",
-                `Gateway endpoint: ${gatewayUrl}/v1/chat/completions`,
+                // gatewayUrl already ends with /v1 from normalizeBaseUrl()
+                `Gateway endpoint: ${gatewayUrl}/chat/completions`,
                 `Console: ${consoleUrl}`,
                 "",
                 "🎯 Recommended Skills (install via OpenClaw conversation):",
