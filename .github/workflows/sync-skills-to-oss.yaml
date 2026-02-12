@@ -25,13 +25,12 @@ jobs:
       - name: Package Skills
         run: |
           mkdir -p packaged-skills
-          cd .claude/skills
-          for skill_dir in */; do
-            skill_name="${skill_dir%/}"
-            echo "Packaging $skill_name..."
-            cd "$skill_dir"
-            zip -r "../../packaged-skills/${skill_name}.zip" .
-            cd ..
+          for skill_dir in .claude/skills/*/; do
+            if [ -d "$skill_dir" ]; then
+              skill_name=$(basename "$skill_dir")
+              echo "Packaging $skill_name..."
+              (cd "$skill_dir" && zip -r "$GITHUB_WORKSPACE/packaged-skills/${skill_name}.zip" .)
+            fi
           done
 
       - name: Sync Skills to OSS
