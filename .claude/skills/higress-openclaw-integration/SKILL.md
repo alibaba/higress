@@ -83,8 +83,8 @@ PLUGIN_DEST="$HOME/.openclaw/extensions/higress-ai-gateway"
 mkdir -p "$PLUGIN_DEST"
 cp -r "$PLUGIN_SRC"/* "$PLUGIN_DEST/"
 
-# Configure provider (interactive setup)
-openclaw models auth login --provider higress
+# Configure provider
+openclaw models auth login --provider higress --set-default
 ```
 
 The `openclaw models auth login` command will prompt for:
