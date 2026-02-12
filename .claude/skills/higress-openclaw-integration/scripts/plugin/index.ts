@@ -207,17 +207,17 @@ const higressPlugin = {
             // FIX: Avoid double prefix - if modelId already starts with provider, don't add prefix again
             const defaultModelId = hasAutoModel
               ? "higress/auto"
-              : (modelIds[0] ?? "qwen-turbo");
+              : (modelIds[0] ?? "glm-5");
             const defaultModelRef = defaultModelId.startsWith("higress/")
               ? defaultModelId
               : `higress/${defaultModelId}`;
 
             // Step 7: Configure default model for auto-routing
-            let autoRoutingDefaultModel = "qwen-turbo";
+            let autoRoutingDefaultModel = "glm-5";
             if (hasAutoModel) {
               const autoRoutingModelInput = await ctx.prompter.text({
                 message: "Default model for auto-routing (when no rule matches)",
-                initialValue: "qwen-turbo",
+                initialValue: "glm-5",
               });
               autoRoutingDefaultModel = autoRoutingModelInput.trim(); // FIX: Add trim() here
             }
