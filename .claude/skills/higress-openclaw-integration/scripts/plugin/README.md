@@ -68,11 +68,6 @@ openclaw chat --model higress/auto "深入思考 这个问题应该怎么解决?
 - **Auto-routing Configuration**: [higress-auto-router](../../higress-auto-router/SKILL.md)
 - **Higress AI Gateway**: https://github.com/higress-group/higress-standalone
 
-## Compatibility
-
-- **OpenClaw**: v2.0.0+
-- **Higress AI Gateway**: All versions
-
 ## License
 
 Apache-2.0
