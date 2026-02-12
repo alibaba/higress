@@ -16,7 +16,7 @@ const MODEL_CONFIG: Record<string, { contextWindow: number; maxTokens: number }>
   "deepseek-reasoner": { contextWindow: 256_000, maxTokens: 128_000 },
   "kimi-k2.5": { contextWindow: 256_000, maxTokens: 128_000 },
   "glm-5": { contextWindow: 200_000, maxTokens: 128_000 },
-  "MiniMax-M2.5": { contextWindow: 196_000, maxTokens: 196_000 },
+  "MiniMax-M2.1": { contextWindow: 196_000, maxTokens: 196_000 },
 };
 
 // Default values for unknown models
@@ -43,7 +43,7 @@ const DEFAULT_MODEL_IDS = [
   // Other common models
   "kimi-k2.5",
   "glm-5",
-  "MiniMax-M2.5",
+  "MiniMax-M2.1",
 ] as const;
 
 function normalizeBaseUrl(value: string): string {
