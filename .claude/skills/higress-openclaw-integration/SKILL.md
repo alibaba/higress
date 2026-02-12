@@ -1,6 +1,6 @@
 ---
 name: higress-openclaw-integration
-description: "Deploy and configure Higress AI Gateway for OpenClaw integration. Use when: (1) User wants to deploy Higress AI Gateway, (2) User wants to configure OpenClaw to use Higress as a model provider, (3) User mentions 'higress', 'ai gateway', 'model gateway', 'AI网关', (4) User wants to set up model routing or auto-routing, (5) User needs to manage LLM provider API keys."
+description: "Deploy and configure Higress AI Gateway for OpenClaw integration. Use when: (1) User wants to deploy Higress AI Gateway, (2) User wants to configure OpenClaw to use more model providers, (3) User mentions 'higress', 'ai gateway', 'model gateway', 'AI网关', (4) User wants to set up model routing or auto-routing, (5) User needs to manage LLM provider API keys."
 ---
 
 # Higress AI Gateway Integration
