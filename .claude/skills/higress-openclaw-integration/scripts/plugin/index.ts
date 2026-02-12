@@ -20,8 +20,8 @@ const MODEL_CONFIG: Record<string, { contextWindow: number; maxTokens: number }>
 };
 
 // Default values for unknown models
-const DEFAULT_CONTEXT_WINDOW = 128_000;
-const DEFAULT_MAX_TOKENS = 8_192;
+const DEFAULT_CONTEXT_WINDOW = 200_000;
+const DEFAULT_MAX_TOKENS = 128_000;
 
 // Common models that Higress AI Gateway typically supports
 const DEFAULT_MODEL_IDS = [
@@ -167,8 +167,6 @@ const higressPlugin = {
                 [
                   "Could not connect to Higress AI Gateway.",
                   "Make sure the gateway is running and the URL is correct.",
-                  "",
-                  `Tried: ${gatewayUrl}/v1/models`,
                 ].join("\n"),
                 "Connection Warning",
               );
