@@ -106,6 +106,16 @@ The `openclaw models auth login` command will interactively prompt for:
 
 After configuration and restart, Higress models are available in OpenClaw with `higress/` prefix (e.g., `higress/glm-4`, `higress/auto`).
 
+**Future Configuration Updates (No Restart Needed)**
+
+After the initial setup, you can manage your configuration through conversation with OpenClaw:
+
+- **Add New Providers**: Add new LLM providers (e.g., DeepSeek, OpenAI, Claude) and their models dynamically.
+- **Update API Keys**: Update existing provider API keys without service restart.
+- **Configure Auto-routing**: If you've set up multiple models, ask OpenClaw to configure auto-routing rules. Requests will be intelligently routed based on your message content, using the most suitable model automatically.
+
+All configuration changes are hot-loaded through Higress — no `openclaw gateway restart` required. Iterate on your model provider setup dynamically without service interruption!
+
 ## Post-Deployment Management
 
 ### Add/Update API Keys (Hot-reload)
