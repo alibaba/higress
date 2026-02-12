@@ -453,6 +453,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
+	// @Title zh-CN 智谱AI服务域名
+	// @Description zh-CN 仅适用于智谱AI服务。默认为 open.bigmodel.cn（中国），可配置为 api.z.ai（国际）
+	zhipuDomain string `required:"false" yaml:"zhipuDomain" json:"zhipuDomain"`
+	// @Title zh-CN 智谱AI Code Plan 模式
+	// @Description zh-CN 仅适用于智谱AI服务。启用后将使用 /api/coding/paas/v4/chat/completions 接口
+	zhipuCodePlanMode bool `required:"false" yaml:"zhipuCodePlanMode" json:"zhipuCodePlanMode"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -658,6 +664,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
 	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
+	c.zhipuDomain = json.Get("zhipuDomain").String()
+	c.zhipuCodePlanMode = json.Get("zhipuCodePlanMode").Bool()
 	c.contextCleanupCommands = make([]string, 0)
 	for _, cmd := range json.Get("contextCleanupCommands").Array() {
 		if cmd.String() != "" {
