@@ -5,413 +5,168 @@ description: "Deploy and configure Higress AI Gateway for OpenClaw integration. 
 
 # Higress AI Gateway Integration
 
-Deploy and configure Higress AI Gateway for OpenClaw integration with one-click deployment, model provider configuration, and auto-routing.
+Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model provider.
 
-## Prerequisites
+## Quick Start
 
-- Docker installed and running
-- Internet access to download setup script
-- LLM provider API keys (at least one)
+### Step 1: Collect Information from User
 
-## Workflow
+**Ask the user for the following information upfront:**
 
-### Step 1: Download Setup Script
+1. **Which LLM provider(s) to use?** (at least one required)
 
-Download official get-ai-gateway.sh script:
+   | Provider | Parameter | Notes |
+   |----------|-----------|-------|
+   | 阿里云通义千问 (Dashscope) | `--dashscope-key` | Models: qwen-* |
+   | DeepSeek | `--deepseek-key` | Models: deepseek-* |
+   | Moonshot (Kimi) | `--moonshot-key` | Models: moonshot-*, kimi-* |
+   | 智谱 AI (Zhipu) | `--zhipuai-key` | Models: glm-* |
+   | OpenAI | `--openai-key` | Models: gpt-*, o1-*, o3-* |
+   | Claude | `--claude-key` | Models: claude-* |
+   | Claude Code | `--claude-code-key` | **⚠️ 需运行 `claude setup-token` 获取 OAuth Token** |
+   | Google Gemini | `--gemini-key` | Models: gemini-* |
+   | OpenRouter | `--openrouter-key` | Supports all models (catch-all) |
+   | Grok | `--grok-key` | Models: grok-* |
+   | Groq | `--groq-key` | Fast inference |
+   | Doubao (豆包) | `--doubao-key` | Models: doubao-* |
+   | Minimax | `--minimax-key` | Models: abab-* |
+   | Mistral | `--mistral-key` | Models: mistral-* |
+   | Baichuan (百川) | `--baichuan-key` | Models: Baichuan* |
+   | 01.AI (Yi) | `--yi-key` | Models: yi-* |
+   | Stepfun (阶跃星辰) | `--stepfun-key` | Models: step-* |
+   | Cohere | `--cohere-key` | Models: command* |
+   | Fireworks AI | `--fireworks-key` | - |
+   | Together AI | `--togetherai-key` | - |
+   | GitHub Models | `--github-key` | - |
+
+   **Cloud Providers (require additional config):**
+   - Azure OpenAI: `--azure-key` (需要 service URL)
+   - AWS Bedrock: `--bedrock-key` (需要 region 和 access key)
+   - Google Vertex AI: `--vertex-key` (需要 project ID 和 region)
+
+2. **Enable auto-routing?** (recommended)
+   - If yes: `--auto-routing --auto-routing-default-model <model-name>`
+   - Auto-routing allows using `model="higress/auto"` to automatically route requests based on message content
+
+3. **Custom ports?** (optional, defaults: HTTP=8080, HTTPS=8443, Console=8001)
+
+### Step 2: Deploy Gateway
 
 ```bash
+# Download script (if not exists)
 curl -fsSL https://raw.githubusercontent.com/higress-group/higress-standalone/main/all-in-one/get-ai-gateway.sh -o get-ai-gateway.sh
 chmod +x get-ai-gateway.sh
+
+# Deploy with user's configuration
+./get-ai-gateway.sh start --non-interactive \
+  --<provider>-key <api-key> \
+  [--auto-routing --auto-routing-default-model <model>]
 ```
 
-### Step 2: Gather Configuration
-
-Ask user for:
-
-1. **LLM Provider API Keys** (at least one required):
-
-   **Top Commonly Used Providers:**
-   - Aliyun Dashscope (Qwen): `--dashscope-key`
-   - DeepSeek: `--deepseek-key`
-   - Moonshot (Kimi): `--moonshot-key`
-   - Zhipu AI: `--zhipuai-key`
-   - Claude Code (OAuth mode): `--claude-code-key` (run `claude setup-token` to get token)
-   - Claude: `--claude-key`
-   - Minimax: `--minimax-key`
-   - Azure OpenAI: `--azure-key`
-   - AWS Bedrock: `--bedrock-key`
-   - Google Vertex AI: `--vertex-key`
-   - OpenAI: `--openai-key`
-   - OpenRouter: `--openrouter-key`
-   - Grok: `--grok-key`
-
-   To configure additional providers beyond the above, run `./get-ai-gateway.sh --help` to view the complete list of supported models and providers.
-
-2. **Port Configuration** (optional):
-   - HTTP port: `--http-port` (default: 8080)
-   - HTTPS port: `--https-port` (default: 8443)
-   - Console port: `--console-port` (default: 8001)
-
-3. **Auto-routing** (optional):
-   - Enable: `--auto-routing`
-   - Default model: `--auto-routing-default-model`
-
-### Step 3: Run Setup Script
-
-Run script in non-interactive mode with gathered parameters:
-
+**Example:**
 ```bash
 ./get-ai-gateway.sh start --non-interactive \
-  --dashscope-key sk-xxx \
-  --openai-key sk-xxx \
+  --zhipuai-key sk-xxx \
   --auto-routing \
-  --auto-routing-default-model qwen-turbo
+  --auto-routing-default-model glm-4
 ```
 
-**Automatic Repository Selection:**
+### Step 3: Install OpenClaw Plugin
 
-The script automatically detects your timezone and selects the geographically closest registry for both:
-- **Container image** (`IMAGE_REPO`)
-- **WASM plugins** (`PLUGIN_REGISTRY`)
-
-| Region | Timezone Examples | Selected Registry |
-|--------|------------------|-------------------|
-| China & nearby | Asia/Shanghai, Asia/Hong_Kong, etc. | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
-| Southeast Asia | Asia/Singapore, Asia/Jakarta, etc. | `higress-registry.ap-southeast-7.cr.aliyuncs.com` |
-| North America | America/*, US/*, Canada/* | `higress-registry.us-west-1.cr.aliyuncs.com` |
-| Others | Default fallback | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
-
-**Manual Override (optional):**
-
-If you want to use a specific registry:
+Install the Higress provider plugin for OpenClaw:
 
 ```bash
-IMAGE_REPO="higress-registry.ap-southeast-7.cr.aliyuncs.com/higress/all-in-one" \
-PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
-  ./get-ai-gateway.sh start --non-interactive \
-  --dashscope-key sk-xxx \
-  --openai-key sk-xxx
-```
-
-### Step 4: Verify Deployment
-
-After script completion:
-
-1. Check container is running:
-   ```bash
-   docker ps --filter "name=higress-ai-gateway"
-   ```
-
-2. Test gateway endpoint:
-   ```bash
-   curl http://localhost:8080/v1/models
-   ```
-
-3. Access console (optional):
-   ```
-   http://localhost:8001
-   ```
-
-### Step 5: Configure OpenClaw Plugin
-
-If user wants to use Higress with OpenClaw, install the plugin:
-
-#### Automatic Installation
-
-```bash
-# Install plugin for OpenClaw
-RUNTIME="openclaw"
-RUNTIME_DIR="$HOME/.openclaw"
+# Copy plugin files (PLUGIN_SRC is relative to skill directory: scripts/plugin)
 PLUGIN_SRC="scripts/plugin"
+PLUGIN_DEST="$HOME/.openclaw/extensions/higress-ai-gateway"
 
-# Install plugin
-PLUGIN_DEST="$RUNTIME_DIR/extensions/higress-ai-gateway"
-echo "Installing Higress AI Gateway plugin for $RUNTIME..."
-mkdir -p "$(dirname "$PLUGIN_DEST")"
-[ -d "$PLUGIN_DEST" ] && rm -rf "$PLUGIN_DEST"
-cp -r "$PLUGIN_SRC" "$PLUGIN_DEST"
-echo "✓ Plugin installed at: $PLUGIN_DEST"
+mkdir -p "$PLUGIN_DEST"
+cp -r "$PLUGIN_SRC"/* "$PLUGIN_DEST/"
 
-# Configure provider
-echo ""
-echo "Configuring provider..."
-$RUNTIME models auth login --provider higress
+# Configure provider (interactive setup)
+openclaw models auth login --provider higress
 ```
 
-The plugin will guide you through an interactive setup for:
+The `openclaw models auth login` command will prompt for:
 1. Gateway URL (default: `http://localhost:8080`)
 2. Console URL (default: `http://localhost:8001`)
 3. API Key (optional for local deployments)
 4. Model list (auto-detected or manually specified)
 5. Auto-routing default model (if using `higress/auto`)
-4. Model list (auto-detected or manually specified)
-5. Auto-routing default model (if using `higress/auto`)
 
-### Step 6: Manage API Keys (optional)
+After configuration, Higress models are available in OpenClaw with `higress/` prefix (e.g., `higress/glm-4`, `higress/auto`).
 
-After deployment, manage API keys without redeploying:
+## Post-Deployment Management
+
+### Add/Update API Keys (Hot-reload)
 
 ```bash
-# View configured API keys
-./get-ai-gateway.sh config list
-# Add or update an API key (hot-reload, no restart needed)
 ./get-ai-gateway.sh config add --provider <provider> --key <api-key>
-# Remove an API key (hot-reload, no restart needed)
+./get-ai-gateway.sh config list
 ./get-ai-gateway.sh config remove --provider <provider>
 ```
 
-**Note:** Changes take effect immediately via hot-reload. No container restart required.
+Provider aliases: `dashscope`/`qwen`, `moonshot`/`kimi`, `zhipuai`/`zhipu`
 
-## CLI Parameters Reference
-
-### Basic Options
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `--non-interactive` | Run without prompts | - |
-| `--http-port` | Gateway HTTP port | 8080 |
-| `--https-port` | Gateway HTTPS port | 8443 |
-| `--console-port` | Console port | 8001 |
-| `--container-name` | Container name | higress-ai-gateway |
-| `--data-folder` | Data folder path | ./higress |
-| `--auto-routing` | Enable auto-routing feature | - |
-| `--auto-routing-default-model` | Default model when no rule matches | - |
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PLUGIN_REGISTRY` | Registry URL for container images and WASM plugins (auto-selected based on timezone) | `higress-registry.cn-hangzhou.cr.aliyuncs.com` |
-
-**Auto-Selection Logic:**
-
-The registry is automatically selected based on your timezone:
-
-- **China & nearby** (Asia/Shanghai, etc.) → `higress-registry.cn-hangzhou.cr.aliyuncs.com`
-- **Southeast Asia** (Asia/Singapore, etc.) → `higress-registry.ap-southeast-7.cr.aliyuncs.com`
-- **North America** (America/*, etc.) → `higress-registry.us-west-1.cr.aliyuncs.com`
-- **Others** → `higress-registry.cn-hangzhou.cr.aliyuncs.com` (default)
-
-Both container images and WASM plugins use the same registry for consistency.
-
-**Manual Override:**
+### Add Routing Rules (for auto-routing)
 
 ```bash
-PLUGIN_REGISTRY="higress-registry.ap-southeast-7.cr.aliyuncs.com" \
-  ./get-ai-gateway.sh start --non-interactive ...
-```
+# Add rule: route to specific model when message starts with trigger
+./get-ai-gateway.sh route add --model <model> --trigger "关键词1|关键词2"
 
-### LLM Provider API Keys
+# Examples
+./get-ai-gateway.sh route add --model glm-4-flash --trigger "简单|快速"
+./get-ai-gateway.sh route add --model claude-opus-4 --trigger "深入思考|复杂问题"
+./get-ai-gateway.sh route add --model deepseek-coder --trigger "写代码|debug"
 
-**Top Providers:**
-
-| Parameter | Provider |
-|-----------|----------|
-| `--dashscope-key` | Aliyun Dashscope (Qwen) |
-| `--deepseek-key` | DeepSeek |
-| `--moonshot-key` | Moonshot (Kimi) |
-| `--zhipuai-key` | Zhipu AI |
-| `--claude-code-key` | Claude Code (OAuth mode - run `claude setup-token` to get token) |
-| `--claude-key` | Claude |
-| `--openai-key` | OpenAI |
-| `--openrouter-key` | OpenRouter |
-| `--gemini-key` | Google Gemini |
-| `--groq-key` | Groq |
-
-**Additional Providers:**
-
-`--doubao-key`, `--baichuan-key`, `--yi-key`, `--stepfun-key`, `--minimax-key`, `--cohere-key`, `--mistral-key`, `--github-key`, `--fireworks-key`, `--togetherai-key`, `--grok-key`, `--azure-key`, `--bedrock-key`, `--vertex-key`
-
-## Managing Configuration
-
-### API Keys
-
-```bash
-# List all configured API keys
-./get-ai-gateway.sh config list
-# Add or update an API key (hot-reload)
-./get-ai-gateway.sh config add --provider deepseek --key sk-xxx
-# Remove an API key (hot-reload)
-./get-ai-gateway.sh config remove --provider deepseek
-```
-
-**Supported provider aliases:**
-
-`dashscope`/`qwen`, `moonshot`/`kimi`, `zhipuai`/`zhipu`, `togetherai`/`together`
-
-### Routing Rules
-
-```bash
-# Add a routing rule
-./get-ai-gateway.sh route add --model claude-opus-4.5 --trigger "深入思考|deep thinking"
-# List all rules
+# List/remove rules
 ./get-ai-gateway.sh route list
-# Remove a rule
 ./get-ai-gateway.sh route remove --rule-id 0
 ```
 
-See [higress-auto-router](../higress-auto-router/SKILL.md) for detailed documentation.
+### Stop/Delete Gateway
 
-## Access Logs
-
-Gateway access logs are available at:
-
-```
-$DATA_FOLDER/logs/access.log
+```bash
+./get-ai-gateway.sh stop
+./get-ai-gateway.sh delete
 ```
 
-## Related Skills
+## Endpoints
 
-- **higress-auto-router**: Configure automatic model routing using CLI commands
-  See: [higress-auto-router](../higress-auto-router/SKILL.md)
+| Endpoint | URL |
+|----------|-----|
+| Chat Completions | http://localhost:8080/v1/chat/completions |
+| Models List | http://localhost:8080/v1/models |
+| Console | http://localhost:8001 |
+| Logs | `./higress/logs/access.log` |
 
-## Examples
+## Testing
 
-### Example 1: Basic Deployment with Dashscope
-
-**User:** 帮我部署一个Higress AI网关，使用阿里云的通义千问
-
-**Steps:**
-1. Download script
-2. Get Dashscope API key from user
-3. Run (script auto-detects timezone and selects optimal registry):
-   ```bash
-   ./get-ai-gateway.sh start --non-interactive \
-     --dashscope-key sk-xxx
-   ```
-
-**Response:**
-
-```
-Auto-detected timezone: Asia/Shanghai
-Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
-
-✅ Higress AI Gateway 部署完成！
-
-网关地址: http://localhost:8080/v1/chat/completions
-控制台: http://localhost:8001
-日志目录: ./higress/logs
-
-已配置的模型提供商:
-- Aliyun Dashscope (Qwen)
-
-测试命令:
+```bash
+# Test with specific model
 curl 'http://localhost:8080/v1/chat/completions' \
   -H 'Content-Type: application/json' \
-  -d '{"model": "qwen-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'
-```
+  -d '{"model": "<model-name>", "messages": [{"role": "user", "content": "Hello"}]}'
 
-### Example 2: Full Integration with OpenClaw
-
-**User:** 完整配置Higress和OpenClaw的集成
-
-**Steps:**
-1. Deploy Higress AI Gateway (auto-detects timezone)
-2. Install and configure OpenClaw plugin
-3. Enable auto-routing
-
-**Response:**
-
-```
-Auto-detected timezone: Asia/Shanghai
-Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
-
-✅ Higress AI Gateway 集成完成！
-
-1. 网关已部署:
-   - HTTP: http://localhost:8080
-   - Console: http://localhost:8001
-   - 容器镜像: Hangzhou (自动选择)
-   - 插件镜像: Hangzhou (自动选择)
-
-2. OpenClaw 插件配置:
-   Plugin installed at: /root/.openclaw/extensions/higress-ai-gateway
-   Run: openclaw models auth login --provider higress
-
-3. 自动路由:
-   已启用，使用 model="higress/auto"
-
-需要我帮你配置自动路由规则吗？
-```
-
-### Example 3: Manage API Keys
-
-**User:** 帮我查看当前配置的API keys，并添加一个DeepSeek的key
-
-**Steps:**
-1. List current API keys:
-   ```bash
-   ./get-ai-gateway.sh config list
-   ```
-
-2. Add DeepSeek API key:
-   ```bash
-   ./get-ai-gateway.sh config add --provider deepseek --key sk-xxx
-   ```
-
-**Response:**
-
-```
-当前配置的API keys:
-
-  Aliyun Dashscope (Qwen): sk-ab***ef12
-  OpenAI:                  sk-cd***gh34
-
-Adding API key for DeepSeek...
-
-✅ API key updated successfully!
-
-Provider: DeepSeek
-Key: sk-xx***yy56
-
-Configuration has been hot-reloaded (no restart needed).
-```
-
-### Example 4: North America Deployment
-
-**User:** 帮我部署Higress AI网关
-
-**Context:** User's timezone is America/Los_Angeles
-
-**Steps:**
-1. Download script
-2. Get API keys from user
-3. Run (script auto-detects timezone and selects North America mirror):
-   ```bash
-   ./get-ai-gateway.sh start --non-interactive \
-     --openai-key sk-xxx \
-     --openrouter-key sk-xxx
-   ```
-
-**Response:**
-
-```
-Auto-detected timezone: America/Los_Angeles
-Selected plugin registry: higress-registry.us-west-1.cr.aliyuncs.com
-
-✅ Higress AI Gateway 部署完成！
-
-网关地址: http://localhost:8080/v1/chat/completions
-控制台: http://localhost:8001
-日志目录: ./higress/logs
-
-镜像优化:
-- 容器镜像: North America (基于时区自动选择)
-- 插件镜像: North America (基于时区自动选择)
-
-已配置的模型提供商:
-- OpenAI
-- OpenRouter
+# Test auto-routing (if enabled)
+curl 'http://localhost:8080/v1/chat/completions' \
+  -H 'Content-Type: application/json' \
+  -d '{"model": "higress/auto", "messages": [{"role": "user", "content": "简单 什么是AI?"}]}'
 ```
 
 ## Troubleshooting
 
-For detailed troubleshooting guides, see [TROUBLESHOOTING.md](references/TROUBLESHOOTING.md).
+| Issue | Solution |
+|-------|----------|
+| Container fails to start | Check `docker logs higress-ai-gateway` |
+| Port already in use | Use `--http-port`, `--console-port` to change ports |
+| API key error | Run `./get-ai-gateway.sh config list` to verify keys |
+| Auto-routing not working | Ensure `--auto-routing` was set during deployment |
+| Slow image download | Script auto-selects nearest registry based on timezone |
 
-Common issues:
-- **Container fails to start**: Check Docker status, port availability, and container logs
-- **"too many open files" error**: Increase `fs.inotify.max_user_instances` to 8192
-- **Gateway not responding**: Verify container status and port mapping
-- **Plugin not recognized**: Check installation path and restart runtime
-- **Auto-routing not working**: Verify model list and routing rules
-- **Timezone detection fails**: Manually set `IMAGE_REPO` environment variable
+## Important Notes
+
+1. **Claude Code Mode**: Requires OAuth token from `claude setup-token` command, not a regular API key
+2. **Auto-routing**: Must be enabled during initial deployment (`--auto-routing`); routing rules can be added later
+3. **OpenClaw Integration**: After plugin installation and `openclaw models auth login --provider higress`, models are available with `higress/` prefix
+4. **Hot-reload**: API key changes take effect immediately; no container restart needed
