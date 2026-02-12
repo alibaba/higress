@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -453,6 +454,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
+	// @Title zh-CN Codex 伪装模式
+	// @Description zh-CN 仅适用于OpenAI服务。启用后将伪装成Codex客户端发起请求，使OpenAI兼容接口能够调用ChatGPT的Codex API。
+	codexMode bool `required:"false" yaml:"codexMode" json:"codexMode"`
+	// @Title zh-CN Codex Originator
+	// @Description zh-CN 仅适用于Codex模式。设置请求头中的originator字段，用于标识客户端身份。默认值为"pi"。
+	codexOriginator string `required:"false" yaml:"codexOriginator" json:"codexOriginator"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -658,6 +665,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
 	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
+	// Codex mode configuration
+	c.codexMode = json.Get("codexMode").Bool()
+	c.codexOriginator = json.Get("codexOriginator").String()
+	if c.codexOriginator == "" {
+		c.codexOriginator = "pi" // default originator
+	}
 	c.contextCleanupCommands = make([]string, 0)
 	for _, cmd := range json.Get("contextCleanupCommands").Array() {
 		if cmd.String() != "" {
@@ -872,6 +885,142 @@ func convertDeveloperRoleToSystem(body []byte) ([]byte, error) {
 	}
 
 	return body, nil
+}
+
+// ============================================================================
+// Codex Mode Support
+// ============================================================================
+
+const (
+	// Codex API endpoint paths
+	PathCodexResponses = "/codex/responses"
+
+	// JWT claim path for ChatGPT account ID
+	jwtClaimPath = "https://api.openai.com/auth"
+)
+
+// codexRequest represents the Codex API request format
+type codexRequest struct {
+	Model      string                   `json:"model"`
+	Store      bool                     `json:"store,omitempty"`
+	Stream     bool                     `json:"stream,omitempty"`
+	Instructions string                 `json:"instructions,omitempty"`
+	Input      []codexInputMessage      `json:"input,omitempty"`
+	Text       *codexTextConfig         `json:"text,omitempty"`
+	Include    []string                 `json:"include,omitempty"`
+	Tools      []map[string]interface{} `json:"tools,omitempty"`
+	ToolChoice string                   `json:"tool_choice,omitempty"`
+}
+
+type codexInputMessage struct {
+	Role    string      `json:"role"`
+	Content interface{} `json:"content"`
+}
+
+type codexTextConfig struct {
+	Verbosity string `json:"verbosity,omitempty"`
+}
+
+// extractAccountIdFromJWT extracts the ChatGPT account ID from a JWT token.
+// The token is expected to be in the format: header.payload.signature
+// The account ID is stored in the payload under the path "https://api.openai.com/auth".chatgpt_account_id
+func extractAccountIdFromJWT(token string) (string, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", errors.New("invalid JWT token format")
+	}
+
+	// Decode the payload (second part)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("failed to decode JWT payload: %v", err)
+	}
+
+	// Parse the payload as JSON
+	var payloadMap map[string]interface{}
+	if err := json.Unmarshal(payload, &payloadMap); err != nil {
+		return "", fmt.Errorf("failed to parse JWT payload: %v", err)
+	}
+
+	// Extract account ID from the claim path
+	claim, ok := payloadMap[jwtClaimPath].(map[string]interface{})
+	if !ok {
+		return "", errors.New("JWT claim path not found in token")
+	}
+
+	accountId, ok := claim["chatgpt_account_id"].(string)
+	if !ok {
+		return "", errors.New("chatgpt_account_id not found in JWT claims")
+	}
+
+	return accountId, nil
+}
+
+// convertOpenAIToCodexRequest converts an OpenAI chat completion request to Codex API format.
+// Key differences:
+// 1. System prompt is moved to the "instructions" field
+// 2. Messages are placed in the "input" field (without system messages)
+// 3. Additional Codex-specific fields are added
+func convertOpenAIToCodexRequest(body []byte) ([]byte, string, error) {
+	request := &chatCompletionRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return nil, "", fmt.Errorf("failed to unmarshal OpenAI request: %v", err)
+	}
+
+	// Extract system prompt from messages
+	var instructions string
+	var inputMessages []codexInputMessage
+
+	for _, msg := range request.Messages {
+		if msg.Role == roleSystem {
+			// Use the first system message as instructions
+			if instructions == "" {
+				instructions = msg.StringContent()
+			}
+			continue
+		}
+		// Add non-system messages to input
+		inputMessages = append(inputMessages, codexInputMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		})
+	}
+
+	// Build Codex request
+	codexReq := &codexRequest{
+		Model:        request.Model,
+		Store:        false,
+		Stream:       request.Stream,
+		Instructions: instructions,
+		Input:        inputMessages,
+		Text: &codexTextConfig{
+			Verbosity: "medium",
+		},
+		Include: []string{"reasoning.encrypted_content"},
+	}
+
+	// Handle tools if present
+	if len(request.Tools) > 0 {
+		codexReq.Tools = make([]map[string]interface{}, len(request.Tools))
+		for i, tool := range request.Tools {
+			codexReq.Tools[i] = map[string]interface{}{
+				"type": "function",
+				"function": map[string]interface{}{
+					"name":        tool.Function.Name,
+					"description": tool.Function.Description,
+					"parameters":  tool.Function.Parameters,
+				},
+			}
+		}
+		codexReq.ToolChoice = "auto"
+	}
+
+	codexBody, err := json.Marshal(codexReq)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to marshal Codex request: %v", err)
+	}
+
+	return codexBody, instructions, nil
 }
 
 func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent {

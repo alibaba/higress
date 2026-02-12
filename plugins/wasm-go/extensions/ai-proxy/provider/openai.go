@@ -17,6 +17,16 @@ import (
 
 const (
 	defaultOpenaiDomain = "api.openai.com"
+	defaultCodexDomain  = "chatgpt.com"
+	defaultCodexPath    = "/backend-api"
+)
+
+// Context keys for Codex mode
+const (
+	ctxKeyCodexMode        = "codexMode"
+	ctxKeyCodexAccountId   = "codexAccountId"
+	ctxKeyCodexOriginator  = "codexOriginator"
+	ctxKeyCodexInstructions = "codexInstructions"
 )
 
 type openaiProviderInitializer struct{}
@@ -124,16 +134,36 @@ func (m *openaiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	if m.isDirectCustomPath {
+	// Handle Codex mode path rewriting
+	if m.config.codexMode && apiName == ApiNameChatCompletion {
+		// Codex API uses /codex/responses endpoint instead of /v1/chat/completions
+		if m.customDomain != "" {
+			util.OverwriteRequestPathHeader(headers, PathCodexResponses)
+		} else {
+			// Use default Codex path under backend-api
+			util.OverwriteRequestPathHeader(headers, defaultCodexPath+PathCodexResponses)
+		}
+		ctx.SetContext(ctxKeyCodexMode, true)
+		ctx.SetContext(ctxKeyCodexOriginator, m.config.codexOriginator)
+	} else if m.isDirectCustomPath {
 		util.OverwriteRequestPathHeader(headers, m.customPath)
 	} else if apiName != "" {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), m.config.capabilities)
 	}
 
-	if m.customDomain != "" {
-		util.OverwriteRequestHostHeader(headers, m.customDomain)
+	// Handle Codex mode domain
+	if m.config.codexMode {
+		if m.customDomain != "" {
+			util.OverwriteRequestHostHeader(headers, m.customDomain)
+		} else {
+			util.OverwriteRequestHostHeader(headers, defaultCodexDomain)
+		}
 	} else {
-		util.OverwriteRequestHostHeader(headers, defaultOpenaiDomain)
+		if m.customDomain != "" {
+			util.OverwriteRequestHostHeader(headers, m.customDomain)
+		} else {
+			util.OverwriteRequestHostHeader(headers, defaultOpenaiDomain)
+		}
 	}
 
 	var token string
@@ -184,15 +214,52 @@ func (m *openaiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiNam
 
 	// 5. Set Authorization header (avoid duplicate Bearer prefix)
 	if token != "" {
-		// Check if token already contains Bearer prefix
-		if !strings.HasPrefix(token, "Bearer ") {
-			token = "Bearer " + token
+		// Remove Bearer prefix for Codex mode (uses raw JWT token)
+		if m.config.codexMode {
+			token = strings.TrimPrefix(token, "Bearer ")
+			util.OverwriteRequestAuthorizationHeader(headers, "Bearer "+token)
+
+			// Extract and store account ID from JWT token
+			accountId, err := extractAccountIdFromJWT(token)
+			if err != nil {
+				log.Warnf("[openaiProvider.TransformRequestHeaders] Failed to extract account ID from JWT: %v", err)
+			} else {
+				ctx.SetContext(ctxKeyCodexAccountId, accountId)
+				log.Debugf("[openaiProvider.TransformRequestHeaders] Extracted account ID: %s", accountId)
+			}
+		} else {
+			// Check if token already contains Bearer prefix
+			if !strings.HasPrefix(token, "Bearer ") {
+				token = "Bearer " + token
+			}
+			util.OverwriteRequestAuthorizationHeader(headers, token)
 		}
-		util.OverwriteRequestAuthorizationHeader(headers, token)
 		log.Debugf("[openaiProvider.TransformRequestHeaders] Set Authorization header successfully")
 	} else {
 		log.Warnf("[openaiProvider.TransformRequestHeaders] No auth token available - neither configured in apiTokens nor in request headers")
 	}
+
+	// 6. Add Codex-specific headers
+	if m.config.codexMode {
+		originator := m.config.codexOriginator
+		if originator == "" {
+			originator = "pi"
+		}
+		headers.Set("originator", originator)
+		headers.Set("OpenAI-Beta", "responses=experimental")
+		headers.Set("accept", "text/event-stream")
+
+		// Add chatgpt-account-id header if available
+		if accountId, ok := ctx.GetContext(ctxKeyCodexAccountId).(string); ok && accountId != "" {
+			headers.Set("chatgpt-account-id", accountId)
+		}
+
+		// Set User-Agent to simulate Codex client
+		headers.Set("User-Agent", originator+" (higress-ai-proxy)")
+
+		log.Debugf("[openaiProvider.TransformRequestHeaders] Codex mode enabled with originator: %s", originator)
+	}
+
 	headers.Del("Content-Length")
 }
 
@@ -205,6 +272,18 @@ func (m *openaiProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 }
 
 func (m *openaiProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	// Handle Codex mode request body transformation
+	if m.config.codexMode && apiName == ApiNameChatCompletion {
+		codexBody, instructions, err := convertOpenAIToCodexRequest(body)
+		if err != nil {
+			log.Warnf("[openaiProvider.TransformRequestBody] Failed to convert to Codex format: %v", err)
+			return body, err
+		}
+		ctx.SetContext(ctxKeyCodexInstructions, instructions)
+		log.Debugf("[openaiProvider.TransformRequestBody] Converted request to Codex format, instructions length: %d", len(instructions))
+		return codexBody, nil
+	}
+
 	if m.config.responseJsonSchema != nil {
 		request := &chatCompletionRequest{}
 		if err := decodeChatCompletionRequest(body, request); err != nil {

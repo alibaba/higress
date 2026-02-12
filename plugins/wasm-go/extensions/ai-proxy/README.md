@@ -123,6 +123,35 @@ OpenAI 所对应的 `type` 为 `openai`。它特有的配置字段如下:
 | -------------------- | -------- | -------- | ------ | ---------------------------------------------------------------------------------- |
 | `openaiCustomUrl`    | string   | 非必填   | -      | 基于 OpenAI 协议的自定义后端 URL，例如: <www.example.com/myai/v1/chat/completions> |
 | `responseJsonSchema` | object   | 非必填   | -      | 预先定义 OpenAI 响应需满足的 Json Schema, 注意目前仅特定的几种模型支持该用法       |
+| `codexMode`          | boolean  | 非必填   | false  | 启用 Codex 伪装模式，使 OpenAI 兼容接口能够调用 ChatGPT 的 Codex API               |
+| `codexOriginator`    | string   | 非必填   | pi     | Codex 模式下设置请求头中的 originator 字段，用于标识客户端身份                     |
+
+**Codex 模式说明**
+
+启用 `codexMode: true` 时，插件将：
+- 将请求路径从 `/v1/chat/completions` 转换为 `/backend-api/codex/responses`
+- 设置 Codex 特定的请求头（`originator`、`OpenAI-Beta`、`chatgpt-account-id`）
+- 将 OpenAI 格式的请求体转换为 Codex API 格式（system prompt 移至 `instructions` 字段）
+- 从 JWT Token 中自动提取 ChatGPT Account ID
+
+**Codex 模式配置示例**：
+
+```yaml
+provider:
+  type: openai
+  codexMode: true
+  codexOriginator: pi  # 可选，默认为 "pi"
+  openaiCustomUrl: chatgpt.com/backend-api  # 可选，默认为 chatgpt.com/backend-api
+  apiTokens:
+    - "YOUR_CHATGPT_JWT_TOKEN"
+  modelMapping:
+    "*": "gpt-5.1-codex"
+```
+
+**注意事项**：
+1. Codex 模式需要使用 ChatGPT 的 JWT Token（从浏览器获取），而非 OpenAI API Key
+2. JWT Token 会自动解析出 `chatgpt-account-id` 并添加到请求头中
+3. 支持通过 `openaiCustomUrl` 配置自定义的 Codex 后端地址
 
 #### Azure OpenAI
 
