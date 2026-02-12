@@ -29,9 +29,6 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
    | Grok | `--grok-key` | Models: grok-* |
 
    **Other Providers:**
-   
-   <details>
-   <summary>Click to expand full provider list</summary>
 
    | Provider | Parameter | Notes |
    |----------|-----------|-------|
@@ -54,8 +51,6 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
    - AWS Bedrock: `--bedrock-key` (requires region and access key)
    - Google Vertex AI: `--vertex-key` (requires project ID and region)
    
-   </details>
-
    **Brand Name Display (z.ai / 智谱):**
    - If user communicates in Chinese: display as "智谱"
    - If user communicates in English: display as "z.ai"
