@@ -54,7 +54,7 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
 
 ```bash
 # Download script (if not exists)
-curl -fsSL https://raw.githubusercontent.com/higress-group/higress-standalone/main/all-in-one/get-ai-gateway.sh -o get-ai-gateway.sh
+curl -fsSL https://higress.ai/ai-gateway/install.sh -o get-ai-gateway.sh
 chmod +x get-ai-gateway.sh
 
 # Deploy with user's configuration
