@@ -78,12 +78,13 @@ Install the Higress provider plugin for OpenClaw:
 ```bash
 # Copy plugin files (PLUGIN_SRC is relative to skill directory: scripts/plugin)
 PLUGIN_SRC="scripts/plugin"
-PLUGIN_DEST="$HOME/.openclaw/extensions/higress-ai-gateway"
+PLUGIN_DEST="$HOME/.openclaw/extensions/higress"
 
 mkdir -p "$PLUGIN_DEST"
 cp -r "$PLUGIN_SRC"/* "$PLUGIN_DEST/"
 
 # Configure provider
+openclaw plugins enable higress
 openclaw models auth login --provider higress --set-default
 ```
 
