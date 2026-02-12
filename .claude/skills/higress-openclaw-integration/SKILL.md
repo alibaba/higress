@@ -136,7 +136,6 @@ Provider aliases: `dashscope`/`qwen`, `moonshot`/`kimi`, `zhipuai`/`zhipu`
 | Endpoint | URL |
 |----------|-----|
 | Chat Completions | http://localhost:8080/v1/chat/completions |
-| Models List | http://localhost:8080/v1/models |
 | Console | http://localhost:8001 |
 | Logs | `./higress/logs/access.log` |
 
