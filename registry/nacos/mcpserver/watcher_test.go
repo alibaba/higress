@@ -1,3 +1,37 @@
+package mcpserver
+
+import (
+    "testing"
+    v1alpha3 "istio.io/api/networking/v1alpha3"
+    provider "github.com/alibaba/higress/v2/registry"
+)
+
+func TestGenerateDrForMcpServer_Affinities(t *testing.T) {
+    // SSE protocol should have consistent-hash by source IP
+    dr := generateDrForMcpServer("host.example", provider.McpSSEProtocol)
+    if dr == nil {
+        t.Fatal("expected DR for sse")
+    }
+    if dr.TrafficPolicy == nil || dr.TrafficPolicy.LoadBalancer == nil {
+        t.Fatal("expected load balancer policy for sse")
+    }
+    if _, ok := dr.TrafficPolicy.LoadBalancer.LbPolicy.(*v1alpha3.LoadBalancerSettings_ConsistentHash); !ok {
+        t.Fatal("expected consistent hash policy for sse")
+    }
+
+    // Streamable protocol should also have consistent-hash
+    dr2 := generateDrForMcpServer("host.example", provider.McpStreamableProtocol)
+    if dr2 == nil {
+        t.Fatal("expected DR for streamable")
+    }
+    if dr2.TrafficPolicy == nil || dr2.TrafficPolicy.LoadBalancer == nil {
+        t.Fatal("expected load balancer policy for streamable")
+    }
+    if _, ok := dr2.TrafficPolicy.LoadBalancer.LbPolicy.(*v1alpha3.LoadBalancerSettings_ConsistentHash); !ok {
+        t.Fatal("expected consistent hash policy for streamable")
+    }
+}
+
 // Copyright (c) 2022 Alibaba Group Holding Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
