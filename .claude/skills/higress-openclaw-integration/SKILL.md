@@ -20,10 +20,10 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
    | 阿里云通义千问 (Dashscope) | `--dashscope-key` | Models: qwen-* |
    | DeepSeek | `--deepseek-key` | Models: deepseek-* |
    | Moonshot (Kimi) | `--moonshot-key` | Models: moonshot-*, kimi-* |
-   | 智谱 AI (Zhipu) | `--zhipuai-key` | Models: glm-* |
+   | 智谱 / z.ai | `--zhipuai-key` | Models: glm-*, Code Plan mode enabled by default |
    | OpenAI | `--openai-key` | Models: gpt-*, o1-*, o3-* |
    | Claude | `--claude-key` | Models: claude-* |
-   | Claude Code | `--claude-code-key` | **⚠️ 需运行 `claude setup-token` 获取 OAuth Token** |
+   | Claude Code | `--claude-code-key` | **Requires OAuth token from `claude setup-token`** |
    | Google Gemini | `--gemini-key` | Models: gemini-* |
    | OpenRouter | `--openrouter-key` | Supports all models (catch-all) |
    | Grok | `--grok-key` | Models: grok-* |
@@ -40,9 +40,13 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
    | GitHub Models | `--github-key` | - |
 
    **Cloud Providers (require additional config):**
-   - Azure OpenAI: `--azure-key` (需要 service URL)
-   - AWS Bedrock: `--bedrock-key` (需要 region 和 access key)
-   - Google Vertex AI: `--vertex-key` (需要 project ID 和 region)
+   - Azure OpenAI: `--azure-key` (requires service URL)
+   - AWS Bedrock: `--bedrock-key` (requires region and access key)
+   - Google Vertex AI: `--vertex-key` (requires project ID and region)
+
+   **Brand Name Display (z.ai / 智谱):**
+   - If user communicates in Chinese: display as "智谱"
+   - If user communicates in English: display as "z.ai"
 
 2. **Enable auto-routing?** (recommended)
    - If yes: `--auto-routing --auto-routing-default-model <model-name>`
@@ -51,6 +55,24 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
 3. **Custom ports?** (optional, defaults: HTTP=8080, HTTPS=8443, Console=8001)
 
 ### Step 2: Deploy Gateway
+
+**Auto-detect region for z.ai / 智谱 domain configuration:**
+
+When user selects z.ai / 智谱 provider, detect their region:
+
+```bash
+# Run region detection script (scripts/detect-region.sh relative to skill directory)
+REGION=$(bash scripts/detect-region.sh)
+# Output: "china" or "international"
+```
+
+**Based on detection result:**
+
+- If `REGION="china"`: use default domain `open.bigmodel.cn`, no extra parameter needed
+- If `REGION="international"`: automatically add `--zhipuai-domain api.z.ai` to deployment command
+
+**After deployment (for international users):**
+Notify user in English: "The z.ai endpoint domain has been set to api.z.ai. If you want to change it, let me know and I can update the configuration."
 
 ```bash
 # Create installation directory
@@ -62,15 +84,34 @@ curl -fsSL https://higress.ai/ai-gateway/install.sh -o get-ai-gateway.sh
 chmod +x get-ai-gateway.sh
 
 # Deploy with user's configuration
+# For z.ai / 智谱: always include --zhipuai-code-plan-mode
+# For non-China users: include --zhipuai-domain api.z.ai
 ./get-ai-gateway.sh start --non-interactive \
   --<provider>-key <api-key> \
   [--auto-routing --auto-routing-default-model <model>]
 ```
 
-**Example:**
+**z.ai / 智谱 Options:**
+| Option | Description |
+|--------|-------------|
+| `--zhipuai-code-plan-mode` | Enable Code Plan mode (enabled by default) |
+| `--zhipuai-domain <domain>` | Custom domain, default: `open.bigmodel.cn` (China), `api.z.ai` (international) |
+
+**Example (China user):**
 ```bash
 ./get-ai-gateway.sh start --non-interactive \
   --zhipuai-key sk-xxx \
+  --zhipuai-code-plan-mode \
+  --auto-routing \
+  --auto-routing-default-model glm-5
+```
+
+**Example (International user):**
+```bash
+./get-ai-gateway.sh start --non-interactive \
+  --zhipuai-key sk-xxx \
+  --zhipuai-domain api.z.ai \
+  --zhipuai-code-plan-mode \
   --auto-routing \
   --auto-routing-default-model glm-5
 ```
@@ -88,7 +129,7 @@ mkdir -p "$PLUGIN_DEST"
 cp -r "$PLUGIN_SRC"/* "$PLUGIN_DEST/"
 ```
 
-**⚠️ Tell user to run the following commands manually in their terminal (interactive commands, cannot be executed by AI agent):**
+**Tell user to run the following commands manually in their terminal (interactive commands, cannot be executed by AI agent):**
 
 ```bash
 # Step 1: Enable the plugin
@@ -132,16 +173,27 @@ All configuration changes are hot-loaded through Higress — no `openclaw gatewa
 
 Provider aliases: `dashscope`/`qwen`, `moonshot`/`kimi`, `zhipuai`/`zhipu`
 
+### Update z.ai Domain (Hot-reload)
+
+If user wants to change the z.ai domain after deployment:
+
+```bash
+# Update domain configuration
+./get-ai-gateway.sh config add --provider zhipuai --extra-config "zhipuDomain=api.z.ai"
+# Or revert to China endpoint
+./get-ai-gateway.sh config add --provider zhipuai --extra-config "zhipuDomain=open.bigmodel.cn"
+```
+
 ### Add Routing Rules (for auto-routing)
 
 ```bash
 # Add rule: route to specific model when message starts with trigger
-./get-ai-gateway.sh route add --model <model> --trigger "关键词1|关键词2"
+./get-ai-gateway.sh route add --model <model> --trigger "keyword1|keyword2"
 
 # Examples
-./get-ai-gateway.sh route add --model glm-4-flash --trigger "简单|快速"
-./get-ai-gateway.sh route add --model claude-opus-4 --trigger "深入思考|复杂问题"
-./get-ai-gateway.sh route add --model deepseek-coder --trigger "写代码|debug"
+./get-ai-gateway.sh route add --model glm-4-flash --trigger "quick|fast"
+./get-ai-gateway.sh route add --model claude-opus-4 --trigger "think|complex"
+./get-ai-gateway.sh route add --model deepseek-coder --trigger "code|debug"
 
 # List/remove rules
 ./get-ai-gateway.sh route list
@@ -174,7 +226,7 @@ curl 'http://localhost:8080/v1/chat/completions' \
 # Test auto-routing (if enabled)
 curl 'http://localhost:8080/v1/chat/completions' \
   -H 'Content-Type: application/json' \
-  -d '{"model": "higress/auto", "messages": [{"role": "user", "content": "简单 什么是AI?"}]}'
+  -d '{"model": "higress/auto", "messages": [{"role": "user", "content": "What is AI?"}]}'
 ```
 
 ## Troubleshooting
@@ -190,6 +242,11 @@ curl 'http://localhost:8080/v1/chat/completions' \
 ## Important Notes
 
 1. **Claude Code Mode**: Requires OAuth token from `claude setup-token` command, not a regular API key
-2. **Auto-routing**: Must be enabled during initial deployment (`--auto-routing`); routing rules can be added later
-3. **OpenClaw Integration**: The `openclaw models auth login` and `openclaw gateway restart` commands are **interactive** and must be run by the user manually in their terminal
-4. **Hot-reload**: API key changes take effect immediately; no container restart needed
+2. **z.ai Code Plan Mode**: Enabled by default, uses `/api/coding/paas/v4/chat/completions` endpoint, optimized for coding tasks
+3. **z.ai Domain Selection**:
+   - China users: `open.bigmodel.cn` (default)
+   - International users: `api.z.ai` (auto-detected based on timezone)
+   - Users can update domain anytime after deployment
+4. **Auto-routing**: Must be enabled during initial deployment (`--auto-routing`); routing rules can be added later
+5. **OpenClaw Integration**: The `openclaw models auth login` and `openclaw gateway restart` commands are **interactive** and must be run by the user manually in their terminal
+6. **Hot-reload**: API key changes take effect immediately; no container restart needed
