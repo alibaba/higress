@@ -27,10 +27,11 @@ If you need to install manually:
 
 ```bash
 # Copy plugin files
-mkdir -p "$HOME/.openclaw/extensions/higress-ai-gateway"
-cp -r ./* "$HOME/.openclaw/extensions/higress-ai-gateway/"
+mkdir -p "$HOME/.openclaw/extensions/higress"
+cp -r ./* "$HOME/.openclaw/extensions/higress/"
 
 # Configure provider
+openclaw plugins enable higress
 openclaw models auth login --provider higress
 ```
 
@@ -49,24 +50,11 @@ The plugin will prompt for:
 4. Model list (auto-detected or manually specified)
 5. Auto-routing default model (if using higress/auto)
 
-## Auto-routing
-
-To use auto-routing, include `higress/auto` in your model list during configuration. Then use it in your conversations:
-
-```bash
-# Use auto-routing
-openclaw chat --model higress/auto "深入思考 这个问题应该怎么解决?"
-
-# The gateway will automatically route to the appropriate model based on:
-# - Message content triggers (configured via higress-auto-router skill)
-# - Fallback to default model if no rule matches
-```
 
 ## Related Resources
 
 - **Parent Skill**: [higress-openclaw-integration](../SKILL.md)
 - **Auto-routing Configuration**: [higress-auto-router](../../higress-auto-router/SKILL.md)
-- **Higress AI Gateway**: https://github.com/higress-group/higress-standalone
 
 ## License
 
