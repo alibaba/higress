@@ -453,6 +453,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
+	// @Title zh-CN Claude Code 系统提示词
+	// @Description zh-CN 启用后将在请求的系统提示词之前插入Claude Code的身份提示词，对所有provider生效。当 provider type 为 claude 且 claudeCodeMode 为 true 时，此配置会自动启用。
+	claudeCodeSystemPrompt bool `required:"false" yaml:"claudeCodeSystemPrompt" json:"claudeCodeSystemPrompt"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -658,6 +661,11 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
 	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
+	c.claudeCodeSystemPrompt = json.Get("claudeCodeSystemPrompt").Bool()
+	// When type is claude and claudeCodeMode is true, auto-enable claudeCodeSystemPrompt
+	if c.typ == providerTypeClaude && c.claudeCodeMode {
+		c.claudeCodeSystemPrompt = true
+	}
 	c.contextCleanupCommands = make([]string, 0)
 	for _, cmd := range json.Get("contextCleanupCommands").Array() {
 		if cmd.String() != "" {
@@ -874,6 +882,41 @@ func convertDeveloperRoleToSystem(body []byte) ([]byte, error) {
 	return body, nil
 }
 
+const claudeCodeSystemPromptText = "You are Claude Code, Anthropic's official CLI for Claude."
+
+// prependClaudeCodeSystemPrompt prepends the Claude Code system prompt to the request body.
+// If a system message exists, it prepends the prompt to the existing content.
+// If no system message exists, it inserts a new system message at the beginning.
+func prependClaudeCodeSystemPrompt(body []byte) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return body, fmt.Errorf("unable to unmarshal request for Claude Code system prompt: %v", err)
+	}
+
+	// Find the first system message and prepend to it
+	found := false
+	for i := range request.Messages {
+		if request.Messages[i].Role == roleSystem {
+			// Prepend to existing system message
+			existingContent := request.Messages[i].StringContent()
+			request.Messages[i].Content = claudeCodeSystemPromptText + "\n" + existingContent
+			found = true
+			break
+		}
+	}
+
+	// If no system message exists, insert one at the beginning
+	if !found {
+		systemMsg := chatMessage{
+			Role:    roleSystem,
+			Content: claudeCodeSystemPromptText,
+		}
+		request.Messages = append([]chatMessage{systemMsg}, request.Messages...)
+	}
+
+	return json.Marshal(request)
+}
+
 func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent {
 	body := chunk
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
@@ -1021,6 +1064,18 @@ func (c *ProviderConfig) handleRequestBody(
 			err = nil
 		} else {
 			log.Debugf("[developerRole] converted developer role to system for provider: %s", c.typ)
+		}
+	}
+
+	// prepend Claude Code system prompt if enabled
+	if apiName == ApiNameChatCompletion && c.claudeCodeSystemPrompt {
+		body, err = prependClaudeCodeSystemPrompt(body)
+		if err != nil {
+			log.Warnf("[claudeCodeSystemPrompt] failed to prepend system prompt: %v", err)
+			// Continue processing even if prepending fails
+			err = nil
+		} else {
+			log.Debugf("[claudeCodeSystemPrompt] prepended Claude Code system prompt")
 		}
 	}
 

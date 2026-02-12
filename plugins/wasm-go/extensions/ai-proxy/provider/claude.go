@@ -23,7 +23,6 @@ const (
 	// Claude Code mode constants
 	claudeCodeUserAgent    = "claude-cli/2.1.2 (external, cli)"
 	claudeCodeBetaFeatures = "oauth-2025-04-20,interleaved-thinking-2025-05-14,claude-code-20250219"
-	claudeCodeSystemPrompt = "You are Claude Code, Anthropic's official CLI for Claude."
 )
 
 type claudeProviderInitializer struct{}
@@ -441,11 +440,8 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 		claudeRequest.MaxTokens = claudeDefaultMaxTokens
 	}
 
-	// Track if system message exists in original request
-	hasSystemMessage := false
 	for _, message := range origRequest.Messages {
 		if message.Role == roleSystem {
-			hasSystemMessage = true
 			// In Claude Code mode, use array format with cache_control
 			if c.config.claudeCodeMode {
 				claudeRequest.System = &claudeSystemPrompt{
@@ -523,22 +519,6 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 			claudeMessage.Content = NewArrayContent(chatMessageContents)
 		}
 		claudeRequest.Messages = append(claudeRequest.Messages, claudeMessage)
-	}
-
-	// In Claude Code mode, add default system prompt if not present
-	if c.config.claudeCodeMode && !hasSystemMessage {
-		claudeRequest.System = &claudeSystemPrompt{
-			ArrayValue: []claudeChatMessageContent{
-				{
-					Type: contentTypeText,
-					Text: claudeCodeSystemPrompt,
-					CacheControl: map[string]interface{}{
-						"type": "ephemeral",
-					},
-				},
-			},
-			IsArray: true,
-		}
 	}
 
 	for _, tool := range origRequest.Tools {
