@@ -22,13 +22,18 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
+
+	"istio.io/istio/pilot/pkg/model"
 
 	"github.com/golang/protobuf/jsonpb"
 	"github.com/golang/protobuf/proto"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	"istio.io/istio/pkg/cluster"
 	"k8s.io/apimachinery/pkg/types"
+
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 const (
@@ -105,6 +110,50 @@ func CreateServiceFQDN(namespace, name string) string {
 
 func BuildPatchStruct(config string) *_struct.Struct {
 	val := &_struct.Struct{}
-	_ = jsonpb.Unmarshal(strings.NewReader(config), val)
+	err := jsonpb.Unmarshal(strings.NewReader(config), val)
+	if err != nil {
+		IngressLog.Errorf("build patch struct failed, err:%v", err)
+	}
 	return val
+}
+
+type ServiceInfo struct {
+	model.NamespacedName
+	Port uint32
+}
+
+// convertToPort converts a port string to a uint32.
+func convertToPort(v string) (uint32, error) {
+	p, err := strconv.ParseUint(v, 10, 32)
+	if err != nil || p > 65535 {
+		return 0, fmt.Errorf("invalid port %s: %v", v, err)
+	}
+	return uint32(p), nil
+}
+
+func ParseServiceInfo(service string, ingressNamespace string) (ServiceInfo, error) {
+	parts := strings.Split(service, ":")
+	namespacedName := SplitNamespacedName(parts[0])
+
+	if namespacedName.Name == "" {
+		return ServiceInfo{}, errors.New("service name can not be empty")
+	}
+
+	if namespacedName.Namespace == "" {
+		namespacedName.Namespace = ingressNamespace
+	}
+
+	var port uint32
+	if len(parts) == 2 {
+		// If port parse fail, we ignore port and pick the first one.
+		port, _ = convertToPort(parts[1])
+	}
+
+	return ServiceInfo{
+		NamespacedName: model.NamespacedName{
+			Name:      namespacedName.Name,
+			Namespace: namespacedName.Namespace,
+		},
+		Port: port,
+	}, nil
 }

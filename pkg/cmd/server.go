@@ -17,15 +17,15 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/alibaba/higress/pkg/bootstrap"
-	innerconstants "github.com/alibaba/higress/pkg/config/constants"
+	"github.com/alibaba/higress/v2/pkg/bootstrap"
+	innerconstants "github.com/alibaba/higress/v2/pkg/config/constants"
 	"github.com/spf13/cobra"
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/cmd"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/env"
 	"istio.io/istio/pkg/keepalive"
-	"istio.io/pkg/log"
+	"istio.io/istio/pkg/log"
 )
 
 var (

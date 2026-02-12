@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/alibaba/higress/test/e2e/conformance/utils/config"
+	"github.com/alibaba/higress/v2/test/e2e/conformance/utils/config"
 )
 
 // FilterStaleConditions returns the list of status condition whos observedGeneration does not
@@ -66,6 +66,7 @@ func NamespacesMustBeAccepted(t *testing.T, c client.Client, timeoutConfig confi
 				}
 			}
 		}
+
 		t.Logf("✅ Gateways and Pods in %s namespaces ready", strings.Join(namespaces, ", "))
 		return true, nil
 	})
@@ -142,5 +143,17 @@ func ApplyConfigmapDataWithYaml(t *testing.T, c client.Client, namespace string,
 	cm.Data[key] = data
 
 	t.Logf("🏗 Updating %s %s", name, namespace)
+	return c.Update(ctx, cm)
+}
+
+func ApplySecret(t *testing.T, c client.Client, namespace string, name string, key string, val string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cm := &v1.Secret{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, cm); err != nil {
+		return err
+	}
+	cm.Data[key] = []byte(val)
+	t.Logf("🏗 Updating Secret %s %s", name, namespace)
 	return c.Update(ctx, cm)
 }

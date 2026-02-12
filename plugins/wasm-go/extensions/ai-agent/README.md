@@ -5,10 +5,13 @@ description: AI Agent插件配置参考
 ---
 
 ## 功能说明
-一个可定制化的 API AI Agent，支持配置 http method 类型为 GET 与 POST 的 API，目前只支持非流式模式。
+一个可定制化的 API AI Agent，支持配置 http method 类型为 GET 与 POST 的 API，支持多轮对话，支持流式与非流式模式，支持将结果格式化为自定义的 json。
 agent流程图如下：
-![ai-agent](https://github.com/user-attachments/assets/b0761a0c-1afa-496c-a98e-bb9f38b340f8)
+![ai-agent](https://img.alicdn.com/imgextra/i1/O1CN01PGSDW31WQfEPm173u_!!6000000002783-0-tps-2733-1473.jpg)
 
+## 运行属性
+插件执行阶段：`默认阶段`
+插件执行优先级：`200`
 
 ## 配置字段
 
@@ -18,6 +21,7 @@ agent流程图如下：
 | `llm`            | object    | 必填    | -      | 配置 AI 服务提供商的信息     |
 | `apis`           | object    | 必填    | -      | 配置外部 API 服务提供商的信息 |
 | `promptTemplate` | object    | 非必填  | -      | 配置 Agent ReAct 模板的信息  |
+| `jsonResp`       | object    | 非必填  | -      | 配置 json 格式化的相关信息   |
 
 `llm`的配置字段说明如下：
 
@@ -42,18 +46,19 @@ agent流程图如下：
 
 `apiProvider`的配置字段说明如下：
 
-| 名称            | 数据类型   | 填写要求 | 默认值 | 描述                                      |
-|-----------------|-----------|---------|--------|------------------------------------------|
-| `apiKey`        | object    | 非必填   | -     | 用于在访问外部 API 服务时进行认证的令牌。    |
-| `serviceName`   | string    | 必填     | -     | 访问外部 API 服务名                        |
-| `servicePort`   | int       | 必填     | -     | 访问外部 API 服务端口                      |
-| `domain`        | string    | 必填     | -     | 访访问外部 API 时域名                      |
+| 名称              | 数据类型   | 填写要求 | 默认值 | 描述                                      |
+|-------------------|-----------|---------|--------|------------------------------------------|
+| `apiKey`          | object    | 非必填   | -     | 用于在访问外部 API 服务时进行认证的令牌。    |
+| `maxExecutionTime`| int       | 非必填   | 50000 | 每一次请求API的超时时间，单位毫秒。          |
+| `serviceName`     | string    | 必填     | -     | 访问外部 API 服务名                        |
+| `servicePort`     | int       | 必填     | -     | 访问外部 API 服务端口                      |
+| `domain`          | string    | 必填     | -     | 访访问外部 API 时域名                      |
 
 `apiKey`的配置字段说明如下：
 
 | 名称              | 数据类型 | 填写要求    | 默认值  | 描述                                                                          |
-|-------------------|---------|------------|--------|-------------------------------------------------------------------------------|
-| `in`              | string  | 非必填     | header | 在访问外部 API 服务时进行认证的令牌是放在 header 中还是放在 query 中，默认是 header。
+|-------------------|---------|------------|--------|-----------------------------------------------------------------------------------------|
+| `in`              | string  | 非必填     | none   | 在访问外部 API 服务时进行认证的令牌是放在 header 中还是放在 query 中，如果API没有令牌，填none。
 | `name`            | string  | 非必填     | -      | 用于在访问外部 API 服务时进行认证的令牌的名称。 |
 | `value`           | string  | 非必填     | -      | 用于在访问外部 API 服务时进行认证的令牌的值。   |
 
@@ -71,13 +76,17 @@ agent流程图如下：
 |-----------------|-----------|-----------|--------|---------------------------------------------|
 | `question`      | string    | 非必填     | -      | Agent ReAct 模板的 question 部分             |
 | `thought1`      | string    | 非必填     | -      | Agent ReAct 模板的 thought1 部分             |
-| `actionInput`   | string    | 非必填     | -      | Agent ReAct 模板的 actionInput 部分          |
 | `observation`   | string    | 非必填     | -      | Agent ReAct 模板的 observation 部分          |
 | `thought2`      | string    | 非必填     | -      | Agent ReAct 模板的 thought2 部分             |
-| `finalAnswer`   | string    | 非必填     | -      | Agent ReAct 模板的 finalAnswer 部分          |
-| `begin`         | string    | 非必填     | -      | Agent ReAct 模板的 begin 部分                |
 
-## 用法示例
+`jsonResp`的配置字段说明如下：
+
+| 名称               | 数据类型   | 填写要求 | 默认值 | 描述                               |
+|--------------------|-----------|---------|--------|-----------------------------------|
+| `enable`           | bool      | 非必填   | false  | 是否开启 json 格式化。             |
+| `jsonSchema`       | string    | 非必填   | -      | 自定义 json schema                |
+
+## 用法示例-不开启 json 格式化
 
 **配置信息**
 
@@ -284,7 +293,7 @@ apis:
 本示例配置了三个服务，演示了get与post两种类型的工具。其中get类型的工具包括高德地图与心知天气，post类型的工具是deepl翻译。三个服务都需要现在Higress的服务中以DNS域名的方式配置好，并确保健康。
 高德地图提供了两个工具，分别是获取指定地点的坐标，以及搜索坐标附近的感兴趣的地点。文档：https://lbs.amap.com/api/webservice/guide/api-advanced/newpoisearch
 心知天气提供了一个工具，用于获取指定城市的实时天气情况，支持中文，英文，日语返回，以及摄氏度和华氏度的表示。文档：https://seniverse.yuque.com/hyper_data/api_v3/nyiu3t
-deepl提供了一个工具，用于翻译给定的句子，支持多语言。。文档：https://developers.deepl.com/docs/v/zh/api-reference/translate?fallback=true
+deepl提供了一个工具，用于翻译给定的句子，支持多语言。文档：https://developers.deepl.com/api-reference/translate/request-translation
 
 
 以下为测试用例，为了效果的稳定性，建议保持大模型版本的稳定，本例子中使用的qwen-max-0403：
@@ -292,7 +301,7 @@ deepl提供了一个工具，用于翻译给定的句子，支持多语言。。
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"我想在济南市鑫盛大厦附近喝咖啡，给我推荐几个"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -307,7 +316,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"济南市现在的天气情况如何？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -322,7 +331,22 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
+-H 'Accept: application/json, text/event-stream' \
+-H 'Content-Type: application/json' \
+--data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role": "user","content": "济南的天气如何？"},{ "role": "assistant","content": "目前，济南市的天气为多云，气温为24℃，数据更新时间为2024年9月12日21时50分14秒。"},{"role": "user","content": "北京呢？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
+```
+
+**响应示例**
+
+```json
+{"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content":"目前，北京市的天气为晴朗，气温为19℃，数据更新时间为2024年9月12日22时17分40秒。"},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":999,"completion_tokens":76,"total_tokens":1075}}
+```
+
+**请求示例**
+
+```shell
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"济南市现在的天气情况如何？用华氏度表示，用日语回答"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -337,7 +361,7 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 **请求示例**
 
 ```shell
-curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
 -H 'Accept: application/json, text/event-stream' \
 -H 'Content-Type: application/json' \
 --data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"帮我用德语翻译以下句子：九头蛇万岁!"}],"presence_penalty":0,"temperature":0,"top_p":0}'
@@ -347,4 +371,72 @@ curl 'http://<这里换成网关公网IP>/api/openai/v1/chat/completions' \
 
 ```json
 {"id":"65dcf12c-61ff-9e68-bffa-44fc9e6070d5","choices":[{"index":0,"message":{"role":"assistant","content":" “九头蛇万岁!”的德语翻译为“Hoch lebe Hydra!”。"},"finish_reason":"stop"}],"created":1724043865,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":908,"completion_tokens":52,"total_tokens":960}}
+```
+
+## 用法示例-开启 json 格式化
+
+**配置信息**
+在上述配置的基础上增加 jsonResp 配置
+```yaml
+jsonResp:
+  enable: true
+```
+
+**请求示例**
+
+```shell
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
+-H 'Accept: application/json, text/event-stream' \
+-H 'Content-Type: application/json' \
+--data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"北京市现在的天气情况如何？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
+```
+
+**响应示例**
+
+```json
+{"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content": "{\"city\": \"北京市\", \"weather_condition\": \"多云\", \"temperature\": \"19℃\", \"data_update_time\": \"2024年10月9日16时37分53秒\"}"},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":890,"completion_tokens":56,"total_tokens":946}}
+```
+如果不自定义 json schema，大模型会自动生成一个 json 格式
+
+**配置信息**
+增加自定义 json schema 配置
+```yaml
+jsonResp:
+  enable: true
+  jsonSchema: |
+    title: WeatherSchema
+    type: object
+    properties:
+      location:
+        type: string
+        description: 城市名称.
+      weather:
+        type: string
+        description: 天气情况.
+      temperature:
+        type: string
+        description: 温度.
+      update_time:
+        type: string
+        description: 数据更新时间.
+    required:
+      - location
+      - weather
+      - temperature
+    additionalProperties: false
+```
+
+**请求示例**
+
+```shell
+curl 'http://<这里换成网关地址>/api/openai/v1/chat/completions' \
+-H 'Accept: application/json, text/event-stream' \
+-H 'Content-Type: application/json' \
+--data-raw '{"model":"qwen","frequency_penalty":0,"max_tokens":800,"stream":false,"messages":[{"role":"user","content":"北京市现在的天气情况如何？"}],"presence_penalty":0,"temperature":0,"top_p":0}'
+```
+
+**响应示例**
+
+```json
+{"id":"ebd6ea91-8e38-9e14-9a5b-90178d2edea4","choices":[{"index":0,"message":{"role":"assistant","content": "{\"location\": \"北京市\", \"weather\": \"多云\", \"temperature\": \"19℃\", \"update_time\": \"2024年10月9日16时37分53秒\"}"},"finish_reason":"stop"}],"created":1723187991,"model":"qwen-max-0403","object":"chat.completion","usage":{"prompt_tokens":890,"completion_tokens":56,"total_tokens":946}}
 ```

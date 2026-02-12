@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -46,6 +47,19 @@ func GetRequestPath() string {
 		return ""
 	}
 	return path
+}
+
+func GetRequestPathWithoutQuery() string {
+	rawPath := GetRequestPath()
+	if rawPath == "" {
+		return ""
+	}
+	path, err := url.Parse(rawPath)
+	if err != nil {
+		proxywasm.LogErrorf("failed to parse request path '%s': %v", rawPath, err)
+		return ""
+	}
+	return path.Path
 }
 
 func GetRequestMethod() string {

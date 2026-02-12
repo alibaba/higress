@@ -24,20 +24,19 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/gvk"
-	"istio.io/istio/pkg/config/schema/kind"
 	"istio.io/istio/pkg/util/sets"
 	v1 "k8s.io/api/core/v1"
 	listersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/kingress"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
-	"github.com/alibaba/higress/pkg/kube"
-	"github.com/alibaba/higress/registry/reconcile"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/kingress"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
+	"github.com/alibaba/higress/v2/pkg/kube"
+	"github.com/alibaba/higress/v2/registry/reconcile"
 )
 
 var (
@@ -75,10 +74,11 @@ type KIngressConfig struct {
 	clusterId cluster.ID
 }
 
-func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpdater, namespace string, clusterId cluster.ID) *KIngressConfig {
+func NewKIngressConfig(localKubeClient kube.Client, XDSUpdater istiomodel.XDSUpdater, namespace string, options common.Options) *KIngressConfig {
 	if localKubeClient.KIngressInformer() == nil {
 		return nil
 	}
+	clusterId := options.ClusterId
 	if clusterId == "Kubernetes" {
 		clusterId = ""
 	}
@@ -114,7 +114,7 @@ func (m *KIngressConfig) RegisterEventHandler(kind config.GroupVersionKind, f is
 }
 
 func (m *KIngressConfig) AddLocalCluster(options common.Options) common.KIngressController {
-	secretController := secret.NewController(m.localKubeClient, options.ClusterId)
+	secretController := secret.NewController(m.localKubeClient, options)
 	secretController.AddEventHandler(m.ReflectSecretChanges)
 
 	var ingressController common.KIngressController
@@ -309,9 +309,11 @@ func (m *KIngressConfig) convertVirtualService(configs []common.WrapperConfig) [
 
 		cleanHost := common.CleanHost(host)
 		// namespace/name, name format: (istio cluster id)-host
-		gateways := []string{m.namespace + "/" +
-			common.CreateConvertedName(m.clusterId.String(), cleanHost),
-			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost)}
+		gateways := []string{
+			m.namespace + "/" +
+				common.CreateConvertedName(m.clusterId.String(), cleanHost),
+			common.CreateConvertedName(constants.IstioIngressGatewayName, cleanHost),
+		}
 
 		wrapperVS, exist := convertOptions.VirtualServices[host]
 		if !exist {
@@ -464,11 +466,11 @@ func (m *KIngressConfig) ReflectSecretChanges(clusterNamespacedName util.Cluster
 	m.mutex.RUnlock()
 
 	if hit {
-		push := func(gvk config.GroupVersionKind) {
+		push := func(GVK config.GroupVersionKind) {
 			m.XDSUpdater.ConfigUpdate(&istiomodel.PushRequest{
 				Full: true,
 				ConfigsUpdated: map[istiomodel.ConfigKey]struct{}{{
-					Kind:      kind.MustFromGVK(gvk),
+					Kind:      gvk.MustToKind(GVK),
 					Name:      clusterNamespacedName.Name,
 					Namespace: clusterNamespacedName.Namespace,
 				}: {}},
@@ -493,7 +495,7 @@ func (m *KIngressConfig) HasSynced() bool {
 	defer m.mutex.RUnlock()
 
 	for _, remoteIngressController := range m.remoteIngressControllers {
-		IngressLog.Info("In Kingress Synced.", remoteIngressController)
+		IngressLog.Info("In Kingress Synced.")
 		if !remoteIngressController.HasSynced() {
 			return false
 		}

@@ -44,11 +44,11 @@ spec:
         - enum_payload
       properties:
         enum_payload:
-            type: string
-            enum:
-              - "enum_string_1"
-              - "enum_string_2"
-            default: "enum_string_1"
+          type: string
+          enum:
+            - "enum_string_1"
+            - "enum_string_2"
+          default: "enum_string_1"
     body_schema:
       type: object
       required:
@@ -94,4 +94,4 @@ spec:
     rejected_msg: "customize reject message"
     enable_swagger: true
     enable_oas3: false
-  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/request-validation:1.0.0
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/request-validation:2.0.0

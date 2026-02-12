@@ -23,3 +23,7 @@ const KnativeIngressCRDName = "ingresses.networking.internal.knative.dev"
 const KnativeServicesCRDName = "services.serving.knative.dev"
 
 const ManagedGatewayController = "higress.io/gateway-controller"
+
+const RegistryTypeLabelKey = "higress-registry-type"
+
+const RegistryNameLabelKey = "higress-registry-name"

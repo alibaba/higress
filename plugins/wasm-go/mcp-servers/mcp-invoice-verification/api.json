@@ -1,0 +1,1443 @@
+{
+  "info": {
+    "description": "【聚美出品】【发票种类全覆盖--发票查验-发票验真-发票查验真伪-发票查验-发票验真-发票查验真伪-发票查询-发票查验-发票验真-发票查验真伪-发票查验-发票查验真伪-发票查询-发票查验-发票查验真伪-发票校验-发票查验-发票查验真伪-发票验真-发票查验-发票查验真伪-发票查询-发票查验-发票查验真伪-发票验证-发票查验-发票查验真伪-发票查询-发票查验-发票查验真伪-发票查询-发票查验真伪】",
+    "title": "发票查验-发票查验真伪-发票查验-发票查验-发票校验-发票查询-发票验真-发票核验-发票查验-发票验真-发票验证-发票验真Ⅰ",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/invoice/validate": {
+      "post": {
+        "operationId": "发票验证",
+        "summary": " （1）根据发票代码、发票编码 等验证发票是否合法",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fpdm": {
+                    "description": "发票代码 【注意：全电票可不传，其他必传】",
+                    "type": "string"
+                  },
+                  "kprq": {
+                    "description": "开票日期 格式YYYYMMDD",
+                    "type": "string"
+                  },
+                  "xym": {
+                    "description": "校验码 【注意：专票、全电票可不传，其他必填。校验码支持全位和后6位】",
+                    "type": "string"
+                  },
+                  "bhsje": {
+                    "description": "不含税金额 【注意：普票可不传，其他发票必填 。全电票请传含税金额，其他发票需传 不含税金额】",
+                    "type": "string"
+                  },
+                  "fphm": {
+                    "description": "发票号码",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fphm",
+                  "kprq"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "result": {
+                          "type": "integer",
+                          "description": "1 一致  ； 2 不一致 ； 3  查无此票；"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "result对应的描述"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "salerName": {
+                              "type": "string"
+                            },
+                            "salerAccount": {
+                              "type": "string"
+                            },
+                            "blueInvoiceCode": {
+                              "type": "string"
+                            },
+                            "blueInvoiceNo": {
+                              "type": "string"
+                            },
+                            "idNo": {
+                              "type": "string"
+                            },
+                            "vehicleType": {
+                              "type": "string"
+                            },
+                            "bandModel": {
+                              "type": "string"
+                            },
+                            "produceArea": {
+                              "type": "string"
+                            },
+                            "qualifiedNo": {
+                              "type": "string"
+                            },
+                            "commodityInspectionNo": {
+                              "type": "string"
+                            },
+                            "engineNo": {
+                              "type": "string"
+                            },
+                            "vehicleIdentificationNo": {
+                              "type": "string"
+                            },
+                            "certificateOfImport": {
+                              "type": "string"
+                            },
+                            "taxAuthorityCode": {
+                              "type": "string"
+                            },
+                            "taxPaymentCertificateNo": {
+                              "type": "string"
+                            },
+                            "limitedPeopleCount": {
+                              "type": "string"
+                            },
+                            "taxAuthorityName": {
+                              "type": "string"
+                            },
+                            "tonnage": {
+                              "type": "string"
+                            },
+                            "taxRate": {
+                              "type": "string"
+                            },
+                            "salerAddress": {
+                              "type": "string"
+                            },
+                            "salerPhone": {
+                              "type": "string"
+                            },
+                            "salerBankName": {
+                              "type": "string"
+                            },
+                            "carrierName": {
+                              "type": "string"
+                            },
+                            "carrierTaxNo": {
+                              "type": "string"
+                            },
+                            "draweeName": {
+                              "type": "string"
+                            },
+                            "draweeTaxNo": {
+                              "type": "string"
+                            },
+                            "receiveName": {
+                              "type": "string"
+                            },
+                            "receiveTaxNo": {
+                              "type": "string"
+                            },
+                            "consignorName": {
+                              "type": "string"
+                            },
+                            "consignorTaxNo": {
+                              "type": "string"
+                            },
+                            "transportGoodsInfo": {
+                              "type": "string"
+                            },
+                            "throughAddress": {
+                              "type": "string"
+                            },
+                            "taxDiskNumber": {
+                              "type": "string"
+                            },
+                            "carNumber": {
+                              "type": "string"
+                            },
+                            "vehicleTonnage": {
+                              "type": "string"
+                            },
+                            "trafficFeeFlag": {
+                              "type": "string"
+                            },
+                            "zeroTaxRateFlag": {
+                              "type": "string"
+                            },
+                            "licensePlate": {
+                              "type": "string"
+                            },
+                            "registrationNo": {
+                              "type": "string"
+                            },
+                            "carPrice": {
+                              "type": "string"
+                            },
+                            "transferredVehicleOffice": {
+                              "type": "string"
+                            },
+                            "buyerUnitOrIndividual": {
+                              "type": "string"
+                            },
+                            "buyerUnitCodeOrIdNo": {
+                              "type": "string"
+                            },
+                            "buyerUnitOrIndividualAddress": {
+                              "type": "string"
+                            },
+                            "buyerPhone": {
+                              "type": "string"
+                            },
+                            "sellerUnitOrIndividual": {
+                              "type": "string"
+                            },
+                            "sellerUnitCodeOrIdNo": {
+                              "type": "string"
+                            },
+                            "sellerUnitOrIndividualAddress": {
+                              "type": "string"
+                            },
+                            "sellerPhone": {
+                              "type": "string"
+                            },
+                            "businessUnit": {
+                              "type": "string"
+                            },
+                            "businessUnitAddress": {
+                              "type": "string"
+                            },
+                            "businessUnitTaxNo": {
+                              "type": "string"
+                            },
+                            "businessUnitBankAndAccount": {
+                              "type": "string"
+                            },
+                            "businessUnitPhone": {
+                              "type": "string"
+                            },
+                            "lemonMarket": {
+                              "type": "string"
+                            },
+                            "lemonMarketTaxNo": {
+                              "type": "string"
+                            },
+                            "lemonMarketAddress": {
+                              "type": "string"
+                            },
+                            "lemonMarketBankAndAccount": {
+                              "type": "string"
+                            },
+                            "lemonMarketPhone": {
+                              "type": "string"
+                            },
+                            "remark_b64": {
+                              "type": "string"
+                            },
+                            "invoiceAmount": {
+                              "type": "string"
+                            },
+                            "remark": {
+                              "type": "string"
+                            },
+                            "payee": {
+                              "type": "string"
+                            },
+                            "salerTaxNo": {
+                              "type": "string"
+                            },
+                            "invoiceType": {
+                              "type": "string"
+                            },
+                            "machineNo": {
+                              "type": "string"
+                            },
+                            "invoiceNo": {
+                              "type": "string"
+                            },
+                            "buyerAddressPhone": {
+                              "type": "string"
+                            },
+                            "qdbz": {
+                              "type": "string"
+                            },
+                            "cancellationMark": {
+                              "type": "string"
+                            },
+                            "hcbz": {
+                              "type": "string"
+                            },
+                            "buyerTaxNo": {
+                              "type": "string"
+                            },
+                            "salerBankAccount": {
+                              "type": "string"
+                            },
+                            "checkCount": {
+                              "type": "integer"
+                            },
+                            "drawer": {
+                              "type": "string"
+                            },
+                            "reviewer": {
+                              "type": "string"
+                            },
+                            "invoiceDate": {
+                              "type": "string"
+                            },
+                            "buyerName": {
+                              "type": "string"
+                            },
+                            "invoiceCode": {
+                              "type": "string"
+                            },
+                            "checkCode": {
+                              "type": "string"
+                            },
+                            "totalAmount": {
+                              "type": "string"
+                            },
+                            "salerAddressPhone": {
+                              "type": "string"
+                            },
+                            "buyerAccount": {
+                              "type": "string"
+                            },
+                            "taxAmount": {
+                              "type": "string"
+                            },
+                            "detailList": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "unitPrice": {
+                                    "type": "string"
+                                  },
+                                  "taxRate": {
+                                    "type": "string"
+                                  },
+                                  "taxUnitPrice": {
+                                    "type": "string"
+                                  },
+                                  "unit": {
+                                    "type": "string"
+                                  },
+                                  "expenseItem": {
+                                    "type": "string"
+                                  },
+                                  "plateNo": {
+                                    "type": "string"
+                                  },
+                                  "type": {
+                                    "type": "string"
+                                  },
+                                  "trafficDateStart": {
+                                    "type": "string"
+                                  },
+                                  "trafficDateEnd": {
+                                    "type": "string"
+                                  },
+                                  "specificationModel": {
+                                    "type": "string"
+                                  },
+                                  "num": {
+                                    "type": "string"
+                                  },
+                                  "detailNo": {
+                                    "type": "string"
+                                  },
+                                  "detailAmount": {
+                                    "type": "string"
+                                  },
+                                  "taxAmount": {
+                                    "type": "string"
+                                  },
+                                  "goodsName": {
+                                    "type": "string"
+                                  },
+                                  "flbm": {
+                                    "type": "string"
+                                  },
+                                  "taxDetailAmount": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "200 指接口调用成功，详见code返回码说明"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/invoice/validate/v2": {
+      "post": {
+        "operationId": "发票查验V2",
+        "summary": "2",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fpdm": {
+                    "description": "发票代码 非全电发票必填",
+                    "type": "string"
+                  },
+                  "kprq": {
+                    "description": "开票日期 格式YYYYMMDD",
+                    "type": "string"
+                  },
+                  "je": {
+                    "description": "增值税专用发票、增值税电子专用发票、机动车销售统一发票输入不含税金额; 二手车销售统一发票输入车价合计； 全电发票输入价税合计",
+                    "type": "string"
+                  },
+                  "fphm": {
+                    "description": "发票号码",
+                    "type": "string"
+                  },
+                  "jym": {
+                    "description": "校验码后 6 位， 增值税普通发票、增值税电子普通发票、增值税普通发票（卷式）、增值税电子普通发票（通行费）必填",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fphm",
+                  "kprq"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "返回信息"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "fplx": {
+                          "type": "string",
+                          "description": "发票类型"
+                        },
+                        "times": {
+                          "type": "integer",
+                          "description": "查验次数"
+                        },
+                        "xfsbh": {
+                          "type": "string",
+                          "description": "销方识别号"
+                        },
+                        "gfmc": {
+                          "type": "string",
+                          "description": "购方名称"
+                        },
+                        "gmfyhzh": {
+                          "type": "string",
+                          "description": "购买方银行账号"
+                        },
+                        "xhqdBz": {
+                          "type": "string",
+                          "description": "清单标志"
+                        },
+                        "dq": {
+                          "type": "string",
+                          "description": "地区"
+                        },
+                        "xsfdzdh": {
+                          "type": "string",
+                          "description": "销售方地址电话"
+                        },
+                        "se": {
+                          "type": "number",
+                          "description": "税额"
+                        },
+                        "kprq": {
+                          "type": "string",
+                          "description": "开票日期"
+                        },
+                        "bz": {
+                          "type": "string",
+                          "description": "备注"
+                        },
+                        "kjlx": {
+                          "type": "string",
+                          "description": "开具类型"
+                        },
+                        "fpztDm": {
+                          "type": "string",
+                          "description": "发票状态代码"
+                        },
+                        "sbbh": {
+                          "type": "string",
+                          "description": "设备编号"
+                        },
+                        "gfsbh": {
+                          "type": "string",
+                          "description": "购方识别号"
+                        },
+                        "fpdm": {
+                          "type": "string",
+                          "description": "发票代码"
+                        },
+                        "gmfdzdh": {
+                          "type": "string",
+                          "description": "购买方地址电话"
+                        },
+                        "xsfyhzh": {
+                          "type": "string",
+                          "description": "销售方银行账号"
+                        },
+                        "jshj": {
+                          "type": "number",
+                          "description": "价税合计"
+                        },
+                        "jshjcn": {
+                          "type": "string",
+                          "description": "价税合计（中文大写）"
+                        },
+                        "je": {
+                          "type": "number",
+                          "description": "金额"
+                        },
+                        "xfmc": {
+                          "type": "string",
+                          "description": "销方名称"
+                        },
+                        "fphm": {
+                          "type": "string",
+                          "description": "发票号码"
+                        },
+                        "jym": {
+                          "type": "string",
+                          "description": "校验码"
+                        },
+                        "hwxx": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "mxxh": {
+                                "type": "integer",
+                                "description": "明细序号"
+                              },
+                              "ggxh": {
+                                "type": "string",
+                                "description": "规格型号"
+                              },
+                              "jldw": {
+                                "type": "string",
+                                "description": "计量单位"
+                              },
+                              "dj": {
+                                "type": "string",
+                                "description": "单价"
+                              },
+                              "se": {
+                                "type": "number",
+                                "description": "税额"
+                              },
+                              "ysse": {
+                                "type": "string",
+                                "description": "原始税额"
+                              },
+                              "mc": {
+                                "type": "string",
+                                "description": "名称"
+                              },
+                              "sl": {
+                                "type": "string",
+                                "description": "数量"
+                              },
+                              "je": {
+                                "type": "number",
+                                "description": "金额"
+                              },
+                              "slv": {
+                                "type": "number",
+                                "description": "税率"
+                              },
+                              "ysslv": {
+                                "type": "string",
+                                "description": "原始税率"
+                              },
+                              "spbm": {
+                                "type": "string",
+                                "description": "商品编码"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/invoice/validate/general-electronic-v1": {
+      "post": {
+        "operationId": "通用电子发票查验",
+        "summary": "（3）根据发票代码、发票编码等验证通用发票",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "xfsbh": {
+                    "description": "销方识别号",
+                    "type": "string"
+                  },
+                  "fpdm": {
+                    "description": "发票代码",
+                    "type": "string"
+                  },
+                  "kprq": {
+                    "description": "开票日期  【注意：时间格式：yyyy-MM-dd 或 yyyyMMdd】",
+                    "type": "string"
+                  },
+                  "jshj": {
+                    "description": "价税合计",
+                    "type": "string"
+                  },
+                  "dq": {
+                    "description": "地区代码   广东：4400    浙江：3300",
+                    "type": "string"
+                  },
+                  "fphm": {
+                    "description": "发票号码",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fpdm",
+                  "fphm",
+                  "kprq",
+                  "xfsbh",
+                  "jshj",
+                  "dq"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "200 指接口调用成功，详见code返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号",
+                      "example": 180178417212511370000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "xfsbh": {
+                          "type": "string",
+                          "description": "销方识别号",
+                          "example": "9233********C205"
+                        },
+                        "gfsbh": {
+                          "type": "string",
+                          "description": "购方识别号",
+                          "example": "9137********3311"
+                        },
+                        "fpdm": {
+                          "type": "string",
+                          "description": "发票代码",
+                          "example": "23********3111"
+                        },
+                        "gfmc": {
+                          "type": "string",
+                          "description": "购方名称"
+                        },
+                        "fplx": {
+                          "type": "string",
+                          "description": "发票类型",
+                          "example": 102
+                        },
+                        "dq": {
+                          "type": "string",
+                          "description": "地区",
+                          "example": "浙江"
+                        },
+                        "fpzt": {
+                          "type": "string",
+                          "description": "发票状态 0正常 2作废 3已红冲 7部分红冲 8全额红冲",
+                          "example": 0
+                        },
+                        "kprq": {
+                          "type": "string",
+                          "description": "开票日期",
+                          "example": "2023-03-22T00:00:00Z"
+                        },
+                        "kjlx": {
+                          "type": "string",
+                          "description": "开具类型 1自开 2代开",
+                          "example": 1
+                        },
+                        "jshj": {
+                          "type": "string",
+                          "description": "价税合计",
+                          "example": 91.14
+                        },
+                        "xfmc": {
+                          "type": "string",
+                          "description": "销方名称"
+                        },
+                        "fplbmc": {
+                          "type": "string",
+                          "description": "发票类别名称",
+                          "example": "电子发票"
+                        },
+                        "fphm": {
+                          "type": "string",
+                          "description": "发票号码",
+                          "example": "67****59"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fpyz/invoice/validate/blockchain": {
+      "post": {
+        "operationId": "区块链发票验证",
+        "summary": "区块链发票验证",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "xfsbh": {
+                    "description": "销售方识别号    深圳、云南必填",
+                    "type": "string"
+                  },
+                  "fpdm": {
+                    "description": "发票代码 ",
+                    "type": "string"
+                  },
+                  "dq": {
+                    "description": "地区 【深圳：4403，北京：1100，云南：5300    默认：4403-深圳】",
+                    "type": "string"
+                  },
+                  "fphm": {
+                    "description": "发票号码",
+                    "type": "string"
+                  },
+                  "jym": {
+                    "description": "校验码",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fpdm",
+                  "fphm",
+                  "jym"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见code返回码说明"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "fpdm": {
+                          "type": "string",
+                          "description": "发票代码"
+                        },
+                        "fphm": {
+                          "type": "string",
+                          "description": "发票号码"
+                        },
+                        "kprq": {
+                          "type": "string",
+                          "description": "开票日期"
+                        },
+                        "xfsbh": {
+                          "type": "string",
+                          "description": "销售方识别号"
+                        },
+                        "xfmc": {
+                          "type": "string",
+                          "description": "销售方名称"
+                        },
+                        "gfmc": {
+                          "type": "string",
+                          "description": "购买方名称"
+                        },
+                        "jshj": {
+                          "type": "number",
+                          "description": "价税合计"
+                        },
+                        "fpzt": {
+                          "type": "string",
+                          "description": "发票状态"
+                        },
+                        "yczt": {
+                          "type": "string",
+                          "description": "异常状态"
+                        },
+                        "dq": {
+                          "type": "string",
+                          "description": "地区"
+                        },
+                        "kjlx": {
+                          "type": "string",
+                          "description": "开具类型"
+                        },
+                        "fplx": {
+                          "type": "string",
+                          "description": "发票类型"
+                        },
+                        "jym": {
+                          "type": "string",
+                          "description": "校验码"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fpyz/invoice/validate/fiscal": {
+      "post": {
+        "operationId": "财政票据验证",
+        "summary": "财政票据验证",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fpdm": {
+                    "description": "发票代码",
+                    "type": "string"
+                  },
+                  "kqrq": {
+                    "description": "开票日期  【注意：时间格式：yyyy-MM-dd 或 yyyyMMdd】",
+                    "type": "string"
+                  },
+                  "je": {
+                    "description": "金额",
+                    "type": "string"
+                  },
+                  "fphm": {
+                    "description": "发票号码",
+                    "type": "string"
+                  },
+                  "jym": {
+                    "description": "校验码",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fpdm",
+                  "fphm",
+                  "kqrq",
+                  "jym",
+                  "je"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "200指接口调用成功，详见code返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号",
+                      "example": 180178417212511370000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "fpdm": {
+                          "type": "string",
+                          "description": "发票代码"
+                        },
+                        "fphm": {
+                          "type": "string",
+                          "description": "发票号码"
+                        },
+                        "jkrnsrsbh": {
+                          "type": "string",
+                          "description": "缴款人纳税识别号"
+                        },
+                        "jym": {
+                          "type": "string",
+                          "description": "校验码",
+                          "example": 530996
+                        },
+                        "jkr": {
+                          "type": "string",
+                          "description": "缴款人"
+                        },
+                        "kprq": {
+                          "type": "string",
+                          "description": "开票日期",
+                          "example": "2022-05-26T00:00:00Z"
+                        },
+                        "skdw": {
+                          "type": "string",
+                          "description": "收款单位"
+                        },
+                        "fhr": {
+                          "type": "string",
+                          "description": "复核人",
+                          "example": 570
+                        },
+                        "skr": {
+                          "type": "string",
+                          "description": "收款人",
+                          "example": 80139
+                        },
+                        "pjmc": {
+                          "type": "string",
+                          "description": "票据名称",
+                          "example": "江苏省医疗住院收费票据（电子）"
+                        },
+                        "jehj": {
+                          "type": "number",
+                          "description": "金额合计",
+                          "example": 2235.33
+                        },
+                        "jehjcn": {
+                          "type": "string",
+                          "description": "金额合计中文大写",
+                          "example": "贰仟贰佰叁拾伍元叁角叁分"
+                        },
+                        "ch": {
+                          "type": "string",
+                          "description": "冲红",
+                          "example": 1
+                        },
+                        "chrq": {
+                          "type": "string",
+                          "description": "冲红日期"
+                        },
+                        "chsj": {
+                          "type": "string",
+                          "description": "冲红时间"
+                        },
+                        "chyy": {
+                          "type": "string",
+                          "description": "冲红原因"
+                        },
+                        "czbmyz": {
+                          "type": "string",
+                          "description": "财政部门印章"
+                        },
+                        "czbmyzbh": {
+                          "type": "string",
+                          "description": "财政部门印章编号"
+                        },
+                        "xmqd": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "xmxh": {
+                                "type": "integer",
+                                "description": "项目序号",
+                                "example": 0
+                              },
+                              "xmbh": {
+                                "type": "string",
+                                "description": "项目编号"
+                              },
+                              "xmmc": {
+                                "type": "string",
+                                "description": "项目名称",
+                                "example": "床位费"
+                              },
+                              "dw": {
+                                "type": "string",
+                                "description": "单位"
+                              },
+                              "sl": {
+                                "type": "string",
+                                "description": "数量"
+                              },
+                              "ggbz": {
+                                "type": "string",
+                                "description": "规格标准"
+                              },
+                              "je": {
+                                "type": "number",
+                                "description": "金额"
+                              },
+                              "bz": {
+                                "type": "string",
+                                "description": "备注"
+                              }
+                            }
+                          }
+                        },
+                        "xmmx": {
+                          "type": "array",
+                          "items": {}
+                        },
+                        "qtxx": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "en": {
+                                "type": "string",
+                                "description": "业务流水号",
+                                "example": "ywlsh"
+                              },
+                              "cn": {
+                                "type": "string",
+                                "description": "业务流水号",
+                                "example": "业务流水号"
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": "业务流水号"
+                              }
+                            }
+                          }
+                        },
+                        "detailUrl": {
+                          "type": "string",
+                          "description": "税局查验截图url"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/invoice/download-v2": {
+      "post": {
+        "operationId": "发票下载v2",
+        "summary": "发票下载v2",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kprq": {
+                    "description": "开票日期",
+                    "type": "string"
+                  },
+                  "jshj": {
+                    "description": "价税合计",
+                    "type": "string"
+                  },
+                  "fphm": {
+                    "description": "发票号码",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fphm",
+                  "kprq",
+                  "jshj"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 784462943162667900000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "pdfUrl": {
+                          "type": "string",
+                          "description": "pdf版式文件url",
+                          "example": "https://xxxx.pdf"
+                        },
+                        "ofdUrl": {
+                          "type": "string",
+                          "description": "ofd版式文件url",
+                          "example": "https://xxxx.ofd"
+                        },
+                        "fplx": {
+                          "type": "string",
+                          "description": "发票类型",
+                          "example": "0920"
+                        },
+                        "kprq": {
+                          "type": "string",
+                          "description": "开票日期，仅当任务成功时返回精准的时分秒，任务失败仅返回精确到年月日，时分秒都为0",
+                          "example": "2024-04-25T00:00:00Z"
+                        },
+                        "qdfphm": {
+                          "type": "string",
+                          "description": "数电发票号码",
+                          "example": 24112000000029123000
+                        },
+                        "success": {
+                          "type": "boolean",
+                          "description": "版式文件下载是否成功",
+                          "example": true
+                        },
+                        "jshj": {
+                          "type": "number",
+                          "description": "价税合计",
+                          "example": 38842.3
+                        },
+                        "xmlUrl": {
+                          "type": "string",
+                          "description": "xml版式文件url",
+                          "example": "https://xxxx.xml"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/invoice/validate/vehicle-toll-jiangshu": {
+      "post": {
+        "operationId": "车辆通行费发票查验_江苏",
+        "summary": "车辆通行费发票查验_江苏",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fpdm": {
+                    "description": "发票代码",
+                    "type": "string"
+                  },
+                  "gfmc": {
+                    "description": "购方名称/抬头名称",
+                    "type": "string"
+                  },
+                  "dq": {
+                    "description": "地区，江苏：3200",
+                    "type": "string"
+                  },
+                  "fphm": {
+                    "description": "发票号码",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fpdm",
+                  "fphm",
+                  "dq",
+                  "gfmc"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码",
+                      "example": 200
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述",
+                      "example": "成功"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号",
+                      "example": 427264051198088660000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "xfsbh": {
+                          "type": "string",
+                          "description": "销方识别号",
+                          "example": "9132000013476xxxxx"
+                        },
+                        "gfsbh": {
+                          "type": "string",
+                          "description": "购方识别号",
+                          "example": "9132058130225xxxxx"
+                        },
+                        "fh": {
+                          "type": "string",
+                          "description": "复核",
+                          "example": "张xx"
+                        },
+                        "taxFpUrl": {
+                          "type": "string",
+                          "description": "税局返回发票文件url"
+                        },
+                        "fpdm": {
+                          "type": "string",
+                          "description": "发票代码",
+                          "example": "1321523xxxxx"
+                        },
+                        "gfmc": {
+                          "type": "string",
+                          "description": "购方名称",
+                          "example": "江苏xxxxxx有限公司"
+                        },
+                        "gmfyhzh": {
+                          "type": "string",
+                          "description": "购买方银行账号"
+                        },
+                        "fplx": {
+                          "type": "string",
+                          "description": "发票类型代码",
+                          "example": 103
+                        },
+                        "kpr": {
+                          "type": "string",
+                          "description": "开票人",
+                          "example": "刘xx"
+                        },
+                        "xsfdzdh": {
+                          "type": "string",
+                          "description": "销售方地址电话",
+                          "example": "江苏省南京市仙林大道xxxxxx"
+                        },
+                        "times": {
+                          "type": "integer",
+                          "description": "查验次数",
+                          "example": 0
+                        },
+                        "gmfdzdh": {
+                          "type": "string",
+                          "description": "购买方地址电话"
+                        },
+                        "skm": {
+                          "type": "string",
+                          "description": "密码区"
+                        },
+                        "kprq": {
+                          "type": "string",
+                          "description": "开票日期",
+                          "example": 20240805
+                        },
+                        "xsfyhzh": {
+                          "type": "string",
+                          "description": "销售方银行账号",
+                          "example": "中国建设银行南京中山南路支行3200188123xxxxxx"
+                        },
+                        "bz": {
+                          "type": "string",
+                          "description": "备注"
+                        },
+                        "xmmx": {
+                          "type": "array",
+                          "description": "项目明细",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "xmmc": {
+                                "type": "string",
+                                "description": "项目名称",
+                                "example": "车辆通行费"
+                              },
+                              "xmsl": {
+                                "type": "string",
+                                "description": "项目数量",
+                                "example": "1"
+                              },
+                              "xmje": {
+                                "type": "string",
+                                "description": "项目金额",
+                                "example": "18.00"
+                              }
+                            }
+                          }
+                        },
+                        "jshj": {
+                          "type": "string",
+                          "description": "价税合计",
+                          "example": "18.00"
+                        },
+                        "skr": {
+                          "type": "string",
+                          "description": "收款人",
+                          "example": "李xx"
+                        },
+                        "xfmc": {
+                          "type": "string",
+                          "description": "销方名称",
+                          "example": "江苏宁沪高速公路股份有限公司"
+                        },
+                        "fphm": {
+                          "type": "string",
+                          "description": "发票号码",
+                          "example": "0972xxxx"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jminvoice.market.alicloudapi.com"
+    }
+  ]
+}

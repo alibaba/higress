@@ -1,10 +1,17 @@
-# 功能说明
+---
+title: OPA
+keywords: [higress,opa]
+description: OPA 策略控制插件配置参考
+---
+
+## 功能说明
 
 该插件实现了 `OPA` 策略控制
 
-# 该教程使用k8s，[k8s配置文件](../../../../test/e2e/conformance/tests/go-wasm-opa.yaml)
+## 运行属性
 
-支持client `k8s,nacos,ip,route` 策略去访问
+插件执行阶段：`认证阶段`
+插件执行优先级：`225`
 
 ## 配置字段
 
@@ -18,8 +25,6 @@
 | servicePort   | string | 非必填  | -   | 服务端口（serviceSource为`k8s,nacos,ip`必填） |
 | namespace     | string | 非必填  | -   | 服务端口（serviceSource为`k8s,nacos`必填）    |
 
-这是一个用于OPA认证配置的表格，确保在提供所有必要的信息时遵循上述指导。
-
 ## 配置示例
 
 ```yaml
@@ -31,15 +36,15 @@ policy: example1
 timeout: 5s
 ```
 
-# 在宿主机上执行OPA的流程
+## OPA 服务安装参考
 
-## 启动opa服务
+### 启动 OPA 服务
 
 ```shell
 docker run -d --name opa -p 8181:8181 openpolicyagent/opa:0.35.0 run -s
 ```
 
-## 创建opa策略
+### 创建 OPA 策略
 
 ```shell
 curl -X PUT '127.0.0.1:8181/v1/policies/example1' \
@@ -56,46 +61,10 @@ allow {
 }'
 ```
 
-## 查询策略
+### 查询策略
 
 ```shell
 curl -X POST '127.0.0.1:8181/v1/data/example1/allow' \
   -H 'Content-Type: application/json' \
   -d '{"input":{"request":{"method":"GET"}}}'
-```
-
-# 测试插件
-
-## 打包 WASM 插件
-
-> 在 `wasm-go` 目录下把Dockerfile文件改成`PLUGIN_NAME=opa`，然后执行以下命令
-
-```shell
-docker build -t build-wasm-opa --build-arg GOPROXY=https://goproxy.cn,direct --platform=linux/amd64 .
-```
-
-## 拷贝插件
-
-> 在当前的目录执行以下命令，将插件拷贝当前的目录
-
-```shell
-docker cp wasm-opa:/plugin.wasm .
-```
-
-## 运行插件
-
-> 运行前修改envoy.yaml 这两个字段 `OPA_SERVER` `OPA_PORT` 替换宿主机上的IP和端口
-
-```shell
-docker compose up
-```
-
-## 使用curl测试插件
-
-```shell
-curl http://127.0.0.1:10000/get -X GET -v
-```
-
-```shell
-curl http://127.0.0.1:10000/get -X POST -v
 ```

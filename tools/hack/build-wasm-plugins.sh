@@ -33,6 +33,7 @@ elif [ "$TYPE" == "RUST" ]
 then
     cd ./plugins/wasm-rust/
     make lint-base
+    make test-base
     if [ ! -n "$INNER_PLUGIN_NAME" ]; then
         EXTENSIONS_DIR=$(pwd)"/extensions/"
         echo "🚀 Build all Rust WasmPlugins under folder of $EXTENSIONS_DIR"
@@ -42,20 +43,14 @@ then
                     name=${file##*/}
                     echo "🚀 Build Rust WasmPlugin: $name"
                     PLUGIN_NAME=${name} make lint 
-                    PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-rust-" make build
+                    PLUGIN_NAME=${name} make test 
+                    PLUGIN_NAME=${name} make build
                 fi
             done
-            cd ../wasm-go/
-            PLUGIN_NAME=custom-response make build
     else
         echo "🚀 Build Rust WasmPlugin: $INNER_PLUGIN_NAME"
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make lint 
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
-        if [ "$INNER_PLUGIN_NAME" == "ai-data-masking" ]; then
-            cd ../wasm-go/
-            PLUGIN_NAME=custom-response make build
-        fi
-
     fi
 else
     echo "Not specify plugin language, so just compile wasm-go as default"
@@ -65,8 +60,8 @@ else
         echo "🚀 Build all Go WasmPlugins under folder of $EXTENSIONS_DIR"
         for file in `ls $EXTENSIONS_DIR`                                   
             do
-                # TODO: adjust waf build
-                if [ "$file" == "waf" ]; then
+                # : adjust waf build
+                if [ "$file" == "" ]; then
                     continue
                 fi
                 if [ -d $EXTENSIONS_DIR$file ]; then
@@ -76,7 +71,19 @@ else
                         version=$(cat "$version_file")
                         if [[ "$version" =~ -alpha$ ]]; then
                             echo "🚀 Build Go WasmPlugin: $name (version $version)"
-                            PLUGIN_NAME=${name} BUILDER_REGISTRY="docker.io/alihigress/plugins-" make build
+                            # Load .buildrc file
+                            buildrc_file="$EXTENSIONS_DIR$file/.buildrc"
+                            if [ -f "$buildrc_file" ]; then
+                                echo "Found .buildrc file, sourcing it..."
+                                . "$buildrc_file"
+                            else
+                                echo ".buildrc file not found"
+                            fi
+                            echo "EXTRA_TAGS=${EXTRA_TAGS:-}"
+                            # Build plugin
+                            PLUGIN_NAME=${name} EXTRA_TAGS=${EXTRA_TAGS:-} make build
+                            # Clean up EXTRA_TAGS environment variable
+                            unset EXTRA_TAGS
                         else
                             echo "Plugin version $version not ends with '-alpha', skipping compilation for $name."
                         fi

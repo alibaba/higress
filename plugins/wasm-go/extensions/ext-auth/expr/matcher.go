@@ -4,18 +4,17 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/tidwall/gjson"
-	regexp "github.com/wasilibs/go-re2"
+	"regexp"
 )
 
 const (
-	matchPatternExact    string = "exact"
-	matchPatternPrefix   string = "prefix"
-	matchPatternSuffix   string = "suffix"
-	matchPatternContains string = "contains"
-	matchPatternRegex    string = "regex"
+	MatchPatternExact    string = "exact"
+	MatchPatternPrefix   string = "prefix"
+	MatchPatternSuffix   string = "suffix"
+	MatchPatternContains string = "contains"
+	MatchPatternRegex    string = "regex"
 
-	matchIgnoreCase string = "ignore_case"
+	MatchIgnoreCase string = "ignore_case"
 )
 
 type Matcher interface {
@@ -78,77 +77,15 @@ func (m *stringRegexMatcher) Match(s string) bool {
 	return m.regex.MatchString(s)
 }
 
-type repeatedStringMatcher struct {
-	matchers []Matcher
-}
-
-func (rsm *repeatedStringMatcher) Match(s string) bool {
-	for _, m := range rsm.matchers {
-		if m.Match(s) {
-			return true
-		}
-	}
-	return false
-}
-
-func buildRepeatedStringMatcher(matchers []gjson.Result, allIgnoreCase bool) (Matcher, error) {
-	builtMatchers := make([]Matcher, len(matchers))
-
-	createMatcher := func(json gjson.Result, targetKey string, ignoreCase bool, matcherType MatcherConstructor) (Matcher, error) {
-		result := json.Get(targetKey)
-		if result.Exists() && result.String() != "" {
-			target := result.String()
-			return matcherType(target, ignoreCase)
-		}
-		return nil, nil
-	}
-
-	for i, item := range matchers {
-		var matcher Matcher
-		var err error
-
-		// If allIgnoreCase is true, it takes precedence over any user configuration,
-		// forcing case-insensitive matching regardless of individual item settings.
-		ignoreCase := allIgnoreCase
-		if !allIgnoreCase {
-			ignoreCaseResult := item.Get(matchIgnoreCase)
-			if ignoreCaseResult.Exists() && ignoreCaseResult.Bool() {
-				ignoreCase = true
-			}
-		}
-
-		for _, matcherType := range []struct {
-			key     string
-			creator MatcherConstructor
-		}{
-			{matchPatternExact, newStringExactMatcher},
-			{matchPatternPrefix, newStringPrefixMatcher},
-			{matchPatternSuffix, newStringSuffixMatcher},
-			{matchPatternContains, newStringContainsMatcher},
-			{matchPatternRegex, newStringRegexMatcher},
-		} {
-			if matcher, err = createMatcher(item, matcherType.key, ignoreCase, matcherType.creator); err != nil {
-				return nil, err
-			}
-			if matcher != nil {
-				break
-			}
-		}
-
-		if matcher == nil {
-			return nil, errors.New("unknown string matcher type")
-		}
-
-		builtMatchers[i] = matcher
-
-	}
-
-	return &repeatedStringMatcher{
-		matchers: builtMatchers,
-	}, nil
-}
-
 type MatcherConstructor func(string, bool) (Matcher, error)
+
+var matcherConstructors = map[string]MatcherConstructor{
+	MatchPatternExact:    newStringExactMatcher,
+	MatchPatternPrefix:   newStringPrefixMatcher,
+	MatchPatternSuffix:   newStringSuffixMatcher,
+	MatchPatternContains: newStringContainsMatcher,
+	MatchPatternRegex:    newStringRegexMatcher,
+}
 
 func newStringExactMatcher(target string, ignoreCase bool) (Matcher, error) {
 	if ignoreCase {
@@ -189,14 +126,11 @@ func newStringRegexMatcher(target string, ignoreCase bool) (Matcher, error) {
 	return &stringRegexMatcher{regex: re}, nil
 }
 
-func BuildRepeatedStringMatcherIgnoreCase(matchers []gjson.Result) (Matcher, error) {
-	return buildRepeatedStringMatcher(matchers, true)
-}
-
-func BuildRepeatedStringMatcher(matchers []gjson.Result) (Matcher, error) {
-	return buildRepeatedStringMatcher(matchers, false)
-}
-
-func BuildStringMatcher(matcher gjson.Result) (Matcher, error) {
-	return BuildRepeatedStringMatcher([]gjson.Result{matcher})
+func BuildStringMatcher(matchType, target string, ignoreCase bool) (Matcher, error) {
+	for constructorType, constructor := range matcherConstructors {
+		if constructorType == matchType {
+			return constructor(target, ignoreCase)
+		}
+	}
+	return nil, errors.New("unknown string matcher type")
 }

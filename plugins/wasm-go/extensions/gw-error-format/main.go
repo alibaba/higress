@@ -3,13 +3,16 @@ package main
 import (
 	"errors"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
-func main() {
+func main() {}
+
+func init() {
 	wrapper.SetCtx(
 		"gw-error-format",
 		wrapper.ParseConfigBy(parseConfig),
@@ -23,7 +26,7 @@ type MyConfig struct {
 	set_header []gjson.Result
 }
 
-func parseConfig(json gjson.Result, config *MyConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *MyConfig, log log.Log) error {
 	config.set_header = json.Get("set_header").Array()
 	config.rules = json.Get("rules").Array()
 	for _, item := range config.rules {
@@ -39,7 +42,7 @@ func parseConfig(json gjson.Result, config *MyConfig, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log log.Log) types.Action {
 	dontReadResponseBody := false
 	currentStatuscode, _ := proxywasm.GetHttpResponseHeader(":status")
 
@@ -82,7 +85,7 @@ func onHttpResponseHeader(ctx wrapper.HttpContext, config MyConfig, log wrapper.
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config MyConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config MyConfig, body []byte, log log.Log) types.Action {
 	bodyStr := string(body)
 
 	for _, item := range config.rules {

@@ -48,6 +48,8 @@ static_resources:
                             value: |
                               {
                                 "grayKey": "userId",
+                                "backendGrayTag": "env",
+                                "uniqueGrayTag": "uuid",
                                 "rules": [
                                   {
                                     "name": "inner-user",
@@ -70,28 +72,58 @@ static_resources:
                                   }
                                 ],
                                 "rewrite": {
-                                  "host": "frontend-gray-cn-shanghai.oss-cn-shanghai-internal.aliyuncs.com",
-                                  "notFoundUri": "/mfe/app1/dev/404.html",
+                                  "host": "apig-oss-integration.oss-cn-hangzhou.aliyuncs.com",
                                   "indexRouting": {
-                                    "/app1": "/mfe/app1/{version}/index.html",
-                                    "/": "/mfe/app1/{version}/index.html"
+                                    "/": "/mfe/{version}/index.html"
                                   },
                                   "fileRouting": {
-                                    "/":             "/mfe/app1/{version}",
-                                    "/app1":             "/mfe/app1/{version}"
+                                    "/": "/mfe/{version}",
+                                    "/mfe": "/mfe/{version}"
                                   }
                                 },
+                                "skippedPaths": [
+                                  "/api/**",
+                                  "/v2/**"
+                                ],
+                                "indexPaths": [
+                                  "/mfe/**/mf-manifest-main.json"
+                                ],
                                 "baseDeployment": {
-                                  "version": "dev"
+                                  "version": "v1"
                                 },
                                 "grayDeployments": [
                                   {
+                                    "weight": 90,
                                     "name": "beta-user",
-                                    "version": "0.0.1",
-                                    "backendVersion": "beta",
-                                    "enabled": true
+                                    "version": "v2",
+                                    "enabled": true,
+                                    "backendVersion":"gray",
+                                    "versionPredicates": {
+                                      "/mfe": "v1"
+                                    }
                                   }
-                                ]
+                                ],
+                                "injection": {
+                                  "globalConfig": {
+                                    "key": "HIGRESS_CONSOLE_CONFIG",
+                                    "featureKey": "FEATURE_STATUS",
+                                    "value": "{CONSOLE_GLOBAL: {'gray':'2.0.15','main':'2.0.15'}}",
+                                    "enabled": true
+                                  },
+                                  "head": [
+                                    "<script>console.log('Header')</script>"
+                                  ],
+                                  "body": {
+                                    "first": [
+                                      "<script>console.log('hello world before')</script>",
+                                      "<script>console.log('hello world before1')</script>"
+                                    ],
+                                    "last": [
+                                      "<script>console.log('hello world after')</script>",
+                                      "<script>console.log('hello world after2')</script>"
+                                    ]
+                                  }
+                                }
                               }
                   - name: envoy.filters.http.router
                     typed_config:
@@ -100,7 +132,6 @@ static_resources:
     - name: httpbin
       connect_timeout: 30s
       type: LOGICAL_DNS
-      # Comment out the following line to test on v6 networks
       dns_lookup_family: V4_ONLY
       lb_policy: ROUND_ROBIN
       load_assignment:
@@ -110,5 +141,5 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: frontend-gray-cn-shanghai.oss-cn-shanghai.aliyuncs.com
+                      address: apig-oss-integration.oss-cn-hangzhou.aliyuncs.com
                       port_value: 80

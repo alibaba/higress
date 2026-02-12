@@ -15,47 +15,149 @@
 package memory
 
 import (
+	"encoding/json"
 	"sort"
 	"strconv"
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+	extensions "istio.io/api/extensions/v1alpha1"
 	"istio.io/api/networking/v1alpha3"
+	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/pkg/log"
 
-	"github.com/alibaba/higress/pkg/common"
+	"github.com/alibaba/higress/v2/pkg/common"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
+	ingress "github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/registry"
 )
 
 type Cache interface {
-	UpdateServiceEntryWrapper(service string, data *ServiceEntryWrapper)
-	DeleteServiceEntryWrapper(service string)
-	PurgeStaleService()
+	UpdateServiceWrapper(service string, data *ingress.ServiceWrapper)
+	DeleteServiceWrapper(service string)
+	UpdateProxyWrapper(name string, data *ingress.ProxyWrapper)
+	DeleteProxyWrapper(name string)
+	UpdateConfigCache(kind config.GroupVersionKind, key string, config *config.Config, forceDelete bool)
+	GetAllConfigs(kind config.GroupVersionKind) map[string]*config.Config
+	PurgeStaleItems() bool
 	UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string)
 	GetServiceByEndpoints(requestVersions, endpoints map[string]bool, versionKey string, protocol common.Protocol) map[string][]string
 	GetAllServiceEntry() []*v1alpha3.ServiceEntry
-	GetAllServiceEntryWrapper() []*ServiceEntryWrapper
-	GetIncrementalServiceEntryWrapper() (updatedList []*ServiceEntryWrapper, deletedList []*ServiceEntryWrapper)
+	GetAllServiceWrapper() []*ingress.ServiceWrapper
+	GetAllProxyWrapper() []*ingress.ProxyWrapper
+	GetAllDestinationRuleWrapper() []*ingress.WrapperDestinationRule
+	GetIncrementalServiceWrapper() (updatedList []*ingress.ServiceWrapper, deletedList []*ingress.ServiceWrapper)
 	RemoveEndpointByIp(ip string)
 }
 
 func NewCache() Cache {
 	return &store{
-		mux:           &sync.RWMutex{},
-		sew:           make(map[string]*ServiceEntryWrapper),
-		toBeUpdated:   make([]*ServiceEntryWrapper, 0),
-		toBeDeleted:   make([]*ServiceEntryWrapper, 0),
-		ip2services:   make(map[string]map[string]bool),
-		deferedDelete: make(map[string]struct{}),
+		mux:                    &sync.RWMutex{},
+		configs:                make(map[string]map[string]*config.Config),
+		sew:                    make(map[string]*ingress.ServiceWrapper),
+		toBeUpdated:            make([]*ingress.ServiceWrapper, 0),
+		toBeDeleted:            make([]*ingress.ServiceWrapper, 0),
+		ip2services:            make(map[string]map[string]bool),
+		deferredDeleteServices: make(map[string]struct{}),
+		pw:                     make(map[string]*ingress.ProxyWrapper),
+		deferredDeleteProxies:  make(map[string]struct{}),
 	}
 }
 
 type store struct {
-	mux           *sync.RWMutex
-	sew           map[string]*ServiceEntryWrapper
-	toBeUpdated   []*ServiceEntryWrapper
-	toBeDeleted   []*ServiceEntryWrapper
-	ip2services   map[string]map[string]bool
-	deferedDelete map[string]struct{}
+	mux *sync.RWMutex
+
+	configs map[string]map[string]*config.Config
+
+	sew                    map[string]*ingress.ServiceWrapper
+	toBeUpdated            []*ingress.ServiceWrapper
+	toBeDeleted            []*ingress.ServiceWrapper
+	ip2services            map[string]map[string]bool
+	deferredDeleteServices map[string]struct{}
+
+	pw                    map[string]*ingress.ProxyWrapper
+	deferredDeleteProxies map[string]struct{}
+}
+
+func (s *store) GetAllConfigs(kind config.GroupVersionKind) map[string]*config.Config {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	cfgs, exist := s.configs[kind.String()]
+	if !exist {
+		return map[string]*config.Config{}
+	}
+	if kind == gvk.WasmPlugin {
+		pluginConfig := &registry.WasmPluginConfig{}
+		var ns string
+		for _, cfg := range cfgs {
+			ns = cfg.Namespace
+			rule := cfg.Spec.(*registry.McpServerRule)
+			pluginConfig.Rules = append(pluginConfig.Rules, rule)
+		}
+		if len(pluginConfig.Rules) == 0 {
+			log.Infof("there is no mcp server rule exist, skip generate wasm plugin")
+			return map[string]*config.Config{}
+		}
+		rulesBytes, err := json.Marshal(pluginConfig)
+		if err != nil {
+			log.Errorf("marshal mcp wasm plugin config error %v", err)
+			return map[string]*config.Config{}
+		}
+		pbs := &structpb.Struct{}
+		if err = protojson.Unmarshal(rulesBytes, pbs); err != nil {
+			log.Errorf("unmarshal mcp wasm plugin config error %v", err)
+			return map[string]*config.Config{}
+		}
+		wasmPlugin := &extensions.WasmPlugin{
+			ImagePullPolicy: extensions.PullPolicy_Always,
+			Phase:           extensions.PluginPhase_UNSPECIFIED_PHASE,
+			Priority:        &wrapperspb.Int32Value{Value: 999},
+			PluginConfig:    pbs,
+			Url:             higressconfig.McpServerWasmImageUrl,
+			FailStrategy:    extensions.FailStrategy_FAIL_OPEN,
+		}
+
+		return map[string]*config.Config{"wasm": {
+			Meta: config.Meta{
+				GroupVersionKind: gvk.WasmPlugin,
+				Name:             "istio-autogenerated-mcp-wasmplugin",
+				Namespace:        ns,
+			},
+			Spec: wasmPlugin,
+		}}
+	}
+
+	return cfgs
+}
+
+func (s *store) UpdateConfigCache(kind config.GroupVersionKind, key string, cfg *config.Config, forceDelete bool) {
+	if cfg == nil && !forceDelete {
+		return
+	}
+
+	s.mux.Lock()
+	if forceDelete {
+		for _, allConfigs := range s.configs {
+			delete(allConfigs, key)
+		}
+		log.Infof("Delete config %s in cache", key)
+	} else {
+		if _, exist := s.configs[kind.String()]; !exist {
+			s.configs[kind.String()] = make(map[string]*config.Config)
+		}
+
+		if _, exist := s.configs[kind.String()][key]; exist {
+			log.Infof("Update kind %s config %s", kind.String(), key)
+		} else {
+			log.Infof("Add kind %s config %s", kind.String(), key)
+		}
+		s.configs[kind.String()][key] = cfg
+	}
+	s.mux.Unlock()
 }
 
 func (s *store) UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId, protocol string, labels map[string]string) {
@@ -87,14 +189,12 @@ func (s *store) UpdateServiceEntryEndpointWrapper(service, ip, regionId, zoneId,
 				}
 				return
 			}
-
 		}
-
 	}
 	return
 }
 
-func (s *store) UpdateServiceEntryWrapper(service string, data *ServiceEntryWrapper) {
+func (s *store) UpdateServiceWrapper(service string, data *ingress.ServiceWrapper) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
@@ -104,37 +204,82 @@ func (s *store) UpdateServiceEntryWrapper(service string, data *ServiceEntryWrap
 		data.SetCreateTime(time.Now())
 	}
 
-	log.Debugf("mcp service entry update, name:%s, data:%v", service, data)
+	log.Debugf("mcp service entry update, name: %s, data: %v", service, data)
 
 	s.toBeUpdated = append(s.toBeUpdated, data)
 	s.sew[service] = data
 	// service is updated, should not be deleted
-	if _, ok := s.deferedDelete[service]; ok {
-		delete(s.deferedDelete, service)
-		log.Debugf("service in deferedDelete updated, host:%s", service)
+	if _, ok := s.deferredDeleteServices[service]; ok {
+		delete(s.deferredDeleteServices, service)
+		log.Debugf("service in deferredDeleteServices updated, host: %s", service)
 	}
-	log.Infof("ServiceEntry updated, host:%s", service)
+	log.Infof("ServiceEntry updated, host: %s", service)
 }
 
-func (s *store) DeleteServiceEntryWrapper(service string) {
+func (s *store) DeleteServiceWrapper(service string) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
 	if data, exist := s.sew[service]; exist {
 		s.toBeDeleted = append(s.toBeDeleted, data)
-		s.deferedDelete[service] = struct{}{}
+		s.deferredDeleteServices[service] = struct{}{}
+	}
+}
+
+func (s *store) UpdateProxyWrapper(name string, data *ingress.ProxyWrapper) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	if old, exist := s.pw[name]; exist {
+		data.SetCreateTime(old.GetCreateTime())
+	} else {
+		data.SetCreateTime(time.Now())
+	}
+
+	log.Debugf("mcp proxy entry update, name: %s, data: %v", name, data)
+
+	s.pw[name] = data
+	// service is updated, should not be deleted
+	if _, ok := s.deferredDeleteServices[name]; ok {
+		delete(s.deferredDeleteServices, name)
+		log.Debugf("proxy in deferredDeleteProxies updated, na: %s", name)
+	}
+	log.Infof("ProxyWrapper updated, name: %s", name)
+}
+
+func (s *store) DeleteProxyWrapper(name string) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	if _, exist := s.pw[name]; exist {
+		s.deferredDeleteProxies[name] = struct{}{}
 	}
 }
 
 // should only be called when reconcile is done
-func (s *store) PurgeStaleService() {
+func (s *store) PurgeStaleItems() bool {
 	s.mux.Lock()
 	defer s.mux.Unlock()
-	for service := range s.deferedDelete {
+
+	deleted := false
+
+	for service := range s.deferredDeleteServices {
 		delete(s.sew, service)
-		delete(s.deferedDelete, service)
-		log.Infof("ServiceEntry deleted, host:%s", service)
+		delete(s.deferredDeleteServices, service)
+		log.Infof("ServiceEntry deleted, host: %s", service)
+
+		deleted = true
 	}
+
+	for proxy := range s.deferredDeleteProxies {
+		delete(s.pw, proxy)
+		delete(s.deferredDeleteProxies, proxy)
+		log.Infof("ProxyWrapper deleted, name: %s", proxy)
+
+		deleted = true
+	}
+
+	return deleted
 }
 
 // GetServiceByEndpoints get the list of services of which "address:port" contained by the endpoints
@@ -199,31 +344,67 @@ func (s *store) GetAllServiceEntry() []*v1alpha3.ServiceEntry {
 	return seList
 }
 
-// GetAllServiceEntryWrapper get all ServiceEntryWrapper in the store for xds push
-func (s *store) GetAllServiceEntryWrapper() []*ServiceEntryWrapper {
+// GetAllServiceWrapper get all ServiceWrapper in the store for xds push
+func (s *store) GetAllServiceWrapper() []*ingress.ServiceWrapper {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer s.cleanUpdateAndDeleteArray()
 
-	sewList := make([]*ServiceEntryWrapper, 0)
+	sewList := make([]*ingress.ServiceWrapper, 0)
 	for _, serviceEntryWrapper := range s.sew {
 		sewList = append(sewList, serviceEntryWrapper.DeepCopy())
 	}
 	return sewList
 }
 
-// GetIncrementalServiceEntryWrapper get incremental ServiceEntryWrapper in the store for xds push
-func (s *store) GetIncrementalServiceEntryWrapper() ([]*ServiceEntryWrapper, []*ServiceEntryWrapper) {
+// GetAllProxyWrapper get all ServiceWrapper in the store for xds push
+func (s *store) GetAllProxyWrapper() []*ingress.ProxyWrapper {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+
+	pwList := make([]*ingress.ProxyWrapper, 0)
+	for _, pw := range s.pw {
+		pwList = append(pwList, pw.DeepCopy())
+	}
+	return pwList
+}
+
+// GetAllDestinationRuleWrapper get all DestinationRuleWrapper in the store for xds push
+func (s *store) GetAllDestinationRuleWrapper() []*ingress.WrapperDestinationRule {
 	s.mux.RLock()
 	defer s.mux.RUnlock()
 	defer s.cleanUpdateAndDeleteArray()
 
-	updatedList := make([]*ServiceEntryWrapper, 0)
+	drwList := make([]*ingress.WrapperDestinationRule, 0)
+	for _, serviceEntryWrapper := range s.sew {
+		if serviceEntryWrapper.DestinationRuleWrapper != nil {
+			drwList = append(drwList, serviceEntryWrapper.DeepCopy().DestinationRuleWrapper)
+		}
+	}
+	configFromMcp := s.configs[gvk.DestinationRule.String()]
+	for _, cfg := range configFromMcp {
+		dr := cfg.Spec.(*v1alpha3.DestinationRule)
+		drwList = append(drwList, &ingress.WrapperDestinationRule{
+			DestinationRule: dr,
+			ServiceKey:      ingress.ServiceKey{Namespace: "mcp", Name: dr.Host, ServiceFQDN: dr.Host},
+		})
+	}
+
+	return drwList
+}
+
+// GetIncrementalServiceWrapper get incremental ServiceWrapper in the store for xds push
+func (s *store) GetIncrementalServiceWrapper() ([]*ingress.ServiceWrapper, []*ingress.ServiceWrapper) {
+	s.mux.RLock()
+	defer s.mux.RUnlock()
+	defer s.cleanUpdateAndDeleteArray()
+
+	updatedList := make([]*ingress.ServiceWrapper, 0)
 	for _, serviceEntryWrapper := range s.toBeUpdated {
 		updatedList = append(updatedList, serviceEntryWrapper.DeepCopy())
 	}
 
-	deletedList := make([]*ServiceEntryWrapper, 0)
+	deletedList := make([]*ingress.ServiceWrapper, 0)
 	for _, serviceEntryWrapper := range s.toBeDeleted {
 		deletedList = append(deletedList, serviceEntryWrapper.DeepCopy())
 	}
@@ -236,7 +417,7 @@ func (s *store) cleanUpdateAndDeleteArray() {
 	s.toBeDeleted = nil
 }
 
-func (s *store) updateIpMap(service string, data *ServiceEntryWrapper) {
+func (s *store) updateIpMap(service string, data *ingress.ServiceWrapper) {
 	for _, ep := range data.ServiceEntry.Endpoints {
 		if s.ip2services[ep.Address] == nil {
 			s.ip2services[ep.Address] = make(map[string]bool)

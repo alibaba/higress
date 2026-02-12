@@ -1,0 +1,1333 @@
+{
+  "info": {
+    "description": "【6亿用户的选择】全球最大的天气服务平台 逐分钟更新 提供更精准的天气实况 最专业的气象服务！全国5500+城市天气信息，您需要的，这里都有!   天气预报15天，天气预报24小时，空气质量指数，AQI预报五天，短时预报，天气预警，尾号限行，生活指数。",
+    "title": "墨迹天气（专业版经纬度）全国天气查询预报、数据灾害预警空气质量接口",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/whapi/json/aliweather/limit": {
+      "post": {
+        "operationId": "限行数据",
+        "summary": "提供各地限行数据",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "c712899b393c7b262dd7984f6eb52657"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID"
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "城市名"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "省份名"
+                            }
+                          }
+                        },
+                        "limit": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string",
+                                "description": "日期"
+                              },
+                              "prompt": {
+                                "type": "string",
+                                "description": "提示信息"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "返回码"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "返回消息"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/aqi": {
+      "post": {
+        "operationId": "空气质量指数",
+        "summary": "提供空气质量指数及分项数据",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "6e9a127c311094245fc1b2aa6d0a54fd"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "状态码，0表示成功"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "aqi": {
+                          "type": "object",
+                          "properties": {
+                            "cityName": {
+                              "type": "string",
+                              "description": "城市名称"
+                            },
+                            "co": {
+                              "type": "string",
+                              "description": "一氧化碳浓度"
+                            },
+                            "no2": {
+                              "type": "string",
+                              "description": "二氧化氮浓度"
+                            },
+                            "o3": {
+                              "type": "string",
+                              "description": "臭氧浓度"
+                            },
+                            "pm10": {
+                              "type": "string",
+                              "description": "PM10颗粒物浓度"
+                            },
+                            "pm25": {
+                              "type": "string",
+                              "description": "PM2.5颗粒物浓度"
+                            },
+                            "pubtime": {
+                              "type": "string",
+                              "description": "发布时间戳"
+                            },
+                            "rank": {
+                              "type": "string",
+                              "description": "空气质量排名"
+                            },
+                            "so2": {
+                              "type": "string",
+                              "description": "二氧化硫浓度"
+                            },
+                            "value": {
+                              "type": "string",
+                              "description": "AQI值"
+                            }
+                          }
+                        },
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID"
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "城市名称"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "省份名称"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "返回消息"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "状态码"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "状态描述"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/shortforecast": {
+      "post": {
+        "operationId": "短时预报",
+        "summary": "提供未来2小时内精准预报",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "bbc0fdc738a3877f3f72f69b1a4d30fe"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID"
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "城市名称"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "省份名称"
+                            }
+                          }
+                        },
+                        "sfc": {
+                          "type": "object",
+                          "properties": {
+                            "banner": {
+                              "type": "string",
+                              "description": "位置天气提示"
+                            },
+                            "percent": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "desc": {
+                                    "type": "string",
+                                    "description": "天气描述"
+                                  },
+                                  "icon": {
+                                    "type": "integer",
+                                    "description": "图标编号"
+                                  },
+                                  "percent": {
+                                    "type": "number",
+                                    "description": "下雨概率"
+                                  }
+                                }
+                              }
+                            },
+                            "sfCondition": {
+                              "type": "integer",
+                              "description": "天气条件代码"
+                            },
+                            "timestamp": {
+                              "type": "integer",
+                              "description": "时间戳"
+                            },
+                            "useLbs": {
+                              "type": "integer",
+                              "description": "是否使用地理位置"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "详细状态码"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "详细状态消息"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/index": {
+      "post": {
+        "operationId": "生活指数",
+        "summary": "提供各项天气生活指数",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "42b0c7e2e8d00d6e80d92797fe5360fd"
+                  }
+                },
+                "required": [
+                  "lon",
+                  "lat"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID"
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "城市名称"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "省份名称"
+                            }
+                          }
+                        },
+                        "liveIndex": {
+                          "type": "object",
+                          "properties": {
+                            "2016-09-01": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "day": {
+                                    "type": "string",
+                                    "description": "日期"
+                                  },
+                                  "desc": {
+                                    "type": "string",
+                                    "description": "描述"
+                                  },
+                                  "name": {
+                                    "type": "string",
+                                    "description": "指数名称"
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "description": "状态"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "返回码"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "返回信息"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/alert": {
+      "post": {
+        "operationId": "天气预警",
+        "summary": "提供各地天气预警信息",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "d01246ac6284b5a591f875173e9e2a18"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码",
+                      "example": 0
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "alert": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "content": {
+                                "type": "string",
+                                "description": "预警内容",
+                                "example": "广州市气象局于09月01日17时28分发布雷雨大风蓝色预警信号，请注意防御。"
+                              },
+                              "infoid": {
+                                "type": "integer",
+                                "description": "预警信息ID",
+                                "example": 70
+                              },
+                              "level": {
+                                "type": "string",
+                                "description": "预警级别",
+                                "example": "蓝色"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "预警名称",
+                                "example": "雷雨大风"
+                              },
+                              "pub_time": {
+                                "type": "string",
+                                "description": "发布时间",
+                                "example": "2016-09-01T17:46:06Z"
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "预警标题",
+                                "example": "广东省广州市气象台发布蓝色雷雨大风预警"
+                              },
+                              "type": {
+                                "type": "string",
+                                "description": "预警类型",
+                                "example": "雷雨大风蓝色"
+                              }
+                            }
+                          }
+                        },
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID",
+                              "example": 285119
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称",
+                              "example": "中国"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "区域名称",
+                              "example": "越秀区"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "省份名称",
+                              "example": "广东省"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息",
+                      "example": "success"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "返回码",
+                          "example": 0
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "返回消息",
+                          "example": "success"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/forecast24hours": {
+      "post": {
+        "operationId": "天气预报24小时",
+        "summary": "提供未来24小时逐小时天气预报",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "1b89050d9f64191d494c806f78e8ea36"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID"
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "区县名称"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "省份名称"
+                            }
+                          }
+                        },
+                        "hourly": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "condition": {
+                                "type": "string",
+                                "description": "天气状况"
+                              },
+                              "date": {
+                                "type": "string",
+                                "description": "日期"
+                              },
+                              "hour": {
+                                "type": "string",
+                                "description": "小时"
+                              },
+                              "humidity": {
+                                "type": "string",
+                                "description": "湿度"
+                              },
+                              "iconDay": {
+                                "type": "string",
+                                "description": "白天天气图标"
+                              },
+                              "iconNight": {
+                                "type": "string",
+                                "description": "夜间天气图标"
+                              },
+                              "pressure": {
+                                "type": "string",
+                                "description": "气压"
+                              },
+                              "realFeel": {
+                                "type": "string",
+                                "description": "实感温度"
+                              },
+                              "temp": {
+                                "type": "string",
+                                "description": "温度"
+                              },
+                              "uvi": {
+                                "type": "string",
+                                "description": "紫外线指数"
+                              },
+                              "windDir": {
+                                "type": "string",
+                                "description": "风向"
+                              },
+                              "windSpeed": {
+                                "type": "string",
+                                "description": "风速"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "详细状态码"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "详细状态描述"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/forecast15days": {
+      "post": {
+        "operationId": "天气预报15天",
+        "summary": "提供未来15天天气预报",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "7538f7246218bdbf795b329ab09cc524"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID"
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "城市名称"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "省份名称"
+                            }
+                          }
+                        },
+                        "forecast": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "conditionDay": {
+                                "type": "string",
+                                "description": "白天天气状况"
+                              },
+                              "conditionIdDay": {
+                                "type": "string",
+                                "description": "白天天气状况ID"
+                              },
+                              "conditionIdNight": {
+                                "type": "string",
+                                "description": "晚上天气状况ID"
+                              },
+                              "conditionNight": {
+                                "type": "string",
+                                "description": "晚上天气状况"
+                              },
+                              "moonphase": {
+                                "type": "string",
+                                "description": "月相"
+                              },
+                              "moonrise": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "月升时间"
+                              },
+                              "moonset": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "月落时间"
+                              },
+                              "predictDate": {
+                                "type": "string",
+                                "format": "date",
+                                "description": "预报日期"
+                              },
+                              "sunrise": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "日出时间"
+                              },
+                              "sunset": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "日落时间"
+                              },
+                              "tempDay": {
+                                "type": "string",
+                                "description": "白天温度"
+                              },
+                              "tempNight": {
+                                "type": "string",
+                                "description": "晚上温度"
+                              },
+                              "updatetime": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "更新时间"
+                              },
+                              "windDirDay": {
+                                "type": "string",
+                                "description": "白天风向"
+                              },
+                              "windDirNight": {
+                                "type": "string",
+                                "description": "晚上风向"
+                              },
+                              "windLevelDay": {
+                                "type": "string",
+                                "description": "白天风力等级"
+                              },
+                              "windLevelNight": {
+                                "type": "string",
+                                "description": "晚上风力等级"
+                              },
+                              "windSpeedDay": {
+                                "type": "string",
+                                "description": "白天风速"
+                              },
+                              "windSpeedNight": {
+                                "type": "string",
+                                "description": "晚上风速"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "状态码"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "状态信息"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/condition": {
+      "post": {
+        "operationId": "天气实况",
+        "summary": "提供温度、湿度、风向、风速、紫外线、气压、体感温度等实时数据",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "ff826c205f8f4a59701e64e9e64e01c4"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "状态码",
+                      "example": 0
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID",
+                              "example": 284609
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称",
+                              "example": "中国"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "区县名称",
+                              "example": "东城区"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "城市名称",
+                              "example": "北京市"
+                            }
+                          }
+                        },
+                        "condition": {
+                          "type": "object",
+                          "properties": {
+                            "condition": {
+                              "type": "string",
+                              "description": "天气状况",
+                              "example": "晴"
+                            },
+                            "conditionId": {
+                              "type": "string",
+                              "description": "天气状况ID",
+                              "example": "5"
+                            },
+                            "humidity": {
+                              "type": "string",
+                              "description": "湿度",
+                              "example": "42"
+                            },
+                            "icon": {
+                              "type": "string",
+                              "description": "天气图标",
+                              "example": "30"
+                            },
+                            "pressure": {
+                              "type": "string",
+                              "description": "气压",
+                              "example": "999"
+                            },
+                            "realFeel": {
+                              "type": "string",
+                              "description": "实际体感温度",
+                              "example": "18"
+                            },
+                            "sunRise": {
+                              "type": "string",
+                              "description": "日出时间",
+                              "example": "2016-09-01T05:42:00Z"
+                            },
+                            "sunSet": {
+                              "type": "string",
+                              "description": "日落时间",
+                              "example": "2016-09-01T18:45:00Z"
+                            },
+                            "temp": {
+                              "type": "string",
+                              "description": "温度",
+                              "example": "24"
+                            },
+                            "tips": {
+                              "type": "string",
+                              "description": "天气提示",
+                              "example": "冷热适宜，感觉很舒适。"
+                            },
+                            "updatetime": {
+                              "type": "string",
+                              "description": "更新时间",
+                              "example": "2016-09-01T22:03:00Z"
+                            },
+                            "uvi": {
+                              "type": "string",
+                              "description": "紫外线指数",
+                              "example": "0"
+                            },
+                            "windDir": {
+                              "type": "string",
+                              "description": "风向",
+                              "example": "东北风"
+                            },
+                            "windLevel": {
+                              "type": "string",
+                              "description": "风力等级",
+                              "example": "2"
+                            },
+                            "windSpeed": {
+                              "type": "string",
+                              "description": "风速",
+                              "example": "2.45"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息",
+                      "example": "success"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "返回码",
+                          "example": 0
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "返回信息",
+                          "example": "success"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/whapi/json/aliweather/aqiforecast5days": {
+      "post": {
+        "operationId": "AQI预报5天",
+        "summary": "提供未来5天AQI数据",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "lon": {
+                    "description": "经度",
+                    "type": "string",
+                    "example": "116.40387397"
+                  },
+                  "lat": {
+                    "description": "纬度",
+                    "type": "string",
+                    "example": "39.91488908"
+                  },
+                  "token": {
+                    "description": "请求token（默认参数，必填）",
+                    "type": "string",
+                    "example": "17dbf48dff33b6228f3199dce7b9a6d6"
+                  }
+                },
+                "required": [
+                  "lat",
+                  "lon"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "aqiForecast": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "date": {
+                                "type": "string",
+                                "description": "预报日期"
+                              },
+                              "publishTime": {
+                                "type": "string",
+                                "description": "发布时间"
+                              },
+                              "value": {
+                                "type": "integer",
+                                "description": "空气质量指数"
+                              }
+                            }
+                          }
+                        },
+                        "city": {
+                          "type": "object",
+                          "properties": {
+                            "cityId": {
+                              "type": "integer",
+                              "description": "城市ID"
+                            },
+                            "counname": {
+                              "type": "string",
+                              "description": "国家名称"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "区县名称"
+                            },
+                            "pname": {
+                              "type": "string",
+                              "description": "所属省份或城市"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "rc": {
+                      "type": "object",
+                      "properties": {
+                        "c": {
+                          "type": "integer",
+                          "description": "内部状态码"
+                        },
+                        "p": {
+                          "type": "string",
+                          "description": "内部状态描述"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://finaljwd.market.alicloudapi.com"
+    }
+  ]
+}

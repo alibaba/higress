@@ -71,6 +71,11 @@ spec:
                       items:
                         type: string
                       type: array
+                    routeType:
+                      enum:
+                      - HTTP
+                      - GRPC
+                      type: string
                     service:
                       items:
                         type: string
@@ -247,9 +252,30 @@ spec:
         properties:
           spec:
             properties:
+              proxies:
+                items:
+                  properties:
+                    connectTimeout:
+                      type: integer
+                    listenerPort:
+                      type: integer
+                    name:
+                      type: string
+                    serverAddress:
+                      type: string
+                    serverPort:
+                      type: integer
+                    type:
+                      type: string
+                  type: object
+                type: array
               registries:
                 items:
                   properties:
+                    allowMcpServers:
+                      items:
+                        type: string
+                      type: array
                     authSecretName:
                       type: string
                     consulDatacenter:
@@ -263,6 +289,25 @@ spec:
                       type: string
                     domain:
                       type: string
+                    enableMCPServer:
+                      type: boolean
+                    enableScopeMcpServers:
+                      type: boolean
+                    mcpServerBaseUrl:
+                      type: string
+                    mcpServerExportDomains:
+                      items:
+                        type: string
+                      type: array
+                    metadata:
+                      additionalProperties:
+                        properties:
+                          innerMap:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      type: object
                     nacosAccessKey:
                       type: string
                     nacosAddressServer:
@@ -284,8 +329,28 @@ spec:
                       type: string
                     port:
                       type: integer
+                    protocol:
+                      type: string
+                    proxyName:
+                      type: string
+                    sni:
+                      type: string
                     type:
                       type: string
+                    vport:
+                      properties:
+                        default:
+                          type: integer
+                        services:
+                          items:
+                            properties:
+                              name:
+                                type: string
+                              value:
+                                type: integer
+                            type: object
+                          type: array
+                      type: object
                     zkServicesPath:
                       items:
                         type: string

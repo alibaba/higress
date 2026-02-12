@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 	"gopkg.in/yaml.v2"
 )
@@ -46,7 +46,7 @@ type Response struct {
 }
 
 // 用于存放拆解出来的工具相关信息
-type Tool_Param struct {
+type ToolsParam struct {
 	ToolName    string   `yaml:"toolName"`
 	Path        string   `yaml:"path"`
 	Method      string   `yaml:"method"`
@@ -56,10 +56,11 @@ type Tool_Param struct {
 }
 
 // 用于存放拆解出来的api相关信息
-type APIParam struct {
-	APIKey     APIKey       `yaml:"apiKey"`
-	URL        string       `yaml:"url"`
-	Tool_Param []Tool_Param `yaml:"tool_Param"`
+type APIsParam struct {
+	APIKey           APIKey       `yaml:"apiKey"`
+	URL              string       `yaml:"url"`
+	MaxExecutionTime int64        `yaml:"maxExecutionTime"`
+	ToolsParam       []ToolsParam `yaml:"toolsParam"`
 }
 
 type Info struct {
@@ -153,7 +154,10 @@ type APIProvider struct {
 	ServicePort int64 `required:"true" yaml:"servicePort" json:"servicePort"`
 	// @Title zh-CN 服务域名
 	// @Description zh-CN 服务域名，例如 restapi.amap.com
-	Domin string `required:"true" yaml:"domain" json:"domain"`
+	Domain string `required:"true" yaml:"domain" json:"domain"`
+	// @Title zh-CN 每一次请求api的超时时间
+	// @Description zh-CN 每一次请求api的超时时间，单位毫秒，默认50000
+	MaxExecutionTime int64 `yaml:"maxExecutionTime" json:"maxExecutionTime"`
 	// @Title zh-CN 通义千问大模型服务的key
 	// @Description zh-CN 通义千问大模型服务的key
 	APIKey APIKey `required:"true" yaml:"apiKey" json:"apiKey"`
@@ -167,11 +171,8 @@ type APIs struct {
 type Template struct {
 	Question    string `yaml:"question" json:"question"`
 	Thought1    string `yaml:"thought1" json:"thought1"`
-	ActionInput string `yaml:"actionInput" json:"actionInput"`
 	Observation string `yaml:"observation" json:"observation"`
 	Thought2    string `yaml:"thought2" json:"thought2"`
-	FinalAnswer string `yaml:"finalAnswer" json:"finalAnswer"`
-	Begin       string `yaml:"begin" json:"begin"`
 }
 
 type PromptTemplate struct {
@@ -189,7 +190,7 @@ type LLMInfo struct {
 	ServicePort int64 `required:"true" yaml:"servicePort" json:"servicePort"`
 	// @Title zh-CN 大模型服务域名
 	// @Description zh-CN 大模型服务域名，例如 dashscope.aliyuncs.com
-	Domin string `required:"true" yaml:"domin" json:"domin"`
+	Domain string `required:"true" yaml:"domain" json:"domain"`
 	// @Title zh-CN 大模型服务的key
 	// @Description zh-CN 大模型服务的key
 	APIKey string `required:"true" yaml:"apiKey" json:"apiKey"`
@@ -210,6 +211,15 @@ type LLMInfo struct {
 	MaxTokens int64 `yaml:"maxToken" json:"maxTokens"`
 }
 
+type JsonResp struct {
+	// @Title zh-CN Enable
+	// @Description zh-CN 是否要启用json格式化输出
+	Enable bool `yaml:"enable" json:"enable"`
+	// @Title zh-CN Json Schema
+	// @Description zh-CN 用以验证响应json的Json Schema, 为空则只验证返回的响应是否为合法json
+	JsonSchema map[string]interface{} `required:"false" json:"jsonSchema" yaml:"jsonSchema"`
+}
+
 type PluginConfig struct {
 	// @Title zh-CN 返回 HTTP 响应的模版
 	// @Description zh-CN 用 %s 标记需要被 cache value 替换的部分
@@ -222,8 +232,9 @@ type PluginConfig struct {
 	// @Description zh-CN 用于存储llm使用信息
 	LLMInfo        LLMInfo            `required:"true" yaml:"llm" json:"llm"`
 	LLMClient      wrapper.HttpClient `yaml:"-" json:"-"`
-	APIParam       []APIParam         `yaml:"-" json:"-"`
+	APIsParam      []APIsParam        `yaml:"-" json:"-"`
 	PromptTemplate PromptTemplate     `yaml:"promptTemplate" json:"promptTemplate"`
+	JsonResp       JsonResp           `yaml:"jsonResp" json:"jsonResp"`
 }
 
 func initResponsePromptTpl(gjson gjson.Result, c *PluginConfig) {
@@ -260,10 +271,12 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 			return errors.New("apiProvider domain is required")
 		}
 
-		apiKeyIn := item.Get("apiProvider.apiKey.in").String()
-		if apiKeyIn != "query" {
-			apiKeyIn = "header"
+		maxExecutionTime := item.Get("apiProvider.maxExecutionTime").Int()
+		if maxExecutionTime == 0 {
+			maxExecutionTime = 50000
 		}
+
+		apiKeyIn := item.Get("apiProvider.apiKey.in").String()
 
 		apiKeyName := item.Get("apiProvider.apiKey.name")
 
@@ -289,13 +302,13 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 			return err
 		}
 
-		var allTool_param []Tool_Param
+		var allTool_param []ToolsParam
 		//拆除服务下面的每个api的path
 		for path, pathmap := range apiStruct.Paths {
 			//拆解出每个api对应的参数
 			for method, submap := range pathmap {
 				//把参数列表存起来
-				var param Tool_Param
+				var param ToolsParam
 				param.Path = path
 				param.ToolName = submap.OperationID
 				if method == "get" {
@@ -319,13 +332,14 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 				allTool_param = append(allTool_param, param)
 			}
 		}
-		apiParam := APIParam{
-			APIKey:     APIKey{In: apiKeyIn, Name: apiKeyName.String(), Value: apiKeyValue.String()},
-			URL:        apiStruct.Servers[0].URL,
-			Tool_Param: allTool_param,
+		apiParam := APIsParam{
+			APIKey:           APIKey{In: apiKeyIn, Name: apiKeyName.String(), Value: apiKeyValue.String()},
+			URL:              apiStruct.Servers[0].URL,
+			MaxExecutionTime: maxExecutionTime,
+			ToolsParam:       allTool_param,
 		}
 
-		c.APIParam = append(c.APIParam, apiParam)
+		c.APIsParam = append(c.APIsParam, apiParam)
 	}
 	return nil
 }
@@ -338,60 +352,36 @@ func initReActPromptTpl(gjson gjson.Result, c *PluginConfig) {
 	if c.PromptTemplate.Language == "EN" {
 		c.PromptTemplate.ENTemplate.Question = gjson.Get("promptTemplate.enTemplate.question").String()
 		if c.PromptTemplate.ENTemplate.Question == "" {
-			c.PromptTemplate.ENTemplate.Question = "the input question you must answer"
+			c.PromptTemplate.ENTemplate.Question = "input question to answer"
 		}
 		c.PromptTemplate.ENTemplate.Thought1 = gjson.Get("promptTemplate.enTemplate.thought1").String()
 		if c.PromptTemplate.ENTemplate.Thought1 == "" {
-			c.PromptTemplate.ENTemplate.Thought1 = "you should always think about what to do"
-		}
-		c.PromptTemplate.ENTemplate.ActionInput = gjson.Get("promptTemplate.enTemplate.actionInput").String()
-		if c.PromptTemplate.ENTemplate.ActionInput == "" {
-			c.PromptTemplate.ENTemplate.ActionInput = "the input to the action"
+			c.PromptTemplate.ENTemplate.Thought1 = "consider previous and subsequent steps"
 		}
 		c.PromptTemplate.ENTemplate.Observation = gjson.Get("promptTemplate.enTemplate.observation").String()
 		if c.PromptTemplate.ENTemplate.Observation == "" {
-			c.PromptTemplate.ENTemplate.Observation = "the result of the action"
+			c.PromptTemplate.ENTemplate.Observation = "action result"
 		}
-		c.PromptTemplate.ENTemplate.Thought1 = gjson.Get("promptTemplate.enTemplate.thought2").String()
-		if c.PromptTemplate.ENTemplate.Thought1 == "" {
-			c.PromptTemplate.ENTemplate.Thought1 = "I now know the final answer"
-		}
-		c.PromptTemplate.ENTemplate.FinalAnswer = gjson.Get("promptTemplate.enTemplate.finalAnswer").String()
-		if c.PromptTemplate.ENTemplate.FinalAnswer == "" {
-			c.PromptTemplate.ENTemplate.FinalAnswer = "the final answer to the original input question, please give the most direct answer directly in Chinese, not English, and do not add extra content."
-		}
-		c.PromptTemplate.ENTemplate.Begin = gjson.Get("promptTemplate.enTemplate.begin").String()
-		if c.PromptTemplate.ENTemplate.Begin == "" {
-			c.PromptTemplate.ENTemplate.Begin = "Begin! Remember to speak as a pirate when giving your final answer. Use lots of \"Arg\"s"
+		c.PromptTemplate.ENTemplate.Thought2 = gjson.Get("promptTemplate.enTemplate.thought2").String()
+		if c.PromptTemplate.ENTemplate.Thought2 == "" {
+			c.PromptTemplate.ENTemplate.Thought2 = "I know what to respond"
 		}
 	} else if c.PromptTemplate.Language == "CH" {
 		c.PromptTemplate.CHTemplate.Question = gjson.Get("promptTemplate.chTemplate.question").String()
 		if c.PromptTemplate.CHTemplate.Question == "" {
-			c.PromptTemplate.CHTemplate.Question = "你需要回答的输入问题"
+			c.PromptTemplate.CHTemplate.Question = "输入要回答的问题"
 		}
 		c.PromptTemplate.CHTemplate.Thought1 = gjson.Get("promptTemplate.chTemplate.thought1").String()
 		if c.PromptTemplate.CHTemplate.Thought1 == "" {
-			c.PromptTemplate.CHTemplate.Thought1 = "你应该总是思考该做什么"
-		}
-		c.PromptTemplate.CHTemplate.ActionInput = gjson.Get("promptTemplate.chTemplate.actionInput").String()
-		if c.PromptTemplate.CHTemplate.ActionInput == "" {
-			c.PromptTemplate.CHTemplate.ActionInput = "行动的输入，必须出现在Action后"
+			c.PromptTemplate.CHTemplate.Thought1 = "考虑之前和之后的步骤"
 		}
 		c.PromptTemplate.CHTemplate.Observation = gjson.Get("promptTemplate.chTemplate.observation").String()
 		if c.PromptTemplate.CHTemplate.Observation == "" {
-			c.PromptTemplate.CHTemplate.Observation = "行动的结果"
+			c.PromptTemplate.CHTemplate.Observation = "行动结果"
 		}
-		c.PromptTemplate.CHTemplate.Thought1 = gjson.Get("promptTemplate.chTemplate.thought2").String()
-		if c.PromptTemplate.CHTemplate.Thought1 == "" {
-			c.PromptTemplate.CHTemplate.Thought1 = "我现在知道最终答案"
-		}
-		c.PromptTemplate.CHTemplate.FinalAnswer = gjson.Get("promptTemplate.chTemplate.finalAnswer").String()
-		if c.PromptTemplate.CHTemplate.FinalAnswer == "" {
-			c.PromptTemplate.CHTemplate.FinalAnswer = "对原始输入问题的最终答案"
-		}
-		c.PromptTemplate.CHTemplate.Begin = gjson.Get("promptTemplate.chTemplate.begin").String()
-		if c.PromptTemplate.CHTemplate.Begin == "" {
-			c.PromptTemplate.CHTemplate.Begin = "再次重申，不要修改以上模板的字段名称，开始吧！"
+		c.PromptTemplate.CHTemplate.Thought2 = gjson.Get("promptTemplate.chTemplate.thought2").String()
+		if c.PromptTemplate.CHTemplate.Thought2 == "" {
+			c.PromptTemplate.CHTemplate.Thought2 = "我知道该回应什么"
 		}
 	}
 }
@@ -400,7 +390,7 @@ func initLLMClient(gjson gjson.Result, c *PluginConfig) {
 	c.LLMInfo.APIKey = gjson.Get("llm.apiKey").String()
 	c.LLMInfo.ServiceName = gjson.Get("llm.serviceName").String()
 	c.LLMInfo.ServicePort = gjson.Get("llm.servicePort").Int()
-	c.LLMInfo.Domin = gjson.Get("llm.domain").String()
+	c.LLMInfo.Domain = gjson.Get("llm.domain").String()
 	c.LLMInfo.Path = gjson.Get("llm.path").String()
 	c.LLMInfo.Model = gjson.Get("llm.model").String()
 	c.LLMInfo.MaxIterations = gjson.Get("llm.maxIterations").Int()
@@ -419,6 +409,18 @@ func initLLMClient(gjson gjson.Result, c *PluginConfig) {
 	c.LLMClient = wrapper.NewClusterClient(wrapper.FQDNCluster{
 		FQDN: c.LLMInfo.ServiceName,
 		Port: c.LLMInfo.ServicePort,
-		Host: c.LLMInfo.Domin,
+		Host: c.LLMInfo.Domain,
 	})
+}
+
+func initJsonResp(gjson gjson.Result, c *PluginConfig) {
+	c.JsonResp.Enable = false
+	if c.JsonResp.Enable = gjson.Get("jsonResp.enable").Bool(); c.JsonResp.Enable {
+		c.JsonResp.JsonSchema = nil
+		if jsonSchemaValue := gjson.Get("jsonResp.jsonSchema"); jsonSchemaValue.Exists() {
+			if schemaValue, ok := jsonSchemaValue.Value().(map[string]interface{}); ok {
+				c.JsonResp.JsonSchema = schemaValue
+			}
+		}
+	}
 }

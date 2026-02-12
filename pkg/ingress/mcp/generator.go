@@ -16,18 +16,21 @@ package mcp
 
 // nolint
 import (
+	"encoding/json"
 	"path"
 	"sort"
 
 	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/ptypes/timestamp"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/types/known/anypb"
 	mcp "istio.io/api/mcp/v1alpha1"
 	"istio.io/istio/pilot/pkg/model"
 	"istio.io/istio/pilot/pkg/xds"
 	cfg "istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
+	"istio.io/istio/pkg/log"
 )
 
 var (
@@ -64,7 +67,7 @@ func (c ServiceEntryGenerator) Generate(proxy *model.Proxy, w *model.WatchedReso
 			return serviceEntries[i].CreationTimestamp.Before(serviceEntries[j].CreationTimestamp)
 		})
 	}
-	return generate(proxy, serviceEntries, w, updates, false, false)
+	return generate(proxy, serviceEntries, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c ServiceEntryGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -82,7 +85,7 @@ type VirtualServiceGenerator struct {
 func (c VirtualServiceGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	virtualServices := c.Environment.List(gvk.VirtualService, model.NamespaceAll)
-	return generate(proxy, virtualServices, w, updates, false, false)
+	return generate(proxy, virtualServices, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c VirtualServiceGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -100,7 +103,7 @@ type DestinationRuleGenerator struct {
 func (c DestinationRuleGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	rules := c.Environment.List(gvk.DestinationRule, model.NamespaceAll)
-	return generate(proxy, rules, w, updates, false, false)
+	return generate(proxy, rules, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c DestinationRuleGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -118,7 +121,7 @@ type EnvoyFilterGenerator struct {
 func (c EnvoyFilterGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	filters := c.Environment.List(gvk.EnvoyFilter, model.NamespaceAll)
-	return generate(proxy, filters, w, updates, false, false)
+	return generate(proxy, filters, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c EnvoyFilterGenerator) GenerateDeltas(proxy *model.Proxy, updates *model.PushRequest,
@@ -154,7 +157,7 @@ type WasmPluginGenerator struct {
 func (c WasmPluginGenerator) Generate(proxy *model.Proxy, w *model.WatchedResource,
 	updates *model.PushRequest) (model.Resources, model.XdsLogDetails, error) {
 	wasmPlugins := c.Environment.List(gvk.WasmPlugin, model.NamespaceAll)
-	return generate(proxy, wasmPlugins, w, updates, false, false)
+	return generate(proxy, wasmPlugins, w, updates, c.GeneratorOptions.KeepConfigLabels, c.GeneratorOptions.KeepConfigAnnotations)
 }
 
 func (c WasmPluginGenerator) GenerateDeltas(proxy *model.Proxy, push *model.PushContext, updates *model.PushRequest,
@@ -211,6 +214,14 @@ func generate(proxy *model.Proxy, configs []cfg.Config, w *model.WatchedResource
 		if keepAnnotations {
 			resource.Metadata.Annotations = config.Annotations
 		}
+
+		// Add config.Extra to Resource's unknown fields
+		if len(config.Extra) > 0 {
+			if err = addExtraToUnknownFields(resource, config.Extra); err != nil {
+				log.Warnf("Failed to add Extra to unknown fields: %v, extra: %v", err, config.Extra)
+			}
+		}
+
 		// nolint
 		mcpAny, err := anypb.New(resource)
 		if err != nil {
@@ -222,4 +233,36 @@ func generate(proxy *model.Proxy, configs []cfg.Config, w *model.WatchedResource
 		})
 	}
 	return resources, model.DefaultXdsLogDetails, nil
+}
+
+// addExtraToUnknownFields adds the Extra map to the Resource's unknown fields
+// We use field number 100 (which is not defined in the proto) to store the Extra data
+func addExtraToUnknownFields(resource *mcp.Resource, extra map[string]any) error {
+	// Serialize Extra to JSON
+	extraJSON, err := json.Marshal(extra)
+	if err != nil {
+		return err
+	}
+
+	// Use field number 100 (arbitrary high number not used in the proto definition)
+	// Resource proto only has field 1 (metadata) and field 2 (body), so 100 is safe
+	// Field 100, wire type 2 (length-delimited for bytes/string)
+	const extraFieldNumber = 100
+
+	// Encode the field: tag (field number + wire type) + length + data
+	tag := protowire.EncodeTag(extraFieldNumber, protowire.BytesType)
+	unknownData := protowire.AppendVarint(nil, uint64(tag))
+	unknownData = protowire.AppendBytes(unknownData, extraJSON)
+
+	// Get the ProtoReflect interface to access unknown fields
+	resourceReflect := resource.ProtoReflect()
+
+	// Append to existing unknown fields
+	existingUnknown := resourceReflect.GetUnknown()
+	resourceReflect.SetUnknown(append(existingUnknown, unknownData...))
+
+	log.Debugf("[addExtraToUnknownFields] Added %d bytes to Resource unknown fields (field %d)", len(unknownData), extraFieldNumber)
+	log.Debugf("[addExtraToUnknownFields] Extra JSON: %s", string(extraJSON))
+	log.Debugf("[addExtraToUnknownFields] Unknown data (hex): %x", unknownData)
+	return nil
 }

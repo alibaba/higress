@@ -19,6 +19,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
+        {{- with .Values.controller.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
         {{- include "controller.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.controller.imagePullSecrets }}
@@ -69,6 +72,16 @@ spec:
                 fieldPath: spec.serviceAccountName
           - name: DOMAIN_SUFFIX
             value: {{ .Values.global.proxy.clusterDomain }}
+          - name: GATEWAY_NAME
+            value: {{ include "gateway.name" . }}
+          - name: PILOT_ENABLE_GATEWAY_API
+            value: "{{ .Values.global.enableGatewayAPI }}"
+          - name: PILOT_ENABLE_ALPHA_GATEWAY_API
+            value: "{{ .Values.global.enableGatewayAPI }}"
+          {{- if .Values.global.enableInferenceExtension }}
+          - name: ENABLE_GATEWAY_API_INFERENCE_EXTENSION
+            value: "true"
+          {{- end }}
           {{- if .Values.controller.env }}
           {{- range $key, $val := .Values.controller.env }}
           - name: {{ $key }}
@@ -90,7 +103,6 @@ spec:
           volumeMounts:
           - name: log
             mountPath: /var/log
-{{- if not .Values.global.enableHigressIstio }}
         - name: discovery
           image: "{{ .Values.pilot.hub | default .Values.global.hub }}/{{ .Values.pilot.image | default "pilot" }}:{{ .Values.pilot.tag | default .Chart.AppVersion }}"
 {{- if .Values.global.imagePullPolicy }}
@@ -131,6 +143,20 @@ spec:
             periodSeconds: 3
             timeoutSeconds: 5
           env:
+          {{- if .Values.global.watchNamespace }}
+          - name: ISTIO_WATCH_NAMESPACE
+            value: "{{ .Values.global.watchNamespace }}"
+          {{- end }}
+          - name: ENABLE_PUSH_ALL_MCP_CLUSTERS
+            value: "{{ .Values.global.enablePushAllMCPClusters }}"
+          - name: PILOT_ENABLE_LDS_CACHE
+            value: "{{ .Values.global.enableLDSCache }}"
+          - name: PILOT_ENABLE_QUIC_LISTENERS
+            value: "true"
+          - name: VALIDATION_WEBHOOK_CONFIG_NAME
+            value: ""
+          - name: ISTIO_DUAL_STACK
+            value: "{{ .Values.global.enableIPv6 }}"
           - name: PILOT_ENABLE_HEADLESS_SERVICE_POD_LISTENERS
             value: "false"
           - name: PILOT_ENABLE_ALPN_FILTER
@@ -147,12 +173,22 @@ spec:
             value: "{{ .Values.global.xdsMaxRecvMsgSize }}"
           - name: ENBALE_SCOPED_RDS
             value: "{{ .Values.global.enableSRDS }}"
+          - name: ISTIO_DELTA_XDS
+            value: "{{ .Values.global.enableDeltaXDS }}"
           - name: ON_DEMAND_RDS
             value: "{{ .Values.global.onDemandRDS }}"
           - name: HOST_RDS_MERGE_SUBSET
             value: "{{ .Values.global.hostRDSMergeSubset }}"
           - name: PILOT_FILTER_GATEWAY_CLUSTER_CONFIG
+            {{- if .Values.global.enableInferenceExtension }}
+            value: "false"
+            {{- else }}
             value: "{{ .Values.global.onlyPushRouteCluster }}"
+            {{- end }}
+          {{- if .Values.global.enableInferenceExtension }}
+          - name: ENABLE_GATEWAY_API_INFERENCE_EXTENSION
+            value: "true"
+          {{- end }}
           - name: HIGRESS_CONTROLLER_SVC
             value: "127.0.0.1"
           - name: HIGRESS_CONTROLLER_PORT
@@ -209,18 +245,16 @@ spec:
           - name: HIGRESS_ENABLE_ISTIO_API
             value: "true"
           {{- end }}
-          {{- if .Values.global.enableGatewayAPI }}
           - name: PILOT_ENABLE_GATEWAY_API
-            value: "true"
+            value: "false"
+          - name: PILOT_ENABLE_ALPHA_GATEWAY_API
+            value: "false"
           - name: PILOT_ENABLE_GATEWAY_API_STATUS
-            value: "true"
+            value: "false"
           - name: PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER
             value: "false"
-          {{- end }}
-          {{- if not .Values.global.enableHigressIstio }}
           - name: CUSTOM_CA_CERT_NAME
             value: "higress-ca-root-cert"
-          {{- end }}
           {{- if not (or .Values.global.local .Values.global.kind) }}
           resources:
 {{- if .Values.pilot.resources }}
@@ -257,7 +291,6 @@ spec:
           - name: extracacerts
             mountPath: /cacerts
           {{- end }}
-{{- end }}
       {{- with .Values.controller.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -270,10 +303,13 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.controller.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
       - name: log
         emptyDir: {}
-      {{- if not .Values.global.enableHigressIstio }}
       - name: config
         configMap:
           name: higress-config
@@ -305,4 +341,3 @@ spec:
         configMap:
           name: pilot-jwks-extra-cacerts{{- if not (eq .Values.revision "") }}-{{ .Values.revision }}{{- end }}
   {{- end }}
-      {{- end }}

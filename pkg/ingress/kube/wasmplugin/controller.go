@@ -15,21 +15,33 @@
 package wasmplugin
 
 import (
-	"istio.io/istio/pkg/cluster"
+	"time"
+
 	"istio.io/istio/pkg/kube/controllers"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/cache"
 
-	listersv1 "github.com/alibaba/higress/client/pkg/listers/extensions/v1alpha1"
-	"github.com/alibaba/higress/pkg/ingress/kube/controller"
-	kubeclient "github.com/alibaba/higress/pkg/kube"
+	v1 "github.com/alibaba/higress/v2/client/pkg/apis/extensions/v1alpha1"
+	"github.com/alibaba/higress/v2/client/pkg/clientset/versioned"
+	informersv1 "github.com/alibaba/higress/v2/client/pkg/informers/externalversions/extensions/v1alpha1"
+	listersv1 "github.com/alibaba/higress/v2/client/pkg/listers/extensions/v1alpha1"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/controller"
+	kubeclient "github.com/alibaba/higress/v2/pkg/kube"
 )
 
 type WasmPluginController controller.Controller[listersv1.WasmPluginLister]
 
-func NewController(client kubeclient.Client, clusterId cluster.ID) WasmPluginController {
-	informer := client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Informer()
-	return controller.NewCommonController("wasmplugin", client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Lister(),
-		informer, GetWasmPlugin, clusterId)
+func NewController(client kubeclient.Client, options common.Options) WasmPluginController {
+	var informer cache.SharedIndexInformer
+	if options.WatchNamespace == "" {
+		informer = client.HigressInformer().Extensions().V1alpha1().WasmPlugins().Informer()
+	} else {
+		informer = client.HigressInformer().InformerFor(&v1.WasmPlugin{}, func(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+			return informersv1.NewWasmPluginInformer(client, options.WatchNamespace, resyncPeriod, nil)
+		})
+	}
+	return controller.NewCommonController("wasmplugin", listersv1.NewWasmPluginLister(informer.GetIndexer()), informer, GetWasmPlugin, options.ClusterId)
 }
 
 func GetWasmPlugin(lister listersv1.WasmPluginLister, namespacedName types.NamespacedName) (controllers.Object, error) {

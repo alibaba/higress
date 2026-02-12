@@ -1,6 +1,6 @@
 # Contributing to Higress
 
-It is warmly welcomed if you have interest to hack on Higress. First, we encourage this kind of willing very much. And here is a list of contributing guide for you.
+Your interest in contributing to Higress is warmly welcomed. First, we encourage this kind of willing very much. And here is a list of contributing guide for you.
 
 [[中文贡献文档](./CONTRIBUTING_CN.md)]
 
@@ -168,6 +168,31 @@ No matter commit message, or commit content, we do take more emphasis on code re
 ### PR Description
 
 PR is the only way to make change to Higress project files. To help reviewers better get your purpose, PR description could not be too detailed. We encourage contributors to follow the [PR template](./.github/PULL_REQUEST_TEMPLATE.md) to finish the pull request.
+
+#### Special Requirements for AI Coding Tool Usage
+
+If you use AI Coding tools (such as Cursor, GitHub Copilot, etc.) to generate PRs, we have the following **strict requirements**:
+
+**For new standalone plugin scenarios** (e.g., newly implemented wasm plugins or golang-filter plugins):
+- You **MUST** create a `design/` directory under the plugin directory
+- Place the design document you provided to the AI Coding tool in the `design/` directory
+- Provide an AI Coding summary in the PR description
+
+**For regular updates/changes scenarios**:
+- Provide the prompts/instructions you gave to the AI Coding tool in the PR description
+- Provide an AI Coding summary in the PR description
+
+**AI Coding Summary should include**:
+- Key decisions made
+- Major changes implemented
+- Important considerations or limitations
+
+**Review Priority Notice**:
+- If you use AI Coding tools but do not follow the above requirements, your PR review priority will be **lowered**
+- We **cannot guarantee** timely reviews for AI Coding PRs that do not meet these requirements
+- If the PR is not completed using AI Coding tools, these additional requirements do not apply
+
+The purpose of these requirements is to ensure that AI-generated code is adequately documented and traceable, facilitating code review and subsequent maintenance. By requiring prompts/design documents, we can better understand the development intent and context.
 
 ### Pre-development preparation
 

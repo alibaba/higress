@@ -15,13 +15,13 @@
 package gateway
 
 import (
+	"istio.io/istio/pilot/pkg/features"
 	"sync/atomic"
 
 	"istio.io/istio/pilot/pkg/config/kube/crdclient"
-	"istio.io/istio/pilot/pkg/credentials"
-	kubecredentials "istio.io/istio/pilot/pkg/credentials/kube"
 	"istio.io/istio/pilot/pkg/model"
 	kubecontroller "istio.io/istio/pilot/pkg/serviceregistry/kube/controller"
+	"istio.io/istio/pilot/pkg/status"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
@@ -29,14 +29,13 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/schema/resource"
 	"istio.io/istio/pkg/kube"
-	"istio.io/istio/pkg/kube/multicluster"
 	"k8s.io/client-go/tools/cache"
 
-	higressconfig "github.com/alibaba/higress/pkg/config"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	istiogateway "github.com/alibaba/higress/pkg/ingress/kube/gateway/istio"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	. "github.com/alibaba/higress/pkg/ingress/log"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	istiogateway "github.com/alibaba/higress/v2/pkg/ingress/kube/gateway/istio"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	. "github.com/alibaba/higress/v2/pkg/ingress/log"
 )
 
 type gatewayController struct {
@@ -46,13 +45,13 @@ type gatewayController struct {
 	envoyFilterHandlers     []model.EventHandler
 
 	store           model.ConfigStoreController
-	credsController credentials.MulticlusterController
 	istioController *istiogateway.Controller
+	statusManager   *status.Manager
 
 	resourceUpToDate atomic.Bool
 }
 
-func NewController(client kube.Client, options common.Options) common.GatewayController {
+func NewController(client kube.Client, options common.Options, xdsUpdater model.XDSUpdater) common.GatewayController {
 	domainSuffix := util.GetDomainSuffix()
 	opts := crdclient.Option{
 		Revision:     higressconfig.Revision,
@@ -66,27 +65,35 @@ func NewController(client kube.Client, options common.Options) common.GatewayCon
 		}
 		return false
 	})
+	// Add gateway api inference schema if enabled
+	if features.EnableGatewayAPIInferenceExtension {
+		schemasBuilder.MustAdd(collections.InferencePool)
+	}
 	store := crdclient.NewForSchemas(client, opts, schemasBuilder.Build())
 
 	clusterId := options.ClusterId
-	credsController := kubecredentials.NewMulticluster(clusterId)
-	credsController.ClusterAdded(&multicluster.Cluster{ID: clusterId, Client: client}, nil)
-	istioController := istiogateway.NewController(client, store, client.CrdWatcher().WaitForCRD, credsController, kubecontroller.Options{DomainSuffix: domainSuffix})
+	opt := kubecontroller.Options{
+		DomainSuffix: domainSuffix,
+		ClusterID:    clusterId,
+		Revision:     higressconfig.Revision,
+	}
+	istioController := istiogateway.NewController(client, client.CrdWatcher().WaitForCRD, opt, xdsUpdater)
 	if options.GatewaySelectorKey != "" {
 		istioController.DefaultGatewaySelector = map[string]string{options.GatewaySelectorKey: options.GatewaySelectorValue}
 	}
 
+	var statusManager *status.Manager = nil
 	if options.EnableStatus {
-		// TODO: Add status sync support
-		//istioController.SetStatusWrite(true,)
+		statusManager = status.NewManager(store)
+		istioController.SetStatusWrite(true, statusManager)
 	} else {
 		IngressLog.Infof("Disable status update for cluster %s", clusterId)
 	}
 
 	return &gatewayController{
 		store:           store,
-		credsController: credsController,
 		istioController: istioController,
+		statusManager:   statusManager,
 	}
 }
 
@@ -100,10 +107,7 @@ func (g *gatewayController) Get(typ config.GroupVersionKind, name, namespace str
 
 func (g *gatewayController) List(typ config.GroupVersionKind, namespace string) []config.Config {
 	if g.resourceUpToDate.CompareAndSwap(false, true) {
-		err := g.istioController.Reconcile(model.NewPushContext())
-		if err != nil {
-			IngressLog.Errorf("failed to recompute Gateway API resources: %v", err)
-		}
+		g.istioController.Reconcile(model.NewPushContext())
 	}
 	return g.istioController.List(typ, namespace)
 }
@@ -148,6 +152,9 @@ func (g *gatewayController) Run(stop <-chan struct{}) {
 	})
 	go g.store.Run(stop)
 	go g.istioController.Run(stop)
+	if g.statusManager != nil {
+		g.statusManager.Start(stop)
+	}
 }
 
 func (g *gatewayController) SetWatchErrorHandler(f func(r *cache.Reflector, err error)) error {
@@ -158,10 +165,7 @@ func (g *gatewayController) SetWatchErrorHandler(f func(r *cache.Reflector, err 
 func (g *gatewayController) HasSynced() bool {
 	ret := g.istioController.HasSynced()
 	if ret {
-		err := g.istioController.Reconcile(model.NewPushContext())
-		if err != nil {
-			IngressLog.Errorf("failed to recompute Gateway API resources: %v", err)
-		}
+		g.istioController.Reconcile(model.NewPushContext())
 	}
 	return ret
 }

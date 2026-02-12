@@ -21,7 +21,10 @@ type Protocol string
 const (
 	TCP         Protocol = "TCP"
 	HTTP        Protocol = "HTTP"
+	HTTP2       Protocol = "HTTP2"
+	HTTPS       Protocol = "HTTPS"
 	GRPC        Protocol = "GRPC"
+	GRPCS       Protocol = "GRPCS"
 	Dubbo       Protocol = "Dubbo"
 	Unsupported Protocol = "UnsupportedProtocol"
 )
@@ -32,8 +35,14 @@ func ParseProtocol(s string) Protocol {
 		return TCP
 	case "http":
 		return HTTP
+	case "https":
+		return HTTPS
+	case "http2":
+		return HTTP2
 	case "grpc", "triple", "tri":
 		return GRPC
+	case "grpcs":
+		return GRPCS
 	case "dubbo":
 		return Dubbo
 	}
@@ -51,7 +60,7 @@ func (p Protocol) IsTCP() bool {
 
 func (p Protocol) IsHTTP() bool {
 	switch p {
-	case HTTP, GRPC:
+	case HTTP, GRPC, GRPCS, HTTP2, HTTPS:
 		return true
 	default:
 		return false
@@ -60,7 +69,16 @@ func (p Protocol) IsHTTP() bool {
 
 func (p Protocol) IsGRPC() bool {
 	switch p {
-	case GRPC:
+	case GRPC, GRPCS:
+		return true
+	default:
+		return false
+	}
+}
+
+func (i Protocol) IsHTTPS() bool {
+	switch i {
+	case HTTPS, GRPCS:
 		return true
 	default:
 		return false
@@ -73,6 +91,15 @@ func (p Protocol) IsDubbo() bool {
 
 func (p Protocol) IsUnsupported() bool {
 	return p == Unsupported
+}
+
+func (p Protocol) IsSupportedByProxy() bool {
+	switch p {
+	case HTTPS:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p Protocol) String() string {

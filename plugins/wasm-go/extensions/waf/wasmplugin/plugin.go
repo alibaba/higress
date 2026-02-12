@@ -5,12 +5,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/wrapper"
 	"github.com/corazawaf/coraza/v3"
 	"github.com/corazawaf/coraza/v3/debuglog"
 	ctypes "github.com/corazawaf/coraza/v3/types"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
 
@@ -31,7 +32,7 @@ type WafConfig struct {
 	//tx  ctypes.Transaction
 }
 
-func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
+func parseConfig(json gjson.Result, config *WafConfig, log log.Log) error {
 	var secRules []string
 	var value gjson.Result
 	value = json.Get("useCRS")
@@ -68,7 +69,7 @@ func parseConfig(json gjson.Result, config *WafConfig, log wrapper.Log) error {
 	return nil
 }
 
-func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
+func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log log.Log) types.Action {
 	ctx.SetContext("skipwaf", false)
 
 	if ignoreBody() {
@@ -148,7 +149,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper
 	return types.ActionContinue
 }
 
-func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log log.Log) types.Action {
 	if ctx.GetContext("interruptionHandled").(bool) {
 		return types.ActionContinue
 	}
@@ -200,7 +201,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config WafConfig, body []byte, l
 	return types.ActionContinue
 }
 
-func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) types.Action {
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log log.Log) types.Action {
 	if ctx.GetContext("skipwaf").(bool) {
 		return types.ActionContinue
 	}
@@ -257,7 +258,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config WafConfig, log wrappe
 	return types.ActionContinue
 }
 
-func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log wrapper.Log) types.Action {
+func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, log log.Log) types.Action {
 	if ctx.GetContext("interruptionHandled").(bool) {
 		// At response body phase, proxy-wasm currently relies on emptying the response body as a way of
 		// interruption the response. See https://github.com/corazawaf/coraza-proxy-wasm/issues/26.
@@ -318,7 +319,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config WafConfig, body []byte, 
 	return types.ActionContinue
 }
 
-func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log wrapper.Log) {
+func onHttpStreamDone(ctx wrapper.HttpContext, config WafConfig, log log.Log) {
 	if ctx.GetContext("skipwaf").(bool) {
 		return
 	}

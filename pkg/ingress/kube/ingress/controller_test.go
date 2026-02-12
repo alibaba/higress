@@ -40,11 +40,11 @@ import (
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	networkinglister "k8s.io/client-go/listers/networking/v1beta1"
 
-	"github.com/alibaba/higress/pkg/ingress/kube/annotations"
-	"github.com/alibaba/higress/pkg/ingress/kube/common"
-	"github.com/alibaba/higress/pkg/ingress/kube/secret"
-	"github.com/alibaba/higress/pkg/ingress/kube/util"
-	"github.com/alibaba/higress/pkg/kube"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/secret"
+	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
+	"github.com/alibaba/higress/v2/pkg/kube"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,7 +54,7 @@ func TestIngressControllerApplies(t *testing.T) {
 
 	options := common.Options{IngressClass: "mse", ClusterId: ""}
 
-	secretController := secret.NewController(localKubeClient, options.ClusterId)
+	secretController := secret.NewController(localKubeClient, options)
 	ingressController := NewController(localKubeClient, client, options, secretController)
 
 	testcases := map[string]func(*testing.T, common.IngressController){
@@ -87,7 +87,8 @@ func testApplyCanaryIngress(t *testing.T, c common.IngressController) {
 				wrapperConfig: nil,
 			},
 			expectNoError: false,
-		}, {
+		},
+		{
 			description: "convertOptions is not nil but empty",
 			input: struct {
 				options       *common.ConvertOptions
@@ -121,28 +122,30 @@ func testApplyCanaryIngress(t *testing.T, c common.IngressController) {
 					},
 				},
 				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Host: "test1",
-							IngressRuleValue: ingress.IngressRuleValue{
-								HTTP: &ingress.HTTPIngressRuleValue{
-									Paths: []ingress.HTTPIngressPath{
-										{
-											Path:     "/test",
-											PathType: &defaultPathType,
+					Spec: ingress.IngressSpec{
+						Rules: []ingress.IngressRule{
+							{
+								Host: "test1",
+								IngressRuleValue: ingress.IngressRuleValue{
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{
+											{
+												Path:     "/test",
+												PathType: &defaultPathType,
+											},
 										},
 									},
 								},
 							},
 						},
-					},
 						Backend: &ingress.IngressBackend{},
 						TLS: []ingress.IngressTLS{
 							{
 								Hosts:      []string{"test1", "test2"},
 								SecretName: "test",
 							},
-						}},
+						},
+					},
 				}, AnnotationsConfig: &annotations.Ingress{}},
 			},
 			expectNoError: true,
@@ -209,28 +212,30 @@ func testApplyDefaultBackend(t *testing.T, c common.IngressController) {
 					HTTPRoutes:        make(map[string][]*common.WrapperHTTPRoute),
 				},
 				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Host: "test1",
-							IngressRuleValue: ingress.IngressRuleValue{
-								HTTP: &ingress.HTTPIngressRuleValue{
-									Paths: []ingress.HTTPIngressPath{
-										{
-											Path:     "/test",
-											PathType: &defaultPathType,
+					Spec: ingress.IngressSpec{
+						Rules: []ingress.IngressRule{
+							{
+								Host: "test1",
+								IngressRuleValue: ingress.IngressRuleValue{
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{
+											{
+												Path:     "/test",
+												PathType: &defaultPathType,
+											},
 										},
 									},
 								},
 							},
 						},
-					},
 						Backend: &ingress.IngressBackend{},
 						TLS: []ingress.IngressTLS{
 							{
 								Hosts:      []string{"test1", "test2"},
 								SecretName: "test",
 							},
-						}},
+						},
+					},
 				}, AnnotationsConfig: &annotations.Ingress{}},
 			},
 			expectNoError: true,
@@ -253,7 +258,7 @@ func TestIngressControllerConventions(t *testing.T) {
 
 	options := common.Options{IngressClass: "mse", ClusterId: "", EnableStatus: true}
 
-	secretController := secret.NewController(localKubeClient, options.ClusterId)
+	secretController := secret.NewController(localKubeClient, options)
 	ingressController := NewController(localKubeClient, client, options, secretController)
 
 	testcases := map[string]func(*testing.T, common.IngressController){
@@ -314,27 +319,29 @@ func testConvertGateway(t *testing.T, c common.IngressController) {
 					Gateways: make(map[string]*common.WrapperGateway),
 				},
 				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Host: "test1",
-							IngressRuleValue: ingress.IngressRuleValue{
-								HTTP: &ingress.HTTPIngressRuleValue{
-									Paths: []ingress.HTTPIngressPath{
-										{
-											Path: "/test",
+					Spec: ingress.IngressSpec{
+						Rules: []ingress.IngressRule{
+							{
+								Host: "test1",
+								IngressRuleValue: ingress.IngressRuleValue{
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{
+											{
+												Path: "/test",
+											},
 										},
 									},
 								},
 							},
 						},
-					},
 						Backend: &ingress.IngressBackend{},
 						TLS: []ingress.IngressTLS{
 							{
 								Hosts:      []string{"test1", "test2"},
 								SecretName: "test",
 							},
-						}},
+						},
+					},
 				}, AnnotationsConfig: &annotations.Ingress{}},
 			},
 			expectNoError: true,
@@ -400,30 +407,33 @@ func testConvertHTTPRoute(t *testing.T, c common.IngressController) {
 					IngressRouteCache: &common.IngressRouteCache{},
 					HTTPRoutes:        make(map[string][]*common.WrapperHTTPRoute),
 				},
-				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Host: "test1",
-							IngressRuleValue: ingress.IngressRuleValue{
-								HTTP: &ingress.HTTPIngressRuleValue{
-									Paths: []ingress.HTTPIngressPath{
-										{
-											Path:     "/test",
-											PathType: &defaultPathType,
+				wrapperConfig: &common.WrapperConfig{
+					Config: &config.Config{
+						Spec: ingress.IngressSpec{
+							Rules: []ingress.IngressRule{
+								{
+									Host: "test1",
+									IngressRuleValue: ingress.IngressRuleValue{
+										HTTP: &ingress.HTTPIngressRuleValue{
+											Paths: []ingress.HTTPIngressPath{
+												{
+													Path:     "/test",
+													PathType: &defaultPathType,
+												},
+											},
 										},
 									},
 								},
 							},
-						},
-					},
-						Backend: &ingress.IngressBackend{},
-						TLS: []ingress.IngressTLS{
-							{
-								Hosts:      []string{"test1", "test2"},
-								SecretName: "test",
+							Backend: &ingress.IngressBackend{},
+							TLS: []ingress.IngressTLS{
+								{
+									Hosts:      []string{"test1", "test2"},
+									SecretName: "test",
+								},
 							},
-						}},
-				}, AnnotationsConfig: &annotations.Ingress{},
+						},
+					}, AnnotationsConfig: &annotations.Ingress{},
 				},
 			},
 			expectNoError: true,
@@ -491,25 +501,26 @@ func testConvertTrafficPolicy(t *testing.T, c common.IngressController) {
 					HTTPRoutes:            make(map[string][]*common.WrapperHTTPRoute),
 				},
 				wrapperConfig: &common.WrapperConfig{Config: &config.Config{
-					Spec: ingress.IngressSpec{Rules: []ingress.IngressRule{
-						{
-							Host: "test1",
-							IngressRuleValue: ingress.IngressRuleValue{
-								HTTP: &ingress.HTTPIngressRuleValue{
-									Paths: []ingress.HTTPIngressPath{
-										{
-											Path:     "/test",
-											PathType: &defaultPathType,
-											Backend: ingress.IngressBackend{
-												ServiceName: "test",
-												ServicePort: intstr.FromInt(8080),
+					Spec: ingress.IngressSpec{
+						Rules: []ingress.IngressRule{
+							{
+								Host: "test1",
+								IngressRuleValue: ingress.IngressRuleValue{
+									HTTP: &ingress.HTTPIngressRuleValue{
+										Paths: []ingress.HTTPIngressPath{
+											{
+												Path:     "/test",
+												PathType: &defaultPathType,
+												Backend: ingress.IngressBackend{
+													ServiceName: "test",
+													ServicePort: intstr.FromInt(8080),
+												},
 											},
 										},
 									},
 								},
 							},
 						},
-					},
 						Backend: &ingress.IngressBackend{
 							ServiceName: "test",
 						},
@@ -518,7 +529,8 @@ func testConvertTrafficPolicy(t *testing.T, c common.IngressController) {
 								Hosts:      []string{"test1", "test2"},
 								SecretName: "test",
 							},
-						}},
+						},
+					},
 				}, AnnotationsConfig: &annotations.Ingress{
 					LoadBalance: &annotations.LoadBalanceConfig{},
 				}},
@@ -607,7 +619,8 @@ func testcreateDefaultRoute(t *testing.T, c *controller) {
 							Name:      "test",
 						},
 					},
-					AnnotationsConfig: &annotations.Ingress{}},
+					AnnotationsConfig: &annotations.Ingress{},
+				},
 				backend: &ingress.IngressBackend{
 					ServiceName: "test",
 					ServicePort: intstr.FromInt(8088),
@@ -932,7 +945,8 @@ func TestSetDefaultMSEIngressOptionalField(t *testing.T) {
 			},
 			expect:      &ingress.Ingress{},
 			description: "nil",
-		}, {
+		},
+		{
 			input: struct{ ing *ingress.Ingress }{
 				ing: &ingress.Ingress{
 					Spec: ingress.IngressSpec{
@@ -955,7 +969,8 @@ func TestSetDefaultMSEIngressOptionalField(t *testing.T) {
 				},
 			},
 			description: "tls host is empty",
-		}, {
+		},
+		{
 			input: struct{ ing *ingress.Ingress }{
 				ing: &ingress.Ingress{
 					Spec: ingress.IngressSpec{
@@ -979,7 +994,8 @@ func TestSetDefaultMSEIngressOptionalField(t *testing.T) {
 				},
 			},
 			description: "tls host is not empty",
-		}, {
+		},
+		{
 			input: struct{ ing *ingress.Ingress }{
 				ing: &ingress.Ingress{
 					Spec: ingress.IngressSpec{
@@ -1017,7 +1033,8 @@ func TestSetDefaultMSEIngressOptionalField(t *testing.T) {
 				},
 			},
 			description: "http is nil",
-		}, {
+		},
+		{
 			input: struct{ ing *ingress.Ingress }{
 				ing: &ingress.Ingress{
 					Spec: ingress.IngressSpec{
@@ -1072,7 +1089,8 @@ func TestSetDefaultMSEIngressOptionalField(t *testing.T) {
 				},
 			},
 			description: "http is not nil but host is empty",
-		}, {
+		},
+		{
 			input: struct{ ing *ingress.Ingress }{
 				ing: &ingress.Ingress{
 					Spec: ingress.IngressSpec{
@@ -1142,7 +1160,7 @@ func TestIngressControllerProcessing(t *testing.T) {
 
 	options := common.Options{IngressClass: "mse", ClusterId: "", EnableStatus: true}
 
-	secretController := secret.NewController(localKubeClient, options.ClusterId)
+	secretController := secret.NewController(localKubeClient, options)
 
 	opts := ktypes.InformerOptions{}
 	ingressInformer := util.GetInformerFiltered(fakeClient, opts, gvrIngressV1Beta1, &ingress.Ingress{},
@@ -1174,7 +1192,7 @@ func TestIngressControllerProcessing(t *testing.T) {
 	stopChan := make(chan struct{})
 	t.Cleanup(func() {
 		time.Sleep(3 * time.Second)
-		stopChan <- struct{}{}
+		close(stopChan)
 	})
 
 	go ingressController.ingressInformer.Start(stopChan)
@@ -1325,7 +1343,7 @@ func TestCreateRuleKey(t *testing.T) {
 		buildHigressAnnotationKey("exact-" + annotations.MatchQuery + "-region"):           "beijing",
 		buildHigressAnnotationKey("prefix-" + annotations.MatchQuery + "-user-id"):         "user-",
 	}
-	expect := "higress.com-prefix-/foo" + sep + //host-pathType-path
+	expect := "higress.com-prefix-/foo" + sep + // host-pathType-path
 		"GET PUT" + sep + // method
 		"exact-:authority\tfoo.bar.com" + "\n" + "exact-abc\t123" + "\n" +
 		"prefix-:scheme\thtt" + "\n" + "prefix-def\t456" + sep + // header
@@ -1333,7 +1351,6 @@ func TestCreateRuleKey(t *testing.T) {
 
 	key := createRuleKey(annots, wrapperHttpRoute.PathFormat())
 	if diff := cmp.Diff(expect, key); diff != "" {
-
 		t.Errorf("CreateRuleKey() mismatch (-want +got):\n%s", diff)
 	}
 }
