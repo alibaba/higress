@@ -204,13 +204,11 @@ const higressPlugin = {
             const modelIds = parseModelIds(modelInput);
             const hasAutoModel = modelIds.includes("higress/auto");
 
-            // FIX: Avoid double prefix - if modelId already starts with provider, don't add prefix again
+            // Always add higress/ provider prefix to create model reference
             const defaultModelId = hasAutoModel
               ? "higress/auto"
               : (modelIds[0] ?? "glm-5");
-            const defaultModelRef = defaultModelId.startsWith("higress/")
-              ? defaultModelId
-              : `higress/${defaultModelId}`;
+            const defaultModelRef = `higress/${defaultModelId}`;
 
             // Step 7: Configure default model for auto-routing
             let autoRoutingDefaultModel = "glm-5";
@@ -250,10 +248,8 @@ const higressPlugin = {
                   defaults: {
                     models: Object.fromEntries(
                       modelIds.map((modelId) => {
-                        // FIX: Avoid double prefix - only add provider prefix if not already present
-                        const modelRef = modelId.startsWith("higress/")
-                          ? modelId
-                          : `higress/${modelId}`;
+                        // Always add higress/ provider prefix to create model reference
+                        const modelRef = `higress/${modelId}`;
                         return [modelRef, {}];
                       }),
                     ),
