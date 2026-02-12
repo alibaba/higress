@@ -27,23 +27,22 @@ const DEFAULT_MAX_TOKENS = 128_000;
 const DEFAULT_MODEL_IDS = [
   // Auto-routing special model
   "higress/auto",
-  // OpenAI models
-  "gpt-5.3-codex",
-  "gpt-5-mini",
-  "gpt-5-nano",
+  // Commonly models
+  "kimi-k2.5",
+  "glm-5",
+  "MiniMax-M2.1",
+  "qwen3-coder-plus",
   // Anthropic models
   "claude-opus-4.6",
   "claude-sonnet-4.5",
   "claude-haiku-4.5",
-  // Qwen models
-  "qwen3-coder-plus",
+  // OpenAI models
+  "gpt-5.3-codex",
+  "gpt-5-mini",
+  "gpt-5-nano",
   // DeepSeek models
   "deepseek-chat",
-  "deepseek-reasoner",
-  // Other common models
-  "kimi-k2.5",
-  "glm-5",
-  "MiniMax-M2.1",
+  "deepseek-reasoner",  
 ] as const;
 
 function normalizeBaseUrl(value: string): string {
