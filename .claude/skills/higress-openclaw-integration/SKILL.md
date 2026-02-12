@@ -53,6 +53,10 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
 ### Step 2: Deploy Gateway
 
 ```bash
+# Create installation directory
+mkdir -p higress-install
+cd higress-install
+
 # Download script (if not exists)
 curl -fsSL https://higress.ai/ai-gateway/install.sh -o get-ai-gateway.sh
 chmod +x get-ai-gateway.sh
@@ -157,7 +161,7 @@ Provider aliases: `dashscope`/`qwen`, `moonshot`/`kimi`, `zhipuai`/`zhipu`
 |----------|-----|
 | Chat Completions | http://localhost:8080/v1/chat/completions |
 | Console | http://localhost:8001 |
-| Logs | `./higress/logs/access.log` |
+| Logs | `./higress-install/logs/access.log` |
 
 ## Testing
 
