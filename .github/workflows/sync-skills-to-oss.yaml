@@ -17,10 +17,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Sync to OSS
+      - name: Download AI Gateway Install Script
+        run: |
+          wget -O install.sh https://raw.githubusercontent.com/higress-group/higress-standalone/main/all-in-one/get-ai-gateway.sh
+          chmod +x install.sh
+
+      - name: Sync Skills to OSS
         uses: go-choppy/ossutil-github-action@master
         with:
           ossArgs: 'cp -r -u .claude/skills/ oss://higress-ai/skills/'
+          accessKey: ${{ secrets.ACCESS_KEYID }}
+          accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
+          endpoint: oss-cn-hongkong.aliyuncs.com
+
+      - name: Sync Install Script to OSS
+        uses: go-choppy/ossutil-github-action@master
+        with:
+          ossArgs: 'cp install.sh oss://higress-ai/ai-gateway/install.sh'
           accessKey: ${{ secrets.ACCESS_KEYID }}
           accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
           endpoint: oss-cn-hongkong.aliyuncs.com
