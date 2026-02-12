@@ -140,45 +140,53 @@ func getDefaultAttributes() []Attribute {
 	return []Attribute{
 		// Extract complete conversation history from request body
 		{
-			Key:        "messages",
+			Key:         "messages",
 			ValueSource: RequestBody,
-			Value:      "messages",
-			ApplyToLog: true,
+			Value:       "messages",
+			ApplyToLog:  true,
 		},
-		// Built-in attributes (no value_source needed, will be auto-extracted)
+		// Built-in attributes (value_source needed for streaming body buffering)
 		{
-			Key:        BuiltinQuestionKey,
-			ApplyToLog: true,
-		},
-		{
-			Key:        BuiltinAnswerKey,
-			ApplyToLog: true,
+			Key:         BuiltinQuestionKey,
+			ValueSource: RequestBody,
+			ApplyToLog:  true,
 		},
 		{
-			Key:        BuiltinReasoningKey,
-			ApplyToLog: true,
+			Key:         BuiltinAnswerKey,
+			ValueSource: ResponseStreamingBody,
+			ApplyToLog:  true,
 		},
 		{
-			Key:        BuiltinToolCallsKey,
-			ApplyToLog: true,
+			Key:         BuiltinReasoningKey,
+			ValueSource: ResponseStreamingBody,
+			ApplyToLog:  true,
+		},
+		{
+			Key:         BuiltinToolCallsKey,
+			ValueSource: ResponseStreamingBody,
+			ApplyToLog:  true,
 		},
 		// Token statistics (auto-extracted from response)
 		{
-			Key:        BuiltinReasoningTokens,
-			ApplyToLog: true,
+			Key:         BuiltinReasoningTokens,
+			ValueSource: ResponseStreamingBody,
+			ApplyToLog:  true,
 		},
 		{
-			Key:        BuiltinCachedTokens,
-			ApplyToLog: true,
+			Key:         BuiltinCachedTokens,
+			ValueSource: ResponseStreamingBody,
+			ApplyToLog:  true,
 		},
 		// Detailed token information
 		{
-			Key:        BuiltinInputTokenDetails,
-			ApplyToLog: true,
+			Key:         BuiltinInputTokenDetails,
+			ValueSource: ResponseStreamingBody,
+			ApplyToLog:  true,
 		},
 		{
-			Key:        BuiltinOutputTokenDetails,
-			ApplyToLog: true,
+			Key:         BuiltinOutputTokenDetails,
+			ValueSource: ResponseStreamingBody,
+			ApplyToLog:  true,
 		},
 	}
 }
