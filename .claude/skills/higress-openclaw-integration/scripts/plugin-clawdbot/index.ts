@@ -1,34 +1,49 @@
-import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import { emptyPluginConfigSchema } from "clawdbot/plugin-sdk";
 
 const DEFAULT_GATEWAY_URL = "http://localhost:8080";
 const DEFAULT_CONSOLE_URL = "http://localhost:8001";
+
+// Model-specific context window and max tokens configurations
+const MODEL_CONFIG: Record<string, { contextWindow: number; maxTokens: number }> = {
+  "gpt-5.3-codex": { contextWindow: 400_000, maxTokens: 128_000 },
+  "gpt-5-mini": { contextWindow: 400_000, maxTokens: 128_000 },
+  "gpt-5-nano": { contextWindow: 400_000, maxTokens: 128_000 },
+  "claude-opus-4.6": { contextWindow: 1_000_000, maxTokens: 128_000 },
+  "claude-sonnet-4.5": { contextWindow: 1_000_000, maxTokens: 64_000 },
+  "claude-haiku-4.5": { contextWindow: 200_000, maxTokens: 64_000 },
+  "qwen3-coder-plus": { contextWindow: 1_000_000, maxTokens: 64_000 },
+  "deepseek-chat": { contextWindow: 256_000, maxTokens: 128_000 },
+  "deepseek-reasoner": { contextWindow: 256_000, maxTokens: 128_000 },
+  "kimi-k2.5": { contextWindow: 256_000, maxTokens: 128_000 },
+  "glm-5": { contextWindow: 200_000, maxTokens: 128_000 },
+  "MiniMax-M2.5": { contextWindow: 196_000, maxTokens: 196_000 },
+};
+
+// Default values for unknown models
 const DEFAULT_CONTEXT_WINDOW = 128_000;
-const DEFAULT_MAX_TOKENS = 8192;
+const DEFAULT_MAX_TOKENS = 8_192;
 
 // Common models that Higress AI Gateway typically supports
 const DEFAULT_MODEL_IDS = [
   // Auto-routing special model
   "higress/auto",
   // OpenAI models
-  "gpt-5.2",
+  "gpt-5.3-codex",
   "gpt-5-mini",
   "gpt-5-nano",
   // Anthropic models
-  "claude-opus-4.5",
+  "claude-opus-4.6",
   "claude-sonnet-4.5",
   "claude-haiku-4.5",
   // Qwen models
-  "qwen3-turbo",
-  "qwen3-plus",
-  "qwen3-max",
-  "qwen3-coder-480b-a35b-instruct",
+  "qwen3-coder-plus",
   // DeepSeek models
   "deepseek-chat",
   "deepseek-reasoner",
   // Other common models
   "kimi-k2.5",
-  "glm-4.7",
-  "MiniMax-M2.1",
+  "glm-5",
+  "MiniMax-M2.5",
 ] as const;
 
 function normalizeBaseUrl(value: string): string {
@@ -60,15 +75,17 @@ function parseModelIds(input: string): string[] {
 
 function buildModelDefinition(modelId: string) {
   const isAutoModel = modelId === "higress/auto";
+  const config = MODEL_CONFIG[modelId] || { contextWindow: DEFAULT_CONTEXT_WINDOW, maxTokens: DEFAULT_MAX_TOKENS };
+
   return {
     id: modelId,
     name: isAutoModel ? "Higress Auto Router" : modelId,
     api: "openai-completions",
-    reasoning: false,
+    reasoning: true,
     input: ["text", "image"],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-    contextWindow: DEFAULT_CONTEXT_WINDOW,
-    maxTokens: DEFAULT_MAX_TOKENS,
+    contextWindow: config.contextWindow,
+    maxTokens: config.maxTokens,
   };
 }
 
@@ -184,13 +201,13 @@ const higressPlugin = {
 
             const modelIds = parseModelIds(modelInput);
             const hasAutoModel = modelIds.includes("higress/auto");
-            
+
             // FIX: Avoid double prefix - if modelId already starts with provider, don't add prefix again
-            const defaultModelId = hasAutoModel 
-              ? "higress/auto" 
+            const defaultModelId = hasAutoModel
+              ? "higress/auto"
               : (modelIds[0] ?? "qwen-turbo");
-            const defaultModelRef = defaultModelId.startsWith("higress/") 
-              ? defaultModelId 
+            const defaultModelRef = defaultModelId.startsWith("higress/")
+              ? defaultModelId
               : `higress/${defaultModelId}`;
 
             // Step 7: Configure default model for auto-routing
@@ -231,8 +248,8 @@ const higressPlugin = {
                     models: Object.fromEntries(
                       modelIds.map((modelId) => {
                         // FIX: Avoid double prefix - only add provider prefix if not already present
-                        const modelRef = modelId.startsWith("higress/") 
-                          ? modelId 
+                        const modelRef = modelId.startsWith("higress/")
+                          ? modelId
                           : `higress/${modelId}`;
                         return [modelRef, {}];
                       }),
@@ -261,17 +278,12 @@ const higressPlugin = {
                 `Gateway endpoint: ${gatewayUrl}/v1/chat/completions`,
                 `Console: ${consoleUrl}`,
                 "",
-                "🎯 Recommended Skills (install via Clawdbot conversation):",
+                "🎯 Recommended Skills (install via OpenClaw conversation):",
                 "",
                 "1. Auto-Routing Skill:",
                 "   Configure automatic model routing based on message content",
                 "   https://github.com/alibaba/higress/tree/main/.claude/skills/higress-auto-router",
                 '   Say: "Install higress-auto-router skill"',
-                "",
-                "2. Agent Session Monitor Skill:",
-                "   Track token usage and monitor conversation history",
-                "   https://github.com/alibaba/higress/tree/main/.claude/skills/agent-session-monitor",
-                '   Say: "Install agent-session-monitor skill"',
               ],
             };
           },

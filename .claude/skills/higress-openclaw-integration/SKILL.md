@@ -1,11 +1,11 @@
 ---
-name: higress-clawdbot-integration
-description: "Deploy and configure Higress AI Gateway for Clawdbot/OpenClaw integration. Use when: (1) User wants to deploy Higress AI Gateway, (2) User wants to configure Clawdbot/OpenClaw to use Higress as a model provider, (3) User mentions 'higress', 'ai gateway', 'model gateway', 'AI网关', (4) User wants to set up model routing or auto-routing, (5) User needs to manage LLM provider API keys, (6) User wants to track token usage and conversation history."
+name: higress-openclaw-integration
+description: "Deploy and configure Higress AI Gateway for OpenClaw integration. Use when: (1) User wants to deploy Higress AI Gateway, (2) User wants to configure OpenClaw to use Higress as a model provider, (3) User mentions 'higress', 'ai gateway', 'model gateway', 'AI网关', (4) User wants to set up model routing or auto-routing, (5) User needs to manage LLM provider API keys."
 ---
 
 # Higress AI Gateway Integration
 
-Deploy and configure Higress AI Gateway for Clawdbot/OpenClaw integration with one-click deployment, model provider configuration, auto-routing, and session monitoring.
+Deploy and configure Higress AI Gateway for OpenClaw integration with one-click deployment, model provider configuration, and auto-routing.
 
 ## Prerequisites
 
@@ -112,28 +112,17 @@ After script completion:
    http://localhost:8001
    ```
 
-### Step 5: Configure Clawdbot/OpenClaw Plugin
+### Step 5: Configure OpenClaw Plugin
 
-If user wants to use Higress with Clawdbot/OpenClaw, install appropriate plugin:
+If user wants to use Higress with OpenClaw, install the plugin:
 
 #### Automatic Installation
 
-Detect runtime and install correct plugin version:
-
 ```bash
-# Detect which runtime is installed
-if command -v clawdbot &> /dev/null; then
-  RUNTIME="clawdbot"
-  RUNTIME_DIR="$HOME/.clawdbot"
-  PLUGIN_SRC="scripts/plugin-clawdbot"
-elif command -v openclaw &> /dev/null; then
-  RUNTIME="openclaw"
-  RUNTIME_DIR="$HOME/.openclaw"
-  PLUGIN_SRC="scripts/plugin"
-else
-  echo "Error: Neither clawdbot nor openclaw is installed"
-  exit 1
-fi
+# Install plugin for OpenClaw
+RUNTIME="openclaw"
+RUNTIME_DIR="$HOME/.openclaw"
+PLUGIN_SRC="scripts/plugin"
 
 # Install plugin
 PLUGIN_DEST="$RUNTIME_DIR/extensions/higress-ai-gateway"
@@ -153,6 +142,8 @@ The plugin will guide you through an interactive setup for:
 1. Gateway URL (default: `http://localhost:8080`)
 2. Console URL (default: `http://localhost:8001`)
 3. API Key (optional for local deployments)
+4. Model list (auto-detected or manually specified)
+5. Auto-routing default model (if using `higress/auto`)
 4. Model list (auto-detected or manually specified)
 5. Auto-routing default model (if using `higress/auto`)
 
@@ -269,15 +260,10 @@ Gateway access logs are available at:
 $DATA_FOLDER/logs/access.log
 ```
 
-These logs can be used with **agent-session-monitor** skill for token tracking and conversation analysis.
-
 ## Related Skills
 
-- **higress-auto-router**: Configure automatic model routing using CLI commands  
+- **higress-auto-router**: Configure automatic model routing using CLI commands
   See: [higress-auto-router](../higress-auto-router/SKILL.md)
-
-- **agent-session-monitor**: Monitor and track token usage across sessions  
-  See: [agent-session-monitor](../agent-session-monitor/SKILL.md)
 
 ## Examples
 
@@ -315,15 +301,14 @@ curl 'http://localhost:8080/v1/chat/completions' \
   -d '{"model": "qwen-turbo", "messages": [{"role": "user", "content": "Hello!"}]}'
 ```
 
-### Example 2: Full Integration with Clawdbot
+### Example 2: Full Integration with OpenClaw
 
-**User:** 完整配置Higress和Clawdbot的集成
+**User:** 完整配置Higress和OpenClaw的集成
 
 **Steps:**
 1. Deploy Higress AI Gateway (auto-detects timezone)
-2. Install and configure Clawdbot plugin
+2. Install and configure OpenClaw plugin
 3. Enable auto-routing
-4. Set up session monitoring
 
 **Response:**
 
@@ -339,15 +324,12 @@ Selected plugin registry: higress-registry.cn-hangzhou.cr.aliyuncs.com
    - 容器镜像: Hangzhou (自动选择)
    - 插件镜像: Hangzhou (自动选择)
 
-2. Clawdbot 插件配置:
-   Plugin installed at: /root/.clawdbot/extensions/higress-ai-gateway
-   Run: clawdbot models auth login --provider higress
+2. OpenClaw 插件配置:
+   Plugin installed at: /root/.openclaw/extensions/higress-ai-gateway
+   Run: openclaw models auth login --provider higress
 
 3. 自动路由:
    已启用，使用 model="higress/auto"
-
-4. 会话监控:
-   日志路径: ./higress/logs/access.log
 
 需要我帮你配置自动路由规则吗？
 ```
