@@ -129,7 +129,7 @@ async function fetchAvailableModels(consoleUrl: string): Promise<string[]> {
 }
 
 const higressPlugin = {
-  id: "higress-ai-gateway",
+  id: "higress",
   name: "Higress AI Gateway",
   description: "Model provider plugin for Higress AI Gateway with auto-routing support",
   configSchema: emptyPluginConfigSchema(),
@@ -261,7 +261,7 @@ const higressPlugin = {
                 },
                 plugins: {
                   entries: {
-                    "higress-ai-gateway": {
+                    "higress": {
                       enabled: true,
                       config: {
                         gatewayUrl,
