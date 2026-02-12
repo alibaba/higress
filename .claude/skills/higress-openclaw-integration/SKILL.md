@@ -15,21 +15,31 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
 
 1. **Which LLM provider(s) to use?** (at least one required)
 
+   **Commonly Used Providers:**
+
    | Provider | Parameter | Notes |
    |----------|-----------|-------|
-   | 阿里云通义千问 (Dashscope) | `--dashscope-key` | Models: qwen-* |
-   | DeepSeek | `--deepseek-key` | Models: deepseek-* |
-   | Moonshot (Kimi) | `--moonshot-key` | Models: moonshot-*, kimi-* |
    | 智谱 / z.ai | `--zhipuai-key` | Models: glm-*, Code Plan mode enabled by default |
-   | OpenAI | `--openai-key` | Models: gpt-*, o1-*, o3-* |
-   | Claude | `--claude-key` | Models: claude-* |
    | Claude Code | `--claude-code-key` | **Requires OAuth token from `claude setup-token`** |
+   | Moonshot (Kimi) | `--moonshot-key` | Models: moonshot-*, kimi-* |
+   | Minimax | `--minimax-key` | Models: abab-* |
+   | 阿里云通义千问 (Dashscope) | `--dashscope-key` | Models: qwen-* |
+   | OpenAI | `--openai-key` | Models: gpt-*, o1-*, o3-* |
+   | DeepSeek | `--deepseek-key` | Models: deepseep-* |
+   | Grok | `--grok-key` | Models: grok-* |
+
+   **Other Providers:**
+   
+   <details>
+   <summary>Click to expand full provider list</summary>
+
+   | Provider | Parameter | Notes |
+   |----------|-----------|-------|
+   | Claude | `--claude-key` | Models: claude-* |
    | Google Gemini | `--gemini-key` | Models: gemini-* |
    | OpenRouter | `--openrouter-key` | Supports all models (catch-all) |
-   | Grok | `--grok-key` | Models: grok-* |
    | Groq | `--groq-key` | Fast inference |
    | Doubao (豆包) | `--doubao-key` | Models: doubao-* |
-   | Minimax | `--minimax-key` | Models: abab-* |
    | Mistral | `--mistral-key` | Models: mistral-* |
    | Baichuan (百川) | `--baichuan-key` | Models: Baichuan* |
    | 01.AI (Yi) | `--yi-key` | Models: yi-* |
@@ -38,11 +48,13 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
    | Fireworks AI | `--fireworks-key` | - |
    | Together AI | `--togetherai-key` | - |
    | GitHub Models | `--github-key` | - |
-
+   
    **Cloud Providers (require additional config):**
    - Azure OpenAI: `--azure-key` (requires service URL)
    - AWS Bedrock: `--bedrock-key` (requires region and access key)
    - Google Vertex AI: `--vertex-key` (requires project ID and region)
+   
+   </details>
 
    **Brand Name Display (z.ai / 智谱):**
    - If user communicates in Chinese: display as "智谱"
