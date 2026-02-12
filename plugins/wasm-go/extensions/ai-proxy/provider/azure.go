@@ -206,7 +206,16 @@ func (m *azureProvider) transformRequestPath(ctx wrapper.HttpContext, apiName Ap
 		path = strings.ReplaceAll(path, pathAzureModelPlaceholder, model)
 		log.Debugf("azureProvider: model replaced path: %s", path)
 	}
-	path = path + "?" + m.serviceUrl.RawQuery
+	if !strings.Contains(path, "?") {
+		// No query string yet
+		path = path + "?" + m.serviceUrl.RawQuery
+	} else if strings.HasSuffix(path, "?") {
+		// Ends with "?" and has no query parameter
+		path = path + m.serviceUrl.RawQuery
+	} else {
+		// Has other query parameters
+		path = path + "&" + m.serviceUrl.RawQuery
+	}
 	log.Debugf("azureProvider: final path: %s", path)
 
 	return path

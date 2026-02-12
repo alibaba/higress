@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -151,6 +152,7 @@ const (
 	protocolOriginal = "original"
 
 	roleSystem    = "system"
+	roleDeveloper = "developer"
 	roleAssistant = "assistant"
 	roleUser      = "user"
 	roleTool      = "tool"
@@ -192,6 +194,12 @@ type providerInitializer interface {
 
 var (
 	errUnsupportedApiName = errors.New("unsupported API name")
+
+	// Providers that support the "developer" role. Other providers will have "developer" roles converted to "system".
+	developerRoleSupportedProviders = map[string]bool{
+		providerTypeOpenAI: true,
+		providerTypeAzure:  true,
+	}
 
 	providerInitializers = map[string]providerInitializer{
 		providerTypeMoonshot:   &moonshotProviderInitializer{},
@@ -445,6 +453,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
+	// @Title zh-CN 智谱AI服务域名
+	// @Description zh-CN 仅适用于智谱AI服务。默认为 open.bigmodel.cn（中国），可配置为 api.z.ai（国际）
+	zhipuDomain string `required:"false" yaml:"zhipuDomain" json:"zhipuDomain"`
+	// @Title zh-CN 智谱AI Code Plan 模式
+	// @Description zh-CN 仅适用于智谱AI服务。启用后将使用 /api/coding/paas/v4/chat/completions 接口
+	zhipuCodePlanMode bool `required:"false" yaml:"zhipuCodePlanMode" json:"zhipuCodePlanMode"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -650,6 +664,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
 	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
+	c.zhipuDomain = json.Get("zhipuDomain").String()
+	c.zhipuCodePlanMode = json.Get("zhipuCodePlanMode").Bool()
 	c.contextCleanupCommands = make([]string, 0)
 	for _, cmd := range json.Get("contextCleanupCommands").Array() {
 		if cmd.String() != "" {
@@ -838,6 +854,34 @@ func doGetMappedModel(model string, modelMapping map[string]string) string {
 	return ""
 }
 
+// isDeveloperRoleSupported checks if the provider supports the "developer" role.
+func isDeveloperRoleSupported(providerType string) bool {
+	return developerRoleSupportedProviders[providerType]
+}
+
+// convertDeveloperRoleToSystem converts "developer" roles to "system" role in the request body.
+// This is used for providers that don't support the "developer" role.
+func convertDeveloperRoleToSystem(body []byte) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return body, fmt.Errorf("unable to unmarshal request for developer role conversion: %v", err)
+	}
+
+	converted := false
+	for i := range request.Messages {
+		if request.Messages[i].Role == roleDeveloper {
+			request.Messages[i].Role = roleSystem
+			converted = true
+		}
+	}
+
+	if converted {
+		return json.Marshal(request)
+	}
+
+	return body, nil
+}
+
 func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent {
 	body := chunk
 	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
@@ -973,6 +1017,18 @@ func (c *ProviderConfig) handleRequestBody(
 			log.Warnf("[contextCleanup] failed to cleanup context messages: %v", err)
 			// Continue processing even if cleanup fails
 			err = nil
+		}
+	}
+
+	// convert developer role to system role for providers that don't support it
+	if apiName == ApiNameChatCompletion && !isDeveloperRoleSupported(c.typ) {
+		body, err = convertDeveloperRoleToSystem(body)
+		if err != nil {
+			log.Warnf("[developerRole] failed to convert developer role to system: %v", err)
+			// Continue processing even if conversion fails
+			err = nil
+		} else {
+			log.Debugf("[developerRole] converted developer role to system for provider: %s", c.typ)
 		}
 	}
 

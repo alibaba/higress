@@ -149,6 +149,7 @@ func TestBedrock(t *testing.T) {
 	test.RunBedrockOnHttpRequestBodyTests(t)
 	test.RunBedrockOnHttpResponseHeadersTests(t)
 	test.RunBedrockOnHttpResponseBodyTests(t)
+	test.RunBedrockToolCallTests(t)
 }
 
 func TestClaude(t *testing.T) {
