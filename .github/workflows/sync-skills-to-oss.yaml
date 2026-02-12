@@ -1,0 +1,26 @@
+name: Sync Skills to OSS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.claude/skills/**'
+  workflow_dispatch: ~
+
+jobs:
+  sync-skills-to-oss:
+    runs-on: ubuntu-latest
+    environment:
+      name: oss
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync to OSS
+        uses: go-choppy/ossutil-github-action@master
+        with:
+          ossArgs: 'cp -r -u .claude/skills/ oss://higress-ai/skills/'
+          accessKey: ${{ secrets.ACCESS_KEYID }}
+          accessSecret: ${{ secrets.ACCESS_KEYSECRET }}
+          endpoint: oss-cn-hongkong.aliyuncs.com
