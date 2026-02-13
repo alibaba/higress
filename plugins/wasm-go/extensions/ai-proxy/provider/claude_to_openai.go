@@ -477,12 +477,17 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			Content: []claudeTextGenContent{},
 		}
 
-		// Only include usage if it's available
+		// Always include usage fields to match Claude native API format
+		// If usage info is not available, set to 0
+		var inputTokens int
 		if openaiResponse.Usage != nil {
-			message.Usage = claudeTextGenUsage{
-				InputTokens:  openaiResponse.Usage.PromptTokens,
-				OutputTokens: 0,
-			}
+			inputTokens = openaiResponse.Usage.PromptTokens
+		}
+		message.Usage = claudeTextGenUsage{
+			InputTokens:              inputTokens,
+			OutputTokens:             0,
+			CacheReadInputTokens:     0,
+			CacheCreationInputTokens: 0,
 		}
 
 		responses = append(responses, &claudeTextGenStreamResponse{
@@ -726,15 +731,17 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 		log.Debugf("[OpenAI->Claude] Processing usage info - input: %d, output: %d",
 			openaiResponse.Usage.PromptTokens, openaiResponse.Usage.CompletionTokens)
 
-		// Send message_delta with both stop_reason and usage (Claude protocol requirement)
+		// Always include all usage fields to match Claude native API format
 		messageDelta := &claudeTextGenStreamResponse{
 			Type: "message_delta",
 			Delta: &claudeTextGenDelta{
 				Type: "message_delta",
 			},
 			Usage: &claudeTextGenUsage{
-				InputTokens:  openaiResponse.Usage.PromptTokens,
-				OutputTokens: openaiResponse.Usage.CompletionTokens,
+				InputTokens:              openaiResponse.Usage.PromptTokens,
+				OutputTokens:             openaiResponse.Usage.CompletionTokens,
+				CacheReadInputTokens:     0,
+				CacheCreationInputTokens: 0,
 			},
 		}
 
