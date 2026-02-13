@@ -165,6 +165,54 @@ var vertexRawModeWithBasePathConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：Vertex Standard Mode 配置（含 multi-publisher 模型映射）
+var vertexMultiPublisherConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":                  "vertex",
+			"vertexAuthKey":         `{"type":"service_account","client_email":"test@test.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7k1v5C7y8L4SN\n-----END PRIVATE KEY-----\n","token_uri":"https://oauth2.googleapis.com/token"}`,
+			"vertexRegion":          "us-central1",
+			"vertexProjectId":       "test-project-id",
+			"vertexAuthServiceName": "test-auth-service",
+			"modelMapping": map[string]string{
+				"gpt-4":          "gemini-2.5-pro",
+				"llama-4":        "meta/llama-4-scout-17b-16e-instruct-maas",
+				"deepseek-v3":    "deepseek/deepseek-v3-2-0324",
+				"mistral-large":  "mistral-large@2407",
+				"claude-3-opus":  "claude-3-opus@20240229",
+				"qwen-3":         "qwen/qwen-3-235b-a22b",
+			},
+		},
+	})
+	return data
+}()
+
+// 测试配置：Vertex Standard Mode 配置（含 vertexPublisher 覆盖）
+var vertexPublisherOverrideConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":                  "vertex",
+			"vertexAuthKey":         `{"type":"service_account","client_email":"test@test.iam.gserviceaccount.com","private_key":"-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7k1v5C7y8L4SN\n-----END PRIVATE KEY-----\n","token_uri":"https://oauth2.googleapis.com/token"}`,
+			"vertexRegion":          "us-central1",
+			"vertexProjectId":       "test-project-id",
+			"vertexAuthServiceName": "test-auth-service",
+			"vertexPublisher":       "mistralai",
+		},
+	})
+	return data
+}()
+
+// 测试配置：Vertex Express Mode with Claude model
+var vertexExpressModeClaudeConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":      "vertex",
+			"apiTokens": []string{"test-api-key-123456789"},
+		},
+	})
+	return data
+}()
+
 func RunVertexParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		// 测试 Vertex 标准模式配置解析
@@ -1580,6 +1628,320 @@ func RunVertexRawModeOnHttpResponseBodyTests(t *testing.T) {
 			// 响应应该保持原生 Vertex 格式
 			require.Contains(t, responseStr, "candidates", "Response should keep native vertex format with candidates")
 			require.Contains(t, responseStr, "usageMetadata", "Response should keep native vertex format with usageMetadata")
+		})
+	})
+}
+
+// ==================== Multi-Publisher Tests ====================
+
+func RunVertexMultiPublisherOnHttpRequestBodyTests(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		// Test: Mistral model routes to rawPredict with OpenAI-compatible body
+		t.Run("vertex multi-publisher mistral model rawPredict", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"mistral-large","messages":[{"role":"user","content":"Hello"}],"stream":false}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// Verify path contains mistralai publisher and rawPredict action
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "publishers/mistralai/models/", "Path should use mistralai publisher")
+			require.Contains(t, pathHeader, "mistral-large@2407", "Path should contain mapped model name")
+			require.Contains(t, pathHeader, ":rawPredict", "Path should use rawPredict action")
+
+			// Verify body maintains OpenAI format with model and stream fields
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, `"model"`, "Body should contain model field")
+			require.Contains(t, bodyStr, `"stream"`, "Body should contain stream field")
+			require.Contains(t, bodyStr, `"messages"`, "Body should contain messages field")
+		})
+
+		// Test: Llama model routes to OpenAI-compatible endpoint
+		t.Run("vertex multi-publisher llama model openai-compatible", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"llama-4","messages":[{"role":"user","content":"Hello"}]}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// Verify path uses OpenAI-compatible endpoint
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "endpoints/openapi/chat/completions", "Path should use OpenAI-compatible endpoint")
+			require.Contains(t, pathHeader, "v1beta1", "Path should use v1beta1 API version")
+
+			// Verify body contains mapped model name
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "meta/llama-4-scout-17b-16e-instruct-maas", "Body should contain mapped model name")
+		})
+
+		// Test: DeepSeek model routes to OpenAI-compatible endpoint
+		t.Run("vertex multi-publisher deepseek model openai-compatible", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"deepseek-v3","messages":[{"role":"user","content":"Hello"}]}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "endpoints/openapi/chat/completions", "Path should use OpenAI-compatible endpoint")
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			require.Contains(t, string(processedBody), "deepseek/deepseek-v3-2-0324", "Body should contain mapped model name")
+		})
+
+		// Test: Claude model still routes to anthropic rawPredict (backward compatibility)
+		t.Run("vertex multi-publisher claude model rawPredict backward compat", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"claude-3-opus","messages":[{"role":"user","content":"Hello"}],"max_tokens":100}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "publishers/anthropic/models/", "Path should use anthropic publisher")
+			require.Contains(t, pathHeader, ":rawPredict", "Path should use rawPredict action")
+
+			// Verify body is converted to Anthropic Messages format
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "anthropic_version", "Body should contain anthropic_version")
+			require.Contains(t, bodyStr, "vertex-2023-10-16", "Body should use vertex anthropic version")
+		})
+
+		// Test: Gemini model in Standard Mode routes to OpenAI-compatible endpoint
+		t.Run("vertex multi-publisher gemini model openai-compatible", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gpt-4","messages":[{"role":"user","content":"Hello"}]}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			// gpt-4 maps to gemini-2.5-pro, which should route to OpenAI-compatible
+			require.Contains(t, pathHeader, "endpoints/openapi/chat/completions", "Gemini should route to OpenAI-compatible endpoint in Standard Mode")
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			require.Contains(t, string(processedBody), "gemini-2.5-pro", "Body should contain mapped model name")
+		})
+
+		// Test: Qwen model routes to OpenAI-compatible endpoint
+		t.Run("vertex multi-publisher qwen model openai-compatible", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"qwen-3","messages":[{"role":"user","content":"Hello"}]}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "endpoints/openapi/chat/completions", "Qwen should route to OpenAI-compatible endpoint")
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			require.Contains(t, string(processedBody), "qwen/qwen-3-235b-a22b", "Body should contain mapped qwen model name")
+		})
+	})
+}
+
+func RunVertexMultiPublisherStreamingTests(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		// Test: Mistral streaming request uses streamRawPredict
+		t.Run("vertex multi-publisher mistral streaming rawPredict", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"mistral-large","messages":[{"role":"user","content":"Hello"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, ":streamRawPredict", "Streaming Mistral should use streamRawPredict action")
+			require.Contains(t, pathHeader, "publishers/mistralai/models/", "Path should use mistralai publisher")
+		})
+	})
+}
+
+func RunVertexPublisherOverrideTests(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		// Test: vertexPublisher override forces rawPredict for any model
+		t.Run("vertex publisher override forces rawPredict", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexPublisherOverrideConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// Use a model name that would normally route to OpenAI-compatible
+			requestBody := `{"model":"custom-model","messages":[{"role":"user","content":"Hello"}],"stream":false}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "publishers/mistralai/models/", "Override should force mistralai publisher")
+			require.Contains(t, pathHeader, ":rawPredict", "Override should use rawPredict")
+		})
+	})
+}
+
+func RunVertexExpressModeClaudeRequestBodyTests(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		// Test: Claude model in Express Mode uses rawPredict with API key
+		t.Run("vertex express mode claude rawPredict with api key", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeClaudeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"claude-3-5-sonnet","messages":[{"role":"user","content":"Hello"}],"max_tokens":100}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+
+			require.Equal(t, types.ActionContinue, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "publishers/anthropic/models/", "Path should use anthropic publisher")
+			require.Contains(t, pathHeader, ":rawPredict", "Path should use rawPredict action")
+			require.Contains(t, pathHeader, "key=test-api-key-123456789", "Path should contain API key")
+
+			// Verify body is converted to Anthropic Messages format
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "anthropic_version", "Body should contain anthropic_version")
 		})
 	})
 }

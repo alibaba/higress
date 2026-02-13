@@ -399,6 +399,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Vertex AI OpenAI兼容模式
 	// @Description zh-CN 启用后将使用Vertex AI的OpenAI兼容API，请求和响应均使用OpenAI格式，无需协议转换。与Express Mode(apiTokens)互斥。
 	vertexOpenAICompatible bool `required:"false" yaml:"vertexOpenAICompatible" json:"vertexOpenAICompatible"`
+	// @Title zh-CN Vertex AI Publisher覆盖
+	// @Description zh-CN 可选。强制指定Vertex AI publisher（如"anthropic"、"mistralai"），覆盖基于模型名称前缀的自动检测。用于模型名称不遵循标准前缀约定的场景。
+	vertexPublisher string `required:"false" yaml:"vertexPublisher" json:"vertexPublisher"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -572,6 +575,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.vertexTokenRefreshAhead = 60
 	}
 	c.vertexOpenAICompatible = json.Get("vertexOpenAICompatible").Bool()
+	c.vertexPublisher = json.Get("vertexPublisher").String()
 	c.targetLang = json.Get("targetLang").String()
 
 	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {

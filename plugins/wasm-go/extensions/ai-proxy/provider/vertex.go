@@ -28,25 +28,83 @@ const (
 	vertexAuthDomain = "oauth2.googleapis.com"
 	vertexDomain     = "aiplatform.googleapis.com"
 	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/google/models/{MODEL_ID}:{ACTION}
-	vertexPathTemplate          = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
-	vertexPathAnthropicTemplate = "/v1/projects/%s/locations/%s/publishers/anthropic/models/%s:%s"
+	vertexPathTemplate = "/v1/projects/%s/locations/%s/publishers/google/models/%s:%s"
 	// Express Mode 路径模板 (不含 project/location)
-	vertexExpressPathTemplate          = "/v1/publishers/google/models/%s:%s"
-	vertexExpressPathAnthropicTemplate = "/v1/publishers/anthropic/models/%s:%s"
+	vertexExpressPathTemplate = "/v1/publishers/google/models/%s:%s"
+	// Generic rawPredict path template for any publisher
+	// /v1/projects/{PROJECT_ID}/locations/{REGION}/publishers/{PUBLISHER}/models/{MODEL_ID}:{ACTION}
+	vertexRawPredictPathTemplate        = "/v1/projects/%s/locations/%s/publishers/%s/models/%s:%s"
+	vertexExpressRawPredictPathTemplate  = "/v1/publishers/%s/models/%s:%s"
 	// OpenAI-compatible endpoint 路径模板
 	// /v1beta1/projects/{PROJECT_ID}/locations/{LOCATION}/endpoints/openapi/chat/completions
 	vertexOpenAICompatiblePathTemplate = "/v1beta1/projects/%s/locations/%s/endpoints/openapi/chat/completions"
 	vertexChatCompletionAction         = "generateContent"
 	vertexChatCompletionStreamAction   = "streamGenerateContent?alt=sse"
-	vertexAnthropicMessageAction       = "rawPredict"
-	vertexAnthropicMessageStreamAction = "streamRawPredict"
+	vertexRawPredictAction             = "rawPredict"
+	vertexRawPredictStreamAction       = "streamRawPredict"
 	vertexEmbeddingAction              = "predict"
 	vertexGlobalRegion                 = "global"
 	contextClaudeMarker                = "isClaudeRequest"
+	contextMistralMarker               = "isMistralRequest"
 	contextOpenAICompatibleMarker      = "isOpenAICompatibleRequest"
 	contextVertexRawMarker             = "isVertexRawRequest"
 	vertexAnthropicVersion             = "vertex-2023-10-16"
 )
+
+// publisherRouting defines how a model should be routed on Vertex AI
+type publisherRouting int
+
+const (
+	// routeOpenAICompatible routes via the OpenAI-compatible chat/completions endpoint
+	routeOpenAICompatible publisherRouting = iota
+	// routeRawPredict routes via publishers/{publisher}/models/{model}:rawPredict
+	routeRawPredict
+	// routeNativeVertex routes via publishers/google/models/{model}:generateContent
+	routeNativeVertex
+)
+
+// vertexPublisherInfo describes how to handle a specific publisher's models
+type vertexPublisherInfo struct {
+	publisherID string
+	routing     publisherRouting
+}
+
+// vertexPublisherPrefixMap maps model name prefixes to publisher info.
+// Only models that need special routing (rawPredict) are listed here.
+// Everything else defaults to the OpenAI-compatible endpoint.
+var vertexPublisherPrefixMap = []struct {
+	prefix    string
+	publisher vertexPublisherInfo
+}{
+	{"claude", vertexPublisherInfo{"anthropic", routeRawPredict}},
+	{"mistral", vertexPublisherInfo{"mistralai", routeRawPredict}},
+	{"codestral", vertexPublisherInfo{"mistralai", routeRawPredict}},
+}
+
+// resolvePublisher determines how to route a model on Vertex AI.
+// If vertexPublisher is configured explicitly, it overrides prefix detection.
+func (v *vertexProvider) resolvePublisher(model string) vertexPublisherInfo {
+	// Check for explicit publisher override in config
+	if v.config.vertexPublisher != "" {
+		return vertexPublisherInfo{v.config.vertexPublisher, routeRawPredict}
+	}
+
+	// Auto-detect by model name prefix
+	for _, entry := range vertexPublisherPrefixMap {
+		if strings.HasPrefix(model, entry.prefix) {
+			return entry.publisher
+		}
+	}
+
+	// In Express Mode, default to native Vertex format (generateContent) for Google models
+	// since the OpenAI-compatible endpoint is not available in Express Mode
+	if v.isExpressMode() {
+		return vertexPublisherInfo{"google", routeNativeVertex}
+	}
+
+	// Default: use OpenAI-compatible endpoint
+	return vertexPublisherInfo{"", routeOpenAICompatible}
+}
 
 // vertexRawPathRegex 匹配原生 Vertex AI REST API 路径
 // 格式: [任意前缀]/{api-version}/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:{action}
@@ -355,27 +413,69 @@ func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(request.Model, "claude") {
-		ctx.SetContext(contextClaudeMarker, true)
-		path := v.getAhthropicRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
-		util.OverwriteRequestPathHeader(headers, path)
 
-		claudeRequest := v.claude.buildClaudeTextGenRequest(request)
-		sanitizeClaudeRequestForVertex(claudeRequest)
-		claudeRequest.Model = ""
-		claudeRequest.AnthropicVersion = vertexAnthropicVersion
-		claudeBody, err := json.Marshal(claudeRequest)
-		if err != nil {
-			return nil, err
+	publisher := v.resolvePublisher(request.Model)
+
+	switch publisher.routing {
+	case routeRawPredict:
+		if publisher.publisherID == "anthropic" {
+			return v.onClaudeRawPredictRequest(ctx, request, headers)
 		}
-		return claudeBody, nil
-	} else {
+		return v.onRawPredictRequest(ctx, request, body, headers, publisher.publisherID)
+
+	case routeOpenAICompatible:
+		return v.onAutoOpenAICompatibleChatRequest(ctx, request, body, headers)
+
+	case routeNativeVertex:
 		path := v.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
 		util.OverwriteRequestPathHeader(headers, path)
-
 		vertexRequest := v.buildVertexChatRequest(request)
 		return json.Marshal(vertexRequest)
+
+	default:
+		return nil, fmt.Errorf("unknown routing for model: %s", request.Model)
 	}
+}
+
+// onClaudeRawPredictRequest handles Claude models via Vertex Anthropic rawPredict.
+func (v *vertexProvider) onClaudeRawPredictRequest(ctx wrapper.HttpContext, request *chatCompletionRequest, headers http.Header) ([]byte, error) {
+	ctx.SetContext(contextClaudeMarker, true)
+	path := v.getRawPredictRequestPath("anthropic", request.Model, request.Stream)
+	util.OverwriteRequestPathHeader(headers, path)
+
+	claudeRequest := v.claude.buildClaudeTextGenRequest(request)
+	sanitizeClaudeRequestForVertex(claudeRequest)
+	claudeRequest.Model = ""
+	claudeRequest.AnthropicVersion = vertexAnthropicVersion
+	return json.Marshal(claudeRequest)
+}
+
+// onRawPredictRequest handles models that use rawPredict with OpenAI-compatible format
+// (e.g., Mistral, Codestral). The body is passed through in OpenAI format with model and stream set.
+func (v *vertexProvider) onRawPredictRequest(ctx wrapper.HttpContext, request *chatCompletionRequest, body []byte, headers http.Header, publisherID string) ([]byte, error) {
+	ctx.SetContext(contextMistralMarker, true)
+	path := v.getRawPredictRequestPath(publisherID, request.Model, request.Stream)
+	util.OverwriteRequestPathHeader(headers, path)
+
+	// rawPredict with OpenAI-compatible format requires model and stream in the body
+	body, _ = sjson.SetBytes(body, "model", request.Model)
+	body, _ = sjson.SetBytes(body, "stream", request.Stream)
+	return body, nil
+}
+
+// onAutoOpenAICompatibleChatRequest routes requests to Vertex's OpenAI-compatible endpoint
+// automatically based on model detection. This is used within the standard OAuth2 flow
+// (not requiring the explicit vertexOpenAICompatible config flag).
+func (v *vertexProvider) onAutoOpenAICompatibleChatRequest(ctx wrapper.HttpContext, request *chatCompletionRequest, body []byte, headers http.Header) ([]byte, error) {
+	ctx.SetContext(contextOpenAICompatibleMarker, true)
+	path := v.getOpenAICompatibleRequestPath()
+	util.OverwriteRequestPathHeader(headers, path)
+
+	// Update model in body if it was mapped
+	if request.Model != "" {
+		body, _ = sjson.SetBytes(body, "model", request.Model)
+	}
+	return body, nil
 }
 
 func sanitizeClaudeRequestForVertex(req *claudeTextGenRequest) {
@@ -555,6 +655,11 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 		return util.DecodeUnicodeEscapesInSSE(chunk), nil
 	}
 
+	// Mistral rawPredict returns OpenAI-compatible format, passthrough with unicode decode
+	if ctx.GetContext(contextMistralMarker) != nil && ctx.GetContext(contextMistralMarker).(bool) {
+		return util.DecodeUnicodeEscapesInSSE(chunk), nil
+	}
+
 	if ctx.GetContext(contextClaudeMarker) != nil && ctx.GetContext(contextClaudeMarker).(bool) {
 		return v.claude.OnStreamingResponseBody(ctx, name, chunk, isLastChunk)
 	}
@@ -598,6 +703,11 @@ func (v *vertexProvider) TransformResponseBody(ctx wrapper.HttpContext, apiName 
 	// OpenAI 兼容模式: 透传响应，但需要解码 Unicode 转义序列
 	// Vertex AI OpenAI-compatible API 返回 ASCII-safe JSON，将非 ASCII 字符编码为 \uXXXX
 	if ctx.GetContext(contextOpenAICompatibleMarker) != nil && ctx.GetContext(contextOpenAICompatibleMarker).(bool) {
+		return util.DecodeUnicodeEscapes(body), nil
+	}
+
+	// Mistral rawPredict returns OpenAI-compatible format, passthrough with unicode decode
+	if ctx.GetContext(contextMistralMarker) != nil && ctx.GetContext(contextMistralMarker).(bool) {
 		return util.DecodeUnicodeEscapes(body), nil
 	}
 
@@ -810,30 +920,23 @@ func (v *vertexProvider) appendResponse(responseBuilder *strings.Builder, respon
 	responseBuilder.WriteString(fmt.Sprintf("%s %s\n\n", streamDataItemKey, responseBody))
 }
 
-func (v *vertexProvider) getAhthropicRequestPath(apiName ApiName, modelId string, stream bool) string {
-	action := ""
+// getRawPredictRequestPath constructs the rawPredict/streamRawPredict path for any publisher.
+func (v *vertexProvider) getRawPredictRequestPath(publisherID string, modelId string, stream bool) string {
+	action := vertexRawPredictAction
 	if stream {
-		action = vertexAnthropicMessageStreamAction
-	} else {
-		action = vertexAnthropicMessageAction
+		action = vertexRawPredictStreamAction
 	}
 
 	if v.isExpressMode() {
-		// Express Mode: 简化路径 + API Key 参数
-		basePath := fmt.Sprintf(vertexExpressPathAnthropicTemplate, modelId, action)
+		basePath := fmt.Sprintf(vertexExpressRawPredictPathTemplate, publisherID, modelId, action)
 		apiKey := v.config.GetRandomToken()
-		// 如果 action 已经包含 ?，使用 & 拼接
-		var fullPath string
 		if strings.Contains(action, "?") {
-			fullPath = basePath + "&key=" + apiKey
-		} else {
-			fullPath = basePath + "?key=" + apiKey
+			return basePath + "&key=" + apiKey
 		}
-		return fullPath
+		return basePath + "?key=" + apiKey
 	}
 
-	path := fmt.Sprintf(vertexPathAnthropicTemplate, v.config.vertexProjectId, v.config.vertexRegion, modelId, action)
-	return path
+	return fmt.Sprintf(vertexRawPredictPathTemplate, v.config.vertexProjectId, v.config.vertexRegion, publisherID, modelId, action)
 }
 
 func (v *vertexProvider) getRequestPath(apiName ApiName, modelId string, stream bool) string {

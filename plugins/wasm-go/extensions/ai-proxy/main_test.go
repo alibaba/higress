@@ -141,6 +141,11 @@ func TestVertex(t *testing.T) {
 	test.RunVertexRawModeOnHttpRequestHeadersTests(t)
 	test.RunVertexRawModeOnHttpRequestBodyTests(t)
 	test.RunVertexRawModeOnHttpResponseBodyTests(t)
+	// Vertex Multi-Publisher 测试
+	test.RunVertexMultiPublisherOnHttpRequestBodyTests(t)
+	test.RunVertexMultiPublisherStreamingTests(t)
+	test.RunVertexPublisherOverrideTests(t)
+	test.RunVertexExpressModeClaudeRequestBodyTests(t)
 }
 
 func TestBedrock(t *testing.T) {
