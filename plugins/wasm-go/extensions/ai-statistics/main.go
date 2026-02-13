@@ -430,6 +430,26 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 			config.valueLengthLimit = 10485760 // 10MB
 		}
 		log.Infof("Using default attributes configuration")
+		// Check if any default attribute needs streaming body buffering
+		for _, attribute := range config.attributes {
+			if attribute.ValueSource == ResponseStreamingBody {
+				config.shouldBufferStreamingBody = true
+				break
+			}
+			// For built-in attributes without explicit ValueSource, check default sources
+			if attribute.ValueSource == "" && isBuiltinAttribute(attribute.Key) {
+				defaultSources := getBuiltinAttributeDefaultSources(attribute.Key)
+				for _, src := range defaultSources {
+					if src == ResponseStreamingBody {
+						config.shouldBufferStreamingBody = true
+						break
+					}
+				}
+				if config.shouldBufferStreamingBody {
+					break
+				}
+			}
+		}
 	} else {
 		config.attributes = make([]Attribute, len(attributeConfigs))
 		for i, attributeConfig := range attributeConfigs {
