@@ -1,13 +1,13 @@
 {
-  "name": "@higress/higress-ai-gateway",
+  "name": "@higress/higress",
   "version": "1.0.0",
-  "description": "Higress AI Gateway model provider plugin for Clawdbot with auto-routing support",
+  "description": "Higress AI Gateway model provider plugin for OpenClaw with auto-routing support",
   "main": "index.ts",
-  "clawdbot": {
+  "openclaw": {
     "extensions": ["./index.ts"]
   },
   "keywords": [
-    "clawdbot",
+    "openclaw",
     "higress",
     "ai-gateway",
     "model-router",
