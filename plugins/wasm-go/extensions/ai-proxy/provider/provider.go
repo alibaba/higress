@@ -785,6 +785,21 @@ func isStatefulAPI(apiName string) bool {
 	return statefulAPIs[apiName]
 }
 
+// TestIsStatefulAPI is a test helper function that exposes isStatefulAPI for testing
+func TestIsStatefulAPI(apiName string) bool {
+	return isStatefulAPI(apiName)
+}
+
+// SetApiTokensForTest is a test helper function to set apiTokens for testing
+func (c *ProviderConfig) SetApiTokensForTest(tokens []string) {
+	c.apiTokens = tokens
+}
+
+// TestGetTokenWithConsumerAffinity is a test helper function that exposes GetTokenWithConsumerAffinity for testing
+func (c *ProviderConfig) TestGetTokenWithConsumerAffinity(consumer string) string {
+	return c.GetTokenWithConsumerAffinity(nil, consumer)
+}
+
 // GetTokenWithConsumerAffinity selects an API token based on consumer affinity
 // If x-mse-consumer header is present and API is stateful, it will consistently select the same token
 func (c *ProviderConfig) GetTokenWithConsumerAffinity(ctx wrapper.HttpContext, consumer string) string {
