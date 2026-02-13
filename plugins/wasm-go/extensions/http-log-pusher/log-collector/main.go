@@ -123,21 +123,20 @@ const (
 	BizTypeModelAPI  = "MODEL_API"
 )
 
-// appendBizTypeWhereClause 根据 bizType 追加 WHERE 条件（表无 bizType 列，用 mcp_tool 等推断）
-// MODEL_API: mcp_tool 为空或 'unknown'（模型调用常被写入 mcp_server/unknown）；MCP_SERVER: mcp_tool 非空且不为 'unknown'
+// appendBizTypeWhereClause 根据 bizType 追加 WHERE 条件（表无 bizType 列，用 mcp_tool 推断）
+// 约定（来自实际埋点约束）：
+// - MCP_SERVER：mcp_tool 一定有值（真实 MCP 工具名）
+// - MODEL_API：一定没有 mcp_tool（为空或 NULL）
 func appendBizTypeWhereClause(whereClause *[]string, args *[]interface{}, bizType string) {
 	if bizType == "" {
 		return
 	}
 	switch bizType {
 	case BizTypeModelAPI:
-		// 模型 API：mcp_tool 为空或 'unknown'，或 path/api 像模型调用（兼容未写 mcp 的旧数据）
-		*whereClause = append(*whereClause, `(
-			(COALESCE(mcp_tool,'') = '' OR TRIM(COALESCE(mcp_tool,'')) = 'unknown')
-			OR (path LIKE '%chat/completions%' OR path LIKE '%/v1/chat%' OR COALESCE(api,'') != '' OR COALESCE(model,'') != '')
-		)`)
+		// 模型 API：没有 mcp_tool
+		*whereClause = append(*whereClause, `(COALESCE(mcp_tool,'') = '' OR TRIM(COALESCE(mcp_tool,'')) = 'unknown')`)
 	case BizTypeMCPServer:
-		// 真实 MCP 调用：mcp_tool 有值且不是 'unknown'
+		// 真实 MCP 调用：mcp_tool 有值
 		*whereClause = append(*whereClause, `(COALESCE(mcp_tool,'') != '' AND TRIM(COALESCE(mcp_tool,'')) != 'unknown')`)
 	default:
 		// 未知 bizType 不追加条件
@@ -1620,7 +1619,10 @@ func queryConsumerTokenStatsTable(whereSQL string, args []interface{}) (map[stri
 			SUM(input_tokens) as input_tokens,
 			SUM(output_tokens) as output_tokens,
 			SUM(total_tokens) as total_tokens
-		FROM access_logs %s AND consumer IS NOT NULL AND consumer != ''
+		FROM access_logs %s 
+		AND consumer IS NOT NULL AND consumer != ''
+		-- 仅统计模型调用产生的 Token，排除真实 MCP Server 工具调用（模型一定没有 mcp_tool）
+		AND (COALESCE(mcp_tool,'') = '' OR TRIM(COALESCE(mcp_tool,'')) = 'unknown')
 		GROUP BY consumer 
 		ORDER BY total_tokens DESC`, whereSQL)
 
@@ -1663,7 +1665,10 @@ func queryServiceTokenStatsTable(whereSQL string, args []interface{}) (map[strin
 			SUM(input_tokens) as input_tokens,
 			SUM(output_tokens) as output_tokens,
 			SUM(total_tokens) as total_tokens
-		FROM access_logs %s AND service IS NOT NULL AND service != ''
+		FROM access_logs %s 
+		AND service IS NOT NULL AND service != ''
+		-- 仅统计模型调用产生的 Token，排除真实 MCP Server 工具调用（模型一定没有 mcp_tool）
+		AND (COALESCE(mcp_tool,'') = '' OR TRIM(COALESCE(mcp_tool,'')) = 'unknown')
 		GROUP BY service 
 		ORDER BY total_tokens DESC`, whereSQL)
 
