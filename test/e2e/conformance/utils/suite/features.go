@@ -30,7 +30,6 @@ const (
 	// extended: service discovery
 	DubboConformanceFeature  SupportedFeature = "dubbo"
 	EurekaConformanceFeature SupportedFeature = "eureka"
-	ConsulConformanceFeature SupportedFeature = "consul"
 	NacosConformanceFeature  SupportedFeature = "nacos"
 
 	// extended: envoy config
@@ -48,7 +47,6 @@ var AllFeatures = sets.Set[string]{}.
 	Insert(string(HTTPConformanceFeature)).
 	Insert(string(DubboConformanceFeature)).
 	Insert(string(EurekaConformanceFeature)).
-	Insert(string(ConsulConformanceFeature)).
 	Insert(string(NacosConformanceFeature)).
 	Insert(string(EnvoyConfigConformanceFeature))
 
