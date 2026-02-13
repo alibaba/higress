@@ -41,9 +41,22 @@ kind::cluster::exists() {
 }
 
 kind::cluster::load() {
-    ${KIND} load docker-image \
+    local image="$1"
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    trap "rm -rf ${tmpdir}" EXIT
+    
+    local tarball="${tmpdir}/image.tar"
+    
+    # Save image to tar file (avoids containerd --all-platforms issue)
+    echo "Saving image ${image} to tar file..."
+    docker save "${image}" -o "${tarball}"
+    
+    # Load tar file into kind cluster
+    echo "Loading image archive into kind cluster..."
+    ${KIND} load image-archive \
         --name "${CLUSTER_NAME}" \
-        "$@"
+        "${tarball}"
 }
 
 if ! kind::cluster::exists "$CLUSTER_NAME" ; then
