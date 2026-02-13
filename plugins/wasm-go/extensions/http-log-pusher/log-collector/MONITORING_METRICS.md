@@ -3,6 +3,45 @@
 ## 概述
 本文档详细说明了Higress网关日志收集器支持的各项监控指标及其对应的curl查询方法。
 
+## /batch/chart 请求体说明
+- 请求体可为 **数组**（一次请求多个图表）或 **单个对象**（一次一个图表）。
+- 每个查询对象需包含：`timeRange`、`scenario`，可选 `bizType`、`interval`、`filters`。
+- **bizType 为 MODEL_API 时**：仅统计「模型 API」请求（path 含 chat/completions、或 api/model 有值，且非 MCP）。Token 消耗数从表字段 `input_tokens`/`output_tokens`/`total_tokens` 聚合得到。
+
+### Model API Token 消耗数示例（单对象）
+```bash
+curl -X POST "$COLLECTOR_URL/batch/chart" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "timeRange": {
+      "start": "2026-02-11T00:00:00",
+      "end": "2026-02-11T01:00:00"
+    },
+    "interval": "60s",
+    "scenario": "token_rate",
+    "bizType": "MODEL_API"
+  }'
+```
+返回：`timestamps`（毫秒时间戳数组）、`values.input_token_rate`、`values.output_token_rate`、`values.total_token_rate`（每秒 token 消耗）。
+
+### 数组形式（一次请求多个图表）
+```json
+[
+  {
+    "timeRange": { "start": "2026-02-11T00:00:00", "end": "2026-02-11T01:00:00" },
+    "interval": "60s",
+    "scenario": "token_rate",
+    "bizType": "MODEL_API"
+  },
+  {
+    "timeRange": { "start": "2026-02-11T00:00:00", "end": "2026-02-11T01:00:00" },
+    "interval": "60s",
+    "scenario": "qps_total_simple",
+    "bizType": "MODEL_API"
+  }
+]
+```
+
 ## 基础配置
 ```bash
 # 日志收集器地址
