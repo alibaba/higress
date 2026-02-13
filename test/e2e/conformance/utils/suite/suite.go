@@ -131,7 +131,6 @@ func New(s Options) *ConformanceTestSuite {
 	if suite.BaseManifests == nil {
 		suite.BaseManifests = []string{
 			"base/manifests.yaml",
-			"base/consul.yaml",
 			"base/eureka.yaml",
 			"base/nacos.yaml",
 			"base/dubbo.yaml",
