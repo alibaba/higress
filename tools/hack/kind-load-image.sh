@@ -42,21 +42,28 @@ kind::cluster::exists() {
 
 kind::cluster::load() {
     local image="$1"
+    
+    # Get the kind node container name
+    local node_name="${CLUSTER_NAME}-control-plane"
+    
+    # First try: pull image directly inside kind node (bypasses host containerd issues)
+    echo "Pulling image ${image} directly inside kind node..."
+    if docker exec "${node_name}" crictl pull "${image}" 2>/dev/null; then
+        echo "Successfully pulled image inside kind node"
+        return 0
+    fi
+    
+    # Fallback: use docker save + ctr import without --all-platforms
+    echo "Direct pull failed, trying docker save + ctr import..."
     local tmpdir
     tmpdir=$(mktemp -d)
     trap "rm -rf ${tmpdir}" EXIT
     
     local tarball="${tmpdir}/image.tar"
-    
-    # Save image to tar file (avoids containerd --all-platforms issue)
-    echo "Saving image ${image} to tar file..."
     docker save "${image}" -o "${tarball}"
     
-    # Load tar file into kind cluster
-    echo "Loading image archive into kind cluster..."
-    ${KIND} load image-archive \
-        --name "${CLUSTER_NAME}" \
-        "${tarball}"
+    # Import without --all-platforms flag
+    docker exec -i "${node_name}" ctr --namespace=k8s.io images import --snapshotter=overlayfs - < "${tarball}"
 }
 
 if ! kind::cluster::exists "$CLUSTER_NAME" ; then
