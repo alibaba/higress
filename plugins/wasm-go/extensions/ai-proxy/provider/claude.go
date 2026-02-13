@@ -73,8 +73,8 @@ type claudeChatMessageContent struct {
 	Name  string                 `json:"name,omitempty"`  // For tool_use
 	Input map[string]interface{} `json:"input,omitempty"` // For tool_use
 	// Tool result fields
-	ToolUseId string                     `json:"tool_use_id,omitempty"` // For tool_result
-	Content   claudeChatMessageContentWr `json:"content,omitempty"`     // For tool_result - can be string or array
+	ToolUseId string                      `json:"tool_use_id,omitempty"` // For tool_result
+	Content   *claudeChatMessageContentWr `json:"content,omitempty"`     // For tool_result - can be string or array
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling for claudeChatMessageContentWr
