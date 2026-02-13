@@ -605,7 +605,8 @@ func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext) {
 	if c.isFailoverEnabled() {
 		apiToken = c.GetGlobalRandomToken()
 	} else {
-		apiToken = c.GetRandomToken()
+		// Try to use consumer affinity for stateful APIs
+		apiToken = c.selectApiToken(ctx)
 	}
 	log.Debugf("Use apiToken %s to send request", apiToken)
 	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
