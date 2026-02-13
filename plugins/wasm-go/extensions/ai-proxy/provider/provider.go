@@ -721,7 +721,8 @@ func (c *ProviderConfig) selectApiToken(ctx wrapper.HttpContext) string {
 	ctxApiName := ctx.GetContext(CtxKeyApiName)
 	var apiName string
 	if ctxApiName != nil {
-		apiName = ctxApiName.(string)
+		// ctxApiName is of type ApiName, need to convert to string
+		apiName = string(ctxApiName.(ApiName))
 	}
 
 	// For stateful APIs, try to use consumer affinity
