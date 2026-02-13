@@ -140,53 +140,45 @@ func getDefaultAttributes() []Attribute {
 	return []Attribute{
 		// Extract complete conversation history from request body
 		{
-			Key:         "messages",
+			Key:        "messages",
 			ValueSource: RequestBody,
-			Value:       "messages",
-			ApplyToLog:  true,
+			Value:      "messages",
+			ApplyToLog: true,
 		},
-		// Built-in attributes (value_source needed for streaming body buffering)
+		// Built-in attributes (no value_source needed, will be auto-extracted)
 		{
-			Key:         BuiltinQuestionKey,
-			ValueSource: RequestBody,
-			ApplyToLog:  true,
-		},
-		{
-			Key:         BuiltinAnswerKey,
-			ValueSource: ResponseStreamingBody,
-			ApplyToLog:  true,
+			Key:        BuiltinQuestionKey,
+			ApplyToLog: true,
 		},
 		{
-			Key:         BuiltinReasoningKey,
-			ValueSource: ResponseStreamingBody,
-			ApplyToLog:  true,
+			Key:        BuiltinAnswerKey,
+			ApplyToLog: true,
 		},
 		{
-			Key:         BuiltinToolCallsKey,
-			ValueSource: ResponseStreamingBody,
-			ApplyToLog:  true,
+			Key:        BuiltinReasoningKey,
+			ApplyToLog: true,
+		},
+		{
+			Key:        BuiltinToolCallsKey,
+			ApplyToLog: true,
 		},
 		// Token statistics (auto-extracted from response)
 		{
-			Key:         BuiltinReasoningTokens,
-			ValueSource: ResponseStreamingBody,
-			ApplyToLog:  true,
+			Key:        BuiltinReasoningTokens,
+			ApplyToLog: true,
 		},
 		{
-			Key:         BuiltinCachedTokens,
-			ValueSource: ResponseStreamingBody,
-			ApplyToLog:  true,
+			Key:        BuiltinCachedTokens,
+			ApplyToLog: true,
 		},
 		// Detailed token information
 		{
-			Key:         BuiltinInputTokenDetails,
-			ValueSource: ResponseStreamingBody,
-			ApplyToLog:  true,
+			Key:        BuiltinInputTokenDetails,
+			ApplyToLog: true,
 		},
 		{
-			Key:         BuiltinOutputTokenDetails,
-			ValueSource: ResponseStreamingBody,
-			ApplyToLog:  true,
+			Key:        BuiltinOutputTokenDetails,
+			ApplyToLog: true,
 		},
 	}
 }
@@ -438,6 +430,26 @@ func parseConfig(configJson gjson.Result, config *AIStatisticsConfig) error {
 			config.valueLengthLimit = 10485760 // 10MB
 		}
 		log.Infof("Using default attributes configuration")
+		// Check if any default attribute needs streaming body buffering
+		for _, attribute := range config.attributes {
+			if attribute.ValueSource == ResponseStreamingBody {
+				config.shouldBufferStreamingBody = true
+				break
+			}
+			// For built-in attributes without explicit ValueSource, check default sources
+			if attribute.ValueSource == "" && isBuiltinAttribute(attribute.Key) {
+				defaultSources := getBuiltinAttributeDefaultSources(attribute.Key)
+				for _, src := range defaultSources {
+					if src == ResponseStreamingBody {
+						config.shouldBufferStreamingBody = true
+						break
+					}
+				}
+				if config.shouldBufferStreamingBody {
+					break
+				}
+			}
+		}
 	} else {
 		config.attributes = make([]Attribute, len(attributeConfigs))
 		for i, attributeConfig := range attributeConfigs {
