@@ -175,7 +175,10 @@ func main() {
 		w.Write([]byte("ok"))
 	})
 
-	port := "8080"
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // 默认端口
+	}
 	log.Printf("Tiny Log Collector listening on :%s", port)
 	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		log.Fatal(err)
