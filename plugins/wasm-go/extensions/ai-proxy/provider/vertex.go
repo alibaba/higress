@@ -471,9 +471,15 @@ func (v *vertexProvider) onAutoOpenAICompatibleChatRequest(ctx wrapper.HttpConte
 	path := v.getOpenAICompatibleRequestPath()
 	util.OverwriteRequestPathHeader(headers, path)
 
-	// Update model in body if it was mapped
 	if request.Model != "" {
-		body, _ = sjson.SetBytes(body, "model", request.Model)
+		model := request.Model
+		// The Vertex OpenAI-compatible endpoint requires "publisher/model" format.
+		// Default to "google/" for models without a publisher prefix, since the
+		// Vertex provider was originally designed for Gemini models.
+		if !strings.Contains(model, "/") {
+			model = "google/" + model
+		}
+		body, _ = sjson.SetBytes(body, "model", model)
 	}
 	return body, nil
 }

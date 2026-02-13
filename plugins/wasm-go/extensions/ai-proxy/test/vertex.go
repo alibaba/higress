@@ -1804,7 +1804,39 @@ func RunVertexMultiPublisherOnHttpRequestBodyTests(t *testing.T) {
 
 			processedBody := host.GetRequestBody()
 			require.NotNil(t, processedBody)
-			require.Contains(t, string(processedBody), "gemini-2.5-pro", "Body should contain mapped model name")
+			require.Contains(t, string(processedBody), "google/gemini-2.5-pro", "Body should contain model with google/ prefix")
+		})
+
+		// Test: Gemini model without mapping gets google/ prefix automatically
+		t.Run("vertex multi-publisher gemini model without mapping gets google prefix", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexMultiPublisherConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			// Send gemini-2.5-flash directly (no model mapping defined for this name)
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"Hello"}]}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "endpoints/openapi/chat/completions", "Should route to OpenAI-compatible endpoint")
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			require.Contains(t, string(processedBody), "google/gemini-2.5-flash", "Model without publisher prefix should get google/ prepended")
 		})
 
 		// Test: Qwen model routes to OpenAI-compatible endpoint
