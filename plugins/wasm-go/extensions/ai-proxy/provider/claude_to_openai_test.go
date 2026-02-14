@@ -388,6 +388,7 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 
 	t.Run("convert_tool_result_with_actual_error_data", func(t *testing.T) {
 		// Test using the actual JSON data from the error log to ensure our fix works
+		// This tests the fix for issue #3344 - text content alongside tool_result should be preserved
 		claudeRequest := `{
 			"model": "anthropic/claude-sonnet-4", 
 			"messages": [{
@@ -415,14 +416,20 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 		err = json.Unmarshal(result, &openaiRequest)
 		require.NoError(t, err)
 
-		// Should have one tool message (the text content is included in the same message array)
-		require.Len(t, openaiRequest.Messages, 1)
+		// Should have two messages: tool message + user message with text content
+		// This is the fix for issue #3344 - text content alongside tool_result is preserved
+		require.Len(t, openaiRequest.Messages, 2)
 
-		// Should be tool message
+		// First should be tool message
 		toolMsg := openaiRequest.Messages[0]
 		assert.Equal(t, "tool", toolMsg.Role)
 		assert.Contains(t, toolMsg.Content, "three.js")
 		assert.Equal(t, "toolu_vrtx_01UbCfwoTgoDBqbYEwkVaxd5", toolMsg.ToolCallId)
+
+		// Second should be user message with text content
+		userMsg := openaiRequest.Messages[1]
+		assert.Equal(t, "user", userMsg.Role)
+		assert.Equal(t, "继续", userMsg.Content)
 	})
 
 	t.Run("convert_multiple_tool_calls", func(t *testing.T) {
