@@ -562,9 +562,29 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 }
 
 func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResponse *claudeTextGenResponse) *chatCompletionResponse {
+	// Extract text content and tool calls from Claude response
+	var textContent string
+	var toolCalls []toolCall
+	for _, content := range origResponse.Content {
+		switch content.Type {
+		case contentTypeText:
+			textContent = content.Text
+		case "tool_use":
+			args, _ := json.Marshal(content.Input)
+			toolCalls = append(toolCalls, toolCall{
+				Id:   content.Id,
+				Type: "function",
+				Function: functionCall{
+					Name:      content.Name,
+					Arguments: string(args),
+				},
+			})
+		}
+	}
+
 	choice := chatCompletionChoice{
 		Index:        0,
-		Message:      &chatMessage{Role: roleAssistant, Content: origResponse.Content[0].Text},
+		Message:      &chatMessage{Role: roleAssistant, Content: textContent, ToolCalls: toolCalls},
 		FinishReason: util.Ptr(stopReasonClaude2OpenAI(origResponse.StopReason)),
 	}
 
@@ -600,6 +620,8 @@ func stopReasonClaude2OpenAI(reason *string) string {
 		return finishReasonStop
 	case "max_tokens":
 		return finishReasonLength
+	case "tool_use":
+		return finishReasonToolCall
 	default:
 		return *reason
 	}
