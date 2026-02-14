@@ -153,10 +153,12 @@ func getDefaultAttributes() []Attribute {
 		{
 			Key:        BuiltinAnswerKey,
 			ApplyToLog: true,
+			Rule:       RuleAppend, // Streaming responses need to append content from all chunks
 		},
 		{
 			Key:        BuiltinReasoningKey,
 			ApplyToLog: true,
+			Rule:       RuleAppend, // Streaming responses need to append content from all chunks
 		},
 		{
 			Key:        BuiltinToolCallsKey,
