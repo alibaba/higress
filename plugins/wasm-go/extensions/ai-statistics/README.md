@@ -332,6 +332,146 @@ attributes:
 2. **性能分析**：分析推理 token 占比，评估推理模型的实际开销
 3. **使用统计**：细粒度统计各类 token 的使用情况
 
+## 流式响应观测能力
+
+流式（Streaming）响应是 AI 对话的常见场景，插件提供了完善的流式观测支持，能够正确拼接和提取流式响应中的关键信息。
+
+### 流式响应的挑战
+
+流式响应将完整内容拆分为多个 SSE chunk 逐步返回，例如：
+
+```
+data: {"choices":[{"delta":{"content":"Hello"}}]}
+data: {"choices":[{"delta":{"content":" 👋"}}]}
+data: {"choices":[{"delta":{"content":"!"}}]}
+data: [DONE]
+```
+
+要获取完整的回答内容，需要将各个 chunk 中的 `delta.content` 拼接起来。
+
+### 自动拼接机制
+
+插件针对不同类型的内容提供了自动拼接能力：
+
+| 内容类型 | 拼接方式 | 说明 |
+|---------|---------|------|
+| `answer` | 文本追加（append） | 将各 chunk 的 `delta.content` 按顺序拼接成完整回答 |
+| `reasoning` | 文本追加（append） | 将各 chunk 的 `delta.reasoning_content` 按顺序拼接 |
+| `tool_calls` | 按 index 组装 | 识别每个工具调用的 `index`，分别拼接各自的 `arguments` |
+
+#### answer 和 reasoning 拼接示例
+
+流式响应：
+```
+data: {"choices":[{"delta":{"content":"你好"}}]}
+data: {"choices":[{"delta":{"content":"，我是"}}]}
+data: {"choices":[{"delta":{"content":"AI助手"}}]}
+```
+
+最终提取的 `answer`：`"你好，我是AI助手"`
+
+#### tool_calls 拼接示例
+
+流式响应（多个并行工具调用）：
+```
+data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_001","function":{"name":"get_weather"}}]}}]}
+data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_002","function":{"name":"get_time"}}]}}]}
+data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":"}}]}}]}
+data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"Beijing\"}"}}]}}]}
+data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"city\":\"Shanghai\"}"}}]}}]}
+```
+
+最终提取的 `tool_calls`：
+```json
+[
+  {"index":0,"id":"call_001","function":{"name":"get_weather","arguments":"{\"city\":\"Beijing\"}"}},
+  {"index":1,"id":"call_002","function":{"name":"get_time","arguments":"{\"city\":\"Shanghai\"}"}}
+]
+```
+
+### 使用默认配置快速启用
+
+通过 `use_default_attributes: true` 可以一键启用完整的流式观测能力：
+
+```yaml
+use_default_attributes: true
+```
+
+此配置会自动记录以下字段：
+
+| 字段 | 说明 |
+|------|------|
+| `messages` | 完整对话历史 |
+| `question` | 最后一条用户消息 |
+| `answer` | AI 回答（自动拼接流式 chunk） |
+| `reasoning` | 推理过程（自动拼接流式 chunk） |
+| `tool_calls` | 工具调用（自动按 index 组装） |
+| `reasoning_tokens` | 推理 token 数 |
+| `cached_tokens` | 缓存命中 token 数 |
+| `input_token_details` | 输入 token 详情 |
+| `output_token_details` | 输出 token 详情 |
+
+### 流式日志示例
+
+启用默认配置后，一个流式请求的日志输出示例：
+
+```json
+{
+  "answer": "2 plus 2 equals 4.",
+  "question": "What is 2+2?",
+  "response_type": "stream",
+  "tool_calls": null,
+  "reasoning": null,
+  "model": "glm-4-flash",
+  "input_token": 10,
+  "output_token": 8,
+  "llm_first_token_duration": 425,
+  "llm_service_duration": 985,
+  "chat_id": "chat_abc123"
+}
+```
+
+包含工具调用的流式日志示例：
+
+```json
+{
+  "answer": null,
+  "question": "What's the weather in Beijing?",
+  "response_type": "stream",
+  "tool_calls": [
+    {
+      "id": "call_abc123",
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "arguments": "{\"location\": \"Beijing\"}"
+      }
+    }
+  ],
+  "model": "glm-4-flash",
+  "input_token": 50,
+  "output_token": 15,
+  "llm_first_token_duration": 300,
+  "llm_service_duration": 500
+}
+```
+
+### 流式特有指标
+
+流式响应会额外记录以下指标：
+
+- `llm_first_token_duration`：从请求发出到收到首个 token 的时间（首字延迟）
+- `llm_stream_duration_count`：流式请求次数
+
+可用于监控流式响应的用户体验：
+
+```promql
+# 平均首字延迟
+irate(route_upstream_model_consumer_metric_llm_first_token_duration[5m])
+/
+irate(route_upstream_model_consumer_metric_llm_stream_duration_count[5m])
+```
+
 ## 调试
 
 ### 验证 ai_log 内容
