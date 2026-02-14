@@ -157,3 +157,8 @@ func TestClaude(t *testing.T) {
 	test.RunClaudeOnHttpRequestHeadersTests(t)
 	test.RunClaudeOnHttpRequestBodyTests(t)
 }
+
+func TestConsumerAffinity(t *testing.T) {
+	test.RunConsumerAffinityParseConfigTests(t)
+	test.RunConsumerAffinityOnHttpRequestHeadersTests(t)
+}
