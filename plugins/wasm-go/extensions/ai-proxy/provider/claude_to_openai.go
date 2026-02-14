@@ -119,6 +119,15 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 					}
 					openaiRequest.Messages = append(openaiRequest.Messages, toolMsg)
 				}
+				// Also add text content if present alongside tool results
+				// This handles cases like: [tool_result, tool_result, text]
+				if len(conversionResult.textParts) > 0 {
+					textMsg := chatMessage{
+						Role:    claudeMsg.Role,
+						Content: strings.Join(conversionResult.textParts, "\n\n"),
+					}
+					openaiRequest.Messages = append(openaiRequest.Messages, textMsg)
+				}
 			}
 
 			// Handle regular content if no tool calls or tool results
