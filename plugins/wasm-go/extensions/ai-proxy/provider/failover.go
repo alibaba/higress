@@ -605,7 +605,7 @@ func (c *ProviderConfig) SetApiTokenInUse(ctx wrapper.HttpContext) {
 	if c.isFailoverEnabled() {
 		apiToken = c.GetGlobalRandomToken()
 	} else {
-		apiToken = c.GetRandomToken()
+		apiToken = c.GetOrSetTokenWithContext(ctx)
 	}
 	log.Debugf("Use apiToken %s to send request", apiToken)
 	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)

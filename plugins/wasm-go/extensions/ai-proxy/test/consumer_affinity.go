@@ -219,5 +219,74 @@ func RunConsumerAffinityOnHttpRequestHeadersTests(t *testing.T) {
 			authValue, _ := test.GetHeaderValue(requestHeaders, "Authorization")
 			require.Contains(t, authValue, "sk-single-token", "Single token should always be used")
 		})
+
+		// 测试同一 consumer 多次请求获得相同 token（consumer affinity 一致性）
+		t.Run("same consumer gets consistent token across requests", func(t *testing.T) {
+			consumer := "consumer-consistency-test"
+			var firstToken string
+
+			// 运行 5 次请求，验证同一个 consumer 始终获得相同的 token
+			for i := 0; i < 5; i++ {
+				host, status := test.NewTestHost(multiTokenOpenAIConfig)
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+
+				action := host.CallOnHttpRequestHeaders([][2]string{
+					{":authority", "example.com"},
+					{":path", "/v1/responses"},
+					{":method", "POST"},
+					{"Content-Type", "application/json"},
+					{"x-mse-consumer", consumer},
+				})
+
+				require.Equal(t, types.HeaderStopIteration, action)
+
+				requestHeaders := host.GetRequestHeaders()
+				authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
+				require.True(t, hasAuth, "Authorization header should exist")
+				require.True(t, strings.Contains(authValue, "sk-token-"), "Should use one of the configured tokens")
+
+				if i == 0 {
+					firstToken = authValue
+				} else {
+					require.Equal(t, firstToken, authValue, "Same consumer should get same token consistently (consumer affinity)")
+				}
+
+				host.Reset()
+			}
+		})
+
+		// 测试不同 consumer 可能获得不同 token
+		t.Run("different consumers get tokens based on hash", func(t *testing.T) {
+			tokens := make(map[string]string)
+
+			consumers := []string{"consumer-alpha", "consumer-beta", "consumer-gamma", "consumer-delta", "consumer-epsilon"}
+			for _, consumer := range consumers {
+				host, status := test.NewTestHost(multiTokenOpenAIConfig)
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+
+				action := host.CallOnHttpRequestHeaders([][2]string{
+					{":authority", "example.com"},
+					{":path", "/v1/responses"},
+					{":method", "POST"},
+					{"Content-Type", "application/json"},
+					{"x-mse-consumer", consumer},
+				})
+
+				require.Equal(t, types.HeaderStopIteration, action)
+
+				requestHeaders := host.GetRequestHeaders()
+				authValue, _ := test.GetHeaderValue(requestHeaders, "Authorization")
+				tokens[consumer] = authValue
+
+				host.Reset()
+			}
+
+			// 验证至少使用了多个不同的 token（hash 分布）
+			uniqueTokens := make(map[string]bool)
+			for _, token := range tokens {
+				uniqueTokens[token] = true
+			}
+			require.GreaterOrEqual(t, len(uniqueTokens), 2, "Different consumers should use at least 2 different tokens")
+		})
 	})
 }
