@@ -338,7 +338,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 						Index: &c.thinkingBlockIndex,
 					}
 					stopData, _ := json.Marshal(stopEvent)
-					result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
+					result.WriteString(fmt.Sprintf("event: %s\ndata: %s\n\n", stopEvent.Type, stopData))
 				}
 				if c.textBlockStarted && !c.textBlockStopped {
 					c.textBlockStopped = true
@@ -348,7 +348,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 						Index: &c.textBlockIndex,
 					}
 					stopData, _ := json.Marshal(stopEvent)
-					result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
+					result.WriteString(fmt.Sprintf("event: %s\ndata: %s\n\n", stopEvent.Type, stopData))
 				}
 				// Send final content_block_stop events for any remaining unclosed tool calls
 				for index, toolCall := range c.toolCallStates {
@@ -360,7 +360,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 							Index: &toolCall.claudeContentIndex,
 						}
 						stopData, _ := json.Marshal(stopEvent)
-						result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
+						result.WriteString(fmt.Sprintf("event: %s\ndata: %s\n\n", stopEvent.Type, stopData))
 					}
 				}
 
@@ -375,7 +375,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 						},
 					}
 					stopData, _ := json.Marshal(messageDelta)
-					result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
+					result.WriteString(fmt.Sprintf("event: %s\ndata: %s\n\n", messageDelta.Type, stopData))
 					c.pendingStopReason = nil
 				}
 
@@ -386,7 +386,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 						Type: "message_stop",
 					}
 					stopData, _ := json.Marshal(messageStopEvent)
-					result.WriteString(fmt.Sprintf("data: %s\n\n", stopData))
+					result.WriteString(fmt.Sprintf("event: %s\ndata: %s\n\n", messageStopEvent.Type, stopData))
 				}
 
 				// Reset all state for next request
@@ -722,7 +722,9 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 	}
 
 	// Handle usage information
-	if openaiResponse.Usage != nil && choice.FinishReason == nil {
+	// Note: Some providers may send usage in the same chunk as finish_reason,
+	// so we check for usage regardless of whether finish_reason is present
+	if openaiResponse.Usage != nil {
 		log.Debugf("[OpenAI->Claude] Processing usage info - input: %d, output: %d",
 			openaiResponse.Usage.PromptTokens, openaiResponse.Usage.CompletionTokens)
 
