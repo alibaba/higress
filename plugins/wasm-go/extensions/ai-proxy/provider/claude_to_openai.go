@@ -192,6 +192,7 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 
 		if claudeRequest.Thinking.Type == "enabled" {
 			openaiRequest.ReasoningMaxTokens = claudeRequest.Thinking.BudgetTokens
+			openaiRequest.Thinking = &thinkingParam{Type: "enabled", BudgetToken: claudeRequest.Thinking.BudgetTokens}
 
 			// Set ReasoningEffort based on budget_tokens
 			// low: <4096, medium: >=4096 and <16384, high: >=16384
@@ -207,7 +208,10 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 				claudeRequest.Thinking.BudgetTokens, openaiRequest.ReasoningEffort, openaiRequest.ReasoningMaxTokens)
 		}
 	} else {
-		log.Debugf("[Claude->OpenAI] No thinking config found")
+		// Explicitly disable thinking when not configured in Claude request
+		// This prevents providers like ZhipuAI from enabling thinking by default
+		openaiRequest.Thinking = &thinkingParam{Type: "disabled"}
+		log.Debugf("[Claude->OpenAI] No thinking config found, explicitly disabled")
 	}
 
 	result, err := json.Marshal(openaiRequest)
@@ -262,19 +266,21 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 			}
 
 			if reasoningText != "" {
+				emptySignature := ""
 				contents = append(contents, claudeTextGenContent{
 					Type:      "thinking",
-					Signature: "", // OpenAI doesn't provide signature, use empty string
-					Thinking:  reasoningText,
+					Signature: &emptySignature, // Use pointer for empty string
+					Thinking:  &reasoningText,
 				})
 				log.Debugf("[OpenAI->Claude] Added thinking content: %s", reasoningText)
 			}
 
 			// Add text content if present
 			if choice.Message.StringContent() != "" {
+				textContent := choice.Message.StringContent()
 				contents = append(contents, claudeTextGenContent{
 					Type: "text",
-					Text: choice.Message.StringContent(),
+					Text: &textContent,
 				})
 			}
 
@@ -297,7 +303,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 							Type:  "tool_use",
 							Id:    toolCall.Id,
 							Name:  toolCall.Function.Name,
-							Input: input,
+							Input: &input,
 						})
 					}
 				}
@@ -379,8 +385,8 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 					messageDelta := &claudeTextGenStreamResponse{
 						Type: "message_delta",
 						Delta: &claudeTextGenDelta{
-							Type:       "message_delta",
-							StopReason: c.pendingStopReason,
+							StopReason:   c.pendingStopReason,
+							StopSequence: json.RawMessage("null"),
 						},
 					}
 					stopData, _ := json.Marshal(messageDelta)
@@ -524,13 +530,14 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			c.nextContentIndex++
 			c.thinkingBlockStarted = true
 			log.Debugf("[OpenAI->Claude] Generated content_block_start event for thinking at index %d", c.thinkingBlockIndex)
+			emptyStr := ""
 			responses = append(responses, &claudeTextGenStreamResponse{
 				Type:  "content_block_start",
 				Index: &c.thinkingBlockIndex,
 				ContentBlock: &claudeTextGenContent{
 					Type:      "thinking",
-					Signature: "", // OpenAI doesn't provide signature
-					Thinking:  "",
+					Signature: &emptyStr, // Use pointer for empty string output
+					Thinking:  &emptyStr, // Use pointer for empty string output
 				},
 			})
 		}
@@ -541,8 +548,8 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			Type:  "content_block_delta",
 			Index: &c.thinkingBlockIndex,
 			Delta: &claudeTextGenDelta{
-				Type: "thinking_delta", // Use thinking_delta for reasoning content
-				Text: reasoningText,
+				Type:     "thinking_delta",
+				Thinking: reasoningText, // Use Thinking field, not Text
 			},
 		})
 	}
@@ -573,12 +580,13 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			c.nextContentIndex++
 			c.textBlockStarted = true
 			log.Debugf("[OpenAI->Claude] Generated content_block_start event for text at index %d", c.textBlockIndex)
+			emptyText := ""
 			responses = append(responses, &claudeTextGenStreamResponse{
 				Type:  "content_block_start",
 				Index: &c.textBlockIndex,
 				ContentBlock: &claudeTextGenContent{
 					Type: "text",
-					Text: "",
+					Text: &emptyText,
 				},
 			})
 		}
@@ -597,6 +605,30 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 
 	// Handle tool calls in streaming response
 	if choice.Delta != nil && len(choice.Delta.ToolCalls) > 0 {
+		// Ensure message_start is sent before any content blocks
+		if !c.messageStartSent {
+			c.messageId = openaiResponse.Id
+			c.messageStartSent = true
+			message := &claudeTextGenResponse{
+				Id:      openaiResponse.Id,
+				Type:    "message",
+				Role:    "assistant",
+				Model:   openaiResponse.Model,
+				Content: []claudeTextGenContent{},
+			}
+			if openaiResponse.Usage != nil {
+				message.Usage = claudeTextGenUsage{
+					InputTokens:  openaiResponse.Usage.PromptTokens,
+					OutputTokens: 0,
+				}
+			}
+			responses = append(responses, &claudeTextGenStreamResponse{
+				Type:    "message_start",
+				Message: message,
+			})
+			log.Debugf("[OpenAI->Claude] Generated message_start event before tool calls for id: %s", openaiResponse.Id)
+		}
+
 		// Initialize toolCallStates if needed
 		if c.toolCallStates == nil {
 			c.toolCallStates = make(map[int]*toolCallInfo)
@@ -741,7 +773,7 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 		messageDelta := &claudeTextGenStreamResponse{
 			Type: "message_delta",
 			Delta: &claudeTextGenDelta{
-				Type: "message_delta",
+				StopSequence: json.RawMessage("null"), // Explicit null per Claude spec
 			},
 			Usage: &claudeTextGenUsage{
 				InputTokens:  openaiResponse.Usage.PromptTokens,
@@ -895,6 +927,7 @@ func (c *ClaudeToOpenAIConverter) startToolCall(toolState *toolCallInfo) []*clau
 		toolState.claudeContentIndex, toolState.id, toolState.name)
 
 	// Send content_block_start
+	emptyInput := map[string]interface{}{}
 	responses = append(responses, &claudeTextGenStreamResponse{
 		Type:  "content_block_start",
 		Index: &toolState.claudeContentIndex,
@@ -902,7 +935,7 @@ func (c *ClaudeToOpenAIConverter) startToolCall(toolState *toolCallInfo) []*clau
 			Type:  "tool_use",
 			Id:    toolState.id,
 			Name:  toolState.name,
-			Input: map[string]interface{}{}, // Empty input as per Claude spec
+			Input: &emptyInput, // Empty input as per Claude spec
 		},
 	})
 
