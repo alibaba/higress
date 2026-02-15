@@ -15,6 +15,7 @@
 package wrapper
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -37,6 +38,16 @@ type DefaultLog struct {
 }
 
 func (l *DefaultLog) log(level LogLevel, msg string) {
+	value, err := proxywasm.CallForeignFunction("get_log_level", nil)
+	var envoyLogLevel LogLevel
+	if err != nil {
+		envoyLogLevel = LogLevelTrace
+	} else {
+		envoyLogLevel = LogLevel(binary.LittleEndian.Uint32(value))
+	}
+	if level < envoyLogLevel {
+		return
+	}
 	requestIDRaw, _ := proxywasm.GetProperty([]string{"x_request_id"})
 	requestID := string(requestIDRaw)
 	if requestID == "" {
@@ -60,6 +71,16 @@ func (l *DefaultLog) log(level LogLevel, msg string) {
 }
 
 func (l *DefaultLog) logFormat(level LogLevel, format string, args ...interface{}) {
+	value, err := proxywasm.CallForeignFunction("get_log_level", nil)
+	var envoyLogLevel LogLevel
+	if err != nil {
+		envoyLogLevel = LogLevelTrace
+	} else {
+		envoyLogLevel = LogLevel(binary.LittleEndian.Uint32(value))
+	}
+	if level < envoyLogLevel {
+		return
+	}
 	requestIDRaw, _ := proxywasm.GetProperty([]string{"x_request_id"})
 	requestID := string(requestIDRaw)
 	if requestID == "" {

@@ -16,16 +16,71 @@ package matcher
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/tidwall/gjson"
 )
+
+// testLogger is a simple logger implementation for validation mode
+type testLogger struct{}
+
+func (l *testLogger) Trace(msg string) { fmt.Fprintf(os.Stderr, "[TRACE] %s\n", msg) }
+func (l *testLogger) Tracef(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "[TRACE] "+format+"\n", args...)
+}
+func (l *testLogger) Debug(msg string) { fmt.Fprintf(os.Stderr, "[DEBUG] %s\n", msg) }
+func (l *testLogger) Debugf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "[DEBUG] "+format+"\n", args...)
+}
+func (l *testLogger) Info(msg string) { fmt.Fprintf(os.Stderr, "[INFO] %s\n", msg) }
+func (l *testLogger) Infof(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "[INFO] "+format+"\n", args...)
+}
+func (l *testLogger) Warn(msg string) { fmt.Fprintf(os.Stderr, "[WARN] %s\n", msg) }
+func (l *testLogger) Warnf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "[WARN] "+format+"\n", args...)
+}
+func (l *testLogger) Error(msg string) { fmt.Fprintf(os.Stderr, "[ERROR] %s\n", msg) }
+func (l *testLogger) Errorf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "[ERROR] "+format+"\n", args...)
+}
+func (l *testLogger) Critical(msg string) { fmt.Fprintf(os.Stderr, "[CRITICAL] %s\n", msg) }
+func (l *testLogger) Criticalf(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "[CRITICAL] "+format+"\n", args...)
+}
+func (l *testLogger) ResetID(pluginID string) {}
+
+// init initializes the validator package
+func init() {
+	// Set a custom logger for validation mode to prevent panics
+	log.SetPluginLog(&testLogger{})
+}
 
 type customConfig struct {
 	name string
 	age  int64
 }
+
+type mockPluginContext struct {
+	ruleLevelIsolation bool
+}
+
+func (c *mockPluginContext) SetContext(key string, value interface{}) {}
+
+func (c *mockPluginContext) GetContext(key string) interface{} { return nil }
+
+func (c *mockPluginContext) EnableRuleLevelConfigIsolation() { c.ruleLevelIsolation = true }
+
+func (c *mockPluginContext) IsRuleLevelConfigIsolation() bool { return c.ruleLevelIsolation }
+
+func (c *mockPluginContext) GetFingerPrint() string { return "" }
+
+func (c *mockPluginContext) DoLeaderElection() {}
+func (c *mockPluginContext) IsLeader() bool    { return true }
 
 func parseConfig(json gjson.Result, config *customConfig) error {
 	config.name = json.Get("name").String()
@@ -309,24 +364,15 @@ func TestParseRuleConfig(t *testing.T) {
 		},
 		{
 			name:   "invalid rule",
-			config: `{"_rules_":[{"_match_domain_":["*"],"_match_route_":["test"]}]}`,
-			errMsg: "there is only one of  '_match_route_', '_match_domain_', '_match_service_' and '_match_route_prefix_' can present in configuration.",
-		},
-		{
-			name:   "invalid rule",
-			config: `{"_rules_":[{"_match_domain_":["*"],"_match_service_":["test.dns"]}]}`,
-			errMsg: "there is only one of  '_match_route_', '_match_domain_', '_match_service_' and '_match_route_prefix_' can present in configuration.",
-		},
-		{
-			name:   "invalid rule",
 			config: `{"_rules_":[{"age":16}]}`,
-			errMsg: "there is only one of  '_match_route_', '_match_domain_', '_match_service_' and '_match_route_prefix_' can present in configuration.",
+			errMsg: "there is at least one of  '_match_route_', '_match_domain_', '_match_service_' and '_match_route_prefix_' can present in configuration.",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			var actual RuleMatcher[customConfig]
-			err := actual.ParseRuleConfig(gjson.Parse(c.config), parseConfig, nil)
+			var ctx mockPluginContext
+			err := actual.ParseRuleConfig(&ctx, gjson.Parse(c.config), parseConfig, nil)
 			if err != nil {
 				if c.errMsg == "" {
 					t.Errorf("parse failed: %v", err)
@@ -422,7 +468,8 @@ func TestParseOverrideConfig(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			var actual RuleMatcher[completeConfig]
-			err := actual.ParseRuleConfig(gjson.Parse(c.config), parseGlobalConfig, parseOverrideRuleConfig)
+			var ctx mockPluginContext
+			err := actual.ParseRuleConfig(&ctx, gjson.Parse(c.config), parseGlobalConfig, parseOverrideRuleConfig)
 			if err != nil {
 				if c.errMsg == "" {
 					t.Errorf("parse failed: %v", err)
@@ -433,6 +480,210 @@ func TestParseOverrideConfig(t *testing.T) {
 				return
 			}
 			assert.Equal(t, c.expected, actual)
+		})
+	}
+}
+
+func TestGenerateHashKey(t *testing.T) {
+	// Test hash key stability - same rule should generate same hash key
+	rule1 := RuleConfig[customConfig]{
+		category: Route,
+		routes: map[string]struct{}{
+			"route2": {},
+			"route1": {},
+		},
+		services: map[string]struct{}{
+			"service2": {},
+			"service1": {},
+		},
+		routePrefixs: map[string]struct{}{
+			"prefix2": {},
+			"prefix1": {},
+		},
+		hosts: []HostMatcher{
+			{matchType: Exact, host: "host2.com"},
+			{matchType: Exact, host: "host1.com"},
+		},
+	}
+
+	rule2 := RuleConfig[customConfig]{
+		category: Route,
+		routes: map[string]struct{}{
+			"route1": {},
+			"route2": {},
+		},
+		services: map[string]struct{}{
+			"service1": {},
+			"service2": {},
+		},
+		routePrefixs: map[string]struct{}{
+			"prefix1": {},
+			"prefix2": {},
+		},
+		hosts: []HostMatcher{
+			{matchType: Exact, host: "host1.com"},
+			{matchType: Exact, host: "host2.com"},
+		},
+	}
+
+	hash1 := rule1.GenerateHashKey()
+	hash2 := rule2.GenerateHashKey()
+
+	assert.Equal(t, hash1, hash2, "Same rule with different map order should generate same hash key")
+	assert.NotEmpty(t, hash1, "Hash key should not be empty")
+
+	// Test different rules generate different hash keys
+	rule3 := RuleConfig[customConfig]{
+		category: Host,
+		hosts: []HostMatcher{
+			{matchType: Exact, host: "different.com"},
+		},
+	}
+
+	hash3 := rule3.GenerateHashKey()
+	assert.NotEqual(t, hash1, hash3, "Different rules should generate different hash keys")
+}
+
+func TestBackupStore(t *testing.T) {
+	// Clear backup store before test
+	gRuleBackupStore = make(map[string]string)
+
+	var matcher RuleMatcher[customConfig]
+	var ctx mockPluginContext
+
+	rule := RuleConfig[customConfig]{
+		category: Route,
+		routes: map[string]struct{}{
+			"test-route": {},
+		},
+		config: customConfig{
+			name: "test",
+			age:  25,
+		},
+	}
+
+	ruleJson := gjson.Parse(`{"_match_route_":["test-route"],"name":"test","age":25}`)
+
+	// Test store rule to backup
+	err := matcher.storeRuleToBackup(&ctx, ruleJson, rule)
+	assert.NoError(t, err, "Store rule to backup should not fail")
+
+	// Test load rule from backup
+	loadedJson := matcher.loadRuleJsonFromBackup(&ctx, rule)
+	assert.True(t, loadedJson.Exists(), "Loaded rule JSON should exist")
+	assert.Equal(t, ruleJson.Raw, loadedJson.Raw, "Loaded rule JSON should match original")
+
+	// Test load non-existent rule
+	nonExistentRule := RuleConfig[customConfig]{
+		category: Host,
+		hosts: []HostMatcher{
+			{matchType: Exact, host: "non-existent.com"},
+		},
+	}
+
+	loadedJson2 := matcher.loadRuleJsonFromBackup(&ctx, nonExistentRule)
+	assert.False(t, loadedJson2.Exists(), "Non-existent rule should not be found")
+}
+
+func parseConfigWithError(json gjson.Result, config *customConfig) error {
+	if json.Get("name").String() == "error" {
+		return errors.New("parse error")
+	}
+	return parseConfig(json, config)
+}
+
+func TestRuleLevelConfigIsolation(t *testing.T) {
+	// Clear backup store before test
+	gRuleBackupStore = make(map[string]string)
+
+	cases := []struct {
+		name              string
+		config            string
+		enableIsolation   bool
+		expectedRuleCount int
+		expectedError     bool
+		setupBackup       bool
+		backupRuleJson    string
+		backupRule        RuleConfig[customConfig]
+	}{
+		{
+			name:              "isolation disabled - parse error should fail",
+			config:            `{"_rules_":[{"_match_route_":["test1"],"name":"error","age":18}]}`,
+			enableIsolation:   false,
+			expectedRuleCount: 0,
+			expectedError:     true,
+		},
+		{
+			name:              "isolation enabled - parse error with no backup should skip rule",
+			config:            `{"_rules_":[{"_match_route_":["test1"],"name":"error","age":18}]}`,
+			enableIsolation:   true,
+			expectedRuleCount: 0,
+			expectedError:     true,
+		},
+		{
+			name:              "isolation enabled - parse error with backup should use backup",
+			config:            `{"_rules_":[{"_match_route_":["test1"],"name":"error","age":18}]}`,
+			enableIsolation:   true,
+			expectedRuleCount: 1,
+			expectedError:     false,
+			setupBackup:       true,
+			backupRuleJson:    `{"_match_route_":["test1"],"name":"backup","age":30}`,
+			backupRule: RuleConfig[customConfig]{
+				category: Route,
+				routes: map[string]struct{}{
+					"test1": {},
+				},
+			},
+		},
+		{
+			name:              "isolation enabled - successful parse should store to backup",
+			config:            `{"_rules_":[{"_match_route_":["test2"],"name":"success","age":25}]}`,
+			enableIsolation:   true,
+			expectedRuleCount: 1,
+			expectedError:     false,
+		},
+		{
+			name:              "isolation enabled - mixed success and failure",
+			config:            `{"_rules_":[{"_match_route_":["test1"],"name":"success","age":25},{"_match_route_":["test2"],"name":"error","age":18}]}`,
+			enableIsolation:   true,
+			expectedRuleCount: 1,
+			expectedError:     false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Clear backup store for each test
+			gRuleBackupStore = make(map[string]string)
+
+			var matcher RuleMatcher[customConfig]
+			var ctx mockPluginContext
+
+			if c.enableIsolation {
+				ctx.EnableRuleLevelConfigIsolation()
+			}
+
+			// Setup backup if needed
+			if c.setupBackup {
+				err := matcher.storeRuleToBackup(&ctx, gjson.Parse(c.backupRuleJson), c.backupRule)
+				assert.NoError(t, err, "Setup backup should not fail")
+			}
+
+			err := matcher.ParseRuleConfig(&ctx, gjson.Parse(c.config), parseConfigWithError, nil)
+
+			if c.expectedError {
+				assert.Error(t, err, "Expected error but got none")
+			} else {
+				assert.NoError(t, err, "Unexpected error: %v", err)
+			}
+
+			assert.Equal(t, c.expectedRuleCount, len(matcher.ruleConfig), "Rule count mismatch")
+
+			// If backup was used, verify the config
+			if c.setupBackup && !c.expectedError && c.expectedRuleCount > 0 {
+				assert.Equal(t, "backup", matcher.ruleConfig[0].config.name, "Should use backup config")
+				assert.Equal(t, int64(30), matcher.ruleConfig[0].config.age, "Should use backup config")
+			}
 		})
 	}
 }

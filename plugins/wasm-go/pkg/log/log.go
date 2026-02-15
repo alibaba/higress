@@ -32,8 +32,24 @@ type Log interface {
 
 var pluginLog Log
 
+// safeLogEnabled controls whether sensitive logs should be suppressed.
+// When enabled, UnsafeInfo/UnsafeInfof calls will be silently ignored.
+var safeLogEnabled bool
+
 func SetPluginLog(log Log) {
 	pluginLog = log
+}
+
+// SetSafeLogEnabled enables or disables safe log mode.
+// When safe log mode is enabled, sensitive logs (printed via UnsafeInfo/UnsafeInfof)
+// will be suppressed to prevent leaking sensitive information like headers and body content.
+func SetSafeLogEnabled(enabled bool) {
+	safeLogEnabled = enabled
+}
+
+// IsSafeLogEnabled returns whether safe log mode is currently enabled.
+func IsSafeLogEnabled() bool {
+	return safeLogEnabled
 }
 
 func Trace(msg string) {
@@ -82,4 +98,32 @@ func Critical(msg string) {
 
 func Criticalf(format string, args ...interface{}) {
 	pluginLog.Criticalf(format, args...)
+}
+
+// UnsafeInfo logs a message at Info level when safe log mode is disabled.
+// When safe log mode is enabled, the message is downgraded to Debug level
+// with a leading newline, so that line-based log collectors cannot capture
+// the complete sensitive information in a single entry.
+func UnsafeInfo(msg string) {
+	if safeLogEnabled {
+		// In safe mode, downgrade to Debug level with leading newline
+		// to prevent log collectors from capturing complete sensitive data
+		pluginLog.Debug("\n" + msg)
+	} else {
+		pluginLog.Info(msg)
+	}
+}
+
+// UnsafeInfof logs a formatted message at Info level when safe log mode is disabled.
+// When safe log mode is enabled, the message is downgraded to Debug level
+// with a leading newline, so that line-based log collectors cannot capture
+// the complete sensitive information in a single entry.
+func UnsafeInfof(format string, args ...interface{}) {
+	if safeLogEnabled {
+		// In safe mode, downgrade to Debug level with leading newline
+		// to prevent log collectors from capturing complete sensitive data
+		pluginLog.Debugf("\n"+format, args...)
+	} else {
+		pluginLog.Infof(format, args...)
+	}
 }

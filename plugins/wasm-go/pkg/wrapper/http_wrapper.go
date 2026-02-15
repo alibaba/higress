@@ -23,6 +23,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/log"
 )
 
 type ResponseCallback func(statusCode int, responseHeaders http.Header, responseBody []byte)
@@ -81,7 +83,9 @@ func (c ClusterClient[C]) Call(method, rawURL string, headers [][2]string, body 
 	return HttpCall(c.cluster, method, rawURL, headers, body, cb, timeoutMillisecond...)
 }
 
-func (c ClusterClient[C]) ClusterName() string { return c.cluster.ClusterName() }
+func (c ClusterClient[C]) ClusterName() string {
+	return c.cluster.ClusterName()
+}
 
 func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body []byte,
 	callback ResponseCallback, timeoutMillisecond ...uint32) error {
@@ -100,6 +104,9 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 	if parsedURL.Host != "" {
 		authority = parsedURL.Host
 	}
+	if authority == "" {
+		authority = "unknownhost"
+	}
 	path := "/" + strings.TrimPrefix(parsedURL.Path, "/")
 	if parsedURL.RawQuery != "" {
 		path = fmt.Sprintf("%s?%s", path, parsedURL.RawQuery)
@@ -114,7 +121,7 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 	_, err = proxywasm.DispatchHttpCall(cluster.ClusterName(), headers, body, nil, timeout, func(numHeaders, bodySize, numTrailers int) {
 		respBody, err := proxywasm.GetHttpCallResponseBody(0, bodySize)
 		if err != nil {
-			proxywasm.LogCriticalf("failed to get response body: %v", err)
+			proxywasm.LogDebugf("body is empty")
 		}
 		respHeaders, err := proxywasm.GetHttpCallResponseHeaders()
 		if err != nil {
@@ -135,11 +142,13 @@ func HttpCall(cluster Cluster, method, rawURL string, headers [][2]string, body 
 			}
 			headers.Add(h[0], h[1])
 		}
-		proxywasm.LogDebugf("http call end, id: %s, code: %d, normal: %t, body: %s",
-			requestID, code, normalResponse, respBody)
+		log.UnsafeInfof("http call end, id: %s, code: %d, normal: %t, body: %s",
+			requestID, code, normalResponse, strings.ReplaceAll(string(respBody), "\n", `\n`))
 		callback(code, headers, respBody)
 	})
-	proxywasm.LogDebugf("http call start, id: %s, cluster: %s, method: %s, url: %s, headers: %#v, body: %s, timeout: %d",
-		requestID, cluster.ClusterName(), method, rawURL, headers, body, timeout)
+	if err == nil {
+		log.UnsafeInfof("http call start, id: %s, cluster: %s, method: %s, url: %s, headers: %#v, body: %s, timeout: %d",
+			requestID, cluster.ClusterName(), method, rawURL, headers, strings.ReplaceAll(string(body), "\n", `\n`), timeout)
+	}
 	return err
 }

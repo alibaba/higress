@@ -22,6 +22,9 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
+// Deprecated: Use HttpContext.Scheme() instead.
+// This function calls proxywasm.GetHttpRequestHeader which will fail outside the header phase.
+// The new method uses cached values from the header phase and can be called at any time.
 func GetRequestScheme() string {
 	scheme, err := proxywasm.GetHttpRequestHeader(":scheme")
 	if err != nil {
@@ -31,6 +34,9 @@ func GetRequestScheme() string {
 	return scheme
 }
 
+// Deprecated: Use HttpContext.Host() instead.
+// This function calls proxywasm.GetHttpRequestHeader which will fail outside the header phase.
+// The new method uses cached values from the header phase and can be called at any time.
 func GetRequestHost() string {
 	host, err := proxywasm.GetHttpRequestHeader(":authority")
 	if err != nil {
@@ -40,6 +46,9 @@ func GetRequestHost() string {
 	return host
 }
 
+// Deprecated: Use HttpContext.Path() instead.
+// This function calls proxywasm.GetHttpRequestHeader which will fail outside the header phase.
+// The new method uses cached values from the header phase and can be called at any time.
 func GetRequestPath() string {
 	path, err := proxywasm.GetHttpRequestHeader(":path")
 	if err != nil {
@@ -49,6 +58,8 @@ func GetRequestPath() string {
 	return path
 }
 
+// Deprecated: Use url.Parse(HttpContext.Path()).Path instead.
+// This function depends on GetRequestPath() which will fail outside the header phase.
 func GetRequestPathWithoutQuery() string {
 	rawPath := GetRequestPath()
 	if rawPath == "" {
@@ -62,6 +73,9 @@ func GetRequestPathWithoutQuery() string {
 	return path.Path
 }
 
+// Deprecated: Use HttpContext.Method() instead.
+// This function calls proxywasm.GetHttpRequestHeader which will fail outside the header phase.
+// The new method uses cached values from the header phase and can be called at any time.
 func GetRequestMethod() string {
 	method, err := proxywasm.GetHttpRequestHeader(":method")
 	if err != nil {
@@ -71,6 +85,21 @@ func GetRequestMethod() string {
 	return method
 }
 
+// Deprecated: Use HttpContext.IsWebsocket() instead.
+// This function calls proxywasm.GetHttpRequestHeader which will fail outside the header phase.
+// The new method uses cached values from the header phase and can be called at any time.
+func IsWebsocket() bool {
+	connection, _ := proxywasm.GetHttpRequestHeader("connection")
+	upgrade, _ := proxywasm.GetHttpRequestHeader("upgrade")
+	if strings.EqualFold(connection, "upgrade") && strings.EqualFold(upgrade, "websocket") {
+		return true
+	}
+	return false
+}
+
+// Deprecated: Use HttpContext.IsBinaryRequestBody() instead.
+// This function calls proxywasm.GetHttpRequestHeader which will fail outside the header phase.
+// The new method uses cached values from the header phase and can be called at any time.
 func IsBinaryRequestBody() bool {
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
 	if strings.Contains(contentType, "octet-stream") ||
@@ -84,6 +113,9 @@ func IsBinaryRequestBody() bool {
 	return false
 }
 
+// Deprecated: Use HttpContext.IsBinaryResponseBody() instead.
+// This function calls proxywasm.GetHttpResponseHeader which will fail outside the header phase.
+// The new method uses cached values from the header phase and can be called at any time.
 func IsBinaryResponseBody() bool {
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.Contains(contentType, "octet-stream") ||
@@ -97,20 +129,55 @@ func IsBinaryResponseBody() bool {
 	return false
 }
 
+// Deprecated: Use HttpContext.HasRequestBody() instead.
+// This function only checks headers and may give incorrect results.
+// The new method also considers whether endOfStream was received in the header phase.
 func HasRequestBody() bool {
 	contentTypeStr, _ := proxywasm.GetHttpRequestHeader("content-type")
 	contentLengthStr, _ := proxywasm.GetHttpRequestHeader("content-length")
 	transferEncodingStr, _ := proxywasm.GetHttpRequestHeader("transfer-encoding")
 	proxywasm.LogDebugf("check has request body: contentType:%s, contentLengthStr:%s, transferEncodingStr:%s",
 		contentTypeStr, contentLengthStr, transferEncodingStr)
+	if contentLengthStr != "" {
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err == nil {
+			if contentLength == 0 {
+				return false
+			}
+			return true
+		}
+	}
 	if contentTypeStr != "" {
 		return true
 	}
+	return strings.Contains(transferEncodingStr, "chunked")
+}
+
+func IsApplicationJson() bool {
+	contentTypeStr, _ := proxywasm.GetHttpResponseHeader("content-type")
+	return strings.Contains(contentTypeStr, "application/json")
+}
+
+// Deprecated: Use HttpContext.HasResponseBody() instead.
+// This function only checks headers and may give incorrect results.
+// The new method also considers whether endOfStream was received in the header phase.
+func HasResponseBody() bool {
+	contentTypeStr, _ := proxywasm.GetHttpResponseHeader("content-type")
+	contentLengthStr, _ := proxywasm.GetHttpResponseHeader("content-length")
+	transferEncodingStr, _ := proxywasm.GetHttpResponseHeader("transfer-encoding")
+	proxywasm.LogDebugf("check has request body: contentType:%s, contentLengthStr:%s, transferEncodingStr:%s",
+		contentTypeStr, contentLengthStr, transferEncodingStr)
 	if contentLengthStr != "" {
 		contentLength, err := strconv.Atoi(contentLengthStr)
-		if err == nil && contentLength > 0 {
+		if err == nil {
+			if contentLength == 0 {
+				return false
+			}
 			return true
 		}
+	}
+	if contentTypeStr != "" {
+		return true
 	}
 	return strings.Contains(transferEncodingStr, "chunked")
 }
