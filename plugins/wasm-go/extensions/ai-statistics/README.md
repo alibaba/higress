@@ -24,6 +24,8 @@ description: AI可观测配置参考
 
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|------|-----|------------------------|
+| `use_default_attributes` | bool | 非必填  | false   | 是否使用默认完整属性配置，包含 messages、answer、question 等所有字段。适用于调试、审计场景 |
+| `use_default_response_attributes` | bool | 非必填  | false   | 是否使用轻量级默认属性配置（推荐），只包含 token 统计，不缓冲请求体和响应体。适用于生产环境 |
 | `attributes` | []Attribute | 非必填  | -   | 用户希望记录在log/span中的信息 |
 | `disable_openai_usage` | bool | 非必填  | false   | 非openai兼容协议时，model、token的支持非标，配置为true时可以避免报错 |
 | `value_length_limit` | int | 非必填  | 4000   | 记录的单个value的长度限制 |
@@ -67,6 +69,7 @@ Attribute 配置说明:
 | 内置属性键 | 说明 | 适用场景 |
 |---------|------|---------|
 | `question` | 用户提问内容 | 支持 OpenAI/Claude 消息格式 |
+| `system` | 系统提示词 | 支持 Claude `/v1/messages` 的顶层 system 字段 |
 | `answer` | AI 回答内容 | 支持 OpenAI/Claude 消息格式，流式和非流式 |
 | `tool_calls` | 工具调用信息 | OpenAI/Claude 工具调用 |
 | `reasoning` | 推理过程 | OpenAI o1 等推理模型 |
@@ -391,25 +394,66 @@ data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\
 
 ### 使用默认配置快速启用
 
+插件提供两种默认配置模式：
+
+#### 轻量模式（推荐用于生产环境）
+
+通过 `use_default_response_attributes: true` 启用轻量模式：
+
+```yaml
+use_default_response_attributes: true
+```
+
+此配置是**推荐的生产环境配置**，**不会缓冲请求体和流式响应体**，只记录 token 统计：
+
+| 字段 | 说明 |
+|------|------|
+| `reasoning_tokens` | 推理 token 数 |
+| `cached_tokens` | 缓存命中 token 数 |
+| `input_token_details` | 输入 token 详情 |
+| `output_token_details` | 输出 token 详情 |
+
+**为什么推荐轻量模式？**
+
+轻量模式完全不缓冲请求体和响应体，避免了高并发下的内存问题：
+- **不缓冲请求体**：不提取 `messages`、`question`、`system` 等需要解析请求体的字段
+- **不缓冲流式响应体**：不提取 `answer`、`reasoning`、`tool_calls` 等需要缓冲完整响应的字段
+- **只统计 token**：从响应的 usage 字段提取 token 信息，不需要缓冲完整响应
+
+**内存对比：**
+
+| 场景 | 完整模式内存占用 | 轻量模式内存占用 |
+|------|------------------|------------------|
+| 10KB 请求 + 5KB 响应 | ~15KB | ~0KB (不缓冲) |
+| 1MB 请求 (长对话) + 500KB 响应 | ~1.5MB | ~0KB (不缓冲) |
+| 高并发 1000 QPS | 可能 1GB+ | 极低 |
+
+**注意**：轻量模式下 `model` 字段可能无法从请求体提取（会尝试从 Gemini 风格路径提取），`chat_round` 字段为 0。
+
+#### 完整模式
+
 通过 `use_default_attributes: true` 可以一键启用完整的流式观测能力：
 
 ```yaml
 use_default_attributes: true
 ```
 
-此配置会自动记录以下字段：
+此配置会自动记录以下字段，**但会缓冲完整的请求体和流式响应体**：
 
-| 字段 | 说明 |
-|------|------|
-| `messages` | 完整对话历史 |
-| `question` | 最后一条用户消息 |
-| `answer` | AI 回答（自动拼接流式 chunk） |
-| `reasoning` | 推理过程（自动拼接流式 chunk） |
-| `tool_calls` | 工具调用（自动按 index 组装） |
-| `reasoning_tokens` | 推理 token 数 |
-| `cached_tokens` | 缓存命中 token 数 |
-| `input_token_details` | 输入 token 详情 |
-| `output_token_details` | 输出 token 详情 |
+| 字段 | 说明 | 内存影响 |
+|------|------|----------|
+| `messages` | 完整对话历史 | ⚠️ 可能很大 |
+| `question` | 最后一条用户消息 | 需要缓冲请求体 |
+| `system` | 系统提示词 | 需要缓冲请求体 |
+| `answer` | AI 回答（自动拼接流式 chunk） | ⚠️ 需要缓冲响应体 |
+| `reasoning` | 推理过程（自动拼接流式 chunk） | ⚠️ 需要缓冲响应体 |
+| `tool_calls` | 工具调用（自动按 index 组装） | 需要缓冲响应体 |
+| `reasoning_tokens` | 推理 token 数 | 无 |
+| `cached_tokens` | 缓存命中 token 数 | 无 |
+| `input_token_details` | 输入 token 详情 | 无 |
+| `output_token_details` | 输出 token 详情 | 无 |
+
+**注意**：完整模式适用于调试、审计等需要完整对话记录的场景，但在高并发生产环境可能消耗大量内存。
 
 ### 流式日志示例
 
