@@ -266,10 +266,11 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 			}
 
 			if reasoningText != "" {
+				emptySignature := ""
 				contents = append(contents, claudeTextGenContent{
 					Type:      "thinking",
-					Signature: "", // OpenAI doesn't provide signature, use empty string
-					Thinking:  reasoningText,
+					Signature: &emptySignature, // Use pointer for empty string
+					Thinking:  &reasoningText,
 				})
 				log.Debugf("[OpenAI->Claude] Added thinking content: %s", reasoningText)
 			}
@@ -529,13 +530,14 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			c.nextContentIndex++
 			c.thinkingBlockStarted = true
 			log.Debugf("[OpenAI->Claude] Generated content_block_start event for thinking at index %d", c.thinkingBlockIndex)
+			emptyStr := ""
 			responses = append(responses, &claudeTextGenStreamResponse{
 				Type:  "content_block_start",
 				Index: &c.thinkingBlockIndex,
 				ContentBlock: &claudeTextGenContent{
 					Type:      "thinking",
-					Signature: "", // OpenAI doesn't provide signature
-					Thinking:  "",
+					Signature: &emptyStr, // Use pointer for empty string output
+					Thinking:  &emptyStr, // Use pointer for empty string output
 				},
 			})
 		}
@@ -546,8 +548,8 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			Type:  "content_block_delta",
 			Index: &c.thinkingBlockIndex,
 			Delta: &claudeTextGenDelta{
-				Type: "thinking_delta", // Use thinking_delta for reasoning content
-				Text: reasoningText,
+				Type:     "thinking_delta",
+				Thinking: reasoningText, // Use Thinking field, not Text
 			},
 		})
 	}
