@@ -315,3 +315,107 @@ func TestClaudeProvider_GetApiName(t *testing.T) {
 		assert.Equal(t, ApiName(""), provider.GetApiName("/unknown"))
 	})
 }
+
+func TestClaudeProvider_BuildClaudeTextGenRequest_ToolRoleConversion(t *testing.T) {
+	provider := &claudeProvider{
+		config: ProviderConfig{
+			claudeCodeMode: false,
+		},
+	}
+
+	t.Run("converts_single_tool_role_to_user_with_tool_result", func(t *testing.T) {
+		request := &chatCompletionRequest{
+			Model:     "claude-sonnet-4-5-20250929",
+			MaxTokens: 1024,
+			Messages: []chatMessage{
+				{Role: roleUser, Content: "What's the weather?"},
+				{Role: roleAssistant, Content: nil, ToolCalls: []toolCall{
+					{Id: "call_123", Type: "function", Function: functionCall{Name: "get_weather", Arguments: `{"city": "Beijing"}`}},
+				}},
+				{Role: roleTool, ToolCallId: "call_123", Content: "Sunny, 25°C"},
+			},
+		}
+
+		claudeReq := provider.buildClaudeTextGenRequest(request)
+
+		// Should have 3 messages: user, assistant with tool_use, user with tool_result
+		require.Len(t, claudeReq.Messages, 3)
+
+		// First message should be user
+		assert.Equal(t, roleUser, claudeReq.Messages[0].Role)
+
+		// Second message should be assistant with tool_use
+		assert.Equal(t, roleAssistant, claudeReq.Messages[1].Role)
+		require.False(t, claudeReq.Messages[1].Content.IsString)
+		require.Len(t, claudeReq.Messages[1].Content.ArrayValue, 1)
+		assert.Equal(t, "tool_use", claudeReq.Messages[1].Content.ArrayValue[0].Type)
+		assert.Equal(t, "call_123", claudeReq.Messages[1].Content.ArrayValue[0].Id)
+		assert.Equal(t, "get_weather", claudeReq.Messages[1].Content.ArrayValue[0].Name)
+
+		// Third message should be user with tool_result
+		assert.Equal(t, roleUser, claudeReq.Messages[2].Role)
+		require.False(t, claudeReq.Messages[2].Content.IsString)
+		require.Len(t, claudeReq.Messages[2].Content.ArrayValue, 1)
+		assert.Equal(t, "tool_result", claudeReq.Messages[2].Content.ArrayValue[0].Type)
+		assert.Equal(t, "call_123", claudeReq.Messages[2].Content.ArrayValue[0].ToolUseId)
+	})
+
+	t.Run("merges_multiple_tool_results_into_single_user_message", func(t *testing.T) {
+		request := &chatCompletionRequest{
+			Model:     "claude-sonnet-4-5-20250929",
+			MaxTokens: 1024,
+			Messages: []chatMessage{
+				{Role: roleUser, Content: "What's the weather and time?"},
+				{Role: roleAssistant, Content: nil, ToolCalls: []toolCall{
+					{Id: "call_1", Type: "function", Function: functionCall{Name: "get_weather", Arguments: `{"city": "Beijing"}`}},
+					{Id: "call_2", Type: "function", Function: functionCall{Name: "get_time", Arguments: `{"timezone": "Asia/Shanghai"}`}},
+				}},
+				{Role: roleTool, ToolCallId: "call_1", Content: "Sunny, 25°C"},
+				{Role: roleTool, ToolCallId: "call_2", Content: "3:00 PM"},
+			},
+		}
+
+		claudeReq := provider.buildClaudeTextGenRequest(request)
+
+		// Should have 3 messages: user, assistant with 2 tool_use, user with 2 tool_results
+		require.Len(t, claudeReq.Messages, 3)
+
+		// Assistant message should have 2 tool_use blocks
+		require.Len(t, claudeReq.Messages[1].Content.ArrayValue, 2)
+		assert.Equal(t, "tool_use", claudeReq.Messages[1].Content.ArrayValue[0].Type)
+		assert.Equal(t, "tool_use", claudeReq.Messages[1].Content.ArrayValue[1].Type)
+
+		// User message should have 2 tool_result blocks merged
+		assert.Equal(t, roleUser, claudeReq.Messages[2].Role)
+		require.Len(t, claudeReq.Messages[2].Content.ArrayValue, 2)
+		assert.Equal(t, "tool_result", claudeReq.Messages[2].Content.ArrayValue[0].Type)
+		assert.Equal(t, "call_1", claudeReq.Messages[2].Content.ArrayValue[0].ToolUseId)
+		assert.Equal(t, "tool_result", claudeReq.Messages[2].Content.ArrayValue[1].Type)
+		assert.Equal(t, "call_2", claudeReq.Messages[2].Content.ArrayValue[1].ToolUseId)
+	})
+
+	t.Run("handles_assistant_tool_calls_with_text_content", func(t *testing.T) {
+		request := &chatCompletionRequest{
+			Model:     "claude-sonnet-4-5-20250929",
+			MaxTokens: 1024,
+			Messages: []chatMessage{
+				{Role: roleUser, Content: "What's the weather?"},
+				{Role: roleAssistant, Content: "Let me check the weather for you.", ToolCalls: []toolCall{
+					{Id: "call_123", Type: "function", Function: functionCall{Name: "get_weather", Arguments: `{"city": "Beijing"}`}},
+				}},
+			},
+		}
+
+		claudeReq := provider.buildClaudeTextGenRequest(request)
+
+		require.Len(t, claudeReq.Messages, 2)
+
+		// Assistant message should have both text and tool_use
+		assert.Equal(t, roleAssistant, claudeReq.Messages[1].Role)
+		require.False(t, claudeReq.Messages[1].Content.IsString)
+		require.Len(t, claudeReq.Messages[1].Content.ArrayValue, 2)
+		assert.Equal(t, contentTypeText, claudeReq.Messages[1].Content.ArrayValue[0].Type)
+		assert.Equal(t, "Let me check the weather for you.", claudeReq.Messages[1].Content.ArrayValue[0].Text)
+		assert.Equal(t, "tool_use", claudeReq.Messages[1].Content.ArrayValue[1].Type)
+	})
+}
