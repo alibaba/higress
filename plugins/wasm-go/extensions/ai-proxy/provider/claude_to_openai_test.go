@@ -624,7 +624,7 @@ func TestClaudeToOpenAIConverter_ConvertOpenAIResponseToClaude(t *testing.T) {
 		// First content should be text
 		textContent := claudeResponse.Content[0]
 		assert.Equal(t, "text", textContent.Type)
-		assert.Equal(t, "I'll analyze the README file to understand this project's purpose.", textContent.Text)
+		assert.Equal(t, "I'll analyze the README file to understand this project's purpose.", *textContent.Text)
 
 		// Second content should be tool_use
 		toolContent := claudeResponse.Content[1]
@@ -634,7 +634,7 @@ func TestClaudeToOpenAIConverter_ConvertOpenAIResponseToClaude(t *testing.T) {
 
 		// Verify tool arguments
 		require.NotNil(t, toolContent.Input)
-		assert.Equal(t, "/Users/zhangty/git/higress/README.md", toolContent.Input["file_path"])
+		assert.Equal(t, "/Users/zhangty/git/higress/README.md", (*toolContent.Input)["file_path"])
 	})
 }
 
@@ -837,20 +837,24 @@ func TestClaudeToOpenAIConverter_ConvertReasoningResponseToClaude(t *testing.T) 
 				// First should be thinking
 				thinkingContent := claudeResponse.Content[0]
 				assert.Equal(t, "thinking", thinkingContent.Type)
-				assert.Equal(t, "", thinkingContent.Signature) // OpenAI doesn't provide signature
-				assert.Contains(t, thinkingContent.Thinking, "Let me think about this step by step")
+				require.NotNil(t, thinkingContent.Signature)
+				assert.Equal(t, "", *thinkingContent.Signature) // OpenAI doesn't provide signature
+				require.NotNil(t, thinkingContent.Thinking)
+				assert.Contains(t, *thinkingContent.Thinking, "Let me think about this step by step")
 
 				// Second should be text
 				textContent := claudeResponse.Content[1]
 				assert.Equal(t, "text", textContent.Type)
-				assert.Equal(t, tt.expectedText, textContent.Text)
+				require.NotNil(t, textContent.Text)
+				assert.Equal(t, tt.expectedText, *textContent.Text)
 			} else {
 				// Should only have text content
 				assert.Len(t, claudeResponse.Content, 1)
 
 				textContent := claudeResponse.Content[0]
 				assert.Equal(t, "text", textContent.Type)
-				assert.Equal(t, tt.expectedText, textContent.Text)
+				require.NotNil(t, textContent.Text)
+				assert.Equal(t, tt.expectedText, *textContent.Text)
 			}
 		})
 	}
