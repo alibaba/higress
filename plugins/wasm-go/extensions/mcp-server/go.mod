@@ -46,4 +46,4 @@ require (
 )
 
 // 使用本地 mcp 包
-replace github.com/alibaba/higress/plugins/wasm-go/pkg/mcp => ../pkg/mcp
+replace github.com/alibaba/higress/plugins/wasm-go/pkg/mcp => ../../pkg/mcp
