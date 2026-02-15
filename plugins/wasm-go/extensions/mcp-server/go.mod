@@ -1,15 +1,18 @@
-module all-in-one
+module mcp-server
 
 go 1.24.1
 
-replace quark-search => ../quark-search
+replace quark-search => ../../mcp-servers/quark-search
 
-replace amap-tools => ../amap-tools
+replace amap-tools => ../../mcp-servers/amap-tools
+
+// 使用本地的 pkg 目录
+replace github.com/alibaba/higress/plugins/wasm-go/pkg => ../pkg
 
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
+	github.com/alibaba/higress/plugins/wasm-go/pkg v0.0.0-00010101000000-000000000000
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20251103120604-77e9cce339d2
-	github.com/higress-group/wasm-go v1.0.10-0.20260115123534-84ef43c39dc9
 	github.com/stretchr/testify v1.9.0
 	quark-search v0.0.0-00010101000000-000000000000
 )
@@ -29,7 +32,7 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.00 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/tetratelabs/wazero v1.7.2 // indirect

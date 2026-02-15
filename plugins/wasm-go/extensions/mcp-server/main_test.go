@@ -21,7 +21,7 @@ import (
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/proxytest"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/higress-group/wasm-go/pkg/test"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/test"
 	"github.com/stretchr/testify/require"
 )
 

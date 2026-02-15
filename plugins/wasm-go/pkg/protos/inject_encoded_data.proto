@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package envoy.source.extensions.common.wasm;
+
+message InjectEncodedDataToFilterChainArguments {
+  string body = 1;
+  bool endstream = 2;
+};
