@@ -25,7 +25,7 @@ description: AI可观测配置参考
 | 名称             | 数据类型  | 填写要求 | 默认值 | 描述                     |
 |----------------|-------|------|-----|------------------------|
 | `use_default_attributes` | bool | 非必填  | false   | 是否使用默认完整属性配置，包含 messages、answer、question 等所有字段。适用于调试、审计场景 |
-| `use_default_response_attributes` | bool | 非必填  | false   | 是否使用轻量级默认属性配置（推荐），只包含 token 统计，不缓冲请求体和响应体。适用于生产环境 |
+| `use_default_response_attributes` | bool | 非必填  | false   | 是否使用轻量级默认属性配置（推荐），包含 model 和 token 统计，不缓冲流式响应体。适用于高并发生产环境 |
 | `attributes` | []Attribute | 非必填  | -   | 用户希望记录在log/span中的信息 |
 | `disable_openai_usage` | bool | 非必填  | false   | 非openai兼容协议时，model、token的支持非标，配置为true时可以避免报错 |
 | `value_length_limit` | int | 非必填  | 4000   | 记录的单个value的长度限制 |
@@ -404,10 +404,11 @@ data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\
 use_default_response_attributes: true
 ```
 
-此配置是**推荐的生产环境配置**，**不会缓冲请求体和流式响应体**，只记录 token 统计：
+此配置是**推荐的生产环境配置**，特别适合高并发、高延迟的场景：
 
 | 字段 | 说明 |
 |------|------|
+| `model` | 模型名称（从请求体提取） |
 | `reasoning_tokens` | 推理 token 数 |
 | `cached_tokens` | 缓存命中 token 数 |
 | `input_token_details` | 输入 token 详情 |
@@ -415,20 +416,27 @@ use_default_response_attributes: true
 
 **为什么推荐轻量模式？**
 
-轻量模式完全不缓冲请求体和响应体，避免了高并发下的内存问题：
-- **不缓冲请求体**：不提取 `messages`、`question`、`system` 等需要解析请求体的字段
-- **不缓冲流式响应体**：不提取 `answer`、`reasoning`、`tool_calls` 等需要缓冲完整响应的字段
-- **只统计 token**：从响应的 usage 字段提取 token 信息，不需要缓冲完整响应
+LLM 请求有两个显著特点：**延迟高**（通常数秒到数十秒）和**请求体大**（多轮对话可能达到数百 KB 甚至 MB 级别）。
+
+在高并发场景下，如果请求体和响应体都被缓存在内存中，积压的请求会占用大量内存：
+- 假设 QPS=100，平均延迟=10秒，请求体=500KB
+- 同时在处理的请求数 ≈ 100 × 10 = 1000 个
+- 如果缓存完整请求体+响应体：1000 × 1.5MB ≈ **1.5GB 内存**
+
+轻量模式通过以下方式降低内存占用：
+- **缓冲请求体**：仅用于提取 `model` 字段（很小），不提取 `question`、`system`、`messages` 等大字段
+- **不缓冲流式响应体**：不提取 `answer`、`reasoning`、`tool_calls` 等需要完整响应的字段
+- **只统计 token**：从响应的 usage 字段提取 token 信息
 
 **内存对比：**
 
-| 场景 | 完整模式内存占用 | 轻量模式内存占用 |
-|------|------------------|------------------|
-| 10KB 请求 + 5KB 响应 | ~15KB | ~0KB (不缓冲) |
-| 1MB 请求 (长对话) + 500KB 响应 | ~1.5MB | ~0KB (不缓冲) |
-| 高并发 1000 QPS | 可能 1GB+ | 极低 |
+| 场景 | 完整模式 | 轻量模式 |
+|------|----------|----------|
+| 单次请求 (1MB 请求 + 500KB 响应) | ~1.5MB | ~1MB（请求体） |
+| 高并发 (100 QPS, 10s 延迟) | ~1.5GB | ~1GB |
+| 超高并发 (1000 QPS, 10s 延迟) | ~15GB | ~10GB |
 
-**注意**：轻量模式下 `model` 字段可能无法从请求体提取（会尝试从 Gemini 风格路径提取），`chat_round` 字段为 0。
+**注意**：轻量模式下 `chat_round` 字段会正常计算，`model` 会从请求体正常提取。
 
 #### 完整模式
 

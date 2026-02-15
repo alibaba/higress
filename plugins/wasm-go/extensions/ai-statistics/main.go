@@ -195,10 +195,14 @@ func getDefaultAttributes() []Attribute {
 }
 
 // getDefaultResponseAttributes returns a lightweight default attributes configuration
-// that only includes response-time token statistics, avoiding any request body buffering
+// for production environments with high concurrency and high latency.
+// - Buffers request body for model extraction (small, essential field)
+// - Does NOT extract large fields like question, system, messages
+// - Does NOT buffer streaming response body (no answer, reasoning, tool_calls)
+// - Only extracts token statistics from response context
 func getDefaultResponseAttributes() []Attribute {
 	return []Attribute{
-		// Token statistics (auto-extracted from response) - no body buffering needed
+		// Token statistics (extracted from context, no body buffering needed)
 		{
 			Key:        BuiltinReasoningTokens,
 			ApplyToLog: true,
@@ -207,7 +211,6 @@ func getDefaultResponseAttributes() []Attribute {
 			Key:        BuiltinCachedTokens,
 			ApplyToLog: true,
 		},
-		// Detailed token information
 		{
 			Key:        BuiltinInputTokenDetails,
 			ApplyToLog: true,
@@ -597,10 +600,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) ty
 		ctx.SetContext(ConsumerKey, consumer)
 	}
 
-	// Only buffer request body if there are attributes to extract from it
-	if config.shouldBufferRequestBody {
-		ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
-	}
+	// Always buffer request body to extract model field
+	// This is essential for metrics and logging
+	ctx.SetRequestBodyBufferLimit(defaultMaxBodyBytes)
 
 	// Extract session ID from headers
 	sessionId := extractSessionId(config.sessionIdHeader)
