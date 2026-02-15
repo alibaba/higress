@@ -1,13 +1,14 @@
-module all-in-one
+module mcp-server
 
 go 1.24.1
 
-replace quark-search => ../quark-search
+replace quark-search => ../../mcp-servers/quark-search
 
-replace amap-tools => ../amap-tools
+replace amap-tools => ../../mcp-servers/amap-tools
 
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
+	github.com/alibaba/higress/plugins/wasm-go/pkg/mcp v0.0.0
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20251103120604-77e9cce339d2
 	github.com/higress-group/wasm-go v1.0.10-0.20260115123534-84ef43c39dc9
 	github.com/stretchr/testify v1.9.0
@@ -43,3 +44,6 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// 使用本地 mcp 包
+replace github.com/alibaba/higress/plugins/wasm-go/pkg/mcp => ../pkg/mcp

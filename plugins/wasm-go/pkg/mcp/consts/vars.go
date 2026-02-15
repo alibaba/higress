@@ -12,21 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package consts
 
-import (
-	amap "amap-tools/tools"
-	quark "quark-search/tools"
-
-	"github.com/higress-group/wasm-go/pkg/mcp"
+const (
+	ToolSetNameSplitter = "___"
 )
-
-func main() {}
-
-func init() {
-	mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
-		quark.LoadTools(mcp.NewMCPServer())))
-	mcp.LoadMCPServer(mcp.AddMCPServer("amap-tools",
-		amap.LoadTools(mcp.NewMCPServer())))
-	mcp.InitMCPServer()
-}
