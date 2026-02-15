@@ -498,9 +498,102 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 			continue
 		}
 
+		// Handle OpenAI "tool" role messages - convert to Claude "user" role with tool_result content
+		if message.Role == roleTool {
+			toolResultContent := claudeChatMessageContent{
+				Type:      "tool_result",
+				ToolUseId: message.ToolCallId,
+			}
+			// Tool result content can be string or array
+			if message.IsStringContent() {
+				toolResultContent.Content = &claudeChatMessageContentWr{
+					StringValue: message.StringContent(),
+					IsString:    true,
+				}
+			} else {
+				// For array content, extract text parts
+				var textParts []string
+				for _, part := range message.ParseContent() {
+					if part.Type == contentTypeText {
+						textParts = append(textParts, part.Text)
+					}
+				}
+				toolResultContent.Content = &claudeChatMessageContentWr{
+					StringValue: strings.Join(textParts, "\n"),
+					IsString:    true,
+				}
+			}
+
+			// Check if the last message is a user message with tool_result, merge if so
+			if len(claudeRequest.Messages) > 0 {
+				lastMsg := &claudeRequest.Messages[len(claudeRequest.Messages)-1]
+				if lastMsg.Role == roleUser && !lastMsg.Content.IsString {
+					// Check if last message contains tool_result
+					hasToolResult := false
+					for _, content := range lastMsg.Content.ArrayValue {
+						if content.Type == "tool_result" {
+							hasToolResult = true
+							break
+						}
+					}
+					if hasToolResult {
+						// Merge with existing tool_result message
+						lastMsg.Content.ArrayValue = append(lastMsg.Content.ArrayValue, toolResultContent)
+						continue
+					}
+				}
+			}
+
+			// Create new user message with tool_result
+			claudeMessage := claudeChatMessage{
+				Role:    roleUser,
+				Content: NewArrayContent([]claudeChatMessageContent{toolResultContent}),
+			}
+			claudeRequest.Messages = append(claudeRequest.Messages, claudeMessage)
+			continue
+		}
+
 		claudeMessage := claudeChatMessage{
 			Role: message.Role,
 		}
+
+		// Handle assistant messages with tool_calls - convert to Claude tool_use content blocks
+		if message.Role == roleAssistant && len(message.ToolCalls) > 0 {
+			chatMessageContents := make([]claudeChatMessageContent, 0)
+
+			// Add text content if present
+			if message.IsStringContent() && message.StringContent() != "" {
+				chatMessageContents = append(chatMessageContents, claudeChatMessageContent{
+					Type: contentTypeText,
+					Text: message.StringContent(),
+				})
+			}
+
+			// Convert tool_calls to tool_use content blocks
+			for _, tc := range message.ToolCalls {
+				var inputMap map[string]interface{}
+				if tc.Function.Arguments != "" {
+					if err := json.Unmarshal([]byte(tc.Function.Arguments), &inputMap); err != nil {
+						log.Errorf("failed to parse tool call arguments: %v", err)
+						inputMap = make(map[string]interface{})
+					}
+				} else {
+					inputMap = make(map[string]interface{})
+				}
+
+				chatMessageContents = append(chatMessageContents, claudeChatMessageContent{
+					Type:  "tool_use",
+					Id:    tc.Id,
+					Name:  tc.Function.Name,
+					Input: inputMap,
+				})
+			}
+
+			claudeMessage.Content = NewArrayContent(chatMessageContents)
+			claudeRequest.Messages = append(claudeRequest.Messages, claudeMessage)
+			continue
+		}
+
 		if message.IsStringContent() {
 			claudeMessage.Content = NewStringContent(message.StringContent())
 		} else {
