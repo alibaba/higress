@@ -105,6 +105,7 @@ const (
 	BuiltinAnswerKey          = "answer"
 	BuiltinToolCallsKey       = "tool_calls"
 	BuiltinReasoningKey       = "reasoning"
+	BuiltinSystemKey          = "system"
 	BuiltinReasoningTokens    = "reasoning_tokens"
 	BuiltinCachedTokens       = "cached_tokens"
 	BuiltinInputTokenDetails  = "input_token_details"
@@ -114,6 +115,9 @@ const (
 	// Question paths (from request body)
 	QuestionPathOpenAI = "messages.@reverse.0.content"
 	QuestionPathClaude = "messages.@reverse.0.content" // Claude uses same format
+
+	// System prompt paths (from request body)
+	SystemPathClaude = "system" // Claude /v1/messages has system as a top-level field
 
 	// Answer paths (from response body - non-streaming)
 	AnswerPathOpenAINonStreaming = "choices.0.message.content"
@@ -148,6 +152,10 @@ func getDefaultAttributes() []Attribute {
 		// Built-in attributes (no value_source needed, will be auto-extracted)
 		{
 			Key:        BuiltinQuestionKey,
+			ApplyToLog: true,
+		},
+		{
+			Key:        BuiltinSystemKey,
 			ApplyToLog: true,
 		},
 		{
@@ -871,7 +879,7 @@ func setAttributeBySource(ctx wrapper.HttpContext, config AIStatisticsConfig, so
 
 // isBuiltinAttribute checks if the given key is a built-in attribute
 func isBuiltinAttribute(key string) bool {
-	return key == BuiltinQuestionKey || key == BuiltinAnswerKey || key == BuiltinToolCallsKey || key == BuiltinReasoningKey ||
+	return key == BuiltinQuestionKey || key == BuiltinAnswerKey || key == BuiltinToolCallsKey || key == BuiltinReasoningKey || key == BuiltinSystemKey ||
 		key == BuiltinReasoningTokens || key == BuiltinCachedTokens ||
 		key == BuiltinInputTokenDetails || key == BuiltinOutputTokenDetails
 }
@@ -880,7 +888,7 @@ func isBuiltinAttribute(key string) bool {
 // Returns nil if the key is not a built-in attribute
 func getBuiltinAttributeDefaultSources(key string) []string {
 	switch key {
-	case BuiltinQuestionKey:
+	case BuiltinQuestionKey, BuiltinSystemKey:
 		return []string{RequestBody}
 	case BuiltinAnswerKey, BuiltinToolCallsKey, BuiltinReasoningKey:
 		return []string{ResponseStreamingBody, ResponseBody}
@@ -915,6 +923,13 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 		if source == RequestBody {
 			// Try OpenAI/Claude format (both use same messages structure)
 			if value := gjson.GetBytes(body, QuestionPathOpenAI).Value(); value != nil && value != "" {
+				return value
+			}
+		}
+	case BuiltinSystemKey:
+		if source == RequestBody {
+			// Try Claude /v1/messages format (system is a top-level field)
+			if value := gjson.GetBytes(body, SystemPathClaude).Value(); value != nil && value != "" {
 				return value
 			}
 		}
@@ -1068,6 +1083,9 @@ func debugLogAiLog(ctx wrapper.HttpContext) {
 	// The actual attributes are stored internally, we log what we know
 	if question := ctx.GetUserAttribute("question"); question != nil {
 		userAttrs["question"] = question
+	}
+	if system := ctx.GetUserAttribute("system"); system != nil {
+		userAttrs["system"] = system
 	}
 	if answer := ctx.GetUserAttribute("answer"); answer != nil {
 		userAttrs["answer"] = answer
