@@ -145,7 +145,8 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 	if claudeRequest.System != nil {
 		systemMsg := chatMessage{Role: roleSystem}
 		if !claudeRequest.System.IsArray {
-			systemMsg.Content = claudeRequest.System.StringValue
+			// Strip dynamic cch field from billing header to enable caching
+			systemMsg.Content = stripCchFromBillingHeader(claudeRequest.System.StringValue)
 		} else {
 			conversionResult := c.convertContentArray(claudeRequest.System.ArrayValue)
 			systemMsg.Content = conversionResult.openaiContents
@@ -832,10 +833,12 @@ func (c *ClaudeToOpenAIConverter) convertContentArray(claudeContents []claudeCha
 		switch claudeContent.Type {
 		case "text":
 			if claudeContent.Text != "" {
-				result.textParts = append(result.textParts, claudeContent.Text)
+				// Strip dynamic cch field from billing header to enable caching
+				processedText := stripCchFromBillingHeader(claudeContent.Text)
+				result.textParts = append(result.textParts, processedText)
 				result.openaiContents = append(result.openaiContents, chatMessageContent{
 					Type:         contentTypeText,
-					Text:         claudeContent.Text,
+					Text:         processedText,
 					CacheControl: claudeContent.CacheControl,
 				})
 			}
@@ -953,4 +956,43 @@ func (c *ClaudeToOpenAIConverter) startToolCall(toolState *toolCallInfo) []*clau
 	}
 
 	return responses
+}
+
+// stripCchFromBillingHeader removes the dynamic cch field from x-anthropic-billing-header text
+// to enable caching. The cch value changes on every request, which would break prompt caching.
+// Example input:  "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode; cch=abc123;"
+// Example output: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;"
+func stripCchFromBillingHeader(text string) string {
+	const billingHeaderPrefix = "x-anthropic-billing-header:"
+
+	// Check if this is a billing header
+	if !strings.HasPrefix(text, billingHeaderPrefix) {
+		return text
+	}
+
+	// Remove cch=xxx pattern (may appear with or without trailing semicolon)
+	// Pattern: ; cch=<any-non-semicolon-chars> followed by ; or end of string
+	result := text
+
+	// Try to find and remove ; cch=... pattern
+	// We need to handle both "; cch=xxx;" and "; cch=xxx" (at end)
+	for {
+		cchIdx := strings.Index(result, "; cch=")
+		if cchIdx == -1 {
+			break
+		}
+
+		// Find the end of cch value (next semicolon or end of string)
+		start := cchIdx + 2 // skip "; "
+		end := strings.Index(result[start:], ";")
+		if end == -1 {
+			// cch is at the end, remove from "; cch=" to end
+			result = result[:cchIdx]
+		} else {
+			// cch is followed by more content, remove "; cch=xxx" part
+			result = result[:cchIdx] + result[start+end:]
+		}
+	}
+
+	return result
 }

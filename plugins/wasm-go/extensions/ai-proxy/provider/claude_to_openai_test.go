@@ -859,3 +859,125 @@ func TestClaudeToOpenAIConverter_ConvertReasoningResponseToClaude(t *testing.T) 
 		})
 	}
 }
+
+func TestClaudeToOpenAIConverter_StripCchFromSystemMessage(t *testing.T) {
+	converter := &ClaudeToOpenAIConverter{}
+
+	t.Run("string_system_with_billing_header", func(t *testing.T) {
+		// Test that cch field is stripped from string format system message
+		claudeRequest := `{
+			"model": "claude-sonnet-4",
+			"max_tokens": 1024,
+			"system": [
+				{
+					"type": "text",
+					"text": "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode; cch=abc123;"
+				}
+			],
+			"messages": [{
+				"role": "user",
+				"content": "Hello"
+			}]
+		}`
+
+		result, err := converter.ConvertClaudeRequestToOpenAI([]byte(claudeRequest))
+		require.NoError(t, err)
+
+		var openaiRequest chatCompletionRequest
+		err = json.Unmarshal(result, &openaiRequest)
+		require.NoError(t, err)
+
+		require.Len(t, openaiRequest.Messages, 2)
+
+		// First message should be system with cch stripped
+		systemMsg := openaiRequest.Messages[0]
+		assert.Equal(t, "system", systemMsg.Role)
+
+		// The system content should have cch removed
+		contentArray, ok := systemMsg.Content.([]interface{})
+		require.True(t, ok, "System content should be an array")
+		require.Len(t, contentArray, 1)
+
+		contentMap, ok := contentArray[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "text", contentMap["type"])
+		assert.Equal(t, "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;", contentMap["text"])
+		assert.NotContains(t, contentMap["text"], "cch=")
+	})
+
+	t.Run("plain_string_system_unchanged", func(t *testing.T) {
+		// Test that normal system messages are not modified
+		claudeRequest := `{
+			"model": "claude-sonnet-4",
+			"max_tokens": 1024,
+			"system": "You are a helpful assistant.",
+			"messages": [{
+				"role": "user",
+				"content": "Hello"
+			}]
+		}`
+
+		result, err := converter.ConvertClaudeRequestToOpenAI([]byte(claudeRequest))
+		require.NoError(t, err)
+
+		var openaiRequest chatCompletionRequest
+		err = json.Unmarshal(result, &openaiRequest)
+		require.NoError(t, err)
+
+		// First message should be system with original content
+		systemMsg := openaiRequest.Messages[0]
+		assert.Equal(t, "system", systemMsg.Role)
+		assert.Equal(t, "You are a helpful assistant.", systemMsg.Content)
+	})
+}
+
+func TestStripCchFromBillingHeader(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "billing header with cch at end",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode; cch=abc123;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+		{
+			name:     "billing header with cch at end without trailing semicolon",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode; cch=abc123",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode",
+		},
+		{
+			name:     "billing header with cch in middle",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cch=abc123; cc_entrypoint=claude-vscode;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+		{
+			name:     "billing header without cch",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+		{
+			name:     "non-billing header text unchanged",
+			input:    "This is a normal system prompt",
+			expected: "This is a normal system prompt",
+		},
+		{
+			name:     "empty string unchanged",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "billing header with multiple cch fields",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cch=first; cc_entrypoint=claude-vscode; cch=second;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripCchFromBillingHeader(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
