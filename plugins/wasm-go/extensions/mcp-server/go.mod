@@ -1,10 +1,10 @@
-module all-in-one
+module mcp-server
 
 go 1.24.1
 
-replace quark-search => ../quark-search
+replace quark-search => ../../mcp-servers/quark-search
 
-replace amap-tools => ../amap-tools
+replace amap-tools => ../../mcp-servers/amap-tools
 
 require (
 	amap-tools v0.0.0-00010101000000-000000000000
