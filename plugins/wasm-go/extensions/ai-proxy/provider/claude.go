@@ -271,6 +271,7 @@ type claudeTextGenStreamResponse struct {
 type claudeTextGenDelta struct {
 	Type         string  `json:"type"`
 	Text         string  `json:"text,omitempty"`
+	Thinking     string  `json:"thinking,omitempty"`
 	PartialJson  string  `json:"partial_json,omitempty"`
 	StopReason   *string `json:"stop_reason,omitempty"`
 	StopSequence *string `json:"stop_sequence,omitempty"`
@@ -441,6 +442,34 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 		claudeRequest.MaxTokens = claudeDefaultMaxTokens
 	}
 
+	// Convert OpenAI reasoning parameters to Claude thinking configuration
+	if origRequest.ReasoningEffort != "" || origRequest.ReasoningMaxTokens > 0 {
+		var budgetTokens int
+		if origRequest.ReasoningMaxTokens > 0 {
+			budgetTokens = origRequest.ReasoningMaxTokens
+		} else {
+			// Convert reasoning_effort to budget_tokens
+			switch origRequest.ReasoningEffort {
+			case "low":
+				budgetTokens = 1024 // Minimum required by Claude
+			case "medium":
+				budgetTokens = 8192
+			case "high":
+				budgetTokens = 16384
+			default:
+				budgetTokens = 8192 // Default to medium
+			}
+		}
+		// Ensure minimum budget_tokens requirement
+		if budgetTokens < 1024 {
+			budgetTokens = 1024
+		}
+		claudeRequest.Thinking = &claudeThinkingConfig{
+			Type:         "enabled",
+			BudgetTokens: budgetTokens,
+		}
+	}
+
 	// Track if system message exists in original request
 	hasSystemMessage := false
 	for _, message := range origRequest.Messages {
@@ -562,13 +591,16 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 }
 
 func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResponse *claudeTextGenResponse) *chatCompletionResponse {
-	// Extract text content and tool calls from Claude response
+	// Extract text content, thinking content, and tool calls from Claude response
 	var textContent string
+	var reasoningContent string
 	var toolCalls []toolCall
 	for _, content := range origResponse.Content {
 		switch content.Type {
 		case contentTypeText:
 			textContent = content.Text
+		case "thinking":
+			reasoningContent = content.Thinking
 		case "tool_use":
 			args, _ := json.Marshal(content.Input)
 			toolCalls = append(toolCalls, toolCall{
@@ -584,7 +616,7 @@ func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResp
 
 	choice := chatCompletionChoice{
 		Index:        0,
-		Message:      &chatMessage{Role: roleAssistant, Content: textContent, ToolCalls: toolCalls},
+		Message:      &chatMessage{Role: roleAssistant, Content: textContent, ReasoningContent: reasoningContent, ToolCalls: toolCalls},
 		FinishReason: util.Ptr(stopReasonClaude2OpenAI(origResponse.StopReason)),
 	}
 
@@ -648,11 +680,64 @@ func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, or
 		}
 		return c.createChatCompletionResponse(ctx, origResponse, choice)
 
+	case "content_block_start":
+		// Handle tool_use content block start
+		if origResponse.ContentBlock != nil && origResponse.ContentBlock.Type == "tool_use" {
+			var index int
+			if origResponse.Index != nil {
+				index = *origResponse.Index
+			}
+			choice := chatCompletionChoice{
+				Index: index,
+				Delta: &chatMessage{
+					ToolCalls: []toolCall{
+						{
+							Index: index,
+							Id:    origResponse.ContentBlock.Id,
+							Type:  "function",
+							Function: functionCall{
+								Name:      origResponse.ContentBlock.Name,
+								Arguments: "",
+							},
+						},
+					},
+				},
+			}
+			return c.createChatCompletionResponse(ctx, origResponse, choice)
+		}
+		return nil
+
 	case "content_block_delta":
 		var index int
 		if origResponse.Index != nil {
 			index = *origResponse.Index
 		}
+		// Handle tool_use input_json_delta
+		if origResponse.Delta != nil && origResponse.Delta.Type == "input_json_delta" {
+			choice := chatCompletionChoice{
+				Index: index,
+				Delta: &chatMessage{
+					ToolCalls: []toolCall{
+						{
+							Index: index,
+							Function: functionCall{
+								Arguments: origResponse.Delta.PartialJson,
+							},
+						},
+					},
+				},
+			}
+			return c.createChatCompletionResponse(ctx, origResponse, choice)
+		}
+		// Handle thinking_delta
+		if origResponse.Delta != nil && origResponse.Delta.Type == "thinking_delta" {
+			choice := chatCompletionChoice{
+				Index: index,
+				Delta: &chatMessage{Reasoning: origResponse.Delta.Thinking},
+			}
+			return c.createChatCompletionResponse(ctx, origResponse, choice)
+		}
+		// Handle text_delta
 		choice := chatCompletionChoice{
 			Index: index,
 			Delta: &chatMessage{Content: origResponse.Delta.Text},
@@ -689,7 +774,7 @@ func (c *claudeProvider) streamResponseClaude2OpenAI(ctx wrapper.HttpContext, or
 				TotalTokens:      c.usage.TotalTokens,
 			},
 		}
-	case "content_block_stop", "ping", "content_block_start":
+	case "content_block_stop", "ping":
 		log.Debugf("skip processing response type: %s", origResponse.Type)
 		return nil
 	default:
