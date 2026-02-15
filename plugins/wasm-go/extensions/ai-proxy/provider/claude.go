@@ -269,7 +269,7 @@ type claudeTextGenStreamResponse struct {
 }
 
 type claudeTextGenDelta struct {
-	Type         string  `json:"type"`
+	Type         string  `json:"type,omitempty"`
 	Text         string  `json:"text,omitempty"`
 	Thinking     string  `json:"thinking,omitempty"`
 	PartialJson  string  `json:"partial_json,omitempty"`

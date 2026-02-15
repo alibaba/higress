@@ -192,6 +192,7 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 
 		if claudeRequest.Thinking.Type == "enabled" {
 			openaiRequest.ReasoningMaxTokens = claudeRequest.Thinking.BudgetTokens
+			openaiRequest.Thinking = &thinkingParam{Type: "enabled", BudgetToken: claudeRequest.Thinking.BudgetTokens}
 
 			// Set ReasoningEffort based on budget_tokens
 			// low: <4096, medium: >=4096 and <16384, high: >=16384
@@ -207,7 +208,10 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAI(body []byte) ([]b
 				claudeRequest.Thinking.BudgetTokens, openaiRequest.ReasoningEffort, openaiRequest.ReasoningMaxTokens)
 		}
 	} else {
-		log.Debugf("[Claude->OpenAI] No thinking config found")
+		// Explicitly disable thinking when not configured in Claude request
+		// This prevents providers like ZhipuAI from enabling thinking by default
+		openaiRequest.Thinking = &thinkingParam{Type: "disabled"}
+		log.Debugf("[Claude->OpenAI] No thinking config found, explicitly disabled")
 	}
 
 	result, err := json.Marshal(openaiRequest)
@@ -379,7 +383,6 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 					messageDelta := &claudeTextGenStreamResponse{
 						Type: "message_delta",
 						Delta: &claudeTextGenDelta{
-							Type:       "message_delta",
 							StopReason: c.pendingStopReason,
 						},
 					}
@@ -740,9 +743,7 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 		// Send message_delta with both stop_reason and usage (Claude protocol requirement)
 		messageDelta := &claudeTextGenStreamResponse{
 			Type: "message_delta",
-			Delta: &claudeTextGenDelta{
-				Type: "message_delta",
-			},
+			Delta: &claudeTextGenDelta{},
 			Usage: &claudeTextGenUsage{
 				InputTokens:  openaiResponse.Usage.PromptTokens,
 				OutputTokens: openaiResponse.Usage.CompletionTokens,
