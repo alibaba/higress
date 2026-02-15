@@ -634,7 +634,7 @@ func TestClaudeToOpenAIConverter_ConvertOpenAIResponseToClaude(t *testing.T) {
 
 		// Verify tool arguments
 		require.NotNil(t, toolContent.Input)
-		assert.Equal(t, "/Users/zhangty/git/higress/README.md", toolContent.Input["file_path"])
+		assert.Equal(t, "/Users/zhangty/git/higress/README.md", (*toolContent.Input)["file_path"])
 	})
 }
 
