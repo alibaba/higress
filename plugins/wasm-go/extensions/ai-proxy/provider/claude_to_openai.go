@@ -276,9 +276,10 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 
 			// Add text content if present
 			if choice.Message.StringContent() != "" {
+				textContent := choice.Message.StringContent()
 				contents = append(contents, claudeTextGenContent{
 					Type: "text",
-					Text: choice.Message.StringContent(),
+					Text: &textContent,
 				})
 			}
 
@@ -301,7 +302,7 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIResponseToClaude(ctx wrapper.Http
 							Type:  "tool_use",
 							Id:    toolCall.Id,
 							Name:  toolCall.Function.Name,
-							Input: input,
+							Input: &input,
 						})
 					}
 				}
@@ -383,7 +384,8 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 					messageDelta := &claudeTextGenStreamResponse{
 						Type: "message_delta",
 						Delta: &claudeTextGenDelta{
-							StopReason: c.pendingStopReason,
+							StopReason:   c.pendingStopReason,
+							StopSequence: json.RawMessage("null"),
 						},
 					}
 					stopData, _ := json.Marshal(messageDelta)
@@ -576,12 +578,13 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			c.nextContentIndex++
 			c.textBlockStarted = true
 			log.Debugf("[OpenAI->Claude] Generated content_block_start event for text at index %d", c.textBlockIndex)
+			emptyText := ""
 			responses = append(responses, &claudeTextGenStreamResponse{
 				Type:  "content_block_start",
 				Index: &c.textBlockIndex,
 				ContentBlock: &claudeTextGenContent{
 					Type: "text",
-					Text: "",
+					Text: &emptyText,
 				},
 			})
 		}
@@ -600,6 +603,30 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 
 	// Handle tool calls in streaming response
 	if choice.Delta != nil && len(choice.Delta.ToolCalls) > 0 {
+		// Ensure message_start is sent before any content blocks
+		if !c.messageStartSent {
+			c.messageId = openaiResponse.Id
+			c.messageStartSent = true
+			message := &claudeTextGenResponse{
+				Id:      openaiResponse.Id,
+				Type:    "message",
+				Role:    "assistant",
+				Model:   openaiResponse.Model,
+				Content: []claudeTextGenContent{},
+			}
+			if openaiResponse.Usage != nil {
+				message.Usage = claudeTextGenUsage{
+					InputTokens:  openaiResponse.Usage.PromptTokens,
+					OutputTokens: 0,
+				}
+			}
+			responses = append(responses, &claudeTextGenStreamResponse{
+				Type:    "message_start",
+				Message: message,
+			})
+			log.Debugf("[OpenAI->Claude] Generated message_start event before tool calls for id: %s", openaiResponse.Id)
+		}
+
 		// Initialize toolCallStates if needed
 		if c.toolCallStates == nil {
 			c.toolCallStates = make(map[int]*toolCallInfo)
@@ -743,7 +770,9 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 		// Send message_delta with both stop_reason and usage (Claude protocol requirement)
 		messageDelta := &claudeTextGenStreamResponse{
 			Type: "message_delta",
-			Delta: &claudeTextGenDelta{},
+			Delta: &claudeTextGenDelta{
+				StopSequence: json.RawMessage("null"), // Explicit null per Claude spec
+			},
 			Usage: &claudeTextGenUsage{
 				InputTokens:  openaiResponse.Usage.PromptTokens,
 				OutputTokens: openaiResponse.Usage.CompletionTokens,
@@ -896,6 +925,7 @@ func (c *ClaudeToOpenAIConverter) startToolCall(toolState *toolCallInfo) []*clau
 		toolState.claudeContentIndex, toolState.id, toolState.name)
 
 	// Send content_block_start
+	emptyInput := map[string]interface{}{}
 	responses = append(responses, &claudeTextGenStreamResponse{
 		Type:  "content_block_start",
 		Index: &toolState.claudeContentIndex,
@@ -903,7 +933,7 @@ func (c *ClaudeToOpenAIConverter) startToolCall(toolState *toolCallInfo) []*clau
 			Type:  "tool_use",
 			Id:    toolState.id,
 			Name:  toolState.name,
-			Input: map[string]interface{}{}, // Empty input as per Claude spec
+			Input: &emptyInput, // Empty input as per Claude spec
 		},
 	})
 

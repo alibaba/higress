@@ -238,10 +238,10 @@ type claudeTextGenResponse struct {
 
 type claudeTextGenContent struct {
 	Type      string                 `json:"type,omitempty"`
-	Text      string                 `json:"text,omitempty"`
+	Text      *string                `json:"text,omitempty"`      // Use pointer: empty string outputs "text":"", nil omits field
 	Id        string                 `json:"id,omitempty"`        // For tool_use
 	Name      string                 `json:"name,omitempty"`      // For tool_use
-	Input     map[string]interface{} `json:"input,omitempty"`     // For tool_use
+	Input     *map[string]interface{} `json:"input,omitempty"`    // Use pointer: empty map outputs "input":{}, nil omits field
 	Signature string                 `json:"signature,omitempty"` // For thinking
 	Thinking  string                 `json:"thinking,omitempty"`  // For thinking
 }
@@ -269,12 +269,12 @@ type claudeTextGenStreamResponse struct {
 }
 
 type claudeTextGenDelta struct {
-	Type         string  `json:"type,omitempty"`
-	Text         string  `json:"text,omitempty"`
-	Thinking     string  `json:"thinking,omitempty"`
-	PartialJson  string  `json:"partial_json,omitempty"`
-	StopReason   *string `json:"stop_reason,omitempty"`
-	StopSequence *string `json:"stop_sequence,omitempty"`
+	Type         string          `json:"type,omitempty"`
+	Text         string          `json:"text,omitempty"`
+	Thinking     string          `json:"thinking,omitempty"`
+	PartialJson  string          `json:"partial_json,omitempty"`
+	StopReason   *string         `json:"stop_reason,omitempty"`
+	StopSequence json.RawMessage `json:"stop_sequence,omitempty"` // Use RawMessage to output explicit null
 }
 
 func (c *claudeProviderInitializer) ValidateConfig(config *ProviderConfig) error {
@@ -598,11 +598,18 @@ func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResp
 	for _, content := range origResponse.Content {
 		switch content.Type {
 		case contentTypeText:
-			textContent = content.Text
+			if content.Text != nil {
+				textContent = *content.Text
+			}
 		case "thinking":
 			reasoningContent = content.Thinking
 		case "tool_use":
-			args, _ := json.Marshal(content.Input)
+			var args []byte
+			if content.Input != nil {
+				args, _ = json.Marshal(*content.Input)
+			} else {
+				args = []byte("{}")
+			}
 			toolCalls = append(toolCalls, toolCall{
 				Id:   content.Id,
 				Type: "function",
