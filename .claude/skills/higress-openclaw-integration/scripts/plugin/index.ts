@@ -11,7 +11,7 @@ const MODEL_CONFIG: Record<string, { contextWindow: number; maxTokens: number }>
   "claude-opus-4-6": { contextWindow: 1_000_000, maxTokens: 128_000 },
   "claude-sonnet-4-5": { contextWindow: 1_000_000, maxTokens: 64_000 },
   "claude-haiku-4-5": { contextWindow: 200_000, maxTokens: 64_000 },
-  "qwen3-coder-plus": { contextWindow: 1_000_000, maxTokens: 64_000 },
+  "qwen3.5-plus": { contextWindow: 960_000, maxTokens: 64_000 },
   "deepseek-chat": { contextWindow: 256_000, maxTokens: 128_000 },
   "deepseek-reasoner": { contextWindow: 256_000, maxTokens: 128_000 },
   "kimi-k2.5": { contextWindow: 256_000, maxTokens: 128_000 },
@@ -31,7 +31,7 @@ const DEFAULT_MODEL_IDS = [
   "kimi-k2.5",
   "glm-5",
   "MiniMax-M2.5",
-  "qwen3-coder-plus",
+  "qwen3.5-plus",
   // Anthropic models
   "claude-opus-4-6",
   "claude-sonnet-4-5",
