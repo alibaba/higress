@@ -4,8 +4,8 @@ go 1.24.1
 
 replace (
 	amap-tools => ../../mcp-servers/amap-tools
-	quark-search => ../../mcp-servers/quark-search
 	github.com/alibaba/higress/plugins/wasm-go/pkg/mcp => ../../pkg/mcp
+	quark-search => ../../mcp-servers/quark-search
 )
 
 require (
