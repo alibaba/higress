@@ -23,7 +23,7 @@ Deploy Higress AI Gateway and configure OpenClaw to use it as a unified model pr
    | Claude Code | `--claude-code-key` | **Requires OAuth token from `claude setup-token`** |
    | Moonshot (Kimi) | `--moonshot-key` | Models: moonshot-*, kimi-* |
    | Minimax | `--minimax-key` | Models: abab-* |
-   | 阿里云通义千问 (Dashscope) | `--dashscope-key` | Models: qwen-* |
+   | 阿里云通义千问 (Dashscope) | `--dashscope-key` | Models: qwen* |
    | OpenAI | `--openai-key` | Models: gpt-*, o1-*, o3-* |
    | DeepSeek | `--deepseek-key` | Models: deepseep-* |
    | Grok | `--grok-key` | Models: grok-* |
