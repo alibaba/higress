@@ -12,18 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package consts
 
-import (
-	"quark-search/tools"
-
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp"
+const (
+	ToolSetNameSplitter = "___"
 )
-
-func main() {}
-
-func init() {
-	mcp.LoadMCPServer(mcp.AddMCPServer("quark-search",
-		tools.LoadTools(mcp.NewMCPServer())))
-	mcp.InitMCPServer()
-}
