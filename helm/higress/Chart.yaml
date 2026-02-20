@@ -18,3 +18,7 @@ dependencies:
   version: 2.2.0
 type: application
 version: 2.2.0
+
+# The following values are passed to sub-charts
+# global.pluginHub is used by higress-console to configure plugin image registry
+# global.pluginNamespace is used by higress-console to configure plugin image namespace

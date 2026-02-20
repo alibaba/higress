@@ -75,6 +75,15 @@ global:
   # Dev builds from prow are on gcr.io
   hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
 
+  # -- Default hub for plugin images.
+  # Used by higress-console to configure built-in plugin image registry.
+  # If not set, defaults to the same registry as global.hub (without /higress suffix).
+  pluginHub: ""
+  # -- Default namespace for plugin images.
+  # Used by higress-console to configure built-in plugin image namespace.
+  # Default is "plugins".
+  pluginNamespace: ""
+
   # -- Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
   imagePullPolicy: ""
