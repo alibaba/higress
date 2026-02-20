@@ -30,7 +30,13 @@ const (
 )
 
 type NonOpenAIStyleOptions struct {
-	ReasoningMaxTokens int `json:"reasoning_max_tokens,omitempty"`
+	ReasoningMaxTokens int            `json:"reasoning_max_tokens,omitempty"`
+	Thinking           *thinkingParam `json:"thinking,omitempty"`
+}
+
+type thinkingParam struct {
+	Type        string `json:"type,omitempty"`
+	BudgetToken int    `json:"budget_token,omitempty"`
 }
 
 type chatCompletionRequest struct {

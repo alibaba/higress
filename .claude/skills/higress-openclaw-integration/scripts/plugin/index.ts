@@ -8,15 +8,15 @@ const MODEL_CONFIG: Record<string, { contextWindow: number; maxTokens: number }>
   "gpt-5.3-codex": { contextWindow: 400_000, maxTokens: 128_000 },
   "gpt-5-mini": { contextWindow: 400_000, maxTokens: 128_000 },
   "gpt-5-nano": { contextWindow: 400_000, maxTokens: 128_000 },
-  "claude-opus-4.6": { contextWindow: 1_000_000, maxTokens: 128_000 },
-  "claude-sonnet-4.5": { contextWindow: 1_000_000, maxTokens: 64_000 },
-  "claude-haiku-4.5": { contextWindow: 200_000, maxTokens: 64_000 },
-  "qwen3-coder-plus": { contextWindow: 1_000_000, maxTokens: 64_000 },
+  "claude-opus-4-6": { contextWindow: 1_000_000, maxTokens: 128_000 },
+  "claude-sonnet-4-6": { contextWindow: 1_000_000, maxTokens: 64_000 },
+  "claude-haiku-4-5": { contextWindow: 200_000, maxTokens: 64_000 },
+  "qwen3.5-plus": { contextWindow: 960_000, maxTokens: 64_000 },
   "deepseek-chat": { contextWindow: 256_000, maxTokens: 128_000 },
   "deepseek-reasoner": { contextWindow: 256_000, maxTokens: 128_000 },
   "kimi-k2.5": { contextWindow: 256_000, maxTokens: 128_000 },
   "glm-5": { contextWindow: 200_000, maxTokens: 128_000 },
-  "MiniMax-M2.1": { contextWindow: 196_000, maxTokens: 196_000 },
+  "MiniMax-M2.5": { contextWindow: 200_000, maxTokens: 128_000 },
 };
 
 // Default values for unknown models
@@ -30,12 +30,12 @@ const DEFAULT_MODEL_IDS = [
   // Commonly models
   "kimi-k2.5",
   "glm-5",
-  "MiniMax-M2.1",
-  "qwen3-coder-plus",
+  "MiniMax-M2.5",
+  "qwen3.5-plus",
   // Anthropic models
-  "claude-opus-4.6",
-  "claude-sonnet-4.5",
-  "claude-haiku-4.5",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+  "claude-haiku-4-5",
   // OpenAI models
   "gpt-5.3-codex",
   "gpt-5-mini",
