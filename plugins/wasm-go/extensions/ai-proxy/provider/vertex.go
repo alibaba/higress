@@ -16,11 +16,13 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/resp"
 	"github.com/tidwall/sjson"
 )
 
@@ -46,6 +48,14 @@ const (
 	contextOpenAICompatibleMarker      = "isOpenAICompatibleRequest"
 	contextVertexRawMarker             = "isVertexRawRequest"
 	vertexAnthropicVersion             = "vertex-2023-10-16"
+
+	// Redis key prefix for thought_signature cache
+	thoughtSigRedisKeyPrefix = "higress-vertex-thought-sig:"
+
+	// Context keys for thought_signature caching
+	ctxThoughtSigMap     = "vertexThoughtSigMap"
+	ctxThoughtSigPending = "vertexThoughtSigPending"
+	ctxThoughtSigReady   = "vertexThoughtSigReady"
 )
 
 // vertexRawPathRegex 匹配原生 Vertex AI REST API 路径
@@ -149,6 +159,223 @@ func (v *vertexProvider) GetProviderType() string {
 	return providerTypeVertex
 }
 
+// storeThoughtSignature 将 thought_signature 存入 Redis
+func (v *vertexProvider) storeThoughtSignature(toolCallId, thoughtSignature string) {
+	if !v.config.GetVertexEnableThoughtSigCache() {
+		return
+	}
+
+	redisClient := v.config.GetRedisClient()
+	if redisClient == nil {
+		log.Warnf("[ThoughtSig] Redis client not available")
+		return
+	}
+
+	key := thoughtSigRedisKeyPrefix + toolCallId
+	ttl := v.config.GetVertexThoughtSigCacheTTL()
+
+	err := redisClient.SetEx(key, thoughtSignature, ttl, func(response resp.Value) {
+		if err := response.Error(); err != nil {
+			log.Errorf("[ThoughtSig] STORE FAILED: key=%s, err=%v", key, err)
+		}
+	})
+	if err != nil {
+		log.Errorf("[ThoughtSig] STORE CALL FAILED: key=%s, err=%v", key, err)
+	}
+}
+
+// extractToolCallIdsFromMessages 从请求消息中提取所有 tool 角色消息的 tool_call_id
+func extractToolCallIdsFromMessages(body []byte) []string {
+	var toolCallIds []string
+	messages := gjson.GetBytes(body, "messages")
+	if !messages.Exists() || !messages.IsArray() {
+		return toolCallIds
+	}
+
+	for _, msg := range messages.Array() {
+		role := msg.Get("role").String()
+		if role == "tool" {
+			toolCallId := msg.Get("tool_call_id").String()
+			if toolCallId != "" {
+				toolCallIds = append(toolCallIds, toolCallId)
+			}
+		}
+	}
+	return toolCallIds
+}
+
+// fetchThoughtSignaturesFromRedis 批量获取 thought_signature 并存入 context
+// 返回 true 表示需要暂停请求等待 Redis 回调
+// 在 Redis 回调完成后，会自动进行请求体转换并恢复请求
+func (v *vertexProvider) fetchThoughtSignaturesFromRedis(ctx wrapper.HttpContext, toolCallIds []string) bool {
+	if !v.config.GetVertexEnableThoughtSigCache() || len(toolCallIds) == 0 {
+		return false
+	}
+
+	redisClient := v.config.GetRedisClient()
+	if redisClient == nil {
+		log.Warnf("[ThoughtSig] Redis client not available")
+		return false
+	}
+
+	// 初始化 map 和计数器
+	thoughtSigMap := make(map[string]string)
+	ctx.SetContext(ctxThoughtSigMap, thoughtSigMap)
+	ctx.SetContext(ctxThoughtSigPending, len(toolCallIds))
+
+	// 发起所有 Redis 查询
+	for _, toolCallId := range toolCallIds {
+		id := toolCallId // 避免闭包问题
+		key := thoughtSigRedisKeyPrefix + id
+		err := redisClient.Get(key, func(response resp.Value) {
+			// 获取当前的 map 和 pending 计数
+			sigMap, ok := ctx.GetContext(ctxThoughtSigMap).(map[string]string)
+			if !ok {
+				sigMap = make(map[string]string)
+			}
+
+			if err := response.Error(); err != nil {
+				log.Errorf("[ThoughtSig] FETCH ERROR: key=%s, err=%v", key, err)
+			} else if !response.IsNull() {
+				sigMap[id] = response.String()
+			}
+
+			ctx.SetContext(ctxThoughtSigMap, sigMap)
+
+			// 减少 pending 计数
+			pending, _ := ctx.GetContext(ctxThoughtSigPending).(int)
+			pending--
+			ctx.SetContext(ctxThoughtSigPending, pending)
+
+			if pending <= 0 {
+				// 所有查询完成，标记 ready
+				ctx.SetContext(ctxThoughtSigReady, true)
+
+				// 执行请求体转换，transformRequestBodyAfterRedis 会负责恢复请求
+				// （直接恢复或通过 token 获取回调恢复）
+				if !v.transformRequestBodyAfterRedis(ctx) {
+					// 转换失败，恢复请求让它继续（会失败但不阻塞）
+					log.Errorf("[ThoughtSig] transform failed, resuming request anyway")
+					proxywasm.ResumeHttpRequest()
+				}
+			}
+		})
+
+		if err != nil {
+			log.Errorf("[ThoughtSig] FETCH CALL FAILED: id=%s, err=%v", id, err)
+			// 减少 pending 计数
+			pending, _ := ctx.GetContext(ctxThoughtSigPending).(int)
+			pending--
+			ctx.SetContext(ctxThoughtSigPending, pending)
+			if pending <= 0 {
+				ctx.SetContext(ctxThoughtSigReady, true)
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// transformRequestBodyAfterRedis 在 Redis 获取完成后执行请求体转换
+// 返回 true 表示请求已恢复或将由 token 回调恢复
+// 返回 false 表示出错，调用者应该恢复请求
+func (v *vertexProvider) transformRequestBodyAfterRedis(ctx wrapper.HttpContext) bool {
+	// 获取保存的原始请求体
+	bodyData := ctx.GetContext(ctxOriginalRequestBody)
+	if bodyData == nil {
+		log.Errorf("[ThoughtSig] original request body not found in context")
+		return false
+	}
+
+	body, ok := bodyData.([]byte)
+	if !ok {
+		log.Errorf("[ThoughtSig] invalid body type in context")
+		return false
+	}
+
+	headers := util.GetRequestHeaders()
+
+	// 解析请求
+	request := &chatCompletionRequest{}
+	err := v.config.parseRequestAndMapModel(ctx, request, body)
+	if err != nil {
+		log.Errorf("[ThoughtSig] failed to parse request: %v", err)
+		return false
+	}
+
+	// 设置请求路径
+	if strings.HasPrefix(request.Model, "claude") {
+		ctx.SetContext(contextClaudeMarker, true)
+		path := v.getAhthropicRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
+		util.OverwriteRequestPathHeader(headers, path)
+
+		claudeRequest := v.claude.buildClaudeTextGenRequest(request)
+		claudeRequest.Model = ""
+		claudeRequest.AnthropicVersion = vertexAnthropicVersion
+		transformedBody, err := json.Marshal(claudeRequest)
+		if err != nil {
+			log.Errorf("[ThoughtSig] failed to marshal claude request: %v", err)
+			return false
+		}
+		headers.Set("Content-Length", fmt.Sprint(len(transformedBody)))
+		util.ReplaceRequestHeaders(headers)
+		_ = proxywasm.ReplaceHttpRequestBody(transformedBody)
+	} else {
+		path := v.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
+		util.OverwriteRequestPathHeader(headers, path)
+
+		vertexRequest := v.buildVertexChatRequest(ctx, request)
+		transformedBody, err := json.Marshal(vertexRequest)
+		if err != nil {
+			log.Errorf("[ThoughtSig] failed to marshal vertex request: %v", err)
+			return false
+		}
+
+		headers.Set("Content-Length", fmt.Sprint(len(transformedBody)))
+
+		if v.isExpressMode() {
+			headers.Del("Authorization")
+		}
+		util.ReplaceRequestHeaders(headers)
+		_ = proxywasm.ReplaceHttpRequestBody(transformedBody)
+	}
+
+	// 处理 OAuth token（标准模式需要）
+	if v.isExpressMode() {
+		// Express Mode 不需要 OAuth token，直接恢复请求
+		proxywasm.ResumeHttpRequest()
+		return true
+	}
+
+	// 标准模式需要获取 OAuth token
+	cached, err := v.getToken()
+	if err != nil {
+		log.Errorf("[ThoughtSig] failed to get token: %v", err)
+		// 出错时恢复请求，让它继续（会失败但至少不会阻塞）
+		proxywasm.ResumeHttpRequest()
+		return true
+	}
+
+	if cached {
+		// Token 已缓存，直接恢复请求
+		proxywasm.ResumeHttpRequest()
+		return true
+	}
+
+	// Token 需要获取，getAccessToken 的回调会恢复请求
+	return true
+}
+
+// getThoughtSignatureFromContext 从 context 中获取缓存的 thought_signature
+func (v *vertexProvider) getThoughtSignatureFromContext(ctx wrapper.HttpContext, toolCallId string) string {
+	sigMap, ok := ctx.GetContext(ctxThoughtSigMap).(map[string]string)
+	if !ok {
+		return ""
+	}
+	return sigMap[toolCallId]
+}
+
 func (v *vertexProvider) GetApiName(path string) ApiName {
 	// 优先匹配原生 Vertex AI REST API 路径，支持任意 basePath 前缀
 	// 格式: [任意前缀]/{api-version}/projects/{project}/locations/{location}/publishers/{publisher}/models/{model}:{action}
@@ -220,9 +447,32 @@ func (v *vertexProvider) getToken() (cached bool, err error) {
 	return false, err
 }
 
+// Context key for saving original request body during Redis fetch
+const ctxOriginalRequestBody = "vertexOriginalRequestBody"
+
+// Context key to mark that request body has been transformed in Redis callback
+const ctxBodyTransformed = "vertexBodyTransformed"
+
 func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) (types.Action, error) {
 	if !v.config.isSupportedAPI(apiName) {
 		return types.ActionContinue, errUnsupportedApiName
+	}
+
+	// 检查是否已完成 thought_signature 获取（两阶段处理的第二阶段）
+	thoughtSigReady, _ := ctx.GetContext(ctxThoughtSigReady).(bool)
+
+	// 如果启用了 thought_signature 缓存且尚未获取，先从 Redis 获取
+	if !thoughtSigReady && v.config.GetVertexEnableThoughtSigCache() && apiName == ApiNameChatCompletion {
+		toolCallIds := extractToolCallIdsFromMessages(body)
+		if len(toolCallIds) > 0 {
+			// 保存原始请求体，以便 Redis 回调后使用
+			ctx.SetContext(ctxOriginalRequestBody, body)
+			// 需要获取 thought_signature，暂停请求
+			if v.fetchThoughtSignaturesFromRedis(ctx, toolCallIds) {
+				return types.ActionPause, nil
+			}
+			// 如果 fetchThoughtSignaturesFromRedis 返回 false，继续处理（Redis 不可用）
+		}
 	}
 
 	// Vertex Raw 模式: 透传请求体，只做 OAuth 认证
@@ -361,7 +611,7 @@ func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 		path := v.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
 		util.OverwriteRequestPathHeader(headers, path)
 
-		vertexRequest := v.buildVertexChatRequest(request)
+		vertexRequest := v.buildVertexChatRequest(ctx, request)
 		return json.Marshal(vertexRequest)
 	}
 }
@@ -501,7 +751,6 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 	if ctx.GetContext(contextClaudeMarker) != nil && ctx.GetContext(contextClaudeMarker).(bool) {
 		return v.claude.OnStreamingResponseBody(ctx, name, chunk, isLastChunk)
 	}
-	log.Infof("[vertexProvider] receive chunk body: %s", string(chunk))
 	if isLastChunk {
 		return []byte(ssePrefix + "[DONE]\n\n"), nil
 	}
@@ -524,6 +773,7 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 			log.Errorf("unable to unmarshal vertex response: %v", err)
 			continue
 		}
+
 		response := v.buildChatCompletionStreamResponse(ctx, &vertexResp)
 		responseBody, err := json.Marshal(response)
 		if err != nil {
@@ -594,22 +844,48 @@ func (v *vertexProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, re
 			FinishReason: util.Ptr(candidate.FinishReason),
 		}
 		if len(candidate.Content.Parts) > 0 {
-			part := candidate.Content.Parts[0]
-			if part.FunctionCall != nil {
-				args, _ := json.Marshal(part.FunctionCall.Args)
+			// 遍历所有 parts 查找 functionCall 和 thought_signature
+			var foundFunctionCall *vertexFunctionCall
+			var foundThoughtSig string
+			var firstPart *vertexPart
+
+			for i := range candidate.Content.Parts {
+				part := &candidate.Content.Parts[i]
+				if i == 0 {
+					firstPart = part
+				}
+				if part.FunctionCall != nil {
+					foundFunctionCall = part.FunctionCall
+				}
+				if part.ThoughtSignature != "" {
+					foundThoughtSig = part.ThoughtSignature
+				}
+			}
+
+			if foundFunctionCall != nil {
+				args, _ := json.Marshal(foundFunctionCall.Args)
+				toolCallId := fmt.Sprintf("call_%s", uuid.New().String())
 				choice.Message.ToolCalls = []toolCall{
 					{
+						Id:   toolCallId,
 						Type: "function",
 						Function: functionCall{
-							Name:      part.FunctionCall.Name,
+							Name:      foundFunctionCall.Name,
 							Arguments: string(args),
 						},
 					},
 				}
-			} else if part.Thounght != nil && len(candidate.Content.Parts) > 1 {
-				choice.Message.Content = reasoningStartTag + part.Text + reasoningEndTag + candidate.Content.Parts[1].Text
-			} else if part.Text != "" {
-				choice.Message.Content = part.Text
+
+				// Store thought_signature in Redis if found
+				if foundThoughtSig != "" {
+					v.storeThoughtSignature(toolCallId, foundThoughtSig)
+				}
+			} else if firstPart != nil {
+				if firstPart.Thounght != nil && len(candidate.Content.Parts) > 1 {
+					choice.Message.Content = reasoningStartTag + firstPart.Text + reasoningEndTag + candidate.Content.Parts[1].Text
+				} else if firstPart.Text != "" {
+					choice.Message.Content = firstPart.Text
+				}
 			}
 		} else {
 			choice.Message.Content = ""
@@ -701,33 +977,61 @@ func (v *vertexProvider) buildChatCompletionStreamResponse(ctx wrapper.HttpConte
 	var choice chatCompletionChoice
 	choice.Delta = &chatMessage{}
 	if len(vertexResp.Candidates) > 0 && len(vertexResp.Candidates[0].Content.Parts) > 0 {
-		part := vertexResp.Candidates[0].Content.Parts[0]
-		if part.FunctionCall != nil {
-			args, _ := json.Marshal(part.FunctionCall.Args)
+		parts := vertexResp.Candidates[0].Content.Parts
+
+		// 遍历所有 parts 查找 functionCall 和 thought_signature
+		var foundFunctionCall *vertexFunctionCall
+		var foundThoughtSig string
+		var firstPart *vertexPart
+
+		for i := range parts {
+			part := &parts[i]
+			if i == 0 {
+				firstPart = part
+			}
+			if part.FunctionCall != nil {
+				foundFunctionCall = part.FunctionCall
+			}
+			if part.ThoughtSignature != "" {
+				foundThoughtSig = part.ThoughtSignature
+			}
+		}
+
+		if foundFunctionCall != nil {
+			args, _ := json.Marshal(foundFunctionCall.Args)
+			toolCallId := fmt.Sprintf("call_%s", uuid.New().String())
 			choice.Delta = &chatMessage{
 				ToolCalls: []toolCall{
 					{
+						Id:   toolCallId,
 						Type: "function",
 						Function: functionCall{
-							Name:      part.FunctionCall.Name,
+							Name:      foundFunctionCall.Name,
 							Arguments: string(args),
 						},
 					},
 				},
 			}
-		} else if part.Thounght != nil {
-			if ctx.GetContext("thinking_start") == nil {
-				choice.Delta = &chatMessage{Content: reasoningStartTag + part.Text}
-				ctx.SetContext("thinking_start", true)
-			} else {
-				choice.Delta = &chatMessage{Content: part.Text}
+
+			// Store thought_signature in Redis if found
+			if foundThoughtSig != "" {
+				v.storeThoughtSignature(toolCallId, foundThoughtSig)
 			}
-		} else if part.Text != "" {
-			if ctx.GetContext("thinking_start") != nil && ctx.GetContext("thinking_end") == nil {
-				choice.Delta = &chatMessage{Content: reasoningEndTag + part.Text}
-				ctx.SetContext("thinking_end", true)
-			} else {
-				choice.Delta = &chatMessage{Content: part.Text}
+		} else if firstPart != nil {
+			if firstPart.Thounght != nil {
+				if ctx.GetContext("thinking_start") == nil {
+					choice.Delta = &chatMessage{Content: reasoningStartTag + firstPart.Text}
+					ctx.SetContext("thinking_start", true)
+				} else {
+					choice.Delta = &chatMessage{Content: firstPart.Text}
+				}
+			} else if firstPart.Text != "" {
+				if ctx.GetContext("thinking_start") != nil && ctx.GetContext("thinking_end") == nil {
+					choice.Delta = &chatMessage{Content: reasoningEndTag + firstPart.Text}
+					ctx.SetContext("thinking_end", true)
+				} else {
+					choice.Delta = &chatMessage{Content: firstPart.Text}
+				}
 			}
 		}
 	}
@@ -818,7 +1122,7 @@ func (v *vertexProvider) getOpenAICompatibleRequestPath() string {
 	return fmt.Sprintf(vertexOpenAICompatiblePathTemplate, v.config.vertexProjectId, v.config.vertexRegion)
 }
 
-func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) *vertexChatRequest {
+func (v *vertexProvider) buildVertexChatRequest(ctx wrapper.HttpContext, request *chatCompletionRequest) *vertexChatRequest {
 	safetySettings := make([]vertexChatSafetySetting, 0)
 	for category, threshold := range v.config.geminiSafetySetting {
 		safetySettings = append(safetySettings, vertexChatSafetySetting{
@@ -855,8 +1159,28 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 	}
 	if request.Tools != nil {
 		functions := make([]function, 0, len(request.Tools))
-		for _, tool := range request.Tools {
-			functions = append(functions, tool.Function)
+		for i, tool := range request.Tools {
+			// DEBUG: 打印清理前的 function parameters
+			if tool.Function.Parameters != nil {
+				originalParamsJson, _ := json.Marshal(tool.Function.Parameters)
+				log.Debugf("[vertexProvider] tool[%d] %s original parameters: %s", i, tool.Function.Name, string(originalParamsJson))
+			}
+
+			// 清理 function parameters 中不支持的 JSON Schema 字段
+			cleanedParams := cleanFunctionParameters(tool.Function.Parameters)
+
+			// DEBUG: 打印清理后的 function parameters
+			if cleanedParams != nil {
+				cleanedParamsJson, _ := json.Marshal(cleanedParams)
+				log.Debugf("[vertexProvider] tool[%d] %s cleaned parameters: %s", i, tool.Function.Name, string(cleanedParamsJson))
+			}
+
+			cleanedFunc := function{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  cleanedParams,
+			}
+			functions = append(functions, cleanedFunc)
 		}
 		vertexRequest.Tools = []vertexTool{
 			{
@@ -865,32 +1189,57 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 		}
 	}
 	shouldAddDummyModelMessage := false
-	var lastFunctionName string
+	// Map to track tool_call_id -> function_name for tool response messages
+	toolCallIdToFunctionName := make(map[string]string)
+
 	for _, message := range request.Messages {
 		content := vertexChatContent{
 			Role:  message.Role,
 			Parts: []vertexPart{},
 		}
 		if len(message.ToolCalls) > 0 {
-			lastFunctionName = message.ToolCalls[0].Function.Name
-			args := make(map[string]interface{})
-			if err := json.Unmarshal([]byte(message.ToolCalls[0].Function.Arguments), &args); err != nil {
-				log.Errorf("unable to unmarshal function arguments: %v", err)
+			// Process ALL tool calls in the message, not just the first one
+			for i, tc := range message.ToolCalls {
+				args := make(map[string]interface{})
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+					log.Errorf("unable to unmarshal function arguments: %v", err)
+				}
+				// Track tool_call_id -> function_name mapping for tool response messages
+				toolCallIdToFunctionName[tc.Id] = tc.Function.Name
+
+				// Get thought_signature from Redis cache if available
+				// According to Google docs, thought_signature should be attached to the functionCall part
+				// For parallel function calls, only the first one has the signature
+				var thoughtSig string
+				if i == 0 {
+					thoughtSig = v.getThoughtSignatureFromContext(ctx, tc.Id)
+				}
+
+				content.Parts = append(content.Parts, vertexPart{
+					FunctionCall: &vertexFunctionCall{
+						Name: tc.Function.Name,
+						Args: args,
+					},
+					ThoughtSignature: thoughtSig,
+				})
 			}
-			content.Parts = append(content.Parts, vertexPart{
-				FunctionCall: &vertexFunctionCall{
-					Name: lastFunctionName,
-					Args: args,
-				},
-			})
 		} else {
 			for _, part := range message.ParseContent() {
 				switch part.Type {
 				case contentTypeText:
 					if message.Role == roleTool {
+						// Use tool_call_id to find the corresponding function name
+						functionName := toolCallIdToFunctionName[message.ToolCallId]
+						if functionName == "" {
+							log.Warnf("[vertexProvider] could not find function name for tool_call_id: %s", message.ToolCallId)
+						}
+
+						// Note: thought_signature is attached to the functionCall part (model's response),
+						// NOT the functionResponse part (tool's response).
+						// This follows Google's documentation requirements.
 						content.Parts = append(content.Parts, vertexPart{
 							FunctionResponse: &vertexFunctionResponse{
-								Name: lastFunctionName,
+								Name: functionName,
 								Response: vertexFunctionResponseDetail{
 									Output: part.Text,
 								},
@@ -975,6 +1324,7 @@ type vertexPart struct {
 	FunctionCall     *vertexFunctionCall     `json:"functionCall,omitempty"`
 	FunctionResponse *vertexFunctionResponse `json:"functionResponse,omitempty"`
 	Thounght         *bool                   `json:"thought,omitempty"`
+	ThoughtSignature string                  `json:"thoughtSignature,omitempty"`
 }
 
 type blob struct {

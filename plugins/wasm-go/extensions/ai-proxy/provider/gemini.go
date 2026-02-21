@@ -443,7 +443,13 @@ func (g *geminiProvider) buildGeminiChatRequest(request *chatCompletionRequest) 
 	if request.Tools != nil {
 		functions := make([]function, 0, len(request.Tools))
 		for _, tool := range request.Tools {
-			functions = append(functions, tool.Function)
+			// 清理 function parameters 中不支持的 JSON Schema 字段
+			cleanedFunc := function{
+				Name:        tool.Function.Name,
+				Description: tool.Function.Description,
+				Parameters:  cleanFunctionParameters(tool.Function.Parameters),
+			}
+			functions = append(functions, cleanedFunc)
 		}
 		geminiRequest.Tools = []geminiChatTools{
 			{
