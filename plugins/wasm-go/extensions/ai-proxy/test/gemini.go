@@ -541,6 +541,34 @@ func RunGeminiOnHttpRequestBodyTests(t *testing.T) {
 			}
 			require.True(t, hasSafetyLogs, "Should have safety setting processing logs")
 		})
+
+		// 测试验证 flash 请求支持 generationConfig.responseModalities
+		t.Run("gemini flash image generation with response modalities", func(t *testing.T) {
+			host, status := test.NewTestHost(basicGeminiConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/generations"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash-image","prompt":"test image","generationConfig":{"responseModalities":["TEXT","IMAGE"],"imageConfig":{"aspectRatio":"16:9","imageSize":"2K"}}}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, `"responseModalities":["TEXT","IMAGE"]`, "response modalities should be forwarded to flash request")
+
+			requestHeaders := host.GetRequestHeaders()
+			require.Contains(t, bodyStr, `"aspectRatio":"16:9"`, "aspectRatio should be forwarded to gemini request")
+			require.Contains(t, bodyStr, `"imageSize":"2K"`, "imageSize should be forwarded to gemini request")
+			require.True(t, test.HasHeaderWithValue(requestHeaders, ":path", "/v1beta/models/gemini-2.5-flash-image:generateContent"), "flash image request should call generateContent path")
+		})
 	})
 }
 
