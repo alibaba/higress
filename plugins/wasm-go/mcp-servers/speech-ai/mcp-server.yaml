@@ -1,0 +1,147 @@
+server:
+  name: speech-ai
+  config:
+    apiKey: ""
+
+tools:
+  - name: assess_pronunciation
+    description: "Score English pronunciation at phoneme, word, and sentence levels (0-100). Compares spoken audio against reference text. Returns calibrated scores with IPA phoneme breakdown."
+    args:
+      - name: audio
+        description: "Base64-encoded audio data (WAV, MP3, FLAC, or OGG)"
+        type: string
+        required: true
+      - name: text
+        description: "Reference text that the speaker was supposed to say"
+        type: string
+        required: true
+      - name: format
+        description: "Audio format of the encoded data"
+        type: string
+        required: false
+        default: "wav"
+    requestTemplate:
+      url: "https://apim-ai-apis.azure-api.net/pronunciation/assess/base64"
+      method: POST
+      headers:
+        - key: "Ocp-Apim-Subscription-Key"
+          value: "{{.config.apiKey}}"
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {"audio":"{{.args.audio}}","text":"{{.args.text}}","format":"{{.args.format}}"}
+    responseTemplate:
+      body: |
+        Overall Score: {{.response.body.overallScore}}/100
+        Sentence Score: {{.response.body.sentenceScore}}/100
+        Confidence: {{.response.body.confidence}}
+        Words: {{.response.body.words}}
+
+  - name: check_pronunciation_service
+    description: "Check the health status of the pronunciation assessment service"
+    args: []
+    requestTemplate:
+      url: "https://apim-ai-apis.azure-api.net/pronunciation/health"
+      method: GET
+      headers:
+        - key: "Ocp-Apim-Subscription-Key"
+          value: "{{.config.apiKey}}"
+    responseTemplate:
+      body: |
+        Status: {{.response.body.status}}
+        Version: {{.response.body.version}}
+
+  - name: transcribe_audio
+    description: "Transcribe spoken audio to text with word-level timestamps and confidence scores. Supports WAV, MP3, FLAC, and OGG."
+    args:
+      - name: audio
+        description: "Base64-encoded audio data"
+        type: string
+        required: true
+    requestTemplate:
+      url: "https://apim-ai-apis.azure-api.net/stt/transcribe/base64"
+      method: POST
+      headers:
+        - key: "Ocp-Apim-Subscription-Key"
+          value: "{{.config.apiKey}}"
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {"audio":"{{.args.audio}}"}
+    responseTemplate:
+      body: |
+        Text: {{.response.body.text}}
+        Duration: {{.response.body.audioDurationMs}}ms
+        Words: {{.response.body.words}}
+
+  - name: check_stt_service
+    description: "Check the health status of the speech-to-text service"
+    args: []
+    requestTemplate:
+      url: "https://apim-ai-apis.azure-api.net/stt/health"
+      method: GET
+      headers:
+        - key: "Ocp-Apim-Subscription-Key"
+          value: "{{.config.apiKey}}"
+    responseTemplate:
+      body: |
+        Status: {{.response.body.status}}
+        Version: {{.response.body.version}}
+
+  - name: synthesize_speech
+    description: "Generate natural speech from text. 12 English voices (American + British, male + female). Speed adjustable 0.5x-2.0x. Returns WAV audio."
+    args:
+      - name: text
+        description: "Text to synthesize into speech (max 5000 characters)"
+        type: string
+        required: true
+      - name: voice
+        description: "Voice ID (af_heart, af_bella, am_adam, am_michael, bf_emma, bm_lewis, etc.)"
+        type: string
+        required: false
+        default: "af_heart"
+      - name: speed
+        description: "Speech speed multiplier (0.5 = slow, 1.0 = normal, 2.0 = fast)"
+        type: number
+        required: false
+        default: 1.0
+    requestTemplate:
+      url: "https://apim-ai-apis.azure-api.net/tts/synthesize"
+      method: POST
+      headers:
+        - key: "Ocp-Apim-Subscription-Key"
+          value: "{{.config.apiKey}}"
+        - key: "Content-Type"
+          value: "application/json"
+      body: |
+        {"text":"{{.args.text}}","voice":"{{.args.voice}}","speed":{{.args.speed}}}
+    responseTemplate:
+      body: |
+        Audio synthesized successfully. Duration and audio data returned.
+
+  - name: list_tts_voices
+    description: "List all available text-to-speech voices with their metadata"
+    args: []
+    requestTemplate:
+      url: "https://apim-ai-apis.azure-api.net/tts/voices"
+      method: GET
+      headers:
+        - key: "Ocp-Apim-Subscription-Key"
+          value: "{{.config.apiKey}}"
+    responseTemplate:
+      body: |
+        {{.response.body.voices}}
+
+  - name: check_tts_service
+    description: "Check the health status of the text-to-speech service"
+    args: []
+    requestTemplate:
+      url: "https://apim-ai-apis.azure-api.net/tts/health"
+      method: GET
+      headers:
+        - key: "Ocp-Apim-Subscription-Key"
+          value: "{{.config.apiKey}}"
+    responseTemplate:
+      body: |
+        Status: {{.response.body.status}}
+        Version: {{.response.body.version}}
