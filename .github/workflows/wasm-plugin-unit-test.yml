@@ -184,9 +184,9 @@ jobs:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         file: plugins/wasm-go/extensions/${{ matrix.plugin }}/coverage-${{ matrix.plugin }}.out
-        flags: wasm-go-plugin-${{ matrix.plugin }}
+        flags: wasm-go-plugin
         name: codecov-${{ matrix.plugin }}
-        fail_ci_if_error: false
+        fail_ci_if_error: true
         verbose: true
 
   test-summary:
@@ -358,7 +358,7 @@ jobs:
         
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "📊 **Coverage reports are now available on Codecov**" >> $GITHUB_STEP_SUMMARY
-        echo "🔗 **This Commit Coverage**: https://codecov.io/gh/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 **PR Coverage Report**: https://app.codecov.io/gh/${{ github.repository }}/pull/${{ github.event.number }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
         # 覆盖率门禁检查
