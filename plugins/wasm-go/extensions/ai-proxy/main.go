@@ -398,6 +398,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		return chunk
 	}
 	if handler, ok := activeProvider.(provider.StreamingEventHandler); ok {
+		log.Warnf("[onStreamingResponseBody] using deprecated StreamingEventHandler, please migrate to StreamingResponseBodyHandler")
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		events := provider.ExtractStreamingEvents(ctx, chunk)
 		log.Debugf("[onStreamingResponseBody] %d events received", len(events))
@@ -440,12 +441,14 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 	}
 
 	if !needsClaudeResponseConversion(ctx) {
+		log.Warnf("[onStreamingResponseBody] no streaming handler and no Claude conversion needed, returning original chunk")
 		return chunk
 	}
 
 	// If provider doesn't implement any streaming handlers but we need Claude conversion
 	// First extract complete events from the chunk
 	events := provider.ExtractStreamingEvents(ctx, chunk)
+	log.Warnf("[onStreamingResponseBody] %d events received (no handler)", len(events))
 	log.Debugf("[onStreamingResponseBody] %d events received (no handler)", len(events))
 	if len(events) == 0 {
 		// No events are extracted, return empty bytes slice
