@@ -18,35 +18,35 @@
 
 - **Related PR**: [#666](https://github.com/higress-group/higress-console/pull/666) \
   **Contributor**: @johnlanni \
-  **Change Log**: 此PR向内置插件添加了`pluginImageRegistry`和`pluginImageNamespace`配置支持，并通过环境变量来指定这些配置，使用户可以在不修改`plugins.properties`文件的情况下自定义插件镜像的位置。 \
-  **Feature Value**: 新增的功能允许用户更灵活地管理其应用的插件镜像源，提高了系统的可配置性和便利性，特别对于需要使用特定镜像仓库或命名空间的用户来说十分有用。
+  **Change Log**: 新增插件镜像仓库和命名空间配置项，支持通过环境变量HIGRESS_ADMIN_WASM_PLUGIN_IMAGE_REGISTRY/NAMESPACE动态指定内置插件镜像地址，无需修改plugins.properties；同时在Helm Chart中集成对应values参数与部署模板渲染逻辑。 \
+  **Feature Value**: 用户可在不同网络环境（如私有云、离线环境）灵活配置WASM插件镜像源，提升部署灵活性与安全性；降低运维成本，避免硬编码配置带来的维护困难和升级风险。
 
 - **Related PR**: [#665](https://github.com/higress-group/higress-console/pull/665) \
   **Contributor**: @johnlanni \
-  **Change Log**: 本PR为Zhipu AI及Claude引入了高级配置选项支持，包括自定义域、代码计划模式切换以及API版本设置。 \
-  **Feature Value**: 增强了AI服务的灵活性和功能性，用户现在可以更精细地控制AI服务的行为，特别是对于需要优化代码生成能力的场景特别有用。
+  **Change Log**: 新增Zhipu AI的Code Plan模式支持和Claude的API版本配置能力，通过扩展ZhipuAILlmProviderHandler和ClaudeLlmProviderHandler实现自定义域名、代码生成优化开关及API版本参数，提升大模型调用灵活性与场景适配性。 \
+  **Feature Value**: 用户可基于不同AI厂商特性启用代码专项生成模式（如Zhipu Code Plan）并精确控制Claude API版本，显著提升代码生成质量与兼容性，降低集成门槛，增强AI网关在多模型协同开发场景中的实用性。
 
 - **Related PR**: [#661](https://github.com/higress-group/higress-console/pull/661) \
   **Contributor**: @johnlanni \
-  **Change Log**: 此PR为ai-statistics插件配置启用了轻量模式，添加了USE_DEFAULT_RESPONSE_ATTRIBUTES常量，并在AiRouteServiceImpl中应用了这一设置。 \
-  **Feature Value**: 通过启用轻量模式，此功能优化了AI路由的性能，尤其适合生产环境，减少了响应属性缓冲，提升了系统效率。
+  **Change Log**: 为AI统计插件引入轻量模式配置，新增USE_DEFAULT_ATTRIBUTES常量，并在AiRouteServiceImpl中启用use_default_response_attributes: true，减少响应属性采集开销，避免内存缓冲问题。 \
+  **Feature Value**: 提升生产环境稳定性与性能，降低AI路由统计的资源消耗；用户无需手动配置复杂属性，系统自动采用默认精简属性集，简化运维并增强高并发场景下的可靠性。
 
 - **Related PR**: [#657](https://github.com/higress-group/higress-console/pull/657) \
   **Contributor**: @liangziccc \
-  **Change Log**: 此PR移除了原有的输入框搜索功能，新增了针对路由名称、域名等多个属性的多选下拉筛选框，并实现了中英文语言适配。 \
-  **Feature Value**: 通过增加多条件筛选功能，用户能够更精确地定位和管理特定路由信息，提升了系统的易用性和灵活性，有助于提高工作效率。
+  **Change Log**: PR在路由管理页移除了原有输入框搜索，新增路由名称、域名、路由条件、目标服务、请求授权五个字段的多选下拉筛选，并完成中英文国际化适配，支持多维度组合筛选（各字段内OR、字段间AND），提升数据过滤精准度。 \
+  **Feature Value**: 用户可通过直观下拉选择快速定位特定路由，避免手动输入错误；中英文切换支持国际化使用场景；多条件联合筛选显著提升运维人员在海量路由配置中的查询效率和操作体验。
 
 ### 🐛 Bug修复 (Bug Fixes)
 
 - **Related PR**: [#662](https://github.com/higress-group/higress-console/pull/662) \
   **Contributor**: @johnlanni \
-  **Change Log**: 该PR修正了mcp-server OCI镜像路径从`mcp-server/all-in-one`到`plugins/mcp-server`的变更，以匹配新的插件结构。 \
-  **Feature Value**: 通过更新镜像路径确保与新插件目录一致，从而保证服务正常运行，避免因路径错误导致的部署或运行问题。
+  **Change Log**: 修复了mcp-server插件OCI镜像路径未同步迁移的问题，将原路径mcp-server/all-in-one更新为plugins/mcp-server，适配新插件目录结构，确保插件加载和部署正常。 \
+  **Feature Value**: 避免因镜像路径错误导致插件无法拉取或启动失败，保障Higress网关中mcp-server插件的稳定运行与无缝升级，提升用户在插件化场景下的部署可靠性。
 
 - **Related PR**: [#654](https://github.com/higress-group/higress-console/pull/654) \
   **Contributor**: @fgksking \
-  **Change Log**: 此PR通过升级springdoc内置的swagger-ui依赖解决了请求体显示为空的问题，保证了API文档的准确性。 \
-  **Feature Value**: 修复了Swagger UI中空请求体值的问题，提升了用户体验和开发者对API文档的信任度，确保接口测试与实际使用的一致性。
+  **Change Log**: 升级了springdoc依赖的swagger-ui版本，通过在pom.xml中引入更高版本的webjars-lo依赖和更新相关版本属性，修复了Swagger UI中请求体schema显示为空的问题。 \
+  **Feature Value**: 用户在使用Higress控制台的API文档功能时，能正确查看和交互请求体结构，提升API调试体验与开发效率，避免因文档展示异常导致的接口调用误解。
 
 ---
 
