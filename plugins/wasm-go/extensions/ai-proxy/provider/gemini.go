@@ -155,6 +155,15 @@ func (g *geminiProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, b
 	if err := g.config.parseRequestAndMapModel(ctx, request, body); err != nil {
 		return nil, err
 	}
+	originalModel := ctx.GetStringContext(ctxKeyOriginalRequestModel, request.Model)
+	isFlashModel := strings.Contains(strings.ToLower(originalModel), "flash")
+	if isFlashModel {
+		path := g.getRequestPath(ApiNameGeminiGenerateContent, originalModel, false)
+		log.Debugf("request path:%s", path)
+		util.OverwriteRequestPathHeader(headers, path)
+		geminiRequest := g.buildGeminiFlashImageRequest(request)
+		return json.Marshal(geminiRequest)
+	}
 	path := g.getRequestPath(ApiNameImageGeneration, request.Model, false)
 	log.Debugf("request path:%s", path)
 	util.OverwriteRequestPathHeader(headers, path)
@@ -168,6 +177,48 @@ func (g *geminiProvider) buildGeminiImageGenerationRequest(request *imageGenerat
 		Parameters: &geminiImageGenerationParameters{
 			SampleCount: request.N,
 		},
+	}
+
+	if cfg := request.GenerationConfig; cfg != nil {
+		if len(cfg.ResponseModalities) > 0 {
+			geminiRequest.Parameters.ResponseModalities = cfg.ResponseModalities
+		}
+		if imgCfg := cfg.ImageConfig; imgCfg != nil {
+			if imgCfg.AspectRatio != "" {
+				geminiRequest.Parameters.AspectRatio = imgCfg.AspectRatio
+			}
+			if imgCfg.ImageSize != "" {
+				geminiRequest.Parameters.ImageSize = imgCfg.ImageSize
+			}
+		}
+	}
+
+	return geminiRequest
+}
+
+func (g *geminiProvider) buildGeminiFlashImageRequest(request *imageGenerationRequest) *geminiGenerationContentRequest {
+	content := geminiChatContent{
+		Role: roleUser,
+		Parts: []geminiPart{
+			{Text: request.Prompt},
+		},
+	}
+	geminiRequest := &geminiGenerationContentRequest{
+		Contents: []geminiChatContent{content},
+	}
+
+	if cfg := request.GenerationConfig; cfg != nil {
+		if len(cfg.ResponseModalities) > 0 {
+			geminiRequest.GenerationConfig.ResponseModalities = cfg.ResponseModalities
+		}
+		if imgCfg := cfg.ImageConfig; imgCfg != nil {
+			if imgCfg.AspectRatio != "" {
+				geminiRequest.GenerationConfig.AspectRatio = imgCfg.AspectRatio
+			}
+			if imgCfg.ImageSize != "" {
+				geminiRequest.GenerationConfig.ImageSize = imgCfg.ImageSize
+			}
+		}
 	}
 
 	return geminiRequest
@@ -364,6 +415,8 @@ type geminiChatGenerationConfig struct {
 	NegativePrompt     string                `json:"negativePrompt,omitempty"`
 	ThinkingConfig     *geminiThinkingConfig `json:"thinkingConfig,omitempty"`
 	MediaResolution    string                `json:"mediaResolution,omitempty"`
+	AspectRatio        string                `json:"aspectRatio,omitempty"`
+	ImageSize          string                `json:"imageSize,omitempty"`
 }
 
 type geminiChatTools struct {
@@ -397,8 +450,10 @@ type geminiImageGenerationInstance struct {
 }
 
 type geminiImageGenerationParameters struct {
-	SampleCount int    `json:"sampleCount,omitempty"`
-	AspectRatio string `json:"aspectRatio,omitempty"`
+	SampleCount        int      `json:"sampleCount,omitempty"`
+	AspectRatio        string   `json:"aspectRatio,omitempty"`
+	ImageSize          string   `json:"imageSize,omitempty"`
+	ResponseModalities []string `json:"responseModalities,omitempty"`
 }
 
 type geminiImageGenerationPrediction struct {
