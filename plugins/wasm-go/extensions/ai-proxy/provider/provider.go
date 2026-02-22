@@ -288,6 +288,48 @@ type TransformResponseBodyHandler interface {
 	TransformResponseBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error)
 }
 
+// RedisConfig Redis配置结构体
+type RedisConfig struct {
+	// @Title zh-CN Redis服务名称
+	// @Description zh-CN Redis服务的FQDN，如 redis.static、redis.my-ns.svc.cluster.local
+	ServiceName string `yaml:"serviceName" json:"serviceName"`
+	// @Title zh-CN Redis服务端口
+	// @Description zh-CN Redis服务端口，static服务默认80，其他默认6379
+	ServicePort int `yaml:"servicePort" json:"servicePort"`
+	// @Title zh-CN Redis用户名
+	// @Description zh-CN Redis认证用户名（可选）
+	Username string `yaml:"username" json:"username"`
+	// @Title zh-CN Redis密码
+	// @Description zh-CN Redis认证密码（可选）
+	Password string `yaml:"password" json:"password"`
+	// @Title zh-CN 连接超时时间
+	// @Description zh-CN Redis连接超时时间，单位毫秒，默认1000
+	Timeout int `yaml:"timeout" json:"timeout"`
+	// @Title zh-CN 数据库ID
+	// @Description zh-CN Redis数据库ID，默认0
+	Database int `yaml:"database" json:"database"`
+}
+
+// FromJson 从JSON解析Redis配置
+func (r *RedisConfig) FromJson(json gjson.Result) {
+	r.ServiceName = json.Get("serviceName").String()
+	r.ServicePort = int(json.Get("servicePort").Int())
+	if r.ServicePort == 0 {
+		if strings.HasSuffix(r.ServiceName, ".static") {
+			r.ServicePort = 80
+		} else {
+			r.ServicePort = 6379
+		}
+	}
+	r.Username = json.Get("username").String()
+	r.Password = json.Get("password").String()
+	r.Timeout = int(json.Get("timeout").Int())
+	if r.Timeout == 0 {
+		r.Timeout = 1000
+	}
+	r.Database = int(json.Get("database").Int())
+}
+
 type ProviderConfig struct {
 	// @Title zh-CN ID
 	// @Description zh-CN AI服务提供商标识
@@ -400,6 +442,17 @@ type ProviderConfig struct {
 	// @Title zh-CN Vertex AI OpenAI兼容模式
 	// @Description zh-CN 启用后将使用Vertex AI的OpenAI兼容API，请求和响应均使用OpenAI格式，无需协议转换。与Express Mode(apiTokens)互斥。
 	vertexOpenAICompatible bool `required:"false" yaml:"vertexOpenAICompatible" json:"vertexOpenAICompatible"`
+	// @Title zh-CN Vertex AI Thought Signature 缓存开关
+	// @Description zh-CN 启用后将使用Redis缓存Gemini 3模型的thought_signature，用于多轮function calling场景。需要配置Redis连接信息。
+	vertexEnableThoughtSigCache bool `required:"false" yaml:"vertexEnableThoughtSigCache" json:"vertexEnableThoughtSigCache"`
+	// @Title zh-CN Vertex AI Thought Signature 缓存过期时间
+	// @Description zh-CN thought_signature在Redis中的过期时间，单位为秒。默认值为3600（1小时）。
+	vertexThoughtSigCacheTTL int `required:"false" yaml:"vertexThoughtSigCacheTTL" json:"vertexThoughtSigCacheTTL"`
+	// @Title zh-CN Redis服务配置
+	// @Description zh-CN 用于thought_signature缓存的Redis服务配置
+	redisConfig *RedisConfig `required:"false" yaml:"redis" json:"redis"`
+	// Redis客户端实例（运行时使用，不从配置中读取）
+	redisClient wrapper.RedisClient `yaml:"-" json:"-"`
 	// @Title zh-CN 翻译服务需指定的目标语种
 	// @Description zh-CN 翻译结果的语种，目前仅适用于DeepL服务。
 	targetLang string `required:"false" yaml:"targetLang" json:"targetLang"`
@@ -484,6 +537,21 @@ func (c *ProviderConfig) GetVllmServerHost() string {
 
 func (c *ProviderConfig) GetContextCleanupCommands() []string {
 	return c.contextCleanupCommands
+}
+
+// GetVertexEnableThoughtSigCache 返回是否启用Vertex thought_signature缓存
+func (c *ProviderConfig) GetVertexEnableThoughtSigCache() bool {
+	return c.vertexEnableThoughtSigCache
+}
+
+// GetVertexThoughtSigCacheTTL 返回thought_signature缓存的过期时间（秒）
+func (c *ProviderConfig) GetVertexThoughtSigCacheTTL() int {
+	return c.vertexThoughtSigCacheTTL
+}
+
+// GetRedisClient 返回Redis客户端实例
+func (c *ProviderConfig) GetRedisClient() wrapper.RedisClient {
+	return c.redisClient
 }
 
 func (c *ProviderConfig) IsOpenAIProtocol() bool {
@@ -573,6 +641,19 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.vertexTokenRefreshAhead = 60
 	}
 	c.vertexOpenAICompatible = json.Get("vertexOpenAICompatible").Bool()
+	c.vertexEnableThoughtSigCache = json.Get("vertexEnableThoughtSigCache").Bool()
+	c.vertexThoughtSigCacheTTL = int(json.Get("vertexThoughtSigCacheTTL").Int())
+	if c.vertexThoughtSigCacheTTL == 0 {
+		c.vertexThoughtSigCacheTTL = 3600 // 默认1小时
+	}
+
+	// 解析Redis配置
+	redisJson := json.Get("redis")
+	if redisJson.Exists() {
+		c.redisConfig = &RedisConfig{}
+		c.redisConfig.FromJson(redisJson)
+	}
+
 	c.targetLang = json.Get("targetLang").String()
 
 	if schemaValue, ok := json.Get("responseJsonSchema").Value().(map[string]interface{}); ok {
@@ -701,6 +782,32 @@ func (c *ProviderConfig) Validate() error {
 	if err := initializer.ValidateConfig(c); err != nil {
 		return err
 	}
+
+	// 初始化Redis客户端（如果启用了Vertex thought_signature缓存）
+	if c.vertexEnableThoughtSigCache {
+		if c.redisConfig == nil || c.redisConfig.ServiceName == "" {
+			log.Warn("vertexEnableThoughtSigCache is enabled but redis config is missing, disabling thought_signature cache")
+			c.vertexEnableThoughtSigCache = false
+		} else {
+			c.redisClient = wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
+				FQDN: c.redisConfig.ServiceName,
+				Port: int64(c.redisConfig.ServicePort),
+			})
+			err := c.redisClient.Init(
+				c.redisConfig.Username,
+				c.redisConfig.Password,
+				int64(c.redisConfig.Timeout),
+				wrapper.WithDataBase(c.redisConfig.Database),
+			)
+			if err != nil {
+				log.Errorf("failed to init redis client for thought_signature cache: %v", err)
+				c.vertexEnableThoughtSigCache = false
+			} else {
+				log.Info("redis client initialized for Vertex thought_signature cache")
+			}
+		}
+	}
+
 	return nil
 }
 
