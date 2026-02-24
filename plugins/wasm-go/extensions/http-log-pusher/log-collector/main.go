@@ -1473,6 +1473,10 @@ func processTableQuery(payload map[string]interface{}) (map[string]interface{}, 
 		result, err = queryRiskTypesTable(whereSQL, args)
 	case "risk_consumers":
 		result, err = queryRiskConsumersTable(whereSQL, args)
+	case "request_distribution":
+		result, err = queryRequestDistributionTable(whereSQL, args)
+	case "upstream_status_distribution":
+		result, err = queryUpstreamStatusDistributionTable(whereSQL, args)
 	default:
 		return nil, fmt.Errorf("unsupported tableType: %s", tableType)
 	}
@@ -1826,6 +1830,119 @@ func queryRiskTypesTable(whereSQL string, args []interface{}) (map[string]interf
 			"risk_type":    riskType,
 			"risk_count":   riskCount,
 			"avg_duration": avgDuration,
+		})
+	}
+
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询请求分布表格数据
+func queryRequestDistributionTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	sql := fmt.Sprintf(`
+		SELECT 
+			mcp_tool as tool_name,
+			response_code,
+			response_flags,
+			response_code_details,
+			COUNT(*) as cnt
+		FROM access_logs %s 
+		GROUP BY mcp_tool, response_code, response_flags, response_code_details 
+		ORDER BY cnt DESC`, whereSQL)
+
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query request distribution: %v", err)
+	}
+	defer rows.Close()
+
+	var data []map[string]interface{}
+
+	for rows.Next() {
+		var toolName *string
+		var responseCode *string
+		var responseFlags *string
+		var responseCodeDetails *string
+		var count int64
+
+		if err := rows.Scan(&toolName, &responseCode, &responseFlags, &responseCodeDetails, &count); err != nil {
+			continue
+		}
+
+		// 处理NULL值，转换为字符串
+		toolNameStr := ""
+		if toolName != nil {
+			toolNameStr = *toolName
+		}
+		
+		responseCodeStr := ""
+		if responseCode != nil {
+			responseCodeStr = *responseCode
+		}
+		
+		responseFlagsStr := ""
+		if responseFlags != nil {
+			responseFlagsStr = *responseFlags
+		}
+		
+		responseCodeDetailsStr := ""
+		if responseCodeDetails != nil {
+			responseCodeDetailsStr = *responseCodeDetails
+		}
+
+		data = append(data, map[string]interface{}{
+			"tool_name":             toolNameStr,
+			"response_code":         responseCodeStr,
+			"response_flags":        responseFlagsStr,
+			"response_code_details": responseCodeDetailsStr,
+			"count":                 count,
+		})
+	}
+
+	return map[string]interface{}{
+		"data": data,
+	}, nil
+}
+
+// 查询上游状态分布表格数据
+func queryUpstreamStatusDistributionTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
+	// 在现有WHERE条件基础上添加上游服务筛选条件
+	upstreamWhereSQL := whereSQL + " AND response_code_details = 'via_upstream'"
+	
+	sql := fmt.Sprintf(`
+		SELECT 
+			response_code as status,
+			COUNT(1) as count
+		FROM access_logs %s 
+		GROUP BY response_code 
+		ORDER BY count DESC`, upstreamWhereSQL)
+
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query upstream status distribution: %v", err)
+	}
+	defer rows.Close()
+
+	var data []map[string]interface{}
+
+	for rows.Next() {
+		var status *string
+		var count int64
+
+		if err := rows.Scan(&status, &count); err != nil {
+			continue
+		}
+
+		// 处理NULL值，转换为字符串
+		statusStr := ""
+		if status != nil {
+			statusStr = *status
+		}
+
+		data = append(data, map[string]interface{}{
+			"status": statusStr,
+			"count":  count,
 		})
 	}
 
