@@ -911,9 +911,33 @@ func processKpiQuery(payload map[string]interface{}) (map[string]interface{}, er
 	// 添加过滤条件
 	if filters, ok := payload["filters"].(map[string]interface{}); ok {
 		for key, value := range filters {
-			if strVal, ok := value.(string); ok && strVal != "" {
-				whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
-				args = append(args, strVal)
+			// 支持单值和多值筛选
+			switch v := value.(type) {
+			case string:
+				// 单值筛选
+				if v != "" {
+					whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
+					args = append(args, v)
+				}
+			case []interface{}:
+				// 多值筛选 (IN查询)
+				if len(v) > 0 {
+					// 过滤空值
+					var validValues []string
+					for _, item := range v {
+						if str, ok := item.(string); ok && str != "" {
+							validValues = append(validValues, str)
+						}
+					}
+					if len(validValues) > 0 {
+						placeholders := strings.Repeat("?,", len(validValues))
+						placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
+						whereClause = append(whereClause, fmt.Sprintf("%s IN (%s)", key, placeholders))
+						for _, val := range validValues {
+							args = append(args, val)
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1056,9 +1080,33 @@ func processChartQuery(payload map[string]interface{}) (map[string]interface{}, 
 	// 添加过滤条件
 	if filters, ok := payload["filters"].(map[string]interface{}); ok {
 		for key, value := range filters {
-			if strVal, ok := value.(string); ok && strVal != "" {
-				whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
-				args = append(args, strVal)
+			// 支持单值和多值筛选
+			switch v := value.(type) {
+			case string:
+				// 单值筛选
+				if v != "" {
+					whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
+					args = append(args, v)
+				}
+			case []interface{}:
+				// 多值筛选 (IN查询)
+				if len(v) > 0 {
+					// 过滤空值
+					var validValues []string
+					for _, item := range v {
+						if str, ok := item.(string); ok && str != "" {
+							validValues = append(validValues, str)
+						}
+					}
+					if len(validValues) > 0 {
+						placeholders := strings.Repeat("?,", len(validValues))
+						placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
+						whereClause = append(whereClause, fmt.Sprintf("%s IN (%s)", key, placeholders))
+						for _, val := range validValues {
+							args = append(args, val)
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1451,9 +1499,33 @@ func processTableQuery(payload map[string]interface{}) (map[string]interface{}, 
 	// 添加过滤条件
 	if filters, ok := payload["filters"].(map[string]interface{}); ok {
 		for key, value := range filters {
-			if strVal, ok := value.(string); ok && strVal != "" {
-				whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
-				args = append(args, strVal)
+			// 支持单值和多值筛选
+			switch v := value.(type) {
+			case string:
+				// 单值筛选
+				if v != "" {
+					whereClause = append(whereClause, fmt.Sprintf("%s = ?", key))
+					args = append(args, v)
+				}
+			case []interface{}:
+				// 多值筛选 (IN查询)
+				if len(v) > 0 {
+					// 过滤空值
+					var validValues []string
+					for _, item := range v {
+						if str, ok := item.(string); ok && str != "" {
+							validValues = append(validValues, str)
+						}
+					}
+					if len(validValues) > 0 {
+						placeholders := strings.Repeat("?,", len(validValues))
+						placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
+						whereClause = append(whereClause, fmt.Sprintf("%s IN (%s)", key, placeholders))
+						for _, val := range validValues {
+							args = append(args, val)
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1587,7 +1659,7 @@ func buildModelNotNullCondition() string {
 // 构建MCP工具非空过滤条件
 // mcp工具调用 total_tokens = 0 且 model 为 unknown 或空字符串的记录
 func buildMCPNotNullCondition() string {
-	return "mcp_server != '' AND mcp_server != 'unknown' AND total_tokens = 0 OR model IS NULL OR model = '' OR model = 'unknown'"
+	return "(mcp_server != '' AND mcp_server != 'unknown' AND total_tokens = 0) OR (model IS NULL OR model = '' OR model = 'unknown')"
 }
 
 // 查询模型token统计数据
