@@ -190,6 +190,14 @@ func main() {
 	http.HandleFunc("/batch/kpi", handleBatchKpi)
 	http.HandleFunc("/batch/chart", handleBatchChart)
 	http.HandleFunc("/batch/table", handleBatchTable)
+	// 添加筛选项查询接口
+	http.HandleFunc("/filters/consumers", handleFilterConsumers)
+	http.HandleFunc("/filters/apis", handleFilterAPIs)
+	http.HandleFunc("/filters/models", handleFilterModels)
+	http.HandleFunc("/filters/routes", handleFilterRoutes)
+	http.HandleFunc("/filters/services", handleFilterServices)
+	http.HandleFunc("/filters/mcp-servers", handleFilterMCPServers)
+	http.HandleFunc("/filters/mcp-tools", handleFilterMCPTools)
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("ok"))
@@ -2072,4 +2080,112 @@ func buildTimestampExpression(intervalSec int) string {
 		// 天级精度时间戳
 		return "UNIX_TIMESTAMP(DATE_FORMAT(MIN(start_time), '%Y-%m-%d 00:00:00'))"
 	}
+}
+// 筛选项查询相关函数 - 添加到 main.go 文件中
+
+// 筛选项查询响应结构体
+type FilterResponse struct {
+	Status string        `json:"status"`
+	Error  string        `json:"error,omitempty"`
+	Data   []interface{} `json:"data,omitempty"`
+}
+
+// 处理消费者筛选项查询
+func handleFilterConsumers(w http.ResponseWriter, r *http.Request) {
+	handleFilterQuery(w, r, "consumer", "consumers")
+}
+
+// 处理API筛选项查询
+func handleFilterAPIs(w http.ResponseWriter, r *http.Request) {
+	handleFilterQuery(w, r, "api", "apis")
+}
+
+// 处理模型筛选项查询
+func handleFilterModels(w http.ResponseWriter, r *http.Request) {
+	handleFilterQuery(w, r, "model", "models")
+}
+
+// 处理路由筛选项查询
+func handleFilterRoutes(w http.ResponseWriter, r *http.Request) {
+	handleFilterQuery(w, r, "route", "routes")
+}
+
+// 处理服务筛选项查询
+func handleFilterServices(w http.ResponseWriter, r *http.Request) {
+	handleFilterQuery(w, r, "service", "services")
+}
+
+// 处理MCP Server筛选项查询
+func handleFilterMCPServers(w http.ResponseWriter, r *http.Request) {
+	handleFilterQuery(w, r, "mcp_server", "mcp_servers")
+}
+
+// 处理MCP Tool筛选项查询
+func handleFilterMCPTools(w http.ResponseWriter, r *http.Request) {
+	handleFilterQuery(w, r, "mcp_tool", "mcp_tools")
+}
+
+// 通用筛选项查询处理函数
+func handleFilterQuery(w http.ResponseWriter, r *http.Request, fieldName, endpointName string) {
+	queryStart := time.Now()
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	log.Printf("[FilterQuery] Processing %s query", endpointName)
+
+	// 构建查询SQL - 只查询非空且非'unknown'的唯一值
+	sql := fmt.Sprintf(`
+		SELECT DISTINCT %s 
+		FROM access_logs 
+		WHERE %s IS NOT NULL 
+		AND %s != '' 
+		AND %s != 'unknown'
+		ORDER BY %s`, fieldName, fieldName, fieldName, fieldName, fieldName)
+
+	rows, err := db.Query(sql)
+	if err != nil {
+		log.Printf("[FilterQuery] ❌ Failed to query %s: %v", endpointName, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(FilterResponse{
+			Status: "error",
+			Error:  fmt.Sprintf("Failed to query %s", endpointName),
+		})
+		return
+	}
+	defer rows.Close()
+
+	var results []interface{}
+	for rows.Next() {
+		var value *string
+		if err := rows.Scan(&value); err != nil {
+			log.Printf("[FilterQuery] Error scanning %s row: %v", endpointName, err)
+			continue
+		}
+		
+		// 只添加非空值
+		if value != nil && *value != "" && *value != "unknown" {
+			results = append(results, *value)
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		log.Printf("[FilterQuery] Error iterating %s rows: %v", endpointName, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(FilterResponse{
+			Status: "error",
+			Error:  fmt.Sprintf("Failed to iterate %s results", endpointName),
+		})
+		return
+	}
+
+	duration := time.Since(queryStart)
+	log.Printf("[FilterQuery] ✓ SUCCESS: %s returned %d items (duration=%v)", endpointName, len(results), duration)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(FilterResponse{
+		Status: "success",
+		Data:   results,
+	})
 }
