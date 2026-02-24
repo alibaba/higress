@@ -2,8 +2,10 @@ package provider
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 	"net/http"
 	"path"
@@ -151,6 +153,7 @@ const (
 	protocolOriginal = "original"
 
 	roleSystem    = "system"
+	roleDeveloper = "developer"
 	roleAssistant = "assistant"
 	roleUser      = "user"
 	roleTool      = "tool"
@@ -192,6 +195,12 @@ type providerInitializer interface {
 
 var (
 	errUnsupportedApiName = errors.New("unsupported API name")
+
+	// Providers that support the "developer" role. Other providers will have "developer" roles converted to "system".
+	developerRoleSupportedProviders = map[string]bool{
+		providerTypeOpenAI: true,
+		providerTypeAzure:  true,
+	}
 
 	providerInitializers = map[string]providerInitializer{
 		providerTypeMoonshot:   &moonshotProviderInitializer{},
@@ -445,6 +454,12 @@ type ProviderConfig struct {
 	// @Title zh-CN Claude Code 模式
 	// @Description zh-CN 仅适用于Claude服务。启用后将伪装成Claude Code客户端发起请求，支持使用Claude Code的OAuth Token进行认证。
 	claudeCodeMode bool `required:"false" yaml:"claudeCodeMode" json:"claudeCodeMode"`
+	// @Title zh-CN 智谱AI服务域名
+	// @Description zh-CN 仅适用于智谱AI服务。默认为 open.bigmodel.cn（中国），可配置为 api.z.ai（国际）
+	zhipuDomain string `required:"false" yaml:"zhipuDomain" json:"zhipuDomain"`
+	// @Title zh-CN 智谱AI Code Plan 模式
+	// @Description zh-CN 仅适用于智谱AI服务。启用后将使用 /api/coding/paas/v4/chat/completions 接口
+	zhipuCodePlanMode bool `required:"false" yaml:"zhipuCodePlanMode" json:"zhipuCodePlanMode"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -650,6 +665,8 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
 	c.claudeCodeMode = json.Get("claudeCodeMode").Bool()
+	c.zhipuDomain = json.Get("zhipuDomain").String()
+	c.zhipuCodePlanMode = json.Get("zhipuCodePlanMode").Bool()
 	c.contextCleanupCommands = make([]string, 0)
 	for _, cmd := range json.Get("contextCleanupCommands").Array() {
 		if cmd.String() != "" {
@@ -690,10 +707,43 @@ func (c *ProviderConfig) Validate() error {
 func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) string {
 	ctxApiKey := ctx.GetContext(ctxKeyApiKey)
 	if ctxApiKey == nil {
-		ctxApiKey = c.GetRandomToken()
+		token := c.selectApiToken(ctx)
+		ctxApiKey = token
 		ctx.SetContext(ctxKeyApiKey, ctxApiKey)
 	}
 	return ctxApiKey.(string)
+}
+
+// selectApiToken selects an API token based on the request context
+// For stateful APIs, it uses consumer affinity if available
+func (c *ProviderConfig) selectApiToken(ctx wrapper.HttpContext) string {
+	// Get API name from context if available
+	ctxApiName := ctx.GetContext(CtxKeyApiName)
+	var apiName string
+	if ctxApiName != nil {
+		// ctxApiName is of type ApiName, need to convert to string
+		apiName = string(ctxApiName.(ApiName))
+	}
+
+	// For stateful APIs, try to use consumer affinity
+	if isStatefulAPI(apiName) {
+		consumer := c.getConsumerFromContext(ctx)
+		if consumer != "" {
+			return c.GetTokenWithConsumerAffinity(ctx, consumer)
+		}
+	}
+
+	// Fall back to random selection
+	return c.GetRandomToken()
+}
+
+// getConsumerFromContext retrieves the consumer identifier from the request context
+func (c *ProviderConfig) getConsumerFromContext(ctx wrapper.HttpContext) string {
+	consumer, err := proxywasm.GetHttpRequestHeader("x-mse-consumer")
+	if err == nil && consumer != "" {
+		return consumer
+	}
+	return ""
 }
 
 func (c *ProviderConfig) GetRandomToken() string {
@@ -706,6 +756,50 @@ func (c *ProviderConfig) GetRandomToken() string {
 		return apiTokens[0]
 	default:
 		return apiTokens[rand.Intn(count)]
+	}
+}
+
+// isStatefulAPI checks if the given API name is a stateful API that requires consumer affinity
+func isStatefulAPI(apiName string) bool {
+	// These APIs maintain session state and should be routed to the same provider consistently
+	statefulAPIs := map[string]bool{
+		string(ApiNameResponses):                 true, // Response API - uses previous_response_id
+		string(ApiNameFiles):                     true, // Files API - maintains file state
+		string(ApiNameRetrieveFile):              true, // File retrieval - depends on file upload
+		string(ApiNameRetrieveFileContent):       true, // File content - depends on file upload
+		string(ApiNameBatches):                   true, // Batch API - maintains batch state
+		string(ApiNameRetrieveBatch):             true, // Batch status - depends on batch creation
+		string(ApiNameCancelBatch):               true, // Batch operations - depends on batch state
+		string(ApiNameFineTuningJobs):            true, // Fine-tuning - maintains job state
+		string(ApiNameRetrieveFineTuningJob):     true, // Fine-tuning job status
+		string(ApiNameFineTuningJobEvents):       true, // Fine-tuning events
+		string(ApiNameFineTuningJobCheckpoints):  true, // Fine-tuning checkpoints
+		string(ApiNameCancelFineTuningJob):       true, // Cancel fine-tuning job
+		string(ApiNameResumeFineTuningJob):       true, // Resume fine-tuning job
+	}
+	return statefulAPIs[apiName]
+}
+
+// GetTokenWithConsumerAffinity selects an API token based on consumer affinity
+// If x-mse-consumer header is present and API is stateful, it will consistently select the same token
+func (c *ProviderConfig) GetTokenWithConsumerAffinity(ctx wrapper.HttpContext, consumer string) string {
+	apiTokens := c.apiTokens
+	count := len(apiTokens)
+	switch count {
+	case 0:
+		return ""
+	case 1:
+		return apiTokens[0]
+	default:
+		// Use FNV-1a hash for consistent token selection
+		h := fnv.New32a()
+		h.Write([]byte(consumer))
+		hashValue := h.Sum32()
+		index := int(hashValue) % count
+		if index < 0 {
+			index += count
+		}
+		return apiTokens[index]
 	}
 }
 
@@ -836,6 +930,34 @@ func doGetMappedModel(model string, modelMapping map[string]string) string {
 	}
 
 	return ""
+}
+
+// isDeveloperRoleSupported checks if the provider supports the "developer" role.
+func isDeveloperRoleSupported(providerType string) bool {
+	return developerRoleSupportedProviders[providerType]
+}
+
+// convertDeveloperRoleToSystem converts "developer" roles to "system" role in the request body.
+// This is used for providers that don't support the "developer" role.
+func convertDeveloperRoleToSystem(body []byte) ([]byte, error) {
+	request := &chatCompletionRequest{}
+	if err := json.Unmarshal(body, request); err != nil {
+		return body, fmt.Errorf("unable to unmarshal request for developer role conversion: %v", err)
+	}
+
+	converted := false
+	for i := range request.Messages {
+		if request.Messages[i].Role == roleDeveloper {
+			request.Messages[i].Role = roleSystem
+			converted = true
+		}
+	}
+
+	if converted {
+		return json.Marshal(request)
+	}
+
+	return body, nil
 }
 
 func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent {
@@ -973,6 +1095,18 @@ func (c *ProviderConfig) handleRequestBody(
 			log.Warnf("[contextCleanup] failed to cleanup context messages: %v", err)
 			// Continue processing even if cleanup fails
 			err = nil
+		}
+	}
+
+	// convert developer role to system role for providers that don't support it
+	if apiName == ApiNameChatCompletion && !isDeveloperRoleSupported(c.typ) {
+		body, err = convertDeveloperRoleToSystem(body)
+		if err != nil {
+			log.Warnf("[developerRole] failed to convert developer role to system: %v", err)
+			// Continue processing even if conversion fails
+			err = nil
+		} else {
+			log.Debugf("[developerRole] converted developer role to system for provider: %s", c.typ)
 		}
 	}
 

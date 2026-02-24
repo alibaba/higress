@@ -208,6 +208,8 @@ WeChat公式アカウント：
 
 - Higressコンソール：https://github.com/higress-group/higress-console
 - Higress（スタンドアロン版）：https://github.com/higress-group/higress-standalone
+- Higress Plugin Server：https://github.com/higress-group/plugin-server
+- Higress Wasm Plugin Golang SDK：https://github.com/higress-group/wasm-go
 
 ### 貢献者
 

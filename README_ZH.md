@@ -80,6 +80,24 @@ docker run -d --rm --name higress-ai -v ${PWD}:/data \
 
 **Higress 的所有 Docker 镜像都一直使用自己独享的仓库，不受 Docker Hub 境内访问受限的影响**
 
+> 如果从 `higress-registry.cn-hangzhou.cr.aliyuncs.com` 拉取镜像超时，可以尝试使用以下镜像加速源：
+> 
+> **北美**: `higress-registry.us-west-1.cr.aliyuncs.com`
+> 
+> **东南亚**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
+
+> **K8s 部署时**，可以通过 Helm values 配置 `global.hub` 参数来使用距离部署区域更近的镜像仓库，该参数会同时应用于 Higress 组件镜像和内置 Wasm 插件镜像：
+> 
+> ```bash
+> # 示例：使用北美镜像源
+> helm install higress -n higress-system higress.io/higress --set global.hub=higress-registry.us-west-1.cr.aliyuncs.com --create-namespace
+> ```
+> 
+> 可用镜像仓库：
+> - **中国（杭州）**: `higress-registry.cn-hangzhou.cr.aliyuncs.com`（默认）
+> - **北美**: `higress-registry.us-west-1.cr.aliyuncs.com`
+> - **东南亚**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
+
 K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start 文档](https://higress.cn/docs/latest/user/quickstart/)。
 
 如果您是在云上部署，推荐使用[企业版](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
@@ -221,6 +239,8 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 - Higress 控制台：https://github.com/higress-group/higress-console
 - Higress（独立运行版）：https://github.com/higress-group/higress-standalone
+- Higress 插件服务器：https://github.com/higress-group/plugin-server
+- Higress Wasm 插件 Golang SDK：https://github.com/higress-group/wasm-go
 
 ### 贡献者
 
