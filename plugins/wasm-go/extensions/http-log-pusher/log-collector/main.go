@@ -133,11 +133,11 @@ func appendBizTypeWhereClause(whereClause *[]string, args *[]interface{}, bizTyp
 	}
 	switch bizType {
 	case BizTypeModelAPI:
-		// 模型 API：没有 mcp_tool
-		*whereClause = append(*whereClause, `(COALESCE(mcp_tool,'') = '' OR TRIM(COALESCE(mcp_tool,'')) = 'unknown')`)
+		// 模型 API 调用
+		*whereClause = append(*whereClause, buildModelNotNullCondition())
 	case BizTypeMCPServer:
-		// 真实 MCP 调用：mcp_tool 有值
-		*whereClause = append(*whereClause, `(COALESCE(mcp_tool,'') != '' AND TRIM(COALESCE(mcp_tool,'')) != 'unknown')`)
+		// 真实 MCP 调用
+		*whereClause = append(*whereClause, buildMCPNotNullCondition())
 	default:
 		// 未知 bizType 不追加条件
 	}
@@ -1494,7 +1494,7 @@ func queryMethodDistributionTable(whereSQL string, args []interface{}) (map[stri
 			method,
 			COUNT(*) as request_count,
 			AVG(duration) as avg_duration
-		FROM access_logs %s 
+		FROM access_logs %s
 		GROUP BY method 
 		ORDER BY request_count DESC`, whereSQL)
 
@@ -1567,6 +1567,17 @@ func queryStatusCodeDistributionTable(whereSQL string, args []interface{}) (map[
 	}, nil
 }
 
+// 构建模型非空过滤条件
+func buildModelNotNullCondition() string {
+	return "model IS NOT NULL AND model != '' AND model != 'unknown'"
+}
+
+// 构建MCP工具非空过滤条件
+// mcp工具调用 total_tokens = 0 且 model 为 unknown 或空字符串的记录
+func buildMCPNotNullCondition() string {
+	return "mcp_server != '' AND mcp_server != 'unknown' AND total_tokens = 0 OR model IS NULL OR model = '' OR model = 'unknown'"
+}
+
 // 查询模型token统计数据
 func queryModelTokenStatsTable(whereSQL string, args []interface{}) (map[string]interface{}, error) {
 	sql := fmt.Sprintf(`
@@ -1576,7 +1587,7 @@ func queryModelTokenStatsTable(whereSQL string, args []interface{}) (map[string]
 			SUM(input_tokens) as input_tokens,
 			SUM(output_tokens) as output_tokens,
 			SUM(total_tokens) as total_tokens
-		FROM access_logs %s AND model IS NOT NULL AND model != ''
+		FROM access_logs %s
 		GROUP BY model 
 		ORDER BY total_tokens DESC`, whereSQL)
 
@@ -1621,8 +1632,6 @@ func queryConsumerTokenStatsTable(whereSQL string, args []interface{}) (map[stri
 			SUM(total_tokens) as total_tokens
 		FROM access_logs %s 
 		AND consumer IS NOT NULL AND consumer != ''
-		-- 仅统计模型调用产生的 Token，排除真实 MCP Server 工具调用（模型一定没有 mcp_tool）
-		AND (COALESCE(mcp_tool,'') = '' OR TRIM(COALESCE(mcp_tool,'')) = 'unknown')
 		GROUP BY consumer 
 		ORDER BY total_tokens DESC`, whereSQL)
 
@@ -1667,8 +1676,6 @@ func queryServiceTokenStatsTable(whereSQL string, args []interface{}) (map[strin
 			SUM(total_tokens) as total_tokens
 		FROM access_logs %s 
 		AND service IS NOT NULL AND service != ''
-		-- 仅统计模型调用产生的 Token，排除真实 MCP Server 工具调用（模型一定没有 mcp_tool）
-		AND (COALESCE(mcp_tool,'') = '' OR TRIM(COALESCE(mcp_tool,'')) = 'unknown')
 		GROUP BY service 
 		ORDER BY total_tokens DESC`, whereSQL)
 
