@@ -1659,7 +1659,7 @@ func buildModelNotNullCondition() string {
 // 构建MCP工具非空过滤条件
 // mcp工具调用 total_tokens = 0 且 model 为 unknown 或空字符串的记录
 func buildMCPNotNullCondition() string {
-	return "(mcp_server != '' AND mcp_server != 'unknown' AND total_tokens = 0) OR (model IS NULL OR model = '' OR model = 'unknown')"
+	return "(mcp_server != '' AND mcp_server != 'unknown' AND total_tokens = 0) AND (model IS NULL OR model = '' OR model = 'unknown')"
 }
 
 // 查询模型token统计数据
