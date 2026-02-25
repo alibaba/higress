@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"math/rand"
 	"net/http"
 	"path"
@@ -706,10 +707,43 @@ func (c *ProviderConfig) Validate() error {
 func (c *ProviderConfig) GetOrSetTokenWithContext(ctx wrapper.HttpContext) string {
 	ctxApiKey := ctx.GetContext(ctxKeyApiKey)
 	if ctxApiKey == nil {
-		ctxApiKey = c.GetRandomToken()
+		token := c.selectApiToken(ctx)
+		ctxApiKey = token
 		ctx.SetContext(ctxKeyApiKey, ctxApiKey)
 	}
 	return ctxApiKey.(string)
+}
+
+// selectApiToken selects an API token based on the request context
+// For stateful APIs, it uses consumer affinity if available
+func (c *ProviderConfig) selectApiToken(ctx wrapper.HttpContext) string {
+	// Get API name from context if available
+	ctxApiName := ctx.GetContext(CtxKeyApiName)
+	var apiName string
+	if ctxApiName != nil {
+		// ctxApiName is of type ApiName, need to convert to string
+		apiName = string(ctxApiName.(ApiName))
+	}
+
+	// For stateful APIs, try to use consumer affinity
+	if isStatefulAPI(apiName) {
+		consumer := c.getConsumerFromContext(ctx)
+		if consumer != "" {
+			return c.GetTokenWithConsumerAffinity(ctx, consumer)
+		}
+	}
+
+	// Fall back to random selection
+	return c.GetRandomToken()
+}
+
+// getConsumerFromContext retrieves the consumer identifier from the request context
+func (c *ProviderConfig) getConsumerFromContext(ctx wrapper.HttpContext) string {
+	consumer, err := proxywasm.GetHttpRequestHeader("x-mse-consumer")
+	if err == nil && consumer != "" {
+		return consumer
+	}
+	return ""
 }
 
 func (c *ProviderConfig) GetRandomToken() string {
@@ -722,6 +756,50 @@ func (c *ProviderConfig) GetRandomToken() string {
 		return apiTokens[0]
 	default:
 		return apiTokens[rand.Intn(count)]
+	}
+}
+
+// isStatefulAPI checks if the given API name is a stateful API that requires consumer affinity
+func isStatefulAPI(apiName string) bool {
+	// These APIs maintain session state and should be routed to the same provider consistently
+	statefulAPIs := map[string]bool{
+		string(ApiNameResponses):                 true, // Response API - uses previous_response_id
+		string(ApiNameFiles):                     true, // Files API - maintains file state
+		string(ApiNameRetrieveFile):              true, // File retrieval - depends on file upload
+		string(ApiNameRetrieveFileContent):       true, // File content - depends on file upload
+		string(ApiNameBatches):                   true, // Batch API - maintains batch state
+		string(ApiNameRetrieveBatch):             true, // Batch status - depends on batch creation
+		string(ApiNameCancelBatch):               true, // Batch operations - depends on batch state
+		string(ApiNameFineTuningJobs):            true, // Fine-tuning - maintains job state
+		string(ApiNameRetrieveFineTuningJob):     true, // Fine-tuning job status
+		string(ApiNameFineTuningJobEvents):       true, // Fine-tuning events
+		string(ApiNameFineTuningJobCheckpoints):  true, // Fine-tuning checkpoints
+		string(ApiNameCancelFineTuningJob):       true, // Cancel fine-tuning job
+		string(ApiNameResumeFineTuningJob):       true, // Resume fine-tuning job
+	}
+	return statefulAPIs[apiName]
+}
+
+// GetTokenWithConsumerAffinity selects an API token based on consumer affinity
+// If x-mse-consumer header is present and API is stateful, it will consistently select the same token
+func (c *ProviderConfig) GetTokenWithConsumerAffinity(ctx wrapper.HttpContext, consumer string) string {
+	apiTokens := c.apiTokens
+	count := len(apiTokens)
+	switch count {
+	case 0:
+		return ""
+	case 1:
+		return apiTokens[0]
+	default:
+		// Use FNV-1a hash for consistent token selection
+		h := fnv.New32a()
+		h.Write([]byte(consumer))
+		hashValue := h.Sum32()
+		index := int(hashValue) % count
+		if index < 0 {
+			index += count
+		}
+		return apiTokens[index]
 	}
 }
 
