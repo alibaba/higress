@@ -1273,6 +1273,240 @@ func RunVertexExpressModeImageGenerationResponseBodyTests(t *testing.T) {
 	})
 }
 
+func RunVertexExpressModeImageEditVariationRequestBodyTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		const testDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+		t.Run("vertex express mode image edit request body with image_url", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","prompt":"Add sunglasses to the cat","image":{"image_url":{"url":"` + testDataURL + `"}},"size":"1024x1024"}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Request should contain inlineData converted from image_url")
+			require.Contains(t, bodyStr, "Add sunglasses to the cat", "Prompt text should be preserved")
+			require.NotContains(t, bodyStr, "image_url", "OpenAI image_url field should be converted to Vertex format")
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "generateContent", "Image edit should use generateContent action")
+			require.Contains(t, pathHeader, "key=test-api-key-123456789", "Path should contain API key")
+		})
+
+		t.Run("vertex express mode image edit request body with image string", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","prompt":"Add sunglasses to the cat","image":"` + testDataURL + `","size":"1024x1024"}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Request should contain inlineData converted from image string")
+			require.Contains(t, bodyStr, "Add sunglasses to the cat", "Prompt text should be preserved")
+		})
+
+		t.Run("vertex express mode image edit with model mapping", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeWithModelMappingConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gpt-4","prompt":"Turn it into watercolor","image_url":{"url":"` + testDataURL + `"}}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "gemini-2.5-flash", "Path should contain mapped model name")
+		})
+
+		t.Run("vertex express mode image variation request body with image_url", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/variations"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","image_url":{"url":"` + testDataURL + `"}}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Request should contain inlineData converted from image_url")
+			require.Contains(t, bodyStr, "Create variations of the provided image.", "Variation request should inject a default prompt")
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "generateContent", "Image variation should use generateContent action")
+			require.Contains(t, pathHeader, "key=test-api-key-123456789", "Path should contain API key")
+		})
+	})
+}
+
+func RunVertexExpressModeImageEditVariationResponseBodyTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		const testDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+		t.Run("vertex express mode image edit response body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","prompt":"Add glasses","image_url":{"url":"` + testDataURL + `"}}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			})
+
+			responseBody := `{
+				"candidates": [{
+					"content": {
+						"role": "model",
+						"parts": [{
+							"inlineData": {
+								"mimeType": "image/png",
+								"data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+							}
+						}]
+					}
+				}],
+				"usageMetadata": {
+					"promptTokenCount": 12,
+					"candidatesTokenCount": 1024,
+					"totalTokenCount": 1036
+				}
+			}`
+			action := host.CallOnHttpResponseBody([]byte(responseBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+
+			responseStr := string(processedResponseBody)
+			require.Contains(t, responseStr, "b64_json", "Response should contain b64_json field")
+			require.Contains(t, responseStr, "usage", "Response should contain usage field")
+		})
+
+		t.Run("vertex express mode image variation response body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/variations"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","image_url":{"url":"` + testDataURL + `"}}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			})
+
+			responseBody := `{
+				"candidates": [{
+					"content": {
+						"role": "model",
+						"parts": [{
+							"inlineData": {
+								"mimeType": "image/png",
+								"data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+							}
+						}]
+					}
+				}],
+				"usageMetadata": {
+					"promptTokenCount": 8,
+					"candidatesTokenCount": 768,
+					"totalTokenCount": 776
+				}
+			}`
+			action := host.CallOnHttpResponseBody([]byte(responseBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+
+			responseStr := string(processedResponseBody)
+			require.Contains(t, responseStr, "b64_json", "Response should contain b64_json field")
+			require.Contains(t, responseStr, "usage", "Response should contain usage field")
+		})
+	})
+}
+
 // ==================== Vertex Raw 模式测试 ====================
 
 func RunVertexRawModeOnHttpRequestHeadersTests(t *testing.T) {
