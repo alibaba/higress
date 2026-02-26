@@ -403,13 +403,34 @@ func (v *vertexProvider) onImageGenerationRequestBody(ctx wrapper.HttpContext, b
 
 func (v *vertexProvider) onImageEditRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header) ([]byte, error) {
 	request := &imageEditRequest{}
-	if err := v.config.parseRequestAndMapModel(ctx, request, body); err != nil {
-		return nil, err
+	imageURLs := make([]string, 0)
+	contentType := headers.Get("Content-Type")
+	if isMultipartFormData(contentType) {
+		parsedRequest, err := parseMultipartImageRequest(body, contentType)
+		if err != nil {
+			return nil, err
+		}
+		request.Model = parsedRequest.Model
+		request.Prompt = parsedRequest.Prompt
+		request.Size = parsedRequest.Size
+		request.OutputFormat = parsedRequest.OutputFormat
+		request.N = parsedRequest.N
+		imageURLs = parsedRequest.ImageURLs
+		if err := v.config.mapModel(ctx, &request.Model); err != nil {
+			return nil, err
+		}
+		if parsedRequest.HasMask {
+			return nil, fmt.Errorf("mask is not supported for vertex image edits yet")
+		}
+	} else {
+		if err := v.config.parseRequestAndMapModel(ctx, request, body); err != nil {
+			return nil, err
+		}
+		if request.HasMask() {
+			return nil, fmt.Errorf("mask is not supported for vertex image edits yet")
+		}
+		imageURLs = request.GetImageURLs()
 	}
-	if request.HasMask() {
-		return nil, fmt.Errorf("mask is not supported for vertex image edits yet")
-	}
-	imageURLs := request.GetImageURLs()
 	if len(imageURLs) == 0 {
 		return nil, fmt.Errorf("missing image_url in request")
 	}
@@ -419,6 +440,7 @@ func (v *vertexProvider) onImageEditRequestBody(ctx wrapper.HttpContext, body []
 
 	path := v.getRequestPath(ApiNameImageEdit, request.Model, false)
 	util.OverwriteRequestPathHeader(headers, path)
+	headers.Set("Content-Type", util.MimeTypeApplicationJson)
 	vertexRequest, err := v.buildVertexImageRequest(request.Prompt, request.Size, request.OutputFormat, imageURLs)
 	if err != nil {
 		return nil, err
@@ -428,10 +450,28 @@ func (v *vertexProvider) onImageEditRequestBody(ctx wrapper.HttpContext, body []
 
 func (v *vertexProvider) onImageVariationRequestBody(ctx wrapper.HttpContext, body []byte, headers http.Header) ([]byte, error) {
 	request := &imageVariationRequest{}
-	if err := v.config.parseRequestAndMapModel(ctx, request, body); err != nil {
-		return nil, err
+	imageURLs := make([]string, 0)
+	contentType := headers.Get("Content-Type")
+	if isMultipartFormData(contentType) {
+		parsedRequest, err := parseMultipartImageRequest(body, contentType)
+		if err != nil {
+			return nil, err
+		}
+		request.Model = parsedRequest.Model
+		request.Prompt = parsedRequest.Prompt
+		request.Size = parsedRequest.Size
+		request.OutputFormat = parsedRequest.OutputFormat
+		request.N = parsedRequest.N
+		imageURLs = parsedRequest.ImageURLs
+		if err := v.config.mapModel(ctx, &request.Model); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := v.config.parseRequestAndMapModel(ctx, request, body); err != nil {
+			return nil, err
+		}
+		imageURLs = request.GetImageURLs()
 	}
-	imageURLs := request.GetImageURLs()
 	if len(imageURLs) == 0 {
 		return nil, fmt.Errorf("missing image_url in request")
 	}
@@ -443,6 +483,7 @@ func (v *vertexProvider) onImageVariationRequestBody(ctx wrapper.HttpContext, bo
 
 	path := v.getRequestPath(ApiNameImageVariation, request.Model, false)
 	util.OverwriteRequestPathHeader(headers, path)
+	headers.Set("Content-Type", util.MimeTypeApplicationJson)
 	vertexRequest, err := v.buildVertexImageRequest(prompt, request.Size, request.OutputFormat, imageURLs)
 	if err != nil {
 		return nil, err

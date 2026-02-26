@@ -1,7 +1,9 @@
 package test
 
 import (
+	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"strings"
 	"testing"
 
@@ -1273,6 +1275,25 @@ func RunVertexExpressModeImageGenerationResponseBodyTests(t *testing.T) {
 	})
 }
 
+func buildMultipartRequestBody(t *testing.T, fields map[string]string, files map[string][]byte) ([]byte, string) {
+	var buffer bytes.Buffer
+	writer := multipart.NewWriter(&buffer)
+
+	for key, value := range fields {
+		require.NoError(t, writer.WriteField(key, value))
+	}
+
+	for fieldName, data := range files {
+		part, err := writer.CreateFormFile(fieldName, "upload-image.png")
+		require.NoError(t, err)
+		_, err = part.Write(data)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, writer.Close())
+	return buffer.Bytes(), writer.FormDataContentType()
+}
+
 func RunVertexExpressModeImageEditVariationRequestBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		const testDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -1335,6 +1356,71 @@ func RunVertexExpressModeImageEditVariationRequestBodyTests(t *testing.T) {
 			bodyStr := string(processedBody)
 			require.Contains(t, bodyStr, "inlineData", "Request should contain inlineData converted from image string")
 			require.Contains(t, bodyStr, "Add sunglasses to the cat", "Prompt text should be preserved")
+		})
+
+		t.Run("vertex express mode image edit multipart request body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			body, contentType := buildMultipartRequestBody(t, map[string]string{
+				"model":  "gemini-2.0-flash-exp",
+				"prompt": "Add sunglasses to the cat",
+				"size":   "1024x1024",
+			}, map[string][]byte{
+				"image": []byte("fake-image-content"),
+			})
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", contentType},
+			})
+
+			action := host.CallOnHttpRequestBody(body)
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Multipart image should be converted to inlineData")
+			require.Contains(t, bodyStr, "Add sunglasses to the cat", "Prompt text should be preserved")
+
+			requestHeaders := host.GetRequestHeaders()
+			require.True(t, test.HasHeaderWithValue(requestHeaders, "Content-Type", "application/json"), "Content-Type should be rewritten to application/json")
+		})
+
+		t.Run("vertex express mode image variation multipart request body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			body, contentType := buildMultipartRequestBody(t, map[string]string{
+				"model": "gemini-2.0-flash-exp",
+				"size":  "1024x1024",
+			}, map[string][]byte{
+				"image": []byte("fake-image-content"),
+			})
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/variations"},
+				{":method", "POST"},
+				{"Content-Type", contentType},
+			})
+
+			action := host.CallOnHttpRequestBody(body)
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Multipart image should be converted to inlineData")
+			require.Contains(t, bodyStr, "Create variations of the provided image.", "Variation request should inject a default prompt")
+
+			requestHeaders := host.GetRequestHeaders()
+			require.True(t, test.HasHeaderWithValue(requestHeaders, "Content-Type", "application/json"), "Content-Type should be rewritten to application/json")
 		})
 
 		t.Run("vertex express mode image edit with model mapping", func(t *testing.T) {

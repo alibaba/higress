@@ -63,6 +63,54 @@ func Test_getApiName(t *testing.T) {
 	}
 }
 
+func Test_isSupportedRequestContentType(t *testing.T) {
+	tests := []struct {
+		name        string
+		apiName     provider.ApiName
+		contentType string
+		want        bool
+	}{
+		{
+			name:        "json chat completion",
+			apiName:     provider.ApiNameChatCompletion,
+			contentType: "application/json",
+			want:        true,
+		},
+		{
+			name:        "multipart image edit",
+			apiName:     provider.ApiNameImageEdit,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        true,
+		},
+		{
+			name:        "multipart image variation",
+			apiName:     provider.ApiNameImageVariation,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        true,
+		},
+		{
+			name:        "multipart chat completion",
+			apiName:     provider.ApiNameChatCompletion,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        false,
+		},
+		{
+			name:        "text plain image edit",
+			apiName:     provider.ApiNameImageEdit,
+			contentType: "text/plain",
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isSupportedRequestContentType(tt.apiName, tt.contentType)
+			if got != tt.want {
+				t.Errorf("isSupportedRequestContentType(%v, %q) = %v, want %v", tt.apiName, tt.contentType, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAi360(t *testing.T) {
 	test.RunAi360ParseConfigTests(t)
 	test.RunAi360OnHttpRequestHeadersTests(t)
