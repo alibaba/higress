@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -459,6 +460,122 @@ type imageGenerationRequest struct {
 	Style             string `json:"style,omitempty"`
 	N                 int    `json:"n,omitempty"`
 	Size              string `json:"size,omitempty"`
+}
+
+type imageInputURL struct {
+	URL      string                      `json:"url,omitempty"`
+	ImageURL *chatMessageContentImageUrl `json:"image_url,omitempty"`
+}
+
+func (i *imageInputURL) UnmarshalJSON(data []byte) error {
+	// Support a plain string payload, e.g. "data:image/png;base64,..."
+	var rawURL string
+	if err := json.Unmarshal(data, &rawURL); err == nil {
+		i.URL = rawURL
+		i.ImageURL = nil
+		return nil
+	}
+
+	type alias imageInputURL
+	var value alias
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	*i = imageInputURL(value)
+	return nil
+}
+
+func (i *imageInputURL) GetURL() string {
+	if i == nil {
+		return ""
+	}
+	if i.ImageURL != nil && i.ImageURL.Url != "" {
+		return i.ImageURL.Url
+	}
+	return i.URL
+}
+
+type imageEditRequest struct {
+	Model             string          `json:"model"`
+	Prompt            string          `json:"prompt"`
+	Image             *imageInputURL  `json:"image,omitempty"`
+	Images            []imageInputURL `json:"images,omitempty"`
+	ImageURL          *imageInputURL  `json:"image_url,omitempty"`
+	Mask              *imageInputURL  `json:"mask,omitempty"`
+	MaskURL           *imageInputURL  `json:"mask_url,omitempty"`
+	Background        string          `json:"background,omitempty"`
+	Moderation        string          `json:"moderation,omitempty"`
+	OutputCompression int             `json:"output_compression,omitempty"`
+	OutputFormat      string          `json:"output_format,omitempty"`
+	Quality           string          `json:"quality,omitempty"`
+	ResponseFormat    string          `json:"response_format,omitempty"`
+	Style             string          `json:"style,omitempty"`
+	N                 int             `json:"n,omitempty"`
+	Size              string          `json:"size,omitempty"`
+}
+
+func (r *imageEditRequest) GetImageURLs() []string {
+	urls := make([]string, 0, len(r.Images)+2)
+	for _, image := range r.Images {
+		if url := image.GetURL(); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	if r.Image != nil {
+		if url := r.Image.GetURL(); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	if r.ImageURL != nil {
+		if url := r.ImageURL.GetURL(); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	return urls
+}
+
+func (r *imageEditRequest) HasMask() bool {
+	if r.Mask != nil && r.Mask.GetURL() != "" {
+		return true
+	}
+	return r.MaskURL != nil && r.MaskURL.GetURL() != ""
+}
+
+type imageVariationRequest struct {
+	Model             string          `json:"model"`
+	Prompt            string          `json:"prompt,omitempty"`
+	Image             *imageInputURL  `json:"image,omitempty"`
+	Images            []imageInputURL `json:"images,omitempty"`
+	ImageURL          *imageInputURL  `json:"image_url,omitempty"`
+	Background        string          `json:"background,omitempty"`
+	Moderation        string          `json:"moderation,omitempty"`
+	OutputCompression int             `json:"output_compression,omitempty"`
+	OutputFormat      string          `json:"output_format,omitempty"`
+	Quality           string          `json:"quality,omitempty"`
+	ResponseFormat    string          `json:"response_format,omitempty"`
+	Style             string          `json:"style,omitempty"`
+	N                 int             `json:"n,omitempty"`
+	Size              string          `json:"size,omitempty"`
+}
+
+func (r *imageVariationRequest) GetImageURLs() []string {
+	urls := make([]string, 0, len(r.Images)+2)
+	for _, image := range r.Images {
+		if url := image.GetURL(); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	if r.Image != nil {
+		if url := r.Image.GetURL(); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	if r.ImageURL != nil {
+		if url := r.ImageURL.GetURL(); url != "" {
+			urls = append(urls, url)
+		}
+	}
+	return urls
 }
 
 type imageGenerationData struct {

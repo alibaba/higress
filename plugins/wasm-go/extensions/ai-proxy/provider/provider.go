@@ -763,19 +763,19 @@ func (c *ProviderConfig) GetRandomToken() string {
 func isStatefulAPI(apiName string) bool {
 	// These APIs maintain session state and should be routed to the same provider consistently
 	statefulAPIs := map[string]bool{
-		string(ApiNameResponses):                 true, // Response API - uses previous_response_id
-		string(ApiNameFiles):                     true, // Files API - maintains file state
-		string(ApiNameRetrieveFile):              true, // File retrieval - depends on file upload
-		string(ApiNameRetrieveFileContent):       true, // File content - depends on file upload
-		string(ApiNameBatches):                   true, // Batch API - maintains batch state
-		string(ApiNameRetrieveBatch):             true, // Batch status - depends on batch creation
-		string(ApiNameCancelBatch):               true, // Batch operations - depends on batch state
-		string(ApiNameFineTuningJobs):            true, // Fine-tuning - maintains job state
-		string(ApiNameRetrieveFineTuningJob):     true, // Fine-tuning job status
-		string(ApiNameFineTuningJobEvents):       true, // Fine-tuning events
-		string(ApiNameFineTuningJobCheckpoints):  true, // Fine-tuning checkpoints
-		string(ApiNameCancelFineTuningJob):       true, // Cancel fine-tuning job
-		string(ApiNameResumeFineTuningJob):       true, // Resume fine-tuning job
+		string(ApiNameResponses):                true, // Response API - uses previous_response_id
+		string(ApiNameFiles):                    true, // Files API - maintains file state
+		string(ApiNameRetrieveFile):             true, // File retrieval - depends on file upload
+		string(ApiNameRetrieveFileContent):      true, // File content - depends on file upload
+		string(ApiNameBatches):                  true, // Batch API - maintains batch state
+		string(ApiNameRetrieveBatch):            true, // Batch status - depends on batch creation
+		string(ApiNameCancelBatch):              true, // Batch operations - depends on batch state
+		string(ApiNameFineTuningJobs):           true, // Fine-tuning - maintains job state
+		string(ApiNameRetrieveFineTuningJob):    true, // Fine-tuning job status
+		string(ApiNameFineTuningJobEvents):      true, // Fine-tuning events
+		string(ApiNameFineTuningJobCheckpoints): true, // Fine-tuning checkpoints
+		string(ApiNameCancelFineTuningJob):      true, // Cancel fine-tuning job
+		string(ApiNameResumeFineTuningJob):      true, // Resume fine-tuning job
 	}
 	return statefulAPIs[apiName]
 }
@@ -845,6 +845,16 @@ func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, reques
 			return err
 		}
 		return c.setRequestModel(ctx, req)
+	case *imageEditRequest:
+		if err := decodeImageEditRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req)
+	case *imageVariationRequest:
+		if err := decodeImageVariationRequest(body, req); err != nil {
+			return err
+		}
+		return c.setRequestModel(ctx, req)
 	default:
 		return errors.New("unsupported request type")
 	}
@@ -859,6 +869,10 @@ func (c *ProviderConfig) setRequestModel(ctx wrapper.HttpContext, request interf
 	case *embeddingsRequest:
 		model = &req.Model
 	case *imageGenerationRequest:
+		model = &req.Model
+	case *imageEditRequest:
+		model = &req.Model
+	case *imageVariationRequest:
 		model = &req.Model
 	default:
 		return errors.New("unsupported request type")
