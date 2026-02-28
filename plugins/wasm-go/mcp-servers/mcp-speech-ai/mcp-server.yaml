@@ -79,7 +79,7 @@ tools:
       - **Text**: {{.text}}
       - **Confidence**: {{.confidence}}
       {{- range $index, $word := .words }}
-      - {{$word.word}} ({{$word.startTime}}s - {{$word.endTime}}s, confidence: {{$word.confidence}})
+      - {{$word.word}} ({{$word.start}}s - {{$word.end}}s, confidence: {{$word.confidence}})
       {{- end }}
 
 - name: synthesize_speech
@@ -111,9 +111,8 @@ tools:
     body: |
       ## Speech Synthesis Result
       - **Voice**: {{.voice}}
-      - **Duration**: {{.duration}}s
-      - **Format**: {{.format}}
-      - **Audio**: {{.audio}}
+      - **Duration**: {{.duration_ms}}ms
+      - **Audio**: {{.audio_base64}}
 
 - name: list_tts_voices
   description: "List all available text-to-speech voices with their names, genders, and accent information."
