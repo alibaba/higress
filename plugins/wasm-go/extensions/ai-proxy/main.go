@@ -225,9 +225,9 @@ func onHttpRequestHeader(ctx wrapper.HttpContext, pluginConfig config.PluginConf
 		}
 	}
 
-	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !strings.Contains(contentType, util.MimeTypeApplicationJson) {
+	if contentType, _ := proxywasm.GetHttpRequestHeader(util.HeaderContentType); contentType != "" && !isSupportedRequestContentType(apiName, contentType) {
 		ctx.DontReadRequestBody()
-		log.Debugf("[onHttpRequestHeader] unsupported content type: %s, will not process the request body", contentType)
+		log.Debugf("[onHttpRequestHeader] unsupported content type for api %s: %s, will not process the request body", apiName, contentType)
 	}
 
 	if apiName == "" {
@@ -306,6 +306,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 		if err == nil {
 			return action
 		}
+		log.Errorf("[onHttpRequestBody] failed to process request body, apiName=%s, err=%v", apiName, err)
 		_ = util.ErrorHandler("ai-proxy.proc_req_body_failed", fmt.Errorf("failed to process request body: %v", err))
 	}
 	return types.ActionContinue
@@ -593,4 +594,15 @@ func getApiName(path string) provider.ApiName {
 	}
 
 	return ""
+}
+
+func isSupportedRequestContentType(apiName provider.ApiName, contentType string) bool {
+	if strings.Contains(contentType, util.MimeTypeApplicationJson) {
+		return true
+	}
+	contentType = strings.ToLower(contentType)
+	if strings.HasPrefix(contentType, "multipart/form-data") {
+		return apiName == provider.ApiNameImageEdit || apiName == provider.ApiNameImageVariation
+	}
+	return false
 }
