@@ -77,7 +77,6 @@ tools:
     body: |
       ## Transcription Result
       - **Text**: {{.text}}
-      - **Confidence**: {{.confidence}}
       {{- range $index, $word := .words }}
       - {{$word.word}} ({{$word.start}}s - {{$word.end}}s, confidence: {{$word.confidence}})
       {{- end }}
