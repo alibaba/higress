@@ -82,7 +82,7 @@ type LogEntry struct {
 	RequestedServerName  string `json:"requested_server_name,omitempty"`  // SNI
 	
 	// AI 日志 (如果有)
-	AILog json.RawMessage `json:"ai_log,omitempty"` // WASM AI 日志
+	AILog json.RawMessage `json:"ai_log"` // WASM AI 日志，移除了 omitempty 以确保始终输出
 	
 	// 监控元数据字段
 	InstanceID string `json:"instance_id"`      // 实例ID
@@ -331,9 +331,31 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	// 3. 考虑使用 Envoy Access Log 代替插件间数据传递
 	aiLogBytes, err := proxywasm.GetProperty([]string{wrapper.AILogKey})
 	if err == nil && len(aiLogBytes) > 0 {
-		// 直接将原始字节存储为 json.RawMessage，保持JSON格式
-		entry.AILog = json.RawMessage(aiLogBytes)
-		log.Infof("[http-log-pusher] ✅ successfully read AI log, length=%d", len(entry.AILog))
+		// 尝试解析 AI 日志数据
+		// 首先尝试将其视为字符串并解析为 JSON
+		aiLogStr := string(aiLogBytes)
+		log.Debugf("[http-log-pusher] raw AI log data: %s", aiLogStr)
+		
+		//检查是否已经是有效的 JSON格式
+		if json.Valid([]byte(aiLogStr)) {
+			// 如果是有效的 JSON，直接使用
+			entry.AILog = json.RawMessage(aiLogStr)
+			log.Infof("[http-log-pusher] ✅ successfully read valid AI log, length=%d", len(entry.AILog))
+		} else {
+			//处理转义的JSON字符串: "{\"key\":\"value\"}"
+			if decodedBytes, decodeErr := strconv.Unquote(aiLogStr); decodeErr == nil {
+				if json.Valid([]byte(decodedBytes)) {
+					entry.AILog = json.RawMessage(decodedBytes)
+					log.Infof("[http-log-pusher] ✅ successfully unquoted and parsed AI log, length=%d", len(entry.AILog))
+				} else {
+					log.Warnf("[http-log-pusher] unquoted AI log is not valid JSON: %s", decodedBytes)
+					entry.AILog = json.RawMessage(`{}`)
+				}
+			} else {
+				log.Warnf("[http-log-pusher] AI log cannot be unquoted: %s, using empty JSON object", aiLogStr)
+				entry.AILog = json.RawMessage(`{}`)
+			}
+		}
 	} else {
 		// 当 AI 日志不存在时，使用空的 JSON 对象 {} 而不是 nil
 		// 这样可以确保数据库中存储的是有效的 JSON 而不是 NULL
@@ -347,7 +369,21 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 
 	// 2. 发送异步请求给 Collector
 	// 由于 AILog 现在是 json.RawMessage 类型，序列化时会保持原始JSON格式
-	payload, _ := json.Marshal(entry)
+	log.Debugf("[http-log-pusher] about to marshal entry, AILog type: %T, AILog content: %s", entry.AILog, string(entry.AILog))
+	
+	payload, err := json.Marshal(entry)
+	if err != nil {
+		log.Errorf("[http-log-pusher] failed to marshal log entry: %v", err)
+		return types.ActionContinue
+	}
+	
+	log.Debugf("[http-log-pusher] marshaled payload length: %d, payload: %s", len(payload), string(payload))
+	
+	// 检查 payload 是否为空
+	if len(payload) == 0 {
+		log.Errorf("[http-log-pusher] marshaled payload is empty!")
+		return types.ActionContinue
+	}
 	
 	// 使用 wrapper.HttpClient.Post 方法，它会自动处理 headers
 	headers := [][2]string{
@@ -357,8 +393,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	// 获取最终使用的集群名
 	clusterName := config.CollectorClient.ClusterName()
 	
-	log.Infof("[http-log-pusher] sending log: cluster=%s, path=%s, payload_size=%d",
-		clusterName, config.CollectorPath, len(payload))
+	log.Infof("[http-log-pusher] sending log: cluster=%s, path=%s, payload_size=%d, payload=%s",
+		clusterName, config.CollectorPath, len(payload), string(payload))
 
 	// 这里的 5000 是超时时间(ms)
 	// Fire-and-forget: 回调函数简单记录结果
