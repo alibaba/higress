@@ -58,7 +58,7 @@ type LogEntry struct {
 	IstioPolicyStatus string `json:"istio_policy_status"` // Istio 策略状态
 
 	// AI 日志
-	AILog json.RawMessage `json:"ai_log"` // WASM AI 日志 (JSON 对象)
+	AILog json.RawMessage `json:"ai_log,omitempty"` // WASM AI 日志 (JSON 对象)
 
 	// ===== 监控元数据字段 (8个) =====
 	InstanceID string `json:"instance_id"` // 实例ID
@@ -221,24 +221,9 @@ func handleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var entry LogEntry
-	// 读取请求体用于调试
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Printf("[Ingest] Error reading request body: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	
-	// 检查是否为空请求体
-	if len(body) == 0 {
-		log.Printf("[Ingest] Empty request body received")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	
-	// 尝试解析 JSON
-	if err := json.Unmarshal(body, &entry); err != nil {
-		log.Printf("[Ingest] Error decoding JSON: %v, raw body: %s", err, string(body))
+	// 简单粗暴的 JSON 解析
+	if err := json.NewDecoder(r.Body).Decode(&entry); err != nil {
+		log.Printf("[Ingest] Error decoding JSON: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

@@ -335,11 +335,13 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		entry.AILog = json.RawMessage(aiLogBytes)
 		log.Infof("[http-log-pusher] ✅ successfully read AI log, length=%d", len(entry.AILog))
 	} else {
-		entry.AILog = nil
+		// 当 AI 日志不存在时，使用空的 JSON 对象 {} 而不是 nil
+		// 这样可以确保数据库中存储的是有效的 JSON 而不是 NULL
+		entry.AILog = json.RawMessage(`{}`)
 		if err != nil {
-			log.Warnf("[http-log-pusher] ❌ failed to read AI log: %v", err)
+			log.Warnf("[http-log-pusher] ❌ failed to read AI log: %v, using empty JSON object", err)
 		} else {
-			log.Warnf("[http-log-pusher] ⚠️  AI log is empty (ai-statistics may not have written yet)")
+			log.Warnf("[http-log-pusher] ⚠️  AI log is empty (ai-statistics may not have written yet), using empty JSON object")
 		}
 	}
 
