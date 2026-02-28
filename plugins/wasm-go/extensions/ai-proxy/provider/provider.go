@@ -147,6 +147,7 @@ const (
 	providerTypeLongcat    = "longcat"
 	providerTypeFireworks  = "fireworks"
 	providerTypeVllm       = "vllm"
+	providerTypeQiniu      = "qiniu"
 	providerTypeGeneric    = "generic"
 
 	protocolOpenAI   = "openai"
@@ -238,6 +239,7 @@ var (
 		providerTypeLongcat:    &longcatProviderInitializer{},
 		providerTypeFireworks:  &fireworksProviderInitializer{},
 		providerTypeVllm:       &vllmProviderInitializer{},
+		providerTypeQiniu:      &qiniuProviderInitializer{},
 		providerTypeGeneric:    &genericProviderInitializer{},
 	}
 )
