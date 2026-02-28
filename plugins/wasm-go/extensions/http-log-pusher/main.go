@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +15,7 @@ import (
 	"github.com/higress-group/wasm-go/pkg/tokenusage"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+	"github.com/higress-group/proxy-wasm-go-sdk/properties"
 )
 
 func main() {}
@@ -27,6 +28,9 @@ func init() {
 		wrapper.ProcessRequestBody(onHttpRequestBody),
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
+		// wrapper.ProcessStreamDone(onHttpStreamDone),
+		// wrapper.WithRebuildMaxMemBytes[PluginConfig](1000)
+		// wrapper.WithRebuildMaxMemBytes[PluginConfig](200*1024*1024),
 	)
 }
 
@@ -78,7 +82,7 @@ type LogEntry struct {
 	RequestedServerName  string `json:"requested_server_name,omitempty"`  // SNI
 	
 	// AI 日志 (如果有)
-	AILog string `json:"ai_log,omitempty"` // WASM AI 日志
+	AILog json.RawMessage `json:"ai_log,omitempty"` // WASM AI 日志
 	
 	// 监控元数据字段
 	InstanceID string `json:"instance_id"`      // 实例ID
@@ -168,6 +172,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 }
 
 // 4. 处理响应体 (也是发送日志的最佳时机)
+// ⚠️ 重要提示：插件执行顺序
+// 如果需要读取 ai-statistics 插件写入的 AI 日志，请确保：
+// 1. 在 WasmPlugin 资源中，http-log-pusher 的 phase 应该晚于 ai-statistics
+// 2. 或者在同一 phase 中，http-log-pusher 的 priority 应该低于 ai-statistics（数字越大优先级越高）
+// 3. AI 日志的读取在 HTTP 回调中延迟到发送时才读取
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte) types.Action {
 	// 1. 组装数据 - 参考 Envoy accessLogFormat 字段
 	reqHeaders, _ := ctx.GetContext("req_headers").([][2]string)
@@ -195,8 +204,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	// 获取 Envoy 属性
 	protocol := getEnvoyProperty("request.protocol", "HTTP/1.1")
 	bytesReceived := getEnvoyPropertyInt64("request.total_size", 0)
-	bytesSent := getEnvoyPropertyInt64("response.total_size", 0)
-	responseFlags := getEnvoyProperty("response.flags", "")
+	bytesSent := getResponseTotalSize()
+	responseFlags := getResponseFlags()
 	responseCodeDetails := getEnvoyProperty("response.code_details", "")
 	upstreamCluster := getEnvoyProperty("cluster_name", "")
 	upstreamHost := getEnvoyProperty("upstream_host", "")
@@ -205,15 +214,6 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	downstreamRemoteAddr := getEnvoyProperty("downstream_remote_address", "")
 	upstreamLocalAddr := getEnvoyProperty("upstream_local_address", "")
 	sni := getEnvoyProperty("requested_server_name", "")
-	// 从 Envoy Filter State 读取 AI 日志
-	// ai-statistics 插件通过 WriteUserAttributeToLogWithKey() 将数据写入此处
-	aiLogBytes, err := proxywasm.GetProperty([]string{wrapper.AILogKey})
-	var aiLog string
-	if err == nil && len(aiLogBytes) > 0 {
-		aiLog = string(aiLogBytes)
-	} else {
-		aiLog = "-" // 无 AI 日志时的默认值
-	}
 	
 	// 提取监控所需的元数据字段
 	instanceID := getInstanceID()
@@ -242,6 +242,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	
 	// 计算耗时
 	duration := time.Now().UnixMilli() - startTime
+	
+	// ⚠️ 先不读取 AI 日志，等到最后再读取
+	// 因为 ai-statistics 在 onHttpResponseBody 的最后才写入
 	
 	entry := LogEntry{
 		// 基础信息
@@ -280,8 +283,8 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		RouteName:           routeNameMeta,
 		RequestedServerName: sni,
 		
-		// AI 日志
-		AILog: aiLog,
+		// AI 日志 - 暂时留空，稍后填充
+		AILog: nil,
 		
 		// 监控元数据
 		InstanceID: instanceID,
@@ -307,35 +310,53 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 
 	// 🔍 调试日志：打印即将存储的所有字段内容
 	log.Infof("[http-log-pusher] === 即将存储的日志内容 ===")
-	// log.Infof("[http-log-pusher] 基础信息: StartTime=%s, Authority=%s, Method=%s, Path=%s, Protocol=%s", 
-	// 	entry.StartTime, entry.Authority, entry.Method, entry.Path, entry.Protocol)
-	// log.Infof("[http-log-pusher] 请求标识: RequestID=%s, TraceID=%s", entry.RequestID, entry.TraceID)
-	// log.Infof("[http-log-pusher] 响应信息: ResponseCode=%d, ResponseFlags=%s", entry.ResponseCode, entry.ResponseFlags)
-	// log.Infof("[http-log-pusher] 流量统计: BytesReceived=%d, BytesSent=%d, Duration=%d ms", 
-	// 	entry.BytesReceived, entry.BytesSent, entry.Duration)
-	// log.Infof("[http-log-pusher] 上游信息: UpstreamCluster=%s, UpstreamHost=%s", entry.UpstreamCluster, entry.UpstreamHost)
 	log.Infof("[http-log-pusher] 监控元数据: InstanceID=%s, API=%s, Model=%s, Consumer=%s", 
 		entry.InstanceID, entry.API, entry.Model, entry.Consumer)
 	log.Infof("[http-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
 		entry.Route, entry.Service, entry.MCPServer, entry.MCPTool)
 	log.Infof("[http-log-pusher] Token统计: InputTokens=%d, OutputTokens=%d, TotalTokens=%d", 
 		entry.InputTokens, entry.OutputTokens, entry.TotalTokens)
-	// log.Infof("[http-log-pusher] AI日志: AILog=%s", entry.AILog)
 	log.Infof("[http-log-pusher] =========================")
 
-	payload, _ := json.Marshal(entry)
-	
-	// 获取最终使用的集群名
-	clusterName := config.CollectorClient.ClusterName()
-	
-	log.Infof("[http-log-pusher] preparing http call: cluster=%s, path=%s, payload_size=%d",
-		clusterName, config.CollectorPath, len(payload))
+	// ⚠️ 重要：在这里读取 AI 日志（函数的最后）
+	// 从 Envoy Filter State 读取 AI 日志
+	// ai-statistics 插件通过 WriteUserAttributeToLogWithKey() 将数据写入此处
+	// 
+	// 注意：即使优先级设置正确（ai-statistics=200, http-log-pusher=1），
+	// 也可能读取不到完整数据，因为在同一个回调函数内，插件可能是"交错执行"的。
+	// 
+	// 如果读取失败，请检查：
+	// 1. WasmPlugin 的 priority 配置（ai-statistics 应该 > http-log-pusher）
+	// 2. 查看日志中的时间戳，确认执行顺序
+	// 3. 考虑使用 Envoy Access Log 代替插件间数据传递
+	aiLogBytes, err := proxywasm.GetProperty([]string{wrapper.AILogKey})
+	if err == nil && len(aiLogBytes) > 0 {
+		// 直接将原始字节存储为 json.RawMessage，保持JSON格式
+		entry.AILog = json.RawMessage(aiLogBytes)
+		log.Infof("[http-log-pusher] ✅ successfully read AI log, length=%d", len(entry.AILog))
+	} else {
+		entry.AILog = nil
+		if err != nil {
+			log.Warnf("[http-log-pusher] ❌ failed to read AI log: %v", err)
+		} else {
+			log.Warnf("[http-log-pusher] ⚠️  AI log is empty (ai-statistics may not have written yet)")
+		}
+	}
 
 	// 2. 发送异步请求给 Collector
+	// 由于 AILog 现在是 json.RawMessage 类型，序列化时会保持原始JSON格式
+	payload, _ := json.Marshal(entry)
+	
 	// 使用 wrapper.HttpClient.Post 方法，它会自动处理 headers
 	headers := [][2]string{
 		{"Content-Type", "application/json"},
 	}
+
+	// 获取最终使用的集群名
+	clusterName := config.CollectorClient.ClusterName()
+	
+	log.Infof("[http-log-pusher] sending log: cluster=%s, path=%s, payload_size=%d",
+		clusterName, config.CollectorPath, len(payload))
 
 	// 这里的 5000 是超时时间(ms)
 	// Fire-and-forget: 回调函数简单记录结果
@@ -469,7 +490,7 @@ func getInstanceID() string {
 	}
 	
 	log.Debugf("[http-log-pusher] instance_id not found, using default")
-	return "unknown"
+	return ""
 }
 
 // 获取API名称
@@ -488,7 +509,7 @@ func getAPIName(ctx wrapper.HttpContext) string {
 	}
 	
 	log.Debugf("[http-log-pusher] api_name not determined from route/path")
-	return "unknown"
+	return ""
 }
 
 // 获取模型名称
@@ -511,7 +532,7 @@ func getModelName(ctx wrapper.HttpContext) string {
 	}
 	
 	log.Debugf("[http-log-pusher] model_name not found")
-	return "unknown"
+	return ""
 }
 
 // 获取消费者信息
@@ -521,64 +542,16 @@ func getConsumer() string {
 	if consumer != "" {
 		return consumer
 	}
-	
-	// 从 Authorization 头解析完整凭证信息
-	authHeader, _ := proxywasm.GetHttpRequestHeader("authorization")
-	if authHeader != "" {
-		// 解析 Bearer token - 存储完整token用于审计和查询
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			token := strings.TrimPrefix(authHeader, "Bearer ")
-			// 返回完整token以便后续审计查询
-			// 注意：如果token过长可能影响日志存储，建议配合数据库字段长度设置
-			return fmt.Sprintf("bearer:%s", token)
-		}
-		// 解析 Basic 认证
-		if strings.HasPrefix(authHeader, "Basic ") {
-			credential := strings.TrimPrefix(authHeader, "Basic ")
-			return fmt.Sprintf("basic:%s", credential)
-		}
-		// 其他认证方式
-		return fmt.Sprintf("auth:%s", authHeader)
-	}
-	
-	// 检查其他常见的认证头
-	apiKey, _ := proxywasm.GetHttpRequestHeader("x-api-key")
-	if apiKey != "" {
-		return fmt.Sprintf("apikey:%s", apiKey)
-	}
-	
-	log.Debugf("[http-log-pusher] consumer not found")
-	return "anonymous"
+	return ""
 }
 
 // 获取路由名称 - 区分MCP场景和Model API场景
 func getRouteName() string {
 	routeName := getEnvoyProperty("route_name", "")
-	if routeName == "" {
-		log.Debugf("[http-log-pusher] route_name not found")
-		return "unknown"
+	if routeName != "" {
+		return routeName
 	}
-	
-	// 判断是否为MCP场景
-	if strings.Contains(routeName, "-mcp-") {
-		// MCP场景：路由名称格式为 {mcp-server-name}-mcp-{mcp-tool-name}-0
-		// 在Route字段中存储MCP Server名称（即mcp前面的部分）
-		parts := strings.Split(routeName, "-")
-		mcpIndex := -1
-		for i, part := range parts {
-			if part == "mcp" {
-				mcpIndex = i
-				break
-			}
-		}
-		if mcpIndex > 0 {
-			// 返回MCP Server名称
-			return strings.Join(parts[:mcpIndex], "-")
-		}
-	}
-	
-	// Model API场景或其他场景：直接返回原始路由名称
-	return routeName
+	return "-"
 }
 
 // 获取服务名称
@@ -587,29 +560,102 @@ func getServiceName() string {
 	clusterName := getEnvoyProperty("cluster_name", "")
 	if clusterName != "" {
 		// 清理集群名称格式
-		service := strings.TrimPrefix(clusterName, "outbound|")
-		service = strings.TrimPrefix(service, "inbound|")
-		parts := strings.Split(service, "|")
-		if len(parts) > 0 {
-			return parts[len(parts)-1] // 取最后一部分作为服务名
-		}
-		return service
+		// service := strings.TrimPrefix(clusterName, "outbound|")
+		// service = strings.TrimPrefix(service, "inbound|")
+		// parts := strings.Split(service, "|")
+		// if len(parts) > 0 {
+		// 	return parts[len(parts)-1] // 取最后一部分作为服务名
+		// }
+		return clusterName
 	}
 	
-	log.Debugf("[http-log-pusher] service_name not found")
-	return "unknown"
+	return ""
 }
 
-// 获取MCP Server
+// 解析 response flags 为可读字符串
+func parseResponseFlags(flags uint64) string {
+    var flagStrings []string
+    
+    //定各种标志位的含义
+    flagMap := map[uint64]string{
+        0x1:    "UH",     // No healthy upstream hosts
+        0x2:    "UF",     // Upstream connection failure
+        0x4:    "NR",     // No route found
+        0x8:    "URX",    // Upstream retry limit exceeded
+        0x10:   "DC",     // Downstream connection termination
+        0x20:   "LH",     // Failed local health check
+        0x40:   "UT",     // Upstream request timeout
+        0x80:   "LR",     // Local reset
+        0x100:  "UR",     // Upstream remote reset
+        0x200:  "UC",     // Upstream connection termination
+        0x400:  "DI",     // Delay injected
+        0x800:  "FI",     // Fault injected
+        0x1000: "RL",     // Rate limited
+        0x2000: "UAEX",   // Unauthorized external service
+        0x4000: "RLSE",   // Rate limit service error
+        0x8000: "IH",     // Invalid Envoy request headers
+        0x10000: "SI",    // Stream idle timeout
+        0x20000: "DPE",   // Downstream protocol error
+        0x40000: "UPE",   // Upstream protocol error
+        0x80000: "UMSDR", // Upstream max stream duration reached
+    }
+    
+    //检查每个标志位
+    for bit, flagStr := range flagMap {
+        if flags&bit != 0 {
+            flagStrings = append(flagStrings, flagStr)
+        }
+    }
+    
+    if len(flagStrings) == 0 {
+        return "-"
+    }
+    
+    return strings.Join(flagStrings, ",")
+}
+
+// 使用专门的函数获取 response flags
+func getResponseFlags() string {
+    flags, err := properties.GetResponseFlags()
+    if err != nil {
+		// TODO: 这里为啥error了？
+        return ""
+    }
+    return parseResponseFlags(flags)
+}
+
+// 获取MCP Server - 准确实现版本
 func getMCPServer() string {
-	// 方法1: 从路由名称获取
-	routeName := getEnvoyProperty("route_name", "")
-	if routeName == "" {
-		log.Debugf("[http-log-pusher] route_name not found")
-		return "unknown"
-	}
-	
-	return routeName
+    // 从MCP协议相关的头部获取（最准确的方式）
+    // 检查MCP会话相关的头部信息
+    mcpSessionId, err := proxywasm.GetHttpRequestHeader("mcp-session-id")
+    if err == nil && mcpSessionId != "" {
+        // 如果存在MCP会话ID，尝试从中解析MCP Server信息
+        log.Debugf("[http-log-pusher] got mcp_session_id: %s", mcpSessionId)
+    }
+    
+    // 从MCP协议版本头部获取
+    mcpProtocolVersion, err := proxywasm.GetHttpRequestHeader("mcp-protocol-version")
+    if err == nil && mcpProtocolVersion != "" {
+        // 如果是MCP协议请求，从已设置的属性中获取MCP服务器名称
+        // 在MCP服务器处理代码中，已经通过 SetProperty 设置了 mcp_server_name
+        mcpServerName, err := proxywasm.GetProperty([]string{"mcp_server_name"})
+        if err == nil && mcpServerName != nil && len(mcpServerName) > 0 {
+            log.Debugf("[http-log-pusher] got mcp_server from property: %s", string(mcpServerName))
+            return string(mcpServerName)
+        }
+    }
+    
+    // 从MCP特定头部获取
+    mcpServerName, err := proxywasm.GetHttpRequestHeader("x-envoy-mcp-server-name")
+    if err == nil && mcpServerName != "" {
+        log.Debugf("[http-log-pusher] got mcp_server from x-envoy-mcp-server-name: %s", mcpServerName)
+        return mcpServerName
+    }
+    
+    // 如果没有找到准确的MCP Server信息，返回空字符串而不是"unknown"
+    // 这样符合"没有就是没有"的原则，避免歧义
+    return ""
 }
 
 // 获取MCP Tool
@@ -636,10 +682,7 @@ func getMCPTool(ctx wrapper.HttpContext) string {
 		}
 	}
 	
-	// 获取路径用于日志记录
-	path := ctx.Path()
-	log.Debugf("[http-log-pusher] mcp_tool not determined from header/body/path: %s", path)
-	return "unknown"
+	return ""
 }
 
 // 从请求体提取模型名称
@@ -668,24 +711,65 @@ func getEnvoyPropertyInt64(path string, defaultValue int64) int64 {
 	
 	switch path {
 	case "request.total_size":
-		propertyPath = []string{"request", "size"}
+		// 正确的属性路径应该是 request.total_size
+		propertyPath = []string{"request", "total_size"}
 	case "response.total_size":
-		propertyPath = []string{"response", "size"}
+		// 正确的属性路径应该是 response.total_size
+		propertyPath = []string{"response", "total_size"}
 	default:
+		log.Debugf("[http-log-pusher] unknown property path: %s", path)
 		return defaultValue
 	}
 	
 	value, err := proxywasm.GetProperty(propertyPath)
-	if err != nil || len(value) == 0 {
+	if err != nil {
+		log.Debugf("[http-log-pusher] failed to get property %v: %v", propertyPath, err)
 		return defaultValue
 	}
 	
-	// 将字节转换为字符串再解析为int64
-	strValue := string(value)
-	intValue, err := strconv.ParseInt(strValue, 10, 64)
-	if err != nil {
+	if len(value) == 0 {
+		log.Debugf("[http-log-pusher] property %v is empty", propertyPath)
 		return defaultValue
 	}
+	
+	// Envoy 属性值是 little-endian 格式的 uint64，需要正确解析
+	// 参考：https://github.com/proxy-wasm/spec/tree/master/abi-versions/vNEXT
+	if len(value) != 8 {
+		log.Debugf("[http-log-pusher] property %v has unexpected length: %d", propertyPath, len(value))
+		return defaultValue
+	}
+	
+	// 将 8 字节的 little-endian 数据转换为 int64
+	intValue := int64(binary.LittleEndian.Uint64(value))
+	log.Debugf("[http-log-pusher] got property %v = %d", propertyPath, intValue)
 	
 	return intValue
+}
+
+// 获取 Envoy 属性 (int64 类型)
+func getResponseTotalSize() int64 {
+	// 首先尝试直接获取 response.total_size
+	size := getEnvoyPropertyInt64("response.total_size", 0)
+	if size > 0 {
+		log.Debugf("[http-log-pusher] got response.total_size directly: %d", size)
+		return size
+	}
+	
+	// 如果为0，尝试从 Content-Length 头获取
+	if contentLengthStr, err := proxywasm.GetHttpResponseHeader("content-length"); err == nil {
+		if contentLength, err := strconv.ParseInt(contentLengthStr, 10, 64); err == nil {
+			log.Debugf("[http-log-pusher] using Content-Length header as fallback: %d", contentLength)
+			return contentLength
+		}
+	}
+	
+	// 检查是否为流式传输
+	if transferEncoding, err := proxywasm.GetHttpResponseHeader("transfer-encoding"); err == nil {
+		log.Debugf("[http-log-pusher] response is using Transfer-Encoding: %s", transferEncoding)
+		// 对于流式传输，可能需要特殊处理
+	}
+	
+	// 最后的兜底方案：返回0并记录警告
+	log.Warnf("[http-log-pusher] unable to determine response size, returning 0")
+	return 0
 }

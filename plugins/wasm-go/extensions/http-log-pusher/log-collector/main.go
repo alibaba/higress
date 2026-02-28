@@ -58,7 +58,7 @@ type LogEntry struct {
 	IstioPolicyStatus string `json:"istio_policy_status"` // Istio 策略状态
 
 	// AI 日志
-	AILog string `json:"ai_log"` // WASM AI 日志 (JSON 字符串)
+	AILog json.RawMessage `json:"ai_log"` // WASM AI 日志 (JSON 对象)
 
 	// ===== 监控元数据字段 (8个) =====
 	InstanceID string `json:"instance_id"` // 实例ID
