@@ -44,7 +44,7 @@ template:
     {{- end }}
     containers:
       - name: higress-gateway
-        image: "{{ .Values.gateway.hub | default .Values.global.hub }}/{{ .Values.gateway.image | default "gateway" }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
+        image: "{{ .Values.gateway.hub | default .Values.global.hub }}/higress/{{ .Values.gateway.image | default "gateway" }}:{{ .Values.gateway.tag | default .Chart.AppVersion }}"
         args:
           - proxy
           - router
@@ -128,6 +128,8 @@ template:
         - name: LITE_METRICS
           value: "on"
         {{- end }}
+        - name: ISTIO_DELTA_XDS
+          value: "{{ .Values.global.enableDeltaXDS }}"
         {{- if include "skywalking.enabled" . }}
         - name: ISTIO_BOOTSTRAP_OVERRIDE
           value: /etc/istio/custom-bootstrap/custom_bootstrap.json
@@ -208,7 +210,7 @@ template:
       {{- if $o11y.enabled }}
         {{- $config := $o11y.promtail }}
       - name: promtail
-        image: {{ $config.image.repository | default (printf "%s/promtail" .Values.global.hub) }}:{{ $config.image.tag }}
+        image: {{ $config.image.repository | default (printf "%s/higress/promtail" .Values.global.hub) }}:{{ $config.image.tag }}
         imagePullPolicy: IfNotPresent
         args:
           - -config.file=/etc/promtail/promtail.yaml

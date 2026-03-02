@@ -86,6 +86,18 @@ Port descriptions:
 > 
 > **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
 
+> **For Kubernetes deployments**, you can configure the `global.hub` parameter in Helm values to use a mirror registry closer to your region. This applies to both Higress component images and built-in Wasm plugin images:
+> 
+> ```bash
+> # Example: Using North America mirror
+> helm install higress -n higress-system higress.io/higress --set global.hub=higress-registry.us-west-1.cr.aliyuncs.com --create-namespace
+> ```
+> 
+> Available mirror registries:
+> - **China (Hangzhou)**: `higress-registry.cn-hangzhou.cr.aliyuncs.com` (default)
+> - **North America**: `higress-registry.us-west-1.cr.aliyuncs.com`
+> - **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
+
 For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
 
 If you are deploying on the cloud, it is recommended to use the [Enterprise Edition](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
@@ -182,6 +194,8 @@ Higress would not be possible without the valuable open-source work of projects 
 
 - Higress Console: https://github.com/higress-group/higress-console
 - Higress Standalone: https://github.com/higress-group/higress-standalone
+- Higress Plugin Server：https://github.com/higress-group/plugin-server
+- Higress Wasm Plugin Golang SDK：https://github.com/higress-group/wasm-go
 
 ### Contributors
 

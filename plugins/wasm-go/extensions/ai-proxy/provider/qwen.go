@@ -37,7 +37,7 @@ const (
 	qwenCompatibleRetrieveBatchPath       = "/compatible-mode/v1/batches/{batch_id}"
 	qwenBailianPath                       = "/api/v1/apps"
 	qwenMultimodalGenerationPath          = "/api/v1/services/aigc/multimodal-generation/generation"
-	qwenAnthropicMessagesPath             = "/api/v2/apps/claude-code-proxy/v1/messages"
+	qwenAnthropicMessagesPath             = "/apps/anthropic/v1/messages"
 
 	qwenAsyncAIGCPath = "/api/v1/services/aigc/"
 	qwenAsyncTaskPath = "/api/v1/tasks/"
