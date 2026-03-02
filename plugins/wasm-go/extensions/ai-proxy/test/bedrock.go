@@ -25,6 +25,76 @@ var basicBedrockConfig = func() json.RawMessage {
 	return data
 }()
 
+// Test config: Bedrock original protocol config with AWS Access Key/Secret Key
+var bedrockOriginalAkSkConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":         "bedrock",
+			"protocol":     "original",
+			"awsAccessKey": "test-ak-for-unit-test",
+			"awsSecretKey": "test-sk-for-unit-test",
+			"awsRegion":    "us-east-1",
+		},
+	})
+	return data
+}()
+
+// Test config: Bedrock original protocol config with api token
+var bedrockOriginalApiTokenConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":      "bedrock",
+			"protocol":  "original",
+			"awsRegion": "us-east-1",
+			"apiTokens": []string{
+				"test-token-for-unit-test",
+			},
+		},
+	})
+	return data
+}()
+
+// Test config: Bedrock original protocol config with AWS Access Key/Secret Key and custom settings
+var bedrockOriginalAkSkWithCustomSettingsConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":         "bedrock",
+			"protocol":     "original",
+			"awsAccessKey": "test-ak-for-unit-test",
+			"awsSecretKey": "test-sk-for-unit-test",
+			"awsRegion":    "us-east-1",
+			"customSettings": []map[string]interface{}{
+				{
+					"name":      "foo",
+					"value":     "\"bar\"",
+					"mode":      "raw",
+					"overwrite": true,
+				},
+			},
+		},
+	})
+	return data
+}()
+
+// Test config: Bedrock config with embeddings capability to verify generic SigV4 flow
+var bedrockEmbeddingsCapabilityConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":         "bedrock",
+			"awsAccessKey": "test-ak-for-unit-test",
+			"awsSecretKey": "test-sk-for-unit-test",
+			"awsRegion":    "us-east-1",
+			"capabilities": map[string]string{
+				"openai/v1/embeddings": "/model/amazon.titan-embed-text-v2:0/invoke",
+			},
+			"modelMapping": map[string]string{
+				"*": "amazon.titan-embed-text-v2:0",
+			},
+		},
+	})
+	return data
+}()
+
 // Test config: Bedrock config with Bearer Token authentication
 var bedrockApiTokenConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -350,6 +420,169 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.True(t, hasPath, "Path header should exist")
 			require.Contains(t, pathValue, "/model/", "Path should contain Bedrock model path")
 			require.Contains(t, pathValue, "/converse", "Path should contain converse endpoint")
+		})
+
+		// Test Bedrock generic request body processing with AWS Signature V4 authentication
+		t.Run("bedrock embeddings request body with ak/sk should use sigv4", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockEmbeddingsCapabilityConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/embeddings"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "text-embedding-3-small",
+				"input": "Hello from embeddings"
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
+			require.True(t, hasAuth, "Authorization header should exist")
+			require.Contains(t, authValue, "AWS4-HMAC-SHA256", "Authorization should use AWS4-HMAC-SHA256 signature")
+			require.Contains(t, authValue, "Credential=", "Authorization should contain Credential")
+			require.Contains(t, authValue, "Signature=", "Authorization should contain Signature")
+
+			dateValue, hasDate := test.GetHeaderValue(requestHeaders, "X-Amz-Date")
+			require.True(t, hasDate, "X-Amz-Date header should exist for AWS Signature V4")
+			require.NotEmpty(t, dateValue, "X-Amz-Date should not be empty")
+		})
+
+		// Test Bedrock original converse-stream path with AWS Signature V4 authentication
+		t.Run("bedrock original converse-stream with ak/sk should use sigv4", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockOriginalAkSkConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			originalPath := "/model/anthropic.claude-3-5-haiku-20241022-v1%3A0/converse-stream"
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", originalPath},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"messages": [
+					{
+						"role": "user",
+						"content": [{"text": "Hello from original bedrock path"}]
+					}
+				],
+				"inferenceConfig": {
+					"maxTokens": 64
+				}
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
+			require.True(t, hasAuth, "Authorization header should exist")
+			require.Contains(t, authValue, "AWS4-HMAC-SHA256", "Authorization should use AWS4-HMAC-SHA256 signature")
+			require.Contains(t, authValue, "Credential=", "Authorization should contain Credential")
+			require.Contains(t, authValue, "Signature=", "Authorization should contain Signature")
+
+			dateValue, hasDate := test.GetHeaderValue(requestHeaders, "X-Amz-Date")
+			require.True(t, hasDate, "X-Amz-Date header should exist for AWS Signature V4")
+			require.NotEmpty(t, dateValue, "X-Amz-Date should not be empty")
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath, "Path header should exist")
+			require.Equal(t, originalPath, pathValue, "Original Bedrock path should be kept unchanged")
+		})
+
+		// Test Bedrock original converse-stream path with Bearer Token authentication
+		t.Run("bedrock original converse-stream with api token should pass bearer auth", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockOriginalApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			originalPath := "/model/anthropic.claude-3-5-haiku-20241022-v1%3A0/converse-stream"
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", originalPath},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"messages": [
+					{
+						"role": "user",
+						"content": [{"text": "Hello from original bedrock path"}]
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
+			require.True(t, hasAuth, "Authorization header should exist")
+			require.Contains(t, authValue, "Bearer ", "Authorization should use Bearer token")
+			require.Contains(t, authValue, "test-token-for-unit-test", "Authorization should contain configured token")
+
+			_, hasDate := test.GetHeaderValue(requestHeaders, "X-Amz-Date")
+			require.False(t, hasDate, "X-Amz-Date should not be set in Bearer token mode")
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath, "Path header should exist")
+			require.Equal(t, originalPath, pathValue, "Original Bedrock path should be kept unchanged")
+		})
+
+		// Test Bedrock original converse-stream path keeps signed body consistent with custom settings
+		t.Run("bedrock original converse-stream with custom settings should replace body before forwarding", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockOriginalAkSkWithCustomSettingsConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			originalPath := "/model/amazon.nova-2-lite-v1:0/converse-stream"
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", originalPath},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"messages": [
+					{
+						"role": "user",
+						"content": [{"text": "Hello"}]
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+			require.Equal(t, "\"bar\"", bodyMap["foo"], "Custom settings should be applied to forwarded body")
+
+			authValue, hasAuth := test.GetHeaderValue(host.GetRequestHeaders(), "Authorization")
+			require.True(t, hasAuth, "Authorization header should exist")
+			require.Contains(t, authValue, "AWS4-HMAC-SHA256", "Authorization should use AWS4-HMAC-SHA256 signature")
 		})
 
 		// Test Bedrock streaming request
