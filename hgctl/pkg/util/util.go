@@ -27,9 +27,17 @@ import (
 
 // StripPrefix removes the given prefix from prefix.
 func StripPrefix(path, prefix string) string {
-	pl := len(strings.Split(prefix, "/"))
-	pv := strings.Split(path, "/")
-	return strings.Join(pv[pl:], "/")
+	prefix = strings.TrimSuffix(prefix, "/")
+	if prefix == "" {
+		return path
+	}
+	if path == prefix {
+		return ""
+	}
+	if strings.HasPrefix(path, prefix+"/") {
+		return strings.TrimPrefix(path, prefix+"/")
+	}
+	return path
 }
 
 func SplitSetFlag(flag string) (string, string) {
