@@ -366,7 +366,7 @@ func (config *AISecurityConfig) SetDefaultValues() {
 	config.MaliciousUrlLevelBar = MaxRisk
 	config.Timeout = DefaultTimeout
 	config.BufferLimit = 200
-	config.BufferFlushTimeInterval = 1000
+	config.BufferFlushTimeInterval = 0
 	config.ApiType = ApiTextGeneration
 	config.ProviderType = ProviderOpenAI
 }
