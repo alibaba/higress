@@ -63,6 +63,54 @@ func Test_getApiName(t *testing.T) {
 	}
 }
 
+func Test_isSupportedRequestContentType(t *testing.T) {
+	tests := []struct {
+		name        string
+		apiName     provider.ApiName
+		contentType string
+		want        bool
+	}{
+		{
+			name:        "json chat completion",
+			apiName:     provider.ApiNameChatCompletion,
+			contentType: "application/json",
+			want:        true,
+		},
+		{
+			name:        "multipart image edit",
+			apiName:     provider.ApiNameImageEdit,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        true,
+		},
+		{
+			name:        "multipart image variation",
+			apiName:     provider.ApiNameImageVariation,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        true,
+		},
+		{
+			name:        "multipart chat completion",
+			apiName:     provider.ApiNameChatCompletion,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        false,
+		},
+		{
+			name:        "text plain image edit",
+			apiName:     provider.ApiNameImageEdit,
+			contentType: "text/plain",
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isSupportedRequestContentType(tt.apiName, tt.contentType)
+			if got != tt.want {
+				t.Errorf("isSupportedRequestContentType(%v, %q) = %v, want %v", tt.apiName, tt.contentType, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAi360(t *testing.T) {
 	test.RunAi360ParseConfigTests(t)
 	test.RunAi360OnHttpRequestHeadersTests(t)
@@ -137,6 +185,8 @@ func TestVertex(t *testing.T) {
 	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
 	test.RunVertexExpressModeImageGenerationRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationResponseBodyTests(t)
+	test.RunVertexExpressModeImageEditVariationRequestBodyTests(t)
+	test.RunVertexExpressModeImageEditVariationResponseBodyTests(t)
 	// Vertex Raw 模式测试
 	test.RunVertexRawModeOnHttpRequestHeadersTests(t)
 	test.RunVertexRawModeOnHttpRequestBodyTests(t)
@@ -149,4 +199,16 @@ func TestBedrock(t *testing.T) {
 	test.RunBedrockOnHttpRequestBodyTests(t)
 	test.RunBedrockOnHttpResponseHeadersTests(t)
 	test.RunBedrockOnHttpResponseBodyTests(t)
+	test.RunBedrockToolCallTests(t)
+}
+
+func TestClaude(t *testing.T) {
+	test.RunClaudeParseConfigTests(t)
+	test.RunClaudeOnHttpRequestHeadersTests(t)
+	test.RunClaudeOnHttpRequestBodyTests(t)
+}
+
+func TestConsumerAffinity(t *testing.T) {
+	test.RunConsumerAffinityParseConfigTests(t)
+	test.RunConsumerAffinityOnHttpRequestHeadersTests(t)
 }
