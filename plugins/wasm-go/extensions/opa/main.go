@@ -75,6 +75,7 @@ func parseConfig(json gjson.Result, config *OpaConfig, log log.Log) error {
 	}
 	config.client = client
 	config.policy = policy
+	config.policyPath = normalizePolicyPath(policy)
 
 	return nil
 }
@@ -107,7 +108,7 @@ func opaCall(ctx wrapper.HttpContext, config OpaConfig, body []byte, log log.Log
 	request["query"] = query
 
 	data, _ := json.Marshal(Metadata{Input: map[string]interface{}{"request": request}})
-	if err := config.client.Post(fmt.Sprintf("/v1/data/%s/allow", config.policy),
+	if err := config.client.Post(fmt.Sprintf("/v1/data/%s/allow", config.policyPath),
 		[][2]string{{"Content-Type", "application/json"}},
 		data, rspCall, config.timeout); err != nil {
 		log.Errorf("client opa fail %v", err)
@@ -138,4 +139,19 @@ func rspCall(statusCode int, _ http.Header, responseBody []byte) {
 		return
 	}
 	proxywasm.ResumeHttpRequest()
+}
+
+func normalizePolicyPath(policy string) string {
+	p := strings.TrimSpace(policy)
+	p = strings.TrimPrefix(p, "/")
+	p = strings.TrimPrefix(p, "v1/data/")
+	p = strings.TrimPrefix(p, "data/")
+	p = strings.TrimPrefix(p, "data.")
+	p = strings.ReplaceAll(p, ".", "/")
+	p = strings.TrimPrefix(p, "/")
+	p = strings.TrimSuffix(p, "/")
+	if strings.HasSuffix(p, "/allow") && p != "allow" {
+		p = strings.TrimSuffix(p, "/allow")
+	}
+	return p
 }
