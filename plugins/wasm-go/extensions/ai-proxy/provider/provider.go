@@ -198,8 +198,7 @@ var (
 
 	// Providers that support the "developer" role. Other providers will have "developer" roles converted to "system".
 	developerRoleSupportedProviders = map[string]bool{
-		providerTypeOpenAI: true,
-		providerTypeAzure:  true,
+		providerTypeAzure: true,
 	}
 
 	providerInitializers = map[string]providerInitializer{
