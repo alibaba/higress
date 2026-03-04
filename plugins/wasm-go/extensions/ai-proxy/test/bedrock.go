@@ -1,7 +1,11 @@
 package test
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/json"
+	"hash/crc32"
+	"strings"
 	"testing"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -367,6 +371,217 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.True(t, hasPath, "Path header should exist")
 			require.Contains(t, pathValue, "/model/", "Path should contain Bedrock model path")
 			require.Contains(t, pathValue, "/converse", "Path should contain converse endpoint")
+		})
+
+		t.Run("bedrock request body prompt cache in_memory should inject dual cache points", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "in_memory",
+				"prompt_cache_key": "session-001",
+				"messages": [
+					{
+						"role": "system",
+						"content": "You are a helpful assistant."
+					},
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			_, hasPromptCacheRetention := bodyMap["prompt_cache_retention"]
+			require.False(t, hasPromptCacheRetention, "prompt_cache_retention should not be forwarded to Bedrock")
+			_, hasPromptCacheKey := bodyMap["prompt_cache_key"]
+			require.False(t, hasPromptCacheKey, "prompt_cache_key should not be forwarded to Bedrock")
+
+			systemBlocks, ok := bodyMap["system"].([]interface{})
+			require.True(t, ok, "system should be an array")
+			require.Len(t, systemBlocks, 2, "system should contain text block and cachePoint block")
+			systemCachePointBlock := systemBlocks[len(systemBlocks)-1].(map[string]interface{})
+			systemCachePoint, ok := systemCachePointBlock["cachePoint"].(map[string]interface{})
+			require.True(t, ok, "system tail block should contain cachePoint")
+			require.Equal(t, "default", systemCachePoint["type"])
+			require.Equal(t, "5m", systemCachePoint["ttl"])
+
+			messages := bodyMap["messages"].([]interface{})
+			require.NotEmpty(t, messages, "messages should not be empty")
+			lastMessage := messages[len(messages)-1].(map[string]interface{})
+			lastMessageContent := lastMessage["content"].([]interface{})
+			require.NotEmpty(t, lastMessageContent, "last message content should not be empty")
+			messageCachePointBlock := lastMessageContent[len(lastMessageContent)-1].(map[string]interface{})
+			messageCachePoint, ok := messageCachePointBlock["cachePoint"].(map[string]interface{})
+			require.True(t, ok, "last message tail block should contain cachePoint")
+			require.Equal(t, "default", messageCachePoint["type"])
+			require.Equal(t, "5m", messageCachePoint["ttl"])
+		})
+
+		t.Run("bedrock request body prompt cache 24h should map to 1h ttl", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "24h",
+				"messages": [
+					{
+						"role": "system",
+						"content": "You are a helpful assistant."
+					},
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			systemBlocks := bodyMap["system"].([]interface{})
+			systemCachePointBlock := systemBlocks[len(systemBlocks)-1].(map[string]interface{})
+			systemCachePoint := systemCachePointBlock["cachePoint"].(map[string]interface{})
+			require.Equal(t, "1h", systemCachePoint["ttl"])
+
+			messages := bodyMap["messages"].([]interface{})
+			lastMessage := messages[len(messages)-1].(map[string]interface{})
+			lastMessageContent := lastMessage["content"].([]interface{})
+			messageCachePointBlock := lastMessageContent[len(lastMessageContent)-1].(map[string]interface{})
+			messageCachePoint := messageCachePointBlock["cachePoint"].(map[string]interface{})
+			require.Equal(t, "1h", messageCachePoint["ttl"])
+		})
+
+		t.Run("bedrock request body with empty prompt cache retention should not inject cache points", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "",
+				"messages": [
+					{
+						"role": "system",
+						"content": "You are a helpful assistant."
+					},
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			systemBlocks := bodyMap["system"].([]interface{})
+			require.Len(t, systemBlocks, 1, "system should only contain the original text block")
+			_, hasSystemCachePoint := systemBlocks[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasSystemCachePoint, "system block should not include cachePoint when retention is empty")
+
+			messages := bodyMap["messages"].([]interface{})
+			lastMessage := messages[len(messages)-1].(map[string]interface{})
+			lastMessageContent := lastMessage["content"].([]interface{})
+			require.Len(t, lastMessageContent, 1, "message should only contain original text block")
+			_, hasMessageCachePoint := lastMessageContent[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasMessageCachePoint, "message block should not include cachePoint when retention is empty")
+		})
+
+		t.Run("bedrock request body without system should only inject cache point in messages", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "in_memory",
+				"messages": [
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			_, hasSystem := bodyMap["system"]
+			require.False(t, hasSystem, "system should be omitted when original request has no system prompts")
+
+			messages := bodyMap["messages"].([]interface{})
+			require.Len(t, messages, 1, "messages should keep original one user message")
+			lastMessage := messages[0].(map[string]interface{})
+			lastMessageContent := lastMessage["content"].([]interface{})
+			require.Len(t, lastMessageContent, 2, "message should contain text block and cachePoint block")
+			messageCachePointBlock := lastMessageContent[len(lastMessageContent)-1].(map[string]interface{})
+			messageCachePoint := messageCachePointBlock["cachePoint"].(map[string]interface{})
+			require.Equal(t, "default", messageCachePoint["type"])
+			require.Equal(t, "5m", messageCachePoint["ttl"])
 		})
 
 		// Test Bedrock request body processing with AWS Signature V4 authentication
@@ -911,7 +1126,9 @@ func RunBedrockOnHttpResponseBodyTests(t *testing.T) {
 				"usage": {
 					"inputTokens": 10,
 					"outputTokens": 15,
-					"totalTokens": 25
+					"totalTokens": 25,
+					"cacheReadInputTokens": 6,
+					"cacheWriteInputTokens": 12
 				}
 			}`
 
@@ -935,6 +1152,176 @@ func RunBedrockOnHttpResponseBodyTests(t *testing.T) {
 			usage, exists := responseMap["usage"]
 			require.True(t, exists, "Usage should exist in response body")
 			require.NotNil(t, usage, "Usage should not be nil")
+			usageMap := usage.(map[string]interface{})
+			promptTokensDetails, hasPromptTokensDetails := usageMap["prompt_tokens_details"].(map[string]interface{})
+			require.True(t, hasPromptTokensDetails, "prompt_tokens_details should exist when cacheReadInputTokens is present")
+			require.Equal(t, float64(6), promptTokensDetails["cached_tokens"], "cached_tokens should map from cacheReadInputTokens")
+		})
+
+		t.Run("bedrock response body with zero cache read tokens should omit prompt_tokens_details", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"messages": [
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			responseBody := `{
+				"output": {
+					"message": {
+						"role": "assistant",
+						"content": [
+							{
+								"text": "Hello! How can I help you today?"
+							}
+						]
+					}
+				},
+				"stopReason": "end_turn",
+				"usage": {
+					"inputTokens": 10,
+					"outputTokens": 15,
+					"totalTokens": 25,
+					"cacheReadInputTokens": 0
+				}
+			}`
+
+			action = host.CallOnHttpResponseBody([]byte(responseBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+
+			var responseMap map[string]interface{}
+			err := json.Unmarshal(transformedResponseBody, &responseMap)
+			require.NoError(t, err)
+
+			usageMap := responseMap["usage"].(map[string]interface{})
+			_, hasPromptTokensDetails := usageMap["prompt_tokens_details"]
+			require.False(t, hasPromptTokensDetails, "prompt_tokens_details should be omitted when cacheReadInputTokens is zero")
 		})
 	})
+}
+
+func RunBedrockOnStreamingResponseBodyTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("bedrock streaming usage should map cached_tokens", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"messages": [
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				],
+				"stream": true
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/vnd.amazon.eventstream"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			streamingChunk := buildBedrockEventStreamMessage(t, map[string]interface{}{
+				"usage": map[string]interface{}{
+					"inputTokens":           10,
+					"outputTokens":          2,
+					"totalTokens":           12,
+					"cacheReadInputTokens":  7,
+					"cacheWriteInputTokens": 3,
+				},
+			})
+			action = host.CallOnHttpStreamingResponseBody(streamingChunk, true)
+			require.Equal(t, types.ActionContinue, action)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+
+			var dataPayload string
+			for _, line := range strings.Split(string(transformedResponseBody), "\n") {
+				if strings.HasPrefix(line, "data: ") && line != "data: [DONE]" {
+					dataPayload = strings.TrimPrefix(line, "data: ")
+					break
+				}
+			}
+			require.NotEmpty(t, dataPayload, "should have at least one SSE data payload")
+
+			var responseMap map[string]interface{}
+			err := json.Unmarshal([]byte(dataPayload), &responseMap)
+			require.NoError(t, err)
+			usageMap := responseMap["usage"].(map[string]interface{})
+			promptTokensDetails := usageMap["prompt_tokens_details"].(map[string]interface{})
+			require.Equal(t, float64(7), promptTokensDetails["cached_tokens"], "cached_tokens should map from cacheReadInputTokens in streaming usage event")
+		})
+	})
+}
+
+func buildBedrockEventStreamMessage(t *testing.T, payload map[string]interface{}) []byte {
+	payloadBytes, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	totalLength := uint32(16 + len(payloadBytes))
+	headersLength := uint32(0)
+
+	var message bytes.Buffer
+	prelude := make([]byte, 8)
+	binary.BigEndian.PutUint32(prelude[0:4], totalLength)
+	binary.BigEndian.PutUint32(prelude[4:8], headersLength)
+	message.Write(prelude)
+
+	preludeCRC := crc32.ChecksumIEEE(prelude)
+	preludeCRCBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(preludeCRCBytes, preludeCRC)
+	message.Write(preludeCRCBytes)
+
+	message.Write(payloadBytes)
+
+	messageCRC := crc32.ChecksumIEEE(message.Bytes())
+	messageCRCBytes := make([]byte, 4)
+	binary.BigEndian.PutUint32(messageCRCBytes, messageCRC)
+	message.Write(messageCRCBytes)
+
+	return message.Bytes()
 }
