@@ -537,6 +537,56 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.False(t, hasMessageCachePoint, "message block should not include cachePoint when retention is empty")
 		})
 
+		t.Run("bedrock request body with unsupported prompt cache retention should not inject cache points", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "2h",
+				"messages": [
+					{
+						"role": "system",
+						"content": "You are a helpful assistant."
+					},
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			systemBlocks := bodyMap["system"].([]interface{})
+			require.Len(t, systemBlocks, 1, "system should only contain the original text block")
+			_, hasSystemCachePoint := systemBlocks[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasSystemCachePoint, "system block should not include cachePoint when retention is unsupported")
+
+			messages := bodyMap["messages"].([]interface{})
+			lastMessage := messages[len(messages)-1].(map[string]interface{})
+			lastMessageContent := lastMessage["content"].([]interface{})
+			require.Len(t, lastMessageContent, 1, "message should only contain original text block")
+			_, hasMessageCachePoint := lastMessageContent[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasMessageCachePoint, "message block should not include cachePoint when retention is unsupported")
+		})
+
 		t.Run("bedrock request body without system should only inject cache point in messages", func(t *testing.T) {
 			host, status := test.NewTestHost(bedrockApiTokenConfig)
 			defer host.Reset()
