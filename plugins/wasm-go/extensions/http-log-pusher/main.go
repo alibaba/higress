@@ -36,10 +36,9 @@ func init() {
 // PluginConfig 定义插件配置 (对应 WasmPlugin 资源中的 pluginConfig)
 type PluginConfig struct {
 	CollectorServiceName string             `json:"collector_service_name"` // fqdn,例如 "log-collector.higress-system.svc.cluster.local"
-	CollectorHost       string             `json:"collector_host"`    // Collector 主机名或 IP,例如 "collector-service.default.svc.cluster.local" 或 "192.168.1.100"
-	CollectorPort       int64              `json:"collector_port"`    // Collector 端口,例如 8080
-	CollectorPath       string             `json:"collector_path"`    // 接收日志的 API 路径,例如 "/api/log"
-	CollectorClient     wrapper.HttpClient `json:"-"`                 // HTTP 客户端,用于发送日志
+	CollectorPort       int64              `json:"collector_port"`    // Collector 端口，例如 8080
+	CollectorPath       string             `json:"collector_path"`    // 接收日志的 API 路径，例如 "/api/log"
+	CollectorClient     wrapper.HttpClient `json:"-"`                 // HTTP 客户端，用于发送日志
 }
 
 // LogEntry 定义发给 Collector 的 JSON 数据结构 (参考 Envoy accessLogFormat)
@@ -110,13 +109,12 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
 	log.Infof("[http-log-pusher] parsing config: %s", jsonConf.String())
 	
 	config.CollectorServiceName = jsonConf.Get("collector_service_name").String()
-	config.CollectorHost = jsonConf.Get("collector_host").String()
 	config.CollectorPort = jsonConf.Get("collector_port").Int()
 	
 	// 校验必填参数
-	if config.CollectorServiceName == "" || config.CollectorHost == "" || config.CollectorPort == 0 {
-		log.Errorf("[http-log-pusher] either collector_service_name or (collector_host + collector_port) is required")
-		return errors.New("either collector_service_name or (collector_host + collector_port) is required")
+	if config.CollectorServiceName == "" || config.CollectorPort == 0 {
+		log.Errorf("[http-log-pusher] collector_service_name and collector_port are required")
+		return errors.New("collector_service_name and collector_port are required")
 	}
 	
 	config.CollectorPath = jsonConf.Get("collector_path").String()
@@ -125,12 +123,10 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
 	}
 	
 	// 创建 HTTP 客户端用于发送日志
-	// 优先使用 host + port 方式,更稳定可靠
-	log.Infof("[http-log-pusher] using host+port cluster: host=%s, port=%d", config.CollectorHost, config.CollectorPort)
+	log.Infof("[http-log-pusher] creating cluster client: service=%s, port=%d", config.CollectorServiceName, config.CollectorPort)
 	config.CollectorClient = wrapper.NewClusterClient(wrapper.DnsCluster{
 		ServiceName: config.CollectorServiceName,
 		Port:        config.CollectorPort,
-		Domain:        config.CollectorHost,
 	})
 	
 	return nil
