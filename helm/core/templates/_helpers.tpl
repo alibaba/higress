@@ -97,8 +97,14 @@ higress: {{ include "controller.name" . }}
 {{- end }}
 
 {{- define "skywalking.enabled" -}}
-{{- if and (hasKey .Values "tracing") .Values.tracing.enable (hasKey .Values.tracing "skywalking") .Values.tracing.skywalking.service }}
+{{- with .Values.tracing }}
+{{- if .enable }}
+{{- with .skywalking }}
+{{- if .service }}
 true
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}
 

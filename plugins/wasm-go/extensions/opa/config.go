@@ -23,8 +23,9 @@ import (
 )
 
 type OpaConfig struct {
-	policy  string
-	timeout uint32
+	policy     string
+	policyPath string
+	timeout    uint32
 
 	client wrapper.HttpClient
 }
