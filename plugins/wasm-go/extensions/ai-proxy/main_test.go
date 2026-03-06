@@ -212,3 +212,9 @@ func TestConsumerAffinity(t *testing.T) {
 	test.RunConsumerAffinityParseConfigTests(t)
 	test.RunConsumerAffinityOnHttpRequestHeadersTests(t)
 }
+
+func TestQiniu(t *testing.T) {
+	test.RunQiniuParseConfigTests(t)
+	test.RunQiniuOnHttpRequestHeadersTests(t)
+	test.RunQiniuOnHttpRequestBodyTests(t)
+}
