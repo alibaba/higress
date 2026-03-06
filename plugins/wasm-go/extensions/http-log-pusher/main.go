@@ -28,9 +28,8 @@ func init() {
 		wrapper.ProcessRequestBody(onHttpRequestBody),
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
-		// wrapper.ProcessStreamDone(onHttpStreamDone),
-		// wrapper.WithRebuildMaxMemBytes[PluginConfig](1000)
-		// wrapper.WithRebuildMaxMemBytes[PluginConfig](200*1024*1024),
+		wrapper.WithRebuildAfterRequests[PluginConfig](1000),
+		wrapper.WithRebuildMaxMemBytes[PluginConfig](200*1024*1024),
 	)
 }
 
