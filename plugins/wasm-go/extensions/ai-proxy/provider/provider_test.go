@@ -132,11 +132,11 @@ func TestIsStatefulAPI(t *testing.T) {
 
 func TestGetTokenWithConsumerAffinity(t *testing.T) {
 	tests := []struct {
-		name       string
-		apiTokens  []string
-		consumer   string
-		wantEmpty  bool
-		wantToken  string // If not empty, expected specific token (for single token case)
+		name      string
+		apiTokens []string
+		consumer  string
+		wantEmpty bool
+		wantToken string // If not empty, expected specific token (for single token case)
 	}{
 		{
 			name:      "no_tokens_returns_empty",
@@ -272,4 +272,43 @@ func TestGetTokenWithConsumerAffinity_HashDistribution(t *testing.T) {
 			assert.Contains(t, config.apiTokens, result)
 		})
 	}
+}
+
+func TestGetCookieValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		cookieHeader string
+		cookieName   string
+		expected     string
+	}{
+		{
+			name:         "find affinity cookie",
+			cookieHeader: "foo=bar; higress-ai-affinity=session-123; other=baz",
+			cookieName:   AnonymousAffinityCookieName,
+			expected:     "session-123",
+		},
+		{
+			name:         "cookie missing",
+			cookieHeader: "foo=bar; other=baz",
+			cookieName:   AnonymousAffinityCookieName,
+			expected:     "",
+		},
+		{
+			name:         "empty header",
+			cookieHeader: "",
+			cookieName:   AnonymousAffinityCookieName,
+			expected:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, getCookieValue(tt.cookieHeader, tt.cookieName))
+		})
+	}
+}
+
+func TestBuildAffinityCookie(t *testing.T) {
+	cookie := buildAffinityCookie("session-123")
+	assert.Equal(t, "higress-ai-affinity=session-123; Path=/; HttpOnly", cookie)
 }
