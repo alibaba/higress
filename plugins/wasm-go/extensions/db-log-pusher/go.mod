@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/wasm-go/extensions/http-log-pusher
+module github.com/alibaba/higress/plugins/wasm-go/extensions/db-log-collector
 
 go 1.24.1
 

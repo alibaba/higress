@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: log-collector
+  name: db-log-collector
   namespace: higress-system # 建议和 Higress 放在一起
   labels:
-    app: log-collector
+    app: db-log-collector
 spec:
   replicas: 1 # 单实例，完美的性能瓶颈演示
   selector:
     matchLabels:
-      app: log-collector
+      app: db-log-collector
   template:
     metadata:
       labels:
-        app: log-collector
+        app: db-log-collector
     spec:
       containers:
       - name: collector
         # 替换为你刚才构建的镜像
-        image: registry.cn-shanghai.aliyuncs.com/daofeng/log-collector:latest 
+        image: registry.cn-shanghai.aliyuncs.com/daofeng/db-log-collector:latest 
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -35,11 +35,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: log-collector
+  name: db-log-collector
   namespace: higress-system
 spec:
   selector:
-    app: log-collector
+    app: db-log-collector
   ports:
   - port: 80
     targetPort: 8080

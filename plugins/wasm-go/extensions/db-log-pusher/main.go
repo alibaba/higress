@@ -22,7 +22,7 @@ func main() {}
 
 func init() {
 	wrapper.SetCtx(
-		"http-log-pusher",
+		"db-log",
 		wrapper.ParseConfig(parseConfig),
 		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		wrapper.ProcessRequestBody(onHttpRequestBody),
@@ -106,14 +106,14 @@ type LogEntry struct {
 
 // 解析配置
 func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
-	log.Infof("[http-log-pusher] parsing config: %s", jsonConf.String())
+	log.Debugf("[db-log-pusher] parsing config: %s", jsonConf.String())
 	
 	config.CollectorServiceName = jsonConf.Get("collector_service_name").String()
 	config.CollectorPort = jsonConf.Get("collector_port").Int()
 	
 	// 校验必填参数
 	if config.CollectorServiceName == "" || config.CollectorPort == 0 {
-		log.Errorf("[http-log-pusher] collector_service_name and collector_port are required")
+		log.Errorf("[db-log-pusher] collector_service_name and collector_port are required")
 		return errors.New("collector_service_name and collector_port are required")
 	}
 	
@@ -123,7 +123,7 @@ func parseConfig(jsonConf gjson.Result, config *PluginConfig) error {
 	}
 	
 	// 创建 HTTP 客户端用于发送日志
-	log.Infof("[http-log-pusher] creating cluster client: service=%s, port=%d", config.CollectorServiceName, config.CollectorPort)
+	log.Debugf("[db-log-pusher] creating cluster client: service=%s, port=%d", config.CollectorServiceName, config.CollectorPort)
 	config.CollectorClient = wrapper.NewClusterClient(wrapper.DnsCluster{
 		ServiceName: config.CollectorServiceName,
 		Port:        config.CollectorPort,
@@ -140,7 +140,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Ac
 	// 获取所有请求头并暂存
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
-		log.Errorf("[http-log-pusher] failed to get request headers: %v", err)
+		log.Errorf("[db-log-pusher] failed to get request headers: %v", err)
 	}
 	ctx.SetContext("req_headers", headers)
 	ctx.SetContext("start_time", time.Now().UnixMilli())
@@ -167,11 +167,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 }
 
 // 4. 处理响应体 (也是发送日志的最佳时机)
-// ⚠️ 重要提示：插件执行顺序
-// 如果需要读取 ai-statistics 插件写入的 AI 日志，请确保：
-// 1. 在 WasmPlugin 资源中，http-log-pusher 的 phase 应该晚于 ai-statistics
-// 2. 或者在同一 phase 中，http-log-pusher 的 priority 应该低于 ai-statistics（数字越大优先级越高）
-// 3. AI 日志的读取在 HTTP 回调中延迟到发送时才读取
+	// ⚠️ 重要提示：插件执行顺序
+	// 如果需要读取 ai-statistics 插件写入的 AI 日志，请确保：
+	// 1. 在 WasmPlugin 资源中，db-log-pusher 的 phase 应该晚于 ai-statistics
+	// 2. 或者在同一 phase 中，db-log-pusher 的 priority 应该低于 ai-statistics（数字越大优先级越高）
+	// 3. AI 日志的读取在 HTTP 回调中延迟到发送时才读取
 func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byte) types.Action {
 	// 1. 组装数据 - 参考 Envoy accessLogFormat 字段
 	reqHeaders, _ := ctx.GetContext("req_headers").([][2]string)
@@ -228,10 +228,10 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 			inputTokens = usage.InputToken
 			outputTokens = usage.OutputToken
 			totalTokens = usage.TotalToken
-			log.Debugf("[http-log-pusher] extracted tokens from response body: input=%d, output=%d, total=%d", 
+			log.Debugf("[db-log-pusher] extracted tokens from response body: input=%d, output=%d, total=%d", 
 				inputTokens, outputTokens, totalTokens)
 		} else {
-			log.Debugf("[http-log-pusher] no token usage found in response body")
+			log.Debugf("[db-log-pusher] no token usage found in response body")
 		}
 	}
 	
@@ -304,14 +304,14 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	}
 
 	// 🔍 调试日志：打印即将存储的所有字段内容
-	log.Infof("[http-log-pusher] === 即将存储的日志内容 ===")
-	log.Infof("[http-log-pusher] 监控元数据: InstanceID=%s, API=%s, Model=%s, Consumer=%s", 
+	log.Debugf("[db-log-pusher] === 即将存储的日志内容 ===")
+	log.Debugf("[db-log-pusher] 监控元数据: InstanceID=%s, API=%s, Model=%s, Consumer=%s", 
 		entry.InstanceID, entry.API, entry.Model, entry.Consumer)
-	log.Infof("[http-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
+	log.Debugf("[db-log-pusher] 路由服务: Route=%s, Service=%s, MCPServer=%s, MCPTool=%s", 
 		entry.Route, entry.Service, entry.MCPServer, entry.MCPTool)
-	log.Infof("[http-log-pusher] Token统计: InputTokens=%d, OutputTokens=%d, TotalTokens=%d", 
+	log.Debugf("[db-log-pusher] Token统计: InputTokens=%d, OutputTokens=%d, TotalTokens=%d", 
 		entry.InputTokens, entry.OutputTokens, entry.TotalTokens)
-	log.Infof("[http-log-pusher] =========================")
+	log.Debugf("[db-log-pusher] =========================")
 
 	aiLogBytes, err := proxywasm.GetProperty([]string{wrapper.AILogKey})
 	if err == nil && len(aiLogBytes) > 0 {
@@ -320,9 +320,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		// 1. 如果开头有双引号，说明是被包裹的字符串，需要先处理掉包裹
 		if strings.HasPrefix(rawStr, "\"") && strings.HasSuffix(rawStr, "\"") {
 			if unquoted, err := strconv.Unquote(rawStr); err == nil {
-				log.Debugf("[http-log-pusher] quoted AI log: %s", rawStr)
+				log.Debugf("[db-log-pusher] quoted AI log: %s", rawStr)
 				rawStr = unquoted
-				log.Debugf("[http-log-pusher] unquoted AI log: %s", rawStr)
+				log.Debugf("[db-log-pusher] unquoted AI log: %s", rawStr)
 			}
 		}
 
@@ -342,9 +342,9 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		// 3. 尝试直接作为 RawMessage。如果是有效的 JSON 内容，Marshal 时会自动处理
 		if json.Valid([]byte(rawStr)) {
 			entry.AILog = json.RawMessage(rawStr)
-			log.Infof("[http-log-pusher] ✅ Successfully parsed AI log")
+			log.Debugf("[db-log-pusher] ✅ Successfully parsed AI log")
 		} else {
-			log.Warnf("[http-log-pusher] AI log is still invalid: %s", rawStr)
+			log.Warnf("[db-log-pusher] AI log is still invalid: %s", rawStr)
 			entry.AILog = json.RawMessage(`{}`)
 		}
 	}
@@ -352,19 +352,19 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 
 	// 2. 发送异步请求给 Collector
 	// 由于 AILog 现在是 json.RawMessage 类型，序列化时会保持原始JSON格式
-	log.Debugf("[http-log-pusher] about to marshal entry, AILog type: %T, AILog content: %s", entry.AILog, string(entry.AILog))
+	log.Debugf("[db-log-pusher] about to marshal entry, AILog type: %T, AILog content: %s", entry.AILog, string(entry.AILog))
 	
 	payload, err := json.Marshal(entry)
 	if err != nil {
-		log.Errorf("[http-log-pusher] failed to marshal log entry: %v", err)
+		log.Errorf("[db-log-pusher] failed to marshal log entry: %v", err)
 		return types.ActionContinue
 	}
 	
-	log.Debugf("[http-log-pusher] marshaled payload length: %d, payload: %s", len(payload), string(payload))
+	log.Debugf("[db-log-pusher] marshaled payload length: %d, payload: %s", len(payload), string(payload))
 	
 	// 检查 payload 是否为空
 	if len(payload) == 0 {
-		log.Errorf("[http-log-pusher] marshaled payload is empty!")
+		log.Errorf("[db-log-pusher] marshaled payload is empty!")
 		return types.ActionContinue
 	}
 	
@@ -376,7 +376,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 	// 获取最终使用的集群名
 	clusterName := config.CollectorClient.ClusterName()
 	
-	log.Infof("[http-log-pusher] sending log: cluster=%s, path=%s, payload_size=%d, payload=%s",
+	log.Debugf("[db-log-pusher] sending log: cluster=%s, path=%s, payload_size=%d, payload=%s",
 		clusterName, config.CollectorPath, len(payload), string(payload))
 
 	// 这里的 5000 是超时时间(ms)
@@ -387,15 +387,15 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		payload,
 		func(statusCode int, responseHeaders http.Header, responseBody []byte) {
 			if statusCode == 200 || statusCode == 204 {
-				log.Infof("[http-log-pusher] log sent successfully, status=%d", statusCode)
+				log.Debugf("[db-log-pusher] log sent successfully, status=%d", statusCode)
 			} else {
-				log.Warnf("[http-log-pusher] collector returned status=%d, body=%s", statusCode, string(responseBody))
+				log.Warnf("[db-log-pusher] collector returned status=%d, body=%s", statusCode, string(responseBody))
 			}
 		},
 		5000, // 超时 5 秒
 	)
 	if postErr != nil {
-		log.Errorf("[http-log-pusher] failed to dispatch http call: %v", postErr)
+		log.Errorf("[db-log-pusher] failed to dispatch http call: %v", postErr)
 	}
 
 	return types.ActionContinue
@@ -481,7 +481,7 @@ func getInstanceID() string {
 	if err == nil && len(podNameBytes) > 0 {
 		podName := string(podNameBytes)
 		if podName != "" {
-			log.Debugf("[http-log-pusher] got instance_id from POD_NAME: %s", podName)
+			log.Debugf("[db-log-pusher] got instance_id from POD_NAME: %s", podName)
 			return podName
 		}
 	}
@@ -489,14 +489,14 @@ func getInstanceID() string {
 	// 2. 从 Envoy 属性获取实例ID
 	instanceID := getEnvoyProperty("instance_id", "")
 	if instanceID != "" {
-		log.Debugf("[http-log-pusher] got instance_id from envoy property: %s", instanceID)
+		log.Debugf("[db-log-pusher] got instance_id from envoy property: %s", instanceID)
 		return instanceID
 	}
 	
 	// 3. 从请求头获取
 	instanceID, _ = proxywasm.GetHttpRequestHeader("x-instance-id")
 	if instanceID != "" {
-		log.Debugf("[http-log-pusher] got instance_id from header: %s", instanceID)
+		log.Debugf("[db-log-pusher] got instance_id from header: %s", instanceID)
 		return instanceID
 	}
 	
@@ -505,12 +505,12 @@ func getInstanceID() string {
 	if err == nil && len(nodeNameBytes) > 0 {
 		nodeName := string(nodeNameBytes)
 		if nodeName != "" {
-			log.Debugf("[http-log-pusher] got instance_id from node.id: %s", nodeName)
+			log.Debugf("[db-log-pusher] got instance_id from node.id: %s", nodeName)
 			return nodeName
 		}
 	}
 	
-	log.Debugf("[http-log-pusher] instance_id not found, using default")
+	log.Debugf("[db-log-pusher] instance_id not found, using default")
 	return ""
 }
 
@@ -529,7 +529,7 @@ func getAPIName(ctx wrapper.HttpContext) string {
 		}
 	}
 	
-	log.Debugf("[http-log-pusher] api_name not determined from route/path")
+	log.Debugf("[db-log-pusher] api_name not determined from route/path")
 	return ""
 }
 
@@ -552,7 +552,7 @@ func getModelName(ctx wrapper.HttpContext) string {
 		}
 	}
 	
-	log.Debugf("[http-log-pusher] model_name not found")
+	log.Debugf("[db-log-pusher] model_name not found")
 	return ""
 }
 
@@ -652,7 +652,7 @@ func getMCPServer() string {
     mcpSessionId, err := proxywasm.GetHttpRequestHeader("mcp-session-id")
     if err == nil && mcpSessionId != "" {
         // 如果存在MCP会话ID，尝试从中解析MCP Server信息
-        log.Debugf("[http-log-pusher] got mcp_session_id: %s", mcpSessionId)
+        log.Debugf("[db-log-pusher] got mcp_session_id: %s", mcpSessionId)
     }
     
     // 从MCP协议版本头部获取
@@ -662,7 +662,7 @@ func getMCPServer() string {
         // 在MCP服务器处理代码中，已经通过 SetProperty 设置了 mcp_server_name
         mcpServerName, err := proxywasm.GetProperty([]string{"mcp_server_name"})
         if err == nil && mcpServerName != nil && len(mcpServerName) > 0 {
-            log.Debugf("[http-log-pusher] got mcp_server from property: %s", string(mcpServerName))
+            log.Debugf("[db-log-pusher] got mcp_server from property: %s", string(mcpServerName))
             return string(mcpServerName)
         }
     }
@@ -670,7 +670,7 @@ func getMCPServer() string {
     // 从MCP特定头部获取
     mcpServerName, err := proxywasm.GetHttpRequestHeader("x-envoy-mcp-server-name")
     if err == nil && mcpServerName != "" {
-        log.Debugf("[http-log-pusher] got mcp_server from x-envoy-mcp-server-name: %s", mcpServerName)
+        log.Debugf("[db-log-pusher] got mcp_server from x-envoy-mcp-server-name: %s", mcpServerName)
         return mcpServerName
     }
     
@@ -685,7 +685,7 @@ func getMCPTool(ctx wrapper.HttpContext) string {
 	// Higress系统通过x-envoy-mcp-tool-name header传递工具名称
 	toolName, err := proxywasm.GetHttpRequestHeader("x-envoy-mcp-tool-name")
 	if err == nil && toolName != "" {
-		log.Debugf("[http-log-pusher] got mcp_tool from header: %s", toolName)
+		log.Debugf("[db-log-pusher] got mcp_tool from header: %s", toolName)
 		return toolName
 	}
 	
@@ -697,7 +697,7 @@ func getMCPTool(ctx wrapper.HttpContext) string {
 			// 尝试从JSON请求体中提取tool name
 			toolNameFromBody := extractToolNameFromJson(bodyStr)
 			if toolNameFromBody != "" {
-				log.Debugf("[http-log-pusher] got mcp_tool from request body: %s", toolNameFromBody)
+				log.Debugf("[db-log-pusher] got mcp_tool from request body: %s", toolNameFromBody)
 				return toolNameFromBody
 			}
 		}
@@ -738,31 +738,31 @@ func getEnvoyPropertyInt64(path string, defaultValue int64) int64 {
 		// 正确的属性路径应该是 response.total_size
 		propertyPath = []string{"response", "total_size"}
 	default:
-		log.Debugf("[http-log-pusher] unknown property path: %s", path)
+		log.Debugf("[db-log-pusher] unknown property path: %s", path)
 		return defaultValue
 	}
 	
 	value, err := proxywasm.GetProperty(propertyPath)
 	if err != nil {
-		log.Debugf("[http-log-pusher] failed to get property %v: %v", propertyPath, err)
+		log.Debugf("[db-log-pusher] failed to get property %v: %v", propertyPath, err)
 		return defaultValue
 	}
 	
 	if len(value) == 0 {
-		log.Debugf("[http-log-pusher] property %v is empty", propertyPath)
+		log.Debugf("[db-log-pusher] property %v is empty", propertyPath)
 		return defaultValue
 	}
 	
 	// Envoy 属性值是 little-endian 格式的 uint64，需要正确解析
 	// 参考：https://github.com/proxy-wasm/spec/tree/master/abi-versions/vNEXT
 	if len(value) != 8 {
-		log.Debugf("[http-log-pusher] property %v has unexpected length: %d", propertyPath, len(value))
+		log.Debugf("[db-log-pusher] property %v has unexpected length: %d", propertyPath, len(value))
 		return defaultValue
 	}
 	
 	// 将 8 字节的 little-endian 数据转换为 int64
 	intValue := int64(binary.LittleEndian.Uint64(value))
-	log.Debugf("[http-log-pusher] got property %v = %d", propertyPath, intValue)
+	log.Debugf("[db-log-pusher] got property %v = %d", propertyPath, intValue)
 	
 	return intValue
 }
@@ -772,25 +772,25 @@ func getResponseTotalSize() int64 {
 	// 首先尝试直接获取 response.total_size
 	size := getEnvoyPropertyInt64("response.total_size", 0)
 	if size > 0 {
-		log.Debugf("[http-log-pusher] got response.total_size directly: %d", size)
+		log.Debugf("[db-log-pusher] got response.total_size directly: %d", size)
 		return size
 	}
 	
 	// 如果为0，尝试从 Content-Length 头获取
 	if contentLengthStr, err := proxywasm.GetHttpResponseHeader("content-length"); err == nil {
 		if contentLength, err := strconv.ParseInt(contentLengthStr, 10, 64); err == nil {
-			log.Debugf("[http-log-pusher] using Content-Length header as fallback: %d", contentLength)
+			log.Debugf("[db-log-pusher] using Content-Length header as fallback: %d", contentLength)
 			return contentLength
 		}
 	}
 	
 	// 检查是否为流式传输
 	if transferEncoding, err := proxywasm.GetHttpResponseHeader("transfer-encoding"); err == nil {
-		log.Debugf("[http-log-pusher] response is using Transfer-Encoding: %s", transferEncoding)
+		log.Debugf("[db-log-pusher] response is using Transfer-Encoding: %s", transferEncoding)
 		// 对于流式传输，可能需要特殊处理
 	}
 	
 	// 最后的兜底方案：返回0并记录警告
-	log.Warnf("[http-log-pusher] unable to determine response size, returning 0")
+	log.Warnf("[db-log-pusher] unable to determine response size, returning 0")
 	return 0
 }

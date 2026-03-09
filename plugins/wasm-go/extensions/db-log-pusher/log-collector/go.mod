@@ -1,4 +1,4 @@
-module tiny-collector
+module db-log-collector
 
 go 1.25.1
 

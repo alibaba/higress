@@ -27,7 +27,7 @@ spec:
         - travel-assistant
       config:
         log_level: info  # 必须在这里配置 log_level
-        collector_host: "log-collector.higress-system.svc.cluster.local"
-        collector_service_name: "log-collector"
+        collector_host: "db-log-collector.higress-system.svc.cluster.local"
+        collector_service_name: "db-log-collector"
         collector_port: 80
         collector_path: "/ingest"

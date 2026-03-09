@@ -3,11 +3,11 @@ FROM golang:1.25-alpine AS builder
 WORKDIR /app
 COPY . .
 # 禁用 CGO 确保静态链接
-RUN CGO_ENABLED=0 GOOS=linux go build -o collector main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o log-collector main.go
 
 # Run Stage
 FROM alpine:latest
 WORKDIR /app
-COPY --from=builder /app/collector .
+COPY --from=builder /app/log-collector .
 EXPOSE 8080
-CMD ["./collector"]
+CMD ["./log-collector"]
