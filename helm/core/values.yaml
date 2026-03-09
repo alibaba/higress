@@ -70,10 +70,14 @@ global:
     #   cpu: 100m
     #   memory: 128Mi
 
-  # -- Default hub for Istio images.
-  # Releases are published to docker hub under 'istio' project.
-  # Dev builds from prow are on gcr.io
-  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress
+  # -- Default hub (registry) for Higress images.
+  # For Higress deployments, images are pulled from: {hub}/higress/{image}
+  # For built-in plugins, images are pulled from: {hub}/{pluginNamespace}/{plugin-name}
+  # Change this to use a mirror registry closer to your deployment region for faster image pulls.
+  hub: higress-registry.cn-hangzhou.cr.aliyuncs.com
+  # -- Namespace for built-in plugin images. Default is "plugins".
+  # Used by higress-console to configure plugin image path.
+  pluginNamespace: "plugins"
 
   # -- Specify image pull policy if default behavior isn't desired.
   # Default behavior: latest images will be Always else IfNotPresent.
