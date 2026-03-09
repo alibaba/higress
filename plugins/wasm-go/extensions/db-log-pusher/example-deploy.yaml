@@ -4,7 +4,7 @@ metadata:
   name: db-log-collector-plugin
   namespace: higress-system
   annotations:
-    higress.io/redeploy-timestamp: "20260302-112646"
+    higress.io/redeploy-timestamp: "20260309-122804"
     higress.io/comment: "DB Log Collector Plugin for collecting request logs"
     higress.io/wasm-plugin-title: "DB Log Collector"
     higress.io/wasm-plugin-description: "Collect HTTP request logs to database"
@@ -12,7 +12,7 @@ metadata:
     higress.io/wasm-plugin-name: db-log-collector
     higress.io/wasm-plugin-category: logging
 spec:
-  url: https://pysrc-test.oss-cn-beijing.aliyuncs.com/higress-plugin/plugin-20260302-112646.wasm
+  url: https://pysrc-test.oss-cn-beijing.aliyuncs.com/higress-plugin/plugin-20260309-122804.wasm
   sha256: ""  # 建议填入WASM文件的SHA256校验和
   defaultConfigDisable: true  # 默认关闭全局配置
   failStrategy: FAIL_OPEN      # 失败时放行，避免影响业务
