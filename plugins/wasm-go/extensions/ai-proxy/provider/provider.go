@@ -354,6 +354,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock 额外模型请求参数
 	// @Description zh-CN 仅适用于Amazon Bedrock服务，用于设置模型特定的推理参数
 	bedrockAdditionalFields map[string]interface{} `required:"false" yaml:"bedrockAdditionalFields" json:"bedrockAdditionalFields"`
+	// @Title zh-CN Amazon Bedrock Prompt CachePoint 插入位置
+	// @Description zh-CN 仅适用于Amazon Bedrock服务。用于配置 cachePoint 插入位置，支持多选：systemPrompt、lastUserMessage、lastMessage。值为 true 表示启用该位置。
+	bedrockPromptCachePointPositions map[string]bool `required:"false" yaml:"bedrockPromptCachePointPositions" json:"bedrockPromptCachePointPositions"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -551,6 +554,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.bedrockAdditionalFields = make(map[string]interface{})
 		for k, v := range json.Get("bedrockAdditionalFields").Map() {
 			c.bedrockAdditionalFields[k] = v.Value()
+		}
+		if rawPositions := json.Get("bedrockPromptCachePointPositions"); rawPositions.Exists() {
+			c.bedrockPromptCachePointPositions = make(map[string]bool)
+			for k, v := range rawPositions.Map() {
+				c.bedrockPromptCachePointPositions[k] = v.Bool()
+			}
 		}
 	}
 	c.minimaxApiType = json.Get("minimaxApiType").String()

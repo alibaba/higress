@@ -116,6 +116,23 @@ var bedrockApiTokenConfig = func() json.RawMessage {
 	return data
 }()
 
+func bedrockApiTokenConfigWithCachePointPositions(positions map[string]bool) json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type": "bedrock",
+			"apiTokens": []string{
+				"test-token-for-unit-test",
+			},
+			"awsRegion": "us-east-1",
+			"modelMapping": map[string]string{
+				"*": "anthropic.claude-3-5-haiku-20241022-v1:0",
+			},
+			"bedrockPromptCachePointPositions": positions,
+		},
+	})
+	return data
+}
+
 // Test config: Bedrock config with multiple Bearer Tokens
 var bedrockMultiTokenConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -373,7 +390,7 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.Contains(t, pathValue, "/converse", "Path should contain converse endpoint")
 		})
 
-		t.Run("bedrock request body prompt cache in_memory should inject dual cache points", func(t *testing.T) {
+		t.Run("bedrock request body prompt cache in_memory should inject system cache point only by default", func(t *testing.T) {
 			host, status := test.NewTestHost(bedrockApiTokenConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
@@ -429,15 +446,12 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.NotEmpty(t, messages, "messages should not be empty")
 			lastMessage := messages[len(messages)-1].(map[string]interface{})
 			lastMessageContent := lastMessage["content"].([]interface{})
-			require.NotEmpty(t, lastMessageContent, "last message content should not be empty")
-			messageCachePointBlock := lastMessageContent[len(lastMessageContent)-1].(map[string]interface{})
-			messageCachePoint, ok := messageCachePointBlock["cachePoint"].(map[string]interface{})
-			require.True(t, ok, "last message tail block should contain cachePoint")
-			require.Equal(t, "default", messageCachePoint["type"])
-			require.Equal(t, "5m", messageCachePoint["ttl"])
+			require.Len(t, lastMessageContent, 1, "last message should keep original content only by default")
+			_, hasMessageCachePoint := lastMessageContent[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasMessageCachePoint, "last message should not include cachePoint by default")
 		})
 
-		t.Run("bedrock request body prompt cache 24h should map to 1h ttl", func(t *testing.T) {
+		t.Run("bedrock request body prompt cache 24h should map to 1h ttl on system cache point by default", func(t *testing.T) {
 			host, status := test.NewTestHost(bedrockApiTokenConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
@@ -482,9 +496,119 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			messages := bodyMap["messages"].([]interface{})
 			lastMessage := messages[len(messages)-1].(map[string]interface{})
 			lastMessageContent := lastMessage["content"].([]interface{})
-			messageCachePointBlock := lastMessageContent[len(lastMessageContent)-1].(map[string]interface{})
-			messageCachePoint := messageCachePointBlock["cachePoint"].(map[string]interface{})
-			require.Equal(t, "1h", messageCachePoint["ttl"])
+			require.Len(t, lastMessageContent, 1, "last message should keep original content only by default")
+			_, hasMessageCachePoint := lastMessageContent[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasMessageCachePoint, "last message should not include cachePoint by default")
+		})
+
+		t.Run("bedrock request body prompt cache should insert cache points based on configured positions", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfigWithCachePointPositions(map[string]bool{
+				"systemPrompt":    true,
+				"lastUserMessage": true,
+				"lastMessage":     false,
+			}))
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "in_memory",
+				"messages": [
+					{
+						"role": "system",
+						"content": "You are a helpful assistant."
+					},
+					{
+						"role": "user",
+						"content": "Question from user"
+					},
+					{
+						"role": "assistant",
+						"content": "Previous assistant answer"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			systemBlocks := bodyMap["system"].([]interface{})
+			require.Len(t, systemBlocks, 2, "system should include cachePoint due to systemPrompt=true")
+			systemCachePoint := systemBlocks[len(systemBlocks)-1].(map[string]interface{})["cachePoint"].(map[string]interface{})
+			require.Equal(t, "5m", systemCachePoint["ttl"])
+
+			messages := bodyMap["messages"].([]interface{})
+			require.Len(t, messages, 2, "system message should not be in messages array")
+
+			lastUserMessageContent := messages[0].(map[string]interface{})["content"].([]interface{})
+			require.Len(t, lastUserMessageContent, 2, "last user message should include one cachePoint")
+			lastUserMessageCachePoint := lastUserMessageContent[len(lastUserMessageContent)-1].(map[string]interface{})["cachePoint"].(map[string]interface{})
+			require.Equal(t, "5m", lastUserMessageCachePoint["ttl"])
+
+			lastMessageContent := messages[1].(map[string]interface{})["content"].([]interface{})
+			require.Len(t, lastMessageContent, 1, "last message should not include cachePoint when lastMessage=false")
+		})
+
+		t.Run("bedrock request body prompt cache should avoid duplicate insertion when lastUserMessage and lastMessage overlap", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfigWithCachePointPositions(map[string]bool{
+				"systemPrompt":    false,
+				"lastUserMessage": true,
+				"lastMessage":     true,
+			}))
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "in_memory",
+				"messages": [
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			_, hasSystem := bodyMap["system"]
+			require.False(t, hasSystem, "system should not include cachePoint when systemPrompt=false and no system messages")
+
+			messages := bodyMap["messages"].([]interface{})
+			require.Len(t, messages, 1, "only one message should exist")
+			messageContent := messages[0].(map[string]interface{})["content"].([]interface{})
+			require.Len(t, messageContent, 2, "overlap positions should still insert only one cachePoint")
+			cachePoint := messageContent[len(messageContent)-1].(map[string]interface{})["cachePoint"].(map[string]interface{})
+			require.Equal(t, "5m", cachePoint["ttl"])
 		})
 
 		t.Run("bedrock request body with empty prompt cache retention should not inject cache points", func(t *testing.T) {
@@ -587,7 +711,7 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.False(t, hasMessageCachePoint, "message block should not include cachePoint when retention is unsupported")
 		})
 
-		t.Run("bedrock request body without system should only inject cache point in messages", func(t *testing.T) {
+		t.Run("bedrock request body without system should not inject cache point by default", func(t *testing.T) {
 			host, status := test.NewTestHost(bedrockApiTokenConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
@@ -627,11 +751,9 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.Len(t, messages, 1, "messages should keep original one user message")
 			lastMessage := messages[0].(map[string]interface{})
 			lastMessageContent := lastMessage["content"].([]interface{})
-			require.Len(t, lastMessageContent, 2, "message should contain text block and cachePoint block")
-			messageCachePointBlock := lastMessageContent[len(lastMessageContent)-1].(map[string]interface{})
-			messageCachePoint := messageCachePointBlock["cachePoint"].(map[string]interface{})
-			require.Equal(t, "default", messageCachePoint["type"])
-			require.Equal(t, "5m", messageCachePoint["ttl"])
+			require.Len(t, lastMessageContent, 1, "message should keep original text block only by default")
+			_, hasMessageCachePoint := lastMessageContent[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasMessageCachePoint, "message should not include cachePoint by default")
 		})
 
 		// Test Bedrock request body processing with AWS Signature V4 authentication

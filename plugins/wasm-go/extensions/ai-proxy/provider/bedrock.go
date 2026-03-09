@@ -41,6 +41,10 @@ const (
 	bedrockCacheTypeDefault = "default"
 	bedrockCacheTTL5m       = "5m"
 	bedrockCacheTTL1h       = "1h"
+
+	bedrockCachePointPositionSystemPrompt    = "systemPrompt"
+	bedrockCachePointPositionLastUserMessage = "lastUserMessage"
+	bedrockCachePointPositionLastMessage     = "lastMessage"
 )
 
 var (
@@ -839,7 +843,7 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		log.Warnf("bedrock provider ignores prompt_cache_key because Converse API has no equivalent field")
 	}
 	if cacheTTL, ok := mapPromptCacheRetentionToBedrockTTL(origRequest.PromptCacheRetention); ok {
-		addPromptCachePointsToBedrockRequest(request, cacheTTL)
+		addPromptCachePointsToBedrockRequest(request, cacheTTL, b.getPromptCachePointPositions())
 	}
 
 	if origRequest.ReasoningEffort != "" {
@@ -991,8 +995,48 @@ func mapPromptCacheRetentionToBedrockTTL(retention string) (string, bool) {
 	}
 }
 
-func addPromptCachePointsToBedrockRequest(request *bedrockTextGenRequest, cacheTTL string) {
-	if len(request.System) > 0 {
+func (b *bedrockProvider) getPromptCachePointPositions() map[string]bool {
+	if b.config.bedrockPromptCachePointPositions == nil {
+		return map[string]bool{
+			bedrockCachePointPositionSystemPrompt: true,
+			bedrockCachePointPositionLastMessage:  false,
+		}
+	}
+	positions := map[string]bool{
+		bedrockCachePointPositionSystemPrompt:    false,
+		bedrockCachePointPositionLastUserMessage: false,
+		bedrockCachePointPositionLastMessage:     false,
+	}
+	for rawKey, enabled := range b.config.bedrockPromptCachePointPositions {
+		key := normalizeBedrockCachePointPosition(rawKey)
+		switch key {
+		case bedrockCachePointPositionSystemPrompt, bedrockCachePointPositionLastUserMessage, bedrockCachePointPositionLastMessage:
+			positions[key] = enabled
+		default:
+			log.Warnf("unsupported bedrockPromptCachePointPositions key: %s", rawKey)
+		}
+	}
+	return positions
+}
+
+func normalizeBedrockCachePointPosition(raw string) string {
+	key := strings.ToLower(raw)
+	key = strings.ReplaceAll(key, "_", "")
+	key = strings.ReplaceAll(key, "-", "")
+	switch key {
+	case "systemprompt":
+		return bedrockCachePointPositionSystemPrompt
+	case "lastusermessage":
+		return bedrockCachePointPositionLastUserMessage
+	case "lastmessage":
+		return bedrockCachePointPositionLastMessage
+	default:
+		return raw
+	}
+}
+
+func addPromptCachePointsToBedrockRequest(request *bedrockTextGenRequest, cacheTTL string, positions map[string]bool) {
+	if positions[bedrockCachePointPositionSystemPrompt] && len(request.System) > 0 {
 		request.System = append(request.System, systemContentBlock{
 			CachePoint: &bedrockCachePoint{
 				Type: bedrockCacheTypeDefault,
@@ -1001,15 +1045,37 @@ func addPromptCachePointsToBedrockRequest(request *bedrockTextGenRequest, cacheT
 		})
 	}
 
-	if len(request.Messages) > 0 {
-		lastMessageIndex := len(request.Messages) - 1
-		request.Messages[lastMessageIndex].Content = append(request.Messages[lastMessageIndex].Content, bedrockMessageContent{
-			CachePoint: &bedrockCachePoint{
-				Type: bedrockCacheTypeDefault,
-				TTL:  cacheTTL,
-			},
-		})
+	lastUserMessageIndex := -1
+	if positions[bedrockCachePointPositionLastUserMessage] {
+		lastUserMessageIndex = findLastMessageIndexByRole(request.Messages, roleUser)
+		if lastUserMessageIndex >= 0 {
+			appendCachePointToBedrockMessage(request, lastUserMessageIndex, cacheTTL)
+		}
 	}
+	if positions[bedrockCachePointPositionLastMessage] && len(request.Messages) > 0 {
+		lastMessageIndex := len(request.Messages) - 1
+		if lastMessageIndex != lastUserMessageIndex {
+			appendCachePointToBedrockMessage(request, lastMessageIndex, cacheTTL)
+		}
+	}
+}
+
+func findLastMessageIndexByRole(messages []bedrockMessage, role string) int {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == role {
+			return i
+		}
+	}
+	return -1
+}
+
+func appendCachePointToBedrockMessage(request *bedrockTextGenRequest, messageIndex int, cacheTTL string) {
+	request.Messages[messageIndex].Content = append(request.Messages[messageIndex].Content, bedrockMessageContent{
+		CachePoint: &bedrockCachePoint{
+			Type: bedrockCacheTypeDefault,
+			TTL:  cacheTTL,
+		},
+	})
 }
 
 func buildPromptTokensDetails(cacheReadInputTokens int) *promptTokensDetails {
