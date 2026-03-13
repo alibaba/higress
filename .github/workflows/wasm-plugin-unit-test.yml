@@ -39,20 +39,20 @@ jobs:
     - name: Detect changed plugins
       id: detect
       run: |
-        # 获取变更的文件列表
+        # 获取变更的文件列�?
         if [ "${{ github.event_name }}" = "pull_request" ]; then
-          # PR模式：比较目标分支和源分支
+          # PR模式：比较目标分支和源分�?
           git fetch origin ${{ github.base_ref }}
           CHANGED_FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
         else
-          # Push模式：比较当前提交和上一个提交
+          # Push模式：比较当前提交和上一个提�?
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
         fi
         
         echo "Changed files:"
         echo "$CHANGED_FILES"
         
-        # 提取变更的插件名称
+        # 提取变更的插件名�?
         CHANGED_PLUGINS=""
         for file in $CHANGED_FILES; do
           if [[ $file =~ ^plugins/wasm-go/extensions/([^/]+)/ ]]; then
@@ -102,7 +102,7 @@ jobs:
     - name: Set up Go 1.24
       uses: actions/setup-go@v4
       with:
-        go-version: 1.24
+        go-version: '1.25.x'
         cache: true
         
     - name: Install test tools
@@ -120,19 +120,19 @@ jobs:
         export GOOS=wasip1
         export GOARCH=wasm
         
-        # 构建WASM文件，失败时直接退出
+        # 构建WASM文件，失败时直接退�?
         if ! go build -buildmode=c-shared -o main.wasm ./; then
-          echo "❌ WASM build failed for ${{ matrix.plugin }}"
+          echo "�?WASM build failed for ${{ matrix.plugin }}"
           exit 1
         fi
         
         # 验证WASM文件是否生成
         if [ ! -f "main.wasm" ]; then
-          echo "❌ WASM file not generated for ${{ matrix.plugin }}"
+          echo "�?WASM file not generated for ${{ matrix.plugin }}"
           exit 1
         fi
         
-        echo "✅ WASM build successful for ${{ matrix.plugin }}"
+        echo "�?WASM build successful for ${{ matrix.plugin }}"
 
         
     - name: Set WASM_PATH environment variable
@@ -152,7 +152,7 @@ jobs:
                    --jsonfile ../../../../test-output-${{ matrix.plugin }}.json \
                    -- -coverprofile=coverage-${{ matrix.plugin }}.out -covermode=atomic -coverpkg=./... ./...
           
-          echo "✅ Tests completed for ${{ matrix.plugin }}"
+          echo "�?Tests completed for ${{ matrix.plugin }}"
         else
           echo "No tests found for ${{ matrix.plugin }}, skipping..."
           # 创建空的测试结果文件
@@ -202,7 +202,7 @@ jobs:
     - name: Set up Go 1.24
       uses: actions/setup-go@v4
       with:
-        go-version: 1.24
+        go-version: '1.25.x'
         cache: true
         
     - name: Install required tools
@@ -248,7 +248,7 @@ jobs:
             
             # 解析XML获取测试结果
             if grep -q '<testsuite' "$result_file"; then
-              # 使用grep解析XML属性，更稳定可靠
+              # 使用grep解析XML属性，更稳定可�?
               tests=$(grep -o 'tests="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
               failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
               errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
@@ -259,16 +259,16 @@ jobs:
               failures=${failures:-0}
               errors=${errors:-0}
               
-              # 转换为整数进行算术运算
+              # 转换为整数进行算术运�?
               total_tests=$((total_tests + tests))
               total_failures=$((total_failures + failures))
               total_errors=$((total_errors + errors))
               
               if [ "$failures" = "0" ] && [ "$errors" = "0" ]; then
-                echo "✅ **$plugin_name**: $tests tests passed in ${time}s" >> $GITHUB_STEP_SUMMARY
+                echo "�?**$plugin_name**: $tests tests passed in ${time}s" >> $GITHUB_STEP_SUMMARY
                 passed_plugins=$((passed_plugins + 1))
               else
-                echo "❌ **$plugin_name**: $tests tests, $failures failures, $errors errors in ${time}s" >> $GITHUB_STEP_SUMMARY
+                echo "�?**$plugin_name**: $tests tests, $failures failures, $errors errors in ${time}s" >> $GITHUB_STEP_SUMMARY
                 failed_plugins=$((failed_plugins + 1))
               fi
             else
@@ -281,10 +281,10 @@ jobs:
         echo "### 📈 Coverage Report" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
-        # 覆盖率门禁检查
+        # 覆盖率门禁检�?
         coverage_failed=false
         
-        # 解析覆盖率文件 - 使用find命令查找覆盖率文件
+        # 解析覆盖率文�?- 使用find命令查找覆盖率文�?
         coverage_files=$(find ${{ github.workspace }} -name "coverage-*.out")
         
         if [ -n "$coverage_files" ]; then
@@ -296,12 +296,12 @@ jobs:
           if [ -f "$coverage_file" ]; then
             plugin_name=$(basename "$coverage_file" | sed 's/coverage-\(.*\)\.out/\1/')
             
-            # 将覆盖率文件复制到对应插件目录，避免go tool cover的模块依赖问题
+            # 将覆盖率文件复制到对应插件目录，避免go tool cover的模块依赖问�?
             echo "Processing coverage file: $coverage_file"
             
-            # 检查覆盖率文件是否存在且非空
+            # 检查覆盖率文件是否存在且非�?
             if [ -s "$coverage_file" ]; then
-              # 将覆盖率文件复制到对应插件目录
+              # 将覆盖率文件复制到对应插件目�?
               plugin_dir="plugins/wasm-go/extensions/$plugin_name"
               if [ -d "$plugin_dir" ]; then
                 cp "$coverage_file" "$plugin_dir/"
@@ -311,7 +311,7 @@ jobs:
                 coverage_stats=$(go tool cover -func="$(basename "$coverage_file")" 2>&1 | tail -1)
                 cd - > /dev/null
                 
-                # 清理复制的文件
+                # 清理复制的文�?
                 rm -f "$plugin_dir/$(basename "$coverage_file")"
               else
                 echo "Plugin directory not found: $plugin_dir"
@@ -324,7 +324,7 @@ jobs:
                 # 提取覆盖率百分比
                 coverage_percent=$(echo "$coverage_stats" | grep -o '[0-9.]*%' | head -1 | sed 's/%//')
                 
-                # 确保数值有效
+                # 确保数值有�?
                 coverage_percent=${coverage_percent:-0}
                 
                 if (( $(echo "$coverage_percent > 0" | bc -l) )); then
@@ -342,16 +342,16 @@ jobs:
                   
                   # 检查覆盖率门禁
                   if (( $(echo "$coverage_percent < 30" | bc -l) )); then
-                    echo "❌ **$plugin_name**: Coverage below 30% threshold!" >> $GITHUB_STEP_SUMMARY
+                    echo "�?**$plugin_name**: Coverage below 30% threshold!" >> $GITHUB_STEP_SUMMARY
                   fi
                 else
-                  echo "⚪ **$plugin_name**: No statements to cover" >> $GITHUB_STEP_SUMMARY
+                  echo "�?**$plugin_name**: No statements to cover" >> $GITHUB_STEP_SUMMARY
                 fi
               else
-                echo "⚪ **$plugin_name**: Coverage data unavailable" >> $GITHUB_STEP_SUMMARY
+                echo "�?**$plugin_name**: Coverage data unavailable" >> $GITHUB_STEP_SUMMARY
               fi
             else
-              echo "⚪ **$plugin_name**: Coverage file is empty or invalid" >> $GITHUB_STEP_SUMMARY
+              echo "�?**$plugin_name**: Coverage file is empty or invalid" >> $GITHUB_STEP_SUMMARY
             fi
           fi
         done
@@ -361,9 +361,9 @@ jobs:
         echo "🔗 **This Commit Coverage**: https://codecov.io/gh/${{ github.repository }}/commit/${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
-        # 覆盖率门禁检查
+        # 覆盖率门禁检�?
         if [ "$coverage_failed" = true ]; then
-          echo "### ❌ Coverage Gate Failed" >> $GITHUB_STEP_SUMMARY
+          echo "### �?Coverage Gate Failed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🚫 **Coverage threshold not met**: Some plugins have coverage below 30%" >> $GITHUB_STEP_SUMMARY
           echo "📋 **Please improve test coverage before merging this PR**" >> $GITHUB_STEP_SUMMARY
@@ -373,7 +373,7 @@ jobs:
           echo "Coverage gate failed - some plugins below 30% threshold"
           exit 1
         else
-          echo "### ✅ Coverage Gate Passed" >> $GITHUB_STEP_SUMMARY
+          echo "### �?Coverage Gate Passed" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🎉 **All plugins meet the 30% coverage threshold**" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -381,8 +381,8 @@ jobs:
         
         echo "### 🎯 Summary" >> $GITHUB_STEP_SUMMARY
         echo "- **Total plugins**: $total_plugins" >> $GITHUB_STEP_SUMMARY
-        echo "- **Passed**: $passed_plugins ✅" >> $GITHUB_STEP_SUMMARY
-        echo "- **Failed**: $failed_plugins ❌" >> $GITHUB_STEP_SUMMARY
+        echo "- **Passed**: $passed_plugins �? >> $GITHUB_STEP_SUMMARY
+        echo "- **Failed**: $failed_plugins �? >> $GITHUB_STEP_SUMMARY
         echo "- **Total tests**: $total_tests" >> $GITHUB_STEP_SUMMARY
         echo "- **Total failures**: $total_failures" >> $GITHUB_STEP_SUMMARY
         echo "- **Total errors**: $total_errors" >> $GITHUB_STEP_SUMMARY
@@ -390,7 +390,7 @@ jobs:
         # 如果有失败，显示详细信息
         if [ $total_failures -gt 0 ] || [ $total_errors -gt 0 ]; then
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ❌ Failed Tests Details" >> $GITHUB_STEP_SUMMARY
+          echo "### �?Failed Tests Details" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Failed plugins**: $failed_plugins" >> $GITHUB_STEP_SUMMARY
           echo "**Total failures**: $total_failures" >> $GITHUB_STEP_SUMMARY
@@ -399,7 +399,7 @@ jobs:
           echo "📋 **View detailed logs**: [Click here](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          # 显示每个失败插件的详细信息
+          # 显示每个失败插件的详细信�?
           echo "#### 📊 Failed Plugin Details" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
@@ -411,7 +411,7 @@ jobs:
               failures=$(grep -o 'failures="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
               errors=$(grep -o 'errors="[0-9]*"' "$result_file" | head -1 | grep -o '[0-9]*' || echo "0")
               
-              # 确保数值有效
+              # 确保数值有�?
               failures=${failures:-0}
               errors=${errors:-0}
               
