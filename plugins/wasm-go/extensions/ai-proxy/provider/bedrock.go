@@ -1372,42 +1372,9 @@ func encodeSigV4Path(path string) string {
 		if seg == "" {
 			continue
 		}
-		// Normalize to "single-encoded" form:
-		// - raw ":" -> %3A
-		// - already encoded "%3A" -> still %3A (not %253A)
-		decoded, err := url.PathUnescape(seg)
-		if err == nil {
-			segments[i] = sigV4EscapePathSegment(decoded)
-		} else {
-			// If segment has invalid escape sequence, fall back to escaping raw segment.
-			segments[i] = sigV4EscapePathSegment(seg)
-		}
+		segments[i] = url.PathEscape(seg)
 	}
 	return strings.Join(segments, "/")
-}
-
-func sigV4EscapePathSegment(segment string) string {
-	const upperHex = "0123456789ABCDEF"
-	var b strings.Builder
-	b.Grow(len(segment) * 3)
-	for i := 0; i < len(segment); i++ {
-		c := segment[i]
-		if isSigV4Unreserved(c) {
-			b.WriteByte(c)
-			continue
-		}
-		b.WriteByte('%')
-		b.WriteByte(upperHex[c>>4])
-		b.WriteByte(upperHex[c&0x0F])
-	}
-	return b.String()
-}
-
-func isSigV4Unreserved(c byte) bool {
-	return (c >= 'A' && c <= 'Z') ||
-		(c >= 'a' && c <= 'z') ||
-		(c >= '0' && c <= '9') ||
-		c == '-' || c == '_' || c == '.' || c == '~'
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {

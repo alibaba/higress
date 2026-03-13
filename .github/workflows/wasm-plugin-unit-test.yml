@@ -207,7 +207,6 @@ jobs:
         
     - name: Install required tools
       run: |
-        go install github.com/wadey/gocovmerge@latest
         sudo apt-get update && sudo apt-get install -y bc
         
     - name: Download all test results
