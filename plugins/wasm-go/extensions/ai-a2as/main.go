@@ -55,7 +55,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, globalConfig A2ASConfig, body []
 		log.Debugf("[A2AS] Request from consumer: %s", consumer)
 	}
 
-	config := globalConfig.MergeConsumerConfig(consumer)
+	config := MergeConsumerConfig(globalConfig, globalConfig.ConsumerConfigs[consumer])
 
 	if !isChatCompletionRequest(body) {
 		log.Debugf("[A2AS] Not a chat completion request, skipping A2AS processing")
