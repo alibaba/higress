@@ -691,7 +691,7 @@ func RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t *testing.T) {
 
 func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
-		// 测试 Vertex Express Mode 流式响应处理
+		// 测试 Vertex Express Mode 流式响应处理：最后一个 chunk 不应丢失
 		t.Run("vertex express mode streaming response body", func(t *testing.T) {
 			host, status := test.NewTestHost(vertexExpressModeConfig)
 			defer host.Reset()
@@ -709,6 +709,9 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
 			host.CallOnHttpRequestBody([]byte(requestBody))
 
+			// 设置响应属性，确保IsResponseFromUpstream()返回true
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
 			// 设置流式响应头
 			responseHeaders := [][2]string{
 				{":status", "200"},
@@ -717,8 +720,8 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			host.CallOnHttpResponseHeaders(responseHeaders)
 
 			// 模拟流式响应体
-			chunk1 := `data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],"role":"model"},"finishReason":"","index":0}],"usageMetadata":{"promptTokenCount":9,"candidatesTokenCount":5,"totalTokenCount":14}}`
-			chunk2 := `data: {"candidates":[{"content":{"parts":[{"text":"Hello! How can I help you today?"}],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":9,"candidatesTokenCount":12,"totalTokenCount":21}}`
+			chunk1 := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}],\"role\":\"model\"},\"finishReason\":\"\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":9,\"candidatesTokenCount\":5,\"totalTokenCount\":14}}\n\n"
+			chunk2 := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello! How can I help you today?\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":9,\"candidatesTokenCount\":12,\"totalTokenCount\":21}}\n\n"
 
 			// 处理流式响应体
 			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunk1), false)
@@ -727,16 +730,128 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunk2), true)
 			require.Equal(t, types.ActionContinue, action2)
 
-			// 验证流式响应处理
+			// 验证最后一个 chunk 的内容不会被 [DONE] 覆盖
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "Hello! How can I help you today?", "last chunk content should be preserved")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
+		})
+
+		// 测试 Vertex Express Mode 流式响应处理：单个 SSE 事件被拆包时可正确重组
+		t.Run("vertex express mode streaming response body with split sse event", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// 设置响应属性，确保IsResponseFromUpstream()返回true
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			fullEvent := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"split chunk\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":2,\"totalTokenCount\":3}}\n\n"
+			splitIdx := strings.Index(fullEvent, "chunk")
+			require.Greater(t, splitIdx, 0, "split marker should exist in test payload")
+			chunkPart1 := fullEvent[:splitIdx]
+			chunkPart2 := fullEvent[splitIdx:]
+
+			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart1), false)
+			require.Equal(t, types.ActionContinue, action1)
+			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart2), true)
+			require.Equal(t, types.ActionContinue, action2)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "split chunk", "split SSE event should be reassembled and parsed")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
+		})
+
+		// 测试：上游已发送 [DONE]，框架再触发空的最后回调时不应重复输出 [DONE]
+		t.Run("vertex express mode streaming response body with upstream done and empty final callback", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			})
+
+			doneChunk := "data: [DONE]\n\n"
+			action1 := host.CallOnHttpStreamingResponseBody([]byte(doneChunk), false)
+			require.Equal(t, types.ActionContinue, action1)
+			firstBody := host.GetResponseBody()
+			require.NotNil(t, firstBody)
+			require.Contains(t, string(firstBody), "data: [DONE]", "first callback should output [DONE]")
+
+			action2 := host.CallOnHttpStreamingResponseBody([]byte{}, true)
+			require.Equal(t, types.ActionContinue, action2)
+
 			debugLogs := host.GetDebugLogs()
-			hasStreamingLogs := false
+			doneChunkLogCount := 0
 			for _, log := range debugLogs {
-				if strings.Contains(log, "streaming") || strings.Contains(log, "chunk") || strings.Contains(log, "vertex") {
-					hasStreamingLogs = true
-					break
+				if strings.Contains(log, "=== modified response chunk: data: [DONE]") {
+					doneChunkLogCount++
 				}
 			}
-			require.True(t, hasStreamingLogs, "Should have streaming response processing logs")
+			require.Equal(t, 1, doneChunkLogCount, "[DONE] should only be emitted once when upstream already sent it")
+		})
+
+		// 测试：最后一个 chunk 缺少 SSE 结束空行时，isLastChunk=true 也应正确解析并输出
+		t.Run("vertex express mode streaming response body last chunk without terminator", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			})
+
+			lastChunkWithoutTerminator := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"no terminator\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":2,\"candidatesTokenCount\":3,\"totalTokenCount\":5}}"
+			action := host.CallOnHttpStreamingResponseBody([]byte(lastChunkWithoutTerminator), true)
+			require.Equal(t, types.ActionContinue, action)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "no terminator", "last chunk without terminator should still be parsed")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
 		})
 	})
 }
