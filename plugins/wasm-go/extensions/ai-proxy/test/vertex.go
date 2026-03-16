@@ -819,8 +819,14 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 
 			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart1), false)
 			require.Equal(t, types.ActionContinue, action1)
+			firstBody := host.GetResponseBody()
+			require.Equal(t, 0, len(firstBody), "partial chunk should not be forwarded to client")
+
 			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart2), false)
 			require.Equal(t, types.ActionContinue, action2)
+			secondBody := host.GetResponseBody()
+			require.Equal(t, 0, len(secondBody), "partial chunk should not be forwarded to client")
+
 			action3 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart3), true)
 			require.Equal(t, types.ActionContinue, action3)
 

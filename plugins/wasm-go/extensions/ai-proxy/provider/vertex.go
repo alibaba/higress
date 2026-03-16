@@ -682,7 +682,9 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 	ctx.SetContext(contextVertexStreamDoneMarker, doneSent)
 	modifiedResponseChunk := responseBuilder.String()
 	if modifiedResponseChunk == "" {
-		return nil, nil
+		// Returning an empty payload prevents main.go from falling back to
+		// forwarding the original raw chunk, which may contain partial JSON.
+		return []byte(""), nil
 	}
 	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
 	return []byte(modifiedResponseChunk), nil
