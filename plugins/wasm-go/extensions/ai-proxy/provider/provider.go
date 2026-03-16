@@ -462,6 +462,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 智谱AI Code Plan 模式
 	// @Description zh-CN 仅适用于智谱AI服务。启用后将使用 /api/coding/paas/v4/chat/completions 接口
 	zhipuCodePlanMode bool `required:"false" yaml:"zhipuCodePlanMode" json:"zhipuCodePlanMode"`
+	// @Title zh-CN 合并连续同角色消息
+	// @Description zh-CN 开启后，若请求的 messages 中存在连续的同角色消息（如连续两条 user 消息），将其内容合并为一条，以满足要求严格轮流交替（user→assistant→user→...）的模型服务商的要求。
+	mergeConsecutiveMessages bool `required:"false" yaml:"mergeConsecutiveMessages" json:"mergeConsecutiveMessages"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -681,6 +684,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.contextCleanupCommands = append(c.contextCleanupCommands, cmd.String())
 		}
 	}
+	c.mergeConsecutiveMessages = json.Get("mergeConsecutiveMessages").Bool()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -1117,6 +1121,17 @@ func (c *ProviderConfig) handleRequestBody(
 			log.Warnf("[contextCleanup] failed to cleanup context messages: %v", err)
 			// Continue processing even if cleanup fails
 			err = nil
+		}
+	}
+
+	// merge consecutive same-role messages for providers that require strict role alternation
+	if apiName == ApiNameChatCompletion && c.mergeConsecutiveMessages {
+		body, err = mergeConsecutiveMessages(body)
+		if err != nil {
+			log.Warnf("[mergeConsecutiveMessages] failed to merge messages: %v", err)
+			err = nil
+		} else {
+			log.Debugf("[mergeConsecutiveMessages] merged consecutive messages for provider: %s", c.typ)
 		}
 	}
 
