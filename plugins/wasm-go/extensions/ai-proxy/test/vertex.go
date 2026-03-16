@@ -781,6 +781,66 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
 		})
 
+		// 测试：thoughtSignature 很大时，单个 SSE 事件被拆成多段也能重组并成功解析
+		t.Run("vertex express mode streaming response body with huge thought signature split across chunks", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			})
+
+			hugeThoughtSignature := strings.Repeat("CmMBjz1rX4j+TQjtDy2rZxSdYOE1jUqDbRhWetraLlQNrkyaRNQZ/", 180)
+			fullEvent := "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"thought-signature-merge-ok\",\"thoughtSignature\":\"" +
+				hugeThoughtSignature +
+				"\"}]},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":28,\"candidatesTokenCount\":3589,\"totalTokenCount\":5240,\"thoughtsTokenCount\":1623}}\n\n"
+
+			signatureStart := strings.Index(fullEvent, "\"thoughtSignature\":\"")
+			require.Greater(t, signatureStart, 0, "thoughtSignature field should exist in test payload")
+			splitAt1 := signatureStart + len("\"thoughtSignature\":\"") + 700
+			splitAt2 := splitAt1 + 1600
+			require.Less(t, splitAt2, len(fullEvent)-1, "split indexes should keep payload in three chunks")
+
+			chunkPart1 := fullEvent[:splitAt1]
+			chunkPart2 := fullEvent[splitAt1:splitAt2]
+			chunkPart3 := fullEvent[splitAt2:]
+
+			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart1), false)
+			require.Equal(t, types.ActionContinue, action1)
+			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart2), false)
+			require.Equal(t, types.ActionContinue, action2)
+			action3 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart3), true)
+			require.Equal(t, types.ActionContinue, action3)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "thought-signature-merge-ok", "split huge thoughtSignature event should be reassembled and parsed")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
+
+			errorLogs := host.GetErrorLogs()
+			hasUnmarshalError := false
+			for _, log := range errorLogs {
+				if strings.Contains(log, "unable to unmarshal vertex response") {
+					hasUnmarshalError = true
+					break
+				}
+			}
+			require.False(t, hasUnmarshalError, "should not have vertex unmarshal errors for split huge thoughtSignature event")
+		})
+
 		// 测试：上游已发送 [DONE]，框架再触发空的最后回调时不应重复输出 [DONE]
 		t.Run("vertex express mode streaming response body with upstream done and empty final callback", func(t *testing.T) {
 			host, status := test.NewTestHost(vertexExpressModeConfig)
