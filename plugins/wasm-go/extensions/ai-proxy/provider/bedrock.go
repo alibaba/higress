@@ -179,7 +179,7 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 			CompletionTokens:    bedrockEvent.Usage.OutputTokens,
 			PromptTokens:        bedrockEvent.Usage.InputTokens,
 			TotalTokens:         bedrockEvent.Usage.TotalTokens,
-			PromptTokensDetails: buildPromptTokensDetails(bedrockEvent.Usage.CacheReadInputTokens),
+			PromptTokensDetails: buildPromptTokensDetails(bedrockEvent.Usage.CacheReadInputTokens, bedrockEvent.Usage.CacheWriteInputTokens),
 		}
 	}
 	openAIFormattedChunkBytes, _ := json.Marshal(openAIFormattedChunk)
@@ -839,10 +839,12 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		},
 	}
 
+	effectivePromptCacheRetention := b.resolvePromptCacheRetention(origRequest.PromptCacheRetention)
+
 	if origRequest.PromptCacheKey != "" {
 		log.Warnf("bedrock provider ignores prompt_cache_key because Converse API has no equivalent field")
 	}
-	if cacheTTL, ok := mapPromptCacheRetentionToBedrockTTL(origRequest.PromptCacheRetention); ok {
+	if cacheTTL, ok := mapPromptCacheRetentionToBedrockTTL(effectivePromptCacheRetention); ok {
 		addPromptCachePointsToBedrockRequest(request, cacheTTL, b.getPromptCachePointPositions())
 	}
 
@@ -950,7 +952,7 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 			PromptTokens:        bedrockResponse.Usage.InputTokens,
 			CompletionTokens:    bedrockResponse.Usage.OutputTokens,
 			TotalTokens:         bedrockResponse.Usage.TotalTokens,
-			PromptTokensDetails: buildPromptTokensDetails(bedrockResponse.Usage.CacheReadInputTokens),
+			PromptTokensDetails: buildPromptTokensDetails(bedrockResponse.Usage.CacheReadInputTokens, bedrockResponse.Usage.CacheWriteInputTokens),
 		},
 	}
 }
@@ -982,7 +984,8 @@ func stopReasonBedrock2OpenAI(reason string) string {
 }
 
 func mapPromptCacheRetentionToBedrockTTL(retention string) (string, bool) {
-	switch retention {
+	normalizedRetention := normalizePromptCacheRetention(retention)
+	switch normalizedRetention {
 	case "":
 		return "", false
 	case "in_memory":
@@ -993,6 +996,26 @@ func mapPromptCacheRetentionToBedrockTTL(retention string) (string, bool) {
 		log.Warnf("unsupported prompt_cache_retention for bedrock mapping: %s", retention)
 		return "", false
 	}
+}
+
+func normalizePromptCacheRetention(retention string) string {
+	normalized := strings.ToLower(strings.TrimSpace(retention))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalized = strings.ReplaceAll(normalized, " ", "_")
+	if normalized == "inmemory" {
+		return "in_memory"
+	}
+	return normalized
+}
+
+func (b *bedrockProvider) resolvePromptCacheRetention(requestPromptCacheRetention string) string {
+	if requestPromptCacheRetention != "" {
+		return requestPromptCacheRetention
+	}
+	if b.config.promptCacheRetention != "" {
+		return b.config.promptCacheRetention
+	}
+	return ""
 }
 
 func (b *bedrockProvider) getPromptCachePointPositions() map[string]bool {
@@ -1070,6 +1093,9 @@ func findLastMessageIndexByRole(messages []bedrockMessage, role string) int {
 }
 
 func appendCachePointToBedrockMessage(request *bedrockTextGenRequest, messageIndex int, cacheTTL string) {
+	if messageIndex < 0 || messageIndex >= len(request.Messages) {
+		return
+	}
 	request.Messages[messageIndex].Content = append(request.Messages[messageIndex].Content, bedrockMessageContent{
 		CachePoint: &bedrockCachePoint{
 			Type: bedrockCacheTypeDefault,
@@ -1078,12 +1104,13 @@ func appendCachePointToBedrockMessage(request *bedrockTextGenRequest, messageInd
 	})
 }
 
-func buildPromptTokensDetails(cacheReadInputTokens int) *promptTokensDetails {
-	if cacheReadInputTokens <= 0 {
+func buildPromptTokensDetails(cacheReadInputTokens int, cacheWriteInputTokens int) *promptTokensDetails {
+	totalCachedTokens := cacheReadInputTokens + cacheWriteInputTokens
+	if totalCachedTokens <= 0 {
 		return nil
 	}
 	return &promptTokensDetails{
-		CachedTokens: cacheReadInputTokens,
+		CachedTokens: totalCachedTokens,
 	}
 }
 

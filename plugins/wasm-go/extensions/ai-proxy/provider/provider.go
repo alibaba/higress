@@ -357,6 +357,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock Prompt CachePoint 插入位置
 	// @Description zh-CN 仅适用于Amazon Bedrock服务。用于配置 cachePoint 插入位置，支持多选：systemPrompt、lastUserMessage、lastMessage。值为 true 表示启用该位置。
 	bedrockPromptCachePointPositions map[string]bool `required:"false" yaml:"bedrockPromptCachePointPositions" json:"bedrockPromptCachePointPositions"`
+	// @Title zh-CN Amazon Bedrock Prompt Cache 保留策略（默认值）
+	// @Description zh-CN 仅适用于Amazon Bedrock服务。作为请求中 prompt_cache_retention 缺省时的默认值，支持 in_memory 和 24h。
+	promptCacheRetention string `required:"false" yaml:"promptCacheRetention" json:"promptCacheRetention"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -558,6 +561,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		for k, v := range json.Get("bedrockAdditionalFields").Map() {
 			c.bedrockAdditionalFields[k] = v.Value()
 		}
+		c.promptCacheRetention = json.Get("promptCacheRetention").String()
 		if rawPositions := json.Get("bedrockPromptCachePointPositions"); rawPositions.Exists() {
 			c.bedrockPromptCachePointPositions = make(map[string]bool)
 			for k, v := range rawPositions.Map() {
