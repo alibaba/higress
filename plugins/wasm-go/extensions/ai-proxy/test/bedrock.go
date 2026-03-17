@@ -1584,6 +1584,11 @@ func RunBedrockOnStreamingResponseBodyTests(t *testing.T) {
 			return ""
 		}
 
+		t.Run("extract first data payload should return empty when no data line", func(t *testing.T) {
+			payload := extractFirstDataPayload([]byte("event: ping\n\n"))
+			require.Equal(t, "", payload)
+		})
+
 		t.Run("bedrock streaming usage should map cached_tokens", func(t *testing.T) {
 			host, status := test.NewTestHost(bedrockApiTokenConfig)
 			defer host.Reset()
