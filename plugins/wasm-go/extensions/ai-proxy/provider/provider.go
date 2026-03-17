@@ -1107,6 +1107,60 @@ func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent
 	return events
 }
 
+func ExtractStreamingDataLines(ctx wrapper.HttpContext, chunk []byte, isLastChunk bool) []string {
+	body := chunk
+	if bufferedStreamingBody, has := ctx.GetContext(ctxKeyStreamingBody).([]byte); has {
+		body = append(bufferedStreamingBody, chunk...)
+	}
+	body = bytes.ReplaceAll(body, []byte("\r\n"), []byte("\n"))
+	body = bytes.ReplaceAll(body, []byte("\r"), []byte("\n"))
+
+	lines := make([]string, 0)
+	start := 0
+	for start < len(body) {
+		end := bytes.IndexByte(body[start:], '\n')
+		if end < 0 {
+			break
+		}
+
+		line := strings.TrimSpace(string(body[start : start+end]))
+		if line != "" {
+			lines = append(lines, line)
+		}
+		start += end + 1
+	}
+
+	if isLastChunk {
+		line := strings.TrimSpace(string(body[start:]))
+		if line != "" {
+			lines = append(lines, line)
+		}
+		ctx.SetContext(ctxKeyStreamingBody, nil)
+		return lines
+	}
+
+	if start < len(body) {
+		ctx.SetContext(ctxKeyStreamingBody, append([]byte(nil), body[start:]...))
+	} else {
+		ctx.SetContext(ctxKeyStreamingBody, nil)
+	}
+	return lines
+}
+
+func ExtractStreamingDataPayload(line string) (string, bool) {
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, ":") {
+		return "", false
+	}
+	if strings.HasPrefix(line, ssePrefix) {
+		line = strings.TrimSpace(line[len(ssePrefix):])
+	}
+	if line == "" || line == "[DONE]" {
+		return "", false
+	}
+	return line, true
+}
+
 func (c *ProviderConfig) isSupportedAPI(apiName ApiName) bool {
 	_, exist := c.capabilities[string(apiName)]
 	return exist

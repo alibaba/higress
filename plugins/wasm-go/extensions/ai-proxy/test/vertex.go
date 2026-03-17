@@ -738,6 +738,7 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			}
 			require.True(t, hasStreamingLogs, "Should have streaming response processing logs")
 		})
+
 	})
 }
 

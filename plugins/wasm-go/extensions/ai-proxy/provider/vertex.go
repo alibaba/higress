@@ -621,23 +621,16 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 		return v.claude.OnStreamingResponseBody(ctx, name, chunk, isLastChunk)
 	}
 	log.Infof("[vertexProvider] receive chunk body: %s", string(chunk))
-	if isLastChunk {
-		return []byte(ssePrefix + "[DONE]\n\n"), nil
-	}
-	if len(chunk) == 0 {
-		return nil, nil
-	}
 	if name != ApiNameChatCompletion {
 		return chunk, nil
 	}
+
 	responseBuilder := &strings.Builder{}
-	lines := strings.Split(string(chunk), "\n")
-	for _, data := range lines {
-		if len(data) < 6 {
-			// ignore blank line or wrong format
+	for _, line := range ExtractStreamingDataLines(ctx, chunk, isLastChunk) {
+		data, ok := ExtractStreamingDataPayload(line)
+		if !ok {
 			continue
 		}
-		data = data[6:]
 		var vertexResp vertexChatResponse
 		if err := json.Unmarshal([]byte(data), &vertexResp); err != nil {
 			log.Errorf("unable to unmarshal vertex response: %v", err)
@@ -651,8 +644,14 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 		}
 		v.appendResponse(responseBuilder, string(responseBody))
 	}
+	if isLastChunk {
+		responseBuilder.WriteString(ssePrefix + "[DONE]\n\n")
+	}
 	modifiedResponseChunk := responseBuilder.String()
 	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
+	if modifiedResponseChunk == "" {
+		return nil, nil
+	}
 	return []byte(modifiedResponseChunk), nil
 }
 
