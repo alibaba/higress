@@ -100,6 +100,22 @@ var qwenEnableCompatibleConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：qwen original + 兼容模式（用于覆盖 provider.GetApiName 分支）
+var qwenOriginalCompatibleConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":      "qwen",
+			"apiTokens": []string{"sk-qwen-original-compatible"},
+			"modelMapping": map[string]string{
+				"*": "qwen-turbo",
+			},
+			"qwenEnableCompatible": true,
+			"protocol":             "original",
+		},
+	})
+	return data
+}()
+
 // 测试配置：qwen文件ID配置
 var qwenFileIdsConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -732,6 +748,67 @@ func RunQwenOnHttpRequestBodyTests(t *testing.T) {
 				}
 			}
 			require.True(t, hasUnsupportedErr, "Should log unsupported API name for non-compatible responses")
+		})
+
+		// 覆盖 qwen.GetApiName 中以下分支：
+		// - qwenCompatibleTextEmbeddingPath => ApiNameEmbeddings
+		// - qwenCompatibleResponsesPath => ApiNameResponses
+		// - qwenAsyncAIGCPath => ApiNameQwenAsyncAIGC
+		// - qwenAsyncTaskPath => ApiNameQwenAsyncTask
+		t.Run("qwen original protocol get api name coverage for compatible embeddings responses and async paths", func(t *testing.T) {
+			cases := []struct {
+				name string
+				path string
+			}{
+				{
+					name: "compatible embeddings path",
+					path: "/compatible-mode/v1/embeddings",
+				},
+				{
+					name: "compatible responses path",
+					path: "/api/v2/apps/protocols/compatible-mode/v1/responses",
+				},
+				{
+					name: "async aigc path",
+					path: "/api/v1/services/aigc/custom-async-endpoint",
+				},
+				{
+					name: "async task path",
+					path: "/api/v1/tasks/task-123",
+				},
+			}
+
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					host, status := test.NewTestHost(qwenOriginalCompatibleConfig)
+					defer host.Reset()
+					require.Equal(t, types.OnPluginStartStatusOK, status)
+
+					action := host.CallOnHttpRequestHeaders([][2]string{
+						{":authority", "example.com"},
+						{":path", tc.path},
+						{":method", "POST"},
+						{"Content-Type", "application/json"},
+					})
+					// 测试框架中 action 可能表现为 Continue 或 HeaderStopIteration，
+					// 这里关注的是后续 body 阶段不出现 unsupported API name。
+					require.True(t, action == types.ActionContinue || action == types.HeaderStopIteration)
+
+					requestBody := `{"model":"qwen-turbo","input":"test"}`
+					bodyAction := host.CallOnHttpRequestBody([]byte(requestBody))
+					require.Equal(t, types.ActionContinue, bodyAction)
+
+					errorLogs := host.GetErrorLogs()
+					hasUnsupportedErr := false
+					for _, log := range errorLogs {
+						if strings.Contains(log, "unsupported API name") {
+							hasUnsupportedErr = true
+							break
+						}
+					}
+					require.False(t, hasUnsupportedErr, "Path should be recognized by qwen.GetApiName in original protocol")
+				})
+			}
 		})
 	})
 }
