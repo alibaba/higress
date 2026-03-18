@@ -175,6 +175,15 @@ var qwenConflictConfig = func() json.RawMessage {
 	return data
 }()
 
+func hasUnsupportedAPINameError(errorLogs []string) bool {
+	for _, log := range errorLogs {
+		if strings.Contains(log, "unsupported API name") {
+			return true
+		}
+	}
+	return false
+}
+
 func RunQwenParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		// 测试基本qwen配置解析
@@ -739,14 +748,7 @@ func RunQwenOnHttpRequestBodyTests(t *testing.T) {
 			bodyAction := host.CallOnHttpRequestBody([]byte(requestBody))
 			require.Equal(t, types.ActionContinue, bodyAction)
 
-			errorLogs := host.GetErrorLogs()
-			hasUnsupportedErr := false
-			for _, log := range errorLogs {
-				if strings.Contains(log, "unsupported API name") {
-					hasUnsupportedErr = true
-					break
-				}
-			}
+			hasUnsupportedErr := hasUnsupportedAPINameError(host.GetErrorLogs())
 			require.True(t, hasUnsupportedErr, "Should log unsupported API name for non-compatible responses")
 		})
 
@@ -798,14 +800,7 @@ func RunQwenOnHttpRequestBodyTests(t *testing.T) {
 					bodyAction := host.CallOnHttpRequestBody([]byte(requestBody))
 					require.Equal(t, types.ActionContinue, bodyAction)
 
-					errorLogs := host.GetErrorLogs()
-					hasUnsupportedErr := false
-					for _, log := range errorLogs {
-						if strings.Contains(log, "unsupported API name") {
-							hasUnsupportedErr = true
-							break
-						}
-					}
+					hasUnsupportedErr := hasUnsupportedAPINameError(host.GetErrorLogs())
 					require.False(t, hasUnsupportedErr, "Path should be recognized by qwen.GetApiName in original protocol")
 				})
 			}
