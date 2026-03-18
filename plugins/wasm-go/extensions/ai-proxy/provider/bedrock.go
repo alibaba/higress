@@ -35,9 +35,16 @@ const (
 	// converseStream路径 /model/{modelId}/converse-stream
 	bedrockStreamChatCompletionPath = "/model/%s/converse-stream"
 	// invoke_model 路径 /model/{modelId}/invoke
-	bedrockInvokeModelPath = "/model/%s/invoke"
-	bedrockSignedHeaders   = "host;x-amz-date"
-	requestIdHeader        = "X-Amzn-Requestid"
+	bedrockInvokeModelPath  = "/model/%s/invoke"
+	bedrockSignedHeaders    = "host;x-amz-date"
+	requestIdHeader         = "X-Amzn-Requestid"
+	bedrockCacheTypeDefault = "default"
+	bedrockCacheTTL5m       = "5m"
+	bedrockCacheTTL1h       = "1h"
+
+	bedrockCachePointPositionSystemPrompt    = "systemPrompt"
+	bedrockCachePointPositionLastUserMessage = "lastUserMessage"
+	bedrockCachePointPositionLastMessage     = "lastMessage"
 )
 
 var (
@@ -169,9 +176,10 @@ func (b *bedrockProvider) convertEventFromBedrockToOpenAI(ctx wrapper.HttpContex
 	if bedrockEvent.Usage != nil {
 		openAIFormattedChunk.Choices = choices[:0]
 		openAIFormattedChunk.Usage = &usage{
-			CompletionTokens: bedrockEvent.Usage.OutputTokens,
-			PromptTokens:     bedrockEvent.Usage.InputTokens,
-			TotalTokens:      bedrockEvent.Usage.TotalTokens,
+			CompletionTokens:    bedrockEvent.Usage.OutputTokens,
+			PromptTokens:        bedrockEvent.Usage.InputTokens,
+			TotalTokens:         bedrockEvent.Usage.TotalTokens,
+			PromptTokensDetails: buildPromptTokensDetails(bedrockEvent.Usage.CacheReadInputTokens),
 		}
 	}
 	openAIFormattedChunkBytes, _ := json.Marshal(openAIFormattedChunk)
@@ -831,6 +839,13 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 		},
 	}
 
+	if origRequest.PromptCacheKey != "" {
+		log.Warnf("bedrock provider ignores prompt_cache_key because Converse API has no equivalent field")
+	}
+	if cacheTTL, ok := mapPromptCacheRetentionToBedrockTTL(origRequest.PromptCacheRetention); ok {
+		addPromptCachePointsToBedrockRequest(request, cacheTTL, b.getPromptCachePointPositions())
+	}
+
 	if origRequest.ReasoningEffort != "" {
 		thinkingBudget := 1024 // default
 		switch origRequest.ReasoningEffort {
@@ -932,9 +947,10 @@ func (b *bedrockProvider) buildChatCompletionResponse(ctx wrapper.HttpContext, b
 		Object:            objectChatCompletion,
 		Choices:           choices,
 		Usage: &usage{
-			PromptTokens:     bedrockResponse.Usage.InputTokens,
-			CompletionTokens: bedrockResponse.Usage.OutputTokens,
-			TotalTokens:      bedrockResponse.Usage.TotalTokens,
+			PromptTokens:        bedrockResponse.Usage.InputTokens,
+			CompletionTokens:    bedrockResponse.Usage.OutputTokens,
+			TotalTokens:         bedrockResponse.Usage.TotalTokens,
+			PromptTokensDetails: buildPromptTokensDetails(bedrockResponse.Usage.CacheReadInputTokens),
 		},
 	}
 }
@@ -962,6 +978,112 @@ func stopReasonBedrock2OpenAI(reason string) string {
 		return finishReasonToolCall
 	default:
 		return reason
+	}
+}
+
+func mapPromptCacheRetentionToBedrockTTL(retention string) (string, bool) {
+	switch retention {
+	case "":
+		return "", false
+	case "in_memory":
+		return bedrockCacheTTL5m, true
+	case "24h":
+		return bedrockCacheTTL1h, true
+	default:
+		log.Warnf("unsupported prompt_cache_retention for bedrock mapping: %s", retention)
+		return "", false
+	}
+}
+
+func (b *bedrockProvider) getPromptCachePointPositions() map[string]bool {
+	if b.config.bedrockPromptCachePointPositions == nil {
+		return map[string]bool{
+			bedrockCachePointPositionSystemPrompt: true,
+			bedrockCachePointPositionLastMessage:  false,
+		}
+	}
+	positions := map[string]bool{
+		bedrockCachePointPositionSystemPrompt:    false,
+		bedrockCachePointPositionLastUserMessage: false,
+		bedrockCachePointPositionLastMessage:     false,
+	}
+	for rawKey, enabled := range b.config.bedrockPromptCachePointPositions {
+		key := normalizeBedrockCachePointPosition(rawKey)
+		switch key {
+		case bedrockCachePointPositionSystemPrompt, bedrockCachePointPositionLastUserMessage, bedrockCachePointPositionLastMessage:
+			positions[key] = enabled
+		default:
+			log.Warnf("unsupported bedrockPromptCachePointPositions key: %s", rawKey)
+		}
+	}
+	return positions
+}
+
+func normalizeBedrockCachePointPosition(raw string) string {
+	key := strings.ToLower(raw)
+	key = strings.ReplaceAll(key, "_", "")
+	key = strings.ReplaceAll(key, "-", "")
+	switch key {
+	case "systemprompt":
+		return bedrockCachePointPositionSystemPrompt
+	case "lastusermessage":
+		return bedrockCachePointPositionLastUserMessage
+	case "lastmessage":
+		return bedrockCachePointPositionLastMessage
+	default:
+		return raw
+	}
+}
+
+func addPromptCachePointsToBedrockRequest(request *bedrockTextGenRequest, cacheTTL string, positions map[string]bool) {
+	if positions[bedrockCachePointPositionSystemPrompt] && len(request.System) > 0 {
+		request.System = append(request.System, systemContentBlock{
+			CachePoint: &bedrockCachePoint{
+				Type: bedrockCacheTypeDefault,
+				TTL:  cacheTTL,
+			},
+		})
+	}
+
+	lastUserMessageIndex := -1
+	if positions[bedrockCachePointPositionLastUserMessage] {
+		lastUserMessageIndex = findLastMessageIndexByRole(request.Messages, roleUser)
+		if lastUserMessageIndex >= 0 {
+			appendCachePointToBedrockMessage(request, lastUserMessageIndex, cacheTTL)
+		}
+	}
+	if positions[bedrockCachePointPositionLastMessage] && len(request.Messages) > 0 {
+		lastMessageIndex := len(request.Messages) - 1
+		if lastMessageIndex != lastUserMessageIndex {
+			appendCachePointToBedrockMessage(request, lastMessageIndex, cacheTTL)
+		}
+	}
+}
+
+func findLastMessageIndexByRole(messages []bedrockMessage, role string) int {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == role {
+			return i
+		}
+	}
+	return -1
+}
+
+func appendCachePointToBedrockMessage(request *bedrockTextGenRequest, messageIndex int, cacheTTL string) {
+	request.Messages[messageIndex].Content = append(request.Messages[messageIndex].Content, bedrockMessageContent{
+		CachePoint: &bedrockCachePoint{
+			Type: bedrockCacheTypeDefault,
+			TTL:  cacheTTL,
+		},
+	})
+}
+
+func buildPromptTokensDetails(cacheReadInputTokens int) *promptTokensDetails {
+	if cacheReadInputTokens <= 0 {
+		return nil
+	}
+	return &promptTokensDetails{
+		CachedTokens: cacheReadInputTokens,
 	}
 }
 
@@ -1009,14 +1131,21 @@ type bedrockMessage struct {
 }
 
 type bedrockMessageContent struct {
-	Text       string           `json:"text,omitempty"`
-	Image      *imageBlock      `json:"image,omitempty"`
-	ToolResult *toolResultBlock `json:"toolResult,omitempty"`
-	ToolUse    *toolUseBlock    `json:"toolUse,omitempty"`
+	Text       string             `json:"text,omitempty"`
+	Image      *imageBlock        `json:"image,omitempty"`
+	ToolResult *toolResultBlock   `json:"toolResult,omitempty"`
+	ToolUse    *toolUseBlock      `json:"toolUse,omitempty"`
+	CachePoint *bedrockCachePoint `json:"cachePoint,omitempty"`
 }
 
 type systemContentBlock struct {
-	Text string `json:"text,omitempty"`
+	Text       string             `json:"text,omitempty"`
+	CachePoint *bedrockCachePoint `json:"cachePoint,omitempty"`
+}
+
+type bedrockCachePoint struct {
+	Type string `json:"type"`
+	TTL  string `json:"ttl,omitempty"`
 }
 
 type imageBlock struct {
@@ -1098,6 +1227,10 @@ type tokenUsage struct {
 	OutputTokens int `json:"outputTokens,omitempty"`
 
 	TotalTokens int `json:"totalTokens"`
+
+	CacheReadInputTokens int `json:"cacheReadInputTokens,omitempty"`
+
+	CacheWriteInputTokens int `json:"cacheWriteInputTokens,omitempty"`
 }
 
 func chatToolMessage2BedrockToolResultContent(chatMessage chatMessage) bedrockMessageContent {
@@ -1239,42 +1372,9 @@ func encodeSigV4Path(path string) string {
 		if seg == "" {
 			continue
 		}
-		// Normalize to "single-encoded" form:
-		// - raw ":" -> %3A
-		// - already encoded "%3A" -> still %3A (not %253A)
-		decoded, err := url.PathUnescape(seg)
-		if err == nil {
-			segments[i] = sigV4EscapePathSegment(decoded)
-		} else {
-			// If segment has invalid escape sequence, fall back to escaping raw segment.
-			segments[i] = sigV4EscapePathSegment(seg)
-		}
+		segments[i] = url.PathEscape(seg)
 	}
 	return strings.Join(segments, "/")
-}
-
-func sigV4EscapePathSegment(segment string) string {
-	const upperHex = "0123456789ABCDEF"
-	var b strings.Builder
-	b.Grow(len(segment) * 3)
-	for i := 0; i < len(segment); i++ {
-		c := segment[i]
-		if isSigV4Unreserved(c) {
-			b.WriteByte(c)
-			continue
-		}
-		b.WriteByte('%')
-		b.WriteByte(upperHex[c>>4])
-		b.WriteByte(upperHex[c&0x0F])
-	}
-	return b.String()
-}
-
-func isSigV4Unreserved(c byte) bool {
-	return (c >= 'A' && c <= 'Z') ||
-		(c >= 'a' && c <= 'z') ||
-		(c >= '0' && c <= '9') ||
-		c == '-' || c == '_' || c == '.' || c == '~'
 }
 
 func getSignatureKey(key, dateStamp, region, service string) []byte {

@@ -199,6 +199,7 @@ func TestBedrock(t *testing.T) {
 	test.RunBedrockOnHttpRequestBodyTests(t)
 	test.RunBedrockOnHttpResponseHeadersTests(t)
 	test.RunBedrockOnHttpResponseBodyTests(t)
+	test.RunBedrockOnStreamingResponseBodyTests(t)
 	test.RunBedrockToolCallTests(t)
 }
 

@@ -198,8 +198,7 @@ var (
 
 	// Providers that support the "developer" role. Other providers will have "developer" roles converted to "system".
 	developerRoleSupportedProviders = map[string]bool{
-		providerTypeOpenAI: true,
-		providerTypeAzure:  true,
+		providerTypeAzure: true,
 	}
 
 	providerInitializers = map[string]providerInitializer{
@@ -355,6 +354,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Amazon Bedrock 额外模型请求参数
 	// @Description zh-CN 仅适用于Amazon Bedrock服务，用于设置模型特定的推理参数
 	bedrockAdditionalFields map[string]interface{} `required:"false" yaml:"bedrockAdditionalFields" json:"bedrockAdditionalFields"`
+	// @Title zh-CN Amazon Bedrock Prompt CachePoint 插入位置
+	// @Description zh-CN 仅适用于Amazon Bedrock服务。用于配置 cachePoint 插入位置，支持多选：systemPrompt、lastUserMessage、lastMessage。值为 true 表示启用该位置。
+	bedrockPromptCachePointPositions map[string]bool `required:"false" yaml:"bedrockPromptCachePointPositions" json:"bedrockPromptCachePointPositions"`
 	// @Title zh-CN minimax API type
 	// @Description zh-CN 仅适用于 minimax 服务。minimax API 类型，v2 和 pro 中选填一项，默认值为 v2
 	minimaxApiType string `required:"false" yaml:"minimaxApiType" json:"minimaxApiType"`
@@ -460,6 +462,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 智谱AI Code Plan 模式
 	// @Description zh-CN 仅适用于智谱AI服务。启用后将使用 /api/coding/paas/v4/chat/completions 接口
 	zhipuCodePlanMode bool `required:"false" yaml:"zhipuCodePlanMode" json:"zhipuCodePlanMode"`
+	// @Title zh-CN 合并连续同角色消息
+	// @Description zh-CN 开启后，若请求的 messages 中存在连续的同角色消息（如连续两条 user 消息），将其内容合并为一条，以满足要求严格轮流交替（user→assistant→user→...）的模型服务商的要求。
+	mergeConsecutiveMessages bool `required:"false" yaml:"mergeConsecutiveMessages" json:"mergeConsecutiveMessages"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -552,6 +557,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.bedrockAdditionalFields = make(map[string]interface{})
 		for k, v := range json.Get("bedrockAdditionalFields").Map() {
 			c.bedrockAdditionalFields[k] = v.Value()
+		}
+		if rawPositions := json.Get("bedrockPromptCachePointPositions"); rawPositions.Exists() {
+			c.bedrockPromptCachePointPositions = make(map[string]bool)
+			for k, v := range rawPositions.Map() {
+				c.bedrockPromptCachePointPositions[k] = v.Bool()
+			}
 		}
 	}
 	c.minimaxApiType = json.Get("minimaxApiType").String()
@@ -673,6 +684,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			c.contextCleanupCommands = append(c.contextCleanupCommands, cmd.String())
 		}
 	}
+	c.mergeConsecutiveMessages = json.Get("mergeConsecutiveMessages").Bool()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -1034,7 +1046,7 @@ func ExtractStreamingEvents(ctx wrapper.HttpContext, chunk []byte) []StreamEvent
 		if lineStartIndex != -1 {
 			value := string(body[valueStartIndex:i])
 			currentEvent.SetValue(currentKey, value)
-		} else {
+		} else if eventStartIndex != -1 {
 			currentEvent.RawEvent = string(body[eventStartIndex : i+1])
 			// Extra new line. The current event is complete.
 			events = append(events, *currentEvent)
@@ -1109,6 +1121,17 @@ func (c *ProviderConfig) handleRequestBody(
 			log.Warnf("[contextCleanup] failed to cleanup context messages: %v", err)
 			// Continue processing even if cleanup fails
 			err = nil
+		}
+	}
+
+	// merge consecutive same-role messages for providers that require strict role alternation
+	if apiName == ApiNameChatCompletion && c.mergeConsecutiveMessages {
+		body, err = mergeConsecutiveMessages(body)
+		if err != nil {
+			log.Warnf("[mergeConsecutiveMessages] failed to merge messages: %v", err)
+			err = nil
+		} else {
+			log.Debugf("[mergeConsecutiveMessages] merged consecutive messages for provider: %s", c.typ)
 		}
 	}
 
