@@ -150,6 +150,24 @@ func bedrockApiTokenConfigWithPromptCacheRetention(promptCacheRetention string) 
 	return data
 }
 
+func bedrockApiTokenConfigWithModelAndPromptCache(mappedModel, promptCacheRetention string, positions map[string]bool) json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type": "bedrock",
+			"apiTokens": []string{
+				"test-token-for-unit-test",
+			},
+			"awsRegion": "us-east-1",
+			"modelMapping": map[string]string{
+				"*": mappedModel,
+			},
+			"promptCacheRetention":             promptCacheRetention,
+			"bedrockPromptCachePointPositions": positions,
+		},
+	})
+	return data
+}
+
 // Test config: Bedrock config with multiple Bearer Tokens
 var bedrockMultiTokenConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -457,7 +475,8 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			systemCachePoint, ok := systemCachePointBlock["cachePoint"].(map[string]interface{})
 			require.True(t, ok, "system tail block should contain cachePoint")
 			require.Equal(t, "default", systemCachePoint["type"])
-			require.Equal(t, "5m", systemCachePoint["ttl"])
+			_, hasTTL := systemCachePoint["ttl"]
+			require.False(t, hasTTL, "ttl should be omitted for in_memory to use Bedrock default 5m")
 
 			messages := bodyMap["messages"].([]interface{})
 			require.NotEmpty(t, messages, "messages should not be empty")
@@ -507,7 +526,8 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			systemBlocks := bodyMap["system"].([]interface{})
 			require.Len(t, systemBlocks, 2, "provider promptCacheRetention should trigger cachePoint injection")
 			systemCachePoint := systemBlocks[len(systemBlocks)-1].(map[string]interface{})["cachePoint"].(map[string]interface{})
-			require.Equal(t, "5m", systemCachePoint["ttl"], "provider promptCacheRetention=in-memory should map to ttl=5m")
+			_, hasTTL := systemCachePoint["ttl"]
+			require.False(t, hasTTL, "provider promptCacheRetention=in-memory should omit ttl and use Bedrock default 5m")
 		})
 
 		t.Run("bedrock request body prompt_cache_retention should override provider promptCacheRetention", func(t *testing.T) {
@@ -650,7 +670,8 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			systemBlocks := bodyMap["system"].([]interface{})
 			require.Len(t, systemBlocks, 2, "system should include cachePoint due to systemPrompt=true")
 			systemCachePoint := systemBlocks[len(systemBlocks)-1].(map[string]interface{})["cachePoint"].(map[string]interface{})
-			require.Equal(t, "5m", systemCachePoint["ttl"])
+			_, hasSystemTTL := systemCachePoint["ttl"]
+			require.False(t, hasSystemTTL, "ttl should be omitted for in_memory cachePoint")
 
 			messages := bodyMap["messages"].([]interface{})
 			require.Len(t, messages, 2, "system message should not be in messages array")
@@ -658,7 +679,8 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			lastUserMessageContent := messages[0].(map[string]interface{})["content"].([]interface{})
 			require.Len(t, lastUserMessageContent, 2, "last user message should include one cachePoint")
 			lastUserMessageCachePoint := lastUserMessageContent[len(lastUserMessageContent)-1].(map[string]interface{})["cachePoint"].(map[string]interface{})
-			require.Equal(t, "5m", lastUserMessageCachePoint["ttl"])
+			_, hasLastUserTTL := lastUserMessageCachePoint["ttl"]
+			require.False(t, hasLastUserTTL, "ttl should be omitted for in_memory cachePoint")
 
 			lastMessageContent := messages[1].(map[string]interface{})["content"].([]interface{})
 			require.Len(t, lastMessageContent, 1, "last message should not include cachePoint when lastMessage=false")
@@ -709,7 +731,8 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			messageContent := messages[0].(map[string]interface{})["content"].([]interface{})
 			require.Len(t, messageContent, 2, "overlap positions should still insert only one cachePoint")
 			cachePoint := messageContent[len(messageContent)-1].(map[string]interface{})["cachePoint"].(map[string]interface{})
-			require.Equal(t, "5m", cachePoint["ttl"])
+			_, hasTTL := cachePoint["ttl"]
+			require.False(t, hasTTL, "ttl should be omitted for in_memory cachePoint")
 		})
 
 		t.Run("bedrock request body with empty prompt cache retention should not inject cache points", func(t *testing.T) {
@@ -810,6 +833,63 @@ func RunBedrockOnHttpRequestBodyTests(t *testing.T) {
 			require.Len(t, lastMessageContent, 1, "message should only contain original text block")
 			_, hasMessageCachePoint := lastMessageContent[0].(map[string]interface{})["cachePoint"]
 			require.False(t, hasMessageCachePoint, "message block should not include cachePoint when retention is unsupported")
+		})
+
+		t.Run("bedrock request body should skip prompt cache for unsupported model even when enabled", func(t *testing.T) {
+			host, status := test.NewTestHost(bedrockApiTokenConfigWithModelAndPromptCache(
+				"meta.llama3-70b-instruct-v1:0",
+				"in_memory",
+				map[string]bool{
+					"systemPrompt": true,
+					"lastMessage":  true,
+				},
+			))
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestBody := `{
+				"model": "gpt-4",
+				"prompt_cache_retention": "24h",
+				"messages": [
+					{
+						"role": "system",
+						"content": "You are a helpful assistant."
+					},
+					{
+						"role": "user",
+						"content": "Hello"
+					}
+				]
+			}`
+			action = host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var bodyMap map[string]interface{}
+			err := json.Unmarshal(processedBody, &bodyMap)
+			require.NoError(t, err)
+
+			systemBlocks := bodyMap["system"].([]interface{})
+			require.Len(t, systemBlocks, 1, "unsupported model should skip system cachePoint injection")
+			_, hasSystemCachePoint := systemBlocks[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasSystemCachePoint, "unsupported model should not contain system cachePoint")
+
+			messages := bodyMap["messages"].([]interface{})
+			require.Len(t, messages, 1, "system message should not be in messages array")
+			lastMessageContent := messages[0].(map[string]interface{})["content"].([]interface{})
+			require.Len(t, lastMessageContent, 1, "unsupported model should skip message cachePoint injection")
+			_, hasMessageCachePoint := lastMessageContent[0].(map[string]interface{})["cachePoint"]
+			require.False(t, hasMessageCachePoint, "unsupported model should not contain message cachePoint")
 		})
 
 		t.Run("bedrock request body without system should not inject cache point by default", func(t *testing.T) {

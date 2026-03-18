@@ -35,12 +35,14 @@ const (
 	// converseStream路径 /model/{modelId}/converse-stream
 	bedrockStreamChatCompletionPath = "/model/%s/converse-stream"
 	// invoke_model 路径 /model/{modelId}/invoke
-	bedrockInvokeModelPath  = "/model/%s/invoke"
-	bedrockSignedHeaders    = "host;x-amz-date"
-	requestIdHeader         = "X-Amzn-Requestid"
-	bedrockCacheTypeDefault = "default"
-	bedrockCacheTTL5m       = "5m"
-	bedrockCacheTTL1h       = "1h"
+	bedrockInvokeModelPath   = "/model/%s/invoke"
+	bedrockSignedHeaders     = "host;x-amz-date"
+	requestIdHeader          = "X-Amzn-Requestid"
+	bedrockCacheTypeDefault  = "default"
+	bedrockCacheTTL5m        = "5m"
+	bedrockCacheTTL1h        = "1h"
+	bedrockPromptCacheNova   = "amazon.nova"
+	bedrockPromptCacheClaude = "anthropic.claude"
 
 	bedrockCachePointPositionSystemPrompt    = "systemPrompt"
 	bedrockCachePointPositionLastUserMessage = "lastUserMessage"
@@ -844,8 +846,12 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 	if origRequest.PromptCacheKey != "" {
 		log.Warnf("bedrock provider ignores prompt_cache_key because Converse API has no equivalent field")
 	}
-	if cacheTTL, ok := mapPromptCacheRetentionToBedrockTTL(effectivePromptCacheRetention); ok {
-		addPromptCachePointsToBedrockRequest(request, cacheTTL, b.getPromptCachePointPositions())
+	if isPromptCacheSupportedModel(origRequest.Model) {
+		if cacheTTL, ok := mapPromptCacheRetentionToBedrockTTL(effectivePromptCacheRetention); ok {
+			addPromptCachePointsToBedrockRequest(request, cacheTTL, b.getPromptCachePointPositions())
+		}
+	} else if effectivePromptCacheRetention != "" {
+		log.Warnf("skip prompt cache injection for unsupported model: %s", origRequest.Model)
 	}
 
 	if origRequest.ReasoningEffort != "" {
@@ -989,7 +995,9 @@ func mapPromptCacheRetentionToBedrockTTL(retention string) (string, bool) {
 	case "":
 		return "", false
 	case "in_memory":
-		return bedrockCacheTTL5m, true
+		// For the default 5-minute cache, omit ttl and let Bedrock apply its default.
+		// This is more robust for models that are strict about explicit ttl fields.
+		return "", true
 	case "24h":
 		return bedrockCacheTTL1h, true
 	default:
@@ -1006,6 +1014,12 @@ func normalizePromptCacheRetention(retention string) string {
 		return "in_memory"
 	}
 	return normalized
+}
+
+func isPromptCacheSupportedModel(model string) bool {
+	normalizedModel := strings.ToLower(strings.TrimSpace(model))
+	return strings.Contains(normalizedModel, bedrockPromptCacheNova) ||
+		strings.Contains(normalizedModel, bedrockPromptCacheClaude)
 }
 
 func (b *bedrockProvider) resolvePromptCacheRetention(requestPromptCacheRetention string) string {

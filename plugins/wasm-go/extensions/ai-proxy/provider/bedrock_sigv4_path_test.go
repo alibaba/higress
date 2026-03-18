@@ -159,3 +159,33 @@ func TestAppendCachePointToBedrockMessageInvalidIndexNoop(t *testing.T) {
 	assert.Len(t, request.Messages[0].Content, 2)
 	assert.NotNil(t, request.Messages[0].Content[1].CachePoint)
 }
+
+func TestIsPromptCacheSupportedModel(t *testing.T) {
+	tests := []struct {
+		name  string
+		model string
+		want  bool
+	}{
+		{
+			name:  "anthropic claude model is supported",
+			model: "anthropic.claude-3-5-haiku-20241022-v1:0",
+			want:  true,
+		},
+		{
+			name:  "amazon nova inference profile is supported",
+			model: "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.amazon.nova-2-lite-v1:0",
+			want:  true,
+		},
+		{
+			name:  "other model is not supported",
+			model: "meta.llama3-70b-instruct-v1:0",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isPromptCacheSupportedModel(tt.model))
+		})
+	}
+}
