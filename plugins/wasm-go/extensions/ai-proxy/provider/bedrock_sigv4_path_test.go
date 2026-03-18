@@ -102,3 +102,90 @@ func TestGenerateSignatureDiffersForRawAndPreEncodedModelPath(t *testing.T) {
 	preEncodedSignature := p.generateSignature(preEncodedPath, "20260312T142942Z", "20260312", body)
 	assert.NotEqual(t, rawSignature, preEncodedSignature)
 }
+
+func TestNormalizePromptCacheRetention(t *testing.T) {
+	tests := []struct {
+		name      string
+		retention string
+		want      string
+	}{
+		{
+			name:      "inmemory alias maps to in_memory",
+			retention: "inmemory",
+			want:      "in_memory",
+		},
+		{
+			name:      "dash style maps to in_memory",
+			retention: "in-memory",
+			want:      "in_memory",
+		},
+		{
+			name:      "space style with trim maps to in_memory",
+			retention: " in memory ",
+			want:      "in_memory",
+		},
+		{
+			name:      "already normalized remains unchanged",
+			retention: "in_memory",
+			want:      "in_memory",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, normalizePromptCacheRetention(tt.retention))
+		})
+	}
+}
+
+func TestAppendCachePointToBedrockMessageInvalidIndexNoop(t *testing.T) {
+	request := &bedrockTextGenRequest{
+		Messages: []bedrockMessage{
+			{
+				Role: roleUser,
+				Content: []bedrockMessageContent{
+					{Text: "hello"},
+				},
+			},
+		},
+	}
+
+	appendCachePointToBedrockMessage(request, -1, bedrockCacheTTL5m)
+	appendCachePointToBedrockMessage(request, len(request.Messages), bedrockCacheTTL5m)
+
+	assert.Len(t, request.Messages[0].Content, 1)
+
+	appendCachePointToBedrockMessage(request, 0, bedrockCacheTTL5m)
+	assert.Len(t, request.Messages[0].Content, 2)
+	assert.NotNil(t, request.Messages[0].Content[1].CachePoint)
+}
+
+func TestIsPromptCacheSupportedModel(t *testing.T) {
+	tests := []struct {
+		name  string
+		model string
+		want  bool
+	}{
+		{
+			name:  "anthropic claude model is supported",
+			model: "anthropic.claude-3-5-haiku-20241022-v1:0",
+			want:  true,
+		},
+		{
+			name:  "amazon nova inference profile is supported",
+			model: "arn:aws:bedrock:us-east-1:123456789012:inference-profile/global.amazon.nova-2-lite-v1:0",
+			want:  true,
+		},
+		{
+			name:  "other model is not supported",
+			model: "meta.llama3-70b-instruct-v1:0",
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isPromptCacheSupportedModel(tt.model))
+		})
+	}
+}
