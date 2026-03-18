@@ -41,6 +41,9 @@ const (
 	ApiNameImageEdit                            ApiName = "openai/v1/imageedit"
 	ApiNameImageVariation                       ApiName = "openai/v1/imagevariation"
 	ApiNameAudioSpeech                          ApiName = "openai/v1/audiospeech"
+	ApiNameAudioTranscription                   ApiName = "openai/v1/audiotranscription"
+	ApiNameAudioTranslation                     ApiName = "openai/v1/audiotranslation"
+	ApiNameRealtime                             ApiName = "openai/v1/realtime"
 	ApiNameFiles                                ApiName = "openai/v1/files"
 	ApiNameRetrieveFile                         ApiName = "openai/v1/retrievefile"
 	ApiNameRetrieveFileContent                  ApiName = "openai/v1/retrievefilecontent"
@@ -90,6 +93,9 @@ const (
 	PathOpenAIImageEdit                            = "/v1/images/edits"
 	PathOpenAIImageVariation                       = "/v1/images/variations"
 	PathOpenAIAudioSpeech                          = "/v1/audio/speech"
+	PathOpenAIAudioTranscriptions                  = "/v1/audio/transcriptions"
+	PathOpenAIAudioTranslations                    = "/v1/audio/translations"
+	PathOpenAIRealtime                             = "/v1/realtime"
 	PathOpenAIResponses                            = "/v1/responses"
 	PathOpenAIFineTuningJobs                       = "/v1/fine_tuning/jobs"
 	PathOpenAIRetrieveFineTuningJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
@@ -658,6 +664,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			string(ApiNameImageVariation),
 			string(ApiNameImageEdit),
 			string(ApiNameAudioSpeech),
+			string(ApiNameAudioTranscription),
+			string(ApiNameAudioTranslation),
+			string(ApiNameRealtime),
+			string(ApiNameResponses),
 			string(ApiNameCohereV1Rerank),
 			string(ApiNameVideos),
 			string(ApiNameRetrieveVideo),

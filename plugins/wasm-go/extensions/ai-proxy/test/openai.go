@@ -243,6 +243,84 @@ func RunOpenAIOnHttpRequestHeadersTests(t *testing.T) {
 			require.Contains(t, authValue, "sk-openai-test123456789", "Authorization should contain OpenAI API token")
 		})
 
+		// 测试OpenAI请求头处理（语音转写接口）
+		t.Run("openai audio transcriptions request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(basicOpenAIConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/audio/transcriptions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			hostValue, hasHost := test.GetHeaderValue(requestHeaders, ":authority")
+			require.True(t, hasHost)
+			require.Equal(t, "api.openai.com", hostValue)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/v1/audio/transcriptions", "Path should contain audio transcriptions endpoint")
+		})
+
+		// 测试OpenAI请求头处理（语音翻译接口）
+		t.Run("openai audio translations request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(basicOpenAIConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/audio/translations"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/v1/audio/translations", "Path should contain audio translations endpoint")
+		})
+
+		// 测试OpenAI请求头处理（实时接口，WebSocket握手）
+		t.Run("openai realtime websocket handshake request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(basicOpenAIConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/realtime?model=gpt-4o-realtime-preview"},
+				{":method", "GET"},
+				{"Connection", "Upgrade"},
+				{"Upgrade", "websocket"},
+				{"Sec-WebSocket-Version", "13"},
+				{"Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="},
+			})
+
+			// WebSocket 握手本身不应依赖请求体。受测试框架限制，某些场景可能仍返回 HeaderStopIteration。
+			require.True(t, action == types.ActionContinue || action == types.HeaderStopIteration)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/v1/realtime", "Path should contain realtime endpoint")
+			require.Contains(t, pathValue, "model=gpt-4o-realtime-preview", "Query parameters should be preserved")
+		})
+
 		// 测试OpenAI请求头处理（图像生成接口）
 		t.Run("openai image generation request headers", func(t *testing.T) {
 			host, status := test.NewTestHost(basicOpenAIConfig)
@@ -304,6 +382,61 @@ func RunOpenAIOnHttpRequestHeadersTests(t *testing.T) {
 			require.True(t, hasPath)
 			// 对于直接路径，应该保持原有路径
 			require.Contains(t, pathValue, "/v1/chat/completions", "Path should be preserved for direct custom path")
+		})
+
+		// 测试OpenAI自定义域名请求头处理（间接路径语音转写）
+		t.Run("openai custom domain indirect path audio transcriptions request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(openAICustomDomainIndirectPathConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/audio/transcriptions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			hostValue, hasHost := test.GetHeaderValue(requestHeaders, ":authority")
+			require.True(t, hasHost)
+			require.Equal(t, "custom.openai.com", hostValue, "Host should be changed to custom domain")
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/api/audio/transcriptions", "Path should be rewritten with indirect custom prefix")
+		})
+
+		// 测试OpenAI自定义域名请求头处理（间接路径 realtime，WebSocket握手）
+		t.Run("openai custom domain indirect path realtime websocket handshake request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(openAICustomDomainIndirectPathConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/realtime?model=gpt-4o-realtime-preview"},
+				{":method", "GET"},
+				{"Connection", "Upgrade"},
+				{"Upgrade", "websocket"},
+				{"Sec-WebSocket-Version", "13"},
+				{"Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="},
+			})
+
+			// WebSocket 握手本身不应依赖请求体。受测试框架限制，某些场景可能仍返回 HeaderStopIteration。
+			require.True(t, action == types.ActionContinue || action == types.HeaderStopIteration)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/api/realtime", "Path should be rewritten with indirect custom prefix")
+			require.Contains(t, pathValue, "model=gpt-4o-realtime-preview", "Query parameters should be preserved")
 		})
 	})
 }

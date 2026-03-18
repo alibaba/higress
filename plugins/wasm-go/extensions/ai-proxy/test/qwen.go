@@ -403,6 +403,29 @@ func RunQwenOnHttpRequestHeadersTests(t *testing.T) {
 			require.True(t, hasPath)
 			require.Contains(t, pathValue, "/compatible-mode/v1/chat/completions", "Path should use compatible mode path")
 		})
+
+		// 测试qwen兼容模式请求头处理（responses接口）
+		t.Run("qwen compatible mode responses request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(qwenEnableCompatibleConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/api/v2/apps/protocols/compatible-mode/v1/responses", "Path should use compatible mode responses path")
+		})
 	})
 }
 
@@ -650,6 +673,65 @@ func RunQwenOnHttpRequestBodyTests(t *testing.T) {
 				}
 			}
 			require.True(t, hasCompatibleLogs, "Should have compatible mode processing logs")
+		})
+
+		// 测试qwen请求体处理（兼容模式 responses接口）
+		t.Run("qwen compatible mode responses request body", func(t *testing.T) {
+			host, status := test.NewTestHost(qwenEnableCompatibleConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"qwen-turbo","input":"test"}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			require.Contains(t, string(processedBody), "qwen-turbo", "Model name should be preserved in responses request")
+		})
+
+		// 测试qwen请求体处理（非兼容模式 responses接口应报不支持）
+		t.Run("qwen non-compatible mode responses request body unsupported", func(t *testing.T) {
+			host, status := test.NewTestHost(basicQwenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/v1/responses", "Path should remain unchanged when responses is unsupported")
+
+			requestBody := `{"model":"qwen-turbo","input":"test"}`
+			bodyAction := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, bodyAction)
+
+			errorLogs := host.GetErrorLogs()
+			hasUnsupportedErr := false
+			for _, log := range errorLogs {
+				if strings.Contains(log, "unsupported API name") {
+					hasUnsupportedErr = true
+					break
+				}
+			}
+			require.True(t, hasUnsupportedErr, "Should log unsupported API name for non-compatible responses")
 		})
 	})
 }
@@ -985,6 +1067,51 @@ func RunQwenOnHttpResponseBodyTests(t *testing.T) {
 			responseStr := string(processedResponseBody)
 			require.Contains(t, responseStr, "chat.completion", "Response should contain chat completion object")
 			require.Contains(t, responseStr, "qwen-turbo", "Response should contain model name")
+		})
+
+		// 测试qwen响应体处理（兼容模式 responses 接口透传）
+		t.Run("qwen compatible mode responses response body", func(t *testing.T) {
+			host, status := test.NewTestHost(qwenEnableCompatibleConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"qwen-turbo","input":"test"}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			responseBody := `{
+				"id": "resp-123",
+				"object": "response",
+				"status": "completed",
+				"output": [{
+					"type": "message",
+					"role": "assistant",
+					"content": [{
+						"type": "output_text",
+						"text": "hello"
+					}]
+				}]
+			}`
+			action := host.CallOnHttpResponseBody([]byte(responseBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+			responseStr := string(processedResponseBody)
+			require.Contains(t, responseStr, "\"object\": \"response\"", "Responses API payload should be passthrough in compatible mode")
+			require.Contains(t, responseStr, "\"text\": \"hello\"", "Assistant content should be preserved")
 		})
 	})
 }
