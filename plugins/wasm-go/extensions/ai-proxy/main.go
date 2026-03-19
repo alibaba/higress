@@ -385,6 +385,8 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		return chunk
 	}
 
+	promoteThinking := pluginConfig.GetProviderConfig().GetPromoteThinkingOnEmpty()
+
 	log.Debugf("[onStreamingResponseBody] provider=%s", activeProvider.GetProviderType())
 	log.Debugf("[onStreamingResponseBody] isLastChunk=%v chunk: %s", isLastChunk, string(chunk))
 
@@ -392,6 +394,9 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk)
 		if err == nil && modifiedChunk != nil {
+			if promoteThinking {
+				modifiedChunk = promoteThinkingInStreamingChunk(ctx, modifiedChunk)
+			}
 			// Convert to Claude format if needed
 			claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, modifiedChunk)
 			if convertErr != nil {
@@ -435,6 +440,10 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 
 		result := []byte(responseBuilder.String())
 
+		if promoteThinking {
+			result = promoteThinkingInStreamingChunk(ctx, result)
+		}
+
 		// Convert to Claude format if needed
 		claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, result)
 		if convertErr != nil {
@@ -443,11 +452,12 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		return claudeChunk
 	}
 
-	if !needsClaudeResponseConversion(ctx) {
+	if !needsClaudeResponseConversion(ctx) && !promoteThinking {
 		return chunk
 	}
 
 	// If provider doesn't implement any streaming handlers but we need Claude conversion
+	// or thinking promotion
 	// First extract complete events from the chunk
 	events := provider.ExtractStreamingEvents(ctx, chunk)
 	log.Debugf("[onStreamingResponseBody] %d events received (no handler)", len(events))
@@ -463,6 +473,10 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 	}
 
 	result := []byte(responseBuilder.String())
+
+	if promoteThinking {
+		result = promoteThinkingInStreamingChunk(ctx, result)
+	}
 
 	// Convert to Claude format if needed
 	claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, result)
@@ -494,6 +508,16 @@ func onHttpResponseBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfi
 		finalBody = transformedBody
 	} else {
 		finalBody = body
+	}
+
+	// Promote thinking/reasoning to content when content is empty
+	if pluginConfig.GetProviderConfig().GetPromoteThinkingOnEmpty() {
+		promoted, err := provider.PromoteThinkingOnEmptyResponse(finalBody)
+		if err != nil {
+			log.Warnf("[promoteThinkingOnEmpty] failed: %v", err)
+		} else {
+			finalBody = promoted
+		}
 	}
 
 	// Convert to Claude format if needed (applies to both branches)
@@ -542,6 +566,37 @@ func convertStreamingResponseToClaude(ctx wrapper.HttpContext, data []byte) ([]b
 		return data, err
 	}
 	return claudeChunk, nil
+}
+
+// promoteThinkingInStreamingChunk processes SSE-formatted streaming data and promotes
+// reasoning/thinking deltas to content deltas when no content has been seen.
+func promoteThinkingInStreamingChunk(ctx wrapper.HttpContext, data []byte) []byte {
+	// SSE data contains lines like "data: {...}\n\n"
+	// We need to find and process each data line
+	lines := strings.Split(string(data), "\n")
+	modified := false
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		payload := strings.TrimPrefix(line, "data: ")
+		if payload == "[DONE]" || payload == "" {
+			continue
+		}
+		promoted, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, []byte(payload))
+		if err != nil {
+			continue
+		}
+		newLine := "data: " + string(promoted)
+		if newLine != line {
+			lines[i] = newLine
+			modified = true
+		}
+	}
+	if !modified {
+		return data
+	}
+	return []byte(strings.Join(lines, "\n"))
 }
 
 // Helper function to convert OpenAI response body to Claude format

@@ -255,6 +255,65 @@ func (m *chatMessage) handleStreamingReasoningContent(ctx wrapper.HttpContext, r
 	}
 }
 
+// promoteThinkingOnEmpty promotes reasoning_content to content when content is empty.
+// This handles models that put user-facing replies into thinking blocks instead of text blocks.
+func (r *chatCompletionResponse) promoteThinkingOnEmpty() {
+	for i := range r.Choices {
+		msg := r.Choices[i].Message
+		if msg == nil {
+			continue
+		}
+		if !isContentEmpty(msg.Content) {
+			continue
+		}
+		if msg.ReasoningContent != "" {
+			msg.Content = msg.ReasoningContent
+			msg.ReasoningContent = ""
+		}
+	}
+}
+
+// promoteStreamingThinkingOnEmpty promotes reasoning delta to content delta when no content
+// has been seen in the stream so far. Uses context to track state across chunks.
+// Returns true if a promotion was performed.
+func promoteStreamingThinkingOnEmpty(ctx wrapper.HttpContext, msg *chatMessage) bool {
+	if msg == nil {
+		return false
+	}
+	hasContentDelta, _ := ctx.GetContext(ctxKeyHasContentDelta).(bool)
+	if hasContentDelta {
+		return false
+	}
+
+	if !isContentEmpty(msg.Content) {
+		ctx.SetContext(ctxKeyHasContentDelta, true)
+		return false
+	}
+
+	reasoning := msg.ReasoningContent
+	if reasoning == "" {
+		reasoning = msg.Reasoning
+	}
+	if reasoning != "" {
+		msg.Content = reasoning
+		msg.ReasoningContent = ""
+		msg.Reasoning = ""
+		return true
+	}
+	return false
+}
+
+func isContentEmpty(content any) bool {
+	switch v := content.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(v) == ""
+	default:
+		return false
+	}
+}
+
 type chatMessageContent struct {
 	CacheControl map[string]interface{}      `json:"cache_control,omitempty"`
 	Type         string                      `json:"type,omitempty"`
@@ -647,4 +706,55 @@ func (r embeddingsRequest) ParseInput() []string {
 		}
 	}
 	return input
+}
+
+// PromoteThinkingOnEmptyResponse promotes reasoning_content to content in a non-streaming
+// response body when content is empty. Returns the original body if no promotion is needed.
+func PromoteThinkingOnEmptyResponse(body []byte) ([]byte, error) {
+	var resp chatCompletionResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return body, fmt.Errorf("unable to unmarshal response for thinking promotion: %v", err)
+	}
+	promoted := false
+	for i := range resp.Choices {
+		msg := resp.Choices[i].Message
+		if msg == nil {
+			continue
+		}
+		if !isContentEmpty(msg.Content) {
+			continue
+		}
+		if msg.ReasoningContent != "" {
+			msg.Content = msg.ReasoningContent
+			msg.ReasoningContent = ""
+			promoted = true
+		}
+	}
+	if !promoted {
+		return body, nil
+	}
+	return json.Marshal(resp)
+}
+
+// PromoteStreamingThinkingOnEmptyChunk promotes reasoning delta to content delta in a
+// streaming SSE data payload when no content has been seen in the stream so far.
+func PromoteStreamingThinkingOnEmptyChunk(ctx wrapper.HttpContext, data []byte) ([]byte, error) {
+	var resp chatCompletionResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return data, nil // not a valid chat completion chunk, skip
+	}
+	promoted := false
+	for i := range resp.Choices {
+		msg := resp.Choices[i].Delta
+		if msg == nil {
+			continue
+		}
+		if promoteStreamingThinkingOnEmpty(ctx, msg) {
+			promoted = true
+		}
+	}
+	if !promoted {
+		return data, nil
+	}
+	return json.Marshal(resp)
 }

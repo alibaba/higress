@@ -1,10 +1,12 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/test"
+	"github.com/higress-group/wasm-go/pkg/iface"
 )
 
 func Test_getApiName(t *testing.T) {
@@ -222,4 +224,229 @@ func TestClaude(t *testing.T) {
 func TestConsumerAffinity(t *testing.T) {
 	test.RunConsumerAffinityParseConfigTests(t)
 	test.RunConsumerAffinityOnHttpRequestHeadersTests(t)
+}
+
+// mockHttpContext is a minimal mock for wrapper.HttpContext used in streaming tests.
+type mockHttpContext struct {
+	contextMap map[string]interface{}
+}
+
+func newMockHttpContext() *mockHttpContext {
+	return &mockHttpContext{contextMap: make(map[string]interface{})}
+}
+
+func (m *mockHttpContext) SetContext(key string, value interface{})          { m.contextMap[key] = value }
+func (m *mockHttpContext) GetContext(key string) interface{}                 { return m.contextMap[key] }
+func (m *mockHttpContext) GetBoolContext(key string, def bool) bool          { return def }
+func (m *mockHttpContext) GetStringContext(key, def string) string           { return def }
+func (m *mockHttpContext) GetByteSliceContext(key string, def []byte) []byte { return def }
+func (m *mockHttpContext) Scheme() string                                    { return "" }
+func (m *mockHttpContext) Host() string                                      { return "" }
+func (m *mockHttpContext) Path() string                                      { return "" }
+func (m *mockHttpContext) Method() string                                    { return "" }
+func (m *mockHttpContext) GetUserAttribute(key string) interface{}           { return nil }
+func (m *mockHttpContext) SetUserAttribute(key string, value interface{})    {}
+func (m *mockHttpContext) SetUserAttributeMap(kvmap map[string]interface{})  {}
+func (m *mockHttpContext) GetUserAttributeMap() map[string]interface{}       { return nil }
+func (m *mockHttpContext) WriteUserAttributeToLog() error                    { return nil }
+func (m *mockHttpContext) WriteUserAttributeToLogWithKey(key string) error   { return nil }
+func (m *mockHttpContext) WriteUserAttributeToTrace() error                  { return nil }
+func (m *mockHttpContext) DontReadRequestBody()                              {}
+func (m *mockHttpContext) DontReadResponseBody()                             {}
+func (m *mockHttpContext) BufferRequestBody()                                {}
+func (m *mockHttpContext) BufferResponseBody()                               {}
+func (m *mockHttpContext) NeedPauseStreamingResponse()                       {}
+func (m *mockHttpContext) PushBuffer(buffer []byte)                          {}
+func (m *mockHttpContext) PopBuffer() []byte                                 { return nil }
+func (m *mockHttpContext) BufferQueueSize() int                              { return 0 }
+func (m *mockHttpContext) DisableReroute()                                   {}
+func (m *mockHttpContext) SetRequestBodyBufferLimit(byteSize uint32)         {}
+func (m *mockHttpContext) SetResponseBodyBufferLimit(byteSize uint32)        {}
+func (m *mockHttpContext) RouteCall(method, url string, headers [][2]string, body []byte, callback iface.RouteResponseCallback) error {
+	return nil
+}
+func (m *mockHttpContext) GetExecutionPhase() iface.HTTPExecutionPhase { return 0 }
+func (m *mockHttpContext) HasRequestBody() bool      { return false }
+func (m *mockHttpContext) HasResponseBody() bool     { return false }
+func (m *mockHttpContext) IsWebsocket() bool         { return false }
+func (m *mockHttpContext) IsBinaryRequestBody() bool { return false }
+func (m *mockHttpContext) IsBinaryResponseBody() bool { return false }
+
+func TestPromoteThinkingOnEmptyResponse(t *testing.T) {
+	t.Run("promotes_reasoning_when_content_empty", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"","reasoning_content":"这是思考内容"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// content should now contain the reasoning text
+		if !contains(result, `"content":"这是思考内容"`) {
+			t.Errorf("expected reasoning promoted to content, got: %s", result)
+		}
+		// reasoning_content should be cleared
+		if contains(result, `"reasoning_content":"这是思考内容"`) {
+			t.Errorf("expected reasoning_content to be cleared, got: %s", result)
+		}
+	})
+
+	t.Run("promotes_reasoning_when_content_nil", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"思考结果"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !contains(result, `"content":"思考结果"`) {
+			t.Errorf("expected reasoning promoted to content, got: %s", result)
+		}
+	})
+
+	t.Run("no_change_when_content_present", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"正常回复","reasoning_content":"思考过程"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Should return original body unchanged
+		if string(result) != string(body) {
+			t.Errorf("expected body unchanged, got: %s", result)
+		}
+	})
+
+	t.Run("no_change_when_no_reasoning", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"正常回复"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(result) != string(body) {
+			t.Errorf("expected body unchanged, got: %s", result)
+		}
+	})
+
+	t.Run("no_change_when_both_empty", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(result) != string(body) {
+			t.Errorf("expected body unchanged, got: %s", result)
+		}
+	})
+
+	t.Run("invalid_json_returns_original", func(t *testing.T) {
+		body := []byte(`not json`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		if err == nil {
+			t.Fatal("expected error for invalid json")
+		}
+		if string(result) != string(body) {
+			t.Errorf("expected original body returned on error")
+		}
+	})
+}
+
+func TestPromoteStreamingThinkingOnEmptyChunk(t *testing.T) {
+	t.Run("promotes_reasoning_delta_when_no_content", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		data := []byte(`{"choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"思考中"}}]}`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !contains(result, `"content":"思考中"`) {
+			t.Errorf("expected reasoning promoted to content delta, got: %s", result)
+		}
+	})
+
+	t.Run("no_promote_after_content_seen", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		// First chunk: content delta
+		data1 := []byte(`{"choices":[{"index":0,"delta":{"content":"正文"}}]}`)
+		_, _ = provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data1)
+
+		// Second chunk: reasoning only — should NOT be promoted
+		data2 := []byte(`{"choices":[{"index":0,"delta":{"reasoning_content":"后续思考"}}]}`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Should return unchanged since content was already seen
+		if string(result) != string(data2) {
+			t.Errorf("expected no promotion after content seen, got: %s", result)
+		}
+	})
+
+	t.Run("promotes_reasoning_field_when_no_content", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		data := []byte(`{"choices":[{"index":0,"delta":{"reasoning":"流式思考"}}]}`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !contains(result, `"content":"流式思考"`) {
+			t.Errorf("expected reasoning promoted to content delta, got: %s", result)
+		}
+	})
+
+	t.Run("no_change_when_content_present_in_delta", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		data := []byte(`{"choices":[{"index":0,"delta":{"content":"有内容","reasoning_content":"也有思考"}}]}`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(result) != string(data) {
+			t.Errorf("expected no change when content present, got: %s", result)
+		}
+	})
+
+	t.Run("invalid_json_returns_original", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		data := []byte(`not json`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data)
+		if err != nil {
+			t.Fatalf("unexpected error for invalid json: %v", err)
+		}
+		if string(result) != string(data) {
+			t.Errorf("expected original data returned")
+		}
+	})
+}
+
+func TestPromoteThinkingInStreamingChunk(t *testing.T) {
+	t.Run("promotes_in_sse_format", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		chunk := []byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"思考\"}}]}\n\n")
+		result := promoteThinkingInStreamingChunk(ctx, chunk)
+		if !contains(result, `"content":"思考"`) {
+			t.Errorf("expected reasoning promoted in SSE chunk, got: %s", result)
+		}
+	})
+
+	t.Run("skips_done_marker", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		chunk := []byte("data: [DONE]\n\n")
+		result := promoteThinkingInStreamingChunk(ctx, chunk)
+		if string(result) != string(chunk) {
+			t.Errorf("expected [DONE] unchanged, got: %s", result)
+		}
+	})
+
+	t.Run("handles_multiple_events", func(t *testing.T) {
+		ctx := newMockHttpContext()
+		chunk := []byte("data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"第一段\"}}]}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"第二段\"}}]}\n\n")
+		result := promoteThinkingInStreamingChunk(ctx, chunk)
+		if !contains(result, `"content":"第一段"`) {
+			t.Errorf("expected first reasoning promoted, got: %s", result)
+		}
+		if !contains(result, `"content":"第二段"`) {
+			t.Errorf("expected second reasoning promoted, got: %s", result)
+		}
+	})
+}
+
+// contains checks if s contains substr
+func contains(b []byte, substr string) bool {
+	return strings.Contains(string(b), substr)
 }
