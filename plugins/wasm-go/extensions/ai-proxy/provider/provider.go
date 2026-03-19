@@ -178,6 +178,8 @@ const (
 	ctxKeyPushedMessage          = "pushedMessage"
 	ctxKeyContentPushed          = "contentPushed"
 	ctxKeyReasoningContentPushed = "reasoningContentPushed"
+	ctxKeyHasContentDelta        = "hasContentDelta"
+	ctxKeyBufferedReasoning      = "bufferedReasoning"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
@@ -474,6 +476,12 @@ type ProviderConfig struct {
 	// @Title zh-CN 合并连续同角色消息
 	// @Description zh-CN 开启后，若请求的 messages 中存在连续的同角色消息（如连续两条 user 消息），将其内容合并为一条，以满足要求严格轮流交替（user→assistant→user→...）的模型服务商的要求。
 	mergeConsecutiveMessages bool `required:"false" yaml:"mergeConsecutiveMessages" json:"mergeConsecutiveMessages"`
+	// @Title zh-CN 空内容时提升思考为正文
+	// @Description zh-CN 开启后，若模型响应只包含 reasoning_content/thinking 而没有正文内容，将 reasoning 内容提升为正文内容返回，避免客户端收到空回复。
+	promoteThinkingOnEmpty bool `required:"false" yaml:"promoteThinkingOnEmpty" json:"promoteThinkingOnEmpty"`
+	// @Title zh-CN HiClaw 模式
+	// @Description zh-CN 开启后同时启用 mergeConsecutiveMessages 和 promoteThinkingOnEmpty，适用于 HiClaw 多 Agent 协作场景。
+	hiclawMode bool `required:"false" yaml:"hiclawMode" json:"hiclawMode"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -699,6 +707,12 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		}
 	}
 	c.mergeConsecutiveMessages = json.Get("mergeConsecutiveMessages").Bool()
+	c.promoteThinkingOnEmpty = json.Get("promoteThinkingOnEmpty").Bool()
+	c.hiclawMode = json.Get("hiclawMode").Bool()
+	if c.hiclawMode {
+		c.mergeConsecutiveMessages = true
+		c.promoteThinkingOnEmpty = true
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -831,6 +845,10 @@ func (c *ProviderConfig) GetTokenWithConsumerAffinity(ctx wrapper.HttpContext, c
 
 func (c *ProviderConfig) IsOriginal() bool {
 	return c.protocol == protocolOriginal
+}
+
+func (c *ProviderConfig) GetPromoteThinkingOnEmpty() bool {
+	return c.promoteThinkingOnEmpty
 }
 
 func (c *ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {

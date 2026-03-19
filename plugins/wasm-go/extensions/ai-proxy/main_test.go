@@ -133,6 +133,8 @@ func TestOpenAI(t *testing.T) {
 	test.RunOpenAIOnHttpResponseHeadersTests(t)
 	test.RunOpenAIOnHttpResponseBodyTests(t)
 	test.RunOpenAIOnStreamingResponseBodyTests(t)
+	test.RunOpenAIPromoteThinkingOnEmptyTests(t)
+	test.RunOpenAIPromoteThinkingOnEmptyStreamingTests(t)
 }
 
 func TestQwen(t *testing.T) {
