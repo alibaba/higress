@@ -179,6 +179,7 @@ const (
 	ctxKeyContentPushed          = "contentPushed"
 	ctxKeyReasoningContentPushed = "reasoningContentPushed"
 	ctxKeyHasContentDelta        = "hasContentDelta"
+	ctxKeyBufferedReasoning      = "bufferedReasoning"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"

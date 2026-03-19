@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/test"
 	"github.com/stretchr/testify/require"
@@ -995,5 +996,160 @@ func RunOpenAIOnStreamingResponseBodyTests(t *testing.T) {
 			}
 			require.True(t, hasStreamingLogs, "Should have streaming response processing logs")
 		})
+	})
+}
+
+// 测试配置：OpenAI配置 + promoteThinkingOnEmpty
+var openAIPromoteThinkingConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":                   "openai",
+			"apiTokens":              []string{"sk-openai-test123456789"},
+			"promoteThinkingOnEmpty": true,
+		},
+	})
+	return data
+}()
+
+// 测试配置：OpenAI配置 + hiclawMode
+var openAIHiclawModeConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":       "openai",
+			"apiTokens":  []string{"sk-openai-test123456789"},
+			"hiclawMode": true,
+		},
+	})
+	return data
+}()
+
+func RunOpenAIPromoteThinkingOnEmptyTests(t *testing.T) {
+	// Config parsing tests via host framework
+	test.RunGoTest(t, func(t *testing.T) {
+		t.Run("promoteThinkingOnEmpty config parses", func(t *testing.T) {
+			host, status := test.NewTestHost(openAIPromoteThinkingConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			require.NotNil(t, config)
+		})
+
+		t.Run("hiclawMode config parses", func(t *testing.T) {
+			host, status := test.NewTestHost(openAIHiclawModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			require.NotNil(t, config)
+		})
+	})
+
+	// Non-streaming promote logic tests via provider functions directly
+	t.Run("promotes reasoning_content when content is empty string", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"","reasoning_content":"这是思考内容"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		require.NoError(t, err)
+		require.Contains(t, string(result), `"content":"这是思考内容"`)
+		require.NotContains(t, string(result), `"reasoning_content":"这是思考内容"`)
+	})
+
+	t.Run("promotes reasoning_content when content is nil", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","reasoning_content":"思考结果"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		require.NoError(t, err)
+		require.Contains(t, string(result), `"content":"思考结果"`)
+	})
+
+	t.Run("no promotion when content is present", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"正常回复","reasoning_content":"思考过程"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), string(result))
+	})
+
+	t.Run("no promotion when no reasoning", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"正常回复"},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), string(result))
+	})
+
+	t.Run("no promotion when both empty", func(t *testing.T) {
+		body := []byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		require.NoError(t, err)
+		require.Equal(t, string(body), string(result))
+	})
+
+	t.Run("invalid json returns error", func(t *testing.T) {
+		body := []byte(`not json`)
+		result, err := provider.PromoteThinkingOnEmptyResponse(body)
+		require.Error(t, err)
+		require.Equal(t, string(body), string(result))
+	})
+}
+
+func RunOpenAIPromoteThinkingOnEmptyStreamingTests(t *testing.T) {
+	// Streaming tests use provider functions directly since the test framework
+	// does not expose GetStreamingResponseBody.
+	t.Run("streaming: buffers reasoning and flushes on end when no content", func(t *testing.T) {
+		ctx := NewMockHttpContext()
+		// Chunk with only reasoning_content
+		data := []byte(`{"choices":[{"index":0,"delta":{"reasoning_content":"流式思考"}}]}`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data)
+		require.NoError(t, err)
+		// Reasoning should be stripped (not promoted inline)
+		require.NotContains(t, string(result), `"content":"流式思考"`)
+
+		// Flush should emit buffered reasoning as content
+		flush := provider.PromoteStreamingThinkingFlush(ctx)
+		require.NotNil(t, flush)
+		require.Contains(t, string(flush), `"content":"流式思考"`)
+	})
+
+	t.Run("streaming: no flush when content was seen", func(t *testing.T) {
+		ctx := NewMockHttpContext()
+		// First chunk: content delta
+		data1 := []byte(`{"choices":[{"index":0,"delta":{"content":"正文"}}]}`)
+		_, _ = provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data1)
+
+		// Second chunk: reasoning only
+		data2 := []byte(`{"choices":[{"index":0,"delta":{"reasoning_content":"后续思考"}}]}`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data2)
+		require.NoError(t, err)
+		// Should be unchanged since content was already seen
+		require.Equal(t, string(data2), string(result))
+
+		// Flush should return nil since content was seen
+		flush := provider.PromoteStreamingThinkingFlush(ctx)
+		require.Nil(t, flush)
+	})
+
+	t.Run("streaming: accumulates multiple reasoning chunks", func(t *testing.T) {
+		ctx := NewMockHttpContext()
+		data1 := []byte(`{"choices":[{"index":0,"delta":{"reasoning_content":"第一段"}}]}`)
+		_, _ = provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data1)
+
+		data2 := []byte(`{"choices":[{"index":0,"delta":{"reasoning_content":"第二段"}}]}`)
+		_, _ = provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data2)
+
+		flush := provider.PromoteStreamingThinkingFlush(ctx)
+		require.NotNil(t, flush)
+		require.Contains(t, string(flush), `"content":"第一段第二段"`)
+	})
+
+	t.Run("streaming: no flush when no reasoning buffered", func(t *testing.T) {
+		ctx := NewMockHttpContext()
+		flush := provider.PromoteStreamingThinkingFlush(ctx)
+		require.Nil(t, flush)
+	})
+
+	t.Run("streaming: invalid json returns original", func(t *testing.T) {
+		ctx := NewMockHttpContext()
+		data := []byte(`not json`)
+		result, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, data)
+		require.NoError(t, err)
+		require.Equal(t, string(data), string(result))
 	})
 }

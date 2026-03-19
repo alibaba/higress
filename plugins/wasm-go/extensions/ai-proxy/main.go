@@ -395,7 +395,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		modifiedChunk, err := handler.OnStreamingResponseBody(ctx, apiName, chunk, isLastChunk)
 		if err == nil && modifiedChunk != nil {
 			if promoteThinking {
-				modifiedChunk = promoteThinkingInStreamingChunk(ctx, modifiedChunk)
+				modifiedChunk = promoteThinkingInStreamingChunk(ctx, modifiedChunk, isLastChunk)
 			}
 			// Convert to Claude format if needed
 			claudeChunk, convertErr := convertStreamingResponseToClaude(ctx, modifiedChunk)
@@ -441,7 +441,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 		result := []byte(responseBuilder.String())
 
 		if promoteThinking {
-			result = promoteThinkingInStreamingChunk(ctx, result)
+			result = promoteThinkingInStreamingChunk(ctx, result, isLastChunk)
 		}
 
 		// Convert to Claude format if needed
@@ -475,7 +475,7 @@ func onStreamingResponseBody(ctx wrapper.HttpContext, pluginConfig config.Plugin
 	result := []byte(responseBuilder.String())
 
 	if promoteThinking {
-		result = promoteThinkingInStreamingChunk(ctx, result)
+		result = promoteThinkingInStreamingChunk(ctx, result, isLastChunk)
 	}
 
 	// Convert to Claude format if needed
@@ -568,9 +568,10 @@ func convertStreamingResponseToClaude(ctx wrapper.HttpContext, data []byte) ([]b
 	return claudeChunk, nil
 }
 
-// promoteThinkingInStreamingChunk processes SSE-formatted streaming data and promotes
-// reasoning/thinking deltas to content deltas when no content has been seen.
-func promoteThinkingInStreamingChunk(ctx wrapper.HttpContext, data []byte) []byte {
+// promoteThinkingInStreamingChunk processes SSE-formatted streaming data, buffering
+// reasoning deltas and stripping them from chunks. On the last chunk, if no content
+// was ever seen, it appends a flush chunk that emits buffered reasoning as content.
+func promoteThinkingInStreamingChunk(ctx wrapper.HttpContext, data []byte, isLastChunk bool) []byte {
 	// SSE data contains lines like "data: {...}\n\n"
 	// We need to find and process each data line
 	lines := strings.Split(string(data), "\n")
@@ -583,20 +584,31 @@ func promoteThinkingInStreamingChunk(ctx wrapper.HttpContext, data []byte) []byt
 		if payload == "[DONE]" || payload == "" {
 			continue
 		}
-		promoted, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, []byte(payload))
+		stripped, err := provider.PromoteStreamingThinkingOnEmptyChunk(ctx, []byte(payload))
 		if err != nil {
 			continue
 		}
-		newLine := "data: " + string(promoted)
+		newLine := "data: " + string(stripped)
 		if newLine != line {
 			lines[i] = newLine
 			modified = true
 		}
 	}
-	if !modified {
-		return data
+
+	result := data
+	if modified {
+		result = []byte(strings.Join(lines, "\n"))
 	}
-	return []byte(strings.Join(lines, "\n"))
+
+	// On last chunk, flush buffered reasoning as content if no content was seen
+	if isLastChunk {
+		flushChunk := provider.PromoteStreamingThinkingFlush(ctx)
+		if flushChunk != nil {
+			result = append(flushChunk, result...)
+		}
+	}
+
+	return result
 }
 
 // Helper function to convert OpenAI response body to Claude format
