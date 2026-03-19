@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/test"
 	"github.com/stretchr/testify/require"
@@ -197,6 +198,66 @@ func RunConsumerAffinityOnHttpRequestHeadersTests(t *testing.T) {
 			authValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
 			require.True(t, hasAuth, "Authorization header should exist")
 			require.True(t, strings.Contains(authValue, "sk-token-"), "Authorization should contain one of the tokens")
+		})
+
+		// 测试无 x-mse-consumer 时通过插件下发 cookie，后续请求保持稳定路由
+		t.Run("stateful api without consumer header falls back to anonymous affinity cookie", func(t *testing.T) {
+			host, status := test.NewTestHost(multiTokenOpenAIConfig)
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			host.CallOnHttpRequestBody([]byte(`{"model":"gpt-4","input":"hello"}`))
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
+			requestHeaders := host.GetRequestHeaders()
+			firstAuthValue, hasAuth := test.GetHeaderValue(requestHeaders, "Authorization")
+			require.True(t, hasAuth, "Authorization header should exist")
+			require.True(t, strings.Contains(firstAuthValue, "sk-token-"), "Authorization should contain one of the tokens")
+
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			responseHeaders := host.GetResponseHeaders()
+			setCookieValue, hasSetCookie := test.GetHeaderValue(responseHeaders, "Set-Cookie")
+			require.True(t, hasSetCookie, "Set-Cookie header should exist")
+			require.Contains(t, setCookieValue, provider.AnonymousAffinityCookieName+"=", "anonymous affinity cookie should be returned")
+
+			clientCookie := strings.SplitN(setCookieValue, ";", 2)[0]
+			require.NotEmpty(t, clientCookie, "client cookie should be extracted from Set-Cookie")
+			host.Reset()
+
+			for i := 0; i < 3; i++ {
+				stickyHost, stickyStatus := test.NewTestHost(multiTokenOpenAIConfig)
+				require.Equal(t, types.OnPluginStartStatusOK, stickyStatus)
+
+				action = stickyHost.CallOnHttpRequestHeaders([][2]string{
+					{":authority", "example.com"},
+					{":path", "/v1/responses"},
+					{":method", "POST"},
+					{"Content-Type", "application/json"},
+					{"cookie", clientCookie},
+				})
+
+				require.Equal(t, types.HeaderStopIteration, action)
+
+				stickyRequestHeaders := stickyHost.GetRequestHeaders()
+				authValue, hasStickyAuth := test.GetHeaderValue(stickyRequestHeaders, "Authorization")
+				require.True(t, hasStickyAuth, "Authorization header should exist on sticky request")
+				require.Equal(t, firstAuthValue, authValue, "anonymous affinity cookie should keep routing stable")
+
+				stickyHost.Reset()
+			}
 		})
 
 		// 测试单个 token 时始终使用该 token

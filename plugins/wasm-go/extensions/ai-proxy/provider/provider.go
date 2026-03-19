@@ -11,10 +11,10 @@ import (
 	"path"
 	"regexp"
 	"strconv"
-
 	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -178,6 +178,8 @@ const (
 	ctxKeyPushedMessage          = "pushedMessage"
 	ctxKeyContentPushed          = "contentPushed"
 	ctxKeyReasoningContentPushed = "reasoningContentPushed"
+	ctxKeyAnonymousAffinityKey   = "anonymousAffinityKey"
+	ctxKeySetAffinityCookie      = "setAffinityCookie"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
@@ -189,6 +191,8 @@ const (
 	wildcard = "*"
 
 	defaultTimeout = 2 * 60 * 1000 // ms
+
+	AnonymousAffinityCookieName = "higress-ai-affinity"
 
 	basePathHandlingRemovePrefix basePathHandling = "removePrefix"
 	basePathHandlingPrepend      basePathHandling = "prepend"
@@ -753,9 +757,9 @@ func (c *ProviderConfig) selectApiToken(ctx wrapper.HttpContext) string {
 
 	// For stateful APIs, try to use consumer affinity
 	if isStatefulAPI(apiName) {
-		consumer := c.getConsumerFromContext(ctx)
-		if consumer != "" {
-			return c.GetTokenWithConsumerAffinity(ctx, consumer)
+		affinityKey := c.getAffinityKeyFromContext(ctx)
+		if affinityKey != "" {
+			return c.GetTokenWithConsumerAffinity(ctx, affinityKey)
 		}
 	}
 
@@ -763,13 +767,64 @@ func (c *ProviderConfig) selectApiToken(ctx wrapper.HttpContext) string {
 	return c.GetRandomToken()
 }
 
-// getConsumerFromContext retrieves the consumer identifier from the request context
+// getConsumerFromContext retrieves the explicit consumer identifier from the request headers.
 func (c *ProviderConfig) getConsumerFromContext(ctx wrapper.HttpContext) string {
 	consumer, err := proxywasm.GetHttpRequestHeader("x-mse-consumer")
 	if err == nil && consumer != "" {
 		return consumer
 	}
 	return ""
+}
+
+func (c *ProviderConfig) getAffinityKeyFromContext(ctx wrapper.HttpContext) string {
+	if consumer := c.getConsumerFromContext(ctx); consumer != "" {
+		return consumer
+	}
+	if affinityKey := getAnonymousAffinityKeyFromCookie(); affinityKey != "" {
+		return affinityKey
+	}
+	if len(c.apiTokens) <= 1 {
+		return ""
+	}
+	affinityKey := uuid.NewString()
+	ctx.SetContext(ctxKeyAnonymousAffinityKey, affinityKey)
+	ctx.SetContext(ctxKeySetAffinityCookie, true)
+	return affinityKey
+}
+
+func getAnonymousAffinityKeyFromCookie() string {
+	cookieHeader, err := proxywasm.GetHttpRequestHeader("cookie")
+	if err != nil || cookieHeader == "" {
+		return ""
+	}
+	return getCookieValue(cookieHeader, AnonymousAffinityCookieName)
+}
+
+func getCookieValue(cookieHeader, cookieName string) string {
+	prefix := cookieName + "="
+	for _, cookie := range strings.Split(cookieHeader, ";") {
+		cookie = strings.TrimSpace(cookie)
+		if strings.HasPrefix(cookie, prefix) {
+			return strings.TrimPrefix(cookie, prefix)
+		}
+	}
+	return ""
+}
+
+func buildAffinityCookie(cookieValue string) string {
+	return fmt.Sprintf("%s=%s; Path=/; HttpOnly", AnonymousAffinityCookieName, cookieValue)
+}
+
+func (c *ProviderConfig) ApplyAnonymousAffinityCookie(ctx wrapper.HttpContext, headers http.Header) {
+	shouldSetCookie, _ := ctx.GetContext(ctxKeySetAffinityCookie).(bool)
+	if !shouldSetCookie {
+		return
+	}
+	affinityKey, _ := ctx.GetContext(ctxKeyAnonymousAffinityKey).(string)
+	if affinityKey == "" {
+		return
+	}
+	headers.Add("Set-Cookie", buildAffinityCookie(affinityKey))
 }
 
 func (c *ProviderConfig) GetRandomToken() string {

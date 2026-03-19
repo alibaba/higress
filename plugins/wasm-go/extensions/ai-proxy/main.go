@@ -350,6 +350,7 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, pluginConfig config.PluginCo
 	providerConfig.ResetApiTokenRequestFailureCount(apiTokenInUse)
 
 	headers := util.GetResponseHeaders()
+	providerConfig.ApplyAnonymousAffinityCookie(ctx, headers)
 	if handler, ok := activeProvider.(provider.TransformResponseHeadersHandler); ok {
 		apiName, _ := ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
 		handler.TransformResponseHeaders(ctx, apiName, headers)
