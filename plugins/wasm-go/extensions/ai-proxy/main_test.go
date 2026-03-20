@@ -18,6 +18,12 @@ func Test_getApiName(t *testing.T) {
 		{"openai completions", "/v1/completions", provider.ApiNameCompletion},
 		{"openai embeddings", "/v1/embeddings", provider.ApiNameEmbeddings},
 		{"openai audio speech", "/v1/audio/speech", provider.ApiNameAudioSpeech},
+		{"openai audio transcriptions", "/v1/audio/transcriptions", provider.ApiNameAudioTranscription},
+		{"openai audio transcriptions with prefix", "/proxy/v1/audio/transcriptions", provider.ApiNameAudioTranscription},
+		{"openai audio translations", "/v1/audio/translations", provider.ApiNameAudioTranslation},
+		{"openai realtime", "/v1/realtime", provider.ApiNameRealtime},
+		{"openai realtime with prefix", "/proxy/v1/realtime", provider.ApiNameRealtime},
+		{"openai realtime with trailing slash", "/v1/realtime/", ""},
 		{"openai image generation", "/v1/images/generations", provider.ApiNameImageGeneration},
 		{"openai image variation", "/v1/images/variations", provider.ApiNameImageVariation},
 		{"openai image edit", "/v1/images/edits", provider.ApiNameImageEdit},
@@ -127,6 +133,8 @@ func TestOpenAI(t *testing.T) {
 	test.RunOpenAIOnHttpResponseHeadersTests(t)
 	test.RunOpenAIOnHttpResponseBodyTests(t)
 	test.RunOpenAIOnStreamingResponseBodyTests(t)
+	test.RunOpenAIPromoteThinkingOnEmptyTests(t)
+	test.RunOpenAIPromoteThinkingOnEmptyStreamingTests(t)
 }
 
 func TestQwen(t *testing.T) {
@@ -169,6 +177,10 @@ func TestMinimax(t *testing.T) {
 
 func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
+}
+
+func TestApiPathRegression(t *testing.T) {
+	test.RunApiPathRegressionTests(t)
 }
 
 func TestGeneric(t *testing.T) {
