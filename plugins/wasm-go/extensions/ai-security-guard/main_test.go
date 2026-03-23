@@ -330,6 +330,51 @@ func TestOnHttpRequestBody(t *testing.T) {
 			// 空内容应该直接通过
 			require.Equal(t, types.ActionContinue, action)
 		})
+
+		// TextModerationPlus（默认 action，含 agent/OpenAI 形态）请求拦截应返回 choices[0].message.content 内的 blockedDetails JSON
+		t.Run("text moderation plus request deny returns blockedDetails in openai completion shape", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "trigger deny"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-tmp-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for request deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-tmp-deny")
+
+			type openAIChatCompletion struct {
+				Choices []struct {
+					Message struct {
+						Content string `json:"content"`
+					} `json:"message"`
+				} `json:"choices"`
+			}
+			var outer openAIChatCompletion
+			require.NoError(t, json.Unmarshal(local.Data, &outer))
+			require.Len(t, outer.Choices, 1)
+
+			var deny cfg.DenyResponseBody
+			require.NoError(t, json.Unmarshal([]byte(outer.Choices[0].Message.Content), &deny))
+			require.Equal(t, "req-tmp-deny", deny.RequestId)
+			require.Equal(t, 200, deny.GuardCode)
+			require.NotEmpty(t, deny.BlockedDetails)
+			require.Equal(t, cfg.ContentModerationType, deny.BlockedDetails[0].Type)
+		})
 	})
 }
 
@@ -647,5 +692,117 @@ func TestUtilityFunctions(t *testing.T) {
 		require.NotEmpty(t, id)
 		require.Contains(t, id, "chatcmpl-")
 		require.Len(t, id, 38) // "chatcmpl-" + 29 random chars
+	})
+}
+
+func TestBuildDenyResponseBody(t *testing.T) {
+	makeConfig := func(contentBar, promptBar string) cfg.AISecurityConfig {
+		return cfg.AISecurityConfig{
+			ContentModerationLevelBar: contentBar,
+			PromptAttackLevelBar:      promptBar,
+			SensitiveDataLevelBar:     "S4",
+			MaliciousUrlLevelBar:      "max",
+			ModelHallucinationLevelBar: "max",
+			Action:                    cfg.MultiModalGuard,
+		}
+	}
+
+	t.Run("guardCode equals response.Code", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-123",
+			Data:      cfg.Data{},
+		}
+		body, err := cfg.BuildDenyResponseBody(resp, makeConfig("high", "high"), "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.Equal(t, 200, result.GuardCode)
+		require.Equal(t, "req-123", result.RequestId)
+	})
+
+	t.Run("blockedDetails from Data.Detail", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-456",
+			Data: cfg.Data{
+				Detail: []cfg.Detail{
+					{Type: cfg.ContentModerationType, Level: "high", Suggestion: "block"},
+					{Type: cfg.PromptAttackType, Level: "low", Suggestion: "block"},
+				},
+			},
+		}
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		// only the contentModeration entry meets the "high" bar; promptAttack at "low" does not
+		require.Len(t, result.BlockedDetails, 1)
+		require.Equal(t, cfg.ContentModerationType, result.BlockedDetails[0].Type)
+		require.Equal(t, "high", result.BlockedDetails[0].Level)
+	})
+
+	t.Run("blockedDetails fallback from RiskLevel when Detail is empty", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-789",
+			Data: cfg.Data{
+				RiskLevel: "high",
+				// Detail deliberately empty
+			},
+		}
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.NotEmpty(t, result.BlockedDetails, "expected fallback detail from RiskLevel")
+		require.Equal(t, cfg.ContentModerationType, result.BlockedDetails[0].Type)
+		require.Equal(t, "high", result.BlockedDetails[0].Level)
+		require.Equal(t, "block", result.BlockedDetails[0].Suggestion)
+	})
+
+	t.Run("blockedDetails fallback from AttackLevel when Detail is empty", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-abc",
+			Data: cfg.Data{
+				AttackLevel: "high",
+				// Detail deliberately empty
+			},
+		}
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.NotEmpty(t, result.BlockedDetails, "expected fallback detail from AttackLevel")
+		require.Equal(t, cfg.PromptAttackType, result.BlockedDetails[0].Type)
+		require.Equal(t, "high", result.BlockedDetails[0].Level)
+		require.Equal(t, "block", result.BlockedDetails[0].Suggestion)
+	})
+
+	t.Run("blockedDetails empty when risk levels below threshold", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-def",
+			Data: cfg.Data{
+				RiskLevel:   "low",
+				AttackLevel: "low",
+			},
+		}
+		// threshold is "high", so "low" must not produce fallback entries
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.Empty(t, result.BlockedDetails)
 	})
 }

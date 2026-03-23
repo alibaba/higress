@@ -41,15 +41,43 @@ description: 阿里云内容安全检测
 | `consumerResponseCheckService` | map | optional | - | 为不同消费者指定特定的响应检测服务 |
 | `consumerRiskLevel` | map | optional | - | 为不同消费者指定各维度的拦截风险等级 |
 
-补充说明一下 `denyMessage`，对非法请求的处理逻辑为：
-- 如果配置了 `denyMessage`，返回内容为 `denyMessage` 配置内容，格式为openai格式的流式/非流式响应
-- 如果没有配置 `denyMessage`，优先返回阿里云内容安全的建议回答，格式为openai格式的流式/非流式响应
-- 如果阿里云内容安全未返回建议的回答，返回内容为内置的兜底回答，内容为`"很抱歉，我无法回答您的问题"`，格式为openai格式的流式/非流式响应
+### 拒绝响应结构
 
-如果用户使用了非openai格式的协议，此时对非法请求的处理逻辑为：
-- 如果配置了 `denyMessage`，返回用户配置的 `denyMessage` 内容，非流式响应
-- 如果没有配置 `denyMessage`，优先返回阿里云内容安全的建议回答，非流式响应
-- 如果阿里云内容安全未返回建议回答，返回内置的兜底回答，内容为`"很抱歉，我无法回答您的问题"`，非流式响应
+内容被拦截时，插件（`MultiModalGuard` action）统一返回以下结构化 JSON 对象，各协议的承载位置如下：
+
+```json
+{
+  "blockedDetails": [
+    {
+      "Type": "contentModeration",
+      "Level": "high",
+      "Suggestion": "block"
+    }
+  ],
+  "requestId": "AAAAAA-BBBB-CCCC-DDDD-EEEEEEE****",
+  "guardCode": 200
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `blockedDetails` | array | 命中拦截的维度明细；若安全服务未返回明细，则根据顶层风险信号自动合成 |
+| `blockedDetails[].Type` | string | 风险类型：`contentModeration` / `promptAttack` / `sensitiveData` / `maliciousUrl` / `modelHallucination` |
+| `blockedDetails[].Level` | string | 风险等级：`high` / `medium` / `low` 等 |
+| `blockedDetails[].Suggestion` | string | 安全服务建议操作，通常为 `block` |
+| `requestId` | string | 安全服务的请求 ID，用于追踪 |
+| `guardCode` | int | 安全服务返回的业务码（非 HTTP 状态码，成功检测时为 `200`） |
+
+各协议承载位置：
+
+- **`text_generation`（OpenAI 非流式）**：上述结构体序列化为 JSON 字符串后放入 `choices[0].message.content`
+- **`text_generation`（OpenAI 流式 SSE）**：同上，放入首个 chunk 的 `delta.content`
+- **`text_generation`（`protocol=original`）**：上述结构体直接作为 JSON 响应 body 返回
+- **`image_generation`**：上述结构体直接作为 JSON 响应 body 返回（HTTP 403）
+- **`mcp`（JSON-RPC）**：上述结构体序列化为 JSON 字符串后放入 `error.message`
+- **`mcp`（SSE）**：同上，通过 SSE 事件返回
 
 补充说明一下内容合规检测、提示词攻击检测、敏感内容检测三种风险的四个等级：
 
