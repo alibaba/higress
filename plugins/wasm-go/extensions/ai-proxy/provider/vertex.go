@@ -45,6 +45,7 @@ const (
 	contextClaudeMarker                = "isClaudeRequest"
 	contextOpenAICompatibleMarker      = "isOpenAICompatibleRequest"
 	contextVertexRawMarker             = "isVertexRawRequest"
+	contextVertexStreamDoneMarker      = "vertexStreamDoneSent"
 	vertexAnthropicVersion             = "vertex-2023-10-16"
 	vertexImageVariationDefaultPrompt  = "Create variations of the provided image."
 )
@@ -621,23 +622,46 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 		return v.claude.OnStreamingResponseBody(ctx, name, chunk, isLastChunk)
 	}
 	log.Infof("[vertexProvider] receive chunk body: %s", string(chunk))
-	if isLastChunk {
-		return []byte(ssePrefix + "[DONE]\n\n"), nil
-	}
-	if len(chunk) == 0 {
+	if len(chunk) == 0 && !isLastChunk {
 		return nil, nil
 	}
 	if name != ApiNameChatCompletion {
+		if isLastChunk {
+			return []byte(ssePrefix + "[DONE]\n\n"), nil
+		}
 		return chunk, nil
 	}
+
 	responseBuilder := &strings.Builder{}
-	lines := strings.Split(string(chunk), "\n")
-	for _, data := range lines {
-		if len(data) < 6 {
-			// ignore blank line or wrong format
+	// Flush a trailing event when upstream closes stream without a final blank line.
+	chunkForParsing := chunk
+	if isLastChunk {
+		trailingNewLineCount := 0
+		for i := len(chunkForParsing) - 1; i >= 0 && chunkForParsing[i] == '\n'; i-- {
+			trailingNewLineCount++
+		}
+		if trailingNewLineCount < 2 {
+			chunkForParsing = append([]byte(nil), chunk...)
+			for i := 0; i < 2-trailingNewLineCount; i++ {
+				chunkForParsing = append(chunkForParsing, '\n')
+			}
+		}
+	}
+	streamEvents := ExtractStreamingEvents(ctx, chunkForParsing)
+	doneSent, _ := ctx.GetContext(contextVertexStreamDoneMarker).(bool)
+	appendDone := isLastChunk && !doneSent
+	for _, event := range streamEvents {
+		data := event.Data
+		if data == "" {
 			continue
 		}
-		data = data[6:]
+		if data == streamEndDataValue {
+			if !doneSent {
+				appendDone = true
+				doneSent = true
+			}
+			continue
+		}
 		var vertexResp vertexChatResponse
 		if err := json.Unmarshal([]byte(data), &vertexResp); err != nil {
 			log.Errorf("unable to unmarshal vertex response: %v", err)
@@ -651,7 +675,17 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 		}
 		v.appendResponse(responseBuilder, string(responseBody))
 	}
+	if appendDone {
+		responseBuilder.WriteString(ssePrefix + "[DONE]\n\n")
+		doneSent = true
+	}
+	ctx.SetContext(contextVertexStreamDoneMarker, doneSent)
 	modifiedResponseChunk := responseBuilder.String()
+	if modifiedResponseChunk == "" {
+		// Returning an empty payload prevents main.go from falling back to
+		// forwarding the original raw chunk, which may contain partial JSON.
+		return []byte(""), nil
+	}
 	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
 	return []byte(modifiedResponseChunk), nil
 }
