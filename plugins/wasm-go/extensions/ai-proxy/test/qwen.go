@@ -100,6 +100,22 @@ var qwenEnableCompatibleConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：qwen original + 兼容模式（用于覆盖 provider.GetApiName 分支）
+var qwenOriginalCompatibleConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":      "qwen",
+			"apiTokens": []string{"sk-qwen-original-compatible"},
+			"modelMapping": map[string]string{
+				"*": "qwen-turbo",
+			},
+			"qwenEnableCompatible": true,
+			"protocol":             "original",
+		},
+	})
+	return data
+}()
+
 // 测试配置：qwen文件ID配置
 var qwenFileIdsConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -158,6 +174,15 @@ var qwenConflictConfig = func() json.RawMessage {
 	})
 	return data
 }()
+
+func hasUnsupportedAPINameError(errorLogs []string) bool {
+	for _, log := range errorLogs {
+		if strings.Contains(log, "unsupported API name") {
+			return true
+		}
+	}
+	return false
+}
 
 func RunQwenParseConfigTests(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
@@ -402,6 +427,29 @@ func RunQwenOnHttpRequestHeadersTests(t *testing.T) {
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath)
 			require.Contains(t, pathValue, "/compatible-mode/v1/chat/completions", "Path should use compatible mode path")
+		})
+
+		// 测试qwen兼容模式请求头处理（responses接口）
+		t.Run("qwen compatible mode responses request headers", func(t *testing.T) {
+			host, status := test.NewTestHost(qwenEnableCompatibleConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/api/v2/apps/protocols/compatible-mode/v1/responses", "Path should use compatible mode responses path")
 		})
 	})
 }
@@ -650,6 +698,112 @@ func RunQwenOnHttpRequestBodyTests(t *testing.T) {
 				}
 			}
 			require.True(t, hasCompatibleLogs, "Should have compatible mode processing logs")
+		})
+
+		// 测试qwen请求体处理（兼容模式 responses接口）
+		t.Run("qwen compatible mode responses request body", func(t *testing.T) {
+			host, status := test.NewTestHost(qwenEnableCompatibleConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"qwen-turbo","input":"test"}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			require.Contains(t, string(processedBody), "qwen-turbo", "Model name should be preserved in responses request")
+		})
+
+		// 测试qwen请求体处理（非兼容模式 responses接口应报不支持）
+		t.Run("qwen non-compatible mode responses request body unsupported", func(t *testing.T) {
+			host, status := test.NewTestHost(basicQwenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			require.NotNil(t, requestHeaders)
+
+			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+			require.True(t, hasPath)
+			require.Contains(t, pathValue, "/v1/responses", "Path should remain unchanged when responses is unsupported")
+
+			requestBody := `{"model":"qwen-turbo","input":"test"}`
+			bodyAction := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, bodyAction)
+
+			hasUnsupportedErr := hasUnsupportedAPINameError(host.GetErrorLogs())
+			require.True(t, hasUnsupportedErr, "Should log unsupported API name for non-compatible responses")
+		})
+
+		// 覆盖 qwen.GetApiName 中以下分支：
+		// - qwenCompatibleTextEmbeddingPath => ApiNameEmbeddings
+		// - qwenCompatibleResponsesPath => ApiNameResponses
+		// - qwenAsyncAIGCPath => ApiNameQwenAsyncAIGC
+		// - qwenAsyncTaskPath => ApiNameQwenAsyncTask
+		t.Run("qwen original protocol get api name coverage for compatible embeddings responses and async paths", func(t *testing.T) {
+			cases := []struct {
+				name string
+				path string
+			}{
+				{
+					name: "compatible embeddings path",
+					path: "/compatible-mode/v1/embeddings",
+				},
+				{
+					name: "compatible responses path",
+					path: "/api/v2/apps/protocols/compatible-mode/v1/responses",
+				},
+				{
+					name: "async aigc path",
+					path: "/api/v1/services/aigc/custom-async-endpoint",
+				},
+				{
+					name: "async task path",
+					path: "/api/v1/tasks/task-123",
+				},
+			}
+
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					host, status := test.NewTestHost(qwenOriginalCompatibleConfig)
+					defer host.Reset()
+					require.Equal(t, types.OnPluginStartStatusOK, status)
+
+					action := host.CallOnHttpRequestHeaders([][2]string{
+						{":authority", "example.com"},
+						{":path", tc.path},
+						{":method", "POST"},
+						{"Content-Type", "application/json"},
+					})
+					// 测试框架中 action 可能表现为 Continue 或 HeaderStopIteration，
+					// 这里关注的是后续 body 阶段不出现 unsupported API name。
+					require.True(t, action == types.ActionContinue || action == types.HeaderStopIteration)
+
+					requestBody := `{"model":"qwen-turbo","input":"test"}`
+					bodyAction := host.CallOnHttpRequestBody([]byte(requestBody))
+					require.Equal(t, types.ActionContinue, bodyAction)
+
+					hasUnsupportedErr := hasUnsupportedAPINameError(host.GetErrorLogs())
+					require.False(t, hasUnsupportedErr, "Path should be recognized by qwen.GetApiName in original protocol")
+				})
+			}
 		})
 	})
 }
@@ -985,6 +1139,51 @@ func RunQwenOnHttpResponseBodyTests(t *testing.T) {
 			responseStr := string(processedResponseBody)
 			require.Contains(t, responseStr, "chat.completion", "Response should contain chat completion object")
 			require.Contains(t, responseStr, "qwen-turbo", "Response should contain model name")
+		})
+
+		// 测试qwen响应体处理（兼容模式 responses 接口透传）
+		t.Run("qwen compatible mode responses response body", func(t *testing.T) {
+			host, status := test.NewTestHost(qwenEnableCompatibleConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/responses"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"qwen-turbo","input":"test"}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			responseBody := `{
+				"id": "resp-123",
+				"object": "response",
+				"status": "completed",
+				"output": [{
+					"type": "message",
+					"role": "assistant",
+					"content": [{
+						"type": "output_text",
+						"text": "hello"
+					}]
+				}]
+			}`
+			action := host.CallOnHttpResponseBody([]byte(responseBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+			responseStr := string(processedResponseBody)
+			require.Contains(t, responseStr, "\"object\": \"response\"", "Responses API payload should be passthrough in compatible mode")
+			require.Contains(t, responseStr, "\"text\": \"hello\"", "Assistant content should be preserved")
 		})
 	})
 }
