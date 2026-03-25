@@ -387,6 +387,9 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini Thinking Budget 配置
 	// @Description zh-CN 仅适用于 Gemini AI 服务，用于控制思考预算
 	geminiThinkingBudget int64 `required:"false" yaml:"geminiThinkingBudget" json:"geminiThinkingBudget"`
+	// @Title zh-CN Gemini 服务域名
+	// @Description zh-CN 仅适用于 Gemini AI 服务。默认域名为 generativelanguage.googleapis.com，当使用代理服务器时可配置为代理服务器域名
+	geminiDomain string `required:"false" yaml:"geminiDomain" json:"geminiDomain"`
 	// @Title zh-CN Vertex AI访问区域
 	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
 	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
@@ -468,6 +471,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 合并连续同角色消息
 	// @Description zh-CN 开启后，若请求的 messages 中存在连续的同角色消息（如连续两条 user 消息），将其内容合并为一条，以满足要求严格轮流交替（user→assistant→user→...）的模型服务商的要求。
 	mergeConsecutiveMessages bool `required:"false" yaml:"mergeConsecutiveMessages" json:"mergeConsecutiveMessages"`
+	// @Title zh-CN 通用 Provider 域名
+	// @Description zh-CN 通用的 Provider 服务域名配置，适用于所有 Provider。当配置此字段时，将优先使用此域名覆盖默认的硬编码域名。常用于代理服务器场景
+	providerDomain string `required:"false" yaml:"providerDomain" json:"providerDomain"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -480,6 +486,20 @@ func (c *ProviderConfig) GetType() string {
 
 func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
+}
+
+// resolveDomain resolves the domain to use based on priority:
+// 1. providerDomain (generic override for all providers)
+// 2. provider-specific domain config (e.g., geminiDomain, doubaoDomain)
+// 3. default hardcoded domain
+func (c *ProviderConfig) resolveDomain(providerSpecificDomain, defaultDomain string) string {
+	if c.providerDomain != "" {
+		return c.providerDomain
+	}
+	if providerSpecificDomain != "" {
+		return providerSpecificDomain
+	}
+	return defaultDomain
 }
 
 func (c *ProviderConfig) GetVllmCustomUrl() string {
@@ -676,6 +696,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.basePathHandling = basePathHandlingRemovePrefix
 	}
 	c.genericHost = json.Get("genericHost").String()
+	c.geminiDomain = json.Get("geminiDomain").String()
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()
@@ -689,6 +710,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		}
 	}
 	c.mergeConsecutiveMessages = json.Get("mergeConsecutiveMessages").Bool()
+	c.providerDomain = json.Get("providerDomain").String()
 }
 
 func (c *ProviderConfig) Validate() error {

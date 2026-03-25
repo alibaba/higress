@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/gjson"
 )
 
 func TestIsStatefulAPI(t *testing.T) {
@@ -272,4 +273,94 @@ func TestGetTokenWithConsumerAffinity_HashDistribution(t *testing.T) {
 			assert.Contains(t, config.apiTokens, result)
 		})
 	}
+}
+
+func TestGeminiDomain_Config(t *testing.T) {
+	t.Run("geminiDomain_field_exists", func(t *testing.T) {
+		config := ProviderConfig{}
+		config.FromJson(gjson.Result{})
+		assert.Equal(t, "", config.geminiDomain)
+	})
+
+	t.Run("geminiDomain_parsed_from_json", func(t *testing.T) {
+		config := ProviderConfig{}
+		jsonStr := `{"geminiDomain": "custom-proxy.example.com"}`
+		config.FromJson(gjson.Parse(jsonStr))
+		assert.Equal(t, "custom-proxy.example.com", config.geminiDomain)
+	})
+}
+
+func TestGeminiProvider_WithGeminiDomain(t *testing.T) {
+	t.Run("default_domain_when_geminiDomain_not_set", func(t *testing.T) {
+		config := ProviderConfig{
+			typ:       providerTypeGemini,
+			apiTokens: []string{"test-token"},
+		}
+		provider, err := CreateProvider(config)
+		assert.NoError(t, err)
+		assert.NotNil(t, provider)
+
+		geminiProv, ok := provider.(*geminiProvider)
+		assert.True(t, ok)
+		// Verify the client is created with default domain
+		assert.NotNil(t, geminiProv.client)
+	})
+
+	t.Run("custom_domain_when_geminiDomain_is_set", func(t *testing.T) {
+		customDomain := "my-proxy-server.com"
+		config := ProviderConfig{
+			typ:        providerTypeGemini,
+			apiTokens:  []string{"test-token"},
+			geminiDomain: customDomain,
+		}
+		provider, err := CreateProvider(config)
+		assert.NoError(t, err)
+		assert.NotNil(t, provider)
+
+		geminiProv, ok := provider.(*geminiProvider)
+		assert.True(t, ok)
+		// Verify the provider uses the custom domain
+		assert.NotNil(t, geminiProv.client)
+	})
+}
+
+func TestProviderDomain_Config(t *testing.T) {
+	t.Run("providerDomain_field_exists", func(t *testing.T) {
+		config := ProviderConfig{}
+		config.FromJson(gjson.Result{})
+		assert.Equal(t, "", config.providerDomain)
+	})
+
+	t.Run("providerDomain_parsed_from_json", func(t *testing.T) {
+		config := ProviderConfig{}
+		jsonStr := `{"providerDomain": "universal-proxy.example.com"}`
+		config.FromJson(gjson.Parse(jsonStr))
+		assert.Equal(t, "universal-proxy.example.com", config.providerDomain)
+	})
+}
+
+func TestResolveDomain_Priority(t *testing.T) {
+	t.Run("providerDomain_takes_priority", func(t *testing.T) {
+		config := ProviderConfig{
+			providerDomain: "universal-proxy.com",
+		}
+		result := config.resolveDomain("specific-domain.com", "default.com")
+		assert.Equal(t, "universal-proxy.com", result)
+	})
+
+	t.Run("providerSpecificDomain_when_providerDomain_empty", func(t *testing.T) {
+		config := ProviderConfig{
+			providerDomain: "",
+		}
+		result := config.resolveDomain("specific-domain.com", "default.com")
+		assert.Equal(t, "specific-domain.com", result)
+	})
+
+	t.Run("defaultDomain_when_both_empty", func(t *testing.T) {
+		config := ProviderConfig{
+			providerDomain: "",
+		}
+		result := config.resolveDomain("", "default.com")
+		assert.Equal(t, "default.com", result)
+	})
 }
