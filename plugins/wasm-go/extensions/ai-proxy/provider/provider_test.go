@@ -133,11 +133,11 @@ func TestIsStatefulAPI(t *testing.T) {
 
 func TestGetTokenWithConsumerAffinity(t *testing.T) {
 	tests := []struct {
-		name       string
-		apiTokens  []string
-		consumer   string
-		wantEmpty  bool
-		wantToken  string // If not empty, expected specific token (for single token case)
+		name      string
+		apiTokens []string
+		consumer  string
+		wantEmpty bool
+		wantToken string // If not empty, expected specific token (for single token case)
 	}{
 		{
 			name:      "no_tokens_returns_empty",
@@ -273,55 +273,6 @@ func TestGetTokenWithConsumerAffinity_HashDistribution(t *testing.T) {
 			assert.Contains(t, config.apiTokens, result)
 		})
 	}
-}
-
-func TestGeminiDomain_Config(t *testing.T) {
-	t.Run("geminiDomain_field_exists", func(t *testing.T) {
-		config := ProviderConfig{}
-		config.FromJson(gjson.Result{})
-		assert.Equal(t, "", config.geminiDomain)
-	})
-
-	t.Run("geminiDomain_parsed_from_json", func(t *testing.T) {
-		config := ProviderConfig{}
-		jsonStr := `{"geminiDomain": "custom-proxy.example.com"}`
-		config.FromJson(gjson.Parse(jsonStr))
-		assert.Equal(t, "custom-proxy.example.com", config.geminiDomain)
-	})
-}
-
-func TestGeminiProvider_WithGeminiDomain(t *testing.T) {
-	t.Run("default_domain_when_geminiDomain_not_set", func(t *testing.T) {
-		config := ProviderConfig{
-			typ:       providerTypeGemini,
-			apiTokens: []string{"test-token"},
-		}
-		provider, err := CreateProvider(config)
-		assert.NoError(t, err)
-		assert.NotNil(t, provider)
-
-		geminiProv, ok := provider.(*geminiProvider)
-		assert.True(t, ok)
-		// Verify the client is created with default domain
-		assert.NotNil(t, geminiProv.client)
-	})
-
-	t.Run("custom_domain_when_geminiDomain_is_set", func(t *testing.T) {
-		customDomain := "my-proxy-server.com"
-		config := ProviderConfig{
-			typ:        providerTypeGemini,
-			apiTokens:  []string{"test-token"},
-			geminiDomain: customDomain,
-		}
-		provider, err := CreateProvider(config)
-		assert.NoError(t, err)
-		assert.NotNil(t, provider)
-
-		geminiProv, ok := provider.(*geminiProvider)
-		assert.True(t, ok)
-		// Verify the provider uses the custom domain
-		assert.NotNil(t, geminiProv.client)
-	})
 }
 
 func TestProviderDomain_Config(t *testing.T) {

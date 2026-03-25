@@ -395,9 +395,6 @@ type ProviderConfig struct {
 	// @Title zh-CN Gemini Thinking Budget 配置
 	// @Description zh-CN 仅适用于 Gemini AI 服务，用于控制思考预算
 	geminiThinkingBudget int64 `required:"false" yaml:"geminiThinkingBudget" json:"geminiThinkingBudget"`
-	// @Title zh-CN Gemini 服务域名
-	// @Description zh-CN 仅适用于 Gemini AI 服务。默认域名为 generativelanguage.googleapis.com，当使用代理服务器时可配置为代理服务器域名
-	geminiDomain string `required:"false" yaml:"geminiDomain" json:"geminiDomain"`
 	// @Title zh-CN Vertex AI访问区域
 	// @Description zh-CN 仅适用于Vertex AI服务。如需查看支持的区域的完整列表，请参阅https://cloud.google.com/vertex-ai/generative-ai/docs/learn/locations?hl=zh-cn#available-regions
 	vertexRegion string `required:"false" yaml:"vertexRegion" json:"vertexRegion"`
@@ -714,7 +711,6 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.basePathHandling = basePathHandlingRemovePrefix
 	}
 	c.genericHost = json.Get("genericHost").String()
-	c.geminiDomain = json.Get("geminiDomain").String()
 	c.vllmServerHost = json.Get("vllmServerHost").String()
 	c.vllmCustomUrl = json.Get("vllmCustomUrl").String()
 	c.doubaoDomain = json.Get("doubaoDomain").String()

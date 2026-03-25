@@ -62,7 +62,7 @@ func (g *geminiProviderInitializer) DefaultCapabilities() map[string]string {
 
 func (g *geminiProviderInitializer) CreateProvider(config ProviderConfig) (Provider, error) {
 	config.setDefaultCapabilities(g.DefaultCapabilities())
-	domain := config.resolveDomain(config.geminiDomain, geminiDomain)
+	domain := config.resolveDomain("", geminiDomain)
 	return &geminiProvider{
 		config:       config,
 		contextCache: createContextCache(&config),
@@ -90,7 +90,7 @@ func (g *geminiProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (g *geminiProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	domain := g.config.resolveDomain(g.config.geminiDomain, geminiDomain)
+	domain := g.config.resolveDomain("", geminiDomain)
 	util.OverwriteRequestHostHeader(headers, domain)
 	headers.Set(geminiApiKeyHeader, g.config.GetApiTokenInUse(ctx))
 	util.OverwriteRequestAuthorizationHeader(headers, "")
