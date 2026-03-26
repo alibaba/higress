@@ -98,7 +98,7 @@ Port descriptions:
 > - **North America**: `higress-registry.us-west-1.cr.aliyuncs.com`
 > - **Southeast Asia**: `higress-registry.ap-southeast-7.cr.aliyuncs.com`
 
-For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.io/en-us/docs/user/quickstart).
+For other installation methods such as Helm deployment under K8s, please refer to the official [Quick Start documentation](https://higress.ai/en/docs/latest/user/quickstart/).
 
 If you are deploying on the cloud, it is recommended to use the [Enterprise Edition](https://www.aliyun.com/product/apigateway?spm=higress-github.topbar.0.0.0)
 
