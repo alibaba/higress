@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tidwall/gjson"
 )
 
 func TestIsStatefulAPI(t *testing.T) {
@@ -132,11 +133,11 @@ func TestIsStatefulAPI(t *testing.T) {
 
 func TestGetTokenWithConsumerAffinity(t *testing.T) {
 	tests := []struct {
-		name       string
-		apiTokens  []string
-		consumer   string
-		wantEmpty  bool
-		wantToken  string // If not empty, expected specific token (for single token case)
+		name      string
+		apiTokens []string
+		consumer  string
+		wantEmpty bool
+		wantToken string // If not empty, expected specific token (for single token case)
 	}{
 		{
 			name:      "no_tokens_returns_empty",
@@ -272,4 +273,45 @@ func TestGetTokenWithConsumerAffinity_HashDistribution(t *testing.T) {
 			assert.Contains(t, config.apiTokens, result)
 		})
 	}
+}
+
+func TestProviderDomain_Config(t *testing.T) {
+	t.Run("providerDomain_field_exists", func(t *testing.T) {
+		config := ProviderConfig{}
+		config.FromJson(gjson.Result{})
+		assert.Equal(t, "", config.providerDomain)
+	})
+
+	t.Run("providerDomain_parsed_from_json", func(t *testing.T) {
+		config := ProviderConfig{}
+		jsonStr := `{"providerDomain": "universal-proxy.example.com"}`
+		config.FromJson(gjson.Parse(jsonStr))
+		assert.Equal(t, "universal-proxy.example.com", config.providerDomain)
+	})
+}
+
+func TestResolveDomain_Priority(t *testing.T) {
+	t.Run("providerDomain_takes_priority", func(t *testing.T) {
+		config := ProviderConfig{
+			providerDomain: "universal-proxy.com",
+		}
+		result := config.resolveDomain("specific-domain.com", "default.com")
+		assert.Equal(t, "universal-proxy.com", result)
+	})
+
+	t.Run("providerSpecificDomain_when_providerDomain_empty", func(t *testing.T) {
+		config := ProviderConfig{
+			providerDomain: "",
+		}
+		result := config.resolveDomain("specific-domain.com", "default.com")
+		assert.Equal(t, "specific-domain.com", result)
+	})
+
+	t.Run("defaultDomain_when_both_empty", func(t *testing.T) {
+		config := ProviderConfig{
+			providerDomain: "",
+		}
+		result := config.resolveDomain("", "default.com")
+		assert.Equal(t, "default.com", result)
+	})
 }
