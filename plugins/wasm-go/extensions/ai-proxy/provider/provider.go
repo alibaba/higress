@@ -41,6 +41,9 @@ const (
 	ApiNameImageEdit                            ApiName = "openai/v1/imageedit"
 	ApiNameImageVariation                       ApiName = "openai/v1/imagevariation"
 	ApiNameAudioSpeech                          ApiName = "openai/v1/audiospeech"
+	ApiNameAudioTranscription                   ApiName = "openai/v1/audiotranscription"
+	ApiNameAudioTranslation                     ApiName = "openai/v1/audiotranslation"
+	ApiNameRealtime                             ApiName = "openai/v1/realtime"
 	ApiNameFiles                                ApiName = "openai/v1/files"
 	ApiNameRetrieveFile                         ApiName = "openai/v1/retrievefile"
 	ApiNameRetrieveFileContent                  ApiName = "openai/v1/retrievefilecontent"
@@ -90,6 +93,9 @@ const (
 	PathOpenAIImageEdit                            = "/v1/images/edits"
 	PathOpenAIImageVariation                       = "/v1/images/variations"
 	PathOpenAIAudioSpeech                          = "/v1/audio/speech"
+	PathOpenAIAudioTranscriptions                  = "/v1/audio/transcriptions"
+	PathOpenAIAudioTranslations                    = "/v1/audio/translations"
+	PathOpenAIRealtime                             = "/v1/realtime"
 	PathOpenAIResponses                            = "/v1/responses"
 	PathOpenAIFineTuningJobs                       = "/v1/fine_tuning/jobs"
 	PathOpenAIRetrieveFineTuningJob                = "/v1/fine_tuning/jobs/{fine_tuning_job_id}"
@@ -172,6 +178,8 @@ const (
 	ctxKeyPushedMessage          = "pushedMessage"
 	ctxKeyContentPushed          = "contentPushed"
 	ctxKeyReasoningContentPushed = "reasoningContentPushed"
+	ctxKeyHasContentDelta        = "hasContentDelta"
+	ctxKeyBufferedReasoning      = "bufferedReasoning"
 
 	objectChatCompletion      = "chat.completion"
 	objectChatCompletionChunk = "chat.completion.chunk"
@@ -468,6 +476,15 @@ type ProviderConfig struct {
 	// @Title zh-CN 合并连续同角色消息
 	// @Description zh-CN 开启后，若请求的 messages 中存在连续的同角色消息（如连续两条 user 消息），将其内容合并为一条，以满足要求严格轮流交替（user→assistant→user→...）的模型服务商的要求。
 	mergeConsecutiveMessages bool `required:"false" yaml:"mergeConsecutiveMessages" json:"mergeConsecutiveMessages"`
+	// @Title zh-CN 通用 Provider 域名
+	// @Description zh-CN 通用的 Provider 服务域名配置，适用于所有 Provider。当配置此字段时，将优先使用此域名覆盖默认的硬编码域名。常用于代理服务器场景
+	providerDomain string `required:"false" yaml:"providerDomain" json:"providerDomain"`
+	// @Title zh-CN 空内容时提升思考为正文
+	// @Description zh-CN 开启后，若模型响应只包含 reasoning_content/thinking 而没有正文内容，将 reasoning 内容提升为正文内容返回，避免客户端收到空回复。
+	promoteThinkingOnEmpty bool `required:"false" yaml:"promoteThinkingOnEmpty" json:"promoteThinkingOnEmpty"`
+	// @Title zh-CN HiClaw 模式
+	// @Description zh-CN 开启后同时启用 mergeConsecutiveMessages 和 promoteThinkingOnEmpty，适用于 HiClaw 多 Agent 协作场景。
+	hiclawMode bool `required:"false" yaml:"hiclawMode" json:"hiclawMode"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -480,6 +497,20 @@ func (c *ProviderConfig) GetType() string {
 
 func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
+}
+
+// resolveDomain resolves the domain to use based on priority:
+// 1. providerDomain (generic override for all providers)
+// 2. provider-specific domain config (e.g., geminiDomain, doubaoDomain)
+// 3. default hardcoded domain
+func (c *ProviderConfig) resolveDomain(providerSpecificDomain, defaultDomain string) string {
+	if c.providerDomain != "" {
+		return c.providerDomain
+	}
+	if providerSpecificDomain != "" {
+		return providerSpecificDomain
+	}
+	return defaultDomain
 }
 
 func (c *ProviderConfig) GetVllmCustomUrl() string {
@@ -662,6 +693,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 			string(ApiNameImageVariation),
 			string(ApiNameImageEdit),
 			string(ApiNameAudioSpeech),
+			string(ApiNameAudioTranscription),
+			string(ApiNameAudioTranslation),
+			string(ApiNameRealtime),
+			string(ApiNameResponses),
 			string(ApiNameCohereV1Rerank),
 			string(ApiNameVideos),
 			string(ApiNameRetrieveVideo),
@@ -689,6 +724,13 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		}
 	}
 	c.mergeConsecutiveMessages = json.Get("mergeConsecutiveMessages").Bool()
+	c.providerDomain = json.Get("providerDomain").String()
+	c.promoteThinkingOnEmpty = json.Get("promoteThinkingOnEmpty").Bool()
+	c.hiclawMode = json.Get("hiclawMode").Bool()
+	if c.hiclawMode {
+		c.mergeConsecutiveMessages = true
+		c.promoteThinkingOnEmpty = true
+	}
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -821,6 +863,10 @@ func (c *ProviderConfig) GetTokenWithConsumerAffinity(ctx wrapper.HttpContext, c
 
 func (c *ProviderConfig) IsOriginal() bool {
 	return c.protocol == protocolOriginal
+}
+
+func (c *ProviderConfig) GetPromoteThinkingOnEmpty() bool {
+	return c.promoteThinkingOnEmpty
 }
 
 func (c *ProviderConfig) ReplaceByCustomSettings(body []byte) ([]byte, error) {

@@ -255,6 +255,70 @@ func (m *chatMessage) handleStreamingReasoningContent(ctx wrapper.HttpContext, r
 	}
 }
 
+// promoteThinkingOnEmpty promotes reasoning_content to content when content is empty.
+// This handles models that put user-facing replies into thinking blocks instead of text blocks.
+func (r *chatCompletionResponse) promoteThinkingOnEmpty() {
+	for i := range r.Choices {
+		msg := r.Choices[i].Message
+		if msg == nil {
+			continue
+		}
+		if !isContentEmpty(msg.Content) {
+			continue
+		}
+		if msg.ReasoningContent != "" {
+			msg.Content = msg.ReasoningContent
+			msg.ReasoningContent = ""
+		}
+	}
+}
+
+// promoteStreamingThinkingOnEmpty accumulates reasoning content during streaming.
+// It strips reasoning from chunks and buffers it. When content is seen, it marks
+// the stream as having content so no promotion will happen.
+// Call PromoteStreamingThinkingFlush at the end of the stream to emit buffered
+// reasoning as content if no content was ever seen.
+// Returns true if the chunk was modified (reasoning stripped).
+func promoteStreamingThinkingOnEmpty(ctx wrapper.HttpContext, msg *chatMessage) bool {
+	if msg == nil {
+		return false
+	}
+	hasContentDelta, _ := ctx.GetContext(ctxKeyHasContentDelta).(bool)
+	if hasContentDelta {
+		return false
+	}
+
+	if !isContentEmpty(msg.Content) {
+		ctx.SetContext(ctxKeyHasContentDelta, true)
+		return false
+	}
+
+	// Buffer reasoning content and strip it from the chunk
+	reasoning := msg.ReasoningContent
+	if reasoning == "" {
+		reasoning = msg.Reasoning
+	}
+	if reasoning != "" {
+		buffered, _ := ctx.GetContext(ctxKeyBufferedReasoning).(string)
+		ctx.SetContext(ctxKeyBufferedReasoning, buffered+reasoning)
+		msg.ReasoningContent = ""
+		msg.Reasoning = ""
+		return true
+	}
+	return false
+}
+
+func isContentEmpty(content any) bool {
+	switch v := content.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(v) == ""
+	default:
+		return false
+	}
+}
+
 type chatMessageContent struct {
 	CacheControl map[string]interface{}      `json:"cache_control,omitempty"`
 	Type         string                      `json:"type,omitempty"`
@@ -647,4 +711,88 @@ func (r embeddingsRequest) ParseInput() []string {
 		}
 	}
 	return input
+}
+
+// PromoteThinkingOnEmptyResponse promotes reasoning_content to content in a non-streaming
+// response body when content is empty. Returns the original body if no promotion is needed.
+func PromoteThinkingOnEmptyResponse(body []byte) ([]byte, error) {
+	var resp chatCompletionResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return body, fmt.Errorf("unable to unmarshal response for thinking promotion: %v", err)
+	}
+	promoted := false
+	for i := range resp.Choices {
+		msg := resp.Choices[i].Message
+		if msg == nil {
+			continue
+		}
+		if !isContentEmpty(msg.Content) {
+			continue
+		}
+		if msg.ReasoningContent != "" {
+			msg.Content = msg.ReasoningContent
+			msg.ReasoningContent = ""
+			promoted = true
+		}
+	}
+	if !promoted {
+		return body, nil
+	}
+	return json.Marshal(resp)
+}
+
+// PromoteStreamingThinkingOnEmptyChunk buffers reasoning deltas and strips them from
+// the chunk during streaming. Call PromoteStreamingThinkingFlush on the last chunk
+// to emit buffered reasoning as content if no real content was ever seen.
+func PromoteStreamingThinkingOnEmptyChunk(ctx wrapper.HttpContext, data []byte) ([]byte, error) {
+	var resp chatCompletionResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return data, nil // not a valid chat completion chunk, skip
+	}
+	modified := false
+	for i := range resp.Choices {
+		msg := resp.Choices[i].Delta
+		if msg == nil {
+			continue
+		}
+		if promoteStreamingThinkingOnEmpty(ctx, msg) {
+			modified = true
+		}
+	}
+	if !modified {
+		return data, nil
+	}
+	return json.Marshal(resp)
+}
+
+// PromoteStreamingThinkingFlush checks if the stream had no content and returns
+// an SSE chunk that emits the buffered reasoning as content. Returns nil if
+// content was already seen or no reasoning was buffered.
+func PromoteStreamingThinkingFlush(ctx wrapper.HttpContext) []byte {
+	hasContentDelta, _ := ctx.GetContext(ctxKeyHasContentDelta).(bool)
+	if hasContentDelta {
+		return nil
+	}
+	buffered, _ := ctx.GetContext(ctxKeyBufferedReasoning).(string)
+	if buffered == "" {
+		return nil
+	}
+	// Build a minimal chat.completion.chunk with the buffered reasoning as content
+	resp := chatCompletionResponse{
+		Object: objectChatCompletionChunk,
+		Choices: []chatCompletionChoice{
+			{
+				Index: 0,
+				Delta: &chatMessage{
+					Content: buffered,
+				},
+			},
+		},
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return nil
+	}
+	// Format as SSE
+	return []byte("data: " + string(data) + "\n\n")
 }
