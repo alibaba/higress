@@ -20,9 +20,29 @@ import (
 	"testing"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/test"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
+
+type noopLog struct{}
+
+func (noopLog) Trace(string)                     {}
+func (noopLog) Tracef(string, ...interface{})    {}
+func (noopLog) Debug(string)                     {}
+func (noopLog) Debugf(string, ...interface{})    {}
+func (noopLog) Info(string)                      {}
+func (noopLog) Infof(string, ...interface{})     {}
+func (noopLog) Warn(string)                      {}
+func (noopLog) Warnf(string, ...interface{})     {}
+func (noopLog) Error(string)                     {}
+func (noopLog) Errorf(string, ...interface{})    {}
+func (noopLog) Critical(string)                  {}
+func (noopLog) Criticalf(string, ...interface{}) {}
+func (noopLog) ResetID(string)                   {}
+
+var _ log.Log = (*noopLog)(nil)
 
 // 测试配置：基本配置
 var basicConfig = func() json.RawMessage {
@@ -107,6 +127,28 @@ var invalidConfigInvalidTimeout = func() json.RawMessage {
 	return data
 }()
 
+func TestNormalizePolicyPath(t *testing.T) {
+	tests := []struct {
+		name   string
+		policy string
+		want   string
+	}{
+		{name: "plain package", policy: "authz", want: "authz"},
+		{name: "package with allow", policy: "authz/allow", want: "authz"},
+		{name: "full data dot path", policy: "data.authz.allow", want: "authz"},
+		{name: "full data slash path", policy: "data/authz/allow", want: "authz"},
+		{name: "v1 data path", policy: "v1/data/authz/allow", want: "authz"},
+		{name: "nested package", policy: "data.company.authz.allow", want: "company/authz"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizePolicyPath(tt.policy)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestParseConfig(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		// 测试基本配置解析
@@ -118,6 +160,22 @@ func TestParseConfig(t *testing.T) {
 			config, err := host.GetMatchConfig()
 			require.NoError(t, err)
 			require.NotNil(t, config)
+		})
+
+		t.Run("policy path normalization for full data path", func(t *testing.T) {
+			raw, _ := json.Marshal(map[string]interface{}{
+				"policy":        "data.authz.allow",
+				"timeout":       "5s",
+				"serviceSource": "k8s",
+				"serviceName":   "opa",
+				"servicePort":   "8181",
+				"namespace":     "higress-backend",
+			})
+
+			cfg := OpaConfig{}
+			err := parseConfig(gjson.ParseBytes(raw), &cfg, noopLog{})
+			require.NoError(t, err)
+			require.Equal(t, "authz", cfg.policyPath)
 		})
 
 		// 测试 IP 服务配置解析
