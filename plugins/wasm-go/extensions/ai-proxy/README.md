@@ -192,6 +192,10 @@ OpenRouter 所对应的 `type` 为 `openrouter`。它并无特有的配置字段
 
 Fireworks AI 所对应的 `type` 为 `fireworks`。它并无特有的配置字段。
 
+#### 七牛云（Qiniu）
+
+七牛云所对应的 `type` 为 `qiniu`。它并无特有的配置字段。
+
 #### 文心一言（Baidu）
 
 文心一言所对应的 `type` 为 `baidu`。它并无特有的配置字段。
@@ -2436,6 +2440,58 @@ providers:
         }
     ],
     "model": "gpt2",
+}
+```
+
+
+### 使用 OpenAI 协议代理七牛云服务
+
+**配置信息**
+
+```yaml
+provider:
+  type: qiniu
+  apiTokens:
+    - "YOUR_QINIU_API_TOKEN"
+```
+
+**请求示例**
+
+```json
+{
+  "model": "openai/gpt-5",
+  "messages": [
+    {
+      "role": "user",
+      "content": "你好，你是谁？"
+    }
+  ]
+}
+```
+
+**响应示例**
+
+```json
+{
+  "id": "chatcmpl-xxxx",
+  "object": "chat.completion",
+  "created": 1699123456,
+  "model": "openai/gpt-5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "你好！我是 Codex，基于 GPT-5 的编码助手，在你的本机 Codex CLI 里工作。有什么可以帮助你的吗？"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 25,
+    "total_tokens": 35
+  }
 }
 ```
 
