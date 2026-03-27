@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -61,6 +63,8 @@ const (
 
 	DefaultTextModerationPlusTextInputCheckService  = "llm_query_moderation"
 	DefaultTextModerationPlusTextOutputCheckService = "llm_response_moderation"
+
+	DefaultCheckRecordTTL = 172800 // 2 days in seconds
 )
 
 // api types
@@ -166,6 +170,10 @@ type AISecurityConfig struct {
 	ApiType string
 	// openai, qwen, comfyui, etc.
 	ProviderType string
+	// Redis-based message dedup
+	RedisClient      wrapper.RedisClient
+	CheckAllMessages bool
+	CheckRecordTTL   int // TTL in seconds for check records, default 172800 (2 days)
 }
 
 func (config *AISecurityConfig) Parse(json gjson.Result) error {
@@ -337,6 +345,68 @@ func (config *AISecurityConfig) Parse(json gjson.Result) error {
 		Host: serviceHost,
 	})
 	config.Metrics = make(map[string]proxywasm.MetricCounter)
+	// Parse checkAllMessages dedup config
+	config.CheckAllMessages = json.Get("checkAllMessages").Bool()
+	log.Infof("[config] checkAllMessages=%v, action=%s, apiType=%s, requestContentJsonPath=%s", config.CheckAllMessages, config.Action, config.ApiType, config.RequestContentJsonPath)
+	if obj := json.Get("checkRecordTTL"); obj.Exists() {
+		if obj.Int() <= 0 && config.CheckAllMessages {
+			return errors.New("checkRecordTTL must be greater than 0")
+		}
+		config.CheckRecordTTL = int(obj.Int())
+	}
+	// Initialize Redis client for dedup if checkAllMessages is enabled
+	if config.CheckAllMessages {
+		log.Infof("[config] initializing redis client for dedup...")
+		if err := config.initRedisClient(json); err != nil {
+			log.Warnf("failed to init redis for dedup, checkAllMessages will be disabled: %v", err)
+			config.CheckAllMessages = false
+		} else {
+			log.Infof("[config] redis client initialized, ready=%v", config.RedisClient.Ready())
+		}
+	}
+	return nil
+}
+
+func (config *AISecurityConfig) initRedisClient(json gjson.Result) error {
+	redisConfig := json.Get("redis")
+	if !redisConfig.Exists() {
+		return errors.New("missing redis config for checkAllMessages")
+	}
+	serviceName := redisConfig.Get("service_name").String()
+	if serviceName == "" {
+		return errors.New("redis service_name must not be empty")
+	}
+	servicePort := int(redisConfig.Get("service_port").Int())
+	if servicePort == 0 {
+		if strings.HasSuffix(serviceName, ".static") {
+			servicePort = 80
+		} else {
+			servicePort = 6379
+		}
+	}
+	username := redisConfig.Get("username").String()
+	password := redisConfig.Get("password").String()
+	timeout := int(redisConfig.Get("timeout").Int())
+	if timeout == 0 {
+		timeout = 1000
+	}
+	database := int(redisConfig.Get("database").Int())
+
+	cluster := wrapper.FQDNCluster{
+		FQDN: serviceName,
+		Port: int64(servicePort),
+	}
+	log.Infof("[redis-dedup] cluster=%s, hasPassword=%v, username=%q, database=%d, timeout=%d",
+		cluster.ClusterName(), password != "", username, database, timeout)
+
+	config.RedisClient = wrapper.NewRedisClusterClient(cluster)
+	// Note: Init() always returns nil in the current SDK; Ready() reflects actual init status
+	config.RedisClient.Init(username, password, int64(timeout), wrapper.WithDataBase(database))
+	if config.RedisClient.Ready() {
+		log.Info("[redis-dedup] redis client init successfully")
+	} else {
+		log.Warn("[redis-dedup] redis client init pending, will retry on first command")
+	}
 	return nil
 }
 
@@ -364,6 +434,7 @@ func (config *AISecurityConfig) SetDefaultValues() {
 	config.BufferLimit = 1000
 	config.ApiType = ApiTextGeneration
 	config.ProviderType = ProviderOpenAI
+	config.CheckRecordTTL = DefaultCheckRecordTTL
 }
 
 func (config *AISecurityConfig) IncrementCounter(metricName string, inc uint64) {
@@ -583,4 +654,28 @@ func IsRiskLevelAcceptable(action string, data Data, config AISecurityConfig, co
 	} else {
 		return LevelToInt(data.RiskLevel) < LevelToInt(config.GetRiskLevelBar(consumer))
 	}
+}
+
+// BuildPolicyFingerprint generates a fingerprint string that encodes all policy dimensions
+// affecting the security check result. This ensures Redis dedup keys are invalidated when
+// any relevant policy parameter changes, preventing cross-policy cache pollution.
+func (config *AISecurityConfig) BuildPolicyFingerprint(consumer string) string {
+	if config.Action == MultiModalGuard {
+		return fmt.Sprintf("%s:%s:%s:%s:%s:%s:%s:%s:%s",
+			config.Action,
+			config.GetRequestCheckService(consumer),
+			config.GetRequestImageCheckService(consumer),
+			config.GetContentModerationLevelBar(consumer),
+			config.GetPromptAttackLevelBar(consumer),
+			config.GetSensitiveDataLevelBar(consumer),
+			config.GetMaliciousUrlLevelBar(consumer),
+			config.GetModelHallucinationLevelBar(consumer),
+			strconv.FormatBool(config.CheckRequestImage),
+		)
+	}
+	return fmt.Sprintf("%s:%s:%s",
+		config.Action,
+		config.GetRequestCheckService(consumer),
+		config.GetRiskLevelBar(consumer),
+	)
 }
