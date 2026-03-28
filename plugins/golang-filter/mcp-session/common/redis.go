@@ -60,6 +60,9 @@ type RedisClient struct {
 	crypto *Crypto
 }
 
+// Ensure RedisClient implements MsgPubSub interface
+var _ MsgPubSub = (*RedisClient)(nil)
+
 // NewRedisClient creates a new RedisClient instance and establishes a connection to the Redis server
 func NewRedisClient(config *RedisConfig) (*RedisClient, error) {
 	client := redis.NewClient(&redis.Options{

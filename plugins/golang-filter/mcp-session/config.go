@@ -27,6 +27,7 @@ type config struct {
 	enableUserLevelServer bool
 	rateLimitConfig       *handler.MCPRatelimitConfig
 	redisClient           *common.RedisClient
+	msgPubSub             common.MsgPubSub  // Unified msg pub/sub interface
 	sharedMCPServer       *common.MCPServer // Created once, thread-safe with sync.RWMutex
 }
 
@@ -68,10 +69,34 @@ func (p *Parser) Parse(any *anypb.Any, callbacks api.ConfigCallbackHandler) (int
 			api.LogErrorf("Failed to initialize Redis client: %v", err)
 		} else {
 			api.LogDebug("Redis client initialized")
+			conf.redisClient = redisClient
 		}
-		conf.redisClient = redisClient
 	} else {
-		api.LogDebug("Redis configuration not provided, running without Redis")
+		api.LogDebug("Redis configuration not provided")
+	}
+
+	// RocketMQ configuration is optional (used for msgPubSub)
+	if rocketmqConfigMap, ok := v.AsMap()["rocketmq"].(map[string]interface{}); ok {
+		rocketmqConfig, err := common.ParseRocketMQConfig(rocketmqConfigMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse rocketmq config: %w", err)
+		}
+
+		rocketmqClient, err := common.NewRocketMQClient(rocketmqConfig)
+		if err != nil {
+			api.LogErrorf("Failed to initialize RocketMQ client: %v", err)
+		} else {
+			api.LogDebug("RocketMQ client initialized")
+			conf.msgPubSub = rocketmqClient
+		}
+	} else {
+		// If RocketMQ is not configured, use Redis for msgPubSub (if available)
+		if conf.redisClient != nil {
+			api.LogDebug("Using Redis for message pub/sub")
+			conf.msgPubSub = conf.redisClient
+		} else {
+			api.LogDebug("Neither Redis nor RocketMQ configuration provided, running without message pub/sub")
+		}
 	}
 
 	enableUserLevelServer, ok := v.AsMap()["enable_user_level_server"].(bool)
