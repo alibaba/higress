@@ -150,6 +150,43 @@ func getMultipartTextField(body []byte, contentType string, fieldName string) (s
 	}
 }
 
+func RunAzureMultipartHelperTests(t *testing.T) {
+	t.Run("multipart text field returns error for invalid content type", func(t *testing.T) {
+		_, _, err := getMultipartTextField([]byte("bad-body"), "multipart/form-data; boundary=\"", "model")
+		require.Error(t, err)
+	})
+
+	t.Run("multipart text field returns not found for missing boundary", func(t *testing.T) {
+		value, found, err := getMultipartTextField([]byte("bad-body"), "multipart/form-data", "model")
+		require.NoError(t, err)
+		require.False(t, found)
+		require.Equal(t, "", value)
+	})
+
+	t.Run("multipart text field returns not found on eof", func(t *testing.T) {
+		body, contentType := buildMultipartRequestBody(t, map[string]string{
+			"model": "gpt-image-1.5",
+		}, nil)
+
+		value, found, err := getMultipartTextField(body, contentType, "prompt")
+		require.NoError(t, err)
+		require.False(t, found)
+		require.Equal(t, "", value)
+	})
+
+	t.Run("multipart text field returns next part error on malformed body", func(t *testing.T) {
+		body := []byte("--abc\r\nnot-a-header\r\n\r\nvalue\r\n--abc--\r\n")
+		_, _, err := getMultipartTextField(body, "multipart/form-data; boundary=abc", "model")
+		require.Error(t, err)
+	})
+
+	t.Run("multipart text field returns read error on truncated part", func(t *testing.T) {
+		body := []byte("--abc\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nvalue\r\n--ab")
+		_, _, err := getMultipartTextField(body, "multipart/form-data; boundary=abc", "model")
+		require.Error(t, err)
+	})
+}
+
 // 测试配置：Azure OpenAI无效配置（缺少azureServiceUrl）
 var azureInvalidConfigMissingUrl = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{

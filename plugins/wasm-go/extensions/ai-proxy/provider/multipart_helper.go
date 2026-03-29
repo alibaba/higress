@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+var newMultipartWriter = func(w io.Writer) *multipart.Writer {
+	return multipart.NewWriter(w)
+}
+
 type multipartImageRequest struct {
 	Model        string
 	Prompt       string
@@ -148,9 +152,7 @@ func extractMultipartModel(body []byte, contentType string) (string, error) {
 		} else {
 			_, readErr = io.Copy(io.Discard, part)
 		}
-		if closeErr := part.Close(); closeErr != nil && readErr == nil {
-			readErr = closeErr
-		}
+		_ = part.Close()
 		if readErr != nil {
 			return "", fmt.Errorf("unable to read multipart field %s: %v", fieldName, readErr)
 		}
@@ -166,7 +168,7 @@ func rewriteMultipartFormModel(body []byte, contentType string, model string) ([
 	}
 
 	var buffer bytes.Buffer
-	writer := multipart.NewWriter(&buffer)
+	writer := newMultipartWriter(&buffer)
 	if err := writer.SetBoundary(boundary); err != nil {
 		return nil, fmt.Errorf("unable to set multipart boundary: %v", err)
 	}
@@ -198,9 +200,7 @@ func rewriteMultipartFormModel(body []byte, contentType string, model string) ([
 		} else {
 			_, copyErr = io.Copy(newPart, part)
 		}
-		if closeErr := part.Close(); closeErr != nil && copyErr == nil {
-			copyErr = closeErr
-		}
+		_ = part.Close()
 		if copyErr != nil {
 			return nil, fmt.Errorf("unable to write multipart field %s: %v", fieldName, copyErr)
 		}

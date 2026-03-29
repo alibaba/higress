@@ -2,6 +2,8 @@ package provider
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"mime/multipart"
 	"strings"
 	"testing"
@@ -78,6 +80,37 @@ func buildProviderMultipartRequestBody(t *testing.T, fields map[string]string, f
 	return buffer.Bytes(), writer.FormDataContentType()
 }
 
+type failAfterNWriteWriter struct {
+	target     io.Writer
+	failAtCall int
+	writeCalls int
+}
+
+func (w *failAfterNWriteWriter) Write(p []byte) (int, error) {
+	w.writeCalls++
+	if w.writeCalls >= w.failAtCall {
+		return 0, errors.New("injected write failure")
+	}
+	return w.target.Write(p)
+}
+
+func withInjectedMultipartWriterFactory(t *testing.T, failAtCall int, testFunc func()) {
+	t.Helper()
+
+	originalFactory := newMultipartWriter
+	newMultipartWriter = func(target io.Writer) *multipart.Writer {
+		return multipart.NewWriter(&failAfterNWriteWriter{
+			target:     target,
+			failAtCall: failAtCall,
+		})
+	}
+	defer func() {
+		newMultipartWriter = originalFactory
+	}()
+
+	testFunc()
+}
+
 func TestRewriteMultipartFormModel(t *testing.T) {
 	t.Run("rewrites existing model field", func(t *testing.T) {
 		body, contentType := buildProviderMultipartRequestBody(t, map[string]string{
@@ -140,6 +173,36 @@ func TestRewriteMultipartFormModel(t *testing.T) {
 		_, err := rewriteMultipartFormModel(body, "multipart/form-data; boundary=abc", "gpt-image-1")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unable to write multipart field image")
+	})
+
+	t.Run("returns error when creating rewritten multipart part fails", func(t *testing.T) {
+		body, contentType := buildProviderMultipartRequestBody(t, map[string]string{
+			"prompt": "Turn the dog white",
+		}, map[string][]byte{
+			"image": []byte("fake-image-content"),
+		})
+
+		withInjectedMultipartWriterFactory(t, 1, func() {
+			_, err := rewriteMultipartFormModel(body, contentType, "gpt-image-1")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unable to create multipart field")
+		})
+	})
+
+	t.Run("returns error when appending model field fails", func(t *testing.T) {
+		withInjectedMultipartWriterFactory(t, 1, func() {
+			_, err := rewriteMultipartFormModel([]byte("--abc--\r\n"), "multipart/form-data; boundary=abc", "gpt-image-1")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unable to append multipart model field")
+		})
+	})
+
+	t.Run("returns error when finalizing multipart body fails", func(t *testing.T) {
+		withInjectedMultipartWriterFactory(t, 1, func() {
+			_, err := rewriteMultipartFormModel([]byte("--abc--\r\n"), "multipart/form-data; boundary=abc", "")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unable to finalize multipart body")
+		})
 	})
 }
 
@@ -291,4 +354,10 @@ func TestParseMultipartImageRequestContentTypeError(t *testing.T) {
 	_, err := parseMultipartImageRequest([]byte("bad-body"), "multipart/form-data; boundary=\"")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unable to parse content-type")
+}
+
+func TestIsMultipartFormData(t *testing.T) {
+	assert.True(t, isMultipartFormData("multipart/form-data; boundary=abc"))
+	assert.False(t, isMultipartFormData("application/json"))
+	assert.False(t, isMultipartFormData("multipart/form-data; boundary=\""))
 }

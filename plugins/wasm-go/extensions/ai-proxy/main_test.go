@@ -158,6 +158,7 @@ func TestGemini(t *testing.T) {
 
 func TestAzure(t *testing.T) {
 	test.RunAzureParseConfigTests(t)
+	test.RunAzureMultipartHelperTests(t)
 	test.RunAzureOnHttpRequestHeadersTests(t)
 	test.RunAzureOnHttpRequestBodyTests(t)
 	test.RunAzureOnHttpResponseHeadersTests(t)
