@@ -1,7 +1,9 @@
 package test
 
 import (
+	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"strings"
 	"testing"
 
@@ -689,7 +691,7 @@ func RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t *testing.T) {
 
 func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
-		// 测试 Vertex Express Mode 流式响应处理
+		// 测试 Vertex Express Mode 流式响应处理：最后一个 chunk 不应丢失
 		t.Run("vertex express mode streaming response body", func(t *testing.T) {
 			host, status := test.NewTestHost(vertexExpressModeConfig)
 			defer host.Reset()
@@ -707,6 +709,9 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
 			host.CallOnHttpRequestBody([]byte(requestBody))
 
+			// 设置响应属性，确保IsResponseFromUpstream()返回true
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
 			// 设置流式响应头
 			responseHeaders := [][2]string{
 				{":status", "200"},
@@ -715,8 +720,8 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			host.CallOnHttpResponseHeaders(responseHeaders)
 
 			// 模拟流式响应体
-			chunk1 := `data: {"candidates":[{"content":{"parts":[{"text":"Hello"}],"role":"model"},"finishReason":"","index":0}],"usageMetadata":{"promptTokenCount":9,"candidatesTokenCount":5,"totalTokenCount":14}}`
-			chunk2 := `data: {"candidates":[{"content":{"parts":[{"text":"Hello! How can I help you today?"}],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":9,"candidatesTokenCount":12,"totalTokenCount":21}}`
+			chunk1 := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}],\"role\":\"model\"},\"finishReason\":\"\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":9,\"candidatesTokenCount\":5,\"totalTokenCount\":14}}\n\n"
+			chunk2 := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello! How can I help you today?\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":9,\"candidatesTokenCount\":12,\"totalTokenCount\":21}}\n\n"
 
 			// 处理流式响应体
 			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunk1), false)
@@ -725,16 +730,194 @@ func RunVertexExpressModeOnStreamingResponseBodyTests(t *testing.T) {
 			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunk2), true)
 			require.Equal(t, types.ActionContinue, action2)
 
-			// 验证流式响应处理
-			debugLogs := host.GetDebugLogs()
-			hasStreamingLogs := false
-			for _, log := range debugLogs {
-				if strings.Contains(log, "streaming") || strings.Contains(log, "chunk") || strings.Contains(log, "vertex") {
-					hasStreamingLogs = true
+			// 验证最后一个 chunk 的内容不会被 [DONE] 覆盖
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "Hello! How can I help you today?", "last chunk content should be preserved")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
+		})
+
+		// 测试 Vertex Express Mode 流式响应处理：单个 SSE 事件被拆包时可正确重组
+		t.Run("vertex express mode streaming response body with split sse event", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			// 设置响应属性，确保IsResponseFromUpstream()返回true
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+
+			responseHeaders := [][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			}
+			host.CallOnHttpResponseHeaders(responseHeaders)
+
+			fullEvent := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"split chunk\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":1,\"candidatesTokenCount\":2,\"totalTokenCount\":3}}\n\n"
+			splitIdx := strings.Index(fullEvent, "chunk")
+			require.Greater(t, splitIdx, 0, "split marker should exist in test payload")
+			chunkPart1 := fullEvent[:splitIdx]
+			chunkPart2 := fullEvent[splitIdx:]
+
+			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart1), false)
+			require.Equal(t, types.ActionContinue, action1)
+			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart2), true)
+			require.Equal(t, types.ActionContinue, action2)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "split chunk", "split SSE event should be reassembled and parsed")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
+		})
+
+		// 测试：thoughtSignature 很大时，单个 SSE 事件被拆成多段也能重组并成功解析
+		t.Run("vertex express mode streaming response body with huge thought signature split across chunks", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			})
+
+			hugeThoughtSignature := strings.Repeat("CmMBjz1rX4j+TQjtDy2rZxSdYOE1jUqDbRhWetraLlQNrkyaRNQZ/", 180)
+			fullEvent := "data: {\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"thought-signature-merge-ok\",\"thoughtSignature\":\"" +
+				hugeThoughtSignature +
+				"\"}]},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":28,\"candidatesTokenCount\":3589,\"totalTokenCount\":5240,\"thoughtsTokenCount\":1623}}\n\n"
+
+			signatureStart := strings.Index(fullEvent, "\"thoughtSignature\":\"")
+			require.Greater(t, signatureStart, 0, "thoughtSignature field should exist in test payload")
+			splitAt1 := signatureStart + len("\"thoughtSignature\":\"") + 700
+			splitAt2 := splitAt1 + 1600
+			require.Less(t, splitAt2, len(fullEvent)-1, "split indexes should keep payload in three chunks")
+
+			chunkPart1 := fullEvent[:splitAt1]
+			chunkPart2 := fullEvent[splitAt1:splitAt2]
+			chunkPart3 := fullEvent[splitAt2:]
+
+			action1 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart1), false)
+			require.Equal(t, types.ActionContinue, action1)
+			firstBody := host.GetResponseBody()
+			require.Equal(t, 0, len(firstBody), "partial chunk should not be forwarded to client")
+
+			action2 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart2), false)
+			require.Equal(t, types.ActionContinue, action2)
+			secondBody := host.GetResponseBody()
+			require.Equal(t, 0, len(secondBody), "partial chunk should not be forwarded to client")
+
+			action3 := host.CallOnHttpStreamingResponseBody([]byte(chunkPart3), true)
+			require.Equal(t, types.ActionContinue, action3)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "thought-signature-merge-ok", "split huge thoughtSignature event should be reassembled and parsed")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
+
+			errorLogs := host.GetErrorLogs()
+			hasUnmarshalError := false
+			for _, log := range errorLogs {
+				if strings.Contains(log, "unable to unmarshal vertex response") {
+					hasUnmarshalError = true
 					break
 				}
 			}
-			require.True(t, hasStreamingLogs, "Should have streaming response processing logs")
+			require.False(t, hasUnmarshalError, "should not have vertex unmarshal errors for split huge thoughtSignature event")
+		})
+
+		// 测试：上游已发送 [DONE]，框架再触发空的最后回调时不应重复输出 [DONE]
+		t.Run("vertex express mode streaming response body with upstream done and empty final callback", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			})
+
+			doneChunk := "data: [DONE]\n\n"
+			action1 := host.CallOnHttpStreamingResponseBody([]byte(doneChunk), false)
+			require.Equal(t, types.ActionContinue, action1)
+			firstBody := host.GetResponseBody()
+			require.NotNil(t, firstBody)
+			require.Contains(t, string(firstBody), "data: [DONE]", "first callback should output [DONE]")
+
+			action2 := host.CallOnHttpStreamingResponseBody([]byte{}, true)
+			require.Equal(t, types.ActionContinue, action2)
+
+			debugLogs := host.GetDebugLogs()
+			doneChunkLogCount := 0
+			for _, log := range debugLogs {
+				if strings.Contains(log, "=== modified response chunk: data: [DONE]") {
+					doneChunkLogCount++
+				}
+			}
+			require.Equal(t, 1, doneChunkLogCount, "[DONE] should only be emitted once when upstream already sent it")
+		})
+
+		// 测试：最后一个 chunk 缺少 SSE 结束空行时，isLastChunk=true 也应正确解析并输出
+		t.Run("vertex express mode streaming response body last chunk without terminator", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"test"}],"stream":true}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "text/event-stream"},
+			})
+
+			lastChunkWithoutTerminator := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"no terminator\"}],\"role\":\"model\"},\"finishReason\":\"STOP\",\"index\":0}],\"usageMetadata\":{\"promptTokenCount\":2,\"candidatesTokenCount\":3,\"totalTokenCount\":5}}"
+			action := host.CallOnHttpStreamingResponseBody([]byte(lastChunkWithoutTerminator), true)
+			require.Equal(t, types.ActionContinue, action)
+
+			transformedResponseBody := host.GetResponseBody()
+			require.NotNil(t, transformedResponseBody)
+			responseStr := string(transformedResponseBody)
+			require.Contains(t, responseStr, "no terminator", "last chunk without terminator should still be parsed")
+			require.Contains(t, responseStr, "data: [DONE]", "stream should end with [DONE]")
 		})
 	})
 }
@@ -1269,6 +1452,324 @@ func RunVertexExpressModeImageGenerationResponseBodyTests(t *testing.T) {
 			// 验证响应体结构正确，data 数组为空
 			require.Contains(t, responseStr, "created", "Response should contain created field")
 			require.Contains(t, responseStr, "data", "Response should contain data array")
+		})
+	})
+}
+
+func buildMultipartRequestBody(t *testing.T, fields map[string]string, files map[string][]byte) ([]byte, string) {
+	var buffer bytes.Buffer
+	writer := multipart.NewWriter(&buffer)
+
+	for key, value := range fields {
+		require.NoError(t, writer.WriteField(key, value))
+	}
+
+	for fieldName, data := range files {
+		part, err := writer.CreateFormFile(fieldName, "upload-image.png")
+		require.NoError(t, err)
+		_, err = part.Write(data)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, writer.Close())
+	return buffer.Bytes(), writer.FormDataContentType()
+}
+
+func RunVertexExpressModeImageEditVariationRequestBodyTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		const testDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+		t.Run("vertex express mode image edit request body with image_url", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","prompt":"Add sunglasses to the cat","image":{"image_url":{"url":"` + testDataURL + `"}},"size":"1024x1024"}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Request should contain inlineData converted from image_url")
+			require.Contains(t, bodyStr, "Add sunglasses to the cat", "Prompt text should be preserved")
+			require.NotContains(t, bodyStr, "image_url", "OpenAI image_url field should be converted to Vertex format")
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "generateContent", "Image edit should use generateContent action")
+			require.Contains(t, pathHeader, "key=test-api-key-123456789", "Path should contain API key")
+		})
+
+		t.Run("vertex express mode image edit request body with image string", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","prompt":"Add sunglasses to the cat","image":"` + testDataURL + `","size":"1024x1024"}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Request should contain inlineData converted from image string")
+			require.Contains(t, bodyStr, "Add sunglasses to the cat", "Prompt text should be preserved")
+		})
+
+		t.Run("vertex express mode image edit multipart request body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			body, contentType := buildMultipartRequestBody(t, map[string]string{
+				"model":  "gemini-2.0-flash-exp",
+				"prompt": "Add sunglasses to the cat",
+				"size":   "1024x1024",
+			}, map[string][]byte{
+				"image": []byte("fake-image-content"),
+			})
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", contentType},
+			})
+
+			action := host.CallOnHttpRequestBody(body)
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Multipart image should be converted to inlineData")
+			require.Contains(t, bodyStr, "Add sunglasses to the cat", "Prompt text should be preserved")
+
+			requestHeaders := host.GetRequestHeaders()
+			require.True(t, test.HasHeaderWithValue(requestHeaders, "Content-Type", "application/json"), "Content-Type should be rewritten to application/json")
+		})
+
+		t.Run("vertex express mode image variation multipart request body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			body, contentType := buildMultipartRequestBody(t, map[string]string{
+				"model": "gemini-2.0-flash-exp",
+				"size":  "1024x1024",
+			}, map[string][]byte{
+				"image": []byte("fake-image-content"),
+			})
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/variations"},
+				{":method", "POST"},
+				{"Content-Type", contentType},
+			})
+
+			action := host.CallOnHttpRequestBody(body)
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Multipart image should be converted to inlineData")
+			require.Contains(t, bodyStr, "Create variations of the provided image.", "Variation request should inject a default prompt")
+
+			requestHeaders := host.GetRequestHeaders()
+			require.True(t, test.HasHeaderWithValue(requestHeaders, "Content-Type", "application/json"), "Content-Type should be rewritten to application/json")
+		})
+
+		t.Run("vertex express mode image edit with model mapping", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeWithModelMappingConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gpt-4","prompt":"Turn it into watercolor","image_url":{"url":"` + testDataURL + `"}}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "gemini-2.5-flash", "Path should contain mapped model name")
+		})
+
+		t.Run("vertex express mode image variation request body with image_url", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/variations"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","image_url":{"url":"` + testDataURL + `"}}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			bodyStr := string(processedBody)
+			require.Contains(t, bodyStr, "inlineData", "Request should contain inlineData converted from image_url")
+			require.Contains(t, bodyStr, "Create variations of the provided image.", "Variation request should inject a default prompt")
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Contains(t, pathHeader, "generateContent", "Image variation should use generateContent action")
+			require.Contains(t, pathHeader, "key=test-api-key-123456789", "Path should contain API key")
+		})
+	})
+}
+
+func RunVertexExpressModeImageEditVariationResponseBodyTests(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		const testDataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+		t.Run("vertex express mode image edit response body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/edits"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","prompt":"Add glasses","image_url":{"url":"` + testDataURL + `"}}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			})
+
+			responseBody := `{
+				"candidates": [{
+					"content": {
+						"role": "model",
+						"parts": [{
+							"inlineData": {
+								"mimeType": "image/png",
+								"data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+							}
+						}]
+					}
+				}],
+				"usageMetadata": {
+					"promptTokenCount": 12,
+					"candidatesTokenCount": 1024,
+					"totalTokenCount": 1036
+				}
+			}`
+			action := host.CallOnHttpResponseBody([]byte(responseBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+
+			responseStr := string(processedResponseBody)
+			require.Contains(t, responseStr, "b64_json", "Response should contain b64_json field")
+			require.Contains(t, responseStr, "usage", "Response should contain usage field")
+		})
+
+		t.Run("vertex express mode image variation response body", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/variations"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{"model":"gemini-2.0-flash-exp","image_url":{"url":"` + testDataURL + `"}}`
+			host.CallOnHttpRequestBody([]byte(requestBody))
+
+			host.SetProperty([]string{"response", "code_details"}, []byte("via_upstream"))
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"Content-Type", "application/json"},
+			})
+
+			responseBody := `{
+				"candidates": [{
+					"content": {
+						"role": "model",
+						"parts": [{
+							"inlineData": {
+								"mimeType": "image/png",
+								"data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+							}
+						}]
+					}
+				}],
+				"usageMetadata": {
+					"promptTokenCount": 8,
+					"candidatesTokenCount": 768,
+					"totalTokenCount": 776
+				}
+			}`
+			action := host.CallOnHttpResponseBody([]byte(responseBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedResponseBody := host.GetResponseBody()
+			require.NotNil(t, processedResponseBody)
+
+			responseStr := string(processedResponseBody)
+			require.Contains(t, responseStr, "b64_json", "Response should contain b64_json field")
+			require.Contains(t, responseStr, "usage", "Response should contain usage field")
 		})
 	})
 }
