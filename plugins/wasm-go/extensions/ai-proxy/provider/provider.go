@@ -1264,6 +1264,10 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 
 // defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
 func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	if contentType, err := proxywasm.GetHttpRequestHeader(util.HeaderContentType); err == nil && isMultipartFormData(contentType) {
+		return c.defaultTransformMultipartRequestBody(ctx, apiName, body, contentType)
+	}
+
 	switch apiName {
 	case ApiNameChatCompletion,
 		ApiNameVideos,
@@ -1281,6 +1285,28 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 	mappedModel := getMappedModel(model, c.modelMapping)
 	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
 	return sjson.SetBytes(body, "model", mappedModel)
+}
+
+func (c *ProviderConfig) defaultTransformMultipartRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, contentType string) ([]byte, error) {
+	if apiName != ApiNameImageEdit && apiName != ApiNameImageVariation {
+		return body, nil
+	}
+
+	model, err := extractMultipartModel(body, contentType)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+
+	mappedModel := getMappedModel(model, c.modelMapping)
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+
+	if mappedModel == model || (mappedModel == "" && model == "") {
+		return body, nil
+	}
+
+	return rewriteMultipartFormModel(body, contentType, mappedModel)
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {
