@@ -237,8 +237,8 @@ type claudeTextGenResponse struct {
 }
 
 type claudeTextGenContent struct {
-	Type      string                  `json:"type,omitempty"`
-	Text      *string                 `json:"text,omitempty"`      // Use pointer: empty string outputs "text":"", nil omits field
+	Type      string                  `json:"type"`
+	Text      *string                 `json:"text"`                // Use pointer: empty string outputs "text":"", nil omits field
 	Id        string                  `json:"id,omitempty"`        // For tool_use
 	Name      string                  `json:"name,omitempty"`      // For tool_use
 	Input     *map[string]interface{} `json:"input,omitempty"`     // Use pointer: empty map outputs "input":{}, nil omits field
