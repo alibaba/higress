@@ -196,6 +196,8 @@ func TestVertex(t *testing.T) {
 	test.RunVertexExpressModeOnHttpRequestBodyTests(t)
 	test.RunVertexExpressModeOnHttpResponseBodyTests(t)
 	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
+	test.RunVertexOpenAICompatibleModeOnHttpRequestHeadersTests(t)
+	test.RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationResponseBodyTests(t)
 	test.RunVertexExpressModeImageEditVariationRequestBodyTests(t)

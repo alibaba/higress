@@ -380,6 +380,273 @@ func RunVertexExpressModeOnHttpRequestBodyTests(t *testing.T) {
 			require.True(t, hasVertexLogs, "Should have vertex processing logs")
 		})
 
+		// 测试 Vertex Express Mode structured outputs: json_schema 映射
+		t.Run("vertex express mode structured outputs json_schema request body mapping", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model":"gemini-2.5-flash",
+				"messages":[{"role":"user","content":"return structured output"}],
+				"response_format":{
+					"type":"json_schema",
+					"json_schema":{
+						"name":"demo_schema",
+						"strict":true,
+						"schema":{
+							"type":"object",
+							"properties":{
+								"answer":{"type":"string"}
+							},
+							"required":["answer"]
+						}
+					}
+				}
+			}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var transformed map[string]interface{}
+			require.NoError(t, json.Unmarshal(processedBody, &transformed))
+
+			generationConfig, ok := transformed["generationConfig"].(map[string]interface{})
+			require.True(t, ok, "generationConfig should exist")
+			require.Equal(t, "application/json", generationConfig["responseMimeType"], "responseMimeType should be mapped for json_schema")
+
+			responseSchema, ok := generationConfig["responseSchema"].(map[string]interface{})
+			require.True(t, ok, "responseSchema should be mapped from response_format.json_schema.schema")
+			require.Equal(t, "object", responseSchema["type"])
+
+			properties, ok := responseSchema["properties"].(map[string]interface{})
+			require.True(t, ok, "responseSchema.properties should exist")
+			_, hasAnswer := properties["answer"]
+			require.True(t, hasAnswer, "responseSchema.properties.answer should exist")
+		})
+
+		// 测试 Gemini 2.0 structured outputs: 忽略 response_format，按非结构化输出处理
+		t.Run("vertex express mode structured outputs gemini 2.0 ignore response format", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model":"gemini-2.0-flash",
+				"messages":[{"role":"user","content":"return structured output"}],
+				"response_format":{
+					"type":"json_schema",
+					"json_schema":{
+						"name":"demo_schema",
+						"strict":true,
+						"schema":{
+							"type":"object",
+							"properties":{
+								"beta":{"type":"string"},
+								"alpha":{
+									"type":"object",
+									"properties":{
+										"z":{"type":"string"},
+										"a":{"type":"string"}
+									}
+								}
+							}
+						}
+					}
+				}
+			}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var transformed map[string]interface{}
+			require.NoError(t, json.Unmarshal(processedBody, &transformed))
+
+			generationConfig, ok := transformed["generationConfig"].(map[string]interface{})
+			require.True(t, ok, "generationConfig should exist")
+			_, hasMimeType := generationConfig["responseMimeType"]
+			_, hasSchema := generationConfig["responseSchema"]
+			require.False(t, hasMimeType, "gemini-2.0 should ignore response_format and not set responseMimeType")
+			require.False(t, hasSchema, "gemini-2.0 should ignore response_format and not set responseSchema")
+		})
+
+		// 测试 Vertex Express Mode structured outputs: json_object 映射
+		t.Run("vertex express mode structured outputs json_object request body mapping", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model":"gemini-2.5-flash",
+				"messages":[{"role":"user","content":"return json"}],
+				"response_format":{"type":"json_object"}
+			}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var transformed map[string]interface{}
+			require.NoError(t, json.Unmarshal(processedBody, &transformed))
+
+			generationConfig, ok := transformed["generationConfig"].(map[string]interface{})
+			require.True(t, ok, "generationConfig should exist")
+			require.Equal(t, "application/json", generationConfig["responseMimeType"], "responseMimeType should be mapped for json_object")
+
+			_, hasSchema := generationConfig["responseSchema"]
+			require.False(t, hasSchema, "json_object should not inject responseSchema")
+		})
+
+		// 测试 Vertex Express Mode structured outputs: 兼容 direct schema
+		t.Run("vertex express mode structured outputs direct schema response_format mapping", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model":"gemini-2.5-flash",
+				"messages":[{"role":"user","content":"return structured output"}],
+				"response_format":{
+					"type":"object",
+					"properties":{"city":{"type":"string"}}
+				}
+			}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var transformed map[string]interface{}
+			require.NoError(t, json.Unmarshal(processedBody, &transformed))
+
+			generationConfig, ok := transformed["generationConfig"].(map[string]interface{})
+			require.True(t, ok, "generationConfig should exist")
+			require.Equal(t, "application/json", generationConfig["responseMimeType"], "direct schema should be mapped to JSON mime type")
+
+			responseSchema, ok := generationConfig["responseSchema"].(map[string]interface{})
+			require.True(t, ok, "direct schema should be mapped to responseSchema")
+			require.Equal(t, "object", responseSchema["type"])
+		})
+
+		// 测试 Vertex Express Mode structured outputs: 异常 json_schema 应返回错误（不能静默降级）
+		t.Run("vertex express mode structured outputs malformed json_schema mapping", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model":"gemini-2.5-flash",
+				"messages":[{"role":"user","content":"return structured output"}],
+				"response_format":{
+					"type":"json_schema",
+					"json_schema":"invalid"
+				}
+			}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			errorLogs := host.GetErrorLogs()
+			hasInvalidSchemaError := false
+			for _, log := range errorLogs {
+				if strings.Contains(log, "invalid response_format.json_schema") {
+					hasInvalidSchemaError = true
+					break
+				}
+			}
+			require.True(t, hasInvalidSchemaError, "malformed json_schema should produce explicit validation error")
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			require.Contains(t, string(processedBody), `"response_format"`, "failed request should keep original body")
+			require.NotContains(t, string(processedBody), `"generationConfig"`, "failed request should not be rewritten into Vertex format")
+
+			requestHeaders := host.GetRequestHeaders()
+			pathHeader := ""
+			for _, header := range requestHeaders {
+				if header[0] == ":path" {
+					pathHeader = header[1]
+					break
+				}
+			}
+			require.Equal(t, "/v1/chat/completions", pathHeader, "failed validation should not rewrite upstream path")
+		})
+
+		// 测试 Vertex Express Mode structured outputs: 未知类型不映射
+		t.Run("vertex express mode structured outputs unknown response format type", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexExpressModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model":"gemini-2.5-flash",
+				"messages":[{"role":"user","content":"return xml"}],
+				"response_format":{"type":"xml"}
+			}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+
+			var transformed map[string]interface{}
+			require.NoError(t, json.Unmarshal(processedBody, &transformed))
+
+			generationConfig, ok := transformed["generationConfig"].(map[string]interface{})
+			require.True(t, ok, "generationConfig should exist")
+			_, hasMime := generationConfig["responseMimeType"]
+			_, hasSchema := generationConfig["responseSchema"]
+			require.False(t, hasMime, "unknown response_format type should not inject responseMimeType")
+			require.False(t, hasSchema, "unknown response_format type should not inject responseSchema")
+		})
+
 		// 测试 Vertex Express Mode 请求体处理（嵌入接口）
 		t.Run("vertex express mode embeddings request body", func(t *testing.T) {
 			host, status := test.NewTestHost(vertexExpressModeConfig)
@@ -613,8 +880,8 @@ func RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t *testing.T) {
 			requestBody := `{"model":"gemini-2.0-flash","messages":[{"role":"user","content":"test"}]}`
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
 
-			// OpenAI 兼容模式需要等待 OAuth token，所以返回 ActionPause
-			require.Equal(t, types.ActionPause, action)
+			// 测试环境使用伪造密钥，OAuth 获取会失败，期望 ActionContinue 并记录错误
+			require.Equal(t, types.ActionContinue, action)
 
 			// 验证请求体保持 OpenAI 格式（不转换为 Vertex 原生格式）
 			processedBody := host.GetRequestBody()
@@ -637,6 +904,47 @@ func RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t *testing.T) {
 			require.Contains(t, pathHeader, "/endpoints/openapi/chat/completions", "Path should contain openapi chat completions endpoint")
 		})
 
+		// 测试 Vertex OpenAI 兼容模式 structured outputs 请求体透传
+		t.Run("vertex openai compatible mode structured outputs passthrough", func(t *testing.T) {
+			host, status := test.NewTestHost(vertexOpenAICompatibleModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+
+			requestBody := `{
+				"model":"gemini-2.0-flash",
+				"messages":[{"role":"user","content":"test"}],
+				"response_format":{
+					"type":"json_schema",
+					"json_schema":{
+						"name":"demo_schema",
+						"strict":true,
+						"schema":{
+							"type":"object",
+							"properties":{"answer":{"type":"string"}},
+							"required":["answer"]
+						}
+					}
+				}
+			}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			bodyStr := string(processedBody)
+
+			require.Contains(t, bodyStr, `"response_format"`, "OpenAI compatible mode should preserve response_format")
+			require.Contains(t, bodyStr, `"json_schema"`, "OpenAI compatible mode should preserve json_schema")
+			require.NotContains(t, bodyStr, `"generationConfig"`, "OpenAI compatible mode should not convert to Vertex native generationConfig")
+		})
+
 		// 测试 Vertex OpenAI 兼容模式请求体处理（含模型映射）
 		t.Run("vertex openai compatible mode with model mapping", func(t *testing.T) {
 			host, status := test.NewTestHost(vertexOpenAICompatibleModeWithModelMappingConfig)
@@ -655,7 +963,7 @@ func RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t *testing.T) {
 			requestBody := `{"model":"gpt-4","messages":[{"role":"user","content":"test"}]}`
 			action := host.CallOnHttpRequestBody([]byte(requestBody))
 
-			require.Equal(t, types.ActionPause, action)
+			require.Equal(t, types.ActionContinue, action)
 
 			// 验证请求体中的模型名被映射
 			processedBody := host.GetRequestBody()
