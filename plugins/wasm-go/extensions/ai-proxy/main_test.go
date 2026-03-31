@@ -228,3 +228,11 @@ func TestConsumerAffinity(t *testing.T) {
 	test.RunConsumerAffinityParseConfigTests(t)
 	test.RunConsumerAffinityOnHttpRequestHeadersTests(t)
 }
+
+func TestOpenRouter(t *testing.T) {
+	test.RunOpenRouterClaudeAutoConversionTests(t)
+}
+
+func TestZhipuAI(t *testing.T) {
+	test.RunZhipuAIClaudeAutoConversionTests(t)
+}
