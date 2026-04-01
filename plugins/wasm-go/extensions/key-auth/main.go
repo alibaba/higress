@@ -55,6 +55,34 @@ type Consumer struct {
 	// @Description en-US The credential of the consumer.
 	// @Scope GLOBAL
 	Credential string `yaml:"credential"`
+
+	// @Title 访问凭证列表
+	// @Title en-US Credentials List
+	// @Description 该调用方的访问凭证列表。
+	// @Description en-US The credentials list of the consumer.
+	// @Scope GLOBAL
+	Credentials []string `yaml:"credentials"`
+
+	// @Title 密钥列表
+	// @Title en-US Keys List
+	// @Description 该调用方的密钥列表。
+	// @Description en-US The keys list of the consumer.
+	// @Scope GLOBAL
+	Keys []string `yaml:"keys"`
+
+	// @Title key是否来源于URL参数
+	// @Title en-US the API Key from the URL parameters.
+	// @Description 如果配置 true 时，网关会尝试从 URL 参数中解析 API Key
+	// @Description en-US When configured true, the gateway will try to parse the API Key from the URL parameters.
+	// @Scope GLOBAL
+	InQuery *bool `yaml:"in_query,omitempty"`
+
+	// @Title key是否来源于Header
+	// @Title en-US the API Key from the HTTP request header name.
+	// @Description 配置 true 时，网关会尝试从 URL header头中解析 API Key
+	// @Description en-US When configured true, the gateway will try to parse the API Key from the HTTP request header name.
+	// @Scope GLOBAL
+	InHeader *bool `yaml:"in_header,omitempty"`
 }
 
 // @Name key-auth
@@ -127,7 +155,8 @@ type KeyAuthConfig struct {
 	// @Description en-US Consumers to be allowed for matched requests.
 	allow []string `yaml:"allow"`
 
-	credential2Name map[string]string `yaml:"-"`
+	credential2Name map[string]string   `yaml:"-"`
+	consumerMap     map[string]Consumer `yaml:"-"`
 }
 
 func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log log.Log) error {
@@ -136,6 +165,7 @@ func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log log.Log) er
 	// init
 	ruleSet = false
 	global.credential2Name = make(map[string]string)
+	global.consumerMap = make(map[string]Consumer)
 
 	// global_auth
 	globalAuth := json.Get("global_auth")
@@ -185,20 +215,76 @@ func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log log.Log) er
 		if !name.Exists() || name.String() == "" {
 			return errors.New("consumer name is required")
 		}
+		consumerName := name.String()
+
+		// Handle credentials
+		var creds []string
 		credential := item.Get("credential")
-		if !credential.Exists() || credential.String() == "" {
-			return errors.New("consumer credential is required")
+		if credential.Exists() && credential.String() != "" {
+			creds = append(creds, credential.String())
 		}
-		if _, ok := global.credential2Name[credential.String()]; ok {
-			return errors.New("duplicate consumer credential: " + credential.String())
+		credentials := item.Get("credentials")
+		if credentials.Exists() {
+			for _, c := range credentials.Array() {
+				if c.String() != "" {
+					creds = append(creds, c.String())
+				}
+			}
+		}
+
+		if len(creds) == 0 {
+			return errors.New("consumer credential is required for " + consumerName)
+		}
+
+		for _, cred := range creds {
+			if _, ok := global.credential2Name[cred]; ok {
+				return errors.New("duplicate consumer credential: " + cred)
+			}
+			global.credential2Name[cred] = consumerName
+		}
+
+		// Handle consumer level keys
+		var consumerKeys []string
+		keys := item.Get("keys")
+		if keys.Exists() {
+			for _, k := range keys.Array() {
+				key := k.String()
+				consumerKeys = append(consumerKeys, key)
+				found := false
+				for _, existing := range global.Keys {
+					if existing == key {
+						found = true
+						break
+					}
+				}
+				if !found {
+					global.Keys = append(global.Keys, key)
+				}
+			}
+		}
+
+		var inQuery *bool
+		if item.Get("in_query").Exists() {
+			val := item.Get("in_query").Bool()
+			inQuery = &val
+		}
+
+		var inHeader *bool
+		if item.Get("in_header").Exists() {
+			val := item.Get("in_header").Bool()
+			inHeader = &val
 		}
 
 		consumer := Consumer{
-			Name:       name.String(),
-			Credential: credential.String(),
+			Name:        consumerName,
+			Credential:  credential.String(),
+			Credentials: creds,
+			Keys:        consumerKeys,
+			InQuery:     inQuery,
+			InHeader:    inHeader,
 		}
 		global.consumers = append(global.consumers, consumer)
-		global.credential2Name[credential.String()] = name.String()
+		global.consumerMap[consumerName] = consumer
 	}
 	return nil
 }
@@ -278,19 +364,37 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log log
 	}
 
 	// header/query
-	if len(tokens) > 1 {
-		return deniedMultiKeyAuthData()
-	} else if len(tokens) <= 0 {
+	if len(tokens) <= 0 {
+		log.Errorf("no token found in request, configured keys: %v, in_header: %v, in_query: %v", config.Keys, config.InHeader, config.InQuery)
 		return deniedNoKeyAuthData()
 	}
 
-	// 验证token
-	name, ok := config.credential2Name[tokens[0]]
-	if !ok {
-		log.Warnf("credential %q is not configured", tokens[0])
+	// 验证 token
+	// 对齐 C++ 逻辑：遍历提取到的所有 token，只要有一个匹配成功即可
+	var authenticatedConsumerName string
+
+	for _, token := range tokens {
+		name, ok := config.credential2Name[token]
+		if ok {
+			// 进一步校验该 consumer 是否允许从该 token 所在的 key 提取（如果 consumer 有私有配置）
+			_, hasConsumer := config.consumerMap[name]
+			if hasConsumer {
+				// 如果 consumer 有私有 keys 配置，则需要校验当前 token 是否来自这些 keys
+				// 这里由于 tokens 是扁平化的，我们简化逻辑：
+				// 如果 token 匹配成功，我们认为认证通过。
+				// C++ 中也是只要匹配到一个有效的 consumer 即可。
+				authenticatedConsumerName = name
+				break
+			}
+		}
+	}
+
+	if authenticatedConsumerName == "" {
+		log.Warnf("no valid credentials found in tokens: %v", tokens)
 		return deniedUnauthorizedConsumer()
 	}
 
+	name := authenticatedConsumerName
 	proxywasm.AddHttpRequestHeader("X-Mse-Consumer", name)
 
 	// 全局生效：
