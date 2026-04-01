@@ -642,11 +642,9 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 	converter := &ClaudeToOpenAIConverter{}
 
 	tests := []struct {
-		name                 string
-		claudeRequest        string
-		expectedMaxTokens    int
-		expectedEffort       string
-		expectThinkingConfig bool
+		name           string
+		claudeRequest  string
+		expectedEffort string
 	}{
 		{
 			name: "thinking_enabled_low",
@@ -656,9 +654,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "enabled", "budget_tokens": 2048}
 			}`,
-			expectedMaxTokens:    2048,
-			expectedEffort:       "low",
-			expectThinkingConfig: true,
+			expectedEffort: "low",
 		},
 		{
 			name: "thinking_enabled_medium",
@@ -668,9 +664,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "enabled", "budget_tokens": 8192}
 			}`,
-			expectedMaxTokens:    8192,
-			expectedEffort:       "medium",
-			expectThinkingConfig: true,
+			expectedEffort: "medium",
 		},
 		{
 			name: "thinking_enabled_high",
@@ -680,9 +674,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "enabled", "budget_tokens": 20480}
 			}`,
-			expectedMaxTokens:    20480,
-			expectedEffort:       "high",
-			expectThinkingConfig: true,
+			expectedEffort: "high",
 		},
 		{
 			name: "thinking_disabled",
@@ -692,9 +684,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "disabled"}
 			}`,
-			expectedMaxTokens:    0,
-			expectedEffort:       "",
-			expectThinkingConfig: false,
+			expectedEffort: "",
 		},
 		{
 			name: "no_thinking",
@@ -703,9 +693,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"max_tokens": 1000,
 				"messages": [{"role": "user", "content": "Hello"}]
 			}`,
-			expectedMaxTokens:    0,
-			expectedEffort:       "",
-			expectThinkingConfig: false,
+			expectedEffort: "",
 		},
 	}
 
@@ -719,13 +707,23 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 			err = json.Unmarshal(result, &openaiRequest)
 			assert.NoError(t, err)
 
-			if tt.expectThinkingConfig {
-				assert.Equal(t, tt.expectedMaxTokens, openaiRequest.ReasoningMaxTokens)
-				assert.Equal(t, tt.expectedEffort, openaiRequest.ReasoningEffort)
-			} else {
-				assert.Equal(t, 0, openaiRequest.ReasoningMaxTokens)
-				assert.Equal(t, "", openaiRequest.ReasoningEffort)
-			}
+			assert.Equal(t, tt.expectedEffort, openaiRequest.ReasoningEffort)
+
+			// Verify non-standard fields are NEVER set in the converted request.
+			// These fields are not recognized by OpenAI/Azure and would cause 400 errors.
+			assert.Equal(t, 0, openaiRequest.ReasoningMaxTokens,
+				"reasoning_max_tokens must not be set - it is not a standard OpenAI parameter")
+			assert.Nil(t, openaiRequest.Thinking,
+				"thinking must not be set - it is not a standard OpenAI parameter")
+
+			// Also verify at the raw JSON level to catch any serialization issues
+			var rawJSON map[string]interface{}
+			err = json.Unmarshal(result, &rawJSON)
+			require.NoError(t, err)
+			assert.NotContains(t, rawJSON, "thinking",
+				"raw JSON must not contain 'thinking' field")
+			assert.NotContains(t, rawJSON, "reasoning_max_tokens",
+				"raw JSON must not contain 'reasoning_max_tokens' field")
 		})
 	}
 }
@@ -930,7 +928,6 @@ func TestClaudeToOpenAIConverter_StripCchFromSystemMessage(t *testing.T) {
 		assert.Equal(t, "You are a helpful assistant.", systemMsg.Content)
 	})
 }
-
 func TestStripCchFromBillingHeader(t *testing.T) {
 	tests := []struct {
 		name     string
