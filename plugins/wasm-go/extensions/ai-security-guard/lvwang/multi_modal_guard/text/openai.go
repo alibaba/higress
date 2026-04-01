@@ -2,7 +2,6 @@ package text
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/resp"
 )
 
 type ImageItem struct {
@@ -51,104 +51,147 @@ func parseContent(json gjson.Result) (text string, images []ImageItem) {
 }
 
 func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+	if config.CheckAllMessages && config.RedisClient != nil {
+		return handleRequestWithDedup(ctx, config, body)
+	}
+	return handleDefaultRequest(ctx, config, body)
+}
+
+func handleDefaultRequest(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	consumer, _ := ctx.GetContext("consumer").(string)
 	checkService := config.GetRequestCheckService(consumer)
 	checkImageService := config.GetRequestImageCheckService(consumer)
 	startTime := time.Now().UnixMilli()
-	// content := gjson.GetBytes(body, config.RequestContentJsonPath).String()
 	content, images := parseContent(gjson.GetBytes(body, config.RequestContentJsonPath))
 	log.Debugf("Raw request content is: %s", content)
 	if len(content) == 0 && len(images) == 0 {
 		log.Info("request content is empty. skip")
 		return types.ActionContinue
 	}
-	contentIndex := 0
+
 	imageIndex := 0
-	sessionID, _ := utils.GenerateHexID(20)
-	var singleCall func()
 	var singleCallForImage func()
-	callback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-		log.Info(string(responseBody))
-		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
+	callbackForImage := buildImageCallback(ctx, config, body, images, startTime, consumer, &imageIndex, &singleCallForImage, func() {
+		proxywasm.ResumeHttpRequest()
+	})
+	singleCallForImage = buildImageCaller(config, images, checkImageService, &imageIndex, callbackForImage)
+
+	textCheckFn := func(contentPiece, sessionID string) (string, [][2]string, []byte) {
+		return common.GenerateRequestForText(config, cfg.MultiModalGuard, checkService, contentPiece, sessionID)
+	}
+	if len(content) > 0 {
+		common.RunChunkedTextCheck(ctx, config, body, content, startTime, consumer, textCheckFn, func() {
+			if len(images) > 0 && config.CheckRequestImage {
+				singleCallForImage()
+			} else {
+				proxywasm.ResumeHttpRequest()
+			}
+		})
+	} else {
+		singleCallForImage()
+	}
+	return types.ActionPause
+}
+
+func handleRequestWithDedup(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+	consumer, _ := ctx.GetContext("consumer").(string)
+	checkService := config.GetRequestCheckService(consumer)
+	checkImageService := config.GetRequestImageCheckService(consumer)
+	policyFingerprint := config.BuildPolicyFingerprint(consumer)
+	startTime := time.Now().UnixMilli()
+
+	allMessages := utils.ParseAllMessages(body)
+	messages := utils.FilterByRole(allMessages, "system", "user")
+	log.Infof("[dedup] %d messages after role filter (system/user only), %d total", len(messages), len(allMessages))
+	if len(messages) == 0 {
+		log.Info("no messages to check after role filter, skip")
+		return types.ActionContinue
+	}
+
+	keys := utils.BuildRedisKeys(messages, consumer, policyFingerprint)
+	err := config.RedisClient.MGet(keys, func(redisResponse resp.Value) {
+		unchecked := utils.FilterUnchecked(messages, redisResponse)
+		log.Infof("[dedup] total=%d, unchecked=%d, cached=%d", len(messages), len(unchecked), len(messages)-len(unchecked))
+		if len(unchecked) == 0 {
+			log.Info("all messages already checked, skip security check")
 			proxywasm.ResumeHttpRequest()
 			return
 		}
-		var response cfg.Response
-		err := json.Unmarshal(responseBody, &response)
-		if err != nil {
-			log.Errorf("%+v", err)
-			proxywasm.ResumeHttpRequest()
+
+		content := utils.ConcatTextContent(unchecked)
+		var images []ImageItem
+		lastMsg := messages[len(messages)-1]
+		lastMsgUnchecked := false
+		for _, u := range unchecked {
+			if u.Index == lastMsg.Index {
+				lastMsgUnchecked = true
+				break
+			}
+		}
+		if lastMsgUnchecked && config.CheckRequestImage {
+			_, images = parseContent(gjson.GetBytes(body, config.RequestContentJsonPath))
+		}
+
+		if len(content) == 0 && len(images) == 0 {
+			log.Info("no content to check in unchecked messages, marking as checked")
+			utils.MarkChecked(config.RedisClient, unchecked, consumer, policyFingerprint, config.CheckRecordTTL, func() {
+				proxywasm.ResumeHttpRequest()
+			})
 			return
 		}
-		if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
-			if contentIndex >= len(content) {
-				endTime := time.Now().UnixMilli()
-				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-				ctx.SetUserAttribute("safecheck_status", "request pass")
-				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-				if len(images) > 0 && config.CheckRequestImage {
+
+		markCheckedAndResume := func() {
+			utils.MarkChecked(config.RedisClient, unchecked, consumer, policyFingerprint, config.CheckRecordTTL, func() {
+				proxywasm.ResumeHttpRequest()
+			})
+		}
+
+		imageIndex := 0
+		var singleCallForImage func()
+		callbackForImage := buildImageCallback(ctx, config, body, images, startTime, consumer, &imageIndex, &singleCallForImage, markCheckedAndResume)
+		singleCallForImage = buildImageCaller(config, images, checkImageService, &imageIndex, callbackForImage)
+
+		textCheckFn := func(contentPiece, sessionID string) (string, [][2]string, []byte) {
+			return common.GenerateRequestForText(config, cfg.MultiModalGuard, checkService, contentPiece, sessionID)
+		}
+		if len(content) > 0 {
+			common.RunChunkedTextCheck(ctx, config, body, content, startTime, consumer, textCheckFn, func() {
+				if len(images) > 0 {
 					singleCallForImage()
 				} else {
-					proxywasm.ResumeHttpRequest()
+					markCheckedAndResume()
 				}
-			} else {
-				singleCall()
-			}
-			return
+			})
+		} else if len(images) > 0 {
+			singleCallForImage()
 		}
-		denyMessage := cfg.DefaultDenyMessage
-		if config.DenyMessage != "" {
-			denyMessage = config.DenyMessage
-		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-			denyMessage = response.Data.Advice[0].Answer
-		}
-		marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
-		if config.ProtocolOriginal {
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
-		} else if gjson.GetBytes(body, "stream").Bool() {
-			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
-		} else {
-			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
-		}
-		ctx.DontReadResponseBody()
-		config.IncrementCounter("ai_sec_request_deny", 1)
-		endTime := time.Now().UnixMilli()
-		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
-		if response.Data.Advice != nil {
-			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
-			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
-		}
-		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	})
+	if err != nil {
+		log.Warnf("redis MGet failed: %v, fallback to default check", err)
+		return handleDefaultRequest(ctx, config, body)
 	}
-	singleCall = func() {
-		var nextContentIndex int
-		if contentIndex+cfg.LengthLimit >= len(content) {
-			nextContentIndex = len(content)
-		} else {
-			nextContentIndex = contentIndex + cfg.LengthLimit
-		}
-		contentPiece := content[contentIndex:nextContentIndex]
-		contentIndex = nextContentIndex
-		log.Debugf("current content piece: %s", contentPiece)
-		path, headers, body := common.GenerateRequestForText(config, cfg.MultiModalGuard, checkService, contentPiece, sessionID)
-		err := config.Client.Post(path, headers, body, callback, config.Timeout)
-		if err != nil {
-			log.Errorf("failed call the safe check service: %v", err)
-			proxywasm.ResumeHttpRequest()
-		}
-	}
+	return types.ActionPause
+}
 
-	callbackForImage := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-		imageIndex += 1
+// buildImageCallback creates the callback for sequential image checking.
+// onAllPassed is called when all images pass (e.g., ResumeHttpRequest or MarkChecked+Resume).
+func buildImageCallback(
+	ctx wrapper.HttpContext,
+	config cfg.AISecurityConfig,
+	body []byte,
+	images []ImageItem,
+	startTime int64,
+	consumer string,
+	imageIndex *int,
+	singleCallForImage *func(),
+	onAllPassed func(),
+) func(int, http.Header, []byte) {
+	return func(statusCode int, responseHeaders http.Header, responseBody []byte) {
+		*imageIndex += 1
 		log.Info(string(responseBody))
 		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
-			if imageIndex < len(images) {
-				singleCallForImage()
+			if *imageIndex < len(images) {
+				(*singleCallForImage)()
 			} else {
 				proxywasm.ResumeHttpRequest()
 			}
@@ -158,56 +201,36 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 		err := json.Unmarshal(responseBody, &response)
 		if err != nil {
 			log.Errorf("%+v", err)
-			if imageIndex < len(images) {
-				singleCallForImage()
+			if *imageIndex < len(images) {
+				(*singleCallForImage)()
 			} else {
 				proxywasm.ResumeHttpRequest()
 			}
 			return
 		}
-		endTime := time.Now().UnixMilli()
 		if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
-			if imageIndex >= len(images) {
-				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-				ctx.SetUserAttribute("safecheck_status", "request pass")
-				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-				proxywasm.ResumeHttpRequest()
+			if *imageIndex >= len(images) {
+				common.SetRequestPassAttributes(ctx, startTime)
+				onAllPassed()
 			} else {
-				singleCallForImage()
+				(*singleCallForImage)()
 			}
 			return
 		}
-
-		denyMessage := cfg.DefaultDenyMessage
-		if config.DenyMessage != "" {
-			denyMessage = config.DenyMessage
-		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-			denyMessage = response.Data.Advice[0].Answer
-		}
-		marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
-		if config.ProtocolOriginal {
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
-		} else if gjson.GetBytes(body, "stream").Bool() {
-			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
-		} else {
-			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
-		}
-		ctx.DontReadResponseBody()
-		config.IncrementCounter("ai_sec_request_deny", 1)
-		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
-		if response.Data.Advice != nil {
-			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
-			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
-		}
-		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+		common.SendDenyResponse(ctx, config, body, response, startTime)
 	}
-	singleCallForImage = func() {
-		img := images[imageIndex]
+}
+
+// buildImageCaller creates the function that dispatches image check requests sequentially.
+func buildImageCaller(
+	config cfg.AISecurityConfig,
+	images []ImageItem,
+	checkImageService string,
+	imageIndex *int,
+	callbackForImage func(int, http.Header, []byte),
+) func() {
+	return func() {
+		img := images[*imageIndex]
 		imgUrl := ""
 		imgBase64 := ""
 		if img.Type == "BASE64" {
@@ -215,17 +238,11 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 		} else {
 			imgUrl = img.Content
 		}
-		path, headers, body := common.GenerateRequestForImage(config, cfg.MultiModalGuardForBase64, checkImageService, imgUrl, imgBase64)
-		err := config.Client.Post(path, headers, body, callbackForImage, config.Timeout)
+		path, headers, reqBody := common.GenerateRequestForImage(config, cfg.MultiModalGuardForBase64, checkImageService, imgUrl, imgBase64)
+		err := config.Client.Post(path, headers, reqBody, callbackForImage, config.Timeout)
 		if err != nil {
 			log.Errorf("failed call the safe check service: %v", err)
 			proxywasm.ResumeHttpRequest()
 		}
 	}
-	if len(content) > 0 {
-		singleCall()
-	} else {
-		singleCallForImage()
-	}
-	return types.ActionPause
 }

@@ -1,9 +1,6 @@
 package text
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
 	"time"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
@@ -14,9 +11,17 @@ import (
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/resp"
 )
 
 func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+	if config.CheckAllMessages && config.RedisClient != nil {
+		return handleRequestWithDedup(ctx, config, body)
+	}
+	return handleDefaultRequest(ctx, config, body)
+}
+
+func handleDefaultRequest(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
 	consumer, _ := ctx.GetContext("consumer").(string)
 	startTime := time.Now().UnixMilli()
 	content := gjson.GetBytes(body, config.RequestContentJsonPath).String()
@@ -25,80 +30,61 @@ func HandleTextGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AISecur
 		log.Info("request content is empty. skip")
 		return types.ActionContinue
 	}
-	contentIndex := 0
-	sessionID, _ := utils.GenerateHexID(20)
-	var singleCall func()
-	callback := func(statusCode int, responseHeaders http.Header, responseBody []byte) {
-		log.Info(string(responseBody))
-		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
-			proxywasm.ResumeHttpRequest()
-			return
-		}
-		var response cfg.Response
-		err := json.Unmarshal(responseBody, &response)
-		if err != nil {
-			log.Error("failed to unmarshal aliyun content security response at request phase")
-			proxywasm.ResumeHttpRequest()
-			return
-		}
-		if cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
-			if contentIndex >= len(content) {
-				endTime := time.Now().UnixMilli()
-				ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-				ctx.SetUserAttribute("safecheck_status", "request pass")
-				ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-				proxywasm.ResumeHttpRequest()
-			} else {
-				singleCall()
-			}
-			return
-		}
-		denyMessage := cfg.DefaultDenyMessage
-		if config.DenyMessage != "" {
-			denyMessage = config.DenyMessage
-		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-			denyMessage = response.Data.Advice[0].Answer
-		}
-		marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
-		if config.ProtocolOriginal {
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
-		} else if gjson.GetBytes(body, "stream").Bool() {
-			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
-		} else {
-			randomID := utils.GenerateRandomChatID()
-			jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
-		}
-		ctx.DontReadResponseBody()
-		config.IncrementCounter("ai_sec_request_deny", 1)
-		endTime := time.Now().UnixMilli()
-		ctx.SetUserAttribute("safecheck_request_rt", endTime-startTime)
-		ctx.SetUserAttribute("safecheck_status", "reqeust deny")
-		if response.Data.Advice != nil {
-			ctx.SetUserAttribute("safecheck_riskLabel", response.Data.Result[0].Label)
-			ctx.SetUserAttribute("safecheck_riskWords", response.Data.Result[0].RiskWords)
-		}
-		ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
-	}
-	singleCall = func() {
-		var nextContentIndex int
-		if contentIndex+cfg.LengthLimit >= len(content) {
-			nextContentIndex = len(content)
-		} else {
-			nextContentIndex = contentIndex + cfg.LengthLimit
-		}
-		contentPiece := content[contentIndex:nextContentIndex]
-		contentIndex = nextContentIndex
+	textCheckFn := func(contentPiece, sessionID string) (string, [][2]string, []byte) {
 		checkService := config.GetRequestCheckService(consumer)
-		path, headers, body := common.GenerateRequestForText(config, cfg.TextModerationPlus, checkService, contentPiece, sessionID)
-		err := config.Client.Post(path, headers, body, callback, config.Timeout)
-		if err != nil {
-			log.Errorf("failed call the safe check service: %v", err)
-			proxywasm.ResumeHttpRequest()
-		}
+		return common.GenerateRequestForText(config, cfg.TextModerationPlus, checkService, contentPiece, sessionID)
 	}
-	singleCall()
+	common.RunChunkedTextCheck(ctx, config, body, content, startTime, consumer, textCheckFn, func() {
+		proxywasm.ResumeHttpRequest()
+	})
+	return types.ActionPause
+}
+
+func handleRequestWithDedup(ctx wrapper.HttpContext, config cfg.AISecurityConfig, body []byte) types.Action {
+	consumer, _ := ctx.GetContext("consumer").(string)
+	startTime := time.Now().UnixMilli()
+	policyFingerprint := config.BuildPolicyFingerprint(consumer)
+
+	allMessages := utils.ParseAllMessages(body)
+	messages := utils.FilterByRole(allMessages, "system", "user")
+	log.Infof("[dedup] %d messages after role filter (system/user only), %d total", len(messages), len(allMessages))
+	if len(messages) == 0 {
+		log.Info("no messages to check after role filter, skip")
+		return types.ActionContinue
+	}
+
+	keys := utils.BuildRedisKeys(messages, consumer, policyFingerprint)
+	err := config.RedisClient.MGet(keys, func(redisResponse resp.Value) {
+		unchecked := utils.FilterUnchecked(messages, redisResponse)
+		log.Infof("[dedup] total=%d, unchecked=%d, cached=%d", len(messages), len(unchecked), len(messages)-len(unchecked))
+		if len(unchecked) == 0 {
+			log.Info("all messages already checked, skip security check")
+			proxywasm.ResumeHttpRequest()
+			return
+		}
+
+		content := utils.ConcatTextContent(unchecked)
+		if len(content) == 0 {
+			log.Info("no text content in unchecked messages, marking as checked")
+			utils.MarkChecked(config.RedisClient, unchecked, consumer, policyFingerprint, config.CheckRecordTTL, func() {
+				proxywasm.ResumeHttpRequest()
+			})
+			return
+		}
+
+		textCheckFn := func(contentPiece, sessionID string) (string, [][2]string, []byte) {
+			checkService := config.GetRequestCheckService(consumer)
+			return common.GenerateRequestForText(config, cfg.TextModerationPlus, checkService, contentPiece, sessionID)
+		}
+		common.RunChunkedTextCheck(ctx, config, body, content, startTime, consumer, textCheckFn, func() {
+			utils.MarkChecked(config.RedisClient, unchecked, consumer, policyFingerprint, config.CheckRecordTTL, func() {
+				proxywasm.ResumeHttpRequest()
+			})
+		})
+	})
+	if err != nil {
+		log.Warnf("redis MGet failed: %v, fallback to default check", err)
+		return handleDefaultRequest(ctx, config, body)
+	}
 	return types.ActionPause
 }
