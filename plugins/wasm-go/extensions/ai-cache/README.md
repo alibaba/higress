@@ -1,4 +1,3 @@
-## 简介
 ---
 title: AI 缓存
 keywords: [higress,ai cache]
@@ -7,9 +6,7 @@ description: AI 缓存插件配置参考
 
 **Note**
 
-> 需要数据面的proxy wasm版本大于等于0.2.100
-> 编译时，需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
->
+> 若使用 tinygo 编译，则需要数据面的proxy wasm版本大于等于0.2.100，且编译时需要带上版本的tag，例如：`tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
 
 ## 功能说明
 
