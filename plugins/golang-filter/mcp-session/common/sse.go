@@ -26,7 +26,7 @@ type SSEServer struct {
 	messageEndpoint string
 	sseEndpoint     string
 	sessions        sync.Map
-	redisClient     *RedisClient // Redis client for pub/sub
+	msgPubSub       MsgPubSub // Unified pub/sub interface (Redis or RocketMQ)
 }
 
 func (s *SSEServer) GetMessageEndpoint() string {
@@ -65,9 +65,9 @@ func WithSSEEndpoint(endpoint string) Option {
 	}
 }
 
-func WithRedisClient(redisClient *RedisClient) Option {
+func WithMsgPubSubClient(msgPubSub MsgPubSub) Option {
 	return func(s *SSEServer) {
-		s.redisClient = redisClient
+		s.msgPubSub = msgPubSub
 	}
 }
 
@@ -129,7 +129,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 	// 	}
 	// }()
 
-	err = s.redisClient.Subscribe(channel, stopChan, func(message string) {
+	err = s.msgPubSub.Subscribe(channel, stopChan, func(message string) {
 		defer cb.EncoderFilterCallbacks().RecoverPanic()
 		api.LogDebugf("SSE Send message: %s", message)
 		cb.EncoderFilterCallbacks().InjectData([]byte(message))
@@ -178,7 +178,7 @@ func (s *SSEServer) HandleSSE(cb api.FilterCallbackHandler, stopChan chan struct
 				}
 				pingData, _ := json.Marshal(pingRequest)
 				healthCheckEvent := fmt.Sprintf("event: message\ndata: %s\n\n", pingData)
-				if err := s.redisClient.Publish(channel, healthCheckEvent); err != nil {
+				if err := s.msgPubSub.Publish(channel, healthCheckEvent); err != nil {
 					api.LogErrorf("Failed to send health check: %v", err)
 				}
 			}

@@ -55,6 +55,22 @@ type SecretKeyReference struct {
 	Key string `json:"key,omitempty"`
 }
 
+// RocketMQConfig defines the configuration for RocketMQ connection
+type RocketMQConfig struct {
+	// The endpoint of RocketMQ server
+	Endpoint string `json:"endpoint,omitempty"`
+	// The access key for RocketMQ authentication
+	AccessKey string `json:"access_key,omitempty"`
+	// The secret key for RocketMQ authentication
+	SecretKey string `json:"secret_key,omitempty"`
+	// The namespace of RocketMQ
+	Namespace string `json:"namespace,omitempty"`
+	// The topic for RocketMQ
+	Topic string `json:"topic,omitempty"`
+	// The consumer group for RocketMQ
+	Group string `json:"group,omitempty"`
+}
+
 // MCPRatelimitConfig defines the configuration for rate limit
 type MCPRatelimitConfig struct {
 	// The limit of the rate limit
@@ -101,6 +117,8 @@ type McpServer struct {
 	Enable bool `json:"enable,omitempty"`
 	// Redis Config for MCP server
 	Redis *RedisConfig `json:"redis,omitempty"`
+	// RocketMQ Config for MCP server (used for message pub/sub, replaces Redis pub/sub)
+	RocketMQ *RocketMQConfig `json:"rocketmq,omitempty"`
 	// The suffix to be appended to SSE paths, default is "/sse"
 	SSEPathSuffix string `json:"sse_path_suffix,omitempty"`
 	// List of SSE servers Configs
@@ -142,6 +160,19 @@ func validMcpServer(m *McpServer) error {
 
 	if m.EnableUserLevelServer && m.Redis == nil {
 		return errors.New("redis config cannot be empty when user level server is enabled")
+	}
+
+	// Validate RocketMQ configuration
+	if m.RocketMQ != nil {
+		if m.RocketMQ.Endpoint == "" {
+			return errors.New("rocketmq endpoint cannot be empty")
+		}
+		if m.RocketMQ.AccessKey == "" {
+			return errors.New("rocketmq access_key cannot be empty")
+		}
+		if m.RocketMQ.SecretKey == "" {
+			return errors.New("rocketmq secret_key cannot be empty")
+		}
 	}
 
 	// Validate match rule types
@@ -211,6 +242,16 @@ func deepCopyMcpServer(mcp *McpServer) (*McpServer, error) {
 				Name:      mcp.Redis.PasswordSecret.Name,
 				Key:       mcp.Redis.PasswordSecret.Key,
 			}
+		}
+	}
+	if mcp.RocketMQ != nil {
+		newMcp.RocketMQ = &RocketMQConfig{
+			Endpoint:  mcp.RocketMQ.Endpoint,
+			AccessKey: mcp.RocketMQ.AccessKey,
+			SecretKey: mcp.RocketMQ.SecretKey,
+			Namespace: mcp.RocketMQ.Namespace,
+			Topic:     mcp.RocketMQ.Topic,
+			Group:     mcp.RocketMQ.Group,
 		}
 	}
 	if mcp.Ratelimit != nil {
@@ -552,6 +593,19 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 						}`, mcp.Redis.Address, mcp.Redis.Username, passwordValue, mcp.Redis.DB)
 	}
 
+	// Build rocketmq configuration
+	rocketmqConfig := "null"
+	if mcp.RocketMQ != nil {
+		rocketmqConfig = fmt.Sprintf(`{
+							"endpoint": "%s",
+							"access_key": "%s",
+							"secret_key": "%s",
+							"namespace": "%s",
+							"topic": "%s",
+							"group": "%s"
+						}`, mcp.RocketMQ.Endpoint, mcp.RocketMQ.AccessKey, mcp.RocketMQ.SecretKey, mcp.RocketMQ.Namespace, mcp.RocketMQ.Topic, mcp.RocketMQ.Group)
+	}
+
 	// Build rate limit configuration
 	rateLimitConfig := "null"
 	if mcp.Ratelimit != nil {
@@ -576,6 +630,7 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 			"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
 			"value": {
 				"redis": %s,
+				"rocketmq": %s,
 				"rate_limit": %s,
 				"sse_path_suffix": "%s",
 				"match_list": %s,
@@ -584,6 +639,7 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 		}
 	}`,
 		redisConfig,
+		rocketmqConfig,
 		rateLimitConfig,
 		mcp.SSEPathSuffix,
 		matchListConfig,
