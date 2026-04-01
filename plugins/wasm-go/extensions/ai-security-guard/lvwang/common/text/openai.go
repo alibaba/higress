@@ -65,13 +65,19 @@ func HandleTextGenerationStreamingResponseBody(ctx wrapper.HttpContext, config c
 			return
 		}
 		if !cfg.IsRiskLevelAcceptable(config.Action, response.Data, config, consumer) {
-			denyMessage := cfg.DefaultDenyMessage
-			if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-				denyMessage = "\n" + response.Data.Advice[0].Answer
-			} else if config.DenyMessage != "" {
-				denyMessage = config.DenyMessage
+			denyBody, err := cfg.BuildDenyResponseBody(response, config, consumer)
+			if err != nil {
+				log.Errorf("failed to build deny response body: %v", err)
+				endStream := ctx.GetContext("end_of_stream_received").(bool) && ctx.BufferQueueSize() == 0
+				proxywasm.InjectEncodedDataToFilterChain(bytes.Join(bufferQueue, []byte("")), endStream)
+				bufferQueue = [][]byte{}
+				if !endStream {
+					ctx.SetContext("during_call", false)
+					singleCall()
+				}
+				return
 			}
-			marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
+			marshalledDenyMessage := wrapper.MarshalStr(string(denyBody))
 			randomID := utils.GenerateRandomChatID()
 			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
 			proxywasm.InjectEncodedDataToFilterChain(jsonData, true)
@@ -199,21 +205,22 @@ func HandleTextGenerationResponseBody(ctx wrapper.HttpContext, config cfg.AISecu
 			}
 			return
 		}
-		denyMessage := cfg.DefaultDenyMessage
-		if config.DenyMessage != "" {
-			denyMessage = config.DenyMessage
-		} else if response.Data.Advice != nil && response.Data.Advice[0].Answer != "" {
-			denyMessage = response.Data.Advice[0].Answer
+		denyBody, err := cfg.BuildDenyResponseBody(response, config, consumer)
+		if err != nil {
+			log.Errorf("failed to build deny response body: %v", err)
+			proxywasm.ResumeHttpResponse()
+			return
 		}
-		marshalledDenyMessage := wrapper.MarshalStr(denyMessage)
 		if config.ProtocolOriginal {
-			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, []byte(marshalledDenyMessage), -1)
+			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, denyBody, -1)
 		} else if isStreamingResponse {
 			randomID := utils.GenerateRandomChatID()
+			marshalledDenyMessage := wrapper.MarshalStr(string(denyBody))
 			jsonData := []byte(fmt.Sprintf(cfg.OpenAIStreamResponseFormat, randomID, marshalledDenyMessage, randomID))
 			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "text/event-stream;charset=UTF-8"}}, jsonData, -1)
 		} else {
 			randomID := utils.GenerateRandomChatID()
+			marshalledDenyMessage := wrapper.MarshalStr(string(denyBody))
 			jsonData := []byte(fmt.Sprintf(cfg.OpenAIResponseFormat, randomID, marshalledDenyMessage))
 			proxywasm.SendHttpResponse(uint32(config.DenyCode), [][2]string{{"content-type", "application/json"}}, jsonData, -1)
 		}

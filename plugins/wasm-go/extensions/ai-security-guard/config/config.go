@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -583,4 +584,69 @@ func IsRiskLevelAcceptable(action string, data Data, config AISecurityConfig, co
 	} else {
 		return LevelToInt(data.RiskLevel) < LevelToInt(config.GetRiskLevelBar(consumer))
 	}
+}
+
+type DenyResponseBody struct {
+	BlockedDetails []Detail `json:"blockedDetails"`
+	RequestId      string   `json:"requestId"`
+	// GuardCode is the business code returned by the security service (typically 200 when the check
+	// succeeded and a risk was detected). It is NOT an HTTP status code.
+	GuardCode int `json:"guardCode"`
+}
+
+func BuildDenyResponseBody(response Response, config AISecurityConfig, consumer string) ([]byte, error) {
+	body := DenyResponseBody{
+		BlockedDetails: GetUnacceptableDetail(response.Data, config, consumer),
+		RequestId:      response.RequestId,
+		GuardCode:      response.Code,
+	}
+	return json.Marshal(body)
+}
+
+func GetUnacceptableDetail(data Data, config AISecurityConfig, consumer string) []Detail {
+	result := []Detail{}
+	for _, detail := range data.Detail {
+		switch detail.Type {
+		case ContentModerationType:
+			if LevelToInt(detail.Level) >= LevelToInt(config.GetContentModerationLevelBar(consumer)) {
+				result = append(result, detail)
+			}
+		case PromptAttackType:
+			if LevelToInt(detail.Level) >= LevelToInt(config.GetPromptAttackLevelBar(consumer)) {
+				result = append(result, detail)
+			}
+		case SensitiveDataType:
+			if LevelToInt(detail.Level) >= LevelToInt(config.GetSensitiveDataLevelBar(consumer)) {
+				result = append(result, detail)
+			}
+		case MaliciousUrlDataType:
+			if LevelToInt(detail.Level) >= LevelToInt(config.GetMaliciousUrlLevelBar(consumer)) {
+				result = append(result, detail)
+			}
+		case ModelHallucinationDataType:
+			if LevelToInt(detail.Level) >= LevelToInt(config.GetModelHallucinationLevelBar(consumer)) {
+				result = append(result, detail)
+			}
+		}
+	}
+	// Fallback: when the security service returns a top-level risk signal but no Detail entries,
+	// synthesise detail items from RiskLevel/AttackLevel so blockedDetails is never empty on a
+	// real block event.
+	if len(result) == 0 {
+		if LevelToInt(data.RiskLevel) >= LevelToInt(config.GetContentModerationLevelBar(consumer)) {
+			result = append(result, Detail{
+				Type:       ContentModerationType,
+				Level:      data.RiskLevel,
+				Suggestion: "block",
+			})
+		}
+		if LevelToInt(data.AttackLevel) >= LevelToInt(config.GetPromptAttackLevelBar(consumer)) {
+			result = append(result, Detail{
+				Type:       PromptAttackType,
+				Level:      data.AttackLevel,
+				Suggestion: "block",
+			})
+		}
+	}
+	return result
 }
