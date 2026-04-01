@@ -1,4 +1,4 @@
-{{- if .Values.global.ingressClass }}
+{{- if and .Values.global.ingressClass (ne (lower .Values.global.ingressClass) "nginx") }}
 apiVersion: networking.k8s.io/v1
 kind: IngressClass
 metadata:
