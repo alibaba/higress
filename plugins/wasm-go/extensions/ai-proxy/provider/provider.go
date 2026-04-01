@@ -168,6 +168,8 @@ const (
 	finishReasonLength   = "length"
 	finishReasonToolCall = "tool_calls"
 
+	ctxKeyClaudeBudgetTokens     = "claudeBudgetTokens"
+	ctxKeyClaudeThinkingType     = "claudeThinkingType"
 	ctxKeyIncrementalStreaming   = "incrementalStreaming"
 	ctxKeyApiKey                 = "apiKey"
 	CtxKeyApiName                = "apiName"
@@ -1155,6 +1157,21 @@ func (c *ProviderConfig) handleRequestBody(
 	// If main.go detected a Claude request that needs conversion, convert the body
 	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
 	if needClaudeConversion {
+		// Extract thinking config from original Claude body before conversion,
+		// so downstream providers (OpenRouter, ZhipuAI) can access it.
+		thinkingType := gjson.GetBytes(body, "thinking.type").String()
+		if thinkingType == "" {
+			// Claude request had no thinking field at all - treat as disabled
+			thinkingType = "disabled"
+		}
+		ctx.SetContext(ctxKeyClaudeThinkingType, thinkingType)
+		// Only extract budget_tokens when thinking is explicitly enabled
+		if thinkingType == "enabled" {
+			if budgetTokens := gjson.GetBytes(body, "thinking.budget_tokens").Int(); budgetTokens > 0 {
+				ctx.SetContext(ctxKeyClaudeBudgetTokens, int(budgetTokens))
+			}
+		}
+
 		// Convert Claude protocol to OpenAI protocol
 		converter := &ClaudeToOpenAIConverter{}
 		body, err = converter.ConvertClaudeRequestToOpenAI(body)
@@ -1264,6 +1281,10 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 
 // defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
 func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	if contentType, err := proxywasm.GetHttpRequestHeader(util.HeaderContentType); err == nil && isMultipartFormData(contentType) {
+		return c.defaultTransformMultipartRequestBody(ctx, apiName, body, contentType)
+	}
+
 	switch apiName {
 	case ApiNameChatCompletion,
 		ApiNameVideos,
@@ -1281,6 +1302,28 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 	mappedModel := getMappedModel(model, c.modelMapping)
 	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
 	return sjson.SetBytes(body, "model", mappedModel)
+}
+
+func (c *ProviderConfig) defaultTransformMultipartRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, contentType string) ([]byte, error) {
+	if apiName != ApiNameImageEdit && apiName != ApiNameImageVariation {
+		return body, nil
+	}
+
+	model, err := extractMultipartModel(body, contentType)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+
+	mappedModel := getMappedModel(model, c.modelMapping)
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+
+	if mappedModel == model || (mappedModel == "" && model == "") {
+		return body, nil
+	}
+
+	return rewriteMultipartFormModel(body, contentType, mappedModel)
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {

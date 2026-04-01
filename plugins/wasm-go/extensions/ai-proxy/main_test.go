@@ -158,6 +158,7 @@ func TestGemini(t *testing.T) {
 
 func TestAzure(t *testing.T) {
 	test.RunAzureParseConfigTests(t)
+	test.RunAzureMultipartHelperTests(t)
 	test.RunAzureOnHttpRequestHeadersTests(t)
 	test.RunAzureOnHttpRequestBodyTests(t)
 	test.RunAzureOnHttpResponseHeadersTests(t)
@@ -195,6 +196,8 @@ func TestVertex(t *testing.T) {
 	test.RunVertexExpressModeOnHttpRequestBodyTests(t)
 	test.RunVertexExpressModeOnHttpResponseBodyTests(t)
 	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
+	test.RunVertexOpenAICompatibleModeOnHttpRequestHeadersTests(t)
+	test.RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationResponseBodyTests(t)
 	test.RunVertexExpressModeImageEditVariationRequestBodyTests(t)
@@ -224,4 +227,12 @@ func TestClaude(t *testing.T) {
 func TestConsumerAffinity(t *testing.T) {
 	test.RunConsumerAffinityParseConfigTests(t)
 	test.RunConsumerAffinityOnHttpRequestHeadersTests(t)
+}
+
+func TestOpenRouter(t *testing.T) {
+	test.RunOpenRouterClaudeAutoConversionTests(t)
+}
+
+func TestZhipuAI(t *testing.T) {
+	test.RunZhipuAIClaudeAutoConversionTests(t)
 }
