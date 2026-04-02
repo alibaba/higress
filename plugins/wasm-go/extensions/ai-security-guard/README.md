@@ -35,6 +35,8 @@ description: 阿里云内容安全检测
 | `contentModerationLevelBar` | string | optional | max | 内容合规检测拦截风险等级，取值为 `max`, `high`, `medium` or `low` |
 | `promptAttackLevelBar` | string | optional | max | 提示词攻击检测拦截风险等级，取值为 `max`, `high`, `medium` or `low` |
 | `sensitiveDataLevelBar` | string | optional | S4 | 敏感内容检测拦截风险等级，取值为  `S4`, `S3`, `S2` or `S1` |
+| `customLabelLevelBar` | string | optional | max | 自定义检测拦截风险等级，取值为 max, high, medium, low |
+| `riskAction` | string | optional | block | 风险处置动作，取值为 `block` 或 `mask`。`block` 表示按风险等级阈值拦截请求，`mask` 表示当 API 返回脱敏建议时使用脱敏内容替换敏感字段。注意：脱敏功能仅适用于 MultiModalGuard 模式 |
 | `timeout` | int | optional | 2000 | 调用内容安全服务时的超时时间 |
 | `bufferLimit` | int | optional | 1000 | 调用内容安全服务时每段文本的长度限制 |
 | `consumerRequestCheckService` | map | optional | - | 为不同消费者指定特定的请求检测服务 |
@@ -64,6 +66,16 @@ description: 阿里云内容安全检测
     - `S3`: 敏感内容检测结果中风险等级为 `S3` 时产生拦截
     - `S2`: 敏感内容检测结果中风险等级 >= `S2` 时产生拦截
     - `S1`: 敏感内容检测结果中风险等级 >= `S1` 时产生拦截
+
+- 对于自定义检测（customLabel）：
+    - `max`: 检测请求/响应内容，但是不会产生拦截行为
+    - `high`: 自定义检测结果中风险等级为 `high` 时产生拦截
+    - 注意：阿里云 API 对 customLabel 维度仅返回 `high` 和 `none` 两个等级，不同于其他维度的四级划分。配置为 `high` 即可在检测命中时拦截，配置为 `max` 则不拦截。`medium` 和 `low` 为配置兼容性保留，但 API 不会返回这些等级。
+
+- 对于风险处置动作（riskAction）：
+    - `block`: 按各维度的风险等级阈值判断是否拦截
+    - `mask`: 当 API 返回 `Suggestion=mask` 时使用脱敏内容替换敏感字段，当 `Suggestion=block` 时仍会拦截
+    - 注意：脱敏功能仅适用于 MultiModalGuard 模式（action 配置为 MultiModalGuard），其他模式不支持脱敏
 
 ## 配置示例
 ### 前提条件

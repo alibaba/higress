@@ -35,11 +35,37 @@ Plugin Priority: `300`
 | `contentModerationLevelBar` | string | optional | max | contentModeration risk level threshold, `max`, `high`, `medium` or `low` |
 | `promptAttackLevelBar` | string | optional | max | promptAttack risk level threshold， `max`, `high`, `medium` or `low` |
 | `sensitiveDataLevelBar` | string | optional | S4 | sensitiveData risk level threshold,  `S4`, `S3`, `S2` or `S1` |
+| `customLabelLevelBar` | string | optional | max | Custom label detection risk level threshold, value can be max, high, medium, or low |
+| `riskAction` | string | optional | block | Risk action, value can be `block` or `mask`. `block` means blocking requests based on risk level thresholds, `mask` means replacing sensitive fields with desensitized content when API returns mask suggestion. Note: masking only works with MultiModalGuard mode |
 | `timeout` | int | optional | 2000 | timeout for lvwang service |
 | `bufferLimit` | int | optional | 1000 | Limit the length of each text when calling the lvwang service |
 | `consumerRequestCheckService` | map | optional | - | Specify specific request detection services for different consumers |
 | `consumerResponseCheckService` | map | optional | - | Specify specific response detection services for different consumers |
 | `consumerRiskLevel` | map | optional | - | Specify interception risk levels for different consumers in different dimensions |
+
+Risk level explanations for each detection dimension:
+
+- For content moderation and prompt attack detection (contentModeration, promptAttack):
+    - `max`: Detect request/response content but do not block
+    - `high`: Block when risk level is `high`
+    - `medium`: Block when risk level >= `medium`
+    - `low`: Block when risk level >= `low`
+
+- For sensitive data detection (sensitiveData):
+    - `S4`: Detect request/response content but do not block
+    - `S3`: Block when risk level is `S3`
+    - `S2`: Block when risk level >= `S2`
+    - `S1`: Block when risk level >= `S1`
+
+- For custom label detection (customLabel):
+    - `max`: Detect request/response content but do not block
+    - `high`: Block when custom label detection result risk level is `high`
+    - Note: The Alibaba Cloud API only returns `high` and `none` for the customLabel dimension, unlike other dimensions which have four levels. Set to `high` to block on detection hit, set to `max` to not block. `medium` and `low` are kept for configuration compatibility but will not be returned by the API.
+
+- For risk action (riskAction):
+    - `block`: Block requests based on risk level thresholds for each dimension
+    - `mask`: Replace sensitive fields with desensitized content when API returns `Suggestion=mask`, still block when `Suggestion=block`
+    - Note: Masking only works with MultiModalGuard mode (action configured as MultiModalGuard), other modes do not support masking
 
 
 ## Examples of configuration

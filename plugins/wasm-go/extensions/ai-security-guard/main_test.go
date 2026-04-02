@@ -23,6 +23,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/test"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 // 测试配置：基础安全配置
@@ -130,6 +131,56 @@ var consumerSpecificConfig = func() json.RawMessage {
 			"matchType":            "regexp",
 			"maliciousUrlLevelBar": "low",
 		},
+	})
+	return data
+}()
+
+// 测试配置：包含 customLabelLevelBar 和消费者级别覆盖
+var customLabelConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             true,
+		"action":                    "MultiModalGuard",
+		"customLabelLevelBar":       "high",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"consumerRiskLevel": []map[string]interface{}{
+			{
+				"name":                "exact-user",
+				"matchType":           "exact",
+				"customLabelLevelBar": "low",
+			},
+			{
+				"name":                "prefix-",
+				"matchType":           "prefix",
+				"customLabelLevelBar": "medium",
+			},
+		},
+	})
+	return data
+}()
+
+// 测试配置：脱敏模式配置（riskAction=mask）
+var maskConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             false,
+		"action":                    "MultiModalGuard",
+		"riskAction":                "mask",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
 	})
 	return data
 }()
@@ -612,6 +663,180 @@ func TestMCP(t *testing.T) {
 	})
 }
 
+func TestGetRiskAction(t *testing.T) {
+	// 测试全局默认值
+	t.Run("default is block", func(t *testing.T) {
+		config := cfg.AISecurityConfig{}
+		config.SetDefaultValues()
+		require.Equal(t, "block", config.GetRiskAction("any-consumer"))
+	})
+
+	// 测试全局配置为 mask，无消费者覆盖
+	t.Run("global mask without consumer override", func(t *testing.T) {
+		config := cfg.AISecurityConfig{RiskAction: "mask"}
+		require.Equal(t, "mask", config.GetRiskAction("any-consumer"))
+	})
+
+	// 测试消费者级别覆盖 riskAction
+	t.Run("consumer overrides riskAction to mask", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction: "block",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":    cfg.Matcher{Exact: "vip-user"},
+					"riskAction": "mask",
+				},
+			},
+		}
+		require.Equal(t, "mask", config.GetRiskAction("vip-user"))
+		require.Equal(t, "block", config.GetRiskAction("normal-user"))
+	})
+
+	// 测试消费者匹配但未配置 riskAction，fallback 到全局
+	t.Run("consumer matched without riskAction falls back to global", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction: "mask",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":                   cfg.Matcher{Exact: "some-user"},
+					"contentModerationLevelBar": "low",
+				},
+			},
+		}
+		require.Equal(t, "mask", config.GetRiskAction("some-user"))
+	})
+
+	// 测试 prefix 匹配
+	t.Run("consumer prefix match", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction: "block",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":    cfg.Matcher{Prefix: "test-"},
+					"riskAction": "mask",
+				},
+			},
+		}
+		require.Equal(t, "mask", config.GetRiskAction("test-user-1"))
+		require.Equal(t, "block", config.GetRiskAction("prod-user"))
+	})
+
+	// 测试空 consumer 不匹配任何规则
+	t.Run("empty consumer falls back to global", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction: "mask",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":    cfg.Matcher{Exact: "vip"},
+					"riskAction": "block",
+				},
+			},
+		}
+		require.Equal(t, "mask", config.GetRiskAction(""))
+	})
+}
+
+func TestEvaluateRiskWithConsumerRiskAction(t *testing.T) {
+	// 测试全局 block，消费者 mask
+	t.Run("global block consumer mask", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "block",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":    cfg.Matcher{Exact: "vip-user"},
+					"riskAction": "mask",
+				},
+			},
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Suggestion: "mask", Type: "sensitiveData", Level: "S2",
+					Result: []cfg.Result{{Ext: cfg.Ext{Desensitization: "masked"}}}},
+			},
+		}
+		// vip-user 使用 mask 模式 → RiskMask
+		require.Equal(t, cfg.RiskMask, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "vip-user"))
+		// normal-user 使用全局 block 模式 → RiskPass（因为 level 未超阈值）
+		require.Equal(t, cfg.RiskPass, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "normal-user"))
+	})
+
+	// 测试全局 mask，消费者 block
+	t.Run("global mask consumer block", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "mask",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":    cfg.Matcher{Exact: "strict-user"},
+					"riskAction": "block",
+				},
+			},
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Suggestion: "mask", Type: "sensitiveData", Level: "S2",
+					Result: []cfg.Result{{Ext: cfg.Ext{Desensitization: "masked"}}}},
+			},
+		}
+		// strict-user 使用 block 模式 → RiskPass（level 未超阈值，block 模式忽略 mask suggestion）
+		require.Equal(t, cfg.RiskPass, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "strict-user"))
+		// other-user 使用全局 mask 模式 → RiskMask
+		require.Equal(t, cfg.RiskMask, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "other-user"))
+	})
+}
+
+func TestParseConsumerRiskActionValidation(t *testing.T) {
+	// 测试消费者级别 riskAction 无效值
+	t.Run("invalid consumer riskAction", func(t *testing.T) {
+		config := cfg.AISecurityConfig{}
+		config.SetDefaultValues()
+		configJSON := `{
+			"serviceName": "security-service",
+			"servicePort": 8080,
+			"serviceHost": "security.example.com",
+			"accessKey": "test-ak",
+			"secretKey": "test-sk",
+			"consumerRiskLevel": [
+				{"name": "user1", "matchType": "exact", "riskAction": "invalid"}
+			]
+		}`
+		err := config.Parse(gjson.Parse(configJSON))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid riskAction in consumerRiskLevel")
+	})
+
+	// 测试消费者级别 riskAction 有效值
+	t.Run("valid consumer riskAction", func(t *testing.T) {
+		config := cfg.AISecurityConfig{}
+		config.SetDefaultValues()
+		configJSON := `{
+			"serviceName": "security-service",
+			"servicePort": 8080,
+			"serviceHost": "security.example.com",
+			"accessKey": "test-ak",
+			"secretKey": "test-sk",
+			"consumerRiskLevel": [
+				{"name": "user1", "matchType": "exact", "riskAction": "mask"}
+			]
+		}`
+		err := config.Parse(gjson.Parse(configJSON))
+		require.NoError(t, err)
+		require.Equal(t, "mask", config.GetRiskAction("user1"))
+		require.Equal(t, "block", config.GetRiskAction("other"))
+	})
+}
+
 func TestRiskLevelFunctions(t *testing.T) {
 	// 测试风险等级转换函数
 	t.Run("risk level conversion", func(t *testing.T) {
@@ -647,5 +872,1183 @@ func TestUtilityFunctions(t *testing.T) {
 		require.NotEmpty(t, id)
 		require.Contains(t, id, "chatcmpl-")
 		require.Len(t, id, 38) // "chatcmpl-" + 29 random chars
+	})
+}
+
+func TestCustomLabelConstant(t *testing.T) {
+	// 验证 CustomLabelType 常量值
+	require.Equal(t, "customLabel", cfg.CustomLabelType)
+}
+
+func TestCustomLabelConfigParsing(t *testing.T) {
+	// 测试 customLabelLevelBar 设置为 high
+	t.Run("customLabelLevelBar set to high", func(t *testing.T) {
+		config := cfg.AISecurityConfig{}
+		config.SetDefaultValues()
+		configJSON := `{
+			"serviceName": "security-service",
+			"servicePort": 8080,
+			"serviceHost": "security.example.com",
+			"accessKey": "test-ak",
+			"secretKey": "test-sk",
+			"customLabelLevelBar": "high"
+		}`
+		err := config.Parse(gjson.Parse(configJSON))
+		require.NoError(t, err)
+		require.Equal(t, "high", config.CustomLabelLevelBar)
+	})
+
+	// 测试 customLabelLevelBar 设置为 max
+	t.Run("customLabelLevelBar set to max", func(t *testing.T) {
+		config := cfg.AISecurityConfig{}
+		config.SetDefaultValues()
+		configJSON := `{
+			"serviceName": "security-service",
+			"servicePort": 8080,
+			"serviceHost": "security.example.com",
+			"accessKey": "test-ak",
+			"secretKey": "test-sk",
+			"customLabelLevelBar": "max"
+		}`
+		err := config.Parse(gjson.Parse(configJSON))
+		require.NoError(t, err)
+		require.Equal(t, "max", config.CustomLabelLevelBar)
+	})
+
+	// 测试 customLabelLevelBar 缺省时默认为 max
+	t.Run("customLabelLevelBar defaults to max", func(t *testing.T) {
+		config := cfg.AISecurityConfig{}
+		config.SetDefaultValues()
+		configJSON := `{
+			"serviceName": "security-service",
+			"servicePort": 8080,
+			"serviceHost": "security.example.com",
+			"accessKey": "test-ak",
+			"secretKey": "test-sk"
+		}`
+		err := config.Parse(gjson.Parse(configJSON))
+		require.NoError(t, err)
+		require.Equal(t, "max", config.CustomLabelLevelBar)
+	})
+
+	// 测试 customLabelLevelBar 无效值
+	t.Run("customLabelLevelBar invalid value", func(t *testing.T) {
+		config := cfg.AISecurityConfig{}
+		config.SetDefaultValues()
+		configJSON := `{
+			"serviceName": "security-service",
+			"servicePort": 8080,
+			"serviceHost": "security.example.com",
+			"accessKey": "test-ak",
+			"secretKey": "test-sk",
+			"customLabelLevelBar": "invalid"
+		}`
+		err := config.Parse(gjson.Parse(configJSON))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid customLabelLevelBar")
+	})
+}
+
+func TestGetCustomLabelLevelBar(t *testing.T) {
+	// 测试消费者精确匹配
+	t.Run("consumer exact match", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			CustomLabelLevelBar: "max",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":             cfg.Matcher{Exact: "exact-user"},
+					"customLabelLevelBar": "low",
+				},
+			},
+		}
+		require.Equal(t, "low", config.GetCustomLabelLevelBar("exact-user"))
+	})
+
+	// 测试消费者前缀匹配
+	t.Run("consumer prefix match", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			CustomLabelLevelBar: "max",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":             cfg.Matcher{Prefix: "prefix-"},
+					"customLabelLevelBar": "medium",
+				},
+			},
+		}
+		require.Equal(t, "medium", config.GetCustomLabelLevelBar("prefix-user"))
+	})
+
+	// 测试无匹配回退全局值
+	t.Run("no match falls back to global", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			CustomLabelLevelBar: "high",
+			ConsumerRiskLevel: []map[string]interface{}{
+				{
+					"matcher":             cfg.Matcher{Exact: "other-user"},
+					"customLabelLevelBar": "low",
+				},
+			},
+		}
+		require.Equal(t, "high", config.GetCustomLabelLevelBar("unmatched-user"))
+	})
+}
+
+func TestCustomLabelDetailExceedsThreshold(t *testing.T) {
+	// 测试 customLabel Level=high, threshold=high → 拦截 (true)
+	t.Run("level high threshold high blocks", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "block",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "high",
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Type: cfg.CustomLabelType, Level: "high"},
+			},
+		}
+		require.Equal(t, cfg.RiskBlock, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, ""))
+	})
+
+	// 测试 customLabel Level=none, threshold=high → 不拦截 (false)
+	t.Run("level none threshold high passes", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "block",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "high",
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Type: cfg.CustomLabelType, Level: "none"},
+			},
+		}
+		require.Equal(t, cfg.RiskPass, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, ""))
+	})
+
+	// 测试 customLabel Level=high, threshold=max → 不拦截 (false)
+	t.Run("level high threshold max passes", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "block",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "max",
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Type: cfg.CustomLabelType, Level: "high"},
+			},
+		}
+		require.Equal(t, cfg.RiskPass, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, ""))
+	})
+}
+
+func TestCustomLabelConfigIntegration(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		// 测试 customLabelConfig 配置解析和消费者覆盖
+		t.Run("customLabel config with consumer override", func(t *testing.T) {
+			host, status := test.NewTestHost(customLabelConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			require.NotNil(t, config)
+
+			securityConfig := config.(*cfg.AISecurityConfig)
+			require.Equal(t, "high", securityConfig.CustomLabelLevelBar)
+			require.Equal(t, "low", securityConfig.GetCustomLabelLevelBar("exact-user"))
+			require.Equal(t, "medium", securityConfig.GetCustomLabelLevelBar("prefix-user"))
+			require.Equal(t, "high", securityConfig.GetCustomLabelLevelBar("unknown-user"))
+		})
+	})
+}
+
+func TestRequestMasking(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 测试请求阶段脱敏成功：riskAction=mask，API 返回 mask 建议，请求体被替换为脱敏内容
+		t.Run("request masking success", func(t *testing.T) {
+			host, status := test.NewTestHost(maskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "我的电话是13800138000"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 mask 建议，包含脱敏内容
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-123",
+				"Data": {
+					"RiskLevel": "low",
+					"Detail": [{
+						"Suggestion": "mask",
+						"Type": "sensitiveData",
+						"Level": "S2",
+						"Result": [{
+							"Label": "phone_number",
+							"Confidence": 99.0,
+							"Ext": {
+								"Desensitization": "我的电话是1**********",
+								"SensitiveData": ["13800138000"]
+							}
+						}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// 验证请求体被替换为脱敏内容
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "我的电话是1**********", content)
+
+			host.CompleteHttp()
+		})
+
+		// 测试脱敏内容为空时回退到拦截
+		t.Run("empty desensitization falls back to block", func(t *testing.T) {
+			host, status := test.NewTestHost(maskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "我的电话是13800138000"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 mask 建议，但 Desensitization 为空
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-123",
+				"Data": {
+					"RiskLevel": "low",
+					"Detail": [{
+						"Suggestion": "mask",
+						"Type": "sensitiveData",
+						"Level": "S2",
+						"Result": [{
+							"Label": "phone_number",
+							"Confidence": 99.0,
+							"Ext": {
+								"Desensitization": "",
+								"SensitiveData": ["13800138000"]
+							}
+						}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// Desensitization 为空时应回退到拦截，SendHttpResponse 被调用
+			// 验证请求体未被修改（原始内容保持不变）
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "我的电话是13800138000", content)
+		})
+
+		// 测试 riskAction=block 时 mask 建议按现有逻辑处理（向后兼容）
+		t.Run("riskAction block keeps existing behavior for mask suggestion", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "我的电话是13800138000"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 mask 建议，但全局 riskAction 默认为 block
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-123",
+				"Data": {
+					"RiskLevel": "low",
+					"Detail": [{
+						"Suggestion": "mask",
+						"Type": "sensitiveData",
+						"Level": "S2",
+						"Result": [{
+							"Label": "phone_number",
+							"Confidence": 99.0,
+							"Ext": {
+								"Desensitization": "我的电话是1**********",
+								"SensitiveData": ["13800138000"]
+							}
+						}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// riskAction=block 时，mask 建议按风险等级判断，low 级别应放行
+			action = host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+
+			// 请求体不应被脱敏修改
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "我的电话是13800138000", content)
+
+			host.CompleteHttp()
+		})
+
+		// 测试 riskAction=mask 时 block 建议优先拦截
+		t.Run("block suggestion takes priority over mask", func(t *testing.T) {
+			host, status := test.NewTestHost(maskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "违规内容"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 block 建议
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-123",
+				"Data": {
+					"RiskLevel": "high",
+					"Detail": [{
+						"Suggestion": "block",
+						"Type": "contentModeration",
+						"Level": "high"
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// block 建议应拦截请求，请求体不应被修改
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "违规内容", content)
+		})
+	})
+}
+
+// 测试配置：MCP + 脱敏模式
+var mcpMaskConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":                   "security-service",
+		"servicePort":                   8080,
+		"serviceHost":                   "security.example.com",
+		"accessKey":                     "test-ak",
+		"secretKey":                     "test-sk",
+		"checkRequest":                  true,
+		"checkResponse":                 true,
+		"action":                        "MultiModalGuard",
+		"apiType":                       "mcp",
+		"riskAction":                    "mask",
+		"requestContentJsonPath":        "params.arguments.input",
+		"responseContentJsonPath":       "content",
+		"responseStreamContentJsonPath": "content",
+		"contentModerationLevelBar":     "high",
+		"promptAttackLevelBar":          "high",
+		"sensitiveDataLevelBar":         "S3",
+		"timeout":                       2000,
+	})
+	return data
+}()
+
+func TestIsRiskLevelAcceptable(t *testing.T) {
+	// 用例 1: riskAction=mask, Suggestion=mask → 应返回 true（mask 不应被视为不可接受）
+	t.Run("mask action with mask suggestion is acceptable", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "mask",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "max",
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Suggestion: "mask", Type: "sensitiveData", Level: "S2",
+					Result: []cfg.Result{{Ext: cfg.Ext{Desensitization: "masked"}}}},
+			},
+		}
+		require.True(t, cfg.IsRiskLevelAcceptable(cfg.MultiModalGuard, data, config, ""))
+	})
+
+	// 用例 2: riskAction=mask, Suggestion=block → 应返回 false
+	t.Run("mask action with block suggestion is not acceptable", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "mask",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "max",
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Suggestion: "block", Type: "contentModeration", Level: "high"},
+			},
+		}
+		require.False(t, cfg.IsRiskLevelAcceptable(cfg.MultiModalGuard, data, config, ""))
+	})
+
+	// 用例 3: riskAction=mask, 无风险 → 应返回 true
+	t.Run("mask action with no risk is acceptable", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "mask",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "max",
+		}
+		data := cfg.Data{RiskLevel: "low"}
+		require.True(t, cfg.IsRiskLevelAcceptable(cfg.MultiModalGuard, data, config, ""))
+	})
+
+	// 用例 4: riskAction=block, Suggestion=mask, level 未超阈值 → 应返回 true（向后兼容）
+	t.Run("block action with mask suggestion below threshold is acceptable", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "block",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S4",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "max",
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Suggestion: "mask", Type: "sensitiveData", Level: "S2"},
+			},
+		}
+		require.True(t, cfg.IsRiskLevelAcceptable(cfg.MultiModalGuard, data, config, ""))
+	})
+
+	// 用例 5: riskAction=block, Suggestion=mask, level 超阈值 → 应返回 false（向后兼容）
+	t.Run("block action with mask suggestion exceeding threshold is not acceptable", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:                 "block",
+			ContentModerationLevelBar:  "max",
+			PromptAttackLevelBar:       "max",
+			SensitiveDataLevelBar:      "S2",
+			MaliciousUrlLevelBar:       "max",
+			ModelHallucinationLevelBar: "max",
+			CustomLabelLevelBar:        "max",
+		}
+		data := cfg.Data{
+			RiskLevel: "none",
+			Detail: []cfg.Detail{
+				{Suggestion: "mask", Type: "sensitiveData", Level: "S2"},
+			},
+		}
+		require.False(t, cfg.IsRiskLevelAcceptable(cfg.MultiModalGuard, data, config, ""))
+	})
+
+	// 用例 6: TextModerationPlus, riskAction=mask → 不受影响
+	t.Run("TextModerationPlus not affected by riskAction mask", func(t *testing.T) {
+		config := cfg.AISecurityConfig{
+			RiskAction:   "mask",
+			RiskLevelBar: "high",
+		}
+		data := cfg.Data{RiskLevel: "low"}
+		require.True(t, cfg.IsRiskLevelAcceptable(cfg.TextModerationPlus, data, config, ""))
+	})
+}
+
+func TestMcpMaskNotBlock(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 用例 7: MCP 请求, riskAction=mask, API 返回 Suggestion=mask → 应放行
+		t.Run("mcp request with mask suggestion should pass not block", func(t *testing.T) {
+			host, status := test.NewTestHost(mcpMaskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/mcp"},
+				{":method", "POST"},
+			})
+
+			body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test","arguments":{"input":"我的电话是13800138000"}}}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 mask 建议
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-123",
+				"Data": {
+					"RiskLevel": "low",
+					"Detail": [{
+						"Suggestion": "mask",
+						"Type": "sensitiveData",
+						"Level": "S2",
+						"Result": [{
+							"Label": "phone_number",
+							"Confidence": 99.0,
+							"Ext": {
+								"Desensitization": "我的电话是1**********",
+								"SensitiveData": ["13800138000"]
+							}
+						}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// 应放行而非拦截
+			action = host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+			host.CompleteHttp()
+		})
+
+		// 用例 8: MCP 响应, riskAction=mask, API 返回 Suggestion=mask → 应放行
+		t.Run("mcp response with mask suggestion should pass not block", func(t *testing.T) {
+			host, status := test.NewTestHost(mcpMaskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/mcp"},
+				{":method", "POST"},
+			})
+
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			body := `{"content": "我的电话是13800138000"}`
+			action := host.CallOnHttpResponseBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 mask 建议
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-123",
+				"Data": {
+					"RiskLevel": "low",
+					"Detail": [{
+						"Suggestion": "mask",
+						"Type": "sensitiveData",
+						"Level": "S2",
+						"Result": [{
+							"Label": "phone_number",
+							"Confidence": 99.0,
+							"Ext": {
+								"Desensitization": "我的电话是1**********",
+								"SensitiveData": ["13800138000"]
+							}
+						}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// 应放行而非拦截
+			action = host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+			host.CompleteHttp()
+		})
+
+		// 用例 9: MCP 请求, riskAction=mask, API 返回 Suggestion=block → 应拦截
+		t.Run("mcp request with block suggestion should deny", func(t *testing.T) {
+			host, status := test.NewTestHost(mcpMaskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/mcp"},
+				{":method", "POST"},
+			})
+
+			body := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test","arguments":{"input":"违规内容"}}}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 block 建议
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-123",
+				"Data": {
+					"RiskLevel": "high",
+					"Detail": [{
+						"Suggestion": "block",
+						"Type": "contentModeration",
+						"Level": "high"
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// block 建议应拦截（SendHttpResponse 被调用，请求不会继续）
+			// MCP handler 调用 SendHttpResponse 后不会 resume
+		})
+	})
+}
+
+// =============================================================================
+// TC-PARSE: 配置解析与校验集成测试
+// =============================================================================
+
+// 测试配置：MultiModalGuard + 全局维度动作全为合法值
+var dimensionActionValidConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             true,
+		"action":                    "MultiModalGuard",
+		"contentModerationAction":   "block",
+		"promptAttackAction":        "block",
+		"sensitiveDataAction":       "mask",
+		"maliciousUrlAction":        "block",
+		"modelHallucinationAction":  "block",
+		"customLabelAction":         "block",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+	})
+	return data
+}()
+
+// 测试配置：MultiModalGuard + 全局维度动作出现非法值
+var dimensionActionInvalidConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":             "security-service",
+		"servicePort":             8080,
+		"serviceHost":             "security.example.com",
+		"accessKey":               "test-ak",
+		"secretKey":               "test-sk",
+		"checkRequest":            true,
+		"checkResponse":           true,
+		"action":                  "MultiModalGuard",
+		"contentModerationAction": "allow", // 非法值
+	})
+	return data
+}()
+
+// 测试配置：MultiModalGuard + consumerRiskLevel 内维度动作非法
+var consumerDimensionActionInvalidConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":  "security-service",
+		"servicePort":  8080,
+		"serviceHost":  "security.example.com",
+		"accessKey":    "test-ak",
+		"secretKey":    "test-sk",
+		"checkRequest": true,
+		"action":       "MultiModalGuard",
+		"consumerRiskLevel": []map[string]interface{}{
+			{
+				"name":                "user-a",
+				"matchType":           "exact",
+				"sensitiveDataAction": "deny", // 非法值
+			},
+		},
+	})
+	return data
+}()
+
+// 测试配置：TextModerationPlus + 配置了维度动作
+var textModPlusDimensionActionConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":             "security-service",
+		"servicePort":             8080,
+		"serviceHost":             "security.example.com",
+		"accessKey":               "test-ak",
+		"secretKey":               "test-sk",
+		"checkRequest":            true,
+		"action":                  "TextModerationPlus",
+		"sensitiveDataAction":     "mask",
+		"contentModerationAction": "block",
+	})
+	return data
+}()
+
+// 测试配置：未配置任何动作字段
+var noActionFieldConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":  "security-service",
+		"servicePort":  8080,
+		"serviceHost":  "security.example.com",
+		"accessKey":    "test-ak",
+		"secretKey":    "test-sk",
+		"checkRequest": true,
+	})
+	return data
+}()
+
+// TestTC_PARSE_001 MultiModalGuard + 全局维度动作全为合法值 => 启动成功
+func TestTC_PARSE_001(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(dimensionActionValidConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		config, err := host.GetMatchConfig()
+		require.NoError(t, err)
+		securityConfig := config.(*cfg.AISecurityConfig)
+		require.Equal(t, "block", securityConfig.ContentModerationAction)
+		require.Equal(t, "block", securityConfig.PromptAttackAction)
+		require.Equal(t, "mask", securityConfig.SensitiveDataAction)
+		require.Equal(t, "block", securityConfig.MaliciousUrlAction)
+		require.Equal(t, "block", securityConfig.ModelHallucinationAction)
+		require.Equal(t, "block", securityConfig.CustomLabelAction)
+	})
+}
+
+// TestTC_PARSE_002 MultiModalGuard + 全局维度动作出现非法值 => 启动失败
+func TestTC_PARSE_002(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(dimensionActionInvalidConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusFailed, status)
+	})
+}
+
+// TestTC_PARSE_003 MultiModalGuard + consumerRiskLevel 内维度动作非法 => 启动失败
+func TestTC_PARSE_003(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(consumerDimensionActionInvalidConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusFailed, status)
+	})
+}
+
+// TestTC_PARSE_004 TextModerationPlus + 配置了维度动作 => 启动成功（字段忽略）
+func TestTC_PARSE_004(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(textModPlusDimensionActionConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		config, err := host.GetMatchConfig()
+		require.NoError(t, err)
+		securityConfig := config.(*cfg.AISecurityConfig)
+		// 字段被解析但在运行时被忽略（不影响启动）
+		require.Equal(t, "mask", securityConfig.SensitiveDataAction)
+		require.Equal(t, "block", securityConfig.ContentModerationAction)
+	})
+}
+
+// TestTC_PARSE_005 未配置任何动作字段 => 默认 riskAction=block
+func TestTC_PARSE_005(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(noActionFieldConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		config, err := host.GetMatchConfig()
+		require.NoError(t, err)
+		securityConfig := config.(*cfg.AISecurityConfig)
+		require.Equal(t, "block", securityConfig.RiskAction)
+		require.Equal(t, "", securityConfig.ContentModerationAction)
+		require.Equal(t, "", securityConfig.PromptAttackAction)
+		require.Equal(t, "", securityConfig.SensitiveDataAction)
+		require.Equal(t, "", securityConfig.MaliciousUrlAction)
+		require.Equal(t, "", securityConfig.ModelHallucinationAction)
+		require.Equal(t, "", securityConfig.CustomLabelAction)
+	})
+}
+
+// TestTC_PARSE_006 TextModerationPlus + 非法维度动作值 => 启动成功（需求 8.2）
+func TestTC_PARSE_006(t *testing.T) {
+	// 非 MultiModalGuard 下配置了非法维度动作值，不应报错，应启动成功
+	invalidDimActionTextModConfig := func() json.RawMessage {
+		data, _ := json.Marshal(map[string]interface{}{
+			"serviceName":             "security-service",
+			"servicePort":             8080,
+			"serviceHost":             "security.example.com",
+			"accessKey":               "test-ak",
+			"secretKey":               "test-sk",
+			"checkRequest":            true,
+			"action":                  "TextModerationPlus",
+			"contentModerationAction": "allow", // 非法值，但非 MultiModalGuard 下应忽略
+			"sensitiveDataAction":     "deny",  // 非法值
+		})
+		return data
+	}()
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(invalidDimActionTextModConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+	})
+}
+
+// TestTC_PARSE_007 TextModerationPlus + consumerRiskLevel 内非法维度动作值 => 启动成功（需求 8.2）
+func TestTC_PARSE_007(t *testing.T) {
+	invalidConsumerDimActionTextModConfig := func() json.RawMessage {
+		data, _ := json.Marshal(map[string]interface{}{
+			"serviceName":  "security-service",
+			"servicePort":  8080,
+			"serviceHost":  "security.example.com",
+			"accessKey":    "test-ak",
+			"secretKey":    "test-sk",
+			"checkRequest": true,
+			"action":       "TextModerationPlus",
+			"consumerRiskLevel": []map[string]interface{}{
+				{
+					"name":                "user-a",
+					"matchType":           "exact",
+					"sensitiveDataAction": "invalid-value", // 非法值，但非 MultiModalGuard 下应忽略
+				},
+			},
+		})
+		return data
+	}()
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(invalidConsumerDimActionTextModConfig)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+	})
+}
+
+// =============================================================================
+// TC-REG: 回归测试
+// =============================================================================
+
+// 测试配置：历史仅 riskAction=block 的 MultiModalGuard 配置（无维度动作字段）
+var legacyRiskActionBlockConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             true,
+		"action":                    "MultiModalGuard",
+		"riskAction":                "block",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
+	})
+	return data
+}()
+
+// 测试配置：历史仅 riskAction=mask 的 MultiModalGuard 配置（无维度动作字段）
+var legacyRiskActionMaskConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             true,
+		"action":                    "MultiModalGuard",
+		"riskAction":                "mask",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
+	})
+	return data
+}()
+
+// TestTC_REG_004 历史仅 riskAction 配置的场景不回归
+// 验证：仅配置 riskAction（不配置任何维度动作字段）时，新代码行为与历史一致
+func TestTC_REG_004(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// 子用例 1: riskAction=block，请求安全检查通过（低风险）=> 放行
+		t.Run("legacy block config pass on low risk", func(t *testing.T) {
+			host, status := test.NewTestHost(legacyRiskActionBlockConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "Hello"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回低风险，无 Detail 触发
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-reg-001",
+				"Data": {
+					"RiskLevel": "none",
+					"Detail": []
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			action = host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+			host.CompleteHttp()
+		})
+
+		// 子用例 2: riskAction=block，顶层 RiskLevel 超阈值 => 拦截
+		t.Run("legacy block config blocks on high risk level", func(t *testing.T) {
+			host, status := test.NewTestHost(legacyRiskActionBlockConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "违规内容"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回高风险，顶层 RiskLevel 超阈值
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-reg-002",
+				"Data": {
+					"RiskLevel": "high",
+					"Detail": [{
+						"Suggestion": "block",
+						"Type": "contentModeration",
+						"Level": "high"
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// 拦截：请求体不应被修改
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "违规内容", content)
+		})
+
+		// 子用例 3: riskAction=block，Detail 有 mask 建议但 level 未超阈值 => 放行（block 模式忽略 mask）
+		t.Run("legacy block config ignores mask suggestion below threshold", func(t *testing.T) {
+			host, status := test.NewTestHost(legacyRiskActionBlockConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "我的电话是13800138000"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 mask 建议，但 riskAction=block 且 level 未超阈值
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-reg-003",
+				"Data": {
+					"RiskLevel": "none",
+					"Detail": [{
+						"Suggestion": "mask",
+						"Type": "sensitiveData",
+						"Level": "S2",
+						"Result": [{
+							"Label": "phone_number",
+							"Confidence": 99.0,
+							"Ext": {
+								"Desensitization": "我的电话是1**********",
+								"SensitiveData": ["13800138000"]
+							}
+						}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// riskAction=block 时，mask 建议不触发脱敏，level 未超阈值应放行
+			action = host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+
+			// 请求体不应被脱敏修改
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "我的电话是13800138000", content)
+			host.CompleteHttp()
+		})
+
+		// 子用例 4: riskAction=mask，Detail 有 mask 建议 => 脱敏替换
+		t.Run("legacy mask config applies desensitization", func(t *testing.T) {
+			host, status := test.NewTestHost(legacyRiskActionMaskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "我的电话是13800138000"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 mask 建议，riskAction=mask 应触发脱敏
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-reg-004",
+				"Data": {
+					"RiskLevel": "none",
+					"Detail": [{
+						"Suggestion": "mask",
+						"Type": "sensitiveData",
+						"Level": "S2",
+						"Result": [{
+							"Label": "phone_number",
+							"Confidence": 99.0,
+							"Ext": {
+								"Desensitization": "我的电话是1**********",
+								"SensitiveData": ["13800138000"]
+							}
+						}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// riskAction=mask 时，mask 建议应触发脱敏替换
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "我的电话是1**********", content)
+			host.CompleteHttp()
+		})
+
+		// 子用例 5: riskAction=mask，Detail 有 block 建议 => 仍然拦截（block 优先）
+		t.Run("legacy mask config still blocks on block suggestion", func(t *testing.T) {
+			host, status := test.NewTestHost(legacyRiskActionMaskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "违规内容"}]}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// API 返回 block 建议，即使 riskAction=mask 也应拦截
+			securityResponse := `{
+				"Code": 200,
+				"Message": "Success",
+				"RequestId": "req-reg-005",
+				"Data": {
+					"RiskLevel": "high",
+					"Detail": [{
+						"Suggestion": "block",
+						"Type": "contentModeration",
+						"Level": "high"
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			// block 建议应拦截，请求体不应被修改
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "违规内容", content)
+		})
 	})
 }
