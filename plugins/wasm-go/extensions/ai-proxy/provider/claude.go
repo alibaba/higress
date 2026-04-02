@@ -301,6 +301,7 @@ func (c *claudeProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 		config.setDefaultCapabilities(c.DefaultCapabilities())
 		return &claudeProvider{
 			config:       config,
+			requestHost:  config.resolveDomain("", claudeDomain),
 			contextCache: createContextCache(&config),
 		}, nil
 	}
@@ -318,7 +319,7 @@ func (c *claudeProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 	}
 
 	capabilities := c.DefaultCapabilities()
-	isDirectMessagesEndpoint := strings.HasSuffix(customPath, PathAnthropicMessages) || strings.HasSuffix(customPath, "/messages")
+	isDirectMessagesEndpoint := (&claudeProvider{}).GetApiName(customPath) == ApiNameChatCompletion
 	if isDirectMessagesEndpoint {
 		// Only override messages capabilities with the direct endpoint path, leave other capabilities unchanged.
 		capabilities[string(ApiNameChatCompletion)] = customPath
@@ -335,15 +336,15 @@ func (c *claudeProviderInitializer) CreateProvider(config ProviderConfig) (Provi
 		customDomain, customPath, isDirectMessagesEndpoint, capabilities)
 
 	return &claudeProvider{
-		config:             config,
-		customDomain:       customDomain,
-		contextCache:       createContextCache(&config),
+		config:       config,
+		requestHost:  customDomain,
+		contextCache: createContextCache(&config),
 	}, nil
 }
 
 type claudeProvider struct {
 	config       ProviderConfig
-	customDomain string
+	requestHost  string
 	contextCache *contextCache
 
 	messageId   string
@@ -362,12 +363,7 @@ func (c *claudeProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName ApiNa
 
 func (c *claudeProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
 	util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), c.config.capabilities)
-	if c.customDomain != "" {
-		util.OverwriteRequestHostHeader(headers, c.customDomain)
-	} else {
-		domain := c.config.resolveDomain("", claudeDomain)
-		util.OverwriteRequestHostHeader(headers, domain)
-	}
+	util.OverwriteRequestHostHeader(headers, c.requestHost)
 
 	if c.config.apiVersion == "" {
 		c.config.apiVersion = claudeDefaultVersion
