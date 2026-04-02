@@ -190,6 +190,7 @@ For Anthropic Claude, the corresponding `type` is `claude`. Its unique configura
 | Name        | Data Type   | Filling Requirements | Default Value | Description                                                                                                    |
 |------------|-------------|----------------------|---------------|---------------------------------------------------------------------------------------------------------------|
 | `claudeVersion` | string | Optional             | -             | The version of the Claude service's API, default is 2023-06-01.                                               |
+| `claudeCustomUrl` | string | Optional           | -             | Custom backend URL for the Claude (Anthropic) protocol. Supports custom domain/path prefix, e.g. `https://api.anthropic.com`, `https://example.com/anthropic`, or `https://example.com/anthropic/v1/messages` (overrides messages endpoint only). |
 | `claudeCodeMode` | boolean | Optional             | false         | Enable Claude Code mode for OAuth token authentication. When enabled, requests will be formatted as Claude Code client requests. |
 
 **Claude Code Mode**
