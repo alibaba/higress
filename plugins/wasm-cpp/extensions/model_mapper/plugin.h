@@ -45,7 +45,7 @@ struct ModelMapperConfigRule {
       "/completions",     "/embeddings",       "/images/generations",
       "/audio/speech",    "/fine_tuning/jobs", "/moderations",
       "/image-synthesis", "/video-synthesis",  "/rerank",
-      "/messages"};
+      "/messages",        "/responses"};
 };
 
 // PluginRootContext is the root context for all streams processed by the
