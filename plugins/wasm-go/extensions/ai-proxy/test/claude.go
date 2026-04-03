@@ -45,6 +45,18 @@ var claudeCodeModeWithVersionConfig = func() json.RawMessage {
 	return data
 }()
 
+// Claude config with custom backend URL (custom domain / path prefix)
+var claudeCustomUrlConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"provider": map[string]interface{}{
+			"type":            "claude",
+			"apiTokens":       []string{"sk-ant-api-key-123"},
+			"claudeCustomUrl": "https://custom.anthropic.example.com/anthropic",
+		},
+	})
+	return data
+}()
+
 // Claude config without token (should fail validation)
 var claudeNoTokenConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -69,6 +81,16 @@ func RunClaudeParseConfigTests(t *testing.T) {
 
 		t.Run("claude code mode config", func(t *testing.T) {
 			host, status := test.NewTestHost(claudeCodeModeConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			require.NotNil(t, config)
+		})
+
+		t.Run("claude custom url config", func(t *testing.T) {
+			host, status := test.NewTestHost(claudeCustomUrlConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
@@ -175,6 +197,25 @@ func RunClaudeOnHttpRequestHeadersTests(t *testing.T) {
 
 			requestHeaders := host.GetRequestHeaders()
 			require.True(t, test.HasHeaderWithValue(requestHeaders, "anthropic-version", "2024-01-01"))
+		})
+
+		t.Run("claude custom url overwrites host", func(t *testing.T) {
+			host, status := test.NewTestHost(claudeCustomUrlConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "api.anthropic.com"},
+				{":path", "/v1/messages"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			requestHeaders := host.GetRequestHeaders()
+			authority, found := test.GetHeaderValue(requestHeaders, ":authority")
+			require.True(t, found)
+			require.Equal(t, "custom.anthropic.example.com", authority)
 		})
 	})
 }
