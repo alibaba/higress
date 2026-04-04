@@ -45,6 +45,7 @@ const (
 	contextClaudeMarker                = "isClaudeRequest"
 	contextOpenAICompatibleMarker      = "isOpenAICompatibleRequest"
 	contextVertexRawMarker             = "isVertexRawRequest"
+	contextVertexStreamDoneMarker      = "vertexStreamDoneSent"
 	vertexAnthropicVersion             = "vertex-2023-10-16"
 	vertexImageVariationDefaultPrompt  = "Create variations of the provided image."
 )
@@ -258,12 +259,12 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	if v.isOpenAICompatibleMode() {
 		ctx.SetContext(contextOpenAICompatibleMarker, true)
 		body, err := v.onOpenAICompatibleRequestBody(ctx, apiName, body, headers)
-		headers.Set("Content-Length", fmt.Sprint(len(body)))
-		util.ReplaceRequestHeaders(headers)
-		_ = proxywasm.ReplaceHttpRequestBody(body)
 		if err != nil {
 			return types.ActionContinue, err
 		}
+		headers.Set("Content-Length", fmt.Sprint(len(body)))
+		util.ReplaceRequestHeaders(headers)
+		_ = proxywasm.ReplaceHttpRequestBody(body)
 		// OpenAI 兼容模式需要 OAuth token
 		cached, err := v.getToken()
 		if cached {
@@ -276,6 +277,9 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 	}
 
 	body, err := v.TransformRequestBodyHeaders(ctx, apiName, body, headers)
+	if err != nil {
+		return types.ActionContinue, err
+	}
 	headers.Set("Content-Length", fmt.Sprint(len(body)))
 
 	if v.isExpressMode() {
@@ -283,15 +287,12 @@ func (v *vertexProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiName,
 		headers.Del("Authorization")
 		util.ReplaceRequestHeaders(headers)
 		_ = proxywasm.ReplaceHttpRequestBody(body)
-		return types.ActionContinue, err
+		return types.ActionContinue, nil
 	}
 
 	// 标准模式: 需要获取 OAuth token
 	util.ReplaceRequestHeaders(headers)
 	_ = proxywasm.ReplaceHttpRequestBody(body)
-	if err != nil {
-		return types.ActionContinue, err
-	}
 	cached, err := v.getToken()
 	if cached {
 		return types.ActionContinue, nil
@@ -368,7 +369,10 @@ func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 		path := v.getRequestPath(ApiNameChatCompletion, request.Model, request.Stream)
 		util.OverwriteRequestPathHeader(headers, path)
 
-		vertexRequest := v.buildVertexChatRequest(request)
+		vertexRequest, err := v.buildVertexChatRequest(request)
+		if err != nil {
+			return nil, err
+		}
 		return json.Marshal(vertexRequest)
 	}
 }
@@ -621,23 +625,46 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 		return v.claude.OnStreamingResponseBody(ctx, name, chunk, isLastChunk)
 	}
 	log.Infof("[vertexProvider] receive chunk body: %s", string(chunk))
-	if isLastChunk {
-		return []byte(ssePrefix + "[DONE]\n\n"), nil
-	}
-	if len(chunk) == 0 {
+	if len(chunk) == 0 && !isLastChunk {
 		return nil, nil
 	}
 	if name != ApiNameChatCompletion {
+		if isLastChunk {
+			return []byte(ssePrefix + "[DONE]\n\n"), nil
+		}
 		return chunk, nil
 	}
+
 	responseBuilder := &strings.Builder{}
-	lines := strings.Split(string(chunk), "\n")
-	for _, data := range lines {
-		if len(data) < 6 {
-			// ignore blank line or wrong format
+	// Flush a trailing event when upstream closes stream without a final blank line.
+	chunkForParsing := chunk
+	if isLastChunk {
+		trailingNewLineCount := 0
+		for i := len(chunkForParsing) - 1; i >= 0 && chunkForParsing[i] == '\n'; i-- {
+			trailingNewLineCount++
+		}
+		if trailingNewLineCount < 2 {
+			chunkForParsing = append([]byte(nil), chunk...)
+			for i := 0; i < 2-trailingNewLineCount; i++ {
+				chunkForParsing = append(chunkForParsing, '\n')
+			}
+		}
+	}
+	streamEvents := ExtractStreamingEvents(ctx, chunkForParsing)
+	doneSent, _ := ctx.GetContext(contextVertexStreamDoneMarker).(bool)
+	appendDone := isLastChunk && !doneSent
+	for _, event := range streamEvents {
+		data := event.Data
+		if data == "" {
 			continue
 		}
-		data = data[6:]
+		if data == streamEndDataValue {
+			if !doneSent {
+				appendDone = true
+				doneSent = true
+			}
+			continue
+		}
 		var vertexResp vertexChatResponse
 		if err := json.Unmarshal([]byte(data), &vertexResp); err != nil {
 			log.Errorf("unable to unmarshal vertex response: %v", err)
@@ -651,7 +678,17 @@ func (v *vertexProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 		}
 		v.appendResponse(responseBuilder, string(responseBody))
 	}
+	if appendDone {
+		responseBuilder.WriteString(ssePrefix + "[DONE]\n\n")
+		doneSent = true
+	}
+	ctx.SetContext(contextVertexStreamDoneMarker, doneSent)
 	modifiedResponseChunk := responseBuilder.String()
+	if modifiedResponseChunk == "" {
+		// Returning an empty payload prevents main.go from falling back to
+		// forwarding the original raw chunk, which may contain partial JSON.
+		return []byte(""), nil
+	}
 	log.Debugf("=== modified response chunk: %s", modifiedResponseChunk)
 	return []byte(modifiedResponseChunk), nil
 }
@@ -937,7 +974,7 @@ func (v *vertexProvider) getOpenAICompatibleRequestPath() string {
 	return fmt.Sprintf(vertexOpenAICompatiblePathTemplate, v.config.vertexProjectId, v.config.vertexRegion)
 }
 
-func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) *vertexChatRequest {
+func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) (*vertexChatRequest, error) {
 	safetySettings := make([]vertexChatSafetySetting, 0)
 	for category, threshold := range v.config.geminiSafetySetting {
 		safetySettings = append(safetySettings, vertexChatSafetySetting{
@@ -971,6 +1008,9 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 			thinkingConfig.ThinkingBudget = 16384
 		}
 		vertexRequest.GenerationConfig.ThinkingConfig = thinkingConfig
+	}
+	if err := v.applyResponseFormatToGenerationConfig(request.ResponseFormat, &vertexRequest.GenerationConfig, request.Model); err != nil {
+		return nil, err
 	}
 	if request.Tools != nil {
 		functions := make([]function, 0, len(request.Tools))
@@ -1057,7 +1097,130 @@ func (v *vertexProvider) buildVertexChatRequest(request *chatCompletionRequest) 
 		}
 	}
 
-	return &vertexRequest
+	return &vertexRequest, nil
+}
+
+// applyResponseFormatToGenerationConfig maps OpenAI response_format into Vertex generationConfig.
+// The mapping is strict for type=json_schema to avoid silently breaking structured-output contracts.
+func (v *vertexProvider) applyResponseFormatToGenerationConfig(responseFormat map[string]interface{}, generationConfig *vertexChatGenerationConfig, model string) error {
+	if generationConfig == nil || len(responseFormat) == 0 {
+		return nil
+	}
+
+	// NOTE: Gemini 2.0 structured output requires propertyOrdering.
+	// Because gemini-2.0-* is legacy and rarely used, we intentionally do not implement
+	// propertyOrdering synthesis here; instead we ignore response_format and keep request
+	// as non-structured output for stability and minimal conversion behavior.
+	if requiresPropertyOrderingForModel(model) {
+		return nil
+	}
+
+	responseFormatType, _ := responseFormat["type"].(string)
+	responseFormatType = strings.ToLower(responseFormatType)
+
+	switch responseFormatType {
+	case "":
+		// Be tolerant for non-standard clients that pass schema directly in response_format.
+		if isJSONSchemaMap(responseFormat) {
+			generationConfig.ResponseMimeType = util.MimeTypeApplicationJson
+			generationConfig.ResponseSchema = responseFormat
+		}
+	case "json_object":
+		generationConfig.ResponseMimeType = util.MimeTypeApplicationJson
+	case "json_schema":
+		schema := extractOpenAIJSONSchema(responseFormat)
+		if len(schema) == 0 {
+			return fmt.Errorf("invalid response_format.json_schema: missing schema object")
+		}
+		generationConfig.ResponseMimeType = util.MimeTypeApplicationJson
+		generationConfig.ResponseSchema = schema
+	case "text":
+		// Vertex defaults to text output when no response mime/schema is provided.
+	default:
+		// Be tolerant for non-standard usage where response_format itself is a JSON schema.
+		if isJSONSchemaType(responseFormatType) && isJSONSchemaMap(responseFormat) {
+			generationConfig.ResponseMimeType = util.MimeTypeApplicationJson
+			generationConfig.ResponseSchema = responseFormat
+		}
+	}
+	return nil
+}
+
+func extractOpenAIJSONSchema(responseFormat map[string]interface{}) map[string]interface{} {
+	jsonSchemaValue, ok := responseFormat["json_schema"]
+	if !ok {
+		return nil
+	}
+
+	jsonSchemaMap, ok := jsonSchemaValue.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// OpenAI canonical format:
+	// {
+	//   "type":"json_schema",
+	//   "json_schema":{"name":"...","strict":true,"schema":{...}}
+	// }
+	if nestedSchemaValue, ok := jsonSchemaMap["schema"]; ok {
+		if nestedSchema, ok := nestedSchemaValue.(map[string]interface{}); ok {
+			return nestedSchema
+		}
+	}
+
+	// Tolerate non-standard format where json_schema itself is the schema.
+	if isJSONSchemaMap(jsonSchemaMap) {
+		return jsonSchemaMap
+	}
+	return nil
+}
+
+func isJSONSchemaType(value string) bool {
+	switch strings.ToLower(value) {
+	case "object", "array", "string", "number", "integer", "boolean", "null":
+		return true
+	default:
+		return false
+	}
+}
+
+func isJSONSchemaMap(schema map[string]interface{}) bool {
+	if len(schema) == 0 {
+		return false
+	}
+
+	if typeValue, ok := schema["type"].(string); ok && isJSONSchemaType(typeValue) {
+		return true
+	}
+
+	// Schema might omit "type" and still be valid for specific cases.
+	schemaKeys := []string{
+		"anyOf",
+		"enum",
+		"format",
+		"items",
+		"maximum",
+		"maxItems",
+		"minimum",
+		"minItems",
+		"nullable",
+		"properties",
+		"description",
+		"propertyOrdering",
+		"required",
+	}
+	for _, key := range schemaKeys {
+		if _, ok := schema[key]; ok {
+			return true
+		}
+	}
+
+	return false
+}
+
+func requiresPropertyOrderingForModel(model string) bool {
+	model = strings.ToLower(model)
+	return strings.HasPrefix(model, "gemini-2.0-")
 }
 
 func (v *vertexProvider) buildEmbeddingRequest(request *embeddingsRequest) *vertexEmbeddingRequest {
@@ -1136,14 +1299,16 @@ type vertexChatSafetySetting struct {
 }
 
 type vertexChatGenerationConfig struct {
-	Temperature        float64              `json:"temperature,omitempty"`
-	TopP               float64              `json:"topP,omitempty"`
-	TopK               int                  `json:"topK,omitempty"`
-	CandidateCount     int                  `json:"candidateCount,omitempty"`
-	MaxOutputTokens    int                  `json:"maxOutputTokens,omitempty"`
-	ThinkingConfig     vertexThinkingConfig `json:"thinkingConfig,omitempty"`
-	ResponseModalities []string             `json:"responseModalities,omitempty"`
-	ImageConfig        *vertexImageConfig   `json:"imageConfig,omitempty"`
+	Temperature        float64                `json:"temperature,omitempty"`
+	TopP               float64                `json:"topP,omitempty"`
+	TopK               int                    `json:"topK,omitempty"`
+	CandidateCount     int                    `json:"candidateCount,omitempty"`
+	MaxOutputTokens    int                    `json:"maxOutputTokens,omitempty"`
+	ThinkingConfig     vertexThinkingConfig   `json:"thinkingConfig,omitempty"`
+	ResponseMimeType   string                 `json:"responseMimeType,omitempty"`
+	ResponseSchema     map[string]interface{} `json:"responseSchema,omitempty"`
+	ResponseModalities []string               `json:"responseModalities,omitempty"`
+	ImageConfig        *vertexImageConfig     `json:"imageConfig,omitempty"`
 }
 
 type vertexImageConfig struct {
