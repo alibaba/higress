@@ -25,7 +25,7 @@ func init() {
 	Register(WasmPluginsTransformer)
 }
 
-// TODO(WeixinX): Request and response body conformance check is not supported now
+// TODO(WeixinX): Request and response body conformance check is not supported now (except for multipart/form-data)
 var WasmPluginsTransformer = suite.ConformanceTest{
 	ShortName:   "WasmPluginTransformer",
 	Description: "The Ingress in the higress-conformance-infra namespace test the transformer WASM plugin.",
@@ -666,7 +666,7 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 			{
 				Meta: http.AssertionMeta{
 					TestCaseName:    "case 19: request multipart/form-data body with file",
-					TargetBackend:   "infra-backend-v1",
+					TargetBackend:   "infra-transformer-echo",
 					TargetNamespace: "higress-conformance-infra",
 				},
 				Request: http.AssertionRequest{
@@ -676,19 +676,22 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 						Method:      "POST",
 						ContentType: "multipart/form-data; boundary=--------------------------180978275079165582161528",
 						Body: []byte(`
-						----------------------------180978275079165582161528
-						Content-Disposition: form-data; name="file1"; filename="test.txt"
-						Content-Type: text/plain
+----------------------------180978275079165582161528
+Content-Disposition: form-data; name="file1"; filename="test.txt"
+Content-Type: text/plain
 
-						这是一个txt文件
-						----------------------------180978275079165582161528
-						Content-Disposition: form-data; name="file2"; filename="test.txt"
-						Content-Type: text/plain
+这是一个txt文件
+----------------------------180978275079165582161528
+Content-Disposition: form-data; name="file2"; filename="test.md"
+Content-Type: text/plain
 
-						这是一个txt文件
-						----------------------------180978275079165582161528--
+这是一个md文件
+----------------------------180978275079165582161528
+Content-Disposition: form-data; name="x-process"
 
-						`),
+wasm
+----------------------------180978275079165582161528--
+`),
 					},
 					ExpectedRequest: &http.ExpectedRequest{
 						Request: http.Request{
@@ -697,23 +700,23 @@ var WasmPluginsTransformer = suite.ConformanceTest{
 							Method:      "POST",
 							ContentType: "multipart/form-data; boundary=--------------------------180978275079165582161528",
 							Body: []byte(`
-							----------------------------180978275079165582161528
-							Content-Disposition: form-data; name="file2"; filename="test.txt"
-							Content-Type: text/plain
+----------------------------180978275079165582161528
+Content-Disposition: form-data; name="file1"; filename="test.txt"
+Content-Type: text/plain
 
-							这是一个txt文件
-							----------------------------180978275079165582161528
-							Content-Disposition: form-data; name="file1"; filename="test.txt"
-							Content-Type: text/plain
+这是一个txt文件
+----------------------------180978275079165582161528
+Content-Disposition: form-data; name="file2"; filename="test.md"
+Content-Type: text/plain
 
-							这是一个txt文件
-							----------------------------180978275079165582161528
-							Content-Disposition: form-data; name="x-process"
+这是一个md文件
+----------------------------180978275079165582161528
+Content-Disposition: form-data; name="x-process"
 
-							wasm
-							----------------------------180978275079165582161528--
-
-						`),
+wasm
+----------------------------180978275079165582161528--
+`,
+							),
 						},
 					},
 				},
