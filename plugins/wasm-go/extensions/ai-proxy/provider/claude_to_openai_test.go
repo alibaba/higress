@@ -388,6 +388,7 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 
 	t.Run("convert_tool_result_with_actual_error_data", func(t *testing.T) {
 		// Test using the actual JSON data from the error log to ensure our fix works
+		// This tests the fix for issue #3344 - text content alongside tool_result should be preserved
 		claudeRequest := `{
 			"model": "anthropic/claude-sonnet-4", 
 			"messages": [{
@@ -415,14 +416,20 @@ func TestClaudeToOpenAIConverter_ConvertClaudeRequestToOpenAI(t *testing.T) {
 		err = json.Unmarshal(result, &openaiRequest)
 		require.NoError(t, err)
 
-		// Should have one tool message (the text content is included in the same message array)
-		require.Len(t, openaiRequest.Messages, 1)
+		// Should have two messages: tool message + user message with text content
+		// This is the fix for issue #3344 - text content alongside tool_result is preserved
+		require.Len(t, openaiRequest.Messages, 2)
 
-		// Should be tool message
+		// First should be tool message
 		toolMsg := openaiRequest.Messages[0]
 		assert.Equal(t, "tool", toolMsg.Role)
 		assert.Contains(t, toolMsg.Content, "three.js")
 		assert.Equal(t, "toolu_vrtx_01UbCfwoTgoDBqbYEwkVaxd5", toolMsg.ToolCallId)
+
+		// Second should be user message with text content
+		userMsg := openaiRequest.Messages[1]
+		assert.Equal(t, "user", userMsg.Role)
+		assert.Equal(t, "继续", userMsg.Content)
 	})
 
 	t.Run("convert_multiple_tool_calls", func(t *testing.T) {
@@ -617,7 +624,7 @@ func TestClaudeToOpenAIConverter_ConvertOpenAIResponseToClaude(t *testing.T) {
 		// First content should be text
 		textContent := claudeResponse.Content[0]
 		assert.Equal(t, "text", textContent.Type)
-		assert.Equal(t, "I'll analyze the README file to understand this project's purpose.", textContent.Text)
+		assert.Equal(t, "I'll analyze the README file to understand this project's purpose.", *textContent.Text)
 
 		// Second content should be tool_use
 		toolContent := claudeResponse.Content[1]
@@ -627,7 +634,7 @@ func TestClaudeToOpenAIConverter_ConvertOpenAIResponseToClaude(t *testing.T) {
 
 		// Verify tool arguments
 		require.NotNil(t, toolContent.Input)
-		assert.Equal(t, "/Users/zhangty/git/higress/README.md", toolContent.Input["file_path"])
+		assert.Equal(t, "/Users/zhangty/git/higress/README.md", (*toolContent.Input)["file_path"])
 	})
 }
 
@@ -635,11 +642,9 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 	converter := &ClaudeToOpenAIConverter{}
 
 	tests := []struct {
-		name                 string
-		claudeRequest        string
-		expectedMaxTokens    int
-		expectedEffort       string
-		expectThinkingConfig bool
+		name           string
+		claudeRequest  string
+		expectedEffort string
 	}{
 		{
 			name: "thinking_enabled_low",
@@ -649,9 +654,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "enabled", "budget_tokens": 2048}
 			}`,
-			expectedMaxTokens:    2048,
-			expectedEffort:       "low",
-			expectThinkingConfig: true,
+			expectedEffort: "low",
 		},
 		{
 			name: "thinking_enabled_medium",
@@ -661,9 +664,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "enabled", "budget_tokens": 8192}
 			}`,
-			expectedMaxTokens:    8192,
-			expectedEffort:       "medium",
-			expectThinkingConfig: true,
+			expectedEffort: "medium",
 		},
 		{
 			name: "thinking_enabled_high",
@@ -673,9 +674,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "enabled", "budget_tokens": 20480}
 			}`,
-			expectedMaxTokens:    20480,
-			expectedEffort:       "high",
-			expectThinkingConfig: true,
+			expectedEffort: "high",
 		},
 		{
 			name: "thinking_disabled",
@@ -685,9 +684,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"messages": [{"role": "user", "content": "Hello"}],
 				"thinking": {"type": "disabled"}
 			}`,
-			expectedMaxTokens:    0,
-			expectedEffort:       "",
-			expectThinkingConfig: false,
+			expectedEffort: "",
 		},
 		{
 			name: "no_thinking",
@@ -696,9 +693,7 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 				"max_tokens": 1000,
 				"messages": [{"role": "user", "content": "Hello"}]
 			}`,
-			expectedMaxTokens:    0,
-			expectedEffort:       "",
-			expectThinkingConfig: false,
+			expectedEffort: "",
 		},
 	}
 
@@ -712,13 +707,23 @@ func TestClaudeToOpenAIConverter_ConvertThinkingConfig(t *testing.T) {
 			err = json.Unmarshal(result, &openaiRequest)
 			assert.NoError(t, err)
 
-			if tt.expectThinkingConfig {
-				assert.Equal(t, tt.expectedMaxTokens, openaiRequest.ReasoningMaxTokens)
-				assert.Equal(t, tt.expectedEffort, openaiRequest.ReasoningEffort)
-			} else {
-				assert.Equal(t, 0, openaiRequest.ReasoningMaxTokens)
-				assert.Equal(t, "", openaiRequest.ReasoningEffort)
-			}
+			assert.Equal(t, tt.expectedEffort, openaiRequest.ReasoningEffort)
+
+			// Verify non-standard fields are NEVER set in the converted request.
+			// These fields are not recognized by OpenAI/Azure and would cause 400 errors.
+			assert.Equal(t, 0, openaiRequest.ReasoningMaxTokens,
+				"reasoning_max_tokens must not be set - it is not a standard OpenAI parameter")
+			assert.Nil(t, openaiRequest.Thinking,
+				"thinking must not be set - it is not a standard OpenAI parameter")
+
+			// Also verify at the raw JSON level to catch any serialization issues
+			var rawJSON map[string]interface{}
+			err = json.Unmarshal(result, &rawJSON)
+			require.NoError(t, err)
+			assert.NotContains(t, rawJSON, "thinking",
+				"raw JSON must not contain 'thinking' field")
+			assert.NotContains(t, rawJSON, "reasoning_max_tokens",
+				"raw JSON must not contain 'reasoning_max_tokens' field")
 		})
 	}
 }
@@ -830,21 +835,146 @@ func TestClaudeToOpenAIConverter_ConvertReasoningResponseToClaude(t *testing.T) 
 				// First should be thinking
 				thinkingContent := claudeResponse.Content[0]
 				assert.Equal(t, "thinking", thinkingContent.Type)
-				assert.Equal(t, "", thinkingContent.Signature) // OpenAI doesn't provide signature
-				assert.Contains(t, thinkingContent.Thinking, "Let me think about this step by step")
+				require.NotNil(t, thinkingContent.Signature)
+				assert.Equal(t, "", *thinkingContent.Signature) // OpenAI doesn't provide signature
+				require.NotNil(t, thinkingContent.Thinking)
+				assert.Contains(t, *thinkingContent.Thinking, "Let me think about this step by step")
 
 				// Second should be text
 				textContent := claudeResponse.Content[1]
 				assert.Equal(t, "text", textContent.Type)
-				assert.Equal(t, tt.expectedText, textContent.Text)
+				require.NotNil(t, textContent.Text)
+				assert.Equal(t, tt.expectedText, *textContent.Text)
 			} else {
 				// Should only have text content
 				assert.Len(t, claudeResponse.Content, 1)
 
 				textContent := claudeResponse.Content[0]
 				assert.Equal(t, "text", textContent.Type)
-				assert.Equal(t, tt.expectedText, textContent.Text)
+				require.NotNil(t, textContent.Text)
+				assert.Equal(t, tt.expectedText, *textContent.Text)
 			}
+		})
+	}
+}
+
+func TestClaudeToOpenAIConverter_StripCchFromSystemMessage(t *testing.T) {
+	converter := &ClaudeToOpenAIConverter{}
+
+	t.Run("string_system_with_billing_header", func(t *testing.T) {
+		// Test that cch field is stripped from string format system message
+		claudeRequest := `{
+			"model": "claude-sonnet-4",
+			"max_tokens": 1024,
+			"system": [
+				{
+					"type": "text",
+					"text": "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode; cch=abc123;"
+				}
+			],
+			"messages": [{
+				"role": "user",
+				"content": "Hello"
+			}]
+		}`
+
+		result, err := converter.ConvertClaudeRequestToOpenAI([]byte(claudeRequest))
+		require.NoError(t, err)
+
+		var openaiRequest chatCompletionRequest
+		err = json.Unmarshal(result, &openaiRequest)
+		require.NoError(t, err)
+
+		require.Len(t, openaiRequest.Messages, 2)
+
+		// First message should be system with cch stripped
+		systemMsg := openaiRequest.Messages[0]
+		assert.Equal(t, "system", systemMsg.Role)
+
+		// The system content should have cch removed
+		contentArray, ok := systemMsg.Content.([]interface{})
+		require.True(t, ok, "System content should be an array")
+		require.Len(t, contentArray, 1)
+
+		contentMap, ok := contentArray[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "text", contentMap["type"])
+		assert.Equal(t, "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;", contentMap["text"])
+		assert.NotContains(t, contentMap["text"], "cch=")
+	})
+
+	t.Run("plain_string_system_unchanged", func(t *testing.T) {
+		// Test that normal system messages are not modified
+		claudeRequest := `{
+			"model": "claude-sonnet-4",
+			"max_tokens": 1024,
+			"system": "You are a helpful assistant.",
+			"messages": [{
+				"role": "user",
+				"content": "Hello"
+			}]
+		}`
+
+		result, err := converter.ConvertClaudeRequestToOpenAI([]byte(claudeRequest))
+		require.NoError(t, err)
+
+		var openaiRequest chatCompletionRequest
+		err = json.Unmarshal(result, &openaiRequest)
+		require.NoError(t, err)
+
+		// First message should be system with original content
+		systemMsg := openaiRequest.Messages[0]
+		assert.Equal(t, "system", systemMsg.Role)
+		assert.Equal(t, "You are a helpful assistant.", systemMsg.Content)
+	})
+}
+func TestStripCchFromBillingHeader(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "billing header with cch at end",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode; cch=abc123;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+		{
+			name:     "billing header with cch at end without trailing semicolon",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode; cch=abc123",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode",
+		},
+		{
+			name:     "billing header with cch in middle",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cch=abc123; cc_entrypoint=claude-vscode;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+		{
+			name:     "billing header without cch",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+		{
+			name:     "non-billing header text unchanged",
+			input:    "This is a normal system prompt",
+			expected: "This is a normal system prompt",
+		},
+		{
+			name:     "empty string unchanged",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "billing header with multiple cch fields",
+			input:    "x-anthropic-billing-header: cc_version=2.1.37.3a3; cch=first; cc_entrypoint=claude-vscode; cch=second;",
+			expected: "x-anthropic-billing-header: cc_version=2.1.37.3a3; cc_entrypoint=claude-vscode;",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripCchFromBillingHeader(tt.input)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
