@@ -489,7 +489,7 @@ type ProviderConfig struct {
 	hiclawMode bool `required:"false" yaml:"hiclawMode" json:"hiclawMode"`
 	// @Title zh-CN Provider 基础路径
 	// @Description zh-CN 当配置了此值时，各个 Provider 在改写请求路径时会将其添加到路径前面，例如配置"/api/ai"后，请求路径"/v1/chat/completions"会被改写为"/api/ai/v1/chat/completions"
-	ProviderBasePath string `required:"false" yaml:"providerBasePath" json:"providerBasePath"`
+	providerBasePath string `required:"false" yaml:"providerBasePath" json:"providerBasePath"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -722,7 +722,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.mergeConsecutiveMessages = true
 		c.promoteThinkingOnEmpty = true
 	}
-	c.ProviderBasePath = json.Get("providerBasePath").String()
+	c.providerBasePath = json.Get("providerBasePath").String()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -875,8 +875,8 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 
 // applyProviderBasePath prepends the ProviderBasePath to the given path if configured.
 func (c *ProviderConfig) applyProviderBasePath(path string) string {
-	if c.ProviderBasePath != "" && !strings.HasPrefix(path, c.ProviderBasePath) {
-		return c.ProviderBasePath + path
+	if c.providerBasePath != "" && !strings.HasPrefix(path, c.providerBasePath) {
+		return c.providerBasePath + path
 	}
 	return path
 }
@@ -1219,7 +1219,7 @@ func (c *ProviderConfig) handleRequestBody(
 		headers := util.GetRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers)
 		// Apply providerBasePath if configured
-		if c.ProviderBasePath != "" {
+		if c.providerBasePath != "" {
 			headers.Set(":path", c.applyProviderBasePath(headers.Get(":path")))
 		}
 		util.ReplaceRequestHeaders(headers)
@@ -1281,7 +1281,7 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 
 	// Apply providerBasePath if configured
 	currentPath := headers.Get(":path")
-	if c.ProviderBasePath != "" {
+	if c.providerBasePath != "" {
 		headers.Set(":path", c.applyProviderBasePath(currentPath))
 	}
 

@@ -294,14 +294,14 @@ func TestProviderBasePath_Config(t *testing.T) {
 	t.Run("providerBasePath_field_exists", func(t *testing.T) {
 		config := ProviderConfig{}
 		config.FromJson(gjson.Result{})
-		assert.Equal(t, "", config.ProviderBasePath)
+		assert.Equal(t, "", config.providerBasePath)
 	})
 
 	t.Run("providerBasePath_parsed_from_json", func(t *testing.T) {
 		config := ProviderConfig{}
 		jsonStr := `{"providerBasePath": "/api/ai"}`
 		config.FromJson(gjson.Parse(jsonStr))
-		assert.Equal(t, "/api/ai", config.ProviderBasePath)
+		assert.Equal(t, "/api/ai", config.providerBasePath)
 	})
 
 	t.Run("providerBasePath_with_other_config", func(t *testing.T) {
@@ -314,7 +314,7 @@ func TestProviderBasePath_Config(t *testing.T) {
 		}`
 		config.FromJson(gjson.Parse(jsonStr))
 		assert.Equal(t, "openai", config.typ)
-		assert.Equal(t, "/api/v1", config.ProviderBasePath)
+		assert.Equal(t, "/api/v1", config.providerBasePath)
 		assert.Equal(t, "proxy.example.com", config.providerDomain)
 	})
 }
@@ -361,7 +361,7 @@ func TestApplyProviderBasePath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &ProviderConfig{
-				ProviderBasePath: tt.providerBasePath,
+				providerBasePath: tt.providerBasePath,
 			}
 			result := config.applyProviderBasePath(tt.originalPath)
 			assert.Equal(t, tt.expectedPath, result)
