@@ -198,6 +198,11 @@ func (c *ProviderConfig) transformRequestHeadersAndBody(ctx wrapper.HttpContext,
 		handler.TransformRequestHeaders(ctx, ApiNameChatCompletion, modifiedHeaders)
 	}
 
+	// Apply providerBasePath if configured
+	if c.ProviderBasePath != "" {
+		modifiedHeaders.Set(":path", c.applyProviderBasePath(modifiedHeaders.Get(":path")))
+	}
+
 	var err error
 	if handler, ok := activeProvider.(TransformRequestBodyHandler); ok {
 		body, err = handler.TransformRequestBody(ctx, ApiNameChatCompletion, body)

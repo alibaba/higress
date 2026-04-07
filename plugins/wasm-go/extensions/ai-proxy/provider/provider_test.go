@@ -290,28 +290,81 @@ func TestProviderDomain_Config(t *testing.T) {
 	})
 }
 
-func TestResolveDomain_Priority(t *testing.T) {
-	t.Run("providerDomain_takes_priority", func(t *testing.T) {
-		config := ProviderConfig{
-			providerDomain: "universal-proxy.com",
-		}
-		result := config.resolveDomain("specific-domain.com", "default.com")
-		assert.Equal(t, "universal-proxy.com", result)
+func TestProviderBasePath_Config(t *testing.T) {
+	t.Run("providerBasePath_field_exists", func(t *testing.T) {
+		config := ProviderConfig{}
+		config.FromJson(gjson.Result{})
+		assert.Equal(t, "", config.ProviderBasePath)
 	})
 
-	t.Run("providerSpecificDomain_when_providerDomain_empty", func(t *testing.T) {
-		config := ProviderConfig{
-			providerDomain: "",
-		}
-		result := config.resolveDomain("specific-domain.com", "default.com")
-		assert.Equal(t, "specific-domain.com", result)
+	t.Run("providerBasePath_parsed_from_json", func(t *testing.T) {
+		config := ProviderConfig{}
+		jsonStr := `{"providerBasePath": "/api/ai"}`
+		config.FromJson(gjson.Parse(jsonStr))
+		assert.Equal(t, "/api/ai", config.ProviderBasePath)
 	})
 
-	t.Run("defaultDomain_when_both_empty", func(t *testing.T) {
-		config := ProviderConfig{
-			providerDomain: "",
-		}
-		result := config.resolveDomain("", "default.com")
-		assert.Equal(t, "default.com", result)
+	t.Run("providerBasePath_with_other_config", func(t *testing.T) {
+		config := ProviderConfig{}
+		jsonStr := `{
+			"type": "openai",
+			"apiToken": "sk-test",
+			"providerBasePath": "/api/v1",
+			"providerDomain": "proxy.example.com"
+		}`
+		config.FromJson(gjson.Parse(jsonStr))
+		assert.Equal(t, "openai", config.typ)
+		assert.Equal(t, "/api/v1", config.ProviderBasePath)
+		assert.Equal(t, "proxy.example.com", config.providerDomain)
 	})
+}
+
+func TestApplyProviderBasePath(t *testing.T) {
+	tests := []struct {
+		name             string
+		providerBasePath string
+		originalPath     string
+		expectedPath     string
+	}{
+		{
+			name:             "no_base_path_configured",
+			providerBasePath: "",
+			originalPath:     "/v1/chat/completions",
+			expectedPath:     "/v1/chat/completions",
+		},
+		{
+			name:             "base_path_prepended",
+			providerBasePath: "/api/ai",
+			originalPath:     "/v1/chat/completions",
+			expectedPath:     "/api/ai/v1/chat/completions",
+		},
+		{
+			name:             "path_already_has_base_path",
+			providerBasePath: "/api/ai",
+			originalPath:     "/api/ai/v1/chat/completions",
+			expectedPath:     "/api/ai/v1/chat/completions",
+		},
+		{
+			name:             "base_path_with_trailing_slash",
+			providerBasePath: "/api/ai/",
+			originalPath:     "/v1/chat/completions",
+			expectedPath:     "/api/ai//v1/chat/completions",
+		},
+		{
+			name:             "deep_base_path",
+			providerBasePath: "/internal/services/ai",
+			originalPath:     "/v1/models",
+			expectedPath:     "/internal/services/ai/v1/models",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &ProviderConfig{
+				ProviderBasePath: tt.providerBasePath,
+			}
+			result := config.applyProviderBasePath(tt.originalPath)
+			assert.Equal(t, tt.expectedPath, result)
+		})
+	}
 }
