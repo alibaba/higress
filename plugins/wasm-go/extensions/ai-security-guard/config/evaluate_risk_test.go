@@ -848,3 +848,134 @@ func TestTC_EVAL_029(t *testing.T) {
 	result := EvaluateRisk(MultiModalGuard, data, config, "other-user")
 	require.Equal(t, RiskMask, result)
 }
+
+// =============================================================================
+// TC-EVAL: detailExceedsThreshold 各维度覆盖
+// =============================================================================
+
+// TestTC_EVAL_030 MaliciousUrlDataType 超阈值 => RiskBlock
+func TestTC_EVAL_030(t *testing.T) {
+	config := baseConfig()
+	config.MaliciousUrlLevelBar = "medium"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "pass",
+				Type:       MaliciousUrlDataType,
+				Level:      "high", // exceeds "medium"
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskBlock, result)
+}
+
+// TestTC_EVAL_031 ModelHallucinationDataType 超阈值 => RiskBlock
+func TestTC_EVAL_031(t *testing.T) {
+	config := baseConfig()
+	config.ModelHallucinationLevelBar = "medium"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "none",
+				Type:       ModelHallucinationDataType,
+				Level:      "high", // exceeds "medium"
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskBlock, result)
+}
+
+// TestTC_EVAL_032 CustomLabelType 超阈值 => RiskBlock
+func TestTC_EVAL_032(t *testing.T) {
+	config := baseConfig()
+	config.CustomLabelLevelBar = "low"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "none",
+				Type:       CustomLabelType,
+				Level:      "medium", // exceeds "low"
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskBlock, result)
+}
+
+// TestTC_EVAL_033 MaliciousUrlDataType 未超阈值 => RiskPass
+func TestTC_EVAL_033(t *testing.T) {
+	config := baseConfig()
+	config.MaliciousUrlLevelBar = "high"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "pass",
+				Type:       MaliciousUrlDataType,
+				Level:      "low", // below "high"
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskPass, result)
+}
+
+// TestTC_EVAL_034 ModelHallucinationDataType 未超阈值 => RiskPass
+func TestTC_EVAL_034(t *testing.T) {
+	config := baseConfig()
+	config.ModelHallucinationLevelBar = "high"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "none",
+				Type:       ModelHallucinationDataType,
+				Level:      "low", // below "high"
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskPass, result)
+}
+
+// TestTC_EVAL_035 CustomLabelType 未超阈值 + 有 mask 候选 => RiskMask
+func TestTC_EVAL_035(t *testing.T) {
+	config := baseConfig()
+	config.CustomLabelLevelBar = "high"
+	config.SensitiveDataAction = "mask"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "none",
+				Type:       CustomLabelType,
+				Level:      "low", // below "high"
+			},
+			{
+				Suggestion: "mask",
+				Type:       SensitiveDataType,
+				Level:      "S1",
+				Result:     []Result{{Ext: Ext{Desensitization: "masked"}}},
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskMask, result)
+}

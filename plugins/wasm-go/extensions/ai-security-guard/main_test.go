@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
@@ -282,6 +283,26 @@ var multiModalGuardImageQwenConfig = func() json.RawMessage {
 		"action":                    "MultiModalGuard",
 		"apiType":                   "image_generation",
 		"providerType":              "qwen",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
+	})
+	return data
+}()
+
+// 测试配置：ProtocolOriginal MultiModalGuard
+var protocolOriginalConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             false,
+		"action":                    "MultiModalGuard",
+		"protocol":                  "original",
 		"contentModerationLevelBar": "high",
 		"promptAttackLevelBar":      "high",
 		"sensitiveDataLevelBar":     "S3",
@@ -2620,5 +2641,274 @@ func TestBuildDenyResponseBody(t *testing.T) {
 		var result cfg.DenyResponseBody
 		require.NoError(t, json.Unmarshal(body, &result))
 		require.Empty(t, result.BlockedDetails)
+	})
+}
+
+// =============================================================================
+// TC-COVER: 覆盖率补充测试
+// =============================================================================
+
+// TestMultiModalGuardStreamDeny 覆盖 openai.go RiskBlock 分支中 stream 响应格式路径
+func TestMultiModalGuardStreamDeny(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("stream request deny returns SSE format", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardTextConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 请求体中包含 stream=true，触发 SSE 响应格式
+			body := `{"messages": [{"role": "user", "content": "trigger deny"}], "stream": true}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-stream-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for stream deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			// 验证 SSE content-type
+			foundSSE := false
+			for _, h := range local.Headers {
+				if h[0] == "content-type" {
+					require.Equal(t, "text/event-stream;charset=UTF-8", h[1])
+					foundSSE = true
+				}
+			}
+			require.True(t, foundSSE, "expected SSE content-type header")
+		})
+	})
+}
+
+// TestMultiModalGuardProtocolOriginalDeny 覆盖 openai.go RiskBlock 分支中 ProtocolOriginal 路径
+func TestMultiModalGuardProtocolOriginalDeny(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("protocol original deny returns raw blockedDetails JSON", func(t *testing.T) {
+			host, status := test.NewTestHost(protocolOriginalConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "trigger deny"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-proto-orig", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for protocol original deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			// ProtocolOriginal 直接返回 JSON，不包装 OpenAI 格式
+			for _, h := range local.Headers {
+				if h[0] == "content-type" {
+					require.Equal(t, "application/json", h[1])
+				}
+			}
+			// 响应体是原始 blockedDetails JSON，不含 OpenAI 包装
+			require.False(t, gjson.GetBytes(local.Data, "choices").Exists(), "should not wrap in OpenAI format")
+		})
+	})
+}
+
+// TestMultiModalGuardDenyWithAdvice 覆盖 openai.go RiskBlock 分支中 Advice != nil 路径
+func TestMultiModalGuardDenyWithAdvice(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("deny with advice sets riskLabel and riskWords attributes", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardTextConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "trigger deny with advice"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			// 包含 Advice 和 Result 的安全服务响应
+			securityResponse := `{
+				"Code": 200, "Message": "Success", "RequestId": "req-advice-deny",
+				"Data": {
+					"RiskLevel": "high",
+					"Result": [{"Label": "porn", "RiskWords": "bad-word"}],
+					"Advice": [{"Answer": "blocked", "HitLabel": "porn"}],
+					"Detail": [{"Suggestion": "block", "Type": "contentModeration", "Level": "high"}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse")
+			require.Contains(t, string(local.Data), "blockedDetails")
+		})
+	})
+}
+
+// TestMultiChunkMasking 覆盖 openai.go 中 RiskPass + hasMasked 路径
+// 场景：内容超过 LengthLimit(1800)，第一 chunk 触发 RiskMask 脱敏替换，第二 chunk RiskPass
+func TestMultiChunkMasking(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("multi chunk masking with pass on second chunk", func(t *testing.T) {
+			host, status := test.NewTestHost(maskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// 生成超过 LengthLimit (1800) 的内容
+			longContent := strings.Repeat("a", 2000)
+			body := `{"messages": [{"role": "user", "content": "` + longContent + `"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			// 第一个 chunk (1800 chars)：返回 mask 建议及脱敏内容
+			maskedChunk := strings.Repeat("b", 1800)
+			securityResponse1 := `{
+				"Code": 200, "Message": "Success", "RequestId": "req-chunk-1",
+				"Data": {
+					"RiskLevel": "none",
+					"Detail": [{
+						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S2",
+						"Result": [{"Label": "phone", "Confidence": 99.0,
+							"Ext": {"Desensitization": "` + maskedChunk + `"}}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse1))
+
+			// 第二个 chunk (200 chars)：返回 pass（无风险）
+			securityResponse2 := `{"Code": 200, "Message": "Success", "RequestId": "req-chunk-2", "Data": {"RiskLevel": "none", "Detail": []}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse2))
+
+			// 验证请求体被替换为脱敏内容
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			// 期望 = 脱敏后的第一 chunk (1800 'b') + 原始第二 chunk (200 'a')
+			expectedContent := maskedChunk + strings.Repeat("a", 200)
+			require.Equal(t, expectedContent, content)
+
+			host.CompleteHttp()
+		})
+
+		// 覆盖 RiskMask 成功完成路径（单 chunk 内容刚好 <= LengthLimit，RiskMask 后立即完成）
+		// 该路径在 RiskMask 分支中 contentIndex >= len(maskedContent) 的子路径
+		t.Run("single chunk mask completes in RiskMask branch", func(t *testing.T) {
+			host, status := test.NewTestHost(maskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "我的银行卡号是6222021234567890"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{
+				"Code": 200, "Message": "Success", "RequestId": "req-single-mask",
+				"Data": {
+					"RiskLevel": "none",
+					"Detail": [{
+						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S2",
+						"Result": [{"Label": "bank_card", "Confidence": 99.0,
+							"Ext": {"Desensitization": "我的银行卡号是6222************"}}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			processedBody := host.GetRequestBody()
+			require.NotNil(t, processedBody)
+			content := gjson.GetBytes(processedBody, "messages.@reverse.0.content").String()
+			require.Equal(t, "我的银行卡号是6222************", content)
+
+			host.CompleteHttp()
+		})
+	})
+}
+
+// TestMultiModalGuardMaskStreamDeny 覆盖 openai.go RiskMask 空脱敏 fallthrough 到 RiskBlock 的 stream 路径
+func TestMultiModalGuardMaskStreamDeny(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("mask with empty desensitization falls through to block stream format", func(t *testing.T) {
+			host, status := test.NewTestHost(maskConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			// stream=true 使 block 走 SSE 格式
+			body := `{"messages": [{"role": "user", "content": "敏感内容"}], "stream": true}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			// 返回 mask 建议但脱敏内容为空 → fallthrough 到 RiskBlock
+			securityResponse := `{
+				"Code": 200, "Message": "Success", "RequestId": "req-mask-stream-deny",
+				"Data": {
+					"RiskLevel": "none",
+					"Detail": [{
+						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S2",
+						"Result": [{"Label": "phone", "Confidence": 99.0,
+							"Ext": {"Desensitization": ""}}]
+					}]
+				}
+			}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse after mask fallthrough to block")
+			// 验证是 SSE 格式
+			foundSSE := false
+			for _, h := range local.Headers {
+				if h[0] == "content-type" {
+					require.Equal(t, "text/event-stream;charset=UTF-8", h[1])
+					foundSSE = true
+				}
+			}
+			require.True(t, foundSSE, "expected SSE content-type for stream deny")
+		})
 	})
 }

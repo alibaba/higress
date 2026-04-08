@@ -228,3 +228,50 @@ func TestReplaceJsonFieldTextContent(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveJsonPathEdgeCases covers edge cases in resolveJsonPath
+func TestResolveJsonPathEdgeCases(t *testing.T) {
+	// @reverse with index exceeding array length → actualIdx clamped to 0
+	t.Run("@reverse out of bounds index clamps to 0", func(t *testing.T) {
+		body := []byte(`{"messages":[{"role":"user","content":"hello"}]}`)
+		// Array has 1 element (index 0). @reverse.5 → actualIdx = 0 - 5 = -5 → clamped to 0
+		result, err := ReplaceJsonFieldTextContent(body, "messages.@reverse.5.content", "replaced")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !gjson.ValidBytes(result) {
+			t.Fatal("result is not valid JSON")
+		}
+		got := gjson.GetBytes(result, "messages.0.content").String()
+		if got != "replaced" {
+			t.Errorf("content = %q, want %q", got, "replaced")
+		}
+	})
+
+	// @reverse on empty array → actualIdx clamped to 0
+	t.Run("@reverse on single-element array resolves correctly", func(t *testing.T) {
+		body := []byte(`{"messages":[{"role":"user","content":"only one"}]}`)
+		// Array has 1 element. @reverse.0 → actualIdx = 1 - 1 - 0 = 0
+		result, err := ReplaceJsonFieldTextContent(body, "messages.@reverse.0.content", "updated")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		got := gjson.GetBytes(result, "messages.0.content").String()
+		if got != "updated" {
+			t.Errorf("content = %q, want %q", got, "updated")
+		}
+	})
+}
+
+// TestReplaceJsonFieldContent covers the simple ReplaceJsonFieldContent function
+func TestReplaceJsonFieldContent(t *testing.T) {
+	body := []byte(`{"messages":[{"role":"user","content":"original"}]}`)
+	result, err := ReplaceJsonFieldContent(body, "messages.0.content", "replaced")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := gjson.GetBytes(result, "messages.0.content").String()
+	if got != "replaced" {
+		t.Errorf("content = %q, want %q", got, "replaced")
+	}
+}
