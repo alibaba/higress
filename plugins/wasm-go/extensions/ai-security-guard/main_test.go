@@ -156,6 +156,90 @@ var mcpConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：MCP配置（启用请求检查）
+var mcpRequestConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             false,
+		"action":                    "MultiModalGuard",
+		"apiType":                   "mcp",
+		"requestContentJsonPath":    "params.arguments",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
+	})
+	return data
+}()
+
+// 测试配置：MultiModalGuard 文本生成
+var multiModalGuardTextConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             true,
+		"action":                    "MultiModalGuard",
+		"apiType":                   "text_generation",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
+		"bufferLimit":               1000,
+	})
+	return data
+}()
+
+// 测试配置：MultiModalGuard OpenAI 图像生成
+var multiModalGuardImageOpenAIConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             true,
+		"action":                    "MultiModalGuard",
+		"apiType":                   "image_generation",
+		"providerType":              "openai",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
+	})
+	return data
+}()
+
+// 测试配置：MultiModalGuard Qwen 图像生成
+var multiModalGuardImageQwenConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"serviceName":               "security-service",
+		"servicePort":               8080,
+		"serviceHost":               "security.example.com",
+		"accessKey":                 "test-ak",
+		"secretKey":                 "test-sk",
+		"checkRequest":              true,
+		"checkResponse":             true,
+		"action":                    "MultiModalGuard",
+		"apiType":                   "image_generation",
+		"providerType":              "qwen",
+		"contentModerationLevelBar": "high",
+		"promptAttackLevelBar":      "high",
+		"sensitiveDataLevelBar":     "S3",
+		"timeout":                   2000,
+	})
+	return data
+}()
+
 func TestParseConfig(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		// 测试基础配置解析
@@ -329,6 +413,51 @@ func TestOnHttpRequestBody(t *testing.T) {
 
 			// 空内容应该直接通过
 			require.Equal(t, types.ActionContinue, action)
+		})
+
+		// TextModerationPlus（默认 action，含 agent/OpenAI 形态）请求拦截应返回 choices[0].message.content 内的 blockedDetails JSON
+		t.Run("text moderation plus request deny returns blockedDetails in openai completion shape", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "trigger deny"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-tmp-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for request deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-tmp-deny")
+
+			type openAIChatCompletion struct {
+				Choices []struct {
+					Message struct {
+						Content string `json:"content"`
+					} `json:"message"`
+				} `json:"choices"`
+			}
+			var outer openAIChatCompletion
+			require.NoError(t, json.Unmarshal(local.Data, &outer))
+			require.Len(t, outer.Choices, 1)
+
+			var deny cfg.DenyResponseBody
+			require.NoError(t, json.Unmarshal([]byte(outer.Choices[0].Message.Content), &deny))
+			require.Equal(t, "req-tmp-deny", deny.RequestId)
+			require.Equal(t, 200, deny.GuardCode)
+			require.NotEmpty(t, deny.BlockedDetails)
+			require.Equal(t, cfg.ContentModerationType, deny.BlockedDetails[0].Type)
 		})
 	})
 }
@@ -924,7 +1053,7 @@ func TestDedupRequestFlow(t *testing.T) {
 
 			localResp := host.GetLocalResponse()
 			require.NotNil(t, localResp)
-			require.Contains(t, string(localResp.Data), "无法回答")
+			require.Contains(t, string(localResp.Data), "blockedDetails")
 		})
 
 		t.Run("dedup no messages after role filter - skip", func(t *testing.T) {
@@ -1012,7 +1141,7 @@ func TestMultiModalDedupRequestFlow(t *testing.T) {
 
 func TestCustomDenyMessage(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
-		t.Run("deny uses custom message from config", func(t *testing.T) {
+		t.Run("deny returns structured blockedDetails", func(t *testing.T) {
 			host, status := test.NewTestHost(customDenyConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
@@ -1032,10 +1161,11 @@ func TestCustomDenyMessage(t *testing.T) {
 
 			localResp := host.GetLocalResponse()
 			require.NotNil(t, localResp)
-			require.Contains(t, string(localResp.Data), "自定义拒绝消息")
+			require.Contains(t, string(localResp.Data), "blockedDetails")
+			require.Contains(t, string(localResp.Data), "guardCode")
 		})
 
-		t.Run("deny uses advice answer when no custom message", func(t *testing.T) {
+		t.Run("deny includes risk label in blockedDetails", func(t *testing.T) {
 			host, status := test.NewTestHost(basicConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
@@ -1055,7 +1185,7 @@ func TestCustomDenyMessage(t *testing.T) {
 
 			localResp := host.GetLocalResponse()
 			require.NotNil(t, localResp)
-			require.Contains(t, string(localResp.Data), "安全审核建议")
+			require.Contains(t, string(localResp.Data), "blockedDetails")
 		})
 	})
 }
@@ -1203,6 +1333,447 @@ func TestUtilityFunctions(t *testing.T) {
 	})
 }
 
+func TestMultiModalGuardTextGenerationDeny(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// MultiModalGuard text_generation request deny → exercises multi_modal_guard/text/openai.go BuildDenyResponseBody path
+		t.Run("multi modal guard text request deny returns blockedDetails", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardTextConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "trigger deny"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-mmg-text-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for request deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-mmg-text-deny")
+		})
+
+		// MultiModalGuard text_generation response deny → exercises common/text/openai.go HandleTextGenerationResponseBody BuildDenyResponseBody path
+		t.Run("multi modal guard text response deny returns blockedDetails", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardTextConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			body := `{"choices": [{"message": {"role": "assistant", "content": "bad response content"}}]}`
+			action := host.CallOnHttpResponseBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-mmg-resp-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for response deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-mmg-resp-deny")
+		})
+
+		// MultiModalGuard text_generation request pass
+		t.Run("multi modal guard text request pass", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardTextConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			body := `{"messages": [{"role": "user", "content": "Hello"}]}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-mmg-pass", "Data": {"RiskLevel": "low"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			action := host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+			host.CompleteHttp()
+		})
+	})
+}
+
+func TestMultiModalGuardImageGenerationDeny(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// OpenAI image generation request deny → exercises multi_modal_guard/image/openai.go BuildDenyResponseBody path
+		t.Run("openai image request deny returns blockedDetails", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardImageOpenAIConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/generations"},
+				{":method", "POST"},
+			})
+
+			body := `{"prompt": "generate bad image"}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-img-openai-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for OpenAI image request deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-img-openai-deny")
+		})
+
+		// OpenAI image generation request pass
+		t.Run("openai image request pass", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardImageOpenAIConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/generations"},
+				{":method", "POST"},
+			})
+
+			body := `{"prompt": "a cute cat"}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-img-pass", "Data": {"RiskLevel": "low"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			action := host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+			host.CompleteHttp()
+		})
+
+		// Qwen image generation request deny → exercises multi_modal_guard/image/qwen.go BuildDenyResponseBody path
+		t.Run("qwen image request deny returns blockedDetails", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardImageQwenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/generations"},
+				{":method", "POST"},
+			})
+
+			body := `{"input": {"prompt": "generate bad image"}}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-img-qwen-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for Qwen image request deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-img-qwen-deny")
+		})
+
+		// Qwen image generation request pass
+		t.Run("qwen image request pass", func(t *testing.T) {
+			host, status := test.NewTestHost(multiModalGuardImageQwenConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/images/generations"},
+				{":method", "POST"},
+			})
+
+			body := `{"input": {"prompt": "a cute cat"}}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-qwen-pass", "Data": {"RiskLevel": "low"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			action := host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+			host.CompleteHttp()
+		})
+	})
+}
+
+func TestMCPRequestDeny(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// MCP request deny → exercises multi_modal_guard/mcp/mcp.go HandleMcpRequestBody BuildDenyResponseBody path
+		t.Run("mcp request deny returns blockedDetails", func(t *testing.T) {
+			host, status := test.NewTestHost(mcpRequestConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/mcp/call"},
+				{":method", "POST"},
+			})
+
+			body := `{"method": "tools/call", "params": {"arguments": "bad request content"}}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-mcp-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for MCP request deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-mcp-deny")
+		})
+
+		// MCP request pass
+		t.Run("mcp request pass", func(t *testing.T) {
+			host, status := test.NewTestHost(mcpRequestConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/mcp/call"},
+				{":method", "POST"},
+			})
+
+			body := `{"method": "tools/call", "params": {"arguments": "safe content"}}`
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(body)))
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-mcp-pass", "Data": {"RiskLevel": "low"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			action := host.GetHttpStreamAction()
+			require.Equal(t, types.ActionContinue, action)
+			host.CompleteHttp()
+		})
+
+		// MCP request skip non-tool-call method
+		t.Run("mcp request skip non-tool-call", func(t *testing.T) {
+			host, status := test.NewTestHost(mcpRequestConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/mcp/call"},
+				{":method", "POST"},
+			})
+
+			body := `{"method": "resources/list", "params": {}}`
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionContinue, action)
+		})
+	})
+}
+
+func TestTextModerationPlusResponseDeny(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// TextModerationPlus response deny → exercises text_moderation_plus/text (via common/text) BuildDenyResponseBody response path
+		t.Run("text moderation plus response deny returns blockedDetails", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+			})
+
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+
+			body := `{"choices": [{"message": {"role": "assistant", "content": "bad response"}}]}`
+			action := host.CallOnHttpResponseBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			securityResponse := `{"Code": 200, "Message": "Success", "RequestId": "req-tmp-resp-deny", "Data": {"RiskLevel": "high"}}`
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(securityResponse))
+
+			local := host.GetLocalResponse()
+			require.NotNil(t, local, "expected SendHttpResponse for response deny")
+			require.Contains(t, string(local.Data), "blockedDetails")
+			require.Contains(t, string(local.Data), "req-tmp-resp-deny")
+
+			// Verify OpenAI completion shape wrapper
+			type openAIChatCompletion struct {
+				Choices []struct {
+					Message struct {
+						Content string `json:"content"`
+					} `json:"message"`
+				} `json:"choices"`
+			}
+			var outer openAIChatCompletion
+			require.NoError(t, json.Unmarshal(local.Data, &outer))
+			require.Len(t, outer.Choices, 1)
+
+			var deny cfg.DenyResponseBody
+			require.NoError(t, json.Unmarshal([]byte(outer.Choices[0].Message.Content), &deny))
+			require.Equal(t, "req-tmp-resp-deny", deny.RequestId)
+			require.Equal(t, 200, deny.GuardCode)
+			require.NotEmpty(t, deny.BlockedDetails)
+		})
+	})
+}
+
+func TestBuildDenyResponseBody(t *testing.T) {
+	makeConfig := func(contentBar, promptBar string) cfg.AISecurityConfig {
+		return cfg.AISecurityConfig{
+			ContentModerationLevelBar: contentBar,
+			PromptAttackLevelBar:      promptBar,
+			SensitiveDataLevelBar:     "S4",
+			MaliciousUrlLevelBar:      "max",
+			ModelHallucinationLevelBar: "max",
+			Action:                    cfg.MultiModalGuard,
+		}
+	}
+
+	t.Run("guardCode equals response.Code", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-123",
+			Data:      cfg.Data{},
+		}
+		body, err := cfg.BuildDenyResponseBody(resp, makeConfig("high", "high"), "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.Equal(t, 200, result.GuardCode)
+		require.Equal(t, "req-123", result.RequestId)
+	})
+
+	t.Run("blockedDetails from Data.Detail", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-456",
+			Data: cfg.Data{
+				Detail: []cfg.Detail{
+					{Type: cfg.ContentModerationType, Level: "high", Suggestion: "block"},
+					{Type: cfg.PromptAttackType, Level: "low", Suggestion: "block"},
+				},
+			},
+		}
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		// only the contentModeration entry meets the "high" bar; promptAttack at "low" does not
+		require.Len(t, result.BlockedDetails, 1)
+		require.Equal(t, cfg.ContentModerationType, result.BlockedDetails[0].Type)
+		require.Equal(t, "high", result.BlockedDetails[0].Level)
+	})
+
+	t.Run("blockedDetails fallback from RiskLevel when Detail is empty", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-789",
+			Data: cfg.Data{
+				RiskLevel: "high",
+				// Detail deliberately empty
+			},
+		}
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.NotEmpty(t, result.BlockedDetails, "expected fallback detail from RiskLevel")
+		require.Equal(t, cfg.ContentModerationType, result.BlockedDetails[0].Type)
+		require.Equal(t, "high", result.BlockedDetails[0].Level)
+		require.Equal(t, "block", result.BlockedDetails[0].Suggestion)
+	})
+
+	t.Run("blockedDetails fallback from AttackLevel when Detail is empty", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-abc",
+			Data: cfg.Data{
+				AttackLevel: "high",
+				// Detail deliberately empty
+			},
+		}
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.NotEmpty(t, result.BlockedDetails, "expected fallback detail from AttackLevel")
+		require.Equal(t, cfg.PromptAttackType, result.BlockedDetails[0].Type)
+		require.Equal(t, "high", result.BlockedDetails[0].Level)
+		require.Equal(t, "block", result.BlockedDetails[0].Suggestion)
+	})
+
+	t.Run("blockedDetails empty when risk levels below threshold", func(t *testing.T) {
+		resp := cfg.Response{
+			Code:      200,
+			RequestId: "req-def",
+			Data: cfg.Data{
+				RiskLevel:   "low",
+				AttackLevel: "low",
+			},
+		}
+		// threshold is "high", so "low" must not produce fallback entries
+		config := makeConfig("high", "high")
+		body, err := cfg.BuildDenyResponseBody(resp, config, "")
+		require.NoError(t, err)
+
+		var result cfg.DenyResponseBody
+		require.NoError(t, json.Unmarshal(body, &result))
+		require.Empty(t, result.BlockedDetails)
+	})
+}
+
 // 测试配置：MultiModalGuard 基础配置（无dedup，用于测试 handleDefaultRequest）
 var multiModalBasicConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -1290,7 +1861,7 @@ func TestHandleDefaultRequest(t *testing.T) {
 
 			localResp := host.GetLocalResponse()
 			require.NotNil(t, localResp)
-			require.Contains(t, string(localResp.Data), "无法回答")
+			require.Contains(t, string(localResp.Data), "blockedDetails")
 		})
 
 		// 测试空内容 - 直接通过
@@ -1447,7 +2018,7 @@ func TestBuildImageCallback(t *testing.T) {
 
 			localResp := host.GetLocalResponse()
 			require.NotNil(t, localResp)
-			require.Contains(t, string(localResp.Data), "无法回答")
+			require.Contains(t, string(localResp.Data), "blockedDetails")
 		})
 
 		// 测试多张图片 - 全部通过
@@ -1521,7 +2092,7 @@ func TestBuildImageCallback(t *testing.T) {
 
 			localResp := host.GetLocalResponse()
 			require.NotNil(t, localResp)
-			require.Contains(t, string(localResp.Data), "无法回答")
+			require.Contains(t, string(localResp.Data), "blockedDetails")
 		})
 
 		// 测试图片检查服务返回非200 - 继续检查下一张
@@ -1806,7 +2377,7 @@ func TestBuildImageCaller(t *testing.T) {
 
 			localResp := host.GetLocalResponse()
 			require.NotNil(t, localResp)
-			require.Contains(t, string(localResp.Data), "图片内容不合规")
+			require.Contains(t, string(localResp.Data), "blockedDetails")
 		})
 	})
 }
