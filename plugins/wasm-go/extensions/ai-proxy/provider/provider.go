@@ -168,6 +168,8 @@ const (
 	finishReasonLength   = "length"
 	finishReasonToolCall = "tool_calls"
 
+	ctxKeyClaudeBudgetTokens     = "claudeBudgetTokens"
+	ctxKeyClaudeThinkingType     = "claudeThinkingType"
 	ctxKeyIncrementalStreaming   = "incrementalStreaming"
 	ctxKeyApiKey                 = "apiKey"
 	CtxKeyApiName                = "apiName"
@@ -485,6 +487,9 @@ type ProviderConfig struct {
 	// @Title zh-CN HiClaw 模式
 	// @Description zh-CN 开启后同时启用 mergeConsecutiveMessages 和 promoteThinkingOnEmpty，适用于 HiClaw 多 Agent 协作场景。
 	hiclawMode bool `required:"false" yaml:"hiclawMode" json:"hiclawMode"`
+	// @Title zh-CN Provider 基础路径
+	// @Description zh-CN 当配置了此值时，各个 Provider 在改写请求路径时会将其添加到路径前面，例如配置"/api/ai"后，请求路径"/v1/chat/completions"会被改写为"/api/ai/v1/chat/completions"
+	providerBasePath string `required:"false" yaml:"providerBasePath" json:"providerBasePath"`
 }
 
 func (c *ProviderConfig) GetId() string {
@@ -497,20 +502,6 @@ func (c *ProviderConfig) GetType() string {
 
 func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
-}
-
-// resolveDomain resolves the domain to use based on priority:
-// 1. providerDomain (generic override for all providers)
-// 2. provider-specific domain config (e.g., geminiDomain, doubaoDomain)
-// 3. default hardcoded domain
-func (c *ProviderConfig) resolveDomain(providerSpecificDomain, defaultDomain string) string {
-	if c.providerDomain != "" {
-		return c.providerDomain
-	}
-	if providerSpecificDomain != "" {
-		return providerSpecificDomain
-	}
-	return defaultDomain
 }
 
 func (c *ProviderConfig) GetVllmCustomUrl() string {
@@ -731,6 +722,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 		c.mergeConsecutiveMessages = true
 		c.promoteThinkingOnEmpty = true
 	}
+	c.providerBasePath = json.Get("providerBasePath").String()
 }
 
 func (c *ProviderConfig) Validate() error {
@@ -865,6 +857,10 @@ func (c *ProviderConfig) IsOriginal() bool {
 	return c.protocol == protocolOriginal
 }
 
+func (c *ProviderConfig) IsGeneric() bool {
+	return c.typ == providerTypeGeneric
+}
+
 func (c *ProviderConfig) GetPromoteThinkingOnEmpty() bool {
 	return c.promoteThinkingOnEmpty
 }
@@ -879,6 +875,14 @@ func CreateProvider(pc ProviderConfig) (Provider, error) {
 		return nil, errors.New("unknown provider type: " + pc.typ)
 	}
 	return initializer.CreateProvider(pc)
+}
+
+// applyProviderBasePath prepends the ProviderBasePath to the given path if configured.
+func (c *ProviderConfig) applyProviderBasePath(path string) string {
+	if c.providerBasePath != "" && !strings.HasPrefix(path, c.providerBasePath) {
+		return c.providerBasePath + path
+	}
+	return path
 }
 
 func (c *ProviderConfig) parseRequestAndMapModel(ctx wrapper.HttpContext, request interface{}, body []byte) error {
@@ -1155,6 +1159,21 @@ func (c *ProviderConfig) handleRequestBody(
 	// If main.go detected a Claude request that needs conversion, convert the body
 	needClaudeConversion, _ := ctx.GetContext("needClaudeResponseConversion").(bool)
 	if needClaudeConversion {
+		// Extract thinking config from original Claude body before conversion,
+		// so downstream providers (OpenRouter, ZhipuAI) can access it.
+		thinkingType := gjson.GetBytes(body, "thinking.type").String()
+		if thinkingType == "" {
+			// Claude request had no thinking field at all - treat as disabled
+			thinkingType = "disabled"
+		}
+		ctx.SetContext(ctxKeyClaudeThinkingType, thinkingType)
+		// Only extract budget_tokens when thinking is explicitly enabled
+		if thinkingType == "enabled" {
+			if budgetTokens := gjson.GetBytes(body, "thinking.budget_tokens").Int(); budgetTokens > 0 {
+				ctx.SetContext(ctxKeyClaudeBudgetTokens, int(budgetTokens))
+			}
+		}
+
 		// Convert Claude protocol to OpenAI protocol
 		converter := &ClaudeToOpenAIConverter{}
 		body, err = converter.ConvertClaudeRequestToOpenAI(body)
@@ -1203,6 +1222,10 @@ func (c *ProviderConfig) handleRequestBody(
 	} else if handler, ok := provider.(TransformRequestBodyHeadersHandler); ok {
 		headers := util.GetRequestHeaders()
 		body, err = handler.TransformRequestBodyHeaders(ctx, apiName, body, headers)
+		// Apply providerBasePath if configured
+		if c.providerBasePath != "" {
+			headers.Set(":path", c.applyProviderBasePath(headers.Get(":path")))
+		}
 		util.ReplaceRequestHeaders(headers)
 	} else {
 		body, err = c.defaultTransformRequestBody(ctx, apiName, body)
@@ -1259,11 +1282,27 @@ func (c *ProviderConfig) handleRequestHeaders(provider Provider, ctx wrapper.Htt
 	if c.basePath != "" && c.basePathHandling == basePathHandlingPrepend && !strings.HasPrefix(headers.Get(":path"), c.basePath) {
 		headers.Set(":path", path.Join(c.basePath, headers.Get(":path")))
 	}
+
+	// Apply providerBasePath if configured
+	currentPath := headers.Get(":path")
+	if c.providerBasePath != "" {
+		headers.Set(":path", c.applyProviderBasePath(currentPath))
+	}
+
+	// Apply providerDomain if configured (overrides any domain set by the provider)
+	if c.providerDomain != "" {
+		util.OverwriteRequestHostHeader(headers, c.providerDomain)
+	}
+
 	util.ReplaceRequestHeaders(headers)
 }
 
 // defaultTransformRequestBody 默认的请求体转换方法，只做模型映射，用slog替换模型名称，不用序列化和反序列化，提高性能
 func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte) ([]byte, error) {
+	if contentType, err := proxywasm.GetHttpRequestHeader(util.HeaderContentType); err == nil && isMultipartFormData(contentType) {
+		return c.defaultTransformMultipartRequestBody(ctx, apiName, body, contentType)
+	}
+
 	switch apiName {
 	case ApiNameChatCompletion,
 		ApiNameVideos,
@@ -1281,6 +1320,28 @@ func (c *ProviderConfig) defaultTransformRequestBody(ctx wrapper.HttpContext, ap
 	mappedModel := getMappedModel(model, c.modelMapping)
 	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
 	return sjson.SetBytes(body, "model", mappedModel)
+}
+
+func (c *ProviderConfig) defaultTransformMultipartRequestBody(ctx wrapper.HttpContext, apiName ApiName, body []byte, contentType string) ([]byte, error) {
+	if apiName != ApiNameImageEdit && apiName != ApiNameImageVariation {
+		return body, nil
+	}
+
+	model, err := extractMultipartModel(body, contentType)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx.SetContext(ctxKeyOriginalRequestModel, model)
+
+	mappedModel := getMappedModel(model, c.modelMapping)
+	ctx.SetContext(ctxKeyFinalRequestModel, mappedModel)
+
+	if mappedModel == model || (mappedModel == "" && model == "") {
+		return body, nil
+	}
+
+	return rewriteMultipartFormModel(body, contentType, mappedModel)
 }
 
 func (c *ProviderConfig) DefaultTransformResponseHeaders(ctx wrapper.HttpContext, headers http.Header) {

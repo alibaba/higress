@@ -67,6 +67,43 @@ Risk level explanations for each detection dimension:
     - `mask`: Replace sensitive fields with desensitized content when API returns `Suggestion=mask`, still block when `Suggestion=block`
     - Note: Masking only works with MultiModalGuard mode (action configured as MultiModalGuard), other modes do not support masking
 
+### Deny Response Body
+
+When content is blocked, the plugin (`MultiModalGuard` action) returns the following structured JSON object. The location in the response depends on the protocol:
+
+```json
+{
+  "blockedDetails": [
+    {
+      "Type": "contentModeration",
+      "Level": "high",
+      "Suggestion": "block"
+    }
+  ],
+  "requestId": "AAAAAA-BBBB-CCCC-DDDD-EEEEEEE****",
+  "guardCode": 200
+}
+```
+
+Field descriptions:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `blockedDetails` | array | Details of the triggered blocking dimensions. Synthesised from top-level risk signals when the security service returns no detail entries. |
+| `blockedDetails[].Type` | string | Risk type: `contentModeration` / `promptAttack` / `sensitiveData` / `maliciousUrl` / `modelHallucination` |
+| `blockedDetails[].Level` | string | Risk level: `high` / `medium` / `low` etc. |
+| `blockedDetails[].Suggestion` | string | Action recommended by the security service, usually `block` |
+| `requestId` | string | Request ID from the security service, for tracing |
+| `guardCode` | int | Business code returned by the security service (not an HTTP status code; `200` indicates a successful check that detected a risk) |
+
+How the body is embedded per protocol:
+
+- **`text_generation` (OpenAI non-streaming)**: serialised as a JSON string and placed in `choices[0].message.content`
+- **`text_generation` (OpenAI streaming SSE)**: same, placed in `delta.content` of the first chunk
+- **`text_generation` (`protocol=original`)**: returned directly as the JSON response body
+- **`image_generation`**: returned directly as the JSON response body (HTTP 403)
+- **`mcp` (JSON-RPC)**: serialised as a JSON string and placed in `error.message`
+- **`mcp` (SSE)**: same, returned via SSE event
 
 ## Examples of configuration
 ### Check if the input is legal

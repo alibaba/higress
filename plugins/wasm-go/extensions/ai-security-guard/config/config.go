@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -786,30 +787,18 @@ func evaluateRiskMultiModal(data Data, config AISecurityConfig, consumer string)
 	// 2. Detail per-dimension evaluation
 	hasMask := false
 	for _, detail := range data.Detail {
-		if detail.Suggestion == "block" {
-			return RiskBlock
-		}
-
 		dimAction, actionSource := config.ResolveRiskActionByType(consumer, detail.Type)
 		exceeds := detailExceedsThreshold(detail, config, consumer)
 
 		proxywasm.LogInfof("safecheck_risk_type=%s, safecheck_resolved_action=%s, safecheck_action_source=%s",
 			detail.Type, dimAction, actionSource)
 
-		if dimAction == "block" {
-			if exceeds {
-				return RiskBlock
-			}
-			continue
-		}
-
-		// dimAction == "mask" (only sensitiveData effective; others already downgraded by enforceMaskBoundary)
-		if detail.Suggestion == "mask" {
-			hasMask = true
-			continue
-		}
-		if exceeds {
+		if detailTriggersBlock(detail, dimAction, exceeds) {
 			return RiskBlock
+		}
+		// dimAction == "mask" (only sensitiveData effective; others already downgraded by enforceMaskBoundary)
+		if dimAction == "mask" && detail.Suggestion == "mask" {
+			hasMask = true
 		}
 	}
 
@@ -822,6 +811,22 @@ func evaluateRiskMultiModal(data Data, config AISecurityConfig, consumer string)
 		return RiskMask
 	}
 	return RiskPass
+}
+
+// detailTriggersBlock returns whether this single detail should trigger blocking,
+// given the resolved dimension action and threshold evaluation result.
+func detailTriggersBlock(detail Detail, dimAction string, exceeds bool) bool {
+	if detail.Suggestion == "block" {
+		return true
+	}
+	if dimAction == "block" {
+		return exceeds
+	}
+	// dimAction == "mask": explicit mask suggestion is allowed to pass for desensitization.
+	if detail.Suggestion == "mask" {
+		return false
+	}
+	return exceeds
 }
 
 // detailExceedsThreshold checks if a single Detail's level exceeds the configured threshold
@@ -862,4 +867,52 @@ func ExtractDesensitization(data Data) string {
 		}
 	}
 	return ""
+}
+
+type DenyResponseBody struct {
+	BlockedDetails []Detail `json:"blockedDetails"`
+	RequestId      string   `json:"requestId"`
+	// GuardCode is the business code returned by the security service (typically 200 when the check
+	// succeeded and a risk was detected). It is NOT an HTTP status code.
+	GuardCode int `json:"guardCode"`
+}
+
+func BuildDenyResponseBody(response Response, config AISecurityConfig, consumer string) ([]byte, error) {
+	body := DenyResponseBody{
+		BlockedDetails: GetUnacceptableDetail(response.Data, config, consumer),
+		RequestId:      response.RequestId,
+		GuardCode:      response.Code,
+	}
+	return json.Marshal(body)
+}
+
+func GetUnacceptableDetail(data Data, config AISecurityConfig, consumer string) []Detail {
+	result := []Detail{}
+	for _, detail := range data.Detail {
+		dimAction, _ := config.ResolveRiskActionByType(consumer, detail.Type)
+		exceeds := detailExceedsThreshold(detail, config, consumer)
+		if detailTriggersBlock(detail, dimAction, exceeds) {
+			result = append(result, detail)
+		}
+	}
+	// Fallback: when the security service returns a top-level risk signal but no Detail entries,
+	// synthesise detail items from RiskLevel/AttackLevel so blockedDetails is never empty on a
+	// real block event.
+	if len(result) == 0 {
+		if LevelToInt(data.RiskLevel) >= LevelToInt(config.GetContentModerationLevelBar(consumer)) {
+			result = append(result, Detail{
+				Type:       ContentModerationType,
+				Level:      data.RiskLevel,
+				Suggestion: "block",
+			})
+		}
+		if LevelToInt(data.AttackLevel) >= LevelToInt(config.GetPromptAttackLevelBar(consumer)) {
+			result = append(result, Detail{
+				Type:       PromptAttackType,
+				Level:      data.AttackLevel,
+				Suggestion: "block",
+			})
+		}
+	}
+	return result
 }
