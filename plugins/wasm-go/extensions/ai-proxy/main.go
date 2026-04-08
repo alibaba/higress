@@ -300,7 +300,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig
 			log.Errorf("failed to replace request body by custom settings: %v", settingErr)
 		}
 		// 仅 /v1/chat/completions 和 /v1/completions 接口支持 stream_options 参数
-		if providerConfig.IsOpenAIProtocol() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
+		// generic provider 不做能力映射，不添加 stream_options
+		if providerConfig.IsOpenAIProtocol() && !providerConfig.IsGeneric() && (apiName == provider.ApiNameChatCompletion || apiName == provider.ApiNameCompletion) {
 			newBody = normalizeOpenAiRequestBody(newBody)
 		}
 		log.Debugf("[onHttpRequestBody] newBody=%s", newBody)

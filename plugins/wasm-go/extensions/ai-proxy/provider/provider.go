@@ -857,6 +857,10 @@ func (c *ProviderConfig) IsOriginal() bool {
 	return c.protocol == protocolOriginal
 }
 
+func (c *ProviderConfig) IsGeneric() bool {
+	return c.typ == providerTypeGeneric
+}
+
 func (c *ProviderConfig) GetPromoteThinkingOnEmpty() bool {
 	return c.promoteThinkingOnEmpty
 }
