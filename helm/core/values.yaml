@@ -660,13 +660,6 @@ controller:
 
 ## -- Discovery Settings
 pilot:
-  autoscaleEnabled: false
-  autoscaleMin: 1
-  autoscaleMax: 5
-  replicaCount: 1
-  rollingMaxSurge: 100%
-  rollingMaxUnavailable: 25%
-
   hub: "" # Will use global.hub if not set
   tag: ""
 
@@ -694,20 +687,10 @@ pilot:
   # -- if protocol sniffing is enabled for inbound
   enableProtocolSniffingForInbound: true
 
-  nodeSelector: {}
-  podAnnotations: {}
-  serviceAnnotations: {}
-
   # -- You can use jwksResolverExtraRootCA to provide a root certificate
   # in PEM format. This will then be trusted by pilot when resolving
   # JWKS URIs.
   jwksResolverExtraRootCA: ""
-
-  # -- This is used to set the source of configuration for
-  # the associated address in configSource, if nothing is specified
-  # the default MCP is assumed.
-  configSource:
-    subscribedResources: []
 
   plugins: []
 
@@ -715,18 +698,6 @@ pilot:
   # to a pilot. It balances out load across pilot instances at the cost of
   # increasing system churn.
   keepaliveMaxServerConnectionAge: 30m
-
-  # -- Additional labels to apply to the deployment.
-  deploymentLabels: {}
-
-  ## Mesh config settings
-
-  # -- Install the mesh config map, generated from values.yaml.
-  # If false, pilot wil use default values (by default) or user-supplied values.
-  configMap: true
-
-  # -- Additional labels to apply on the pod level for monitoring and logging configuration.
-  podLabels: {}
 
 # Tracing config settings
 tracing:
