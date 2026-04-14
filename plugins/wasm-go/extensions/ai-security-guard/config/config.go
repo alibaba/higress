@@ -875,9 +875,8 @@ func ExtractDesensitization(data Data) string {
 }
 
 type BlockedDetail struct {
-	Type      string `json:"type"`
-	Level     string `json:"level"`
-	RequestId string `json:"requestId"`
+	Type  string `json:"type"`
+	Level string `json:"level"`
 }
 
 type DenyResponseBody struct {
