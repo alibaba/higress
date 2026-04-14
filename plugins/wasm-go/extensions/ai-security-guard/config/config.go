@@ -798,7 +798,12 @@ func evaluateRiskMultiModal(data Data, config AISecurityConfig, consumer string)
 		}
 		// dimAction == "mask" (only sensitiveData effective; others already downgraded by enforceMaskBoundary)
 		if dimAction == "mask" && detail.Suggestion == "mask" {
-			hasMask = true
+			if exceeds {
+				hasMask = true
+			} else {
+				proxywasm.LogInfof("safecheck_mask_skipped: type=%s, suggestion=%s, level=%s, threshold=%s",
+					detail.Type, detail.Suggestion, detail.Level, config.GetSensitiveDataLevelBar(consumer))
+			}
 		}
 	}
 
@@ -869,19 +874,31 @@ func ExtractDesensitization(data Data) string {
 	return ""
 }
 
+type BlockedDetail struct {
+	Type      string `json:"type"`
+	Level     string `json:"level"`
+	RequestId string `json:"requestId"`
+}
+
 type DenyResponseBody struct {
-	BlockedDetails []Detail `json:"blockedDetails"`
-	RequestId      string   `json:"requestId"`
-	// GuardCode is the business code returned by the security service (typically 200 when the check
-	// succeeded and a risk was detected). It is NOT an HTTP status code.
-	GuardCode int `json:"guardCode"`
+	Code           int             `json:"code"`
+	DenyMessage    string          `json:"denyMessage,omitempty"`
+	BlockedDetails []BlockedDetail `json:"blockedDetails"`
 }
 
 func BuildDenyResponseBody(response Response, config AISecurityConfig, consumer string) ([]byte, error) {
+	details := GetUnacceptableDetail(response.Data, config, consumer)
+	blocked := make([]BlockedDetail, 0, len(details))
+	for _, d := range details {
+		blocked = append(blocked, BlockedDetail{
+			Type:  d.Type,
+			Level: d.Level,
+		})
+	}
 	body := DenyResponseBody{
-		BlockedDetails: GetUnacceptableDetail(response.Data, config, consumer),
-		RequestId:      response.RequestId,
-		GuardCode:      response.Code,
+		Code:           response.Code,
+		DenyMessage:    config.DenyMessage,
+		BlockedDetails: blocked,
 	}
 	return json.Marshal(body)
 }

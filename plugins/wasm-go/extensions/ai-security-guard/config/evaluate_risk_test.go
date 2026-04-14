@@ -42,6 +42,7 @@ func baseConfig() AISecurityConfig {
 func TestTC_EVAL_001(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S2" // Lower threshold to match detail Level=S2
 
 	data := Data{
 		RiskLevel: "none",
@@ -132,6 +133,7 @@ func TestTC_EVAL_004(t *testing.T) {
 func TestTC_EVAL_005(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S1" // Lower threshold to match detail Level=S1
 
 	data := Data{
 		RiskLevel: "none",
@@ -300,6 +302,7 @@ func TestTC_EVAL_012(t *testing.T) {
 func TestTC_EVAL_013(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S1" // Lower threshold to match detail Level=S1
 	config.ContentModerationLevelBar = "high"
 	config.PromptAttackLevelBar = "high"
 
@@ -511,6 +514,7 @@ func TestTC_DESENS_004(t *testing.T) {
 func TestTC_EVAL_018(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S2" // Lower threshold to match detail Level=S2
 
 	data := Data{
 		RiskLevel: "none",
@@ -609,6 +613,7 @@ func TestTC_EVAL_021(t *testing.T) {
 func TestTC_EVAL_022(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S2" // Lower threshold to match detail Level=S2
 	config.ContentModerationAction = "block"
 	config.ContentModerationLevelBar = "high"
 	config.PromptAttackAction = "block"
@@ -734,9 +739,10 @@ func TestTC_EVAL_027(t *testing.T) {
 	config.PromptAttackLevelBar = "high"
 	config.ConsumerRiskLevel = []map[string]interface{}{
 		{
-			"matcher":             Matcher{Exact: "user-a"},
-			"riskAction":          "block",
-			"sensitiveDataAction": "mask",
+			"matcher":               Matcher{Exact: "user-a"},
+			"riskAction":            "block",
+			"sensitiveDataAction":   "mask",
+			"sensitiveDataLevelBar": "S2", // Lower threshold to match detail Level=S2
 		},
 	}
 
@@ -825,6 +831,7 @@ func TestTC_DESENS_005(t *testing.T) {
 func TestTC_EVAL_029(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S1" // Lower threshold to match detail Level=S1
 	config.ConsumerRiskLevel = []map[string]interface{}{
 		{
 			"matcher":    Matcher{Exact: "vip-user"},
@@ -958,6 +965,7 @@ func TestTC_EVAL_035(t *testing.T) {
 	config := baseConfig()
 	config.CustomLabelLevelBar = "high"
 	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S1" // Lower threshold to match detail Level=S1
 
 	data := Data{
 		RiskLevel: "none",
@@ -978,4 +986,124 @@ func TestTC_EVAL_035(t *testing.T) {
 
 	result := EvaluateRisk(MultiModalGuard, data, config, "")
 	require.Equal(t, RiskMask, result)
+}
+
+// =============================================================================
+// TC-EVAL: 阈值边界测试（Threshold Boundary Tests）
+// =============================================================================
+
+// TestTC_EVAL_036 低于阈值的 mask 建议 => RiskPass
+// Config: sensitiveDataAction=mask, sensitiveDataLevelBar=S3
+// Detail: Type=sensitiveData, Suggestion=mask, Level=S1 (低于 S3)
+// Expected: RiskPass（Level 未达阈值，跳过脱敏）
+// Validates: Requirements 5.2
+func TestTC_EVAL_036(t *testing.T) {
+	config := baseConfig()
+	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S3"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "mask",
+				Type:       SensitiveDataType,
+				Level:      "S1", // S1 < S3 => 低于阈值
+				Result:     []Result{{Ext: Ext{Desensitization: "masked"}}},
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskPass, result)
+}
+
+// TestTC_EVAL_037 恰好达到阈值的 mask 建议 => RiskMask
+// Config: sensitiveDataAction=mask, sensitiveDataLevelBar=S2
+// Detail: Type=sensitiveData, Suggestion=mask, Level=S2 (等于 S2)
+// Expected: RiskMask（Level 达到阈值，触发脱敏）
+// Validates: Requirements 5.3
+func TestTC_EVAL_037(t *testing.T) {
+	config := baseConfig()
+	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S2"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "mask",
+				Type:       SensitiveDataType,
+				Level:      "S2", // S2 >= S2 => 达到阈值
+				Result:     []Result{{Ext: Ext{Desensitization: "masked-text"}}},
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskMask, result)
+}
+
+// TestTC_EVAL_038 混合高低阈值明细 => RiskMask
+// Config: sensitiveDataAction=mask, sensitiveDataLevelBar=S3
+// Details: 一条 Level=S1（低于阈值），一条 Level=S3（达到阈值）
+// Expected: RiskMask（达到阈值的明细触发脱敏）
+// Validates: Requirements 5.4
+func TestTC_EVAL_038(t *testing.T) {
+	config := baseConfig()
+	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S3"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "mask",
+				Type:       SensitiveDataType,
+				Level:      "S1", // S1 < S3 => 低于阈值，不贡献 mask
+				Result:     []Result{{Ext: Ext{Desensitization: "masked-low"}}},
+			},
+			{
+				Suggestion: "mask",
+				Type:       SensitiveDataType,
+				Level:      "S3", // S3 >= S3 => 达到阈值，贡献 mask
+				Result:     []Result{{Ext: Ext{Desensitization: "masked-high"}}},
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskMask, result)
+}
+
+// TestTC_EVAL_039 所有明细均低于阈值 => RiskPass
+// Config: sensitiveDataAction=mask, sensitiveDataLevelBar=S4
+// Details: 两条 sensitiveData，Level=S1 和 Level=S2（均低于 S4）
+// Expected: RiskPass（无明细达到阈值，全部跳过脱敏）
+// Validates: Requirements 5.2, 5.4
+func TestTC_EVAL_039(t *testing.T) {
+	config := baseConfig()
+	config.SensitiveDataAction = "mask"
+	config.SensitiveDataLevelBar = "S4"
+
+	data := Data{
+		RiskLevel: "none",
+		Detail: []Detail{
+			{
+				Suggestion: "mask",
+				Type:       SensitiveDataType,
+				Level:      "S1", // S1 < S4 => 低于阈值
+				Result:     []Result{{Ext: Ext{Desensitization: "masked-1"}}},
+			},
+			{
+				Suggestion: "mask",
+				Type:       SensitiveDataType,
+				Level:      "S2", // S2 < S4 => 低于阈值
+				Result:     []Result{{Ext: Ext{Desensitization: "masked-2"}}},
+			},
+		},
+	}
+
+	result := EvaluateRisk(MultiModalGuard, data, config, "")
+	require.Equal(t, RiskPass, result)
 }

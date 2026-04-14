@@ -2182,7 +2182,6 @@ func TestMultiModalGuardTextGenerationDeny(t *testing.T) {
 			local := host.GetLocalResponse()
 			require.NotNil(t, local, "expected SendHttpResponse for request deny")
 			require.Contains(t, string(local.Data), "blockedDetails")
-			require.Contains(t, string(local.Data), "req-mmg-text-deny")
 		})
 
 		// MultiModalGuard text_generation response deny → exercises common/text/openai.go HandleTextGenerationResponseBody BuildDenyResponseBody path
@@ -2215,7 +2214,6 @@ func TestMultiModalGuardTextGenerationDeny(t *testing.T) {
 			local := host.GetLocalResponse()
 			require.NotNil(t, local, "expected SendHttpResponse for response deny")
 			require.Contains(t, string(local.Data), "blockedDetails")
-			require.Contains(t, string(local.Data), "req-mmg-resp-deny")
 		})
 
 		// MultiModalGuard text_generation request pass
@@ -2272,7 +2270,6 @@ func TestMultiModalGuardImageGenerationDeny(t *testing.T) {
 			local := host.GetLocalResponse()
 			require.NotNil(t, local, "expected SendHttpResponse for OpenAI image request deny")
 			require.Contains(t, string(local.Data), "blockedDetails")
-			require.Contains(t, string(local.Data), "req-img-openai-deny")
 		})
 
 		// OpenAI image generation request pass
@@ -2325,7 +2322,6 @@ func TestMultiModalGuardImageGenerationDeny(t *testing.T) {
 			local := host.GetLocalResponse()
 			require.NotNil(t, local, "expected SendHttpResponse for Qwen image request deny")
 			require.Contains(t, string(local.Data), "blockedDetails")
-			require.Contains(t, string(local.Data), "req-img-qwen-deny")
 		})
 
 		// Qwen image generation request pass
@@ -2382,7 +2378,6 @@ func TestMCPRequestDeny(t *testing.T) {
 			local := host.GetLocalResponse()
 			require.NotNil(t, local, "expected SendHttpResponse for MCP request deny")
 			require.Contains(t, string(local.Data), "blockedDetails")
-			require.Contains(t, string(local.Data), "req-mcp-deny")
 		})
 
 		// MCP request pass
@@ -2462,7 +2457,6 @@ func TestTextModerationPlusResponseDeny(t *testing.T) {
 			local := host.GetLocalResponse()
 			require.NotNil(t, local, "expected SendHttpResponse for response deny")
 			require.Contains(t, string(local.Data), "blockedDetails")
-			require.Contains(t, string(local.Data), "req-tmp-resp-deny")
 
 			// Verify OpenAI completion shape wrapper
 			type openAIChatCompletion struct {
@@ -2478,8 +2472,7 @@ func TestTextModerationPlusResponseDeny(t *testing.T) {
 
 			var deny cfg.DenyResponseBody
 			require.NoError(t, json.Unmarshal([]byte(outer.Choices[0].Message.Content), &deny))
-			require.Equal(t, "req-tmp-resp-deny", deny.RequestId)
-			require.Equal(t, 200, deny.GuardCode)
+			require.Equal(t, 200, deny.Code)
 			require.NotEmpty(t, deny.BlockedDetails)
 		})
 	})
@@ -2499,7 +2492,7 @@ func TestBuildDenyResponseBody(t *testing.T) {
 		}
 	}
 
-	t.Run("guardCode equals response.Code", func(t *testing.T) {
+	t.Run("code equals response.Code", func(t *testing.T) {
 		resp := cfg.Response{
 			Code:      200,
 			RequestId: "req-123",
@@ -2510,8 +2503,7 @@ func TestBuildDenyResponseBody(t *testing.T) {
 
 		var result cfg.DenyResponseBody
 		require.NoError(t, json.Unmarshal(body, &result))
-		require.Equal(t, 200, result.GuardCode)
-		require.Equal(t, "req-123", result.RequestId)
+		require.Equal(t, 200, result.Code)
 	})
 
 	t.Run("blockedDetails from Data.Detail", func(t *testing.T) {
@@ -2557,7 +2549,6 @@ func TestBuildDenyResponseBody(t *testing.T) {
 		require.Len(t, result.BlockedDetails, 1)
 		require.Equal(t, cfg.SensitiveDataType, result.BlockedDetails[0].Type)
 		require.Equal(t, "S3", result.BlockedDetails[0].Level)
-		require.Equal(t, "block", result.BlockedDetails[0].Suggestion)
 	})
 
 	t.Run("blockedDetails includes customLabel when threshold exceeded", func(t *testing.T) {
@@ -2600,7 +2591,6 @@ func TestBuildDenyResponseBody(t *testing.T) {
 		require.NotEmpty(t, result.BlockedDetails, "expected fallback detail from RiskLevel")
 		require.Equal(t, cfg.ContentModerationType, result.BlockedDetails[0].Type)
 		require.Equal(t, "high", result.BlockedDetails[0].Level)
-		require.Equal(t, "block", result.BlockedDetails[0].Suggestion)
 	})
 
 	t.Run("blockedDetails fallback from AttackLevel when Detail is empty", func(t *testing.T) {
@@ -2621,7 +2611,6 @@ func TestBuildDenyResponseBody(t *testing.T) {
 		require.NotEmpty(t, result.BlockedDetails, "expected fallback detail from AttackLevel")
 		require.Equal(t, cfg.PromptAttackType, result.BlockedDetails[0].Type)
 		require.Equal(t, "high", result.BlockedDetails[0].Level)
-		require.Equal(t, "block", result.BlockedDetails[0].Suggestion)
 	})
 
 	t.Run("blockedDetails empty when risk levels below threshold", func(t *testing.T) {
@@ -2642,6 +2631,170 @@ func TestBuildDenyResponseBody(t *testing.T) {
 		require.NoError(t, json.Unmarshal(body, &result))
 		require.Empty(t, result.BlockedDetails)
 	})
+}
+
+func TestBuildDenyResponseBody_WithDenyMessage(t *testing.T) {
+	config := cfg.AISecurityConfig{
+		ContentModerationLevelBar:  "high",
+		PromptAttackLevelBar:       "high",
+		SensitiveDataLevelBar:      "S4",
+		MaliciousUrlLevelBar:       "max",
+		ModelHallucinationLevelBar: "max",
+		CustomLabelLevelBar:        "max",
+		RiskAction:                 "block",
+		Action:                     cfg.MultiModalGuard,
+		DenyMessage:                "很抱歉，我无法回答您的问题",
+	}
+	resp := cfg.Response{
+		Code: 200,
+		Data: cfg.Data{
+			Detail: []cfg.Detail{
+				{Type: cfg.ContentModerationType, Level: "high", Suggestion: "block"},
+			},
+		},
+	}
+	body, err := cfg.BuildDenyResponseBody(resp, config, "")
+	require.NoError(t, err)
+
+	var result cfg.DenyResponseBody
+	require.NoError(t, json.Unmarshal(body, &result))
+	require.Equal(t, "很抱歉，我无法回答您的问题", result.DenyMessage)
+}
+
+func TestBuildDenyResponseBody_WithoutDenyMessage(t *testing.T) {
+	config := cfg.AISecurityConfig{
+		ContentModerationLevelBar:  "high",
+		PromptAttackLevelBar:       "high",
+		SensitiveDataLevelBar:      "S4",
+		MaliciousUrlLevelBar:       "max",
+		ModelHallucinationLevelBar: "max",
+		CustomLabelLevelBar:        "max",
+		RiskAction:                 "block",
+		Action:                     cfg.MultiModalGuard,
+	}
+	resp := cfg.Response{
+		Code: 200,
+		Data: cfg.Data{
+			Detail: []cfg.Detail{
+				{Type: cfg.ContentModerationType, Level: "high", Suggestion: "block"},
+			},
+		},
+	}
+	body, err := cfg.BuildDenyResponseBody(resp, config, "")
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "denyMessage")
+}
+
+func TestBuildDenyResponseBody_BlockedDetailsOnlyTypeAndLevel(t *testing.T) {
+	config := cfg.AISecurityConfig{
+		ContentModerationLevelBar:  "high",
+		PromptAttackLevelBar:       "high",
+		SensitiveDataLevelBar:      "S4",
+		MaliciousUrlLevelBar:       "max",
+		ModelHallucinationLevelBar: "max",
+		CustomLabelLevelBar:        "max",
+		RiskAction:                 "block",
+		Action:                     cfg.MultiModalGuard,
+	}
+	resp := cfg.Response{
+		Code: 200,
+		Data: cfg.Data{
+			Detail: []cfg.Detail{
+				{Type: cfg.ContentModerationType, Level: "high", Suggestion: "block", Result: []cfg.Result{{Label: "violence"}}},
+				{Type: cfg.PromptAttackType, Level: "high", Suggestion: "block", Result: []cfg.Result{{Label: "injection"}}},
+			},
+		},
+	}
+	body, err := cfg.BuildDenyResponseBody(resp, config, "")
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &raw))
+	details := raw["blockedDetails"].([]interface{})
+	require.Len(t, details, 2)
+	for _, entry := range details {
+		m := entry.(map[string]interface{})
+		require.Len(t, m, 2, "each blockedDetail entry should have exactly 2 keys (type and level)")
+		require.Contains(t, m, "type")
+		require.Contains(t, m, "level")
+	}
+}
+
+func TestBuildDenyResponseBody_CodeField(t *testing.T) {
+	config := cfg.AISecurityConfig{
+		ContentModerationLevelBar:  "high",
+		PromptAttackLevelBar:       "high",
+		SensitiveDataLevelBar:      "S4",
+		MaliciousUrlLevelBar:       "max",
+		ModelHallucinationLevelBar: "max",
+		CustomLabelLevelBar:        "max",
+		RiskAction:                 "block",
+		Action:                     cfg.MultiModalGuard,
+	}
+	resp := cfg.Response{
+		Code: 200,
+		Data: cfg.Data{},
+	}
+	body, err := cfg.BuildDenyResponseBody(resp, config, "")
+	require.NoError(t, err)
+
+	var result cfg.DenyResponseBody
+	require.NoError(t, json.Unmarshal(body, &result))
+	require.Equal(t, 200, result.Code)
+}
+
+func TestBuildDenyResponseBody_NoRequestId(t *testing.T) {
+	config := cfg.AISecurityConfig{
+		ContentModerationLevelBar:  "high",
+		PromptAttackLevelBar:       "high",
+		SensitiveDataLevelBar:      "S4",
+		MaliciousUrlLevelBar:       "max",
+		ModelHallucinationLevelBar: "max",
+		CustomLabelLevelBar:        "max",
+		RiskAction:                 "block",
+		Action:                     cfg.MultiModalGuard,
+	}
+	resp := cfg.Response{
+		Code:      200,
+		RequestId: "req-should-not-appear",
+		Data:      cfg.Data{},
+	}
+	body, err := cfg.BuildDenyResponseBody(resp, config, "")
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "requestId")
+}
+
+func TestBuildDenyResponseBody_FallbackSynthesis(t *testing.T) {
+	config := cfg.AISecurityConfig{
+		ContentModerationLevelBar:  "high",
+		PromptAttackLevelBar:       "high",
+		SensitiveDataLevelBar:      "S4",
+		MaliciousUrlLevelBar:       "max",
+		ModelHallucinationLevelBar: "max",
+		CustomLabelLevelBar:        "max",
+		RiskAction:                 "block",
+		Action:                     cfg.MultiModalGuard,
+	}
+	resp := cfg.Response{
+		Code: 200,
+		Data: cfg.Data{
+			RiskLevel: "high",
+			// No Detail entries — triggers fallback synthesis
+		},
+	}
+	body, err := cfg.BuildDenyResponseBody(resp, config, "")
+	require.NoError(t, err)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &raw))
+	details := raw["blockedDetails"].([]interface{})
+	require.NotEmpty(t, details, "expected fallback synthesized entries")
+	for _, entry := range details {
+		m := entry.(map[string]interface{})
+		require.Len(t, m, 2, "fallback blockedDetail entry should have exactly 2 keys (type and level)")
+		require.Contains(t, m, "type")
+		require.Contains(t, m, "level")
+	}
 }
 
 // =============================================================================
