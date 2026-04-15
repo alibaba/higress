@@ -30,7 +30,7 @@ const (
 	qwenCompatibleChatCompletionPath      = "/compatible-mode/v1/chat/completions"
 	qwenCompatibleCompletionsPath         = "/compatible-mode/v1/completions"
 	qwenCompatibleTextEmbeddingPath       = "/compatible-mode/v1/embeddings"
-	qwenCompatibleResponsesPath           = "/api/v2/apps/protocols/compatible-mode/v1/responses"
+	qwenCompatibleResponsesPath           = "/compatible-mode/v1/responses"
 	qwenCompatibleFilesPath               = "/compatible-mode/v1/files"
 	qwenCompatibleRetrieveFilePath        = "/compatible-mode/v1/files/{file_id}"
 	qwenCompatibleRetrieveFileContentPath = "/compatible-mode/v1/files/{file_id}/content"
