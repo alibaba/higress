@@ -21,6 +21,7 @@ import (
 
 	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-security-guard/utils"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/proxytest"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/test"
 	"github.com/stretchr/testify/require"
@@ -841,6 +842,11 @@ func TestGetRiskAction(t *testing.T) {
 }
 
 func TestEvaluateRiskWithConsumerRiskAction(t *testing.T) {
+	// 需要 proxy-wasm host 环境，因为 evaluateRiskMultiModal 调用 proxywasm.LogInfof
+	opt := proxytest.NewEmulatorOption().WithVMContext(&types.DefaultVMContext{})
+	_, reset := proxytest.NewHostEmulator(opt)
+	defer reset()
+
 	// 测试全局 block，消费者 mask
 	t.Run("global block consumer mask", func(t *testing.T) {
 		config := cfg.AISecurityConfig{
@@ -852,8 +858,9 @@ func TestEvaluateRiskWithConsumerRiskAction(t *testing.T) {
 			ModelHallucinationLevelBar: "max",
 			ConsumerRiskLevel: []map[string]interface{}{
 				{
-					"matcher":    cfg.Matcher{Exact: "vip-user"},
-					"riskAction": "mask",
+					"matcher":               cfg.Matcher{Exact: "vip-user"},
+					"riskAction":            "mask",
+					"sensitiveDataLevelBar": "S2",
 				},
 			},
 		}
@@ -864,9 +871,9 @@ func TestEvaluateRiskWithConsumerRiskAction(t *testing.T) {
 					Result: []cfg.Result{{Ext: cfg.Ext{Desensitization: "masked"}}}},
 			},
 		}
-		// vip-user 使用 mask 模式 → RiskMask
+		// vip-user 使用 mask 模式，consumer 阈值 S2，Level=S2 >= S2 → RiskMask
 		require.Equal(t, cfg.RiskMask, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "vip-user"))
-		// normal-user 使用全局 block 模式 → RiskPass（因为 level 未超阈值）
+		// normal-user 使用全局 block 模式，全局阈值 S4，Level=S2 < S4 → RiskPass
 		require.Equal(t, cfg.RiskPass, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "normal-user"))
 	})
 
@@ -876,7 +883,7 @@ func TestEvaluateRiskWithConsumerRiskAction(t *testing.T) {
 			RiskAction:                 "mask",
 			ContentModerationLevelBar:  "max",
 			PromptAttackLevelBar:       "max",
-			SensitiveDataLevelBar:      "S4",
+			SensitiveDataLevelBar:      "S2",
 			MaliciousUrlLevelBar:       "max",
 			ModelHallucinationLevelBar: "max",
 			ConsumerRiskLevel: []map[string]interface{}{
@@ -893,9 +900,12 @@ func TestEvaluateRiskWithConsumerRiskAction(t *testing.T) {
 					Result: []cfg.Result{{Ext: cfg.Ext{Desensitization: "masked"}}}},
 			},
 		}
-		// strict-user 使用 block 模式 → RiskPass（level 未超阈值，block 模式忽略 mask suggestion）
-		require.Equal(t, cfg.RiskPass, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "strict-user"))
-		// other-user 使用全局 mask 模式 → RiskMask
+		// strict-user 使用 block 模式，Level=S2 >= S2 但 Suggestion=mask + dimAction=block → detailTriggersBlock 返回 false（mask suggestion 不触发 block）
+		// 实际上 detailTriggersBlock: Suggestion != "block", dimAction == "block" → return exceeds
+		// exceeds = S2 >= S2 = true → RiskBlock
+		// 所以 strict-user 应该是 RiskBlock
+		require.Equal(t, cfg.RiskBlock, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "strict-user"))
+		// other-user 使用全局 mask 模式，Level=S2 >= S2 → RiskMask
 		require.Equal(t, cfg.RiskMask, cfg.EvaluateRisk(cfg.MultiModalGuard, data, config, "other-user"))
 	})
 }
@@ -1098,6 +1108,11 @@ func TestGetCustomLabelLevelBar(t *testing.T) {
 }
 
 func TestCustomLabelDetailExceedsThreshold(t *testing.T) {
+	// 需要 proxy-wasm host 环境，因为 evaluateRiskMultiModal 调用 proxywasm.LogInfof
+	opt := proxytest.NewEmulatorOption().WithVMContext(&types.DefaultVMContext{})
+	_, reset := proxytest.NewHostEmulator(opt)
+	defer reset()
+
 	// 测试 customLabel Level=high, threshold=high → 拦截 (true)
 	t.Run("level high threshold high blocks", func(t *testing.T) {
 		config := cfg.AISecurityConfig{
@@ -1207,7 +1222,7 @@ func TestRequestMasking(t *testing.T) {
 					"Detail": [{
 						"Suggestion": "mask",
 						"Type": "sensitiveData",
-						"Level": "S2",
+						"Level": "S3",
 						"Result": [{
 							"Label": "phone_number",
 							"Confidence": 99.0,
@@ -1259,7 +1274,7 @@ func TestRequestMasking(t *testing.T) {
 					"Detail": [{
 						"Suggestion": "mask",
 						"Type": "sensitiveData",
-						"Level": "S2",
+						"Level": "S3",
 						"Result": [{
 							"Label": "phone_number",
 							"Confidence": 99.0,
@@ -1409,6 +1424,11 @@ var mcpMaskConfig = func() json.RawMessage {
 }()
 
 func TestIsRiskLevelAcceptable(t *testing.T) {
+	// 需要 proxy-wasm host 环境，因为 evaluateRiskMultiModal 调用 proxywasm.LogInfof
+	opt := proxytest.NewEmulatorOption().WithVMContext(&types.DefaultVMContext{})
+	_, reset := proxytest.NewHostEmulator(opt)
+	defer reset()
+
 	// 用例 1: riskAction=mask, Suggestion=mask → 应返回 true（mask 不应被视为不可接受）
 	t.Run("mask action with mask suggestion is acceptable", func(t *testing.T) {
 		config := cfg.AISecurityConfig{
@@ -2088,7 +2108,7 @@ func TestTC_REG_004(t *testing.T) {
 					"Detail": [{
 						"Suggestion": "mask",
 						"Type": "sensitiveData",
-						"Level": "S2",
+						"Level": "S3",
 						"Result": [{
 							"Label": "phone_number",
 							"Confidence": 99.0,
@@ -2945,7 +2965,7 @@ func TestMultiChunkMasking(t *testing.T) {
 				"Data": {
 					"RiskLevel": "none",
 					"Detail": [{
-						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S2",
+						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S3",
 						"Result": [{"Label": "phone", "Confidence": 99.0,
 							"Ext": {"Desensitization": "` + maskedChunk + `"}}]
 					}]
@@ -2995,7 +3015,7 @@ func TestMultiChunkMasking(t *testing.T) {
 				"Data": {
 					"RiskLevel": "none",
 					"Detail": [{
-						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S2",
+						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S3",
 						"Result": [{"Label": "bank_card", "Confidence": 99.0,
 							"Ext": {"Desensitization": "我的银行卡号是6222************"}}]
 					}]
@@ -3040,7 +3060,7 @@ func TestMultiModalGuardMaskStreamDeny(t *testing.T) {
 				"Data": {
 					"RiskLevel": "none",
 					"Detail": [{
-						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S2",
+						"Suggestion": "mask", "Type": "sensitiveData", "Level": "S3",
 						"Result": [{"Label": "phone", "Confidence": 99.0,
 							"Ext": {"Desensitization": ""}}]
 					}]
