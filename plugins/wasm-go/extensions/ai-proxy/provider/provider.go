@@ -71,6 +71,7 @@ const (
 	ApiNameQwenAsyncAIGC               ApiName = "qwen/v1/services/aigc"
 	ApiNameQwenAsyncTask               ApiName = "qwen/v1/tasks"
 	ApiNameQwenV1Rerank                ApiName = "qwen/v1/rerank"
+	ApiNameQwenV1Conversations         ApiName = "qwen/v1/conversations"
 	ApiNameGeminiGenerateContent       ApiName = "gemini/v1beta/generatecontent"
 	ApiNameGeminiStreamGenerateContent ApiName = "gemini/v1beta/streamgeneratecontent"
 	ApiNameAnthropicMessages           ApiName = "anthropic/v1/messages"
@@ -117,6 +118,10 @@ const (
 
 	// Cohere
 	PathCohereV1Rerank = "/v1/rerank"
+
+	// Qwen
+	PathQwenV1Reranks       = "/v1/reranks"
+	PathQwenV1Conversations = "/v1/conversations"
 
 	providerTypeMoonshot   = "moonshot"
 	providerTypeAzure      = "azure"

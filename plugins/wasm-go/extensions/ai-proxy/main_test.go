@@ -56,6 +56,9 @@ func Test_getApiName(t *testing.T) {
 		{"gemini stream generate content", "/v1beta/models/gemini-1.0-pro:streamGenerateContent", provider.ApiNameGeminiStreamGenerateContent},
 		// Cohere
 		{"cohere rerank", "/v1/rerank", provider.ApiNameCohereV1Rerank},
+		// Qwen
+		{"qwen reranks", "/v1/reranks", provider.ApiNameQwenV1Rerank},
+		{"qwen conversations", "/v1/conversations", provider.ApiNameQwenV1Conversations},
 		// Unknown
 		{"unknown", "/v1/unknown", ""},
 	}
