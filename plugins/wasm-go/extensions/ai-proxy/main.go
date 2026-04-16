@@ -69,6 +69,9 @@ var (
 		{provider.PathAnthropicComplete, provider.ApiNameAnthropicComplete},
 		// Cohere style
 		{provider.PathCohereV1Rerank, provider.ApiNameCohereV1Rerank},
+		// Qwen style
+		{provider.PathQwenV1Reranks, provider.ApiNameQwenV1Rerank},
+		{provider.PathQwenV1Conversations, provider.ApiNameQwenV1Conversations},
 	}
 	pathPatternToApiName = []pair[*regexp.Regexp, provider.ApiName]{
 		// OpenAI style
