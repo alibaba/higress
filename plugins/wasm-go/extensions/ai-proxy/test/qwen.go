@@ -449,7 +449,7 @@ func RunQwenOnHttpRequestHeadersTests(t *testing.T) {
 
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath)
-			require.Contains(t, pathValue, "/api/v2/apps/protocols/compatible-mode/v1/responses", "Path should use compatible mode responses path")
+			require.Contains(t, pathValue, "/compatible-mode/v1/responses", "Path should use compatible mode responses path")
 		})
 	})
 }
@@ -768,7 +768,7 @@ func RunQwenOnHttpRequestBodyTests(t *testing.T) {
 				},
 				{
 					name: "compatible responses path",
-					path: "/api/v2/apps/protocols/compatible-mode/v1/responses",
+					path: "/compatible-mode/v1/responses",
 				},
 				{
 					name: "async aigc path",
