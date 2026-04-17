@@ -4,11 +4,6 @@ keywords: [higress,ai cache]
 description: AI Cache Plugin Configuration Reference
 ---
 
-## Note
-
-> Requires proxy wasm version >= 0.2.100
-> When compiling, you need to include the version tag, for example: `tinygo build -o main.wasm -scheduler=none -target=wasi -gc=custom -tags="custommalloc nottinygc_finalizer proxy_wasm_version_0_2_100" ./`
-
 ## Function Description
 
 LLM result caching plugin. The default configuration can be directly used for OpenAI protocol result caching, and supports caching of both streaming and non-streaming responses.
@@ -36,7 +31,7 @@ This plugin supports both vector database-based semantic caching and string matc
 | embedding | object | optional | - | Text embedding service configuration, see Text Embedding Service section below |
 | cache | object | optional | - | Cache service configuration, see Cache Service section below |
 | cacheKeyStrategy | string | optional | "lastQuestion" | Strategy for generating cache key from historical questions. Options: "lastQuestion" (use last question), "allQuestions" (concatenate all questions), or "disabled" (disable caching) |
-| enableSemanticCache | bool | optional | true | Whether to enable semantic caching. If disabled, string matching is used to find cache, requiring cache service configuration. Default is false when vector provider is not configured |
+| enableSemanticCache | bool | optional | false | Whether to enable semantic caching. If disabled, string matching is used to find cache, requiring cache service configuration. Automatically enabled when a vector provider is configured |
 
 Depending on whether semantic caching is needed, you can configure component combinations as follows:
 1. `cache`: Enable string matching cache only
@@ -96,7 +91,7 @@ If you do not configure a related component, you can ignore the `required` field
 | cacheKeyFrom | string | optional | "messages.@reverse.0.content" | Extract string from request Body using [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) syntax |
 | cacheValueFrom | string | optional | "choices.0.message.content" | Extract string from response Body using [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) syntax |
 | cacheStreamValueFrom | string | optional | "choices.0.delta.content" | Extract string from streaming response Body using [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) syntax |
-| cacheToolCallsFrom | string | optional | "choices.0.delta.content.tool_calls" | Extract string from request Body using [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) syntax |
+| cacheToolCallsFrom | string | optional | "choices.0.delta.content.tool_calls" | Extract string from streaming response Body using [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) syntax |
 | responseTemplate | string | optional | `{"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"from-cache","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` | Template for returning HTTP response, with %s marking the part to be replaced by cache value |
 | streamResponseTemplate | string | optional | `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"from-cache","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` + "\n\ndata:[DONE]\n\n" | Template for returning streaming HTTP response, with %s marking the part to be replaced by cache value |
 
