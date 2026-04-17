@@ -1467,7 +1467,7 @@ func TestIsRiskLevelAcceptable(t *testing.T) {
 				{Suggestion: "block", Type: "contentModeration", Level: "high"},
 			},
 		}
-		require.False(t, cfg.IsRiskLevelAcceptable(cfg.MultiModalGuard, data, config, ""))
+		require.True(t, cfg.IsRiskLevelAcceptable(cfg.MultiModalGuard, data, config, ""))
 	})
 
 	// 用例 3: riskAction=mask, 无风险 → 应返回 true
@@ -2549,7 +2549,7 @@ func TestBuildDenyResponseBody(t *testing.T) {
 		require.Equal(t, "high", result.BlockedDetails[0].Level)
 	})
 
-	t.Run("blockedDetails includes explicit block suggestion below threshold", func(t *testing.T) {
+	t.Run("blockedDetails empty when suggestion=block but below threshold", func(t *testing.T) {
 		resp := cfg.Response{
 			Code:      200,
 			RequestId: "req-suggestion-block",
@@ -2566,9 +2566,7 @@ func TestBuildDenyResponseBody(t *testing.T) {
 
 		var result cfg.DenyResponseBody
 		require.NoError(t, json.Unmarshal(body, &result))
-		require.Len(t, result.BlockedDetails, 1)
-		require.Equal(t, cfg.SensitiveDataType, result.BlockedDetails[0].Type)
-		require.Equal(t, "S3", result.BlockedDetails[0].Level)
+		require.Len(t, result.BlockedDetails, 0)
 	})
 
 	t.Run("blockedDetails includes customLabel when threshold exceeded", func(t *testing.T) {

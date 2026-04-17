@@ -807,11 +807,6 @@ func evaluateRiskMultiModal(data Data, config AISecurityConfig, consumer string)
 		}
 	}
 
-	// 3. Data.Suggestion=block fallback
-	if data.Suggestion == "block" {
-		return RiskBlock
-	}
-
 	if hasMask {
 		return RiskMask
 	}
@@ -821,9 +816,6 @@ func evaluateRiskMultiModal(data Data, config AISecurityConfig, consumer string)
 // detailTriggersBlock returns whether this single detail should trigger blocking,
 // given the resolved dimension action and threshold evaluation result.
 func detailTriggersBlock(detail Detail, dimAction string, exceeds bool) bool {
-	if detail.Suggestion == "block" {
-		return true
-	}
 	if dimAction == "block" {
 		return exceeds
 	}
