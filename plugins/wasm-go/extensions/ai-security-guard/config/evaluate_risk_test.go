@@ -60,7 +60,7 @@ func TestTC_EVAL_001(t *testing.T) {
 	require.Equal(t, RiskMask, result)
 }
 
-// TestTC_EVAL_002 同上但 Suggestion=block => RiskBlock
+// TestTC_EVAL_002 Suggestion=block but level below threshold => RiskPass
 func TestTC_EVAL_002(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
@@ -77,7 +77,7 @@ func TestTC_EVAL_002(t *testing.T) {
 	}
 
 	result := EvaluateRisk(MultiModalGuard, data, config, "")
-	require.Equal(t, RiskBlock, result)
+	require.Equal(t, RiskPass, result)
 }
 
 // TestTC_EVAL_003 promptAttackAction=block 且该维度超阈值 => RiskBlock
@@ -323,7 +323,7 @@ func TestTC_EVAL_013(t *testing.T) {
 	require.Equal(t, RiskMask, result)
 }
 
-// TestTC_EVAL_014 未知维度 Detail.Type=maliciousFile 且 Suggestion=block => RiskBlock
+// TestTC_EVAL_014 未知维度 Detail.Type=maliciousFile 无阈值配置 => RiskPass
 func TestTC_EVAL_014(t *testing.T) {
 	config := baseConfig()
 
@@ -339,16 +339,16 @@ func TestTC_EVAL_014(t *testing.T) {
 	}
 
 	result := EvaluateRisk(MultiModalGuard, data, config, "")
-	require.Equal(t, RiskBlock, result)
+	require.Equal(t, RiskPass, result)
 }
 
-// TestTC_EVAL_015 Detail 不触发拦截，但 Data.Suggestion=block => RiskBlock
+// TestTC_EVAL_015 Detail level below threshold, data.Suggestion=block ignored => RiskPass
 func TestTC_EVAL_015(t *testing.T) {
 	config := baseConfig()
 
 	data := Data{
 		RiskLevel:  "none",
-		Suggestion: "block", // 兜底
+		Suggestion: "block",
 		Detail: []Detail{
 			{
 				Suggestion: "pass",
@@ -359,7 +359,7 @@ func TestTC_EVAL_015(t *testing.T) {
 	}
 
 	result := EvaluateRisk(MultiModalGuard, data, config, "")
-	require.Equal(t, RiskBlock, result)
+	require.Equal(t, RiskPass, result)
 }
 
 // TestTC_EVAL_016 Data.Suggestion=mask 但无 sensitiveData 脱敏明细 => 不返回 RiskMask
@@ -531,7 +531,7 @@ func TestTC_EVAL_018(t *testing.T) {
 	result := EvaluateRisk(MultiModalGuardForBase64, data, config, "")
 	require.Equal(t, RiskMask, result)
 
-	// block 场景
+	// block scenario: level=high but threshold=max => RiskPass
 	data2 := Data{
 		RiskLevel: "none",
 		Detail: []Detail{
@@ -543,21 +543,21 @@ func TestTC_EVAL_018(t *testing.T) {
 		},
 	}
 	result2 := EvaluateRisk(MultiModalGuardForBase64, data2, config, "")
-	require.Equal(t, RiskBlock, result2)
+	require.Equal(t, RiskPass, result2)
 }
 
-// TestTC_EVAL_019 空 Detail 列表 + Data.Suggestion=block => RiskBlock
+// TestTC_EVAL_019 空 Detail 列表 + Data.Suggestion=block => RiskPass (threshold not exceeded)
 func TestTC_EVAL_019(t *testing.T) {
 	config := baseConfig()
 
 	data := Data{
 		RiskLevel:  "none",
 		Suggestion: "block",
-		Detail:     []Detail{}, // 空 Detail 列表
+		Detail:     []Detail{},
 	}
 
 	result := EvaluateRisk(MultiModalGuard, data, config, "")
-	require.Equal(t, RiskBlock, result)
+	require.Equal(t, RiskPass, result)
 }
 
 // TestTC_EVAL_020 空 Detail 列表 + 无 Data.Suggestion => RiskPass
@@ -787,15 +787,16 @@ func TestTC_EVAL_027(t *testing.T) {
 	require.Equal(t, RiskBlock, result2)
 }
 
-// TestTC_EVAL_028 Data.Suggestion=block 兜底 + 有 mask 候选 => RiskBlock
-// block 兜底优先于 mask 候选
+// TestTC_EVAL_028 Data.Suggestion=block does NOT override threshold checks.
+// Detail level S1 < threshold S4, so the request should pass even though
+// the top-level Suggestion is "block".
 func TestTC_EVAL_028(t *testing.T) {
 	config := baseConfig()
 	config.SensitiveDataAction = "mask"
 
 	data := Data{
 		RiskLevel:  "none",
-		Suggestion: "block", // 兜底 block
+		Suggestion: "block",
 		Detail: []Detail{
 			{
 				Suggestion: "mask",
@@ -807,7 +808,7 @@ func TestTC_EVAL_028(t *testing.T) {
 	}
 
 	result := EvaluateRisk(MultiModalGuard, data, config, "")
-	require.Equal(t, RiskBlock, result)
+	require.Equal(t, RiskPass, result)
 }
 
 // TestTC_DESENS_005 Detail.Result 为空数组 => 返回空字符串
