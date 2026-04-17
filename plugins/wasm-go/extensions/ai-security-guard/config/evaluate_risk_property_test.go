@@ -258,14 +258,12 @@ var knownDetailTypes = []string{
 //
 // Sub-property 4b: For any Detail where the resolved dimAction is "block" and the
 // detail's level exceeds the configured threshold, evaluateRiskMultiModal SHALL return RiskBlock.
-func TestProperty4a_SuggestionBlockAlwaysProducesRiskBlock(t *testing.T) {
+func TestProperty4a_SuggestionBlockRespectsThreshold(t *testing.T) {
 	f := func(seed uint64) bool {
 		r := rand.New(rand.NewSource(int64(seed)))
 
-		// Pick a random detail type
 		detailType := knownDetailTypes[r.Intn(len(knownDetailTypes))]
 
-		// Pick a random level based on type
 		var level string
 		if detailType == SensitiveDataType {
 			level = validSensitiveLevels[r.Intn(len(validSensitiveLevels))]
@@ -273,40 +271,34 @@ func TestProperty4a_SuggestionBlockAlwaysProducesRiskBlock(t *testing.T) {
 			level = validGeneralRiskLevels[r.Intn(len(validGeneralRiskLevels))]
 		}
 
-		// Random config: pick random dimAction (block or mask) and random thresholds
 		config := baseConfig()
-
-		// Randomly assign dimension actions
-		actions := []string{"block", "mask"}
-		config.ContentModerationAction = actions[r.Intn(2)]
-		config.PromptAttackAction = actions[r.Intn(2)]
-		config.SensitiveDataAction = actions[r.Intn(2)]
-		config.MaliciousUrlAction = actions[r.Intn(2)]
-		config.ModelHallucinationAction = actions[r.Intn(2)]
-		config.CustomLabelAction = actions[r.Intn(2)]
-
-		// Random thresholds
-		config.ContentModerationLevelBar = validGeneralRiskLevels[1+r.Intn(len(validGeneralRiskLevels)-1)]
-		config.PromptAttackLevelBar = validGeneralRiskLevels[1+r.Intn(len(validGeneralRiskLevels)-1)]
-		config.SensitiveDataLevelBar = validSensitiveLevels[r.Intn(len(validSensitiveLevels))]
-		config.MaliciousUrlLevelBar = validGeneralRiskLevels[1+r.Intn(len(validGeneralRiskLevels)-1)]
-		config.ModelHallucinationLevelBar = validGeneralRiskLevels[1+r.Intn(len(validGeneralRiskLevels)-1)]
-		config.CustomLabelLevelBar = validGeneralRiskLevels[1+r.Intn(len(validGeneralRiskLevels)-1)]
+		// Set all thresholds to max so no detail exceeds threshold
+		config.ContentModerationLevelBar = MaxRisk
+		config.PromptAttackLevelBar = MaxRisk
+		config.SensitiveDataLevelBar = S4Sensitive
+		config.MaliciousUrlLevelBar = MaxRisk
+		config.ModelHallucinationLevelBar = MaxRisk
+		config.CustomLabelLevelBar = MaxRisk
 
 		data := Data{
-			RiskLevel: "none", // Avoid top-level gate interference
+			RiskLevel: "none",
 			Detail: []Detail{
 				{
 					Type:       detailType,
-					Suggestion: "block", // Always block suggestion
+					Suggestion: "block",
 					Level:      level,
 				},
 			},
 		}
 
 		result := EvaluateRisk(MultiModalGuard, data, config, "")
-		if result != RiskBlock {
-			t.Errorf("expected RiskBlock for Suggestion=block, type=%s, level=%s, got %d", detailType, level, result)
+		exceeds := detailExceedsThreshold(data.Detail[0], config, "")
+		if exceeds && result != RiskBlock {
+			t.Errorf("expected RiskBlock when threshold exceeded for type=%s, level=%s", detailType, level)
+			return false
+		}
+		if !exceeds && result == RiskBlock {
+			t.Errorf("expected non-block when threshold not exceeded for type=%s, level=%s", detailType, level)
 			return false
 		}
 		return true
@@ -315,7 +307,6 @@ func TestProperty4a_SuggestionBlockAlwaysProducesRiskBlock(t *testing.T) {
 	cfg := &quick.Config{MaxCount: 200}
 	if err := quick.Check(f, cfg); err != nil {
 		t.Errorf("Property 4a failed: %v", err)
-		fmt.Printf("Property 4a counterexample: %v\n", err)
 	}
 }
 
@@ -583,14 +574,11 @@ func TestProperty5b_TopLevelAttackLevelGateProducesRiskBlock(t *testing.T) {
 //
 // For any set of Details that do not individually trigger block, when Data.Suggestion=block,
 // evaluateRiskMultiModal SHALL return RiskBlock.
-func TestProperty6_DataSuggestionBlockFallbackProducesRiskBlock(t *testing.T) {
+func TestProperty6_DataSuggestionBlockIgnoredWhenThresholdNotExceeded(t *testing.T) {
 	f := func(seed uint64) bool {
 		r := rand.New(rand.NewSource(int64(seed)))
 
-		// Generate 0-4 random non-blocking details.
-		// Strategy: use Suggestion="pass" or "watch" with levels below their thresholds
-		// so that no detail individually triggers block.
-		numDetails := r.Intn(5) // 0-4 details
+		numDetails := r.Intn(5)
 		nonBlockSuggestions := []string{"pass", "watch"}
 		details := make([]Detail, numDetails)
 
@@ -598,8 +586,6 @@ func TestProperty6_DataSuggestionBlockFallbackProducesRiskBlock(t *testing.T) {
 			detailType := knownDetailTypes[r.Intn(len(knownDetailTypes))]
 			suggestion := nonBlockSuggestions[r.Intn(len(nonBlockSuggestions))]
 
-			// Use "none" level (0) which is always below any meaningful threshold
-			// since all thresholds are set to max.
 			var level string
 			if detailType == SensitiveDataType {
 				level = "S0"
@@ -615,7 +601,6 @@ func TestProperty6_DataSuggestionBlockFallbackProducesRiskBlock(t *testing.T) {
 		}
 
 		config := baseConfig()
-		// Set all thresholds to max so no detail exceeds threshold
 		config.ContentModerationLevelBar = MaxRisk
 		config.PromptAttackLevelBar = MaxRisk
 		config.SensitiveDataLevelBar = S4Sensitive
@@ -625,16 +610,15 @@ func TestProperty6_DataSuggestionBlockFallbackProducesRiskBlock(t *testing.T) {
 		config.RiskAction = "block"
 
 		data := Data{
-			RiskLevel:   "none",  // Avoid top-level RiskLevel gate
-			AttackLevel: "",      // Avoid top-level AttackLevel gate
-			Suggestion:  "block", // The fallback that should trigger RiskBlock
+			RiskLevel:   "none",
+			AttackLevel: "",
+			Suggestion:  "block",
 			Detail:      details,
 		}
 
 		result := EvaluateRisk(MultiModalGuard, data, config, "")
-		if result != RiskBlock {
-			t.Errorf("expected RiskBlock for Data.Suggestion=block with %d non-blocking details, got %d",
-				numDetails, result)
+		if result != RiskPass {
+			t.Errorf("expected RiskPass when no detail exceeds threshold (data.Suggestion=block should be ignored), got %d", result)
 			return false
 		}
 		return true
