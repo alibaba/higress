@@ -46,7 +46,7 @@ If you do not configure a related component, you can ignore the `required` field
 | --- | --- | --- | --- | --- |
 | vector.type | string | required | - | Vector storage service provider type, e.g., dashvector, chroma, elasticsearch, weaviate, pinecone, qdrant, milvus |
 | vector.serviceName | string | required | - | Vector storage service name |
-| vector.serviceHost | string | optional | - | Vector storage service domain |
+| vector.serviceHost | string | optional | - | Vector storage service domain. Required for some providers (e.g., dashvector, pinecone) |
 | vector.servicePort | int64 | optional | 443 | Vector storage service port |
 | vector.apiKey | string | optional | - | Vector storage service API Key |
 | vector.topK | int | optional | 1 | Return TopK results |
@@ -64,7 +64,7 @@ If you do not configure a related component, you can ignore the `required` field
 | embedding.type | string | required | - | Text embedding service type, e.g., dashscope, openai, azure, cohere, ollama, huggingface, textin, xfyun |
 | embedding.serviceName | string | required | - | Text embedding service name |
 | embedding.serviceHost | string | optional | - | Text embedding service domain |
-| embedding.servicePort | int64 | optional | 443 | Text embedding service port |
+| embedding.servicePort | int64 | optional | 443 | Text embedding service port. Default varies by provider; ollama defaults to 11434 |
 | embedding.timeout | uint32 | optional | 10000 | Timeout for requesting text embedding service, in milliseconds. Default is 10000 (10 seconds) |
 | embedding.model | string | optional | - | Model name for text embedding service |
 | embedding.apiKey | string | optional | - | API Key for text embedding service |
