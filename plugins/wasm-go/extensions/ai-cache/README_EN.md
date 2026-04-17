@@ -93,7 +93,7 @@ If you do not configure a related component, you can ignore the `required` field
 | cacheStreamValueFrom | string | optional | "choices.0.delta.content" | Extract string from streaming response Body using [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) syntax |
 | cacheToolCallsFrom | string | optional | "choices.0.delta.content.tool_calls" | Extract string from streaming response Body using [GJSON PATH](https://github.com/tidwall/gjson/blob/master/SYNTAX.md) syntax |
 | responseTemplate | string | optional | `{"id":"from-cache","choices":[{"index":0,"message":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"from-cache","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` | Template for returning HTTP response, with %s marking the part to be replaced by cache value |
-| streamResponseTemplate | string | optional | `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"from-cache","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}` + "\n\ndata:[DONE]\n\n" | Template for returning streaming HTTP response, with %s marking the part to be replaced by cache value |
+| streamResponseTemplate | string | optional | `data:{"id":"from-cache","choices":[{"index":0,"delta":{"role":"assistant","content":"%s"},"finish_reason":"stop"}],"model":"from-cache","object":"chat.completion","usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}\n\ndata:[DONE]\n\n` | Template for returning streaming HTTP response, with %s marking the part to be replaced by cache value |
 
 ## Text Embedding Provider Specific Configurations
 
