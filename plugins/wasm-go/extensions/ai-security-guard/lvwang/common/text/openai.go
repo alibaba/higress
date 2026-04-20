@@ -360,7 +360,12 @@ func buildEffectiveFallbackPaths(primaryPath string, fallbackPaths []string) []s
 	return deduped
 }
 
-func getEffectiveFallbackPathsFromContext(ctx wrapper.HttpContext, ctxKey string, primaryPath string, fallbackPaths []string) []string {
+type fallbackPathContext interface {
+	GetContext(key string) interface{}
+	SetContext(key string, value interface{})
+}
+
+func getEffectiveFallbackPathsFromContext(ctx fallbackPathContext, ctxKey string, primaryPath string, fallbackPaths []string) []string {
 	if cached, ok := ctx.GetContext(ctxKey).([]string); ok {
 		return cached
 	}

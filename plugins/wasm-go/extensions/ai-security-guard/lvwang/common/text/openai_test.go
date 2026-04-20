@@ -30,6 +30,21 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+type fallbackPathMockContext struct {
+	values map[string]interface{}
+}
+
+func (m *fallbackPathMockContext) GetContext(key string) interface{} {
+	return m.values[key]
+}
+
+func (m *fallbackPathMockContext) SetContext(key string, value interface{}) {
+	if m.values == nil {
+		m.values = make(map[string]interface{})
+	}
+	m.values[key] = value
+}
+
 func TestAutoExtractResponseContent(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -76,6 +91,12 @@ func TestAutoExtractResponseContent(t *testing.T) {
 			name:          "custom fallback path",
 			body:          `{"output":{"text":"custom fallback text"}}`,
 			fallbackPaths: []string{"output.text"},
+			want:          "custom fallback text",
+		},
+		{
+			name:          "fallback path list with empty item",
+			body:          `{"output":{"text":"custom fallback text"}}`,
+			fallbackPaths: []string{" ", "output.text"},
 			want:          "custom fallback text",
 		},
 		{
@@ -160,6 +181,26 @@ data: }`,
 			chunk:         `{"choices":[{"delta":{"content":"hello"}}]}`,
 			fallbackPaths: []string{},
 			want:          "",
+		},
+		{
+			name:  "empty chunk payload",
+			chunk: "",
+			want:  "",
+		},
+		{
+			name:  "invalid json payload after data extraction",
+			chunk: "data: invalid-json",
+			want:  "",
+		},
+		{
+			name:  "streaming payload with empty data line",
+			chunk: "event: message\ndata:\ndata: {\"choices\":[{\"delta\":{\"content\":\"hello\"}}]}",
+			want:  "hello",
+		},
+		{
+			name:  "streaming payload without data lines",
+			chunk: "event: ping",
+			want:  "",
 		},
 	}
 	for _, tt := range tests {
@@ -286,6 +327,19 @@ data: [DONE]
 }
 
 func TestBuildEffectiveFallbackPaths(t *testing.T) {
+	if paths := buildEffectiveFallbackPaths("choices.0.message.content", nil); len(paths) != 0 {
+		t.Fatalf("expected empty paths when fallback list is nil, got %#v", paths)
+	}
+
+	emptyByFilter := buildEffectiveFallbackPaths("choices.0.message.content", []string{
+		"choices.0.message.content",
+		" ",
+		"",
+	})
+	if len(emptyByFilter) != 0 {
+		t.Fatalf("expected empty paths after filtering duplicates/empty values, got %#v", emptyByFilter)
+	}
+
 	paths := buildEffectiveFallbackPaths("choices.0.message.content", []string{
 		"choices.0.message.content",
 		"delta.text",
@@ -299,5 +353,25 @@ func TestBuildEffectiveFallbackPaths(t *testing.T) {
 	}
 	if paths[0] != "delta.text" || paths[1] != "output.text" {
 		t.Fatalf("unexpected filtered fallback paths: %#v", paths)
+	}
+}
+
+func TestGetEffectiveFallbackPathsFromContext(t *testing.T) {
+	ctx := &fallbackPathMockContext{values: make(map[string]interface{})}
+	got := getEffectiveFallbackPathsFromContext(ctx, "fallback_key", "choices.0.message.content", []string{
+		"choices.0.message.content",
+		"output.text",
+	})
+	if len(got) != 1 || got[0] != "output.text" {
+		t.Fatalf("unexpected effective paths from uncached context: %#v", got)
+	}
+	if cached, ok := ctx.values["fallback_key"].([]string); !ok || len(cached) != 1 || cached[0] != "output.text" {
+		t.Fatalf("expected effective paths to be cached in context, got %#v", ctx.values["fallback_key"])
+	}
+
+	ctx.values["fallback_key"] = []string{"cached.path"}
+	got = getEffectiveFallbackPathsFromContext(ctx, "fallback_key", "nonexistent", []string{"another.path"})
+	if len(got) != 1 || got[0] != "cached.path" {
+		t.Fatalf("expected cached paths to take precedence, got %#v", got)
 	}
 }
