@@ -18,6 +18,12 @@ func Test_getApiName(t *testing.T) {
 		{"openai completions", "/v1/completions", provider.ApiNameCompletion},
 		{"openai embeddings", "/v1/embeddings", provider.ApiNameEmbeddings},
 		{"openai audio speech", "/v1/audio/speech", provider.ApiNameAudioSpeech},
+		{"openai audio transcriptions", "/v1/audio/transcriptions", provider.ApiNameAudioTranscription},
+		{"openai audio transcriptions with prefix", "/proxy/v1/audio/transcriptions", provider.ApiNameAudioTranscription},
+		{"openai audio translations", "/v1/audio/translations", provider.ApiNameAudioTranslation},
+		{"openai realtime", "/v1/realtime", provider.ApiNameRealtime},
+		{"openai realtime with prefix", "/proxy/v1/realtime", provider.ApiNameRealtime},
+		{"openai realtime with trailing slash", "/v1/realtime/", ""},
 		{"openai image generation", "/v1/images/generations", provider.ApiNameImageGeneration},
 		{"openai image variation", "/v1/images/variations", provider.ApiNameImageVariation},
 		{"openai image edit", "/v1/images/edits", provider.ApiNameImageEdit},
@@ -50,6 +56,9 @@ func Test_getApiName(t *testing.T) {
 		{"gemini stream generate content", "/v1beta/models/gemini-1.0-pro:streamGenerateContent", provider.ApiNameGeminiStreamGenerateContent},
 		// Cohere
 		{"cohere rerank", "/v1/rerank", provider.ApiNameCohereV1Rerank},
+		// Qwen
+		{"qwen reranks", "/v1/reranks", provider.ApiNameQwenV1Rerank},
+		{"qwen conversations", "/v1/conversations", provider.ApiNameQwenV1Conversations},
 		// Unknown
 		{"unknown", "/v1/unknown", ""},
 	}
@@ -58,6 +67,54 @@ func Test_getApiName(t *testing.T) {
 			got := getApiName(tt.path)
 			if got != tt.want {
 				t.Errorf("getApiName(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_isSupportedRequestContentType(t *testing.T) {
+	tests := []struct {
+		name        string
+		apiName     provider.ApiName
+		contentType string
+		want        bool
+	}{
+		{
+			name:        "json chat completion",
+			apiName:     provider.ApiNameChatCompletion,
+			contentType: "application/json",
+			want:        true,
+		},
+		{
+			name:        "multipart image edit",
+			apiName:     provider.ApiNameImageEdit,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        true,
+		},
+		{
+			name:        "multipart image variation",
+			apiName:     provider.ApiNameImageVariation,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        true,
+		},
+		{
+			name:        "multipart chat completion",
+			apiName:     provider.ApiNameChatCompletion,
+			contentType: "multipart/form-data; boundary=----boundary",
+			want:        false,
+		},
+		{
+			name:        "text plain image edit",
+			apiName:     provider.ApiNameImageEdit,
+			contentType: "text/plain",
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isSupportedRequestContentType(tt.apiName, tt.contentType)
+			if got != tt.want {
+				t.Errorf("isSupportedRequestContentType(%v, %q) = %v, want %v", tt.apiName, tt.contentType, got, tt.want)
 			}
 		})
 	}
@@ -79,6 +136,8 @@ func TestOpenAI(t *testing.T) {
 	test.RunOpenAIOnHttpResponseHeadersTests(t)
 	test.RunOpenAIOnHttpResponseBodyTests(t)
 	test.RunOpenAIOnStreamingResponseBodyTests(t)
+	test.RunOpenAIPromoteThinkingOnEmptyTests(t)
+	test.RunOpenAIPromoteThinkingOnEmptyStreamingTests(t)
 }
 
 func TestQwen(t *testing.T) {
@@ -102,6 +161,7 @@ func TestGemini(t *testing.T) {
 
 func TestAzure(t *testing.T) {
 	test.RunAzureParseConfigTests(t)
+	test.RunAzureMultipartHelperTests(t)
 	test.RunAzureOnHttpRequestHeadersTests(t)
 	test.RunAzureOnHttpRequestBodyTests(t)
 	test.RunAzureOnHttpResponseHeadersTests(t)
@@ -123,6 +183,10 @@ func TestUtil(t *testing.T) {
 	test.RunMapRequestPathByCapabilityTests(t)
 }
 
+func TestApiPathRegression(t *testing.T) {
+	test.RunApiPathRegressionTests(t)
+}
+
 func TestGeneric(t *testing.T) {
 	test.RunGenericParseConfigTests(t)
 	test.RunGenericOnHttpRequestHeadersTests(t)
@@ -135,8 +199,12 @@ func TestVertex(t *testing.T) {
 	test.RunVertexExpressModeOnHttpRequestBodyTests(t)
 	test.RunVertexExpressModeOnHttpResponseBodyTests(t)
 	test.RunVertexExpressModeOnStreamingResponseBodyTests(t)
+	test.RunVertexOpenAICompatibleModeOnHttpRequestHeadersTests(t)
+	test.RunVertexOpenAICompatibleModeOnHttpRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationRequestBodyTests(t)
 	test.RunVertexExpressModeImageGenerationResponseBodyTests(t)
+	test.RunVertexExpressModeImageEditVariationRequestBodyTests(t)
+	test.RunVertexExpressModeImageEditVariationResponseBodyTests(t)
 	// Vertex Raw 模式测试
 	test.RunVertexRawModeOnHttpRequestHeadersTests(t)
 	test.RunVertexRawModeOnHttpRequestBodyTests(t)
@@ -149,4 +217,25 @@ func TestBedrock(t *testing.T) {
 	test.RunBedrockOnHttpRequestBodyTests(t)
 	test.RunBedrockOnHttpResponseHeadersTests(t)
 	test.RunBedrockOnHttpResponseBodyTests(t)
+	test.RunBedrockOnStreamingResponseBodyTests(t)
+	test.RunBedrockToolCallTests(t)
+}
+
+func TestClaude(t *testing.T) {
+	test.RunClaudeParseConfigTests(t)
+	test.RunClaudeOnHttpRequestHeadersTests(t)
+	test.RunClaudeOnHttpRequestBodyTests(t)
+}
+
+func TestConsumerAffinity(t *testing.T) {
+	test.RunConsumerAffinityParseConfigTests(t)
+	test.RunConsumerAffinityOnHttpRequestHeadersTests(t)
+}
+
+func TestOpenRouter(t *testing.T) {
+	test.RunOpenRouterClaudeAutoConversionTests(t)
+}
+
+func TestZhipuAI(t *testing.T) {
+	test.RunZhipuAIClaudeAutoConversionTests(t)
 }

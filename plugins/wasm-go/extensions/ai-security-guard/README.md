@@ -35,21 +35,51 @@ description: 阿里云内容安全检测
 | `contentModerationLevelBar` | string | optional | max | 内容合规检测拦截风险等级，取值为 `max`, `high`, `medium` or `low` |
 | `promptAttackLevelBar` | string | optional | max | 提示词攻击检测拦截风险等级，取值为 `max`, `high`, `medium` or `low` |
 | `sensitiveDataLevelBar` | string | optional | S4 | 敏感内容检测拦截风险等级，取值为  `S4`, `S3`, `S2` or `S1` |
+| `customLabelLevelBar` | string | optional | max | 自定义检测拦截风险等级，取值为 max, high, medium, low |
+| `riskAction` | string | optional | block | 风险处置动作，取值为 `block` 或 `mask`。`block` 表示按风险等级阈值拦截请求，`mask` 表示当 API 返回脱敏建议时使用脱敏内容替换敏感字段。注意：脱敏功能仅适用于 MultiModalGuard 模式 |
 | `timeout` | int | optional | 2000 | 调用内容安全服务时的超时时间 |
 | `bufferLimit` | int | optional | 1000 | 调用内容安全服务时每段文本的长度限制 |
 | `consumerRequestCheckService` | map | optional | - | 为不同消费者指定特定的请求检测服务 |
 | `consumerResponseCheckService` | map | optional | - | 为不同消费者指定特定的响应检测服务 |
 | `consumerRiskLevel` | map | optional | - | 为不同消费者指定各维度的拦截风险等级 |
 
-补充说明一下 `denyMessage`，对非法请求的处理逻辑为：
-- 如果配置了 `denyMessage`，返回内容为 `denyMessage` 配置内容，格式为openai格式的流式/非流式响应
-- 如果没有配置 `denyMessage`，优先返回阿里云内容安全的建议回答，格式为openai格式的流式/非流式响应
-- 如果阿里云内容安全未返回建议的回答，返回内容为内置的兜底回答，内容为`"很抱歉，我无法回答您的问题"`，格式为openai格式的流式/非流式响应
+### 拒绝响应结构
 
-如果用户使用了非openai格式的协议，此时对非法请求的处理逻辑为：
-- 如果配置了 `denyMessage`，返回用户配置的 `denyMessage` 内容，非流式响应
-- 如果没有配置 `denyMessage`，优先返回阿里云内容安全的建议回答，非流式响应
-- 如果阿里云内容安全未返回建议回答，返回内置的兜底回答，内容为`"很抱歉，我无法回答您的问题"`，非流式响应
+内容被拦截时，插件（`MultiModalGuard` action）统一返回以下结构化 JSON 对象，各协议的承载位置如下：
+
+```json
+{
+  "blockedDetails": [
+    {
+      "Type": "contentModeration",
+      "Level": "high",
+      "Suggestion": "block"
+    }
+  ],
+  "requestId": "AAAAAA-BBBB-CCCC-DDDD-EEEEEEE****",
+  "guardCode": 200
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `blockedDetails` | array | 命中拦截的维度明细；若安全服务未返回明细，则根据顶层风险信号自动合成 |
+| `blockedDetails[].Type` | string | 风险类型：`contentModeration` / `promptAttack` / `sensitiveData` / `maliciousUrl` / `modelHallucination` |
+| `blockedDetails[].Level` | string | 风险等级：`high` / `medium` / `low` 等 |
+| `blockedDetails[].Suggestion` | string | 安全服务建议操作，通常为 `block` |
+| `requestId` | string | 安全服务的请求 ID，用于追踪 |
+| `guardCode` | int | 安全服务返回的业务码（非 HTTP 状态码，成功检测时为 `200`） |
+
+各协议承载位置：
+
+- **`text_generation`（OpenAI 非流式）**：上述结构体序列化为 JSON 字符串后放入 `choices[0].message.content`
+- **`text_generation`（OpenAI 流式 SSE）**：同上，放入首个 chunk 的 `delta.content`
+- **`text_generation`（`protocol=original`）**：上述结构体直接作为 JSON 响应 body 返回
+- **`image_generation`**：上述结构体直接作为 JSON 响应 body 返回（HTTP 403）
+- **`mcp`（JSON-RPC）**：上述结构体序列化为 JSON 字符串后放入 `error.message`
+- **`mcp`（SSE）**：同上，通过 SSE 事件返回
 
 补充说明一下内容合规检测、提示词攻击检测、敏感内容检测三种风险的四个等级：
 
@@ -64,6 +94,16 @@ description: 阿里云内容安全检测
     - `S3`: 敏感内容检测结果中风险等级为 `S3` 时产生拦截
     - `S2`: 敏感内容检测结果中风险等级 >= `S2` 时产生拦截
     - `S1`: 敏感内容检测结果中风险等级 >= `S1` 时产生拦截
+
+- 对于自定义检测（customLabel）：
+    - `max`: 检测请求/响应内容，但是不会产生拦截行为
+    - `high`: 自定义检测结果中风险等级为 `high` 时产生拦截
+    - 注意：阿里云 API 对 customLabel 维度仅返回 `high` 和 `none` 两个等级，不同于其他维度的四级划分。配置为 `high` 即可在检测命中时拦截，配置为 `max` 则不拦截。`medium` 和 `low` 为配置兼容性保留，但 API 不会返回这些等级。
+
+- 对于风险处置动作（riskAction）：
+    - `block`: 按各维度的风险等级阈值判断是否拦截
+    - `mask`: 当 API 返回 `Suggestion=mask` 时使用脱敏内容替换敏感字段，当 `Suggestion=block` 时仍会拦截
+    - 注意：脱敏功能仅适用于 MultiModalGuard 模式（action 配置为 MultiModalGuard），其他模式不支持脱敏
 
 ## 配置示例
 ### 前提条件
