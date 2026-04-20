@@ -22,6 +22,7 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/test"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 // 测试配置：基础装饰器配置
@@ -754,8 +755,11 @@ func TestApplyReplaceRulesToContent(t *testing.T) {
 	})
 
 	t.Run("regex rule supports capture references", func(t *testing.T) {
-		// parseConfig is normally responsible for compiling, so do it here too.
-		cfgJSON, _ := json.Marshal(map[string]interface{}{
+		// parseConfig is what compiles the regex in production, so call it
+		// directly here instead of going through the wasm test host. This
+		// keeps the helper-level test independent of the wasm runtime so it
+		// behaves the same in `go test` and CI.
+		cfgJSON, err := json.Marshal(map[string]interface{}{
 			"prepend": []map[string]interface{}{},
 			"append":  []map[string]interface{}{},
 			"replace": []map[string]interface{}{
@@ -766,14 +770,10 @@ func TestApplyReplaceRulesToContent(t *testing.T) {
 				},
 			},
 		})
-		test.RunTest(t, func(t *testing.T) {
-			host, status := test.NewTestHost(json.RawMessage(cfgJSON))
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
-			cfg, err := host.GetMatchConfig()
-			require.NoError(t, err)
-			decoratorConfig := cfg.(*AIPromptDecoratorConfig)
-			require.Equal(t, "hi world", applyReplaceRulesToContent("user", "hello world", decoratorConfig.Replace))
-		})
+		require.NoError(t, err)
+
+		var cfg AIPromptDecoratorConfig
+		require.NoError(t, parseConfig(gjson.ParseBytes(cfgJSON), &cfg))
+		require.Equal(t, "hi world", applyReplaceRulesToContent("user", "hello world", cfg.Replace))
 	})
 }
