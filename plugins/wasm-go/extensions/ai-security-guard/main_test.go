@@ -333,6 +333,8 @@ func TestParseConfig(t *testing.T) {
 			require.Equal(t, "S3", securityConfig.SensitiveDataLevelBar)
 			require.Equal(t, uint32(2000), securityConfig.Timeout)
 			require.Equal(t, 1000, securityConfig.BufferLimit)
+			require.Equal(t, cfg.DefaultResponseFallbackJsonPaths(), securityConfig.ResponseContentFallbackJsonPaths)
+			require.Equal(t, cfg.DefaultStreamingResponseFallbackJsonPaths(), securityConfig.ResponseStreamContentFallbackJsonPaths)
 		})
 
 		// 测试仅检查请求的配置
@@ -389,6 +391,84 @@ func TestParseConfig(t *testing.T) {
 			require.Equal(t, "llm_response_moderation_1", securityConfig.GetResponseCheckService("bbb-prefix-test"))
 			require.Equal(t, "high", securityConfig.GetMaliciousUrlLevelBar("cc"))
 			require.Equal(t, "low", securityConfig.GetMaliciousUrlLevelBar("ccc-regexp-test"))
+		})
+
+		t.Run("custom response fallback paths config", func(t *testing.T) {
+			configJSON, err := json.Marshal(map[string]interface{}{
+				"serviceName":                            "security-service",
+				"servicePort":                            8080,
+				"serviceHost":                            "security.example.com",
+				"accessKey":                              "test-ak",
+				"secretKey":                              "test-sk",
+				"checkResponse":                          true,
+				"responseContentFallbackJsonPaths":       []string{"output.text", "choices.0.message.content"},
+				"responseStreamContentFallbackJsonPaths": []string{"payload.delta", "delta.text"},
+			})
+			require.NoError(t, err)
+			host, status := test.NewTestHost(configJSON)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			securityConfig := config.(*cfg.AISecurityConfig)
+			require.Equal(t, []string{"output.text", "choices.0.message.content"}, securityConfig.ResponseContentFallbackJsonPaths)
+			require.Equal(t, []string{"payload.delta", "delta.text"}, securityConfig.ResponseStreamContentFallbackJsonPaths)
+		})
+
+		t.Run("empty response fallback paths disable fallback", func(t *testing.T) {
+			configJSON, err := json.Marshal(map[string]interface{}{
+				"serviceName":                            "security-service",
+				"servicePort":                            8080,
+				"serviceHost":                            "security.example.com",
+				"accessKey":                              "test-ak",
+				"secretKey":                              "test-sk",
+				"checkResponse":                          true,
+				"responseContentFallbackJsonPaths":       []string{},
+				"responseStreamContentFallbackJsonPaths": []string{},
+			})
+			require.NoError(t, err)
+			host, status := test.NewTestHost(configJSON)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			securityConfig := config.(*cfg.AISecurityConfig)
+			require.Len(t, securityConfig.ResponseContentFallbackJsonPaths, 0)
+			require.Len(t, securityConfig.ResponseStreamContentFallbackJsonPaths, 0)
+		})
+
+		t.Run("invalid response fallback paths type", func(t *testing.T) {
+			configJSON, err := json.Marshal(map[string]interface{}{
+				"serviceName":                      "security-service",
+				"servicePort":                      8080,
+				"serviceHost":                      "security.example.com",
+				"accessKey":                        "test-ak",
+				"secretKey":                        "test-sk",
+				"checkResponse":                    true,
+				"responseContentFallbackJsonPaths": "choices.0.message.content",
+			})
+			require.NoError(t, err)
+			host, status := test.NewTestHost(configJSON)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusFailed, status)
+		})
+
+		t.Run("invalid response fallback paths item", func(t *testing.T) {
+			configJSON, err := json.Marshal(map[string]interface{}{
+				"serviceName":                            "security-service",
+				"servicePort":                            8080,
+				"serviceHost":                            "security.example.com",
+				"accessKey":                              "test-ak",
+				"secretKey":                              "test-sk",
+				"checkResponse":                          true,
+				"responseStreamContentFallbackJsonPaths": []interface{}{"delta.text", ""},
+			})
+			require.NoError(t, err)
+			host, status := test.NewTestHost(configJSON)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusFailed, status)
 		})
 	})
 }
