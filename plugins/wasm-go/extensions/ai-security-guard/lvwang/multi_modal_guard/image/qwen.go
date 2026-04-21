@@ -299,10 +299,10 @@ func HandleQwenImageGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AI
 		log.Info(string(responseBody))
 		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentImageSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			if imageIndex < len(images) {
 				singleCallForImage()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpRequest()
 			}
 			return
@@ -311,11 +311,11 @@ func HandleQwenImageGenerationRequestBody(ctx wrapper.HttpContext, config cfg.AI
 		err := json.Unmarshal(responseBody, &response)
 		if err != nil {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentImageSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			log.Errorf("%+v", err)
 			if imageIndex < len(images) {
 				singleCallForImage()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpRequest()
 			}
 			return
@@ -400,10 +400,10 @@ func HandleQwenImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg.A
 		log.Info(string(responseBody))
 		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			if imageIndex < len(imgUrls) {
 				singleCall()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpResponse()
 			}
 			return
@@ -412,11 +412,11 @@ func HandleQwenImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg.A
 		err := json.Unmarshal(responseBody, &response)
 		if err != nil {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			log.Errorf("%+v", err)
 			if imageIndex < len(imgUrls) {
 				singleCall()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpResponse()
 			}
 			return

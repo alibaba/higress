@@ -141,10 +141,10 @@ func HandleOpenAIImageGenerationRequestBody(ctx wrapper.HttpContext, config cfg.
 		log.Info(string(responseBody))
 		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentImageSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			if imageIndex < len(images) {
 				singleCallForImage()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpRequest()
 			}
 			return
@@ -153,11 +153,11 @@ func HandleOpenAIImageGenerationRequestBody(ctx wrapper.HttpContext, config cfg.
 		err := json.Unmarshal(responseBody, &response)
 		if err != nil {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentImageSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			log.Errorf("%+v", err)
 			if imageIndex < len(images) {
 				singleCallForImage()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpRequest()
 			}
 			return
@@ -242,10 +242,10 @@ func HandleOpenAIImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg
 		log.Info(string(responseBody))
 		if statusCode != 200 || gjson.GetBytes(responseBody, "Code").Int() != 200 {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			if imageIndex < len(imgResults) {
 				singleCall()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpResponse()
 			}
 			return
@@ -254,11 +254,11 @@ func HandleOpenAIImageGenerationResponseBody(ctx wrapper.HttpContext, config cfg
 		err := json.Unmarshal(responseBody, &response)
 		if err != nil {
 			cfg.CompleteGuardrailSubmissionEvent(ctx, currentSubmissionIndex, responseBody, cfg.GuardrailResultError)
+			cfg.WriteGuardrailLog(ctx)
 			log.Errorf("%+v", err)
 			if imageIndex < len(imgResults) {
 				singleCall()
 			} else {
-				cfg.WriteGuardrailLog(ctx)
 				proxywasm.ResumeHttpResponse()
 			}
 			return
