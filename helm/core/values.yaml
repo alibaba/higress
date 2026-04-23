@@ -591,6 +591,7 @@ controller:
   imagePullSecrets: []
 
   rbac:
+    # -- If enabled, ClusterRole and ClusterRoleBinding will be created for the controller. Set to false when cluster-level RBAC is pre-provisioned by a cluster admin.
     create: true
 
   serviceAccount:

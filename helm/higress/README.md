@@ -121,8 +121,8 @@ The command removes all the Kubernetes components associated with the chart and 
 | gateway.podAnnotations."prometheus.io/scrape" | string | `"true"` |  |
 | gateway.podAnnotations."sidecar.istio.io/inject" | string | `"false"` |  |
 | gateway.podLabels | object | `{}` | Labels to apply to the pod |
-| gateway.rbac.enabled | bool | `true` | If enabled, roles will be created to enable accessing certificates from Gateways. This is not needed when using http://gateway-api.org/. |
 | gateway.rbac.create | bool | `true` | If enabled, ClusterRole and ClusterRoleBinding will be created for the gateway. Set to false when cluster-level RBAC is pre-provisioned by a cluster admin. |
+| gateway.rbac.enabled | bool | `true` | If enabled, roles will be created to enable accessing certificates from Gateways. This is not needed when using http://gateway-api.org/. |
 | gateway.readinessFailureThreshold | int | `30` | The number of successive failed probes before indicating readiness failure. |
 | gateway.readinessInitialDelaySeconds | int | `1` | The initial delay for readiness probes in seconds. |
 | gateway.readinessPeriodSeconds | int | `2` | The period between readiness probes. |
