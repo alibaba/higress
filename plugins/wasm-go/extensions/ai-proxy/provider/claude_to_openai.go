@@ -424,6 +424,13 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 				continue
 			}
 
+			// Some providers keep sending duplicate usage chunks after the stream
+			// has already been finalized. Ignore those trailing chunks.
+			if c.messageStopSent {
+				log.Debugf("[OpenAI->Claude] Ignoring chunk after message_stop: %s", data)
+				continue
+			}
+
 			var openaiStreamResponse chatCompletionResponse
 			if err := json.Unmarshal([]byte(data), &openaiStreamResponse); err != nil {
 				log.Debugf("unable to unmarshal openai stream response: %v, data: %s", err, data)
@@ -451,6 +458,19 @@ func (c *ClaudeToOpenAIConverter) ConvertOpenAIStreamResponseToClaude(ctx wrappe
 	return claudeChunk, nil
 }
 
+func normalizeFinishReason(finishReason *string) (string, bool) {
+	if finishReason == nil {
+		return "", false
+	}
+
+	normalized := strings.TrimSpace(*finishReason)
+	if normalized == "" || strings.EqualFold(normalized, "null") {
+		return "", false
+	}
+
+	return normalized, true
+}
+
 // buildClaudeStreamResponse builds Claude streaming responses from OpenAI streaming response
 func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpContext, openaiResponse *chatCompletionResponse) []*claudeTextGenStreamResponse {
 	var choice chatCompletionChoice
@@ -469,7 +489,7 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 	// Log what we're processing
 	hasRole := choice.Delta != nil && choice.Delta.Role != ""
 	hasContent := choice.Delta != nil && choice.Delta.Content != ""
-	hasFinishReason := choice.FinishReason != nil
+	finishReason, hasFinishReason := normalizeFinishReason(choice.FinishReason)
 	hasUsage := openaiResponse.Usage != nil
 
 	log.Debugf("[OpenAI->Claude] Processing OpenAI chunk - Role: %v, Content: %v, FinishReason: %v, Usage: %v",
@@ -688,9 +708,9 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 	}
 
 	// Handle finish reason
-	if choice.FinishReason != nil {
-		claudeFinishReason := openAIFinishReasonToClaude(*choice.FinishReason)
-		log.Debugf("[OpenAI->Claude] Processing finish_reason: %s -> %s", *choice.FinishReason, claudeFinishReason)
+	if hasFinishReason {
+		claudeFinishReason := openAIFinishReasonToClaude(finishReason)
+		log.Debugf("[OpenAI->Claude] Processing finish_reason: %s -> %s", finishReason, claudeFinishReason)
 
 		// Send content_block_stop for any active content blocks
 		if c.thinkingBlockStarted && !c.thinkingBlockStopped {
@@ -764,6 +784,7 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 	// Note: Some providers may send usage in the same chunk as finish_reason,
 	// so we check for usage regardless of whether finish_reason is present
 	if openaiResponse.Usage != nil {
+		stopReasonIncluded := false
 		log.Debugf("[OpenAI->Claude] Processing usage info - input: %d, output: %d",
 			openaiResponse.Usage.PromptTokens, openaiResponse.Usage.CompletionTokens)
 
@@ -784,13 +805,15 @@ func (c *ClaudeToOpenAIConverter) buildClaudeStreamResponse(ctx wrapper.HttpCont
 			log.Debugf("[OpenAI->Claude] Combining cached stop_reason %s with usage", *c.pendingStopReason)
 			messageDelta.Delta.StopReason = c.pendingStopReason
 			c.pendingStopReason = nil // Clear cache
+			stopReasonIncluded = true
 		}
 
 		log.Debugf("[OpenAI->Claude] Generated message_delta event with usage and stop_reason")
 		responses = append(responses, messageDelta)
 
-		// Send message_stop after combined message_delta
-		if !c.messageStopSent {
+		// Send message_stop only when this usage chunk carries a real stop_reason.
+		// Some providers report incremental usage in every chunk before finishing.
+		if stopReasonIncluded && !c.messageStopSent {
 			c.messageStopSent = true
 			log.Debugf("[OpenAI->Claude] Generated message_stop event")
 			responses = append(responses, &claudeTextGenStreamResponse{
