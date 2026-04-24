@@ -48,6 +48,8 @@ struct ModelMapperConfigRule {
       "/messages"};
 };
 
+class PluginContext;
+
 // PluginRootContext is the root context for all streams processed by the
 // thread. It has the same lifetime as the worker thread and acts as target for
 // interactions that outlives individual stream, e.g. timer, async calls.
@@ -59,7 +61,10 @@ class PluginRootContext : public RootContext,
   ~PluginRootContext() {}
   bool onConfigure(size_t) override;
   FilterHeadersStatus onHeader(const ModelMapperConfigRule&);
-  FilterDataStatus onBody(const ModelMapperConfigRule&, std::string_view);
+  FilterDataStatus onBody(const ModelMapperConfigRule&, std::string_view,
+                          PluginContext&);
+  FilterHeadersStatus onResponseHeader(PluginContext&);
+  FilterDataStatus onResponseBody(PluginContext&, std::string_view);
   bool configure(size_t);
   void incrementRequestCount();
 
@@ -76,14 +81,24 @@ class PluginContext : public Context {
   explicit PluginContext(uint32_t id, RootContext* root) : Context(id, root) {}
   FilterHeadersStatus onRequestHeaders(uint32_t, bool) override;
   FilterDataStatus onRequestBody(size_t, bool) override;
+  FilterHeadersStatus onResponseHeaders(uint32_t, bool) override;
+  FilterDataStatus onResponseBody(size_t, bool) override;
 
  private:
+  friend class PluginRootContext;
+
   inline PluginRootContext* rootContext() {
     return dynamic_cast<PluginRootContext*>(this->root());
   }
 
   size_t body_total_size_ = 0;
   const ModelMapperConfigRule* config_ = nullptr;
+
+  bool response_model_rewrite_enabled_ = false;
+  std::string response_model_key_;
+  std::string response_client_model_;
+  std::string response_upstream_model_;
+  size_t response_body_total_size_ = 0;
 };
 
 #ifdef NULL_PLUGIN

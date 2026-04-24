@@ -15,7 +15,9 @@
 #include "extensions/model_mapper/plugin.h"
 
 #include <cstddef>
+#include <string>
 
+#include "common/json_util.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "include/proxy-wasm/context.h"
@@ -79,18 +81,29 @@ class ModelMapperTest : public ::testing::Test {
           if (type == WasmBufferType::HttpRequestBody) {
             return &body_;
           }
+          if (type == WasmBufferType::HttpResponseBody) {
+            return &response_body_;
+          }
           return &config_;
         });
-    ON_CALL(*mock_context_, getHeaderMapValue(WasmHeaderMapType::RequestHeaders,
-                                              testing::_, testing::_))
-        .WillByDefault([&](WasmHeaderMapType, std::string_view header,
+    ON_CALL(*mock_context_, getHeaderMapValue(testing::_, testing::_, testing::_))
+        .WillByDefault([&](WasmHeaderMapType map_type, std::string_view header,
                            std::string_view* result) {
-          if (header == "content-type") {
-            *result = "application/json";
-          } else if (header == "content-length") {
-            *result = "1024";
-          } else if (header == ":path") {
-            *result = path_;
+          if (map_type == WasmHeaderMapType::RequestHeaders) {
+            if (header == "content-type") {
+              *result = "application/json";
+            } else if (header == "content-length") {
+              *result = "1024";
+            } else if (header == ":path") {
+              *result = path_;
+            }
+            return WasmResult::Ok;
+          }
+          if (map_type == WasmHeaderMapType::ResponseHeaders) {
+            if (header == "content-type") {
+              *result = response_content_type_;
+            }
+            return WasmResult::Ok;
           }
           return WasmResult::Ok;
         });
@@ -100,10 +113,9 @@ class ModelMapperTest : public ::testing::Test {
         .WillByDefault([&](WasmHeaderMapType, std::string_view key,
                            std::string_view value) { return WasmResult::Ok; });
     ON_CALL(*mock_context_,
-            removeHeaderMapValue(WasmHeaderMapType::RequestHeaders, testing::_))
-        .WillByDefault([&](WasmHeaderMapType, std::string_view key) {
-          return WasmResult::Ok;
-        });
+            removeHeaderMapValue(testing::_, testing::_))
+        .WillByDefault(
+            [&](WasmHeaderMapType, std::string_view) { return WasmResult::Ok; });
     ON_CALL(*mock_context_, addHeaderMapValue(WasmHeaderMapType::RequestHeaders,
                                               testing::_, testing::_))
         .WillByDefault([&](WasmHeaderMapType, std::string_view header,
@@ -130,7 +142,9 @@ class ModelMapperTest : public ::testing::Test {
   std::string route_name_;
   std::string service_name_;
   std::string path_;
+  std::string response_content_type_ = "application/json; charset=utf-8";
   BufferBase body_;
+  BufferBase response_body_;
   BufferBase config_;
 };
 
@@ -294,6 +308,51 @@ TEST_F(ModelMapperTest, RouteLevelModelMappingTest) {
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::StopIteration);
   EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+}
+
+TEST_F(ModelMapperTest, ResponseModelMappingTest) {
+  std::string configuration = R"(
+{
+  "modelMapping": {
+     "gpt-4o": "qwen-turbo"
+  }
+})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/completions";
+  std::string request_json = R"({"model": "gpt-4o"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(testing::_, testing::_, testing::_, testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo"})");
+        return WasmResult::Ok;
+      });
+
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(20, true), FilterDataStatus::Continue);
+
+  response_content_type_ = "application/json";
+  std::string upstream_response =
+      R"({"id":"1","model":"qwen-turbo","object":"chat.completion"})";
+  EXPECT_EQ(context_->onResponseHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpResponseBody, testing::_, testing::_,
+                        testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        auto parsed = ::Wasm::Common::JsonParse(body);
+        ASSERT_TRUE(parsed.has_value());
+        EXPECT_EQ(parsed.value()["model"], "gpt-4o");
+        return WasmResult::Ok;
+      });
+  response_body_.set(upstream_response);
+  EXPECT_EQ(context_->onResponseBody(upstream_response.size(), true),
+            FilterDataStatus::Continue);
 }
 
 }  // namespace model_mapper

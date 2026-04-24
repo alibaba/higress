@@ -45,6 +45,8 @@ namespace {
 
 constexpr std::string_view SetDecoderBufferLimitKey =
     "set_decoder_buffer_limit";
+constexpr std::string_view SetEncoderBufferLimitKey =
+    "set_encoder_buffer_limit";
 constexpr std::string_view DefaultMaxBodyBytes = "104857600";
 
 }  // namespace
@@ -203,7 +205,9 @@ FilterHeadersStatus PluginRootContext::onHeader(
 }
 
 FilterDataStatus PluginRootContext::onBody(const ModelMapperConfigRule& rule,
-                                           std::string_view body) {
+                                           std::string_view body,
+                                           PluginContext& stream) {
+  stream.response_model_rewrite_enabled_ = false;
   const auto& exact_model_mapping = rule.exact_model_mapping_;
   const auto& prefix_model_mapping = rule.prefix_model_mapping_;
   const auto& default_model_mapping = rule.default_model_mapping_;
@@ -232,6 +236,12 @@ FilterDataStatus PluginRootContext::onBody(const ModelMapperConfigRule& rule,
     }
   }
   if (!model.empty() && model != old_model) {
+    if (!old_model.empty()) {
+      stream.response_model_key_ = model_key;
+      stream.response_client_model_ = old_model;
+      stream.response_upstream_model_ = model;
+      stream.response_model_rewrite_enabled_ = true;
+    }
     body_json[model_key] = model;
     setBuffer(WasmBufferType::HttpRequestBody, 0,
               std::numeric_limits<size_t>::max(), body_json.dump());
@@ -241,12 +251,67 @@ FilterDataStatus PluginRootContext::onBody(const ModelMapperConfigRule& rule,
   return FilterDataStatus::Continue;
 }
 
+FilterHeadersStatus PluginRootContext::onResponseHeader(PluginContext& stream) {
+  if (!stream.response_model_rewrite_enabled_) {
+    return FilterHeadersStatus::Continue;
+  }
+  auto content_type_value =
+      getResponseHeader(Wasm::Common::Http::Header::ContentType);
+  if (!absl::StrContains(content_type_value->view(),
+                         Wasm::Common::Http::ContentTypeValues::Json)) {
+    stream.response_model_rewrite_enabled_ = false;
+    return FilterHeadersStatus::Continue;
+  }
+  removeResponseHeader(Wasm::Common::Http::Header::ContentLength);
+  setFilterState(SetEncoderBufferLimitKey, DefaultMaxBodyBytes);
+  LOG_INFO(absl::StrCat("SetResponseBodyBufferLimit: ", DefaultMaxBodyBytes));
+  return FilterHeadersStatus::StopIteration;
+}
+
+FilterDataStatus PluginRootContext::onResponseBody(PluginContext& stream,
+                                                   std::string_view body) {
+  if (!stream.response_model_rewrite_enabled_) {
+    return FilterDataStatus::Continue;
+  }
+  auto body_json_opt = ::Wasm::Common::JsonParse(body);
+  if (!body_json_opt) {
+    LOG_WARN(absl::StrCat("cannot parse response body to JSON string: ", body));
+    return FilterDataStatus::Continue;
+  }
+  auto body_json = body_json_opt.value();
+  const auto& key = stream.response_model_key_;
+  if (!body_json.contains(key)) {
+    return FilterDataStatus::Continue;
+  }
+  auto& model_val = body_json[key];
+  if (!model_val.is_string()) {
+    return FilterDataStatus::Continue;
+  }
+  if (model_val.get<std::string>() != stream.response_upstream_model_) {
+    return FilterDataStatus::Continue;
+  }
+  model_val = stream.response_client_model_;
+  setBuffer(WasmBufferType::HttpResponseBody, 0,
+            std::numeric_limits<size_t>::max(), body_json.dump());
+  LOG_DEBUG(absl::StrCat("response model mapped to client name:",
+                         stream.response_client_model_));
+  return FilterDataStatus::Continue;
+}
+
 FilterHeadersStatus PluginContext::onRequestHeaders(uint32_t, bool) {
+  body_total_size_ = 0;
+  response_body_total_size_ = 0;
+  response_model_rewrite_enabled_ = false;
+  response_model_key_.clear();
+  response_client_model_.clear();
+  response_upstream_model_.clear();
   auto* rootCtx = rootContext();
   return rootCtx->onHeaders([rootCtx, this](const auto& config) {
     auto ret = rootCtx->onHeader(config);
     if (ret == FilterHeadersStatus::StopIteration) {
       this->config_ = &config;
+    } else {
+      this->config_ = nullptr;
     }
     return ret;
   });
@@ -264,7 +329,28 @@ FilterDataStatus PluginContext::onRequestBody(size_t body_size,
   auto body =
       getBufferBytes(WasmBufferType::HttpRequestBody, 0, body_total_size_);
   auto* rootCtx = rootContext();
-  return rootCtx->onBody(*config_, body->view());
+  return rootCtx->onBody(*config_, body->view(), *this);
+}
+
+FilterHeadersStatus PluginContext::onResponseHeaders(uint32_t, bool) {
+  auto* rootCtx = rootContext();
+  return rootCtx->onResponseHeader(*this);
+}
+
+FilterDataStatus PluginContext::onResponseBody(size_t body_size,
+                                               bool end_stream) {
+  if (!response_model_rewrite_enabled_) {
+    return FilterDataStatus::Continue;
+  }
+  response_body_total_size_ += body_size;
+  if (!end_stream) {
+    return FilterDataStatus::StopIterationAndBuffer;
+  }
+  auto body =
+      getBufferBytes(WasmBufferType::HttpResponseBody, 0,
+                     response_body_total_size_);
+  auto* rootCtx = rootContext();
+  return rootCtx->onResponseBody(*this, body->view());
 }
 
 #ifdef NULL_PLUGIN
