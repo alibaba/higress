@@ -48,8 +48,113 @@ constexpr std::string_view SetDecoderBufferLimitKey =
 constexpr std::string_view SetEncoderBufferLimitKey =
     "set_encoder_buffer_limit";
 constexpr std::string_view DefaultMaxBodyBytes = "104857600";
+constexpr std::string_view EventStreamContentType = "text/event-stream";
 
 }  // namespace
+
+bool rewriteModelFieldInJson(nlohmann::json& payload, const std::string& key,
+                             std::string_view upstream_model,
+                             std::string_view client_model) {
+  bool rewritten = false;
+  if (payload.contains(key)) {
+    auto& model_value = payload[key];
+    if (model_value.is_string() &&
+        model_value.get<std::string>() == upstream_model) {
+      model_value = client_model;
+      rewritten = true;
+    }
+  }
+
+  // Anthropic SSE message_start uses nested message.model.
+  if (payload.contains("message") && payload["message"].is_object() &&
+      payload["message"].contains(key)) {
+    auto& nested_model = payload["message"][key];
+    if (nested_model.is_string() &&
+        nested_model.get<std::string>() == upstream_model) {
+      nested_model = client_model;
+      rewritten = true;
+    }
+  }
+  return rewritten;
+}
+
+std::pair<size_t, size_t> findSseEventSeparator(std::string_view data) {
+  auto lf_pos = data.find("\n\n");
+  auto crlf_pos = data.find("\r\n\r\n");
+  if (lf_pos == std::string_view::npos) {
+    if (crlf_pos == std::string_view::npos) {
+      return {std::string_view::npos, 0};
+    }
+    return {crlf_pos, 4};
+  }
+  if (crlf_pos == std::string_view::npos || lf_pos < crlf_pos) {
+    return {lf_pos, 2};
+  }
+  return {crlf_pos, 4};
+}
+
+std::string rewriteSseEvent(std::string_view raw_event, const std::string& key,
+                            std::string_view upstream_model,
+                            std::string_view client_model) {
+  std::string result;
+  size_t line_start = 0;
+  while (line_start <= raw_event.size()) {
+    auto line_end = raw_event.find('\n', line_start);
+    std::string_view line;
+    bool has_newline = line_end != std::string_view::npos;
+    if (has_newline) {
+      line = raw_event.substr(line_start, line_end - line_start);
+      line_start = line_end + 1;
+    } else {
+      line = raw_event.substr(line_start);
+      line_start = raw_event.size() + 1;
+    }
+    if (!line.empty() && line.back() == '\r') {
+      line.remove_suffix(1);
+    }
+    if (!absl::StartsWith(line, "data:")) {
+      result.append(line.data(), line.size());
+      if (has_newline) {
+        result.push_back('\n');
+      }
+      continue;
+    }
+
+    auto payload = absl::StripPrefix(line, "data:");
+    auto payload_trimmed = absl::StripPrefix(payload, " ");
+    if (payload_trimmed == "[DONE]") {
+      result.append(line.data(), line.size());
+      if (has_newline) {
+        result.push_back('\n');
+      }
+      continue;
+    }
+
+    auto payload_json_opt = ::Wasm::Common::JsonParse(payload_trimmed);
+    if (!payload_json_opt) {
+      result.append(line.data(), line.size());
+      if (has_newline) {
+        result.push_back('\n');
+      }
+      continue;
+    }
+    auto payload_json = payload_json_opt.value();
+    if (!rewriteModelFieldInJson(payload_json, key, upstream_model,
+                                 client_model)) {
+      result.append(line.data(), line.size());
+      if (has_newline) {
+        result.push_back('\n');
+      }
+      continue;
+    }
+    result.append("data: ");
+    result.append(payload_json.dump());
+    if (has_newline) {
+      result.push_back('\n');
+    }
+  }
+  return result;
+}
 
 bool PluginRootContext::parsePluginConfig(const json& configuration,
                                           ModelMapperConfigRule& rule) {
@@ -255,46 +360,80 @@ FilterHeadersStatus PluginRootContext::onResponseHeader(PluginContext& stream) {
   if (!stream.response_model_rewrite_enabled_) {
     return FilterHeadersStatus::Continue;
   }
+  stream.response_rewrite_mode_ = ResponseRewriteMode::None;
   auto content_type_value =
       getResponseHeader(Wasm::Common::Http::Header::ContentType);
-  if (!absl::StrContains(content_type_value->view(),
-                         Wasm::Common::Http::ContentTypeValues::Json)) {
-    stream.response_model_rewrite_enabled_ = false;
+  if (absl::StrContains(content_type_value->view(),
+                        Wasm::Common::Http::ContentTypeValues::Json)) {
+    stream.response_rewrite_mode_ = ResponseRewriteMode::Json;
+    removeResponseHeader(Wasm::Common::Http::Header::ContentLength);
+    setFilterState(SetEncoderBufferLimitKey, DefaultMaxBodyBytes);
+    LOG_INFO(absl::StrCat("SetResponseBodyBufferLimit: ", DefaultMaxBodyBytes));
+    return FilterHeadersStatus::StopIteration;
+  }
+  if (absl::StrContains(content_type_value->view(), EventStreamContentType)) {
+    stream.response_rewrite_mode_ = ResponseRewriteMode::EventStream;
+    removeResponseHeader(Wasm::Common::Http::Header::ContentLength);
     return FilterHeadersStatus::Continue;
   }
-  removeResponseHeader(Wasm::Common::Http::Header::ContentLength);
-  setFilterState(SetEncoderBufferLimitKey, DefaultMaxBodyBytes);
-  LOG_INFO(absl::StrCat("SetResponseBodyBufferLimit: ", DefaultMaxBodyBytes));
-  return FilterHeadersStatus::StopIteration;
+  stream.response_model_rewrite_enabled_ = false;
+  return FilterHeadersStatus::Continue;
 }
 
 FilterDataStatus PluginRootContext::onResponseBody(PluginContext& stream,
-                                                   std::string_view body) {
+                                                   std::string_view body,
+                                                   bool end_stream) {
   if (!stream.response_model_rewrite_enabled_) {
     return FilterDataStatus::Continue;
   }
-  auto body_json_opt = ::Wasm::Common::JsonParse(body);
-  if (!body_json_opt) {
-    LOG_WARN(absl::StrCat("cannot parse response body to JSON string: ", body));
+  if (stream.response_rewrite_mode_ == ResponseRewriteMode::None) {
     return FilterDataStatus::Continue;
   }
-  auto body_json = body_json_opt.value();
-  const auto& key = stream.response_model_key_;
-  if (!body_json.contains(key)) {
+
+  if (stream.response_rewrite_mode_ == ResponseRewriteMode::Json) {
+    auto body_json_opt = ::Wasm::Common::JsonParse(body);
+    if (!body_json_opt) {
+      LOG_WARN(absl::StrCat("cannot parse response body to JSON string: ", body));
+      return FilterDataStatus::Continue;
+    }
+    auto body_json = body_json_opt.value();
+    if (!rewriteModelFieldInJson(body_json, stream.response_model_key_,
+                                 stream.response_upstream_model_,
+                                 stream.response_client_model_)) {
+      return FilterDataStatus::Continue;
+    }
+    setBuffer(WasmBufferType::HttpResponseBody, 0,
+              std::numeric_limits<size_t>::max(), body_json.dump());
+    LOG_DEBUG(absl::StrCat("response model mapped to client name:",
+                           stream.response_client_model_));
     return FilterDataStatus::Continue;
   }
-  auto& model_val = body_json[key];
-  if (!model_val.is_string()) {
-    return FilterDataStatus::Continue;
+
+  stream.response_stream_pending_data_.append(body.data(), body.size());
+  std::string output;
+  while (true) {
+    auto [event_pos, sep_size] =
+        findSseEventSeparator(stream.response_stream_pending_data_);
+    if (event_pos == std::string_view::npos) {
+      break;
+    }
+    auto raw_event =
+        std::string_view(stream.response_stream_pending_data_).substr(0, event_pos);
+    output.append(rewriteSseEvent(raw_event, stream.response_model_key_,
+                                  stream.response_upstream_model_,
+                                  stream.response_client_model_));
+    output.append(stream.response_stream_pending_data_.substr(event_pos, sep_size));
+    stream.response_stream_pending_data_.erase(0, event_pos + sep_size);
   }
-  if (model_val.get<std::string>() != stream.response_upstream_model_) {
-    return FilterDataStatus::Continue;
+  if (end_stream && !stream.response_stream_pending_data_.empty()) {
+    output.append(rewriteSseEvent(stream.response_stream_pending_data_,
+                                  stream.response_model_key_,
+                                  stream.response_upstream_model_,
+                                  stream.response_client_model_));
+    stream.response_stream_pending_data_.clear();
   }
-  model_val = stream.response_client_model_;
-  setBuffer(WasmBufferType::HttpResponseBody, 0,
-            std::numeric_limits<size_t>::max(), body_json.dump());
-  LOG_DEBUG(absl::StrCat("response model mapped to client name:",
-                         stream.response_client_model_));
+  setBuffer(WasmBufferType::HttpResponseBody, 0, std::numeric_limits<size_t>::max(),
+            output);
   return FilterDataStatus::Continue;
 }
 
@@ -305,6 +444,8 @@ FilterHeadersStatus PluginContext::onRequestHeaders(uint32_t, bool) {
   response_model_key_.clear();
   response_client_model_.clear();
   response_upstream_model_.clear();
+  response_rewrite_mode_ = ResponseRewriteMode::None;
+  response_stream_pending_data_.clear();
   auto* rootCtx = rootContext();
   return rootCtx->onHeaders([rootCtx, this](const auto& config) {
     auto ret = rootCtx->onHeader(config);
@@ -342,6 +483,11 @@ FilterDataStatus PluginContext::onResponseBody(size_t body_size,
   if (!response_model_rewrite_enabled_) {
     return FilterDataStatus::Continue;
   }
+  auto* rootCtx = rootContext();
+  if (response_rewrite_mode_ == ResponseRewriteMode::EventStream) {
+    auto body = getBufferBytes(WasmBufferType::HttpResponseBody, 0, body_size);
+    return rootCtx->onResponseBody(*this, body->view(), end_stream);
+  }
   response_body_total_size_ += body_size;
   if (!end_stream) {
     return FilterDataStatus::StopIterationAndBuffer;
@@ -349,8 +495,7 @@ FilterDataStatus PluginContext::onResponseBody(size_t body_size,
   auto body =
       getBufferBytes(WasmBufferType::HttpResponseBody, 0,
                      response_body_total_size_);
-  auto* rootCtx = rootContext();
-  return rootCtx->onResponseBody(*this, body->view());
+  return rootCtx->onResponseBody(*this, body->view(), true);
 }
 
 #ifdef NULL_PLUGIN

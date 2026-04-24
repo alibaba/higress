@@ -50,6 +50,12 @@ struct ModelMapperConfigRule {
 
 class PluginContext;
 
+enum class ResponseRewriteMode {
+  None,
+  Json,
+  EventStream,
+};
+
 // PluginRootContext is the root context for all streams processed by the
 // thread. It has the same lifetime as the worker thread and acts as target for
 // interactions that outlives individual stream, e.g. timer, async calls.
@@ -64,7 +70,7 @@ class PluginRootContext : public RootContext,
   FilterDataStatus onBody(const ModelMapperConfigRule&, std::string_view,
                           PluginContext&);
   FilterHeadersStatus onResponseHeader(PluginContext&);
-  FilterDataStatus onResponseBody(PluginContext&, std::string_view);
+  FilterDataStatus onResponseBody(PluginContext&, std::string_view, bool);
   bool configure(size_t);
   void incrementRequestCount();
 
@@ -98,7 +104,9 @@ class PluginContext : public Context {
   std::string response_model_key_;
   std::string response_client_model_;
   std::string response_upstream_model_;
+  ResponseRewriteMode response_rewrite_mode_ = ResponseRewriteMode::None;
   size_t response_body_total_size_ = 0;
+  std::string response_stream_pending_data_;
 };
 
 #ifdef NULL_PLUGIN

@@ -355,6 +355,109 @@ TEST_F(ModelMapperTest, ResponseModelMappingTest) {
             FilterDataStatus::Continue);
 }
 
+TEST_F(ModelMapperTest, StreamingResponseModelMappingTest) {
+  std::string configuration = R"(
+{
+  "modelMapping": {
+     "gpt-4o": "qwen-turbo"
+  }
+})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/completions";
+  std::string request_json = R"({"model": "gpt-4o"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpRequestBody, testing::_, testing::_,
+                        testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo"})");
+        return WasmResult::Ok;
+      });
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(request_json.size(), true),
+            FilterDataStatus::Continue);
+
+  response_content_type_ = "text/event-stream; charset=utf-8";
+  EXPECT_EQ(context_->onResponseHeaders(0, false), FilterHeadersStatus::Continue);
+
+  std::string chunk_1 = R"(data: {"id":"1","model":"qwen-)";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpResponseBody, testing::_, testing::_,
+                        testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_TRUE(body.empty());
+        return WasmResult::Ok;
+      });
+  response_body_.set(chunk_1);
+  EXPECT_EQ(context_->onResponseBody(chunk_1.size(), false),
+            FilterDataStatus::Continue);
+
+  std::string chunk_2 =
+      R"(turbo","choices":[{"delta":{"content":"hi"}}]})"
+      "\n\n";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpResponseBody, testing::_, testing::_,
+                        testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_THAT(std::string(body), testing::HasSubstr("\"model\":\"gpt-4o\""));
+        EXPECT_THAT(std::string(body),
+                    testing::StartsWith("data: {\"id\":\"1\""));
+        return WasmResult::Ok;
+      });
+  response_body_.set(chunk_2);
+  EXPECT_EQ(context_->onResponseBody(chunk_2.size(), false),
+            FilterDataStatus::Continue);
+}
+
+TEST_F(ModelMapperTest, StreamingAnthropicMessageStartModelMappingTest) {
+  std::string configuration = R"(
+{
+  "modelMapping": {
+     "claude-sonnet-4-6": "kimi-k2.5"
+  }
+})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/messages";
+  std::string request_json = R"({"model":"claude-sonnet-4-6","stream":true})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpRequestBody, testing::_, testing::_,
+                        testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_THAT(std::string(body), testing::HasSubstr("\"model\":\"kimi-k2.5\""));
+        return WasmResult::Ok;
+      });
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(request_json.size(), true),
+            FilterDataStatus::Continue);
+
+  response_content_type_ = "text/event-stream; charset=utf-8";
+  EXPECT_EQ(context_->onResponseHeaders(0, false), FilterHeadersStatus::Continue);
+
+  std::string sse =
+      "event: message_start\n"
+      "data: {\"type\":\"message_start\",\"message\":{\"model\":\"kimi-k2.5\"}}\n\n";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpResponseBody, testing::_, testing::_,
+                        testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_THAT(std::string(body),
+                    testing::HasSubstr("\"message\":{\"model\":\"claude-sonnet-4-6\"}"));
+        return WasmResult::Ok;
+      });
+  response_body_.set(sse);
+  EXPECT_EQ(context_->onResponseBody(sse.size(), false),
+            FilterDataStatus::Continue);
+}
+
 }  // namespace model_mapper
 }  // namespace null_plugin
 }  // namespace proxy_wasm

@@ -1,5 +1,8 @@
 ## Function Description
-The `model-mapper` plugin implements the functionality of routing based on the model parameter in the LLM protocol.
+The `model-mapper` plugin supports bidirectional mapping of the `model` field in LLM protocols:
+
+- Request direction: rewrites client model names to upstream model names.
+- Response direction: rewrites upstream model names back to the original client model names (supports both JSON and SSE responses).
 
 ## Configuration Fields
 
@@ -63,3 +66,29 @@ After processing by this plugin, the original LLM request body will be modified 
     "top_p": 0.95
 }
 ```
+
+If the upstream response `model` is `qwen-vl-plus`, the plugin will rewrite it back to `gpt-4o` before returning to the client.
+
+### Streaming Response (SSE)
+
+For `text/event-stream` responses, the plugin incrementally processes JSON in SSE `data:` lines and rewrites the `model` field.
+
+For example, upstream event:
+
+```text
+event: message_start
+data: {"type":"message_start","message":{"model":"qwen-vl-plus"}}
+```
+
+Returned to the client:
+
+```text
+event: message_start
+data: {"type":"message_start","message":{"model":"gpt-4o"}}
+```
+
+## Notes
+
+- Response rewrite is enabled only when request model rewrite happened for the same stream.
+- Response rewrite is applied only when the response model value exactly matches the mapped upstream model, to avoid unintended rewrites.
+- Avoid enabling multiple plugins that rewrite `model` simultaneously, or make sure plugin execution order is explicitly controlled.
