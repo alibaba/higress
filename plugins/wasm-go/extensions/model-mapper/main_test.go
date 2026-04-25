@@ -198,7 +198,7 @@ func TestFindSseEventSeparator(t *testing.T) {
 	require.Equal(t, 2, sep)
 
 	pos, sep = findSseEventSeparator("data: 1\r\n\r\ndata: 2\r\n\r\n")
-	require.Equal(t, 8, pos)
+	require.Equal(t, 7, pos)
 	require.Equal(t, 4, sep)
 
 	pos, sep = findSseEventSeparator("data: 1\n")
