@@ -95,6 +95,40 @@ func TestParseConfig(t *testing.T) {
 			require.Contains(t, cfg.enableOnPathSuffix, "/v1/embeddings")
 		})
 
+		t.Run("enableResponseMapping defaults to true", func(t *testing.T) {
+			var cfg Config
+			jsonData := []byte(`{
+				"modelMapping": {
+					"gpt-3.5-turbo": "gpt-4"
+				}
+			}`)
+			err := parseConfig(gjson.ParseBytes(jsonData), &cfg)
+			require.NoError(t, err)
+			require.True(t, cfg.enableResponseMapping)
+		})
+
+		t.Run("enableResponseMapping can be disabled", func(t *testing.T) {
+			var cfg Config
+			jsonData := []byte(`{
+				"enableResponseMapping": false,
+				"modelMapping": {
+					"gpt-3.5-turbo": "gpt-4"
+				}
+			}`)
+			err := parseConfig(gjson.ParseBytes(jsonData), &cfg)
+			require.NoError(t, err)
+			require.False(t, cfg.enableResponseMapping)
+		})
+
+		t.Run("enableResponseMapping must be boolean", func(t *testing.T) {
+			var cfg Config
+			jsonData := []byte(`{
+				"enableResponseMapping": "false"
+			}`)
+			err := parseConfig(gjson.ParseBytes(jsonData), &cfg)
+			require.Error(t, err)
+		})
+
 		t.Run("modelMapping must be object", func(t *testing.T) {
 			var cfg Config
 			jsonData := []byte(`{
@@ -113,6 +147,63 @@ func TestParseConfig(t *testing.T) {
 			require.Error(t, err)
 		})
 	})
+}
+
+func TestRewriteModelFieldInJSONBytes(t *testing.T) {
+	t.Run("rewrite top-level model", func(t *testing.T) {
+		payload := []byte(`{"model":"gpt-4","id":"x"}`)
+		newPayload, rewritten, err := rewriteModelFieldInJSONBytes(payload, "model", "gpt-4", "gpt-3.5-turbo")
+		require.NoError(t, err)
+		require.True(t, rewritten)
+		require.Equal(t, "gpt-3.5-turbo", gjson.GetBytes(newPayload, "model").String())
+	})
+
+	t.Run("rewrite nested message.model", func(t *testing.T) {
+		payload := []byte(`{"message":{"model":"gpt-4","id":"m1"}}`)
+		newPayload, rewritten, err := rewriteModelFieldInJSONBytes(payload, "model", "gpt-4", "gpt-3.5-turbo")
+		require.NoError(t, err)
+		require.True(t, rewritten)
+		require.Equal(t, "gpt-3.5-turbo", gjson.GetBytes(newPayload, "message.model").String())
+	})
+
+	t.Run("invalid json does not fail", func(t *testing.T) {
+		payload := []byte(`{"model":`)
+		newPayload, rewritten, err := rewriteModelFieldInJSONBytes(payload, "model", "gpt-4", "gpt-3.5-turbo")
+		require.NoError(t, err)
+		require.False(t, rewritten)
+		require.Equal(t, payload, newPayload)
+	})
+}
+
+func TestRewriteSseEvent(t *testing.T) {
+	t.Run("rewrite data json and keep done", func(t *testing.T) {
+		raw := "event: message\n" +
+			"data: {\"model\":\"gpt-4\",\"id\":\"1\"}\n" +
+			"data: [DONE]\n"
+		rewritten := rewriteSseEvent(raw, "model", "gpt-4", "gpt-3.5-turbo")
+		require.Contains(t, rewritten, `data: {"model":"gpt-3.5-turbo","id":"1"}`)
+		require.Contains(t, rewritten, "data: [DONE]")
+	})
+
+	t.Run("invalid data line stays unchanged", func(t *testing.T) {
+		raw := "data: not-json\n"
+		rewritten := rewriteSseEvent(raw, "model", "gpt-4", "gpt-3.5-turbo")
+		require.Equal(t, raw, rewritten)
+	})
+}
+
+func TestFindSseEventSeparator(t *testing.T) {
+	pos, sep := findSseEventSeparator("data: 1\n\ndata: 2\n\n")
+	require.Equal(t, 7, pos)
+	require.Equal(t, 2, sep)
+
+	pos, sep = findSseEventSeparator("data: 1\r\n\r\ndata: 2\r\n\r\n")
+	require.Equal(t, 8, pos)
+	require.Equal(t, 4, sep)
+
+	pos, sep = findSseEventSeparator("data: 1\n")
+	require.Equal(t, -1, pos)
+	require.Equal(t, 0, sep)
 }
 
 func TestOnHttpRequestHeaders(t *testing.T) {
