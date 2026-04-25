@@ -38,6 +38,7 @@ namespace model_mapper {
 
 struct ModelMapperConfigRule {
   std::string model_key_ = "model";
+  bool enable_response_mapping_ = true;
   std::map<std::string, std::string> exact_model_mapping_;
   std::vector<std::pair<std::string, std::string>> prefix_model_mapping_;
   std::string default_model_mapping_;

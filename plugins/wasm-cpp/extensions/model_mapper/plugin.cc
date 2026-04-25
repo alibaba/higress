@@ -167,6 +167,16 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     }
   }
 
+  if (auto it = configuration.find("enableResponseMapping");
+      it != configuration.end()) {
+    if (it->is_boolean()) {
+      rule.enable_response_mapping_ = it->get<bool>();
+    } else {
+      LOG_ERROR("Invalid type for enableResponseMapping. Expected boolean.");
+      return false;
+    }
+  }
+
   if (auto it = configuration.find("modelMapping"); it != configuration.end()) {
     if (!it->is_object()) {
       LOG_ERROR("Invalid type for modelMapping. Expected object.");
@@ -341,7 +351,7 @@ FilterDataStatus PluginRootContext::onBody(const ModelMapperConfigRule& rule,
     }
   }
   if (!model.empty() && model != old_model) {
-    if (!old_model.empty()) {
+    if (rule.enable_response_mapping_ && !old_model.empty()) {
       stream.response_model_key_ = model_key;
       stream.response_client_model_ = old_model;
       stream.response_upstream_model_ = model;

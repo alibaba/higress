@@ -355,6 +355,47 @@ TEST_F(ModelMapperTest, ResponseModelMappingTest) {
             FilterDataStatus::Continue);
 }
 
+TEST_F(ModelMapperTest, DisableResponseModelMappingTest) {
+  std::string configuration = R"(
+{
+  "enableResponseMapping": false,
+  "modelMapping": {
+     "gpt-4o": "qwen-turbo"
+  }
+})";
+
+  config_.set(configuration);
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/v1/chat/completions";
+  std::string request_json = R"({"model": "gpt-4o"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpRequestBody, testing::_, testing::_,
+                        testing::_))
+      .WillOnce([&](WasmBufferType, size_t, size_t, std::string_view body) {
+        EXPECT_EQ(body, R"({"model":"qwen-turbo"})");
+        return WasmResult::Ok;
+      });
+  body_.set(request_json);
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+  EXPECT_EQ(context_->onRequestBody(request_json.size(), true),
+            FilterDataStatus::Continue);
+
+  response_content_type_ = "application/json";
+  EXPECT_EQ(context_->onResponseHeaders(0, false), FilterHeadersStatus::Continue);
+
+  std::string upstream_response =
+      R"({"id":"1","model":"qwen-turbo","object":"chat.completion"})";
+  EXPECT_CALL(*mock_context_,
+              setBuffer(WasmBufferType::HttpResponseBody, testing::_, testing::_,
+                        testing::_))
+      .Times(0);
+  response_body_.set(upstream_response);
+  EXPECT_EQ(context_->onResponseBody(upstream_response.size(), true),
+            FilterDataStatus::Continue);
+}
+
 TEST_F(ModelMapperTest, StreamingResponseModelMappingTest) {
   std::string configuration = R"(
 {
