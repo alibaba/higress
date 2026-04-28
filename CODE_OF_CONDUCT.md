@@ -9,10 +9,12 @@ The text below is the project's adopted Code of Conduct, based on the
 substantively aligned with the CNCF Code of Conduct. Where any conflict exists,
 the CNCF Code of Conduct prevails.
 
-Instances of unacceptable behavior may be reported to the project maintainers
-at [higress@googlegroups.com](mailto:higress@googlegroups.com), or to the CNCF
-Code of Conduct Committee at
-[conduct@cncf.io](mailto:conduct@cncf.io).
+Instances of unacceptable behavior may be reported to the CNCF Code of
+Conduct Committee at [conduct@cncf.io](mailto:conduct@cncf.io). For more
+detailed instructions on how to submit a report, including how to submit a
+report anonymously, please see the CNCF
+[Incident Resolution Procedures](https://github.com/cncf/foundation/blob/main/code-of-conduct/coc-incident-resolution-procedures.md).
+You can expect a response within three business days.
 
 ---
 
@@ -73,7 +75,8 @@ further defined and clarified by project maintainers.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported by contacting the project team at higress@googlegroups.com. All
+reported by contacting the CNCF Code of Conduct Committee at
+[conduct@cncf.io](mailto:conduct@cncf.io). All
 complaints will be reviewed and investigated and will result in a response that
 is deemed necessary and appropriate to the circumstances. The project team is
 obligated to maintain confidentiality with regard to the reporter of an incident.
