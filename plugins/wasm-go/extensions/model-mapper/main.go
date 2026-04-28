@@ -15,7 +15,17 @@ import (
 )
 
 const (
-	DefaultMaxBodyBytes = 100 * 1024 * 1024 // 100MB
+	DefaultMaxBodyBytes     = 100 * 1024 * 1024 // 100MB
+	responseRewriteModeNone = ""
+	responseRewriteModeJSON = "json"
+	responseRewriteModeSSE  = "sse"
+
+	contextResponseRewriteEnabled = "model_mapper.response_rewrite_enabled"
+	contextResponseRewriteMode    = "model_mapper.response_rewrite_mode"
+	contextResponseModelKey       = "model_mapper.response_model_key"
+	contextResponseClientModel    = "model_mapper.response_client_model"
+	contextResponseUpstreamModel  = "model_mapper.response_upstream_model"
+	contextResponsePendingData    = "model_mapper.response_pending_data"
 )
 
 func main() {}
@@ -26,6 +36,9 @@ func init() {
 		wrapper.ParseConfig(parseConfig),
 		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		wrapper.ProcessRequestBody(onHttpRequestBody),
+		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
+		wrapper.ProcessStreamingResponseBody(onHttpStreamingResponseBody),
+		wrapper.ProcessResponseBody(onHttpResponseBody),
 		wrapper.WithRebuildAfterRequests[Config](1000),
 		wrapper.WithRebuildMaxMemBytes[Config](200*1024*1024),
 	)
@@ -37,17 +50,25 @@ type ModelMapping struct {
 }
 
 type Config struct {
-	modelKey           string
-	exactModelMapping  map[string]string
-	prefixModelMapping []ModelMapping
-	defaultModel       string
-	enableOnPathSuffix []string
+	modelKey              string
+	exactModelMapping     map[string]string
+	prefixModelMapping    []ModelMapping
+	defaultModel          string
+	enableOnPathSuffix    []string
+	enableResponseMapping bool
 }
 
 func parseConfig(json gjson.Result, config *Config) error {
 	config.modelKey = json.Get("modelKey").String()
 	if config.modelKey == "" {
 		config.modelKey = "model"
+	}
+	config.enableResponseMapping = true
+	if enableResponseMapping := json.Get("enableResponseMapping"); enableResponseMapping.Exists() {
+		if !enableResponseMapping.IsBool() {
+			return errors.New("enableResponseMapping must be a boolean")
+		}
+		config.enableResponseMapping = enableResponseMapping.Bool()
 	}
 
 	modelMapping := json.Get("modelMapping")
@@ -120,6 +141,8 @@ func parseConfig(json gjson.Result, config *Config) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
+	resetResponseRewriteContext(ctx)
+
 	// Check path suffix
 	path, err := proxywasm.GetHttpRequestHeader(":path")
 	if err != nil {
@@ -141,6 +164,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 
 	if !matched || !ctx.HasRequestBody() {
 		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
+
+	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
+	if !strings.Contains(strings.ToLower(contentType), "application/json") {
 		return types.ActionContinue
 	}
 
@@ -183,6 +211,12 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 	}
 
 	if newModel != "" && newModel != oldModel {
+		if config.enableResponseMapping && oldModel != "" {
+			ctx.SetContext(contextResponseRewriteEnabled, true)
+			ctx.SetContext(contextResponseModelKey, config.modelKey)
+			ctx.SetContext(contextResponseClientModel, oldModel)
+			ctx.SetContext(contextResponseUpstreamModel, newModel)
+		}
 		newBody, err := sjson.SetBytes(body, config.modelKey, newModel)
 		if err != nil {
 			log.Errorf("failed to update model: %v", err)
@@ -193,4 +227,205 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 	}
 
 	return types.ActionContinue
+}
+
+func onHttpResponseHeaders(ctx wrapper.HttpContext, config Config) types.Action {
+	if !ctx.GetBoolContext(contextResponseRewriteEnabled, false) || !ctx.HasResponseBody() {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
+
+	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
+	contentType = strings.ToLower(contentType)
+
+	if strings.Contains(contentType, "application/json") {
+		ctx.SetContext(contextResponseRewriteMode, responseRewriteModeJSON)
+		ctx.BufferResponseBody()
+		ctx.SetResponseBodyBufferLimit(DefaultMaxBodyBytes)
+		proxywasm.RemoveHttpResponseHeader("content-length")
+		return types.ActionContinue
+	}
+
+	if strings.Contains(contentType, "text/event-stream") {
+		ctx.SetContext(contextResponseRewriteMode, responseRewriteModeSSE)
+		proxywasm.RemoveHttpResponseHeader("content-length")
+		return types.ActionContinue
+	}
+
+	ctx.DontReadResponseBody()
+	ctx.SetContext(contextResponseRewriteEnabled, false)
+	return types.ActionContinue
+}
+
+func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config Config, chunk []byte, isLastChunk bool) []byte {
+	if !ctx.GetBoolContext(contextResponseRewriteEnabled, false) {
+		return chunk
+	}
+	if ctx.GetStringContext(contextResponseRewriteMode, responseRewriteModeNone) != responseRewriteModeSSE {
+		return chunk
+	}
+
+	modelKey := ctx.GetStringContext(contextResponseModelKey, "")
+	clientModel := ctx.GetStringContext(contextResponseClientModel, "")
+	upstreamModel := ctx.GetStringContext(contextResponseUpstreamModel, "")
+	if modelKey == "" || clientModel == "" || upstreamModel == "" {
+		return chunk
+	}
+
+	pendingData := ctx.GetStringContext(contextResponsePendingData, "")
+	pendingData += string(chunk)
+
+	var output strings.Builder
+	for {
+		eventPos, sepSize := findSseEventSeparator(pendingData)
+		if eventPos == -1 {
+			break
+		}
+		rawEvent := pendingData[:eventPos]
+		output.WriteString(rewriteSseEvent(rawEvent, modelKey, upstreamModel, clientModel))
+		output.WriteString(pendingData[eventPos : eventPos+sepSize])
+		pendingData = pendingData[eventPos+sepSize:]
+	}
+
+	if isLastChunk && pendingData != "" {
+		output.WriteString(rewriteSseEvent(pendingData, modelKey, upstreamModel, clientModel))
+		pendingData = ""
+	}
+	ctx.SetContext(contextResponsePendingData, pendingData)
+
+	return []byte(output.String())
+}
+
+func onHttpResponseBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
+	if !ctx.GetBoolContext(contextResponseRewriteEnabled, false) {
+		return types.ActionContinue
+	}
+	if ctx.GetStringContext(contextResponseRewriteMode, responseRewriteModeNone) != responseRewriteModeJSON {
+		return types.ActionContinue
+	}
+
+	modelKey := ctx.GetStringContext(contextResponseModelKey, "")
+	clientModel := ctx.GetStringContext(contextResponseClientModel, "")
+	upstreamModel := ctx.GetStringContext(contextResponseUpstreamModel, "")
+	if modelKey == "" || clientModel == "" || upstreamModel == "" || len(body) == 0 {
+		return types.ActionContinue
+	}
+
+	newBody, rewritten, err := rewriteModelFieldInJSONBytes(body, modelKey, upstreamModel, clientModel)
+	if err != nil {
+		log.Errorf("failed to rewrite response model: %v", err)
+		return types.ActionContinue
+	}
+	if rewritten {
+		proxywasm.ReplaceHttpResponseBody(newBody)
+	}
+	return types.ActionContinue
+}
+
+func resetResponseRewriteContext(ctx wrapper.HttpContext) {
+	ctx.SetContext(contextResponseRewriteEnabled, false)
+	ctx.SetContext(contextResponseRewriteMode, responseRewriteModeNone)
+	ctx.SetContext(contextResponseModelKey, "")
+	ctx.SetContext(contextResponseClientModel, "")
+	ctx.SetContext(contextResponseUpstreamModel, "")
+	ctx.SetContext(contextResponsePendingData, "")
+}
+
+func rewriteModelFieldInJSONBytes(payload []byte, key, upstreamModel, clientModel string) ([]byte, bool, error) {
+	if !json.Valid(payload) {
+		return payload, false, nil
+	}
+
+	rewritten := false
+	newPayload := payload
+
+	if gjson.GetBytes(newPayload, key).String() == upstreamModel {
+		updatedPayload, err := sjson.SetBytes(newPayload, key, clientModel)
+		if err != nil {
+			return payload, false, err
+		}
+		newPayload = updatedPayload
+		rewritten = true
+	}
+
+	nestedKey := "message." + key
+	if gjson.GetBytes(newPayload, nestedKey).String() == upstreamModel {
+		updatedPayload, err := sjson.SetBytes(newPayload, nestedKey, clientModel)
+		if err != nil {
+			return payload, false, err
+		}
+		newPayload = updatedPayload
+		rewritten = true
+	}
+
+	return newPayload, rewritten, nil
+}
+
+func findSseEventSeparator(data string) (eventPos int, separatorSize int) {
+	lfPos := strings.Index(data, "\n\n")
+	crlfPos := strings.Index(data, "\r\n\r\n")
+	if lfPos == -1 {
+		if crlfPos == -1 {
+			return -1, 0
+		}
+		return crlfPos, 4
+	}
+	if crlfPos == -1 || lfPos < crlfPos {
+		return lfPos, 2
+	}
+	return crlfPos, 4
+}
+
+func rewriteSseEvent(rawEvent, key, upstreamModel, clientModel string) string {
+	var result strings.Builder
+	lineStart := 0
+
+	for lineStart <= len(rawEvent) {
+		lineEnd := strings.Index(rawEvent[lineStart:], "\n")
+		hasNewline := lineEnd != -1
+		var line string
+		if hasNewline {
+			lineEnd += lineStart
+			line = rawEvent[lineStart:lineEnd]
+			lineStart = lineEnd + 1
+		} else {
+			line = rawEvent[lineStart:]
+			lineStart = len(rawEvent) + 1
+		}
+
+		lineNoCR := strings.TrimSuffix(line, "\r")
+		if !strings.HasPrefix(lineNoCR, "data:") {
+			result.WriteString(line)
+			if hasNewline {
+				result.WriteString("\n")
+			}
+			continue
+		}
+
+		payload := strings.TrimSpace(strings.TrimPrefix(lineNoCR, "data:"))
+		if payload == "[DONE]" {
+			result.WriteString(line)
+			if hasNewline {
+				result.WriteString("\n")
+			}
+			continue
+		}
+
+		rewrittenPayload, rewritten, err := rewriteModelFieldInJSONBytes([]byte(payload), key, upstreamModel, clientModel)
+		if err != nil || !rewritten {
+			result.WriteString(line)
+			if hasNewline {
+				result.WriteString("\n")
+			}
+			continue
+		}
+
+		result.WriteString("data: ")
+		result.Write(rewrittenPayload)
+		if hasNewline {
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
 }
