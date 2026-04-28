@@ -17,11 +17,17 @@ your contributions.
 **Please do NOT report security vulnerabilities through public GitHub issues,
 discussions, or pull requests.**
 
-Instead, please report them through one of the following private channels:
+Instead, please report them through one of the following private channels
+(choose either one):
 
 - **GitHub Private Security Advisory**:
   <https://github.com/higress-group/higress/security/advisories/new>
 - **Email**: [higress@googlegroups.com](mailto:higress@googlegroups.com)
+
+In addition, we recommend also reporting the vulnerability to the
+[Alibaba Security Response Center (ASRC)](https://security.alibaba.com/),
+as Higress is widely deployed on Alibaba Cloud infrastructure. Reporting to
+ASRC helps ensure timely patching for cloud-hosted deployments.
 
 Please include as much of the following information as possible to help us
 triage and address the issue:
