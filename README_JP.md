@@ -9,7 +9,6 @@
 [![Build Status](https://github.com/alibaba/higress/actions/workflows/build-and-test.yaml/badge.svg?branch=main)](https://github.com/alibaba/higress/actions)
 [![license](https://img.shields.io/github/license/alibaba/higress.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 [![CNCF Sandbox](https://img.shields.io/badge/CNCF-Sandbox-30638E?logo=linuxfoundation&logoColor=white)](https://www.cncf.io/projects/)
-[![OpenSSF Best Practices](https://img.shields.io/badge/OpenSSF-Best%20Practices-informational?logo=openssf)](https://www.bestpractices.dev/)
 
 [**公式サイト**](https://higress.cn/) &nbsp; |
 &nbsp; [**ドキュメント**](https://higress.cn/docs/latest/overview/what-is-higress/) &nbsp; |
