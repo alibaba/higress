@@ -1,1 +1,0 @@
-../external/api/common-protos/k8s.io
