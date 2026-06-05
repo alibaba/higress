@@ -70,7 +70,7 @@ func (c *ProviderConfig) SendProviderFallbackRequest(ctx wrapper.HttpContext, ac
 		{":path", ctx.GetStringContext(CtxRequestPath, "")},
 	}, requestBody)
 	if err != nil {
-		return fmt.Errorf("fallback request failed to transform request headers and body: %v", err)
+		return fmt.Errorf("fallback request failed to transform request headers and body: %w", err)
 	}
 	retryClient := createRetryClient()
 	return retryClient.Post(generateUrl(modifiedHeaders), util.HeaderToSlice(modifiedHeaders), modifiedBody, callback, timeout)
@@ -83,7 +83,7 @@ func (c *ProviderConfig) setFallbackApiTokenInUse(ctx wrapper.HttpContext) {
 	} else {
 		apiToken = c.selectApiToken(ctx)
 	}
-	log.Debugf("Use fallback apiToken %s to send request", apiToken)
+	log.Debugf("Use fallback apiToken to send request")
 	ctx.SetContext(c.failover.ctxApiTokenInUse, apiToken)
 }
 
