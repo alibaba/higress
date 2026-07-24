@@ -963,10 +963,14 @@ func (b *bedrockProvider) buildBedrockTextGenerationRequest(origRequest *chatCom
 
 	thinking := bedrockThinkingFromClaudeConfig(origRequest.ClaudeThinking)
 	if thinking != nil {
-		if origRequest.ClaudeThinking.Type == "adaptive" && origRequest.ClaudeOutputConfig != nil && bedrockSupportsAdaptiveEffort(origRequest.ClaudeOutputConfig.Effort) {
-			thinking["effort"] = origRequest.ClaudeOutputConfig.Effort
-		}
 		request.AdditionalModelRequestFields["thinking"] = thinking
+		if origRequest.ClaudeThinking.Type == "adaptive" && origRequest.ClaudeOutputConfig != nil && bedrockSupportsAdaptiveEffort(origRequest.ClaudeOutputConfig.Effort) {
+			// Bedrock expects `thinking` and `output_config` to be sibling fields
+			// in additionalModelRequestFields, not `effort` nested inside `thinking`.
+			request.AdditionalModelRequestFields["output_config"] = map[string]interface{}{
+				"effort": origRequest.ClaudeOutputConfig.Effort,
+			}
+		}
 	} else if origRequest.ReasoningEffort != "" {
 		thinkingBudget := 1024 // default
 		switch origRequest.ReasoningEffort {
