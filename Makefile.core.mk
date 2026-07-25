@@ -219,15 +219,16 @@ install: pre-install
 HIGRESS_LATEST_IMAGE_TAG ?= latest
 ENVOY_LATEST_IMAGE_TAG ?= 481184afc44176eb23d64e0011dc3ea1ae6a410c
 ISTIO_LATEST_IMAGE_TAG ?= de2c9628294f51b13c4a70b3a862b4372890797a
+TEST_ISTIO_IMAGE_TAG ?= $(ISTIO_LATEST_IMAGE_TAG)
 
 install-dev: pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(TEST_ISTIO_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'
 
 install-dev-gateway-api: pre-install
 	helm install higress helm/core -n $(GATEWAY_API_TEST_NAMESPACE) --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'global.enableGatewayAPIDeploymentController=true' --set 'gateway.service.type=$(GATEWAY_API_GATEWAY_SERVICE_TYPE)'
 
 install-dev-wasmplugin: build-wasmplugins pre-install
-	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
+	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(TEST_ISTIO_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
 
 uninstall:
 	helm uninstall higress -n higress-system
@@ -311,10 +312,13 @@ kube-load-gateway-api-images: $(tools/kind-gateway-api)
 	KIND=$(tools/kind-gateway-api) tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot $(TAG)
 	KIND=$(tools/kind-gateway-api) tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway $(ENVOY_LATEST_IMAGE_TAG)
 
-# build-gateway-api-pilot builds the Pilot image from the checked-out Istio submodule.
-.PHONY: build-gateway-api-pilot
-build-gateway-api-pilot: prebuild
+# build-test-pilot builds the Pilot image from the checked-out Istio submodule.
+.PHONY: build-test-pilot
+build-test-pilot: prebuild
 	TARGET_ARCH=$(TARGET_ARCH) DOCKER_TARGETS="docker.pilot" IMG_URL="$(HUB)/pilot:$(TAG)" ./tools/hack/build-istio-image.sh docker
+
+.PHONY: build-gateway-api-pilot
+build-gateway-api-pilot: build-test-pilot
 
 # gateway-conformance-test-prepare prepares a kind cluster for Gateway API tests.
 .PHONY: gateway-conformance-test-prepare
@@ -348,11 +352,13 @@ gateway-conformance-test-clean: delete-gateway-api-cluster
 
 # higress-conformance-test-prepare prepares the environment for higress conformance tests.
 .PHONY: higress-conformance-test-prepare
-higress-conformance-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev
+higress-conformance-test-prepare: TEST_ISTIO_IMAGE_TAG=$(TAG)
+higress-conformance-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build build-test-pilot kube-load-image install-dev
 
 # higress-conformance-test runs ingress api conformance tests.
 .PHONY: higress-conformance-test
-higress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev run-higress-e2e-test delete-cluster
+higress-conformance-test: TEST_ISTIO_IMAGE_TAG=$(TAG)
+higress-conformance-test: $(tools/kind) delete-cluster create-cluster docker-build build-test-pilot kube-load-image install-dev run-higress-e2e-test delete-cluster
 
 # higress-conformance-test-clean cleans the environment for higress conformance tests.
 .PHONY: higress-conformance-test-clean
@@ -360,7 +366,8 @@ higress-conformance-test-clean: $(tools/kind) delete-cluster
 
 # higress-wasmplugin-test-prepare prepares the environment for higress wasmplugin tests.
 .PHONY: higress-wasmplugin-test-prepare
-higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin
+higress-wasmplugin-test-prepare: TEST_ISTIO_IMAGE_TAG=$(TAG)
+higress-wasmplugin-test-prepare: $(tools/kind) delete-cluster create-cluster docker-build build-test-pilot kube-load-image install-dev-wasmplugin
 
 # higress-wasmplugin-test-prepare-skip-docker-build prepares the environment for higress wasmplugin tests without build higress docker image.
 .PHONY: higress-wasmplugin-test-prepare-skip-docker-build
@@ -371,7 +378,8 @@ higress-wasmplugin-test-prepare-skip-docker-build: $(tools/kind) delete-cluster 
 
 # higress-wasmplugin-test runs ingress wasmplugin tests.
 .PHONY: higress-wasmplugin-test
-higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
+higress-wasmplugin-test: TEST_ISTIO_IMAGE_TAG=$(TAG)
+higress-wasmplugin-test: $(tools/kind) delete-cluster create-cluster docker-build build-test-pilot kube-load-image install-dev-wasmplugin run-higress-e2e-test-wasmplugin delete-cluster
 
 # higress-wasmplugin-test-skip-docker-build runs ingress wasmplugin tests without build higress docker image
 .PHONY: higress-wasmplugin-test-skip-docker-build
@@ -407,7 +415,9 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 		tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG); \
 	fi
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress $(TAG)
-	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot $(ISTIO_LATEST_IMAGE_TAG)
+	@if [ "$(TEST_ISTIO_IMAGE_TAG)" = "$(ISTIO_LATEST_IMAGE_TAG)" ]; then \
+		tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot $(TEST_ISTIO_IMAGE_TAG); \
+	fi
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway $(ENVOY_LATEST_IMAGE_TAG)
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
 	tools/hack/docker-pull-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/nacos-standlone-rc3 1.0.0-RC3
@@ -422,6 +432,7 @@ kube-load-image: $(tools/kind) ## Install the Higress image to a kind cluster us
 	tools/hack/docker-pull-image.sh curlimages/curl latest
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/2456868764/httpbin 1.0.2
 	tools/hack/docker-pull-image.sh registry.cn-hangzhou.aliyuncs.com/hinsteny/nacos-standlone-rc3 1.0.0-RC3
+	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot $(TEST_ISTIO_IMAGE_TAG)
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/dubbo-provider-demo 0.0.3-x86
 	tools/hack/kind-load-image.sh higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/nacos-standlone-rc3 1.0.0-RC3
 	tools/hack/kind-load-image.sh docker.io/hashicorp/consul 1.16.0
