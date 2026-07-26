@@ -91,8 +91,33 @@ jobs:
           path: out/
 
   gateway-conformance-test:
+    name: ${{ matrix.check-name }}
     runs-on: ubuntu-22.04
     needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - gateway-api-version: v1.4.0
+            check-name: gateway-conformance-test (v1.4.0)
+            test-directory: test/gateway/v1.4
+            crd-versions: v1.4.0 v1.6.0
+            crd-channel: experimental
+            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io grpcroutes.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io tlsroutes.gateway.networking.k8s.io
+            profiles: GATEWAY-HTTP,GATEWAY-TLS,GATEWAY-GRPC
+            supported-features: Gateway,HTTPRoute,TLSRoute,GRPCRoute,ReferenceGrant
+            allow-crds-mismatch: "true"
+            supports-test-cleanup: "false"
+          - gateway-api-version: v1.6.0
+            check-name: gateway-conformance-test
+            test-directory: test/gateway/v1.6
+            crd-versions: v1.6.0
+            crd-channel: standard
+            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io grpcroutes.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io tcproutes.gateway.networking.k8s.io tlsroutes.gateway.networking.k8s.io
+            profiles: GATEWAY-HTTP,GATEWAY-TLS,GATEWAY-GRPC,GATEWAY-TCP
+            supported-features: Gateway,HTTPRoute,TLSRoute,GRPCRoute,TCPRoute,ReferenceGrant
+            allow-crds-mismatch: "false"
+            supports-test-cleanup: "true"
     env:
       GATEWAY_API_TEST_NAMESPACE: gateway-conformance-infra
       HIGRESS_TEST_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -126,7 +151,7 @@ jobs:
       - name: "Setup Go"
         uses: actions/setup-go@v5
         with:
-          go-version-file: test/gateway/go.mod
+          go-version-file: ${{ matrix.test-directory }}/go.mod
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -141,13 +166,25 @@ jobs:
         run: |-
           GOPROXY="https://proxy.golang.org,direct" make gateway-conformance-test \
             TAG="${HIGRESS_TEST_IMAGE_TAG}" \
-            HIGRESS_CONFORMANCE_VERSION="${HIGRESS_TEST_IMAGE_TAG}"
+            HIGRESS_CONFORMANCE_VERSION="${HIGRESS_TEST_IMAGE_TAG}" \
+            GATEWAY_API_VERSION="${{ matrix.gateway-api-version }}" \
+            GATEWAY_CONFORMANCE_TEST_DIR="${{ matrix.test-directory }}" \
+            GATEWAY_API_CRD_VERSIONS="${{ matrix.crd-versions }}" \
+            GATEWAY_API_CRD_CHANNEL="${{ matrix.crd-channel }}" \
+            GATEWAY_API_REQUIRED_CRDS="${{ matrix.required-crds }}" \
+            GATEWAY_CONFORMANCE_PROFILE="${{ matrix.profiles }}" \
+            GATEWAY_CONFORMANCE_SUPPORTED_FEATURES="${{ matrix.supported-features }}" \
+            GATEWAY_CONFORMANCE_ALLOW_CRDS_MISMATCH="${{ matrix.allow-crds-mismatch }}" \
+            GATEWAY_CONFORMANCE_SUPPORTS_TEST_CLEANUP="${{ matrix.supports-test-cleanup }}"
 
       - name: Collect Gateway API Test Diagnostics
         if: always()
         run: |-
           mkdir -p out/gateway-api-conformance/diagnostics
-          kubectl get gatewayclass,gateway,httproute,grpcroute,tcproute,tlsroute,listenerset,referencegrant,deployment,service,pod,endpointslice -A -o yaml > out/gateway-api-conformance/diagnostics/resources.yaml 2>&1 || true
+          : > out/gateway-api-conformance/diagnostics/resources.yaml
+          for resource in gatewayclass gateway httproute grpcroute tcproute tlsroute listenerset referencegrant deployment service pod endpointslice; do
+            kubectl get "${resource}" -A -o yaml >> out/gateway-api-conformance/diagnostics/resources.yaml 2>&1 || true
+          done
           kubectl get events -A --sort-by=.lastTimestamp > out/gateway-api-conformance/diagnostics/events.txt 2>&1 || true
           kubectl logs -n "${GATEWAY_API_TEST_NAMESPACE}" deployment/higress-controller --all-containers > out/gateway-api-conformance/diagnostics/controller.log 2>&1 || true
           kubectl logs -n "${GATEWAY_API_TEST_NAMESPACE}" deployment/higress-gateway --all-containers > out/gateway-api-conformance/diagnostics/gateway.log 2>&1 || true
@@ -162,7 +199,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gateway-conformance-test
+          name: gateway-conformance-test-${{ matrix.gateway-api-version }}
           path: out/gateway-api-conformance/
           if-no-files-found: warn
 

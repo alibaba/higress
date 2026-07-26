@@ -1,8 +1,11 @@
-module github.com/alibaba/higress/v2/test/gateway
+module github.com/alibaba/higress/v2/test/gateway/v16
 
 go 1.26.0
 
-require sigs.k8s.io/gateway-api/conformance v1.6.0
+require (
+	github.com/alibaba/higress/v2/test/gateway/common v0.0.0
+	sigs.k8s.io/gateway-api/conformance v1.6.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -72,3 +75,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/alibaba/higress/v2/test/gateway/common => ../common

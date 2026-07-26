@@ -276,6 +276,7 @@ func NewControllerWithDefaultGatewaySelector(
 		ListenerSets,
 		GatewayClasses,
 		inputs.Namespaces,
+		inputs.Services,
 		ReferenceGrants,
 		inputs.ConfigMaps,
 		inputs.Secrets,

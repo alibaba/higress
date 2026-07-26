@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package gateway
+package common
 
 import (
 	"bufio"
@@ -26,13 +26,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
-
-	"sigs.k8s.io/gateway-api/conformance"
-	"sigs.k8s.io/gateway-api/conformance/utils/roundtripper"
 )
 
-const dialLocalhostEnv = "HIGRESS_GATEWAY_API_TEST_DIAL_LOCALHOST"
+const DialLocalhostEnv = "HIGRESS_GATEWAY_API_TEST_DIAL_LOCALHOST"
+
 const localHTTPPortEnv = "HIGRESS_GATEWAY_API_TEST_LOCAL_HTTP_PORT"
 const localHTTPSPortEnv = "HIGRESS_GATEWAY_API_TEST_LOCAL_HTTPS_PORT"
 
@@ -42,28 +39,18 @@ type localPortForward struct {
 	done <-chan struct{}
 }
 
-type localGatewayDialer struct {
+type LocalGatewayDialer struct {
 	mu       sync.Mutex
 	forwards map[string]localPortForward
 }
 
 var forwardingAddress = regexp.MustCompile(`Forwarding from 127\.0\.0\.1:(\d+) ->`)
 
-func TestGatewayAPIConformance(t *testing.T) {
-	opts := conformance.DefaultOptions(t)
-	if os.Getenv(dialLocalhostEnv) == "true" {
-		dialer := &localGatewayDialer{forwards: map[string]localPortForward{}}
-		t.Cleanup(dialer.close)
-		opts.RoundTripper = &roundtripper.DefaultRoundTripper{
-			Debug:             opts.Debug,
-			TimeoutConfig:     opts.TimeoutConfig,
-			CustomDialContext: dialer.dialContext,
-		}
-	}
-	conformance.RunConformanceWithOptions(t, opts)
+func NewLocalGatewayDialer() *LocalGatewayDialer {
+	return &LocalGatewayDialer{forwards: map[string]localPortForward{}}
 }
 
-func (d *localGatewayDialer) dialContext(ctx context.Context, network, address string) (net.Conn, error) {
+func (d *LocalGatewayDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, err
@@ -90,7 +77,7 @@ func (d *localGatewayDialer) dialContext(ctx context.Context, network, address s
 	return dialer.DialContext(ctx, network, net.JoinHostPort("127.0.0.1", port))
 }
 
-func (d *localGatewayDialer) forward(namespace, service, remotePort string) (string, error) {
+func (d *LocalGatewayDialer) forward(namespace, service, remotePort string) (string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	key := namespace + "/" + service + ":" + remotePort
@@ -239,67 +226,11 @@ func endpointSlicePodFromJSON(data []byte) (string, error) {
 	return "", fmt.Errorf("no ready Pod endpoint found")
 }
 
-func (d *localGatewayDialer) close() {
+func (d *LocalGatewayDialer) Close() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	for _, forward := range d.forwards {
 		_ = forward.cmd.Process.Kill()
 		<-forward.done
-	}
-}
-
-func TestServiceTargetPortFromJSON(t *testing.T) {
-	tests := []struct {
-		name           string
-		port           string
-		json           string
-		want           string
-		useEndpointPod bool
-	}{
-		{
-			name:           "numeric target port",
-			port:           "80",
-			json:           `{"spec":{"ports":[{"port":80,"targetPort":30080}]}}`,
-			want:           "30080",
-			useEndpointPod: true,
-		},
-		{
-			name: "default target port",
-			port: "8080",
-			json: `{"spec":{"ports":[{"port":8080}]}}`,
-			want: "8080",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, useEndpointPod, err := serviceTargetPortFromJSON([]byte(tt.json), tt.port)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != tt.want {
-				t.Fatalf("serviceTargetPortFromJSON() = %q, want %q", got, tt.want)
-			}
-			if useEndpointPod != tt.useEndpointPod {
-				t.Fatalf("serviceTargetPortFromJSON() useEndpointPod = %t, want %t", useEndpointPod, tt.useEndpointPod)
-			}
-		})
-	}
-}
-
-func TestEndpointSlicePodFromJSON(t *testing.T) {
-	pod, err := endpointSlicePodFromJSON([]byte(`{
-  "items": [
-    {"endpoints": [
-      {"conditions": {"ready": false}, "targetRef": {"kind": "Pod", "name": "not-ready"}},
-      {"conditions": {"ready": true}, "targetRef": {"kind": "Pod", "name": "gateway-123"}}
-    ]}
-  ]
-}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if pod != "gateway-123" {
-		t.Fatalf("endpointSlicePodFromJSON() = %q, want gateway-123", pod)
 	}
 }

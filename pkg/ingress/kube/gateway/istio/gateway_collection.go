@@ -238,6 +238,7 @@ func GatewayCollection(
 	listenerSets krt.Collection[ListenerSet],
 	gatewayClasses krt.Collection[GatewayClass],
 	namespaces krt.Collection[*corev1.Namespace],
+	services krt.Collection[*corev1.Service],
 	grants ReferenceGrants,
 	configMaps krt.Collection[*corev1.ConfigMap],
 	secrets krt.Collection[*corev1.Secret],
@@ -284,6 +285,14 @@ func GatewayCollection(
 		// Start - Updated by Higress
 		// Extract the addresses. A gateway will bind to a specific Service
 		gatewayServices, useDefaultService, err := extractGatewayServices(domainSuffix, obj, classInfo)
+		// ResolveGatewayInstances reads Services through the Kubernetes client, which is
+		// outside krt's dependency graph. Register the Service keys explicitly so a
+		// managed Gateway is recomputed when its generated Service becomes available.
+		for _, hostname := range gatewayServices {
+			if serviceName := extractServiceName(hostname); serviceName != "" {
+				_ = krt.FetchOne(ctx, services, krt.FilterKey(obj.Namespace+"/"+serviceName))
+			}
+		}
 		if len(gatewayServices) == 0 && !useDefaultService && err != nil {
 			// Short circuit if its a hard failure
 			reportGatewayStatus(context, obj, status, gatewayServices, servers, 0, err, 0)

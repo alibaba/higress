@@ -22,12 +22,18 @@ GO ?= go
 export GOPROXY ?= https://proxy.golang.org,direct
 
 GATEWAY_API_VERSION ?= v1.6.0
+GATEWAY_API_CRD_VERSIONS ?= $(GATEWAY_API_VERSION)
+GATEWAY_API_CRD_CHANNEL ?= standard
+GATEWAY_API_REQUIRED_CRDS ?= gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io grpcroutes.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io tcproutes.gateway.networking.k8s.io tlsroutes.gateway.networking.k8s.io
+GATEWAY_CONFORMANCE_TEST_DIR ?= test/gateway/v1.6
 GATEWAY_CONFORMANCE_PROFILE ?= GATEWAY-HTTP,GATEWAY-TLS,GATEWAY-GRPC,GATEWAY-TCP
 GATEWAY_CONFORMANCE_SUPPORTED_FEATURES ?= Gateway,HTTPRoute,TLSRoute,GRPCRoute,TCPRoute,ReferenceGrant
 GATEWAY_CONFORMANCE_REPORT ?= out/gateway-api-conformance/report.yaml
 GATEWAY_CONFORMANCE_CONTACT ?= https://github.com/alibaba/higress/issues
 GATEWAY_CONFORMANCE_RUN_TEST ?=
 GATEWAY_CONFORMANCE_ALLOW_CRDS_MISMATCH ?= false
+GATEWAY_CONFORMANCE_SUPPORTS_TEST_CLEANUP ?= true
+GATEWAY_CONFORMANCE_CLEANUP_TEST_RESOURCES ?= true
 GATEWAY_API_TEST_NAMESPACE ?= gateway-conformance-infra
 GATEWAY_API_GATEWAY_SERVICE_TYPE ?= ClusterIP
 GATEWAY_API_KIND_NODE_TAG ?= v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
@@ -282,19 +288,16 @@ include tools/lint.mk
 # install-gateway-api-crds installs the Gateway API CRDs used by the conformance suite.
 .PHONY: install-gateway-api-crds
 install-gateway-api-crds:
-	kubectl apply --server-side=true -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEWAY_API_VERSION)/standard-install.yaml
-	kubectl wait --for=condition=Established crd/gatewayclasses.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/gateways.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/grpcroutes.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/httproutes.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/listenersets.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/referencegrants.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/tcproutes.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/tlsroutes.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/udproutes.gateway.networking.k8s.io --timeout=120s
-	kubectl wait --for=condition=Established crd/backendtlspolicies.gateway.networking.k8s.io --timeout=120s
+	@for version in $(GATEWAY_API_CRD_VERSIONS); do \
+		kubectl apply --server-side=true --force-conflicts \
+			--field-manager="gateway-api-$${version}" \
+			-f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$${version}/$(GATEWAY_API_CRD_CHANNEL)-install.yaml"; \
+	done
+	@for crd in $(GATEWAY_API_REQUIRED_CRDS); do \
+		kubectl wait --for=condition=Established "crd/$${crd}" --timeout=120s; \
+	done
 
-# create-gateway-api-cluster creates the Kubernetes version used by Gateway API v1.6.0 tests.
+# create-gateway-api-cluster creates the Kubernetes cluster used by Gateway API tests.
 .PHONY: create-gateway-api-cluster
 create-gateway-api-cluster: $(tools/kind-gateway-api)
 	KIND=$(tools/kind-gateway-api) KIND_NODE_TAG=$(GATEWAY_API_KIND_NODE_TAG) tools/hack/create-cluster.sh
@@ -338,6 +341,10 @@ run-gateway-conformance-test:
 	GATEWAY_CONFORMANCE_RUN_TEST='$(GATEWAY_CONFORMANCE_RUN_TEST)' \
 	GATEWAY_CONFORMANCE_PARALLEL='$(GATEWAY_CONFORMANCE_PARALLEL)' \
 	GATEWAY_CONFORMANCE_ALLOW_CRDS_MISMATCH='$(GATEWAY_CONFORMANCE_ALLOW_CRDS_MISMATCH)' \
+	GATEWAY_CONFORMANCE_SUPPORTS_TEST_CLEANUP='$(GATEWAY_CONFORMANCE_SUPPORTS_TEST_CLEANUP)' \
+	GATEWAY_CONFORMANCE_CLEANUP_TEST_RESOURCES='$(GATEWAY_CONFORMANCE_CLEANUP_TEST_RESOURCES)' \
+	GATEWAY_API_VERSION='$(GATEWAY_API_VERSION)' \
+	GATEWAY_CONFORMANCE_TEST_DIR='$(GATEWAY_CONFORMANCE_TEST_DIR)' \
 	HIGRESS_CONFORMANCE_VERSION='$(HIGRESS_CONFORMANCE_VERSION)' \
 	HIGRESS_CONFORMANCE_IMAGE='$(HUB)/higress:$(TAG)' \
 	tools/hack/run-gateway-api-conformance.sh
