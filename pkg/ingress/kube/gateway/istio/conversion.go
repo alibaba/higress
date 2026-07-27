@@ -24,6 +24,7 @@ import (
 	"istio.io/istio/pilot/pkg/credentials"
 	"net"
 	"net/netip"
+	"os"
 	"path"
 	inferencev1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
 	"sort"
@@ -55,7 +56,6 @@ import (
 	"istio.io/istio/pkg/config/schema/gvk"
 	"istio.io/istio/pkg/config/schema/kind"
 	schematypes "istio.io/istio/pkg/config/schema/kubetypes"
-	"istio.io/istio/pkg/env"
 	"istio.io/istio/pkg/kube/controllers"
 	"istio.io/istio/pkg/kube/krt"
 	"istio.io/istio/pkg/ptr"
@@ -69,13 +69,15 @@ const (
 	gatewayClassDefaults       = "gateway.higress.io/defaults-for-class"
 	gatewayNameOverride        = "gateway.higress.io/name-override"
 	serviceTypeOverride        = "networking.istio.io/service-type"
+	gatewayAPIDeploymentEnv    = "PILOT_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER"
 )
 
-var enableGatewayAPIDeploymentController = env.Register(
-	"HIGRESS_ENABLE_GATEWAY_API_DEPLOYMENT_CONTROLLER",
-	false,
-	"If enabled, managed Gateway API Gateways use an isolated Deployment and Service.",
-).Get()
+var enableGatewayAPIDeploymentController = func() bool {
+	// Istio defaults this feature to true, while Higress keeps the shared gateway
+	// deployment model unless users explicitly opt in through the Helm value.
+	_, explicitlySet := os.LookupEnv(gatewayAPIDeploymentEnv)
+	return explicitlySet && features.EnableGatewayAPIDeploymentController
+}()
 
 func sortConfigByCreationTime(configs []config.Config) {
 	sort.Slice(configs, func(i, j int) bool {
