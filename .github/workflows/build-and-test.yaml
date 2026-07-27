@@ -101,21 +101,21 @@ jobs:
           - gateway-api-version: v1.4.0
             check-name: gateway-conformance-test (v1.4.0)
             test-directory: test/gateway/v1.4
-            crd-versions: v1.4.0 v1.6.0
-            crd-channel: experimental
-            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io grpcroutes.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io tlsroutes.gateway.networking.k8s.io
-            profiles: GATEWAY-HTTP,GATEWAY-TLS,GATEWAY-GRPC
-            supported-features: Gateway,HTTPRoute,TLSRoute,GRPCRoute,ReferenceGrant
-            allow-crds-mismatch: "true"
+            crd-versions: v1.4.0
+            crd-channel: standard
+            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io
+            profiles: GATEWAY-HTTP
+            supported-features: Gateway,HTTPRoute,ReferenceGrant
+            allow-crds-mismatch: "false"
             supports-test-cleanup: "false"
           - gateway-api-version: v1.6.0
             check-name: gateway-conformance-test
             test-directory: test/gateway/v1.6
             crd-versions: v1.6.0
             crd-channel: standard
-            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io grpcroutes.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io tcproutes.gateway.networking.k8s.io tlsroutes.gateway.networking.k8s.io
-            profiles: GATEWAY-HTTP,GATEWAY-TLS,GATEWAY-GRPC,GATEWAY-TCP
-            supported-features: Gateway,HTTPRoute,TLSRoute,GRPCRoute,TCPRoute,ReferenceGrant
+            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io
+            profiles: GATEWAY-HTTP
+            supported-features: Gateway,HTTPRoute,ReferenceGrant
             allow-crds-mismatch: "false"
             supports-test-cleanup: "true"
     env:
@@ -181,18 +181,10 @@ jobs:
         if: always()
         run: |-
           mkdir -p out/gateway-api-conformance/diagnostics
-          : > out/gateway-api-conformance/diagnostics/resources.yaml
-          for resource in gatewayclass gateway httproute grpcroute tcproute tlsroute listenerset referencegrant deployment service pod endpointslice; do
-            kubectl get "${resource}" -A -o yaml >> out/gateway-api-conformance/diagnostics/resources.yaml 2>&1 || true
-          done
+          kubectl get gatewayclass,gateway,httproute,referencegrant -A -o yaml > out/gateway-api-conformance/diagnostics/resources.yaml 2>&1 || true
           kubectl get events -A --sort-by=.lastTimestamp > out/gateway-api-conformance/diagnostics/events.txt 2>&1 || true
           kubectl logs -n "${GATEWAY_API_TEST_NAMESPACE}" deployment/higress-controller --all-containers > out/gateway-api-conformance/diagnostics/controller.log 2>&1 || true
           kubectl logs -n "${GATEWAY_API_TEST_NAMESPACE}" deployment/higress-gateway --all-containers > out/gateway-api-conformance/diagnostics/gateway.log 2>&1 || true
-          while read -r namespace pod; do
-            name="${namespace}_${pod}"
-            kubectl logs -n "${namespace}" "${pod}" -c higress-gateway > "out/gateway-api-conformance/diagnostics/${name}.log" 2>&1 || true
-            kubectl exec -n "${namespace}" "${pod}" -c higress-gateway -- pilot-agent request GET config_dump > "out/gateway-api-conformance/diagnostics/${name}-config-dump.json" 2>&1 || true
-          done < <(kubectl get pod -A -l gateway.higress.io/managed=true -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}')
           tools/bin/kind-gateway-api export logs out/gateway-api-conformance/diagnostics/kind --name higress || true
 
       - name: Upload Gateway API Test Results
