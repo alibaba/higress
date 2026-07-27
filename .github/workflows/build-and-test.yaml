@@ -109,7 +109,7 @@ jobs:
             allow-crds-mismatch: "false"
             supports-test-cleanup: "false"
           - gateway-api-version: v1.6.0
-            check-name: gateway-conformance-test
+            check-name: gateway-conformance-test (v1.6.0)
             test-directory: test/gateway/v1.6
             crd-versions: v1.6.0
             crd-channel: standard
