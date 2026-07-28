@@ -128,6 +128,12 @@ const (
 	AnswerPathOpenAIStreaming = "choices.0.delta.content"
 	AnswerPathClaudeStreaming = "delta.text"
 
+	// OpenAI Responses streaming events
+	ResponsesEventOutputTextDelta       = "response.output_text.delta"
+	ResponsesEventReasoningSummaryDelta = "response.reasoning_summary_text.delta"
+	ResponsesEventTypePath              = "type"
+	ResponsesDeltaPath                  = "delta"
+
 	// Tool calls paths (OpenAI format)
 	ToolCallsPathNonStreaming = "choices.0.message.tool_calls"
 	ToolCallsPathStreaming    = "choices.0.delta.tool_calls"
@@ -1118,6 +1124,10 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 			if value := extractStreamingBodyByJsonPath(body, AnswerPathClaudeStreaming, rule); value != nil && value != "" {
 				return value
 			}
+			// Try OpenAI Responses format
+			if value := extractStreamingBodyByEventType(body, ResponsesEventOutputTextDelta, ResponsesDeltaPath, rule); value != nil && value != "" {
+				return value
+			}
 		} else if source == ResponseBody {
 			// Try OpenAI format first
 			if value := gjson.GetBytes(body, AnswerPathOpenAINonStreaming).Value(); value != nil && value != "" {
@@ -1125,6 +1135,10 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 			}
 			// Try Claude format
 			if value := gjson.GetBytes(body, AnswerPathClaudeNonStreaming).Value(); value != nil && value != "" {
+				return value
+			}
+			// Try OpenAI Responses format
+			if value := extractResponsesText(body, "message", "content", "output_text"); value != "" {
 				return value
 			}
 		}
@@ -1157,8 +1171,14 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 			if value := extractStreamingBodyByJsonPath(body, ReasoningPathStreaming, RuleAppend); value != nil && value != "" {
 				return value
 			}
+			if value := extractStreamingBodyByEventType(body, ResponsesEventReasoningSummaryDelta, ResponsesDeltaPath, RuleAppend); value != nil && value != "" {
+				return value
+			}
 		} else if source == ResponseBody {
 			if value := gjson.GetBytes(body, ReasoningPathNonStreaming).Value(); value != nil && value != "" {
+				return value
+			}
+			if value := extractResponsesText(body, "reasoning", "summary", "summary_text"); value != "" {
 				return value
 			}
 		}
@@ -1204,6 +1224,31 @@ func getBuiltinAttributeFallback(ctx wrapper.HttpContext, config AIStatisticsCon
 // 边界情况：append 会保留历史行为继续拼接字符串，空 chunk 不产生额外内容；不支持的 rule 返回 nil 并记录错误日志。
 func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) interface{} {
 	chunks := bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n"))
+	return extractStreamingBodyFromChunks(chunks, jsonPath, rule)
+}
+
+func extractStreamingBodyByEventType(data []byte, eventType, jsonPath, rule string) interface{} {
+	chunks := bytes.Split(bytes.TrimSpace(wrapper.UnifySSEChunk(data)), []byte("\n\n"))
+	matchingChunks := make([][]byte, 0, len(chunks))
+	for _, chunk := range chunks {
+		if gjson.GetBytes(chunk, ResponsesEventTypePath).String() == eventType || getSSEEventType(chunk) == eventType {
+			matchingChunks = append(matchingChunks, chunk)
+		}
+	}
+	return extractStreamingBodyFromChunks(matchingChunks, jsonPath, rule)
+}
+
+func getSSEEventType(chunk []byte) string {
+	for _, line := range bytes.Split(chunk, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if bytes.HasPrefix(line, []byte("event:")) {
+			return strings.TrimSpace(string(line[len("event:"):]))
+		}
+	}
+	return ""
+}
+
+func extractStreamingBodyFromChunks(chunks [][]byte, jsonPath string, rule string) interface{} {
 	var value interface{}
 	if rule == RuleFirst {
 		for _, chunk := range chunks {
@@ -1236,6 +1281,21 @@ func extractStreamingBodyByJsonPath(data []byte, jsonPath string, rule string) i
 		log.Errorf("unsupported rule type: %s", rule)
 	}
 	return value
+}
+
+func extractResponsesText(body []byte, itemType, partsField, partType string) string {
+	var value strings.Builder
+	for _, item := range gjson.GetBytes(body, "output").Array() {
+		if item.Get("type").String() != itemType {
+			continue
+		}
+		for _, part := range item.Get(partsField).Array() {
+			if part.Get("type").String() == partType {
+				value.WriteString(part.Get("text").String())
+			}
+		}
+	}
+	return value.String()
 }
 
 // isNonEmptyJSONValue 判断 gjson 结果是否可以作为 first/replace 的有效流式提取值。
