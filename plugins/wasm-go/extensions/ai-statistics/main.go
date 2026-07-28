@@ -52,6 +52,7 @@ const (
 	CtxGeneralAtrribute        = "attributes"
 	CtxLogAtrribute            = "logAttributes"
 	CtxStreamingBodyBuffer     = "streamingBodyBuffer"
+	CtxStreamingUsageBuffer    = "streamingUsageBuffer"
 	RouteName                  = "route"
 	ClusterName                = "cluster"
 	APIName                    = "api"
@@ -61,6 +62,10 @@ const (
 
 	// Session ID related
 	SessionID = "session_id"
+
+	// Keep incomplete stream fragments bounded. Usage events are small; this
+	// limit prevents malformed streams from retaining an unbounded response.
+	maxStreamingUsageBufferBytes = 64 * 1024
 
 	// AI API Paths
 	PathOpenAIChatCompletions       = "/v1/chat/completions"
@@ -845,7 +850,7 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 
 	// Set information about this request
 	if !config.disableOpenaiUsage {
-		if usage := tokenusage.GetTokenUsage(ctx, data); usage.TotalToken > 0 {
+		if usage := getStreamingTokenUsage(ctx, data, endOfStream); usage.TotalToken > 0 {
 			// Set span attributes for ARMS.
 			setSpanAttribute(ArmsTotalToken, usage.TotalToken)
 			setSpanAttribute(ArmsModelName, usage.Model)
@@ -891,6 +896,93 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		writeMetric(ctx, config, bodyForMetric)
 	}
 	return data
+}
+
+func getStreamingTokenUsage(ctx wrapper.HttpContext, data []byte, endOfStream bool) tokenusage.TokenUsage {
+	pending := ctx.GetByteSliceContext(CtxStreamingUsageBuffer, nil)
+	candidate := make([]byte, 0, len(pending)+len(data))
+	candidate = append(candidate, pending...)
+	candidate = append(candidate, data...)
+
+	if boundary := lastSSEEventBoundary(candidate); boundary >= 0 {
+		usage := tokenusage.GetTokenUsage(ctx, candidate[:boundary])
+		tail := candidate[boundary:]
+		if len(bytes.TrimSpace(tail)) > 0 && (endOfStream || isCompleteStreamingEvent(tail)) {
+			tailUsage := tokenusage.GetTokenUsage(ctx, tail)
+			if tailUsage.TotalToken > 0 {
+				usage = tailUsage
+			}
+			tail = nil
+		}
+		setStreamingUsageBuffer(ctx, tail)
+		return usage
+	}
+
+	usage := tokenusage.GetTokenUsage(ctx, candidate)
+	if endOfStream || isCompleteStreamingEvent(candidate) {
+		setStreamingUsageBuffer(ctx, nil)
+		return usage
+	}
+	setStreamingUsageBuffer(ctx, candidate)
+	return usage
+}
+
+func lastSSEEventBoundary(data []byte) int {
+	lastBoundary := -1
+	previousWasLineEnding := false
+	for i := 0; i < len(data); {
+		switch data[i] {
+		case '\r':
+			i++
+			if i < len(data) && data[i] == '\n' {
+				i++
+			}
+			if previousWasLineEnding {
+				lastBoundary = i
+			}
+			previousWasLineEnding = true
+		case '\n':
+			i++
+			if previousWasLineEnding {
+				lastBoundary = i
+			}
+			previousWasLineEnding = true
+		default:
+			previousWasLineEnding = false
+			i++
+		}
+	}
+	return lastBoundary
+}
+
+func setStreamingUsageBuffer(ctx wrapper.HttpContext, data []byte) {
+	if len(data) == 0 {
+		ctx.SetContext(CtxStreamingUsageBuffer, nil)
+		return
+	}
+	if len(data) > maxStreamingUsageBufferBytes {
+		data = data[len(data)-maxStreamingUsageBufferBytes:]
+	}
+	ctx.SetContext(CtxStreamingUsageBuffer, append([]byte(nil), data...))
+}
+
+func isCompleteStreamingEvent(data []byte) bool {
+	data = bytes.TrimSpace(wrapper.UnifySSEChunk(data))
+	if len(data) == 0 || bytes.Equal(data, []byte("[DONE]")) || json.Valid(data) {
+		return true
+	}
+
+	var payload []byte
+	for _, line := range bytes.Split(data, []byte("\n")) {
+		if !bytes.HasPrefix(line, []byte("data:")) {
+			continue
+		}
+		if len(payload) > 0 {
+			payload = append(payload, '\n')
+		}
+		payload = append(payload, bytes.TrimSpace(line[len("data:"):])...)
+	}
+	return bytes.Equal(payload, []byte("[DONE]")) || json.Valid(payload)
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte) types.Action {

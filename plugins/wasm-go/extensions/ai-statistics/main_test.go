@@ -111,6 +111,14 @@ var streamingBodyConfig = func() json.RawMessage {
 	return data
 }()
 
+var lightweightStreamingConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"use_default_response_attributes": true,
+		"disable_openai_usage":            false,
+	})
+	return data
+}()
+
 var streamingModelExtractionConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"attributes": []map[string]interface{}{
@@ -646,6 +654,56 @@ func TestOnHttpStreamingBody(t *testing.T) {
 	})
 }
 
+func TestStreamingUsageHelpers(t *testing.T) {
+	t.Run("finds last SSE event boundary", func(t *testing.T) {
+		tests := []struct {
+			name string
+			data string
+			want int
+		}{
+			{
+				name: "LF",
+				data: "data: {}\n\n",
+				want: len("data: {}\n\n"),
+			},
+			{
+				name: "CRLF",
+				data: "data: {}\r\n\r\n",
+				want: len("data: {}\r\n\r\n"),
+			},
+			{
+				name: "mixed line endings",
+				data: "data: {}\r\n\n",
+				want: len("data: {}\r\n\n"),
+			},
+			{
+				name: "retains incomplete tail",
+				data: "data: {}\n\ndata: {",
+				want: len("data: {}\n\n"),
+			},
+			{
+				name: "no boundary",
+				data: "data: {",
+				want: -1,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				require.Equal(t, tt.want, lastSSEEventBoundary([]byte(tt.data)))
+			})
+		}
+	})
+
+	t.Run("detects complete streaming events", func(t *testing.T) {
+		require.True(t, isCompleteStreamingEvent([]byte(`{"usage":{"total_tokens":1}}`)))
+		require.True(t, isCompleteStreamingEvent([]byte("event: message\ndata: {\"usage\":{\"total_tokens\":1}}")))
+		require.True(t, isCompleteStreamingEvent([]byte("data: [DONE]")))
+		require.True(t, isCompleteStreamingEvent(nil))
+		require.False(t, isCompleteStreamingEvent([]byte(`data: {"usage":{"total_tok`)))
+	})
+}
+
 func TestOnHttpResponseBody(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		// 测试基本响应体处理
@@ -892,6 +950,67 @@ func TestMetrics(t *testing.T) {
 			totalTokenValue, err := host.GetCounterMetric(totalTokenMetric)
 			require.NoError(t, err)
 			require.Equal(t, uint64(13), totalTokenValue)
+		})
+
+		t.Run("streaming usage split across body callbacks", func(t *testing.T) {
+			host, status := test.NewTestHost(lightweightStreamingConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.SetRouteName("api-v1")
+			host.SetClusterName("cluster-1")
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/messages?beta=true"},
+				{":method", "POST"},
+				{"x-mse-consumer", "claude-code"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			action = host.CallOnHttpRequestBody([]byte(`{
+				"model": "glm-5.2",
+				"stream": true,
+				"messages": [{"role": "user", "content": "hello"}]
+			}`))
+			require.Equal(t, types.ActionContinue, action)
+
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/event-stream"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			// Envoy body callback boundaries are independent of SSE event
+			// boundaries. Include an early usage event, then split the final
+			// usage key itself to ensure the incomplete tail is retained.
+			action = host.CallOnHttpStreamingResponseBody(
+				[]byte("data: {\"id\":\"chatcmpl-123\",\"model\":\"glm-5.2\",\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":1,\"total_tokens\":11}}\n\ndata: {\"id\":\"chatcmpl-123\",\"model\":\"glm-5.2\",\"choices\":[],\"us"),
+				false,
+			)
+			require.Equal(t, types.ActionContinue, action)
+			action = host.CallOnHttpStreamingResponseBody(
+				[]byte("age\":{\"prompt_tokens\":923560,\"completion_tokens\":210,\"total_tokens\":923770}}\n\n"),
+				true,
+			)
+			require.Equal(t, types.ActionContinue, action)
+
+			inputTokenMetric := "route.api-v1.upstream.cluster-1.model.glm-5.2.consumer.claude-code.metric.input_token"
+			inputTokenValue, err := host.GetCounterMetric(inputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(923560), inputTokenValue)
+
+			outputTokenMetric := "route.api-v1.upstream.cluster-1.model.glm-5.2.consumer.claude-code.metric.output_token"
+			outputTokenValue, err := host.GetCounterMetric(outputTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(210), outputTokenValue)
+
+			totalTokenMetric := "route.api-v1.upstream.cluster-1.model.glm-5.2.consumer.claude-code.metric.total_token"
+			totalTokenValue, err := host.GetCounterMetric(totalTokenMetric)
+			require.NoError(t, err)
+			require.Equal(t, uint64(923770), totalTokenValue)
+
+			host.CompleteHttp()
 		})
 	})
 }
