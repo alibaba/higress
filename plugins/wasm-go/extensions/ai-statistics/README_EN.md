@@ -69,9 +69,9 @@ The plugin provides several built-in attribute keys that can be used directly wi
 | Built-in Key | Description | Use Case |
 |--------------|-------------|----------|
 | `question` | User's question content | Supports OpenAI/Claude message formats |
-| `answer` | AI's answer content | Supports OpenAI/Claude message formats, both streaming and non-streaming |
+| `answer` | AI's answer content | Supports OpenAI Chat Completions, OpenAI Responses, and Claude formats, both streaming and non-streaming |
 | `tool_calls` | Tool call information | OpenAI/Claude tool calls |
-| `reasoning` | Reasoning process | OpenAI o1 and other reasoning models |
+| `reasoning` | Reasoning process | Supports Chat Completions `reasoning_content` and Responses API reasoning summaries |
 | `reasoning_tokens` | Number of reasoning tokens (e.g., o1 model) | OpenAI Chat Completions, extracted from `output_token_details.reasoning_tokens` |
 | `cached_tokens` | Number of cached tokens | OpenAI Chat Completions, extracted from `input_token_details.cached_tokens` |
 | `input_token_details` | Complete input token details (object) | OpenAI/Gemini/Anthropic, includes cache, tool usage, etc. |
@@ -329,9 +329,9 @@ The plugin provides the following built-in attribute keys that automatically ext
 | Built-in Key | Description | Default value_source |
 |-------------|-------------|----------------------|
 | `question` | Automatically extracts the last user message | `request_body` |
-| `answer` | Automatically extracts answer content (supports OpenAI/Claude protocols) | `response_streaming_body` / `response_body` |
+| `answer` | Automatically extracts answer content (supports OpenAI Chat Completions, OpenAI Responses, and Claude protocols) | `response_streaming_body` / `response_body` |
 | `tool_calls` | Automatically extracts and assembles tool calls (streaming scenarios auto-concatenate arguments by index) | `response_streaming_body` / `response_body` |
-| `reasoning` | Automatically extracts reasoning process (reasoning_content, e.g., DeepSeek-R1) | `response_streaming_body` / `response_body` |
+| `reasoning` | Automatically extracts reasoning (Chat Completions reasoning_content or Responses API reasoning summary) | `response_streaming_body` / `response_body` |
 
 > **Note**: If `value_source` and `value` are configured, the configured values take priority for backward compatibility.
 

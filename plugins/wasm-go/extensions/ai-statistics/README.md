@@ -72,9 +72,9 @@ Attribute 配置说明:
 |---------|------|---------|
 | `question` | 用户提问内容 | 支持 OpenAI/Claude 消息格式 |
 | `system` | 系统提示词 | 支持 Claude `/v1/messages` 的顶层 system 字段 |
-| `answer` | AI 回答内容 | 支持 OpenAI/Claude 消息格式，流式和非流式 |
+| `answer` | AI 回答内容 | 支持 OpenAI Chat Completions、OpenAI Responses 和 Claude 消息格式，流式和非流式 |
 | `tool_calls` | 工具调用信息 | OpenAI/Claude 工具调用 |
-| `reasoning` | 推理过程 | OpenAI o1 等推理模型 |
+| `reasoning` | 推理过程 | 支持 Chat Completions 的 `reasoning_content` 和 Responses API 的 reasoning summary |
 | `reasoning_tokens` | 推理 token 数（如 o1 模型） | OpenAI Chat Completions，从 `output_token_details.reasoning_tokens` 提取 |
 | `cached_tokens` | 缓存命中的 token 数 | OpenAI Chat Completions，从 `input_token_details.cached_tokens` 提取 |
 | `input_token_details` | 输入 token 详细信息（完整对象） | OpenAI/Gemini/Anthropic，包含缓存、工具使用等详情 |
@@ -280,9 +280,9 @@ attributes:
 | 内置 Key | 说明 | 默认 value_source |
 |---------|------|-------------------|
 | `question` | 自动提取最后一条用户消息 | `request_body` |
-| `answer` | 自动提取回答内容（支持 OpenAI/Claude 协议） | `response_streaming_body` / `response_body` |
+| `answer` | 自动提取回答内容（支持 OpenAI Chat Completions、OpenAI Responses 和 Claude 协议） | `response_streaming_body` / `response_body` |
 | `tool_calls` | 自动提取并拼接工具调用（流式场景自动按 index 拼接 arguments） | `response_streaming_body` / `response_body` |
-| `reasoning` | 自动提取思考过程（reasoning_content，如 DeepSeek-R1） | `response_streaming_body` / `response_body` |
+| `reasoning` | 自动提取思考过程（Chat Completions 的 reasoning_content 或 Responses API 的 reasoning summary） | `response_streaming_body` / `response_body` |
 
 > **注意**：如果配置了 `value_source` 和 `value`，将优先使用配置的值，以保持向后兼容。
 

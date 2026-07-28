@@ -1138,6 +1138,14 @@ var builtinAttributesConfig = func() json.RawMessage {
 	return data
 }()
 
+var responsesAttributesConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"use_default_attributes": true,
+		"enable_path_suffixes":   []string{"/responses"},
+	})
+	return data
+}()
+
 // 测试配置：session_id 配置
 var sessionIdConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -1326,6 +1334,99 @@ func TestBuiltinAttributesDefaultSource(t *testing.T) {
 
 			chunk3 := []byte(`data: {"choices":[{"delta":{"content":" cross the road?"}}]}`)
 			host.CallOnHttpStreamingResponseBody(chunk3, true)
+
+			host.CompleteHttp()
+		})
+	})
+}
+
+func TestResponsesContentExtraction(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("streaming output and reasoning", func(t *testing.T) {
+			host, status := test.NewTestHost(responsesAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.openai.azure.com"},
+				{":path", "/openai/responses?api-version=2025-04-01-preview"},
+				{":method", "POST"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+			action = host.CallOnHttpRequestBody([]byte(`{
+				"model": "gpt-5-codex",
+				"input": "fix the tests",
+				"stream": true
+			}`))
+			require.Equal(t, types.ActionContinue, action)
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/event-stream"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			chunks := [][]byte{
+				[]byte("event: response.reasoning_summary_part.added\ndata: {\"type\":\"response.reasoning_summary_part.added\",\"part\":{\"type\":\"summary_text\",\"text\":\"\"}}\n\n"),
+				[]byte("event: response.reasoning_summary_text.delta\ndata: {\"type\":\"response.reasoning_summary_text.delta\",\"delta\":\"**Creating\"}\n\n"),
+				[]byte("data: {\"type\":\"response.reasoning_summary_text.delta\",\"delta\":\" a plan**\"}\n\n"),
+				[]byte("event: response.output_text.delta\ndata: {\"delta\":\"The \"}\n\n"),
+				[]byte("event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"tests pass.\"}\n\n"),
+			}
+			for i, chunk := range chunks {
+				action = host.CallOnHttpStreamingResponseBody(chunk, i == len(chunks)-1)
+				require.Equal(t, types.ActionContinue, action)
+			}
+
+			attrs := getAILogAttributes(t, host)
+			require.Equal(t, "The tests pass.", attrs[BuiltinAnswerKey])
+			require.Equal(t, "**Creating a plan**", attrs[BuiltinReasoningKey])
+
+			host.CompleteHttp()
+		})
+
+		t.Run("non-streaming output and reasoning", func(t *testing.T) {
+			host, status := test.NewTestHost(responsesAttributesConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.openai.azure.com"},
+				{":path", "/openai/responses?api-version=2025-04-01-preview"},
+				{":method", "POST"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+			action = host.CallOnHttpRequestBody([]byte(`{
+				"model": "gpt-5-codex",
+				"input": "fix the tests"
+			}`))
+			require.Equal(t, types.ActionContinue, action)
+			action = host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+
+			action = host.CallOnHttpResponseBody([]byte(`{
+				"output": [
+					{
+						"type": "reasoning",
+						"summary": [
+							{"type": "summary_text", "text": "**Creating a plan**"}
+						]
+					},
+					{
+						"type": "message",
+						"content": [
+							{"type": "output_text", "text": "The tests pass."}
+						]
+					}
+				]
+			}`))
+			require.Equal(t, types.ActionContinue, action)
+
+			attrs := getAILogAttributes(t, host)
+			require.Equal(t, "The tests pass.", attrs[BuiltinAnswerKey])
+			require.Equal(t, "**Creating a plan**", attrs[BuiltinReasoningKey])
 
 			host.CompleteHttp()
 		})
