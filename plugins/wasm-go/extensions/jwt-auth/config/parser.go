@@ -32,6 +32,10 @@ const minJWKsCacheDuration = RemoteJWKsMinRefreshIntervalSeconds
 // 此处解析的是全局配置，域名和路由级配置由 ParseRuleConfig 负责。
 func ParseGlobalConfig(json gjson.Result, config *JWTAuthConfig, log log.Log) error {
 	config.RuleSet = len(json.Get("_rules_").Array()) > 0
+	if json.Get("global_auth").Exists() {
+		v := json.Get("global_auth").Bool()
+		config.GlobalAuth = &v
+	}
 	consumers := json.Get("consumers")
 	if !consumers.IsArray() {
 		return fmt.Errorf("failed to parse configuration for consumers: consumers is not a array")

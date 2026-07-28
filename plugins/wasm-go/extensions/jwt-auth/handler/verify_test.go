@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -224,7 +225,7 @@ func TestConsumerVerifyWithRemoteSingleKeyJWKsAllowsMissingKid(t *testing.T) {
 	}
 }
 
-func TestConsumerVerifyWithRemoteMultiKeyJWKsRejectsMissingKidWhenEmptyKidKeyExists(t *testing.T) {
+func TestConsumerVerifyWithRemoteMultiKeyJWKsAllowsMissingKidWhenEmptyKidKeyExists(t *testing.T) {
 	log := &testLogger{T: t}
 	uri := "https://auth.example.com/.well-known/jwks.json"
 	token, multiKeyJWKs := signedES256TokenWithoutKidAndMultiKeyJWKsWithEmptyKid(t)
@@ -234,14 +235,8 @@ func TestConsumerVerifyWithRemoteMultiKeyJWKsRejectsMissingKidWhenEmptyKidKeyExi
 	header := &testProvider{headerMap: map[string]string{"jwt": "Bearer " + token}}
 	consumer := remoteJWKsVerifyConsumer(uri)
 	_, err := consumerVerify(consumer, time.Now(), header, log)
-	if err == nil {
-		t.Fatalf("expected remote multi-key jwks token without kid to fail")
-	}
-	if !strings.Contains(err.Error(), "kid is required for multi-key remote jwks") {
-		t.Fatalf("expected multi-key remote jwks missing kid denial, got: %v", err)
-	}
-	if isRemoteJWKsCacheMiss(err) {
-		t.Fatalf("missing kid should be denied without remote jwks refresh")
+	if err != nil {
+		t.Fatalf("expected remote multi-key jwks token without kid to succeed, got: %v", err)
 	}
 }
 
@@ -304,25 +299,19 @@ func TestConsumerVerifyWithRemoteJWKsReturnsCacheMissOnUnknownKid(t *testing.T) 
 	}
 }
 
-func TestConsumerVerifyWithRemoteJWKsRejectsMissingKid(t *testing.T) {
+func TestConsumerVerifyWithRemoteJWKsAllowsMissingKid(t *testing.T) {
 	log := &testLogger{T: t}
 	uri := "https://auth.example.com/.well-known/jwks.json"
-	cacheRemoteJWKsForTest("consumer-remote", uri, JWKs, time.Now().Add(time.Minute))
+	token, jwks := signedES256TokenWithoutKid(t)
+	cacheRemoteJWKsForTest("consumer-remote", uri, jwks, time.Now().Add(time.Minute))
 	defer clearRemoteJWKsCacheForTest()
 
-	tokenWithoutKid := jwtWithHeader(ES256Allow, `{"alg":"ES256","typ":"JWT"}`)
-	header := &testProvider{headerMap: map[string]string{"jwt": "Bearer " + tokenWithoutKid}}
+	header := &testProvider{headerMap: map[string]string{"jwt": "Bearer " + token}}
 	consumer := remoteJWKsVerifyConsumer(uri)
 	_, err := consumerVerify(consumer, time.Now(), header, log)
 
-	if err == nil {
-		t.Fatalf("expected remote jwks token without kid to fail")
-	}
-	if !strings.Contains(err.Error(), "kid is required for multi-key remote jwks") {
-		t.Fatalf("expected multi-key remote jwks missing kid denial, got: %v", err)
-	}
-	if isRemoteJWKsCacheMiss(err) {
-		t.Fatalf("missing kid should be denied without remote jwks refresh")
+	if err != nil {
+		t.Fatalf("expected remote jwks token without kid to succeed, got: %v", err)
 	}
 }
 
@@ -448,6 +437,70 @@ func jwtWithPayload(token, payload string) string {
 	parts := strings.Split(token, ".")
 	parts[1] = base64.RawURLEncoding.EncodeToString([]byte(payload))
 	return strings.Join(parts, ".")
+}
+
+func TestFilterKeysByAlg(t *testing.T) {
+	// Generate RSA and EC keys for testing
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
+	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("failed to generate EC key: %v", err)
+	}
+	symmetricKey := []byte("test-symmetric-key-32bytes!")
+
+	mixedKeys := []jose.JSONWebKey{
+		{Key: &rsaKey.PublicKey},
+		{Key: &ecKey.PublicKey},
+		{Key: symmetricKey},
+	}
+
+	t.Run("RS256 filters to RSA keys only", func(t *testing.T) {
+		result := filterKeysByAlg(mixedKeys, []jose.Header{{Algorithm: "RS256"}})
+		if len(result) != 1 {
+			t.Fatalf("expected 1 RSA key, got %d", len(result))
+		}
+		if _, ok := result[0].Key.(*rsa.PublicKey); !ok {
+			t.Fatalf("expected RSA key type")
+		}
+	})
+
+	t.Run("ES256 filters to EC keys only", func(t *testing.T) {
+		result := filterKeysByAlg(mixedKeys, []jose.Header{{Algorithm: "ES256"}})
+		if len(result) != 1 {
+			t.Fatalf("expected 1 EC key, got %d", len(result))
+		}
+		if _, ok := result[0].Key.(*ecdsa.PublicKey); !ok {
+			t.Fatalf("expected EC key type")
+		}
+	})
+
+	t.Run("HS256 filters to symmetric keys only", func(t *testing.T) {
+		result := filterKeysByAlg(mixedKeys, []jose.Header{{Algorithm: "HS256"}})
+		if len(result) != 1 {
+			t.Fatalf("expected 1 symmetric key, got %d", len(result))
+		}
+		if _, ok := result[0].Key.([]byte); !ok {
+			t.Fatalf("expected symmetric key type")
+		}
+	})
+
+	t.Run("unknown alg returns all keys", func(t *testing.T) {
+		result := filterKeysByAlg(mixedKeys, []jose.Header{{Algorithm: "CustomAlg"}})
+		if len(result) != 3 {
+			t.Fatalf("expected all 3 keys for unknown alg, got %d", len(result))
+		}
+	})
+
+	t.Run("no headers returns all keys", func(t *testing.T) {
+		result := filterKeysByAlg(mixedKeys, nil)
+		if len(result) != 3 {
+			t.Fatalf("expected all 3 keys when no headers, got %d", len(result))
+		}
+	})
+
 }
 
 func signedES256TokenWithoutKid(t *testing.T) (string, string) {

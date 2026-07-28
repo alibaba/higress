@@ -15,6 +15,9 @@
 package handler
 
 import (
+	"crypto/ecdsa"
+	"crypto/ed25519"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -161,15 +164,9 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, header HeaderP
 			}
 		} else if len(jwks.Keys) == 1 {
 			key = jwks.Keys[0]
-		} else {
-			return nil, &ErrDenied{
-				msg: fmt.Sprintf("jwt verify failed, consumer: %s, token: %s, reason: kid is required for multi-key remote jwks",
-					consumer.Name,
-					tokenLogValue,
-				),
-				denied: deniedJWTVerificationFails,
-			}
 		}
+		// For multi-key remote JWKS without kid, 
+		// key stays zero-value and will try each key during verification below.
 	} else if keys := jwks.Key(kid); len(keys) == 0 {
 		if consumer.RemoteJWKs != nil {
 			if remoteJWKsFetchedAfter(consumer, verifyTime) {
@@ -192,15 +189,43 @@ func consumerVerify(consumer *cfg.Consumer, verifyTime time.Time, header HeaderP
 	// Claims 支持直接传入 jose 的 jwk
 	// 无需额外调用verify，claims内部已进行验证
 	rawClaims := map[string]any{}
-	err = token.Claims(key, &out, &rawClaims)
-	if err != nil {
-		return nil, &ErrDenied{
-			msg: fmt.Sprintf("jwt verify failed, consumer: %s, token: %s, reason: %s",
-				consumer.Name,
-				tokenLogValue,
-				err.Error(),
-			),
-			denied: deniedJWTVerificationFails,
+	if key.Key == nil && len(jwks.Keys) > 1 {
+		// kid not specified, filter keys by type inferred from alg, then try each
+		candidates := filterKeysByAlg(jwks.Keys, token.Headers)
+		if len(candidates) == 0 {
+			candidates = jwks.Keys
+		}
+		var lastErr error
+		for _, candidate := range candidates {
+			rawClaims = map[string]any{}
+			if err := token.Claims(candidate, &out, &rawClaims); err == nil {
+				key = candidate
+				break
+			} else {
+				lastErr = err
+			}
+		}
+		if key.Key == nil {
+			return nil, &ErrDenied{
+				msg: fmt.Sprintf("jwt verify failed, consumer: %s, token: %s, reason: %s",
+					consumer.Name,
+					tokenLogValue,
+					lastErr.Error(),
+				),
+				denied: deniedJWTVerificationFails,
+			}
+		}
+	} else {
+		err = token.Claims(key, &out, &rawClaims)
+		if err != nil {
+			return nil, &ErrDenied{
+				msg: fmt.Sprintf("jwt verify failed, consumer: %s, token: %s, reason: %s",
+					consumer.Name,
+					tokenLogValue,
+					err.Error(),
+				),
+				denied: deniedJWTVerificationFails,
+			}
 		}
 	}
 
@@ -293,4 +318,36 @@ func WWWAuthenticateHeader(realm string) [][2]string {
 	return [][2]string{
 		{"WWW-Authenticate", fmt.Sprintf("JWT realm=%s", realm)},
 	}
+}
+
+func filterKeysByAlg(keys []jose.JSONWebKey, headers []jose.Header) []jose.JSONWebKey {
+	alg := ""
+	if len(headers) > 0 {
+		alg = headers[0].Algorithm
+	}
+	var filtered []jose.JSONWebKey
+	for _, k := range keys {
+		switch {
+		case len(alg) >= 2 && (alg[:2] == "RS" || alg[:2] == "PS"):
+			if _, ok := k.Key.(*rsa.PublicKey); ok {
+				filtered = append(filtered, k)
+			}
+		case len(alg) >= 2 && alg[:2] == "ES":
+			if _, ok := k.Key.(*ecdsa.PublicKey); ok {
+				filtered = append(filtered, k)
+			}
+		case len(alg) >= 2 && alg[:2] == "HS":
+			if _, ok := k.Key.([]byte); ok {
+				filtered = append(filtered, k)
+			}
+		case alg == "EdDSA":
+			if _, ok := k.Key.(ed25519.PublicKey); ok {
+				filtered = append(filtered, k)
+			}
+		default:
+			// Unknown alg, include all non-enc keys
+			filtered = append(filtered, k)
+		}
+	}
+	return filtered
 }

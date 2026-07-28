@@ -46,6 +46,59 @@ func TestParseGlobalConfigRecordsRulesExist(t *testing.T) {
 	}
 }
 
+func TestParseGlobalConfigReadsGlobalAuthTrue(t *testing.T) {
+	cfg := &JWTAuthConfig{}
+	err := ParseGlobalConfig(gjson.Parse(`{
+		"consumers": [{
+			"name": "inline-consumer",
+			"issuer": "higress-test",
+			"jwks": `+quoteJSON(testJWKs)+`
+		}],
+		"global_auth": true
+	}`), cfg, nil)
+	if err != nil {
+		t.Fatalf("ParseGlobalConfig returned error: %v", err)
+	}
+	if cfg.GlobalAuth == nil || !*cfg.GlobalAuth {
+		t.Fatalf("expected global_auth to be true, got: %v", cfg.GlobalAuth)
+	}
+}
+
+func TestParseGlobalConfigReadsGlobalAuthFalse(t *testing.T) {
+	cfg := &JWTAuthConfig{}
+	err := ParseGlobalConfig(gjson.Parse(`{
+		"consumers": [{
+			"name": "inline-consumer",
+			"issuer": "higress-test",
+			"jwks": `+quoteJSON(testJWKs)+`
+		}],
+		"global_auth": false
+	}`), cfg, nil)
+	if err != nil {
+		t.Fatalf("ParseGlobalConfig returned error: %v", err)
+	}
+	if cfg.GlobalAuth == nil || *cfg.GlobalAuth {
+		t.Fatalf("expected global_auth to be false, got: %v", *cfg.GlobalAuth)
+	}
+}
+
+func TestParseGlobalConfigGlobalAuthStaysNilWhenUnset(t *testing.T) {
+	cfg := &JWTAuthConfig{}
+	err := ParseGlobalConfig(gjson.Parse(`{
+		"consumers": [{
+			"name": "inline-consumer",
+			"issuer": "higress-test",
+			"jwks": `+quoteJSON(testJWKs)+`
+		}]
+	}`), cfg, nil)
+	if err != nil {
+		t.Fatalf("ParseGlobalConfig returned error: %v", err)
+	}
+	if cfg.GlobalAuth != nil {
+		t.Fatalf("expected global_auth to be nil when unset, got: %v", *cfg.GlobalAuth)
+	}
+}
+
 func TestParseConsumerCachesInlineJWKs(t *testing.T) {
 	consumer, err := ParseConsumer(gjson.Parse(`{
 		"name": "inline-consumer",
