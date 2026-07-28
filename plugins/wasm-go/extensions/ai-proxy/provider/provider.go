@@ -327,6 +327,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 失败请求重试
 	// @Description zh-CN 对失败的请求立即进行重试
 	retryOnFailure *retryOnFailure `required:"false" yaml:"retryOnFailure" json:"retryOnFailure"`
+	// @Title zh-CN API Key 亲和
+	// @Description zh-CN 将同一消费者持久绑定到同一 API Key，并在 Key 失败时切换
+	apiKeyAffinity *apiKeyAffinity `required:"false" yaml:"apiKeyAffinity" json:"apiKeyAffinity"`
 	// @Title zh-CN 推理内容处理方式
 	// @Description zh-CN 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 normal。仅支持通义千问服务。
 	reasoningContentMode string `required:"false" yaml:"reasoningContentMode" json:"reasoningContentMode"`
@@ -706,6 +709,10 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if retryOnFailureJson.Exists() {
 		c.retryOnFailure.FromJson(retryOnFailureJson)
 	}
+	c.apiKeyAffinity = &apiKeyAffinity{}
+	if affinityJSON := json.Get("apiKeyAffinity"); affinityJSON.Exists() {
+		c.apiKeyAffinity.fromJSON(affinityJSON)
+	}
 	c.difyApiUrl = json.Get("difyApiUrl").String()
 	c.botType = json.Get("botType").String()
 	c.inputVariable = json.Get("inputVariable").String()
@@ -781,6 +788,11 @@ func (c *ProviderConfig) Validate() error {
 
 	if c.failover.enabled {
 		if err := c.failover.Validate(); err != nil {
+			return err
+		}
+	}
+	if c.apiKeyAffinity != nil {
+		if err := c.apiKeyAffinity.validate(); err != nil {
 			return err
 		}
 	}
