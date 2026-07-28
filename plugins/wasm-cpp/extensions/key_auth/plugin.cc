@@ -54,13 +54,6 @@ void deniedUnauthorizedConsumer(const std::string& realm) {
                     {{"WWW-Authenticate", absl::StrCat("Key realm=", realm)}});
 }
 
-std::string maskCredential(const std::string& credential) {
-  if (credential.size() <= 3) {
-    return "***";
-  }
-  return credential.substr(0, 3) + "***";
-}
-
 }  // namespace
 
 bool PluginRootContext::parsePluginConfig(const json& configuration,
@@ -298,6 +291,15 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
   return true;
 }
 
+// Helper: mask a credential for debug logging, showing only the first 3
+// characters so raw API keys are not leaked into logs.
+static std::string maskCredential(const std::string& credential) {
+  if (credential.size() <= 3) {
+    return "***";
+  }
+  return credential.substr(0, 3) + "***";
+}
+
 // Helper: check allow_set and return true if allowed, false if denied
 static bool checkAllowSet(
     const std::optional<std::unordered_set<std::string>>& allow_set,
@@ -463,12 +465,14 @@ bool PluginRootContext::checkPlugin(
       }
     }
 
-    LOG_DEBUG("No valid credentials were found after checking all consumers.");
+    LOG_DEBUG("No valid credentials were found (slow path, after checking "
+              "per-consumer key consumers).");
     deniedInvalidCredentials(rule.realm);
     return false;
   }
 
-  LOG_DEBUG("No valid credentials were found after checking all keys.");
+  LOG_DEBUG("No valid credentials were found (no consumers configured, after "
+            "checking all keys).");
   deniedInvalidCredentials(rule.realm);
   return false;
 }
