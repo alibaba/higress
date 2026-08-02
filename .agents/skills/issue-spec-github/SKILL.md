@@ -11,48 +11,20 @@ metadata:
 
 # GitHub CLI
 
-Use the `gh` CLI to interact with GitHub repositories, issues, pull requests, CI, and API endpoints.
+Use the gh CLI only for GitHub operations outside issue-spec's workflow and discussion surfaces.
 
-## When To Use
+## Use
 
-- Checking PR status, reviews, mergeability, or CI checks.
-- Creating, viewing, updating, closing, or commenting on GitHub issues.
-- Listing or inspecting pull requests, workflow runs, releases, labels, or repository metadata.
-- Calling GitHub API endpoints with `gh api` when issue-spec does not provide a dedicated command.
+- Inspect PR status, reviews, mergeability, CI, workflow runs, releases, labels, and repository metadata.
+- Use structured --json/--jq output. Use git directly for local repository operations.
+- Ordinary issue discussion writes: write a body file and run issue-spec comment create --repo owner/repo --issue 42 --body-file reply.md --json. The selected issue backend owns the write. Never use GitHub CLI or a raw issue-comment API write.
+- issue-spec owns the proposal, design, implement, typed comments, review, verify, durable projection, and closure workflow. Do not use GitHub endpoints for non-GitHub providers.
 
-## When Not To Use
+## Setup and examples
 
-- Local git operations such as commit, branch, fetch, merge, or push. Use `git` directly.
-- Non-GitHub repositories. Use the matching provider CLI instead.
-- Complex code review across local diffs. Read the repository files directly and use issue-spec review commands for traceable findings.
-
-## Setup
-
-```bash
-gh auth login
-gh auth status
-```
-
-## Common Commands
-
-```bash
-gh issue list --repo owner/repo --state open
-gh issue view 42 --repo owner/repo --json number,title,state,url,body
-gh issue comment 42 --repo owner/repo --body "Comment body"
-
-gh pr list --repo owner/repo
-gh pr view 17 --repo owner/repo --json number,title,state,headRefName,baseRefName,url
-gh pr checks 17 --repo owner/repo
-
-gh run list --repo owner/repo --limit 10
-gh run view <run-id> --repo owner/repo --log-failed
-
-gh api repos/owner/repo/labels --jq '.[].name'
-```
-
-## Notes
-
-- Always pass `--repo owner/repo` when the current directory is not definitely inside the target repository.
-- Use GitHub URLs directly when convenient, for example `gh pr view https://github.com/owner/repo/pull/17`.
-- Prefer structured output with `--json` and `--jq` when another command or agent step consumes the result.
-- issue-spec owns the proposal, design, implement, typed comment, review, verify, and archive workflow state. Use `gh` for adjacent GitHub operations that are outside issue-spec's command surface.
+    gh auth login
+    gh auth status
+    gh pr view 17 --repo owner/repo --json number,title,state,url
+    gh pr checks 17 --repo owner/repo
+    gh run view <run-id> --repo owner/repo --log-failed
+    gh api repos/owner/repo/labels --jq '.[].name'
