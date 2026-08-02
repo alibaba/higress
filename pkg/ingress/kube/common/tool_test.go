@@ -1051,9 +1051,11 @@ func TestSortIngressByCreationTime(t *testing.T) {
 
 	assert.Equal(t, expectedNamespacedNames, actualNamespacedNames, "When timestamps are the same, configurations should be sorted by namespace before name")
 
-	// Test canary ingress sorting - base ingress should come before canary variants
-	// Using namespace before name ensures "default/xx-hg" < "default/xx-hg-canary-*"
-	canaryConfigs := []config.Config{
+	// When timestamps are equal and canary names share the base name as a
+	// prefix (e.g. "xx-hg" and "xx-hg-canary-*"), namespace-then-name ordering
+	// places the base ingress first. This is a lexicographic consequence, not
+	// active canary detection (see the non-prefixed counter-example below).
+	prefixedCanaryConfigs := []config.Config{
 		{
 			Meta: config.Meta{
 				Name:      "xx-hg-canary-by-header",
@@ -1074,16 +1076,52 @@ func TestSortIngressByCreationTime(t *testing.T) {
 		},
 	}
 
-	expectedCanary := []string{"xx-hg", "xx-hg-canary-by-header", "xx-hg-canary-by-weight"}
+	expectedPrefixedCanary := []string{"xx-hg", "xx-hg-canary-by-header", "xx-hg-canary-by-weight"}
 
-	SortIngressByCreationTime(canaryConfigs)
+	SortIngressByCreationTime(prefixedCanaryConfigs)
 
-	var actualCanary []string
-	for _, cfg := range canaryConfigs {
-		actualCanary = append(actualCanary, cfg.Name)
+	var actualPrefixedCanary []string
+	for _, cfg := range prefixedCanaryConfigs {
+		actualPrefixedCanary = append(actualPrefixedCanary, cfg.Name)
 	}
 
-	assert.Equal(t, expectedCanary, actualCanary, "Base ingress should be sorted before canary variants")
+	assert.Equal(t, expectedPrefixedCanary, actualPrefixedCanary, "When canary names share the base prefix, the base ingress sorts first as a lexicographic consequence (not active canary detection)")
+
+	// Counter-example: the sorter does NOT actively identify canary ingresses.
+	// Canary status is determined by annotations, not by name. When a canary
+	// ingress is named without the base name as a prefix and its name sorts
+	// before the base lexicographically, it will NOT be ordered after the base.
+	nonPrefixedCanaryConfigs := []config.Config{
+		{
+			Meta: config.Meta{
+				Name:      "xx-hg",
+				Namespace: "default",
+			},
+		},
+		{
+			Meta: config.Meta{
+				Name:      "canary-xx-hg-by-header",
+				Namespace: "default",
+			},
+		},
+		{
+			Meta: config.Meta{
+				Name:      "canary-xx-hg-by-weight",
+				Namespace: "default",
+			},
+		},
+	}
+
+	expectedNonPrefixedCanary := []string{"canary-xx-hg-by-header", "canary-xx-hg-by-weight", "xx-hg"}
+
+	SortIngressByCreationTime(nonPrefixedCanaryConfigs)
+
+	var actualNonPrefixedCanary []string
+	for _, cfg := range nonPrefixedCanaryConfigs {
+		actualNonPrefixedCanary = append(actualNonPrefixedCanary, cfg.Name)
+	}
+
+	assert.Equal(t, expectedNonPrefixedCanary, actualNonPrefixedCanary, "Without a shared name prefix, canary ingresses are not recognized and may sort before the base")
 }
 
 func TestPartMd5(t *testing.T) {
