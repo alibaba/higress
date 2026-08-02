@@ -15,6 +15,7 @@
 package bootstrap
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -262,9 +263,25 @@ func (s *Server) initConfigController() error {
 }
 
 func (s *Server) Start(stop <-chan struct{}) error {
-	// Check CRD versions before starting the server
+	// Check CRD versions before starting the server.
+	//
+	// The check is bounded by a timeout and is also cancelled when the server
+	// is asked to stop, so a stalled API server cannot block startup or shield
+	// the process from the stop signal. This is a diagnostic warning check, so
+	// a cancelled/expired context surfaces as a warning rather than a failure.
+	const crdVersionCheckTimeout = 30 * time.Second
+	crdCheckCtx, crdCheckCancel := context.WithTimeout(context.Background(), crdVersionCheckTimeout)
+	defer crdCheckCancel()
+	go func() {
+		select {
+		case <-stop:
+			crdCheckCancel()
+		case <-crdCheckCtx.Done():
+		}
+	}()
+
 	log.Info("Checking CRD versions...")
-	crdWarnings := higresskube.CheckCRDVersions(s.kubeClient.RESTConfig())
+	crdWarnings := higresskube.CheckCRDVersions(crdCheckCtx, s.kubeClient.RESTConfig())
 	if len(crdWarnings) > 0 {
 		log.Warn("=================================================================")
 		log.Warn("                      CRD VERSION WARNINGS                       ")

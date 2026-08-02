@@ -15,10 +15,12 @@
 package kube
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 
+	crdmanifest "github.com/alibaba/higress/v2/api/kubernetes"
 	apiExtensionsV1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiExtensionsFake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -527,7 +529,7 @@ func TestCheckCRDVersionsWithClient_AllValid(t *testing.T) {
 		},
 	)
 
-	warnings := checkCRDVersionsWithClient(client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
+	warnings := checkCRDVersionsWithClient(context.Background(), client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
 		{
 			Name:            "wasmplugins.extensions.higress.io",
 			ExpectedVersion: "v1alpha1",
@@ -576,7 +578,7 @@ func TestCheckCRDVersionsWithClient_StorageVersionMismatch(t *testing.T) {
 		},
 	)
 
-	warnings := checkCRDVersionsWithClient(client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
+	warnings := checkCRDVersionsWithClient(context.Background(), client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
 		{
 			Name:            "wasmplugins.extensions.higress.io",
 			ExpectedVersion: "v1alpha1",
@@ -603,7 +605,7 @@ func TestCheckCRDVersionsWithClient_ListError(t *testing.T) {
 		return true, nil, errors.New("boom")
 	})
 
-	warnings := checkCRDVersionsWithClient(client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
+	warnings := checkCRDVersionsWithClient(context.Background(), client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
 		{
 			Name:            "wasmplugins.extensions.higress.io",
 			ExpectedVersion: "v1alpha1",
@@ -652,7 +654,7 @@ func TestCheckCRDVersionsWithClient_MissingManifestField(t *testing.T) {
 		},
 	)
 
-	warnings := checkCRDVersionsWithClient(client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
+	warnings := checkCRDVersionsWithClient(context.Background(), client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
 		{
 			Name:            "wasmplugins.extensions.higress.io",
 			ExpectedVersion: "v1alpha1",
@@ -698,7 +700,7 @@ func TestCheckCRDVersionsWithClient_OptionalPathBypass(t *testing.T) {
 		},
 	)
 
-	warnings := checkCRDVersionsWithClient(client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
+	warnings := checkCRDVersionsWithClient(context.Background(), client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
 		{
 			Name:            "wasmplugins.extensions.higress.io",
 			ExpectedVersion: "v1alpha1",
@@ -710,5 +712,102 @@ func TestCheckCRDVersionsWithClient_OptionalPathBypass(t *testing.T) {
 
 	if len(warnings) != 0 {
 		t.Fatalf("expected no warnings when missing field is configured optional, got %v", warnings)
+	}
+}
+
+func TestCheckCRDVersionsWithClient_CancelledContext(t *testing.T) {
+	// A cancelled context must short-circuit the check before issuing the CRD
+	// list request, so a degraded API server cannot block server startup and a
+	// stop signal is honoured promptly.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var listInvoked bool
+	client := apiExtensionsFake.NewSimpleClientset()
+	client.PrependReactor("list", "customresourcedefinitions", func(action clientgotesting.Action) (bool, runtime.Object, error) {
+		listInvoked = true
+		return true, nil, nil
+	})
+
+	warnings := checkCRDVersionsWithClient(ctx, client.ApiextensionsV1().CustomResourceDefinitions(), []CRDVersionInfo{
+		{
+			Name:            "wasmplugins.extensions.higress.io",
+			ExpectedVersion: "v1alpha1",
+			RequiredFields:  []string{"spec.pluginName"},
+		},
+	}, nil)
+
+	if listInvoked {
+		t.Fatal("expected the CRD list request not to be issued when the context is already cancelled")
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning for the cancelled context, got %d: %v", len(warnings), warnings)
+	}
+	if !strings.Contains(warnings[0], "CRD version check skipped") {
+		t.Fatalf("expected a 'skipped' warning, got %q", warnings[0])
+	}
+}
+
+func TestCriticalAndOptionalCRDFieldPaths_ClassifyAllShippedSpecFields(t *testing.T) {
+	// Maintenance guard: every spec.* field shipped in the generated CRD
+	// manifest must be explicitly classified as either critical (validated at
+	// startup) or optional (deliberately excluded). This prevents the critical
+	// set from silently drifting out of sync when the manifest gains a new
+	// field: until a maintainer classifies the new field in either
+	// criticalCRDFieldPaths or optionalCRDFieldPaths, this test fails.
+	shippedSchemas, err := crdmanifest.LoadCRDStorageSchemas()
+	if err != nil {
+		t.Fatalf("LoadCRDStorageSchemas() returned error: %v", err)
+	}
+	if len(shippedSchemas) == 0 {
+		t.Fatal("expected non-empty shipped CRD schemas")
+	}
+
+	// No CRD referenced by the hand-maintained maps may be absent from the
+	// shipped manifest (otherwise the entry is stale).
+	for crdName := range criticalCRDFieldPaths {
+		if _, ok := shippedSchemas[crdName]; !ok {
+			t.Errorf("criticalCRDFieldPaths references CRD %q which is not shipped in the manifest", crdName)
+		}
+	}
+	for crdName := range optionalCRDFieldPaths {
+		if _, ok := shippedSchemas[crdName]; !ok {
+			t.Errorf("optionalCRDFieldPaths references CRD %q which is not shipped in the manifest", crdName)
+		}
+	}
+
+	for crdName, schema := range shippedSchemas {
+		shippedPaths := collectComparableSchemaPathSet(schema)
+		if len(shippedPaths) == 0 {
+			t.Errorf("CRD %q: expected a non-empty shipped spec schema path set", crdName)
+			continue
+		}
+
+		// classified maps each path to its bucket; a duplicate across the two
+		// maps (or within one) is a configuration error.
+		classified := make(map[string]string)
+		classify := func(paths []string, bucket string) {
+			for _, p := range paths {
+				if _, dup := classified[p]; dup {
+					t.Errorf("CRD %q: path %q is classified more than once (already %s, now %s)", crdName, p, classified[p], bucket)
+				}
+				classified[p] = bucket
+			}
+		}
+		classify(criticalCRDFieldPaths[crdName], "critical")
+		classify(optionalCRDFieldPaths[crdName], "optional")
+
+		// Every shipped field must be classified.
+		for p := range shippedPaths {
+			if _, ok := classified[p]; !ok {
+				t.Errorf("CRD %q: shipped spec field %q is neither critical nor optional; classify it in criticalCRDFieldPaths or optionalCRDFieldPaths", crdName, p)
+			}
+		}
+		// Every classified field must still exist in the shipped schema.
+		for p, bucket := range classified {
+			if _, ok := shippedPaths[p]; !ok {
+				t.Errorf("CRD %q: %s field %q is no longer present in the shipped schema; remove the stale entry", crdName, bucket, p)
+			}
+		}
 	}
 }

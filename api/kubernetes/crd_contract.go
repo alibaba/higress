@@ -22,24 +22,40 @@ type CRDContract struct {
 var (
 	loadContractsOnce sync.Once
 	cachedContracts   []CRDContract
+	cachedSchemas     map[string]*apiExtensionsV1.JSONSchemaProps
 	cachedErr         error
 )
 
 func LoadCRDContracts() ([]CRDContract, error) {
-	loadContractsOnce.Do(func() {
-		cachedContracts, cachedErr = loadCRDContracts()
-	})
-	return cachedContracts, cachedErr
+	loadContractsOnce.Do(loadCRDContracts)
+	if cachedErr != nil {
+		return nil, cachedErr
+	}
+	return cachedContracts, nil
 }
 
-func loadCRDContracts() ([]CRDContract, error) {
+// LoadCRDStorageSchemas returns the storage-version OpenAPI v3 schema for each
+// shipped CRD, keyed by CRD name. It is cached after the first call together
+// with the CRD contracts. A CRD whose storage version has no schema is present
+// in the map with a nil value.
+func LoadCRDStorageSchemas() (map[string]*apiExtensionsV1.JSONSchemaProps, error) {
+	loadContractsOnce.Do(loadCRDContracts)
+	if cachedErr != nil {
+		return nil, cachedErr
+	}
+	return cachedSchemas, nil
+}
+
+func loadCRDContracts() {
 	data, err := customResourceDefinitionsYAML.ReadFile("customresourcedefinitions.gen.yaml")
 	if err != nil {
-		return nil, fmt.Errorf("read generated CRD manifest: %w", err)
+		cachedErr = fmt.Errorf("read generated CRD manifest: %w", err)
+		return
 	}
 
 	decoder := utilyaml.NewYAMLOrJSONDecoder(bytes.NewReader(data), 4096)
 	contracts := make([]CRDContract, 0, 4)
+	schemas := make(map[string]*apiExtensionsV1.JSONSchemaProps, 4)
 
 	for {
 		var crd apiExtensionsV1.CustomResourceDefinition
@@ -47,7 +63,8 @@ func loadCRDContracts() ([]CRDContract, error) {
 			if err == io.EOF {
 				break
 			}
-			return nil, fmt.Errorf("decode generated CRD manifest: %w", err)
+			cachedErr = fmt.Errorf("decode generated CRD manifest: %w", err)
+			return
 		}
 		if crd.Name == "" {
 			continue
@@ -55,8 +72,15 @@ func loadCRDContracts() ([]CRDContract, error) {
 
 		storageVersion, found := storageVersionFromDefinition(&crd)
 		if !found {
-			return nil, fmt.Errorf("crd %s has no storage version in generated manifest", crd.Name)
+			cachedErr = fmt.Errorf("crd %s has no storage version in generated manifest", crd.Name)
+			return
 		}
+
+		var storageSchema *apiExtensionsV1.JSONSchemaProps
+		if storageVersion.Schema != nil {
+			storageSchema = storageVersion.Schema.OpenAPIV3Schema
+		}
+		schemas[crd.Name] = storageSchema
 
 		contracts = append(contracts, CRDContract{
 			Name:            crd.Name,
@@ -64,7 +88,8 @@ func loadCRDContracts() ([]CRDContract, error) {
 		})
 	}
 
-	return contracts, nil
+	cachedContracts = contracts
+	cachedSchemas = schemas
 }
 
 func storageVersionFromDefinition(crd *apiExtensionsV1.CustomResourceDefinition) (*apiExtensionsV1.CustomResourceDefinitionVersion, bool) {
