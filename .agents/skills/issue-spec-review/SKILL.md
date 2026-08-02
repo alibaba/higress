@@ -1,6 +1,6 @@
 ---
 name: issue-spec-review
-description: Review an issue-spec implementation PR, create PR line findings, reply after fixes, and sync REVIEW comments.
+description: Review an issue-spec implementation change, create line findings, reply after fixes, and sync REVIEW comments.
 license: MIT
 compatibility: Requires issue-spec CLI.
 metadata:
@@ -11,22 +11,21 @@ metadata:
 
 # Issue Spec Review
 
-Use when the user asks for /issue-spec:review, issue-spec review, or a PR review gate for an issue-spec implementation.
+Coordinator: follow issue-spec-workflow to prepare the immutable review snapshot, dispatch a real independent reviewer, route repairs to the invariant owner, and link accepted evidence. On GitHub add --pr <number>; on a self-hosted profile omit --pr and add --revision <exact-head>. Sync authoritatively captures current rationale and emits one stable done REVIEW completion even with zero findings. Run these commands after the final review sync: issue-spec link --repo higress-group/higress --from REVIEW-<n> --from-issue <implement-issue> --to PROCESS-<n> --to-issue <implement-issue>, then issue-spec link --repo higress-group/higress --from REVIEW-<n> --from-issue <implement-issue> --to SPEC-<n> --to-issue <proposal-issue>. Do not copy Coordinator lifecycle or provider policy into the review packet.
 
-## Steps
+## Review Role Packet
 
-1. Run issue-spec review sync --repo higress-group/higress --pr <number> --implement <issue> --id REVIEW-<n> --json to capture current rationale comments, findings, and checks.
-2. For non-trivial PRs, spawn or assign dedicated review agents as review PROCESS owners. Multiple review agents can run in parallel when their review scopes are independent.
-3. Give each review agent a concrete scope and expected output: actionable findings only, severity, file/line, linked SPEC, owner PROCESS, and suggested fix.
-4. Create actionable PR line findings with issue-spec review finding. Use P0/P1 for blockers and P2 for non-blocking follow-up.
-5. Assign every finding to a PROCESS owner. If no findings are found, record that result in REVIEW or VERIFY evidence.
-6. After the worker fixes a finding, reply to the original thread with issue-spec review reply --status resolved.
-7. Re-run review sync. P0/P1 findings must be resolved before final verify/archive.
+1. Accept only the sealed review assignment for the exact subject revision, immutable snapshot/diff, code authors, owned invariant, affected scenarios, review scope, focused checks, result schema, and design_context.
+2. Require design_context.read_mode=complete-issue-body and conflict_policy=design-authoritative-stop. Before inspecting code, read the complete Design with issue-spec read issue --repo higress-group/higress --issue <design_context.source_url> without comments, timeline, history, or gates. Stop on conflict; do not collect or pass runtime-specific session IDs.
+3. Review the invariant end to end at the exact revision. Verify required actions, stops, compatibility, tests, and major entry points. Do not expand into unrelated proposal history, DAGs, links, post-merge policy, or provider routing.
+4. Under the real review agent identity, report actionable findings with severity, exact file/line, affected SPEC/scenario, owner PROCESS, and suggested fix, or an explicit no-finding verdict. Never fabricate evidence or let the Coordinator author findings for you.
+5. After a fix, re-check the exact current revision and own the resolved reply/conversation resolution. Submit only the bounded review receipt/sync result and focused verification evidence. P0/P1 findings remain blocking until reviewer-owned resolution; the author cannot review its own work.
 
-## Review DAG Policy
+## Project Workflow
 
-1. Every non-trivial PR should have at least one dedicated review PROCESS node before final verify.
-2. Use multiple review agents in parallel when scopes are independent, for example CLI/API behavior, workflow docs, tests, compatibility, or security-sensitive surfaces.
-3. A review agent reports findings only; the coordinator converts actionable line findings into issue-spec review finding comments.
-4. P0/P1 findings block final verify until the owner PROCESS fixes them and issue-spec review reply records the resolution on the original thread.
-5. If a review agent finds no issues, record that result in REVIEW or VERIFY evidence before marking the review PROCESS done.
+- Workflow Source: `builtin`
+- Workflow Schema: `issue-spec`
+- Workflow Config: `issue-spec/config.yaml`
+- Workflow Diagnostics:
+
+Project workflow templates are declarative only. Active proposal, design, implement, SPEC, TASK, PROCESS, QUESTION, REVIEW, and VERIFY artifacts remain in the selected issue backend's issue-native storage; repository-mode durable specs are materialized and checked on the implementation branch.
