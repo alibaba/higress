@@ -84,7 +84,7 @@ func (f *filter) DecodeData(buffer api.BufferInstance, endStream bool) api.Statu
 				// Call the handleMessage method of SSEServer with complete body
 				httpStatus := server.BaseServer.HandleMessage(recorder, f.req, buffer.Bytes())
 				f.message = false
-				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), recorder.Header(), 0, "")
+				f.callbacks.DecoderFilterCallbacks().SendLocalReply(httpStatus, recorder.Body.String(), nil, 0, "")
 				return api.LocalReply
 			}
 		}
