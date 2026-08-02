@@ -28,6 +28,6 @@ func TestHandleMessageSetsContentTypeBeforeWritingResponse(t *testing.T) {
 	status := server.HandleMessage(recorder, request, []byte(`not-json-at-all`))
 
 	require.Equal(t, http.StatusOK, status)
-	require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
+	require.Equal(t, "application/json", recorder.Result().Header.Get("Content-Type"))
 	require.Contains(t, recorder.Body.String(), "Failed to parse message")
 }
