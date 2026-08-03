@@ -60,11 +60,11 @@ It supports three rate limiting modes:
 | limit_by_param                | string        | No (choose one of `limit_by_*` fields) | -           | Configures the URL parameter name to extract the rate limiting key.        |  
 | limit_by_consumer             | string        | No (choose one of `limit_by_*` fields) | -           | Rate limits based on the consumer name (no need to add a specific value).   |  
 | limit_by_cookie               | string        | No (choose one of `limit_by_*` fields) | -           | Configures the Cookie key name to extract the rate limiting key.           |  
-| limit_by_per_header           | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific HTTP headers by rule and calculates rate limits for each header. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration. |  
-| limit_by_per_param            | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific URL parameters by rule and calculates rate limits for each parameter. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration. |  
-| limit_by_per_consumer         | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific consumers by rule and calculates rate limits for each consumer. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration (no need to add a specific value for the consumer name). |  
-| limit_by_per_cookie           | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific Cookies by rule and calculates rate limits for each Cookie value. Supports regular expressions (starting with `regexp:`) or `*` for the `limit_keys` configuration. |  
-| limit_by_per_ip               | string        | No (choose one of `limit_by_*` fields) | -           | Matches specific IPs by rule and calculates rate limits for each IP. The IP can be extracted from a request header (formatted as `from-header-<header_name>`, e.g., `from-header-x-forwarded-for`) or directly from the peer socket IP (configured as `from-remote-addr`). |  
+| limit_by_per_header           | string        | No (choose one of `limit_by_*` fields) | -           | Calculates a separate limit per header value. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_header` (drop `per_`). |
+| limit_by_per_param            | string        | No (choose one of `limit_by_*` fields) | -           | Calculates a separate limit per parameter value. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_param` (drop `per_`). |
+| limit_by_per_consumer         | string        | No (choose one of `limit_by_*` fields) | -           | Calculates a separate limit per consumer. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_consumer` (drop `per_`). |
+| limit_by_per_cookie           | string        | No (choose one of `limit_by_*` fields) | -           | Calculates a separate limit per Cookie value. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_cookie` (drop `per_`). |
+| limit_by_per_ip               | string        | No (choose one of `limit_by_*` fields) | -           | Selects the client-IP source: `from-header-<header_name>` or `from-remote-addr`. Put IP/CIDR values in `limit_keys[].key`. |
 | limit_keys                    | array of object | Yes                               | -           | Configures the rate limits for matched key values.                          |  
 
 #### `rule_items` Multi-Rule Matching Semantics
@@ -83,7 +83,7 @@ When multiple rules are matched and none trigger (with `show_limit_quota_header:
 
 | Configuration Item       | Type   | Required                                 | Default Value | Description                                                                 |  
 |--------------------------|--------|------------------------------------------|---------------|-----------------------------------------------------------------------------|  
-| key                      | string | Yes                                      | -             | The matched key value. For `limit_by_per_header`, `limit_by_per_param`, `limit_by_per_consumer`, and `limit_by_per_cookie` types, supports regular expressions (prefixed with `regexp:`) or `*` (wildcard for all). Example regular expression: `regexp:^d.*` (matches all strings starting with `d`). For `limit_by_per_ip`, supports IP addresses or CIDR blocks. |  
+| key                      | string | Yes                                      | -             | Non-`per_` types accept exact literals. `limit_by_per_header`, `limit_by_per_param`, `limit_by_per_consumer`, and `limit_by_per_cookie` accept only `regexp:...` or `*`. `limit_by_per_ip` accepts IP addresses or CIDR blocks. |
 | query_per_second         | int    | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per second.                                                |  
 | query_per_minute         | int    | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per minute.                                                |  
 | query_per_hour           | int    | No (choose one of `query_per_second`, `query_per_minute`, `query_per_hour`, `query_per_day`) | -           | Allowed requests per hour.                                                  |  
@@ -139,6 +139,75 @@ redis:
   service_name: redis.static
 show_limit_quota_header: true
 ```
+
+## Common Pitfalls
+
+### Literal consumer name under `limit_by_per_consumer`
+
+```yaml
+# ❌ Wrong: per_consumer limit_keys accepts only * or regexp:...
+rule_items:
+  - limit_by_per_consumer: ""
+    limit_keys:
+      - key: "alice"
+        query_per_day: 100
+
+# ✅ Right: drop per_ for an exact-name match
+rule_items:
+  - limit_by_consumer: ""
+    limit_keys:
+      - key: "alice"
+        query_per_day: 100
+```
+
+### CIDR placed in `limit_by_per_ip`
+
+```yaml
+# ❌ Wrong: limit_by_per_ip selects the IP source; it is not a CIDR field
+rule_items:
+  - limit_by_per_ip: "0.0.0.0/0"
+
+# ✅ Right: put the CIDR in limit_keys
+rule_items:
+  - limit_by_per_ip: "from-remote-addr"
+    limit_keys:
+      - key: "0.0.0.0/0"
+        query_per_day: 1000
+```
+
+### Missing `limit_keys`
+
+```yaml
+# ❌ Wrong: the entire rule_item is rejected
+rule_items:
+  - limit_by_per_ip: "from-remote-addr"
+
+# ✅ Right: provide at least one key and request threshold
+rule_items:
+  - limit_by_per_ip: "from-remote-addr"
+    limit_keys:
+      - key: "0.0.0.0/0"
+        query_per_day: 1000
+```
+
+## Diagnosing
+
+See the [Rate-limit Plugin FAQ](../../../../docs/faq/rate-limit-plugin-faq-en.md#rate-limit-not-taking-effect) for complete diagnosis recipes.
+
+| Symptom | Check first |
+| --- | --- |
+| Requests always return 200 and Redis has no rate-limit keys | No rule matched, or configuration parsing prevented the rule from loading |
+| Redis cluster `cx_connect_fail` is greater than 0 | Port, credentials, or network connectivity |
+| Wasm `update_rejected` / `config_fail` keeps increasing | The parser rejected the pushed configuration; inspect the concrete gateway log error |
+
+```bash
+kubectl -n higress-system logs <gateway-pod> --tail=2000 \
+  | grep -Ei 'cluster-key-rate-limit|limit_by_per_|missing limit_keys|must start with'
+```
+
+Seeing configuration in `config_dump` proves only that the control plane delivered it; it does not prove that the data-plane plugin loaded it. Correlate `/stats`, `/clusters`, and gateway logs.
+
+## Configuration Examples (continued)
 
 ### Rate Limiting by Request Header `x-ca-key`
 
