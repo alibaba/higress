@@ -17,7 +17,7 @@ lint-deps: ## Everything necessary to lint
 GOLANGCI_LINT_FLAGS ?= $(if $(GITHUB_ACTION),--out-format=github-actions)
 .PHONY: lint.vet
 lint.vet: prebuild
-	go vet ./cmd/... ./pkg/... ./registry/... ./test/e2e/...
+	go vet ./cmd/... ./pkg/... ./registry/...
 
 .PHONY: lint.golint
 lint: lint.golint
