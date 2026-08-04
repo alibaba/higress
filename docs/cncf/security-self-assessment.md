@@ -4,7 +4,7 @@
 
 | | |
 | --- | --- |
-| Assessment stage | Complete working draft, pending maintainer approval; updated 2026-07-21 |
+| Assessment stage | Complete project self-assessment, approved in [higress-group/higress#4177](https://github.com/higress-group/higress/pull/4177); updated 2026-08-04 |
 | Software | <https://github.com/higress-group/higress> |
 | Review state | Prepared from public project evidence; no independent security review or audit |
 | Evidence branch | [`higress-group/higress@main`](https://github.com/higress-group/higress/tree/main) |
@@ -21,7 +21,7 @@
 | Vulnerability reporting and response | [`SECURITY.md`](https://github.com/higress-group/higress/blob/main/SECURITY.md) |
 | Architecture | [`docs/architecture.md`](https://github.com/higress-group/higress/blob/main/docs/architecture.md) |
 | Helm defaults | [`helm/core/values.yaml`](https://github.com/higress-group/higress/blob/main/helm/core/values.yaml) |
-| OpenSSF Best Practices | <https://www.bestpractices.dev/projects/12667> |
+| OpenSSF Best Practices | [Passing](https://www.bestpractices.dev/projects/12667), verified 2026-08-04 |
 
 This is the project-maintained working copy. For formal Due Diligence, a vetted
 snapshot must be archived at the path above in `cncf/toc`. The reviewer should
@@ -179,15 +179,15 @@ requests run license header and dependency-license checks.
 
 Pull requests are publicly reviewed and run build/unit tests with Go race
 detection, Gateway API and Higress conformance tests, plugin tests, and license
-checks. CodeQL is scheduled weekly; it is not currently a pull-request gate.
-The configured `golangci-lint` execution is commented out because of existing
-findings. Release tags trigger image and CLI/CRD artifact builds. Dependency
-inputs are versioned, but release artifacts do not currently have a
-project-generated SBOM, signature, or SLSA provenance. Not all workflow actions
-are pinned to immutable commits. The public repository does not prove a
-required reviewer count, signed-commit requirement, organization-wide 2FA, or
-branch-protection configuration; those controls require separate repository-
-settings evidence.
+checks. CodeQL runs on pull requests targeting `main`, pushes to `main`, and a
+weekly schedule; the project also enforces a Go vet warning gate. The configured
+`golangci-lint` execution is commented out because of existing findings.
+Release tags trigger image and CLI/CRD artifact builds. Dependency inputs are
+versioned, but release artifacts do not currently have a project-generated
+SBOM, signature, or SLSA provenance. Not all workflow actions are pinned to
+immutable commits. The public repository does not prove a required reviewer
+count, signed-commit requirement, organization-wide 2FA, or branch-protection
+configuration; those controls require separate repository-settings evidence.
 
 Ordinary project-team communication uses GitHub issues, pull requests,
 discussions, mailing, localized community channels, and Discord. Inbound users
@@ -228,10 +228,6 @@ Advisory and release information, and coordinate timing with the reporter.
 
 ### Known Gaps
 
-- OpenSSF Passing is not complete. Outstanding areas include compiler warning
-  enforcement, static-analysis alert remediation, and dynamic analysis.
-- There are unresolved critical/high CodeQL alerts requiring maintainer access,
-  triage, and either fixes or documented upstream/vendor dispositions.
 - Release SBOMs, signatures, and verifiable build provenance are absent.
 - The controller's ClusterRole is broad and its default container security
   context is empty. Gateway non-root defaults depend on Kubernetes/platform
@@ -255,13 +251,17 @@ aggregate vulnerability history or mean-time-to-remediation report.
 
 ### OpenSSF Best Practices
 
-The [Higress OpenSSF entry](https://www.bestpractices.dev/projects/12667) is at
-96% of the Passing badge as of this assessment. Seven criteria remain
-unanswered or unmet: compiler-warning enforcement, strict-warning enforcement,
-warning remediation, static-analysis remediation, static-analysis frequency,
-dynamic analysis, and enabling assertions or equivalent dynamic-analysis
-checks. Passing requires evidence and implementation for all seven, not merely
-updating the questionnaire.
+The [Higress OpenSSF entry](https://www.bestpractices.dev/projects/12667)
+reached **Passing** on 2026-08-04. Supporting evidence includes CodeQL coverage
+for pull requests, pushes to `main`, and weekly scans
+([#4186](https://github.com/higress-group/higress/pull/4186)); an enforced Go
+vet warning gate
+([#4193](https://github.com/higress-group/higress/pull/4193)); and the completed
+Critical/High CodeQL remediation tracker
+([#4207](https://github.com/higress-group/higress/issues/4207)), which records
+zero open Critical and High findings and the disposition of every finding in
+scope. Dedicated project fuzzing/DAST remains a defense-in-depth improvement,
+but it is not an unmet requirement for the achieved Passing badge.
 
 ### Example Use Cases
 

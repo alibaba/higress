@@ -3,10 +3,11 @@
 - **Project:** Higress
 - **Project version:** v2.2.3
 - **Website:** <https://higress.ai/en/>
-- **Date updated:** 2026-07-21
+- **Date updated:** 2026-08-04
 - **Template version:** CNCF General Technical Review v1.0
-- **Review state:** Project working draft; maintainer approval and CNCF Project
-  Reviews verification pending
+- **Review state:** Complete project self-assessment, approved in
+  [higress-group/higress#4177](https://github.com/higress-group/higress/pull/4177);
+  CNCF Project Reviews verification and dated TOC snapshot pending
 - **Evidence branch:**
   [`higress-group/higress@main`](https://github.com/higress-group/higress/tree/main)
 - **Intended TOC snapshot:** `projects/higress/tech-review/YYYY-MM-DD.md`
@@ -273,9 +274,10 @@ in ephemeral clusters and runs Gateway API and Higress conformance traffic.
 - **Explicit trust and boundaries:** Kubernetes administrators, xDS,
   certificate sources, plugins, registries, identity providers, and upstreams
   are separate trust boundaries described in the security self-assessment.
-- **Secure lifecycle:** public review, automated tests, license checks, weekly
-  CodeQL, private advisories, and coordinated disclosure are in place, with
-  SBOM/signing/dynamic-analysis gaps disclosed.
+- **Secure lifecycle:** public review, automated tests, license checks, CodeQL
+  on pull requests, pushes to `main`, and a weekly schedule, an OpenSSF Best
+  Practices Passing badge, private advisories, and coordinated disclosure are
+  in place, with SBOM/signing/dynamic-analysis gaps disclosed.
 
 Operators can loosen security by overriding pod/container security contexts,
 using privileged or host networking modes, expanding RBAC, exposing admin
@@ -287,11 +289,15 @@ threat model.
 maintained?**
 
 The project uses required review, build and unit tests with Go race detection,
-Gateway API/Higress conformance, plugin tests, license checks, weekly CodeQL,
+Gateway API/Higress conformance, plugin tests, license checks, CodeQL on pull
+requests, pushes to `main`, and a weekly schedule, a Go vet warning gate,
 versioned dependencies, Private Security Advisories, and coordinated
-disclosure. Certificate handling, RBAC reconciliation, xDS generation and
-validation, parsers/routing, authentication and authorization plugins, plugin
-loading, and release artifacts are treated as security-critical boundaries.
+disclosure. The OpenSSF Best Practices badge reached Passing on 2026-08-04,
+with the Critical/High CodeQL remediation and disposition recorded in
+[`#4207`](https://github.com/higress-group/higress/issues/4207). Certificate
+handling, RBAC reconciliation, xDS generation and validation, parsers/routing,
+authentication and authorization plugins, plugin loading, and release
+artifacts are treated as security-critical boundaries.
 
 **What privileges are required?**
 
