@@ -6,11 +6,12 @@ Incubation application. It follows the current CNCF TOC
 A CNCF Project Reviews reviewer may amend the assessment and findings during
 the public review.
 
-- **Review state:** Project working draft; maintainer approval and CNCF Project
-  Reviews verification pending
+- **Review state:** Project self-assessment approved in
+  [higress-group/higress#4177](https://github.com/higress-group/higress/pull/4177);
+  public-meeting Must-Fix and CNCF Project Reviews verification pending
 - **Evidence branch:**
   [`higress-group/higress@main`](https://github.com/higress-group/higress/tree/main)
-- **Template verified:** 2026-07-21 against `cncf/toc` `main`
+- **Template verified:** 2026-08-04 against `cncf/toc` `main`
 - **Intended TOC snapshot:**
   `projects/higress/governance-review/YYYY-MM-DD.md`
 
@@ -39,7 +40,7 @@ before asserting that the Governance Review has no remaining Must-Fix item.
 ### Executing the Assessment
 
 The self-assessment reviewed the following repository evidence as it exists on
-2026-07-21:
+2026-08-04:
 
 - [`GOVERNANCE.md`](https://github.com/higress-group/higress/blob/main/GOVERNANCE.md)
 - [`MAINTAINERS.md`](https://github.com/higress-group/higress/blob/main/MAINTAINERS.md)
