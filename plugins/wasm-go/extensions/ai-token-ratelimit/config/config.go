@@ -320,10 +320,12 @@ func parseLimitRuleItem(item gjson.Result) (*LimitRuleItem, error) {
 func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 	limitKeys := json.Get("limit_keys")
 	if !limitKeys.Exists() {
-		return errors.New("missing limit_keys in config")
+		return fmt.Errorf("missing limit_keys in config for %s; add at least one entry, e.g. %s",
+			rule.LimitType, exampleLimitKeyForType(rule.LimitType))
 	}
 	if len(limitKeys.Array()) == 0 {
-		return errors.New("config limit_keys cannot be empty")
+		return fmt.Errorf("config limit_keys cannot be empty for %s; add at least one entry, e.g. %s",
+			rule.LimitType, exampleLimitKeyForType(rule.LimitType))
 	}
 	var configItems []LimitConfigItem
 	for _, item := range limitKeys.Array() {
@@ -360,7 +362,12 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 				}
 				itemType = RegexpType
 			} else {
-				return fmt.Errorf("the '%s' restriction must start with 'regexp:' or be exactly '*'", rule.LimitType)
+				return fmt.Errorf(
+					"the %q restriction must start with 'regexp:' or be exactly '*' (got %q); "+
+						"to match an exact name, use the non-per variant %q instead (limit_keys stay the same)",
+					string(rule.LimitType), itemKey,
+					"limit_by_"+strings.TrimPrefix(string(rule.LimitType), "limit_by_per_"),
+				)
 			}
 		} else {
 			itemType = ExactType
@@ -374,6 +381,21 @@ func initConfigItems(json gjson.Result, rule *LimitRuleItem) error {
 	}
 	rule.ConfigItems = configItems
 	return nil
+}
+
+func exampleLimitKeyForType(limitType LimitRuleItemType) string {
+	switch limitType {
+	case LimitByPerIpType:
+		return `key: "0.0.0.0/0"`
+	case LimitByConsumerType:
+		return `key: "<consumer-name>"`
+	case LimitByHeaderType, LimitByParamType, LimitByCookieType:
+		return `key: "<exact-value>"`
+	case LimitByPerConsumerType, LimitByPerHeaderType, LimitByPerParamType, LimitByPerCookieType:
+		return `key: "*"`
+	default:
+		return `key: "<value>"`
+	}
 }
 
 func createConfigItemFromRate(item gjson.Result, itemType LimitConfigItemType, key string, ipNet *iptree.IPTree, regexp *re.Regexp) (*LimitConfigItem, error) {
