@@ -59,6 +59,10 @@ const (
 	RequestPath                = "request_path"
 	SkipProcessing             = "skip_processing"
 
+	// ctxKeySseFramer stores the request-scoped SSE event framer (see
+	// sse_framer.go) in HttpContext for the lifetime of a streaming response.
+	ctxKeySseFramer = "sseFramer"
+
 	// Session ID related
 	SessionID = "session_id"
 
@@ -795,10 +799,24 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config AIStatisticsConfig) t
 	return types.ActionContinue
 }
 
-func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool) []byte {
+func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, data []byte, endOfStream bool) (ret []byte) {
+	// Fail-open boundary (Design #4249): the named return is pre-set to the
+	// original data and all observability logic below runs under a local
+	// recovery boundary, so a panic in the framer or any consumer produces one
+	// error log line and the upstream response bytes still pass through
+	// unchanged. The wrapper-level recover cannot be relied on for this
+	// contract: it recovers at OnHttpResponseBody scope and would skip
+	// proxywasm.ReplaceHttpResponseBody entirely.
+	ret = data
+	defer func() {
+		if r := recover(); r != nil {
+			log.Errorf("ai-statistics: onHttpStreamingBody recovered from observability panic, passing response chunk through unchanged: %v", r)
+		}
+	}()
+
 	// Check if processing should be skipped
 	if ctx.GetBoolContext(SkipProcessing, false) {
-		return data
+		return ret
 	}
 
 	// Buffer stream body for record log & span attributes
@@ -822,18 +840,11 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		ctx.SetUserAttribute(ChatID, chatID.String())
 	}
 
-	// Track streaming errors across chunks — SSE failures often appear as
-	// data: {"error":{...}} before data: [DONE], so the last chunk alone is
-	// insufficient for error detection.
-	if !ctx.GetBoolContext("hasStreamError", false) && isErrorResponse(data) {
-		ctx.SetContext("hasStreamError", true)
-	}
-
 	// Get requestStartTime from http context
 	requestStartTime, ok := ctx.GetContext(StatisticsRequestStartTime).(int64)
 	if !ok {
 		log.Error("failed to get requestStartTime from http context")
-		return data
+		return ret
 	}
 
 	// If this is the first chunk, record first token duration metric and span attribute
@@ -843,29 +854,41 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		ctx.SetUserAttribute(LLMFirstTokenDuration, firstTokenTime-requestStartTime)
 	}
 
-	// Set information about this request
-	if !config.disableOpenaiUsage {
-		if usage := tokenusage.GetTokenUsage(ctx, data); usage.TotalToken > 0 {
-			// Set span attributes for ARMS.
-			setSpanAttribute(ArmsTotalToken, usage.TotalToken)
-			setSpanAttribute(ArmsModelName, usage.Model)
-			setSpanAttribute(ArmsInputToken, usage.InputToken)
-			setSpanAttribute(ArmsOutputToken, usage.OutputToken)
-
-			// Set token details to context for later use in attributes
-			if len(usage.InputTokenDetails) > 0 {
-				ctx.SetContext(tokenusage.CtxKeyInputTokenDetails, usage.InputTokenDetails)
-			}
-			if len(usage.OutputTokenDetails) > 0 {
-				ctx.SetContext(tokenusage.CtxKeyOutputTokenDetails, usage.OutputTokenDetails)
-			}
-
-			// Write once
-			_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	// Frame the raw callback bytes into complete SSE events: one callback is an
+	// arbitrary byte chunk, not a complete event. Token usage and stream-error
+	// detection consume the reassembled complete events, so values split across
+	// host callbacks are recovered exactly as if delivered intact. ChatID
+	// extraction stays on raw data, and tool-call extraction / full-body
+	// JSONPath stay on the end-of-stream accumulated-body path below.
+	framer, ok := ctx.GetContext(ctxKeySseFramer).(*sseFramer)
+	if !ok || framer == nil {
+		framer = &sseFramer{}
+		ctx.SetContext(ctxKeySseFramer, framer)
+	}
+	for _, event := range framer.frameCallback(data) {
+		// Set information about this request
+		if !config.disableOpenaiUsage {
+			processTokenUsageEvent(ctx, event)
+		}
+		// Track streaming errors across events — SSE failures often appear as
+		// data: {"error":{...}} before data: [DONE], so the last chunk alone is
+		// insufficient for error detection. writeMetric consumes this flag once
+		// at end of stream, so one request yields exactly one failure increment
+		// regardless of how many error events matched.
+		if !ctx.GetBoolContext("hasStreamError", false) && isErrorResponse(event) {
+			ctx.SetContext("hasStreamError", true)
 		}
 	}
+
 	// If the end of the stream is reached, record metrics/logs/spans.
 	if endOfStream {
+		// An unterminated tail is not recoverable and is discarded here. If the
+		// incomplete suffix ever overflowed the cap, the framer entered RESYNC
+		// and counted it; summarize the diagnostic once per request.
+		if overflowCount := framer.drain(); overflowCount > 0 {
+			log.Debugf("ai-statistics: sse framer discarded %d oversized incomplete event(s) during this request", overflowCount)
+		}
+
 		responseEndTime := time.Now().UnixMilli()
 		ctx.SetUserAttribute(LLMServiceDuration, responseEndTime-requestStartTime)
 
@@ -890,7 +913,97 @@ func onHttpStreamingBody(ctx wrapper.HttpContext, config AIStatisticsConfig, dat
 		}
 		writeMetric(ctx, config, bodyForMetric)
 	}
-	return data
+	return ret
+}
+
+// getTokenUsage is an indirection over tokenusage.GetTokenUsage so integration
+// tests can inject an observability-side panic and pin the fail-open contract
+// (Design #4249 T-19). It is never reassigned in production.
+var getTokenUsage = tokenusage.GetTokenUsage
+
+// inputTokenDetailsProbePaths and outputTokenDetailsProbePaths mirror exactly
+// the paths tokenusage.ExtractInputTokenDetails / ExtractOutputTokenDetails
+// read (github.com/higress-group/wasm-go/pkg/tokenusage). They are used to
+// detect field PRESENCE in a framed event so the token-details policy can
+// distinguish "absent" (retain the previously recorded map) from "present"
+// (replace the whole map with the event's value). Keep in sync with
+// tokenusage: a details-path addition there must be mirrored here, which fails
+// loudly in review (Design #4249).
+var inputTokenDetailsProbePaths = []string{
+	tokenusage.UsageInputTokensDetailsPathOpenAIChatCompletions,
+	tokenusage.UsageInputTokensDetailsPathOpenAIResponses,
+	tokenusage.UsageInputTokensDetailsPathDoubao,
+	tokenusage.UsageInputTokensDetailsPathGemini,
+	tokenusage.UsageMetadataCachedContentTokenCountPathGemini,
+	tokenusage.UsageMetadataToolUsePromptTokenCountPathGemini,
+	tokenusage.UsageCacheCreationInputTokensPathAnthropicMessages,
+	tokenusage.UsageCacheReadInputTokensPathAnthropicMessages,
+}
+
+var outputTokenDetailsProbePaths = []string{
+	tokenusage.UsageOutputTokensDetailsPathOpenAIChatCompletions,
+	tokenusage.UsageOutputTokensDetailsPathOpenAIResponses,
+	tokenusage.UsageOutputTokensDetailsPathDoubao,
+	tokenusage.UsageOutputTokensDetailsPathGemini,
+	tokenusage.UsageMetadataThoughtsTokenCountPathGemini,
+	tokenusage.UsageGeneratedImagesPathDoubao,
+}
+
+// processTokenUsageEvent records token usage from one complete framed SSE
+// event. Scalar merge semantics stay entirely inside tokenusage.GetTokenUsage
+// (an event's explicit value wins; otherwise the stored attribute is reused;
+// values are never summed across events). The token-details policy of Design
+// #4249 is applied around the call: replace the details map when the event
+// carries the corresponding details field, retain the previously recorded map
+// when it does not, never sum, and keep the context layer and the
+// user-attribute layer synchronized. tokenusage creates fresh details maps per
+// call and writes them to the user-attribute layer unconditionally, so without
+// this policy a usage-bearing event that omits details would wipe previously
+// recorded details with an empty map.
+func processTokenUsageEvent(ctx wrapper.HttpContext, event []byte) {
+	// Snapshot the previously recorded details maps BEFORE the call. The
+	// context layer is the source of truth: ai-statistics only ever writes it
+	// with effective (non-nil) maps.
+	prevInputDetails, _ := ctx.GetContext(tokenusage.CtxKeyInputTokenDetails).(map[string]int64)
+	prevOutputDetails, _ := ctx.GetContext(tokenusage.CtxKeyOutputTokenDetails).(map[string]int64)
+
+	usage := getTokenUsage(ctx, event)
+
+	inputDetails := prevInputDetails
+	if wrapper.GetValueFromBody(event, inputTokenDetailsProbePaths) != nil {
+		inputDetails = usage.InputTokenDetails
+	}
+	outputDetails := prevOutputDetails
+	if wrapper.GetValueFromBody(event, outputTokenDetailsProbePaths) != nil {
+		outputDetails = usage.OutputTokenDetails
+	}
+	// Write the effective maps to BOTH layers, undoing tokenusage's
+	// unconditional empty-map user-attribute write when the event omitted the
+	// details. A nil effective map (no details ever seen) skips both writes so
+	// intact-event behavior stays byte-equivalent to before: tokenusage's empty
+	// map remains in the user-attribute layer and the context layer stays
+	// unset.
+	if inputDetails != nil {
+		ctx.SetContext(tokenusage.CtxKeyInputTokenDetails, inputDetails)
+		ctx.SetUserAttribute(tokenusage.CtxKeyInputTokenDetails, inputDetails)
+	}
+	if outputDetails != nil {
+		ctx.SetContext(tokenusage.CtxKeyOutputTokenDetails, outputDetails)
+		ctx.SetUserAttribute(tokenusage.CtxKeyOutputTokenDetails, outputDetails)
+	}
+
+	if usage.TotalToken > 0 {
+		// Set span attributes for ARMS. Repeated writes across multiple usage
+		// events are per-key last-write-wins, so the final complete usage event
+		// determines the span (Design #4249 output consistency).
+		setSpanAttribute(ArmsTotalToken, usage.TotalToken)
+		setSpanAttribute(ArmsModelName, usage.Model)
+		setSpanAttribute(ArmsInputToken, usage.InputToken)
+		setSpanAttribute(ArmsOutputToken, usage.OutputToken)
+
+		// Write once
+		_ = ctx.WriteUserAttributeToLogWithKey(wrapper.AILogKey)
+	}
 }
 
 func onHttpResponseBody(ctx wrapper.HttpContext, config AIStatisticsConfig, body []byte) types.Action {
