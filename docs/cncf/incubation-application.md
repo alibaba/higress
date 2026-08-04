@@ -2,7 +2,7 @@
 
 This working draft follows the CNCF TOC
 [Project Incubation Application v1.6](https://github.com/cncf/toc/blob/main/.github/ISSUE_TEMPLATE/template-incubation-application.md),
-verified on 2026-07-21. It is not ready to file while any item labelled
+verified on 2026-08-04. It is not ready to file while any item labelled
 **BLOCKED** below remains unresolved.
 
 ## Review Project Moving Level Evaluation
@@ -12,8 +12,8 @@ verified on 2026-07-21. It is not ready to file while any item labelled
   will result in closure.
 
 This box remains unchecked because the public meeting, access-control evidence,
-OpenSSF Passing badge, adopter interviews/verification, and remaining
-vendor-neutral resource work are incomplete.
+adopter interviews/verification, and remaining vendor-neutral resource work are
+incomplete.
 
 ## Project information
 
@@ -39,8 +39,9 @@ vendor-neutral resource work are incomplete.
 
 ### Application Level Assertion
 
-- [x] Higress is currently Sandbox, accepted on 2026-03-15, and is applying to
-  Incubation.
+- [x] Higress is currently Sandbox. Its
+  [Sandbox vote passed on 2026-03-12](https://github.com/cncf/sandbox/issues/445#issuecomment-4044548879),
+  and it is applying to Incubation.
 - [ ] Higress is applying to join CNCF directly at Incubation level. Not
   applicable; remove this option from the filed issue.
 
@@ -67,7 +68,9 @@ include Ant Digital, Kuaishou, Trip.com, Vipshop, and Labring.
 
 - [x] Complete a General Technical Review. The project self-assessment is in
   [`general-technical-review.md`](https://github.com/higress-group/higress/blob/main/docs/cncf/general-technical-review.md);
-  maintainer approval and CNCF Project Reviews verification are requested.
+  the project copy was approved and merged in
+  [#4177](https://github.com/higress-group/higress/pull/4177), and CNCF Project
+  Reviews verification and the required dated TOC snapshot remain pending.
 - [ ] Complete a Governance Review. The self-assessment is in
   [`governance-review.md`](https://github.com/higress-group/higress/blob/main/docs/cncf/governance-review.md),
   but its public-meeting Must-Fix remains open.
@@ -81,7 +84,8 @@ include Ant Digital, Kuaishou, Trip.com, Vipshop, and Labring.
   application needs a maintainer/CNCF-reviewed compatibility and infrastructure
   plan.
 - [x] Review and acknowledgement of Sandbox expectations and maturity-level
-  requirements. Higress was accepted as a Sandbox project on 2026-03-15 and
+  requirements. The Higress Sandbox vote passed on 2026-03-12, onboarding was
+  [completed on 2026-06-17](https://github.com/cncf/sandbox/issues/481), and
   this application explicitly acknowledges the current requirements.
 - [ ] Due Diligence Review. This is completed through CNCF review, resolution
   of concerns, and public comment after a ready application is filed.
@@ -185,10 +189,15 @@ include Ant Digital, Kuaishou, Trip.com, Vipshop, and Labring.
   conflicts, report handling, and escalation are documented.
 - [x] The Security Self-Assessment is documented in
   [`security-self-assessment.md`](https://github.com/higress-group/higress/blob/main/docs/cncf/security-self-assessment.md).
-- [ ] **BLOCKED — OpenSSF Best Practices Passing badge.** The public entry is
-  currently 96%. Warning enforcement/remediation, static-analysis frequency,
-  confirmed CodeQL alert disposition, and project-level dynamic analysis remain
-  before the badge can be certified as Passing.
+- [x] Higress has achieved the
+  [OpenSSF Best Practices Passing badge](https://www.bestpractices.dev/projects/12667).
+  The result was verified on 2026-08-04. The supporting work includes CodeQL on
+  pull requests, pushes to `main`, and a weekly schedule
+  ([#4186](https://github.com/higress-group/higress/pull/4186)); an enforced Go
+  vet warning gate
+  ([#4193](https://github.com/higress-group/higress/pull/4193)); and an auditable
+  disposition for all tracked Critical/High CodeQL findings
+  ([#4207](https://github.com/higress-group/higress/issues/4207)).
 
 ## Ecosystem
 
@@ -211,8 +220,12 @@ the following required items remain open:
 
 1. a real public meeting scheduler and/or CNCF calendar integration;
 2. enforced repository access-control evidence;
-3. OpenSSF Best Practices Passing, including warning enforcement, analysis
-   frequency, alert disposition, and dynamic analysis;
-4. vendor-neutral resource/website remediation or an accepted migration plan;
-5. 5–7 adopter interview submissions and later TOC verification; and
-6. direct project point-of-contact emails confirmed for the issue.
+3. vendor-neutral resource/website remediation or an accepted migration plan;
+4. 5–7 adopter interview submissions and later TOC verification; and
+5. direct project point-of-contact emails confirmed for the issue.
+
+OpenSSF Best Practices is no longer a filing blocker. Before final filing, the
+project should also open the CNCF Project Reviews requests and coordinate the
+required vetted GTR, Governance Review, and Security Self-Assessment snapshots.
+CNCF reviewer availability should not be treated as a project-side blocker once
+all required project criteria and review requests are complete.

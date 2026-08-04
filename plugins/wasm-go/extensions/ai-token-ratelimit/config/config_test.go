@@ -284,3 +284,69 @@ func TestParseAiTokenRateLimitConfig_RuleItemsLimit(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAiTokenRateLimitConfig_ActionableLimitKeyErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		json       string
+		wantErrors []string
+	}{
+		{
+			name: "LiteralPerConsumerSuggestsExactVariant",
+			json: `{
+				"rule_name": "literal-per-consumer",
+				"rule_items": [{
+					"limit_by_per_consumer": "",
+					"limit_keys": [{"key": "alice", "token_per_day": 100}]
+				}]
+			}`,
+			wantErrors: []string{`"limit_by_per_consumer"`, `got "alice"`, `"limit_by_consumer"`, "limit_keys stay the same"},
+		},
+		{
+			name: "MissingPerIpKeysIncludesCIDRExample",
+			json: `{
+				"rule_name": "missing-keys",
+				"rule_items": [{"limit_by_per_ip": "from-remote-addr"}]
+			}`,
+			wantErrors: []string{"missing limit_keys", "limit_by_per_ip", `key: "0.0.0.0/0"`},
+		},
+		{
+			name: "EmptyExactKeysIncludesLiteralExample",
+			json: `{
+				"rule_name": "empty-keys",
+				"rule_items": [{"limit_by_header": "x-user", "limit_keys": []}]
+			}`,
+			wantErrors: []string{"limit_keys cannot be empty", "limit_by_header", `key: "<exact-value>"`},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var config AiTokenRateLimitConfig
+			err := ParseAiTokenRateLimitConfig(gjson.Parse(tt.json), &config)
+			if assert.Error(t, err) {
+				for _, want := range tt.wantErrors {
+					assert.Contains(t, err.Error(), want)
+				}
+			}
+		})
+	}
+}
+
+func TestParseAiTokenRateLimitConfig_AcceptsSupportedLimitKeyForms(t *testing.T) {
+	tests := []struct {
+		name string
+		item string
+	}{
+		{name: "Exact", item: `{"limit_by_header":"x-user","limit_keys":[{"key":"alice","token_per_second":1}]}`},
+		{name: "Wildcard", item: `{"limit_by_per_header":"x-user","limit_keys":[{"key":"*","token_per_second":1}]}`},
+		{name: "Regexp", item: `{"limit_by_per_consumer":"","limit_keys":[{"key":"regexp:^team-","token_per_second":1}]}`},
+		{name: "CIDR", item: `{"limit_by_per_ip":"from-remote-addr","limit_keys":[{"key":"0.0.0.0/0","token_per_second":1}]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var config AiTokenRateLimitConfig
+			raw := fmt.Sprintf(`{"rule_name":"valid-key","rule_items":[%s]}`, tt.item)
+			assert.NoError(t, ParseAiTokenRateLimitConfig(gjson.Parse(raw), &config))
+		})
+	}
+}
