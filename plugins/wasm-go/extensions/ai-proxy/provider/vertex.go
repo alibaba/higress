@@ -465,7 +465,10 @@ func (v *vertexProvider) onChatCompletionRequestBody(ctx wrapper.HttpContext, bo
 		path := v.getAhthropicRequestPath(ctx, ApiNameChatCompletion, request.Model, request.Stream)
 		util.OverwriteRequestPathHeader(headers, path)
 
-		claudeRequest := v.claude.buildClaudeTextGenRequest(request)
+		claudeRequest, err := v.claude.buildClaudeTextGenRequest(request)
+		if err != nil {
+			return nil, err
+		}
 		claudeRequest.Model = ""
 		claudeRequest.AnthropicVersion = vertexAnthropicVersion
 		claudeBody, err := json.Marshal(claudeRequest)

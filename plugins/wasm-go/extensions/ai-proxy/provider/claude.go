@@ -392,7 +392,10 @@ func (c *claudeProvider) TransformRequestBody(ctx wrapper.HttpContext, apiName A
 	if err := c.config.parseRequestAndMapModel(ctx, request, body); err != nil {
 		return nil, err
 	}
-	claudeRequest := c.buildClaudeTextGenRequest(request)
+	claudeRequest, err := c.buildClaudeTextGenRequest(request)
+	if err != nil {
+		return nil, err
+	}
 	return json.Marshal(claudeRequest)
 }
 
@@ -448,7 +451,7 @@ func (c *claudeProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name A
 	return []byte(modifiedResponseChunk), nil
 }
 
-func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRequest) *claudeTextGenRequest {
+func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRequest) (*claudeTextGenRequest, error) {
 	claudeRequest := claudeTextGenRequest{
 		Model:         origRequest.Model,
 		MaxTokens:     origRequest.getMaxTokens(),
@@ -465,31 +468,72 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 	if origRequest.ClaudeOutputConfig != nil {
 		claudeRequest.OutputConfig = origRequest.ClaudeOutputConfig
 	}
+	// Resolve the Claude thinking configuration from the incoming request.
+	//
+	// Sources are considered in priority order (highest first):
+	//   1. claude_thinking  — explicit Claude-native thinking config
+	//   2. thinking         — standard OpenAI thinking field (type + budget)
+	//   3. reasoning_effort / reasoning_max_tokens — OpenAI reasoning derived
+	//
+	// An explicit configuration always wins over the derived one, so an
+	// explicitly disabled thinking is never reopened by reasoning_effort.
+
+	// 1) The explicit Claude-native thinking config wins unconditionally.
 	if origRequest.ClaudeThinking != nil {
 		claudeRequest.Thinking = origRequest.ClaudeThinking
+	} else if origRequest.Thinking != nil {
+		// 2) Standard OpenAI "thinking" field (e.g. sent by langchain via
+		//    extra_body.thinking). Historically this field was never mapped
+		//    onto the Claude thinking config and its budget was tagged
+		//    singular "budget_token", so it was silently dropped and then
+		//    overwritten by reasoning_effort.
+		switch origRequest.Thinking.Type {
+		case "disabled":
+			// Explicitly disabled: honor it and never reopen via reasoning_effort.
+			claudeRequest.Thinking = &claudeThinkingConfig{Type: "disabled"}
+		case "":
+			// Type omitted. Only enable when a budget is actually provided;
+			// otherwise leave thinking unset so reasoning_effort can still apply.
+			if budget, _ := resolveThinkingBudget(origRequest.Thinking); budget > 0 {
+				claudeRequest.Thinking = &claudeThinkingConfig{Type: "enabled", BudgetTokens: budget}
+			}
+		default:
+			// Enabled (type is a non-empty, non-"disabled" value).
+			budget, conflict := resolveThinkingBudget(origRequest.Thinking)
+			if conflict {
+				log.Warnf("thinking.budget_token and thinking.budget_tokens are both set; "+
+					"using the standard plural budget_tokens (%d) and ignoring budget_token", budget)
+			}
+			claudeRequest.Thinking = &claudeThinkingConfig{Type: origRequest.Thinking.Type, BudgetTokens: budget}
+		}
 	}
 
-	// Convert OpenAI reasoning parameters to Claude thinking configuration
+	// 3) Derived from OpenAI reasoning parameters, but only when no explicit
+	//    thinking configuration was provided above.
 	if claudeRequest.Thinking == nil && (origRequest.ReasoningEffort != "" || origRequest.ReasoningMaxTokens > 0) {
 		var budgetTokens int
 		if origRequest.ReasoningMaxTokens > 0 {
 			budgetTokens = origRequest.ReasoningMaxTokens
 		} else {
-			// Convert reasoning_effort to budget_tokens
 			switch origRequest.ReasoningEffort {
 			case "low":
-				budgetTokens = 1024 // Minimum required by Claude
+				budgetTokens = 1024
 			case "medium":
 				budgetTokens = 8192
 			case "high":
 				budgetTokens = 16384
 			default:
-				budgetTokens = 8192 // Default to medium
+				budgetTokens = 8192
 			}
 		}
+		// Ensure minimum budget_tokens requirement.
 		if budgetTokens < claudeMinThinkingBudgetTokens {
 			budgetTokens = claudeMinThinkingBudgetTokens
 		}
+		// Drop the generated thinking when it cannot fit below max_tokens:
+		// manual thinking needs budget_tokens in [1024, max_tokens-1], so if
+		// clamping would push the budget below the minimum we silently disable
+		// thinking instead of producing an always-failing request.
 		if budgetTokens >= claudeRequest.MaxTokens {
 			budgetTokens = claudeRequest.MaxTokens - 1
 		}
@@ -498,6 +542,15 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 				Type:         "enabled",
 				BudgetTokens: budgetTokens,
 			}
+		}
+	}
+
+	// Clamp budget_tokens to be strictly below max_tokens, except in Claude Code
+	// (interleaved-thinking) mode where Anthropic permits budget_tokens to
+	// exceed max_tokens (the budget is the total for the whole turn).
+	if claudeRequest.Thinking != nil && claudeRequest.Thinking.Type != "disabled" {
+		if err := clampThinkingBudget(claudeRequest.Thinking, claudeRequest.MaxTokens, c.config.claudeCodeMode); err != nil {
+			return nil, err
 		}
 	}
 
@@ -748,7 +801,7 @@ func (c *claudeProvider) buildClaudeTextGenRequest(origRequest *chatCompletionRe
 		}
 	}
 
-	return &claudeRequest
+	return &claudeRequest, nil
 }
 
 func (c *claudeProvider) responseClaude2OpenAI(ctx wrapper.HttpContext, origResponse *claudeTextGenResponse) *chatCompletionResponse {
@@ -1080,4 +1133,49 @@ func (c *claudeProvider) GetApiName(path string) ApiName {
 		return ApiNameEmbeddings
 	}
 	return ""
+}
+
+// resolveThinkingBudget returns the thinking budget from a standard OpenAI
+// "thinking" param, preferring the standard plural "budget_tokens" over the
+// singular "budget_token". It returns a boolean indicating whether both fields
+// were set with conflicting (non-zero, differing) values.
+func resolveThinkingBudget(t *thinkingParam) (int, bool) {
+	switch {
+	case t.BudgetTokens > 0 && t.BudgetToken > 0:
+		// Both set: the plural form is the standard one, so it wins. A
+		// mismatch is reported as a conflict so the caller can warn.
+		return t.BudgetTokens, t.BudgetTokens != t.BudgetToken
+	case t.BudgetTokens > 0:
+		return t.BudgetTokens, false
+	case t.BudgetToken > 0:
+		return t.BudgetToken, false
+	default:
+		return 0, false
+	}
+}
+
+// clampThinkingBudget ensures thinking.budget_tokens is strictly below maxTokens.
+// Claude requires max_tokens > thinking.budget_tokens, otherwise it returns
+// HTTP 400 "max_tokens must be greater than thinking.budget_tokens".
+//
+// In Claude Code (interleaved-thinking) mode, Anthropic permits budget_tokens
+// to exceed max_tokens — the budget is the total for the whole turn — so the
+// clamp must be skipped there to avoid silently shrinking a legitimate request.
+func clampThinkingBudget(thinking *claudeThinkingConfig, maxTokens int, interleaved bool) error {
+	if thinking == nil || thinking.Type != "enabled" || interleaved {
+		return nil
+	}
+	// Manual thinking requires budget_tokens >= 1024 and max_tokens to be
+	// strictly greater than the budget. Therefore it cannot be enabled with
+	// max_tokens <= 1024, regardless of the budget supplied by the client.
+	if maxTokens < 1025 {
+		return fmt.Errorf("max_tokens (%d) is too small to enable thinking: thinking requires budget_tokens in [1024, max_tokens-1], so max_tokens must be >= 1025", maxTokens)
+	}
+	if thinking.BudgetTokens < 1024 {
+		return fmt.Errorf("thinking.budget_tokens (%d) is too small: manual thinking requires at least 1024", thinking.BudgetTokens)
+	}
+	if thinking.BudgetTokens >= maxTokens {
+		thinking.BudgetTokens = maxTokens - 1
+	}
+	return nil
 }

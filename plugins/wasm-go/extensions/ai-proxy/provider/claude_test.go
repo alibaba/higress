@@ -159,7 +159,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		// Should not have system prompt injected
 		assert.Nil(t, claudeReq.System)
@@ -177,7 +178,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		assert.NotNil(t, claudeReq.System)
 		assert.False(t, claudeReq.System.IsArray)
@@ -206,7 +208,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			}},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.NotNil(t, claudeReq.Thinking)
 		assert.Equal(t, "adaptive", claudeReq.Thinking.Type)
@@ -236,7 +239,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		assert.Equal(t, 400, claudeReq.MaxTokens)
 		assert.Nil(t, claudeReq.Thinking)
@@ -252,7 +256,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.NotNil(t, claudeReq.Thinking)
 		assert.Equal(t, "enabled", claudeReq.Thinking.Type)
@@ -271,7 +276,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.NotNil(t, claudeReq.Thinking)
 		assert.Equal(t, "enabled", claudeReq.Thinking.Type)
@@ -301,7 +307,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.NotNil(t, claudeReq.ToolChoice)
 		assert.Equal(t, "tool", claudeReq.ToolChoice.Type)
@@ -327,7 +334,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			ParallelToolCalls: &parallelToolCalls,
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.NotNil(t, claudeReq.ToolChoice)
 		assert.Equal(t, "any", claudeReq.ToolChoice.Type)
@@ -353,7 +361,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			ToolChoice: "required",
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.NotNil(t, claudeReq.ToolChoice)
 		assert.Equal(t, "auto", claudeReq.ToolChoice.Type)
@@ -376,7 +385,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			ToolChoice: "none",
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.NotNil(t, claudeReq.ToolChoice)
 		assert.Equal(t, "none", claudeReq.ToolChoice.Type)
@@ -407,7 +417,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_StandardMode(t *testing.T) {
 			}},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.Len(t, claudeReq.Messages, 1)
 		assert.Equal(t, roleUser, claudeReq.Messages[0].Role)
@@ -534,7 +545,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ClaudeCodeMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		// Should have default Claude Code system prompt
 		require.NotNil(t, claudeReq.System)
@@ -557,7 +569,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ClaudeCodeMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		// Should preserve custom system prompt but with array format and cache_control
 		require.NotNil(t, claudeReq.System)
@@ -580,7 +593,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ClaudeCodeMode(t *testing.T) {
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		// Verify complete request structure
 		assert.Equal(t, "claude-sonnet-4-5-20250929", claudeReq.Model)
@@ -674,7 +688,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ToolRoleConversion(t *testing.
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		// Should have 3 messages: user, assistant with tool_use, user with tool_result
 		require.Len(t, claudeReq.Messages, 3)
@@ -713,7 +728,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ToolRoleConversion(t *testing.
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		// Should have 3 messages: user, assistant with 2 tool_use, user with 2 tool_results
 		require.Len(t, claudeReq.Messages, 3)
@@ -744,7 +760,8 @@ func TestClaudeProvider_BuildClaudeTextGenRequest_ToolRoleConversion(t *testing.
 			},
 		}
 
-		claudeReq := provider.buildClaudeTextGenRequest(request)
+		claudeReq, err := provider.buildClaudeTextGenRequest(request)
+		require.NoError(t, err)
 
 		require.Len(t, claudeReq.Messages, 2)
 
