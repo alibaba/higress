@@ -1,24 +1,26 @@
 ---
 name: "Issue Spec: Verify"
-description: "Run final issue-spec verification across traceability, questions, review findings, PR rationale, PR checks, and durable spec draft."
+description: "Run final issue-spec verification across exact-current review, test, check, rationale, and traceability evidence."
 category: "Workflow"
 tags: ["workflow", "issue-spec"]
 ---
 
 # Issue Spec Verify
 
-Use when the user asks for /issue-spec:verify, issue-spec verify, or final readiness evidence before merge/archive.
+Coordinator: use issue-spec-workflow for final routing. In repository durable mode, materialize the projection on the implementation branch before dispatch and seal the built-in issue-spec/durable-spec check into the verification assignment. Forecast with status --gate final --summary --json, resolve its detail actions, then run authoritative issue-spec verify --summary --json and full --json before merge. Change-bearing nodes require backend-appropriate rationale and REVIEW completion evidence. Status forecast and final verify use the same authoritative validator. The validator owns exact identity, revision, freshness, and legacy compatibility.
 
-## Steps
+## Verification Role Packet
 
-1. Run focused project tests and record evidence in VERIFY comments.
-2. Run issue-spec verify-links --repo higress-group/higress --proposal <issue> --design <issue> --implement <issue> --json.
-3. Render a durable spec draft:
+1. Accept only the sealed verification assignment for the exact immutable subject revision, affected scenarios, required test commands/check selectors, and result schema. Do not load proposal/Design bodies, the complete DAG, link matrices, post-merge policy, or provider routing.
+2. Run only the required focused tests/checks against the exact revision. Keep local self-reported test evidence distinct from provider-owned check identity and conclusion; never invent externally observed check evidence.
+3. Generate/submit the bounded VERIFY receipt under the real verifier identity. Record command/check identity, revision, result, and failures. Do not collect or pass runtime-specific session IDs.
+4. A failed, pending, stale, or mismatched check is a blocker with a focused refresh/remediation result. Verification does not create or refresh REVIEW, infer links from prose, or replace independent review.
 
-       issue-spec archive durable-spec --repo higress-group/higress --proposal <issue> --capability <capability> --output /tmp/<capability>-spec.md --json
+## Project Workflow
 
-4. Run final verify:
+- Workflow Source: `builtin`
+- Workflow Schema: `issue-spec`
+- Workflow Config: `issue-spec/config.yaml`
+- Workflow Diagnostics:
 
-       issue-spec verify --repo higress-group/higress --proposal <issue> --design <issue> --implement <issue> --pr <pr> --durable-spec /tmp/<capability>-spec.md --json
-
-5. Final verify must fail if blocking questions, missing links, missing PROCESS rationale, open P0/P1 findings, failed or pending PR checks, or durable spec omissions exist.
+Project workflow templates are declarative only. Active proposal, design, implement, SPEC, TASK, PROCESS, QUESTION, REVIEW, and VERIFY artifacts remain in the selected issue backend's issue-native storage; repository-mode durable specs are materialized and checked on the implementation branch.
