@@ -1,0 +1,47 @@
+{{- range .Values.gateway.requestBodySizeLimits }}
+{{- if .enabled }}
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: {{ include "gateway.name" $ }}-{{ .name }}-request-body-size-limit
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "gateway.labels" $ | nindent 4}}
+spec:
+  workloadSelector:
+    labels:
+      {{- include "gateway.selectorLabels" $ | nindent 6 }}
+  configPatches:
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: envoy.filters.network.http_connection_manager
+              subFilter:
+                name: envoy.filters.http.router
+      patch:
+        operation: INSERT_BEFORE
+        value:
+          name: envoy.filters.http.buffer
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.Buffer
+            max_request_bytes: {{ .maxRequestBytes }}
+    - applyTo: VIRTUAL_HOST
+      match:
+        context: GATEWAY
+        routeConfiguration:
+          vhost:
+            name: {{ printf "%s:%v" .host .port | quote }}
+      patch:
+        operation: MERGE
+        value:
+          typed_per_filter_config:
+            envoy.filters.http.buffer:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+              buffer:
+                max_request_bytes: {{ .maxRequestBytes }}
+{{- end }}
+{{- end }}

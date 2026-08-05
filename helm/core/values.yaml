@@ -514,6 +514,13 @@ gateway:
   # -- If global.local is true, the default value is 100%, otherwise it is 25%
   rollingMaxUnavailable: 25%
 
+  requestBodySizeLimits:
+    - name: dev-contract
+      enabled: true
+      host: dev-contract.qtech.cn
+      port: 443
+      maxRequestBytes: 209715200
+
   resources:
     requests:
       cpu: 2000m
