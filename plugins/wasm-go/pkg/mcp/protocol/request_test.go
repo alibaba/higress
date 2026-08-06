@@ -36,6 +36,24 @@ func modernTransport(method, name string) Transport {
 	}
 }
 
+func modernTransportFromHeaders(method, name string) Transport {
+	return NewTransport("POST", "mcp.example.com", [][2]string{
+		{"Content-Type", "application/json; charset=utf-8"},
+		{"Accept", "application/json, text/event-stream"},
+		{HeaderProtocolVersion, string(Version20260728)},
+		{HeaderMethod, method},
+		{HeaderName, name},
+	})
+}
+
+func modernCallRequestWithName(name string) string {
+	encodedName, err := json.Marshal(name)
+	if err != nil {
+		panic(err)
+	}
+	return strings.Replace(modernCallRequest, `"name":"echo"`, `"name":`+string(encodedName), 1)
+}
+
 func available(method string) bool {
 	switch method {
 	case "server/discover", "tools/list", "tools/call":
@@ -294,6 +312,55 @@ func TestMCPNameBase64Sentinel(t *testing.T) {
 			_, protocolError := PrepareRequest(modernTransport("tools/call", header), []byte(modernCallRequest), available)
 			if protocolError == nil || protocolError.Code != CodeHeaderMismatch {
 				t.Fatalf("malformed/plain-unsafe header error = %+v, want code %d", protocolError, CodeHeaderMismatch)
+			}
+		})
+	}
+}
+
+func TestMCPNamePlainHeaderAllowsInternalWhitespace(t *testing.T) {
+	for _, name := range []string{"hello world", "hello\tworld"} {
+		t.Run(strconv.Quote(name), func(t *testing.T) {
+			body := modernCallRequestWithName(name)
+			request, protocolError := PrepareRequest(modernTransportFromHeaders("tools/call", name), []byte(body), available)
+			if protocolError != nil || request == nil || request.Era != EraModern {
+				t.Fatalf("plain name rejected: request=%+v error=%+v", request, protocolError)
+			}
+		})
+	}
+}
+
+func TestMCPNamePlainHeaderRejectsBoundaryWhitespaceAndUnsafeBytes(t *testing.T) {
+	invalidNames := []string{
+		" leading",
+		"trailing ",
+		"\tleading",
+		"trailing\t",
+		"hello\rworld",
+		"hello\nworld",
+		"hello\x00world",
+		"hello\x1fworld",
+		"hello\x7fworld",
+		"héllo",
+	}
+	for _, name := range invalidNames {
+		t.Run(strconv.Quote(name), func(t *testing.T) {
+			body := modernCallRequestWithName(name)
+			_, protocolError := PrepareRequest(modernTransportFromHeaders("tools/call", name), []byte(body), available)
+			if protocolError == nil || protocolError.Code != CodeHeaderMismatch {
+				t.Fatalf("unsafe plain name error = %+v, want code %d", protocolError, CodeHeaderMismatch)
+			}
+		})
+	}
+}
+
+func TestMCPNameBase64HeaderAllowsBoundaryWhitespace(t *testing.T) {
+	for _, name := range []string{" leading", "trailing ", "\tleading", "trailing\t"} {
+		t.Run(strconv.Quote(name), func(t *testing.T) {
+			body := modernCallRequestWithName(name)
+			header := nameHeaderPrefix + base64.StdEncoding.EncodeToString([]byte(name)) + nameHeaderSuffix
+			request, protocolError := PrepareRequest(modernTransportFromHeaders("tools/call", header), []byte(body), available)
+			if protocolError != nil || request == nil || request.Era != EraModern {
+				t.Fatalf("Base64 boundary whitespace rejected: request=%+v error=%+v", request, protocolError)
 			}
 		})
 	}

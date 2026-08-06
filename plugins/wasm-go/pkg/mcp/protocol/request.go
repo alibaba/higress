@@ -440,7 +440,13 @@ func decodeNameHeader(value string, present bool) (string, bool) {
 		}
 		return string(decoded), true
 	}
+	if value[0] == ' ' || value[0] == '\t' || value[len(value)-1] == ' ' || value[len(value)-1] == '\t' {
+		return "", false
+	}
 	for i := 0; i < len(value); i++ {
+		if value[i] == ' ' || value[i] == '\t' {
+			continue
+		}
 		if value[i] < 0x21 || value[i] > 0x7e {
 			return "", false
 		}

@@ -51,11 +51,12 @@ type Transport struct {
 }
 
 // NewTransport captures relevant headers without retaining credentials.
-// Multiple values for a protocol-sensitive header are rejected later rather
-// than guessed or combined.
+// Accept field lines are combined in receive order as one list; repeated
+// singleton or identity headers are rejected later rather than guessed.
 func NewTransport(method, authority string, headers [][2]string) Transport {
 	transport := Transport{Method: method, Authority: authority}
 	seen := make(map[string]bool)
+	acceptValues := make([]string, 0, 1)
 	for _, header := range headers {
 		name := strings.ToLower(header[0])
 		var target *string
@@ -63,7 +64,8 @@ func NewTransport(method, authority string, headers [][2]string) Transport {
 		case "content-type":
 			target = &transport.ContentType
 		case "accept":
-			target = &transport.Accept
+			acceptValues = append(acceptValues, strings.TrimSpace(header[1]))
+			continue
 		case "origin":
 			target = &transport.Origin
 		case strings.ToLower(HeaderProtocolVersion):
@@ -86,8 +88,15 @@ func NewTransport(method, authority string, headers [][2]string) Transport {
 			continue
 		}
 		seen[name] = true
-		*target = strings.TrimSpace(header[1])
+		if name == strings.ToLower(HeaderName) {
+			// Mcp-Name whitespace is identity data: only the Base64 sentinel may
+			// carry leading or trailing whitespace in the decoded name.
+			*target = header[1]
+		} else {
+			*target = strings.TrimSpace(header[1])
+		}
 	}
+	transport.Accept = strings.Join(acceptValues, ", ")
 	return transport
 }
 
@@ -135,18 +144,107 @@ func ValidateOrigin(transport Transport) *Error {
 
 func accepts(value, required string) bool {
 	for item := range strings.SplitSeq(value, ",") {
-		mediaType, parameters, err := mime.ParseMediaType(strings.TrimSpace(item))
+		item = strings.TrimSpace(item)
+		mediaType, parameters, err := mime.ParseMediaType(item)
 		if err != nil {
 			continue
 		}
-		if quality, ok := parameters["q"]; ok && quality == "0" {
-			continue
+		if quality, ok := parameters["q"]; ok {
+			if hasQuotedQualityParameter(item) || !positiveQValue(quality) {
+				continue
+			}
 		}
 		if strings.EqualFold(mediaType, required) {
 			return true
 		}
 	}
 	return false
+}
+
+// positiveQValue implements the RFC 9110 qvalue grammar and additionally
+// requires a non-zero value for a media range to be acceptable.
+func positiveQValue(value string) bool {
+	if value == "1" || value == "1." {
+		return true
+	}
+	if strings.HasPrefix(value, "1.") {
+		fraction := value[2:]
+		if len(fraction) == 0 || len(fraction) > 3 {
+			return false
+		}
+		for i := range fraction {
+			if fraction[i] != '0' {
+				return false
+			}
+		}
+		return true
+	}
+	if value == "0" || value == "0." {
+		return false
+	}
+	if !strings.HasPrefix(value, "0.") {
+		return false
+	}
+	fraction := value[2:]
+	if len(fraction) == 0 || len(fraction) > 3 {
+		return false
+	}
+	positive := false
+	for i := range fraction {
+		if fraction[i] < '0' || fraction[i] > '9' {
+			return false
+		}
+		positive = positive || fraction[i] != '0'
+	}
+	return positive
+}
+
+func hasQuotedQualityParameter(item string) bool {
+	for i := 0; i < len(item); {
+		if item[i] == '"' {
+			i = skipQuotedHeaderValue(item, i)
+			continue
+		}
+		if item[i] != ';' {
+			i++
+			continue
+		}
+		i++
+		for i < len(item) && (item[i] == ' ' || item[i] == '\t') {
+			i++
+		}
+		nameStart := i
+		for i < len(item) && item[i] != '=' && item[i] != ';' && item[i] != ' ' && item[i] != '\t' {
+			i++
+		}
+		name := item[nameStart:i]
+		for i < len(item) && (item[i] == ' ' || item[i] == '\t') {
+			i++
+		}
+		if i >= len(item) || item[i] != '=' {
+			continue
+		}
+		i++
+		for i < len(item) && (item[i] == ' ' || item[i] == '\t') {
+			i++
+		}
+		if strings.EqualFold(name, "q") {
+			return i < len(item) && item[i] == '"'
+		}
+	}
+	return false
+}
+
+func skipQuotedHeaderValue(value string, quote int) int {
+	for i := quote + 1; i < len(value); i++ {
+		switch value[i] {
+		case '\\':
+			i++
+		case '"':
+			return i + 1
+		}
+	}
+	return len(value)
 }
 
 func trustedOrigin(origin, authority string) bool {

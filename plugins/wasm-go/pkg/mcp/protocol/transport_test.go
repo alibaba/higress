@@ -67,6 +67,112 @@ func TestNewTransportRejectsDuplicateSensitiveHeaders(t *testing.T) {
 	}
 }
 
+func TestAcceptQValueGrammar(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{"absent defaults to one", "application/json", true},
+		{"zero", "application/json;q=0", false},
+		{"zero dot", "application/json;q=0.", false},
+		{"zero one digit", "application/json;q=0.0", false},
+		{"zero two digits", "application/json;q=0.00", false},
+		{"zero three digits", "application/json;q=0.000", false},
+		{"minimum positive", "application/json;q=0.001", true},
+		{"positive fraction", "application/json;q=0.5", true},
+		{"missing leading zero", "application/json;q=.5", false},
+		{"one", "application/json;q=1", true},
+		{"one dot", "application/json;q=1.", true},
+		{"one three zeros", "application/json;q=1.000", true},
+		{"above one", "application/json;q=1.001", false},
+		{"negative", "application/json;q=-0.1", false},
+		{"exponent", "application/json;q=1e0", false},
+		{"too many digits", "application/json;q=0.0001", false},
+		{"empty", "application/json;q=", false},
+		{"invalid", "application/json;q=high", false},
+		{"quoted", `application/json;q="0.5"`, false},
+		{"uppercase parameter", "application/json;Q=0.5", true},
+		{"uppercase zero", "application/json;Q=0", false},
+		{"later valid duplicate", "application/json;q=1.001, application/json;q=0.5", true},
+		{"later invalid duplicate", "application/json;q=0.5, application/json;q=1.001", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := accepts(test.value, "application/json"); got != test.want {
+				t.Fatalf("accepts(%q) = %t, want %t", test.value, got, test.want)
+			}
+		})
+	}
+}
+
+func TestNewTransportCombinesAcceptFieldLines(t *testing.T) {
+	transport := NewTransport("POST", "mcp.example.com", [][2]string{
+		{"Content-Type", "application/json"},
+		{"Accept", "application/json"},
+		{"accept", "text/event-stream"},
+		{HeaderProtocolVersion, string(Version20260728)},
+		{HeaderMethod, "tools/list"},
+	})
+	if transport.AmbiguousHeader {
+		t.Fatal("repeated Accept field lines must not be marked ambiguous")
+	}
+	if transport.Accept != "application/json, text/event-stream" {
+		t.Fatalf("combined Accept = %q", transport.Accept)
+	}
+	if protocolError := ValidateModernTransport(transport); protocolError != nil {
+		t.Fatalf("combined JSON/SSE Accept rejected: %+v", protocolError)
+	}
+
+	disabledJSON := NewTransport("POST", "mcp.example.com", [][2]string{
+		{"Content-Type", "application/json"},
+		{"Accept", "application/json;q=0"},
+		{"Accept", "text/event-stream"},
+	})
+	protocolError := ValidateModernTransport(disabledJSON)
+	if protocolError == nil || protocolError.HTTPStatus != 406 {
+		t.Fatalf("cross-line q=0 error = %+v, want HTTP 406", protocolError)
+	}
+
+	reenabledJSON := NewTransport("POST", "mcp.example.com", [][2]string{
+		{"Content-Type", "application/json"},
+		{"Accept", "application/json;q=0"},
+		{"Accept", "text/event-stream"},
+		{"Accept", "application/json;q=0.5"},
+	})
+	if protocolError := ValidateModernTransport(reenabledJSON); protocolError != nil {
+		t.Fatalf("later positive q field line did not re-enable JSON: %+v", protocolError)
+	}
+}
+
+func TestNewTransportStillRejectsDuplicateSingletonHeaders(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		modern bool
+	}{
+		{"content type", "Content-Type", false},
+		{"origin", "Origin", false},
+		{"protocol version", HeaderProtocolVersion, true},
+		{"method", HeaderMethod, true},
+		{"name", HeaderName, true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := NewTransport("POST", "mcp.example.com", [][2]string{
+				{test.header, "first"},
+				{test.header, "second"},
+			})
+			if !transport.AmbiguousHeader {
+				t.Fatal("duplicate singleton header was not marked ambiguous")
+			}
+			if transport.AmbiguousModernHeader != test.modern {
+				t.Fatalf("AmbiguousModernHeader = %t, want %t", transport.AmbiguousModernHeader, test.modern)
+			}
+		})
+	}
+}
+
 func TestHasModernIdentityHeaders(t *testing.T) {
 	tests := []struct {
 		name    string
