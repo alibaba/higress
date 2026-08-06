@@ -190,10 +190,10 @@ count, signed-commit requirement, organization-wide 2FA, or branch-protection
 configuration; those controls require separate repository-settings evidence.
 
 Ordinary project-team communication uses GitHub issues, pull requests,
-discussions, mailing, localized community channels, and Discord. Inbound users
-use the same public channels. Every vulnerability report must be submitted to
-both GitHub Private Security Advisories and the Alibaba Security Response
-Center, as documented in `SECURITY.md`. The Security Response Team correlates
+discussions, localized community channels, and Discord. Inbound users use the
+same public channels. Every vulnerability report must be submitted to both
+GitHub Private Security Advisories and the Alibaba Security Response Center,
+as documented in `SECURITY.md`. The Security Response Team correlates
 the two private records.
 Releases, the project website, and the WeChat Official Account are outbound
 channels. [`COMMUNITY.md`](https://github.com/higress-group/higress/blob/main/COMMUNITY.md)

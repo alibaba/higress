@@ -2,7 +2,7 @@
 
 This working draft follows the CNCF TOC
 [Project Incubation Application v1.6](https://github.com/cncf/toc/blob/main/.github/ISSUE_TEMPLATE/template-incubation-application.md),
-verified on 2026-08-04. It is not ready to file while any item labelled
+verified on 2026-08-06. It is not ready to file while any item labelled
 **BLOCKED** below remains unresolved.
 
 ## Review Project Moving Level Evaluation
@@ -11,8 +11,8 @@ verified on 2026-08-04. It is not ready to file while any item labelled
   criteria are met before opening the issue, and understand that unmet criteria
   will result in closure.
 
-This box remains unchecked because the public meeting, access-control evidence,
-adopter interviews/verification, and remaining vendor-neutral resource work are
+This box remains unchecked because access-control evidence, adopter
+interviews/verification, and remaining vendor-neutral resource work are
 incomplete.
 
 ## Project information
@@ -30,10 +30,11 @@ incomplete.
 - **Related projects:** confirm before submission whether any project point of
   contact operates a technically related project in another foundation
 - **Communication:**
-  [`COMMUNITY.md`](https://github.com/higress-group/higress/blob/main/COMMUNITY.md)
+  [`COMMUNITY.md`](https://github.com/higress-group/higress/blob/main/COMMUNITY.md),
+  including the public meeting process in
+  [`MEETINGS.md`](https://github.com/higress-group/higress/blob/main/MEETINGS.md)
 - **Project points of contact:** Yuanxiao Zhao and Yiquan Dong; **TODO:** confirm
-  direct contact emails before filing (public community contact:
-  [higress@googlegroups.com](mailto:higress@googlegroups.com))
+  direct contact emails before filing
 
 ## Incubation Criteria Summary
 
@@ -73,7 +74,8 @@ include Ant Digital, Kuaishou, Trip.com, Vipshop, and Labring.
   Reviews verification and the required dated TOC snapshot remain pending.
 - [ ] Complete a Governance Review. The self-assessment is in
   [`governance-review.md`](https://github.com/higress-group/higress/blob/main/docs/cncf/governance-review.md),
-  but its public-meeting Must-Fix remains open.
+  has no project-side Must-Fix items, and awaits CNCF Project Reviews
+  verification and a dated `cncf/toc` snapshot.
 - [ ] **BLOCKED — All project metadata and resources are vendor-neutral.**
   Governance and the primary README now document vendor-neutral direction and
   no longer promote a single commercial product, but release images remain
@@ -99,9 +101,8 @@ include Ant Digital, Kuaishou, Trip.com, Vipshop, and Labring.
 - [ ] Complete the Governance Review with the CNCF Project Reviews subproject;
   external verification is pending.
 - [x] Governance is discoverable and version controlled.
-- [x] Governance documents actual public decision, leadership, role, and
-  security-team processes without claiming a recurring meeting that does not
-  exist.
+- [x] Governance documents actual public decision, leadership, role,
+  security-team, and recurring public meeting processes.
 - [x] Governance documents vendor-neutral project direction and conflicts.
 - [x] Leadership, contribution, CNCF request, governance, goal, and subproject
   decisions use a public process.
@@ -139,10 +140,11 @@ include Ant Digital, Kuaishou, Trip.com, Vipshop, and Labring.
 - [x] Public GitHub and Discord communication channels are documented.
 - [x] All official project, subproject, and narrowly scoped non-public channels
   are inventoried in `COMMUNITY.md`.
-- [ ] **BLOCKED — Public meeting scheduler/CNCF calendar.** Higress does not
-  currently publish an up-to-date public meeting scheduler or integrate its
-  meetings with the CNCF calendar. A real schedule or calendar integration must
-  be established rather than represented by documentation alone.
+- [x] The monthly Higress Community Meeting has a public schedule, joining
+  information, agenda and meeting-record process in
+  [`MEETINGS.md`](https://github.com/higress-group/higress/blob/main/MEETINGS.md),
+  and a recurring entry on the
+  [LFX public calendar](https://zoom-lfx.platform.linuxfoundation.org/meetings/higress).
 - [x] Contribution documentation is maintained.
 - [x] Contributor activity and recruitment are demonstrated through GitHub,
   DevStats, contribution labels, and maintainer activity links.
@@ -218,11 +220,10 @@ include Ant Digital, Kuaishou, Trip.com, Vipshop, and Labring.
 **Do not file yet.** The top-level readiness attestation would be false while
 the following required items remain open:
 
-1. a real public meeting scheduler and/or CNCF calendar integration;
-2. enforced repository access-control evidence;
-3. vendor-neutral resource/website remediation or an accepted migration plan;
-4. 5–7 adopter interview submissions and later TOC verification; and
-5. direct project point-of-contact emails confirmed for the issue.
+1. enforced repository access-control evidence;
+2. vendor-neutral resource/website remediation or an accepted migration plan;
+3. 5–7 adopter interview submissions and later TOC verification; and
+4. direct project point-of-contact emails confirmed for the issue.
 
 OpenSSF Best Practices is no longer a filing blocker. Before final filing, the
 project should also open the CNCF Project Reviews requests and coordinate the
