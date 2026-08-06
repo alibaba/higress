@@ -46,6 +46,13 @@ func LegacyVersions() []Version {
 	return slices.Clone(legacyVersions)
 }
 
+// SupportedVersions returns every independently supported protocol profile.
+// The modern version remains excluded from legacy initialize negotiation.
+func SupportedVersions() []Version {
+	versions := slices.Clone(legacyVersions)
+	return append(versions, Version20260728)
+}
+
 func IsLegacyVersion(version Version) bool {
 	return slices.Contains(legacyVersions, version)
 }

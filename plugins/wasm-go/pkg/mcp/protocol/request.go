@@ -16,32 +16,61 @@ package protocol
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"net/url"
+	"strings"
 	"sync"
+	"unicode/utf8"
 )
+
+// Icon is the complete optional icon schema nested under clientInfo.
+type Icon struct {
+	Source   string   `json:"src"`
+	MIMEType string   `json:"mimeType,omitempty"`
+	Sizes    []string `json:"sizes,omitempty"`
+	Theme    string   `json:"theme,omitempty"`
+}
 
 // Implementation identifies a modern MCP client when it is provided.
 type Implementation struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name        string `json:"name"`
+	Title       string `json:"title,omitempty"`
+	Version     string `json:"version"`
+	Description string `json:"description,omitempty"`
+	WebsiteURL  string `json:"websiteUrl,omitempty"`
+	Icons       []Icon `json:"icons,omitempty"`
 }
+
+// ClientCapability is an extensible, typed capability object. Individual
+// capability names are open, but each declared member must be an object.
+type ClientCapability map[string]json.RawMessage
+
+type ClientCapabilities map[string]ClientCapability
 
 // Metadata is required on every modern request. ClientInfo is optional.
 type Metadata struct {
 	ProtocolVersion    Version
-	ClientCapabilities map[string]json.RawMessage
+	ClientCapabilities ClientCapabilities
 	ClientInfo         *Implementation
+	Extensions         map[string]json.RawMessage
 }
 
 // Cancellation is scoped to one modern HTTP exchange. It has no protocol
 // session identity and is safe to signal more than once.
 type Cancellation struct {
-	once sync.Once
-	done chan struct{}
+	mu        sync.Mutex
+	done      chan struct{}
+	cancelled bool
+	nextID    uint64
+	cleanups  map[uint64]func()
 }
 
 func newCancellation() *Cancellation {
-	return &Cancellation{done: make(chan struct{})}
+	return &Cancellation{
+		done:     make(chan struct{}),
+		cleanups: make(map[uint64]func()),
+	}
 }
 
 func (c *Cancellation) Done() <-chan struct{} {
@@ -52,7 +81,50 @@ func (c *Cancellation) Cancel() {
 	if c == nil {
 		return
 	}
-	c.once.Do(func() { close(c.done) })
+	c.mu.Lock()
+	if c.cancelled {
+		c.mu.Unlock()
+		return
+	}
+	c.cancelled = true
+	cleanups := make([]func(), 0, len(c.cleanups))
+	for _, cleanup := range c.cleanups {
+		cleanups = append(cleanups, cleanup)
+	}
+	clear(c.cleanups)
+	close(c.done)
+	c.mu.Unlock()
+	for _, cleanup := range cleanups {
+		cleanup()
+	}
+}
+
+// OnCancel registers request-scoped cleanup and returns an idempotent
+// unregister function. Registration after cancellation runs cleanup
+// immediately so pending work cannot escape a concurrent disconnect.
+func (c *Cancellation) OnCancel(cleanup func()) func() {
+	if c == nil || cleanup == nil {
+		return func() {}
+	}
+	c.mu.Lock()
+	if c.cancelled {
+		c.mu.Unlock()
+		cleanup()
+		return func() {}
+	}
+	c.nextID++
+	id := c.nextID
+	c.cleanups[id] = cleanup
+	c.mu.Unlock()
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			c.mu.Lock()
+			delete(c.cleanups, id)
+			c.mu.Unlock()
+		})
+	}
 }
 
 // RequestContext is the stable pre-dispatch contract shared by modern
@@ -72,6 +144,13 @@ func (c *RequestContext) Cancel() {
 	}
 }
 
+func (c *RequestContext) OnCancel(cleanup func()) func() {
+	if c == nil {
+		return func() {}
+	}
+	return c.Cancellation.OnCancel(cleanup)
+}
+
 // SemanticResult is the profile-independent result boundary for successor
 // handlers. Result shaping remains outside this PROCESS.
 type SemanticResult struct {
@@ -80,11 +159,26 @@ type SemanticResult struct {
 	Meta       map[string]any
 }
 
+// MethodPolicy is the successor-facing pre-dispatch contract. Required client
+// capabilities are validated before the business handler is invoked.
+type MethodPolicy struct {
+	Available                  bool
+	RequiredClientCapabilities []string
+}
+
+type MethodPolicyLookup func(method string) MethodPolicy
+
 // PrepareRequest classifies a request exactly once. Legacy exchanges are
 // passed through unchanged. Modern exchanges complete all transport,
 // envelope, identity, lifecycle, and method validation before being returned.
 func PrepareRequest(transport Transport, body []byte, methodAvailable func(string) bool) (*RequestContext, *Error) {
-	era := classify(transport.ProtocolVersion, body)
+	return PrepareRequestWithPolicy(transport, body, func(method string) MethodPolicy {
+		return MethodPolicy{Available: methodAvailable != nil && methodAvailable(method)}
+	})
+}
+
+func PrepareRequestWithPolicy(transport Transport, body []byte, policyLookup MethodPolicyLookup) (*RequestContext, *Error) {
+	era := classify(transport, body)
 	if era == EraLegacy {
 		return &RequestContext{
 			Era:       EraLegacy,
@@ -96,10 +190,13 @@ func PrepareRequest(transport Transport, body []byte, methodAvailable func(strin
 	if transport.ProtocolVersion != "" &&
 		!IsModernVersion(Version(transport.ProtocolVersion)) &&
 		!IsLegacyVersion(Version(transport.ProtocolVersion)) {
-		return nil, UnsupportedVersion()
+		return nil, UnsupportedVersion(Version(transport.ProtocolVersion), SupportedVersions())
 	}
 	if protocolError := ValidateModernTransport(transport); protocolError != nil {
 		return nil, protocolError
+	}
+	if !IsModernVersion(Version(transport.ProtocolVersion)) || transport.MCPMethod == "" {
+		return nil, HeaderMismatch()
 	}
 	envelope, protocolError := decodeEnvelope(body)
 	if protocolError != nil {
@@ -117,7 +214,7 @@ func PrepareRequest(transport Transport, body []byte, methodAvailable func(strin
 	}
 	request.Metadata = metadata
 	if !IsModernVersion(metadata.ProtocolVersion) {
-		return request, UnsupportedVersion()
+		return request, UnsupportedVersion(metadata.ProtocolVersion, SupportedVersions())
 	}
 	if transport.ProtocolVersion == "" || transport.ProtocolVersion != string(metadata.ProtocolVersion) {
 		return request, HeaderMismatch()
@@ -125,71 +222,119 @@ func PrepareRequest(transport Transport, body []byte, methodAvailable func(strin
 	if transport.MCPMethod == "" || transport.MCPMethod != envelope.Method {
 		return request, HeaderMismatch()
 	}
-	if protocolError := validateNameHeader(transport.MCPName, envelope); protocolError != nil {
+	if protocolError := validateNameHeader(transport, envelope); protocolError != nil {
 		return request, protocolError
 	}
-	if !isCurrentModernMethod(envelope.Method) || methodAvailable == nil || !methodAvailable(envelope.Method) {
+	if !isCurrentModernMethod(envelope.Method) || policyLookup == nil {
 		return request, MethodNotFound()
+	}
+	policy := policyLookup(envelope.Method)
+	if !policy.Available {
+		return request, MethodNotFound()
+	}
+	missingCapabilities := missingCapabilities(metadata.ClientCapabilities, policy.RequiredClientCapabilities)
+	if len(missingCapabilities) > 0 {
+		return request, MissingRequiredClientCapability(missingCapabilities)
 	}
 	request.Cancellation = newCancellation()
 	return request, nil
 }
 
-func classify(headerVersion string, body []byte) Era {
-	var envelope struct {
-		Params struct {
-			Meta map[string]json.RawMessage `json:"_meta"`
-		} `json:"params"`
+func classify(transport Transport, body []byte) Era {
+	if HasModernIdentityHeaders(transport) {
+		return EraModern
 	}
-	if json.Unmarshal(body, &envelope) == nil {
-		if _, ok := envelope.Params.Meta[MetaProtocolVersion]; ok {
+	if len(body) > int(ModernMaxBodyBytes) {
+		if containsModernMetadataMarker(body) {
 			return EraModern
 		}
-		if _, ok := envelope.Params.Meta[MetaClientCapabilities]; ok {
-			return EraModern
-		}
-		if _, ok := envelope.Params.Meta[MetaClientInfo]; ok {
-			return EraModern
-		}
+		return EraLegacy
 	}
-	if headerVersion != "" && !IsLegacyVersion(Version(headerVersion)) {
+	envelope, protocolError := decodeEnvelope(body)
+	if protocolError != nil {
+		return EraLegacy
+	}
+	if hasModernMetadata(envelope.Params) {
 		return EraModern
 	}
 	return EraLegacy
 }
 
+func hasModernMetadata(params json.RawMessage) bool {
+	var envelope struct {
+		Meta map[string]json.RawMessage `json:"_meta"`
+	}
+	if json.Unmarshal(params, &envelope) == nil {
+		if _, ok := envelope.Meta[MetaProtocolVersion]; ok {
+			return true
+		}
+		if _, ok := envelope.Meta[MetaClientCapabilities]; ok {
+			return true
+		}
+		if _, ok := envelope.Meta[MetaClientInfo]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func containsModernMetadataMarker(body []byte) bool {
+	return bytes.Contains(body, []byte(`"`+MetaProtocolVersion+`"`)) ||
+		bytes.Contains(body, []byte(`"`+MetaClientCapabilities+`"`)) ||
+		bytes.Contains(body, []byte(`"`+MetaClientInfo+`"`))
+}
+
 func decodeMetadata(params json.RawMessage) (Metadata, *Error) {
 	if len(params) == 0 {
-		return Metadata{}, InvalidParams("modern MCP params._meta is required")
+		return Metadata{}, HeaderMismatch()
 	}
 	var decoded struct {
 		Meta map[string]json.RawMessage `json:"_meta"`
 	}
 	if err := json.Unmarshal(params, &decoded); err != nil || decoded.Meta == nil {
-		return Metadata{}, InvalidParams("modern MCP params._meta is required")
+		return Metadata{}, HeaderMismatch()
 	}
 	var version string
 	if err := json.Unmarshal(decoded.Meta[MetaProtocolVersion], &version); err != nil || version == "" {
-		return Metadata{}, InvalidParams("modern MCP protocolVersion metadata is required")
+		return Metadata{}, HeaderMismatch()
 	}
 	capabilitiesRaw, ok := decoded.Meta[MetaClientCapabilities]
 	if !ok || !isJSONObject(capabilitiesRaw) {
 		return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is required")
 	}
-	capabilities := make(map[string]json.RawMessage)
-	if err := json.Unmarshal(capabilitiesRaw, &capabilities); err != nil {
+	capabilityMembers := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(capabilitiesRaw, &capabilityMembers); err != nil {
 		return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is invalid")
+	}
+	capabilities := make(ClientCapabilities, len(capabilityMembers))
+	for name, rawCapability := range capabilityMembers {
+		if name == "" || !isJSONObject(rawCapability) {
+			return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is invalid")
+		}
+		capability := make(ClientCapability)
+		if err := json.Unmarshal(rawCapability, &capability); err != nil {
+			return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is invalid")
+		}
+		capabilities[name] = capability
 	}
 	metadata := Metadata{
 		ProtocolVersion:    Version(version),
 		ClientCapabilities: capabilities,
+		Extensions:         make(map[string]json.RawMessage),
+	}
+	for name, value := range decoded.Meta {
+		if name != MetaProtocolVersion && name != MetaClientCapabilities && name != MetaClientInfo {
+			metadata.Extensions[name] = bytes.Clone(value)
+		}
 	}
 	if clientInfoRaw, ok := decoded.Meta[MetaClientInfo]; ok {
 		if !isJSONObject(clientInfoRaw) {
 			return Metadata{}, InvalidParams("modern MCP clientInfo metadata is invalid")
 		}
 		var clientInfo Implementation
-		if err := json.Unmarshal(clientInfoRaw, &clientInfo); err != nil || clientInfo.Name == "" || clientInfo.Version == "" {
+		decoder := json.NewDecoder(bytes.NewReader(clientInfoRaw))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&clientInfo); err != nil || !validImplementation(clientInfo) {
 			return Metadata{}, InvalidParams("modern MCP clientInfo metadata is invalid")
 		}
 		metadata.ClientInfo = &clientInfo
@@ -197,9 +342,47 @@ func decodeMetadata(params json.RawMessage) (Metadata, *Error) {
 	return metadata, nil
 }
 
-func validateNameHeader(nameHeader string, envelope Envelope) *Error {
+func validImplementation(clientInfo Implementation) bool {
+	if clientInfo.Name == "" || clientInfo.Version == "" || len(clientInfo.Name) > 1024 || len(clientInfo.Version) > 1024 {
+		return false
+	}
+	if clientInfo.WebsiteURL != "" {
+		websiteURL, err := url.Parse(clientInfo.WebsiteURL)
+		if err != nil || websiteURL.User != nil || websiteURL.Host == "" || (websiteURL.Scheme != "http" && websiteURL.Scheme != "https") {
+			return false
+		}
+	}
+	for _, icon := range clientInfo.Icons {
+		if icon.Source == "" || len(icon.Source) > 4096 {
+			return false
+		}
+		source, err := url.Parse(icon.Source)
+		if err != nil || !source.IsAbs() {
+			return false
+		}
+		if icon.Theme != "" && icon.Theme != "light" && icon.Theme != "dark" {
+			return false
+		}
+		for _, size := range icon.Sizes {
+			if size == "" {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+const (
+	nameHeaderPrefix  = "=?base64?"
+	nameHeaderSuffix  = "?="
+	maxEncodedNameLen = 8192
+	maxDecodedNameLen = 4096
+)
+
+func validateNameHeader(transport Transport, envelope Envelope) *Error {
+	hasNameHeader := transport.HasMCPName || transport.MCPName != ""
 	if envelope.Method != "tools/call" {
-		if nameHeader != "" {
+		if hasNameHeader {
 			return HeaderMismatch()
 		}
 		return nil
@@ -207,13 +390,50 @@ func validateNameHeader(nameHeader string, envelope Envelope) *Error {
 	var params struct {
 		Name string `json:"name"`
 	}
-	if err := json.Unmarshal(envelope.Params, &params); err != nil || params.Name == "" {
+	if err := json.Unmarshal(envelope.Params, &params); err != nil || params.Name == "" || len(params.Name) > maxDecodedNameLen {
 		return InvalidParams("tools/call params.name is required")
 	}
-	if nameHeader == "" || nameHeader != params.Name {
+	decodedName, ok := decodeNameHeader(transport.MCPName, hasNameHeader)
+	if !ok || decodedName != params.Name {
 		return HeaderMismatch()
 	}
 	return nil
+}
+
+func decodeNameHeader(value string, present bool) (string, bool) {
+	if !present || value == "" || len(value) > maxEncodedNameLen {
+		return "", false
+	}
+	if strings.HasPrefix(value, nameHeaderPrefix) || strings.HasSuffix(value, nameHeaderSuffix) {
+		if !strings.HasPrefix(value, nameHeaderPrefix) || !strings.HasSuffix(value, nameHeaderSuffix) {
+			return "", false
+		}
+		payload := strings.TrimSuffix(strings.TrimPrefix(value, nameHeaderPrefix), nameHeaderSuffix)
+		if payload == "" || len(payload) > base64.StdEncoding.EncodedLen(maxDecodedNameLen) || strings.ContainsAny(payload, "\r\n") {
+			return "", false
+		}
+		decoded, err := base64.StdEncoding.Strict().DecodeString(payload)
+		if err != nil || len(decoded) == 0 || len(decoded) > maxDecodedNameLen || !utf8.Valid(decoded) || base64.StdEncoding.EncodeToString(decoded) != payload {
+			return "", false
+		}
+		return string(decoded), true
+	}
+	for i := 0; i < len(value); i++ {
+		if value[i] < 0x21 || value[i] > 0x7e {
+			return "", false
+		}
+	}
+	return value, true
+}
+
+func missingCapabilities(capabilities ClientCapabilities, required []string) []string {
+	missing := make([]string, 0, len(required))
+	for _, name := range required {
+		if _, ok := capabilities[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
 
 func isCurrentModernMethod(method string) bool {

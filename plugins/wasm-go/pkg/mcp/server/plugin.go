@@ -235,6 +235,13 @@ type Tool interface {
 	InputSchema() map[string]any
 }
 
+// RequestScopedCancellableTool is an optional contract for asynchronous
+// modern tools. The protocol boundary invokes Cancel exactly once when the
+// downstream request closes while work remains pending.
+type RequestScopedCancellableTool interface {
+	Cancel()
+}
+
 // ToolWithOutputSchema is an optional interface for tools that support output schema
 // (MCP Protocol Version 2025-06-18). Tools can optionally implement this interface
 // to provide output schema information.
@@ -654,7 +661,12 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				log.Debugf("Tool call [%s] on server [%s] with arguments[%s]", toolName, currentServerNameForHandlers, args.Raw)
 			}
 			toolInstance := toolToCall.Create([]byte(args.Raw))
+			unregisterCancellation := bindModernToolCancellation(ctx, toolInstance)
 			err := toolInstance.Call(ctx, config.server) // Pass the single server instance
+			needPause, _ := ctx.GetContext(utils.CtxNeedPause).(bool)
+			if err != nil || !needPause {
+				unregisterCancellation()
+			}
 			if err != nil {
 				utils.OnMCPToolCallError(ctx, err)
 				return nil
@@ -781,14 +793,20 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config McpServerConfig) types
 	proxywasm.RemoveHttpRequestHeader(protocol.HeaderMethod)
 	proxywasm.RemoveHttpRequestHeader(protocol.HeaderName)
 
-	if transport.ProtocolVersion != "" && !protocol.IsLegacyVersion(protocol.Version(transport.ProtocolVersion)) {
+	if protocol.HasModernIdentityHeaders(transport) {
 		ctx.SetRequestBodyBufferLimit(protocol.ModernMaxBodyBytes)
-		if !protocol.IsModernVersion(protocol.Version(transport.ProtocolVersion)) {
-			utils.SendProtocolError(ctx, protocol.ID{}, protocol.UnsupportedVersion(), "mcp_modern_unsupported_version")
+		if transport.ProtocolVersion != "" &&
+			!protocol.IsLegacyVersion(protocol.Version(transport.ProtocolVersion)) &&
+			!protocol.IsModernVersion(protocol.Version(transport.ProtocolVersion)) {
+			utils.SendProtocolError(ctx, protocol.ID{}, protocol.UnsupportedVersion(protocol.Version(transport.ProtocolVersion), protocol.SupportedVersions()), "mcp_modern_unsupported_version")
 			return types.HeaderStopAllIterationAndWatermark
 		}
 		if protocolError := protocol.ValidateModernTransport(transport); protocolError != nil {
 			utils.SendProtocolError(ctx, protocol.ID{}, protocolError, "mcp_modern_transport_rejected")
+			return types.HeaderStopAllIterationAndWatermark
+		}
+		if !protocol.IsModernVersion(protocol.Version(transport.ProtocolVersion)) || transport.MCPMethod == "" {
+			utils.SendProtocolError(ctx, protocol.ID{}, protocol.HeaderMismatch(), "mcp_modern_incomplete_identity")
 			return types.HeaderStopAllIterationAndWatermark
 		}
 		if !ctx.HasRequestBody() {
@@ -822,8 +840,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config McpServerConfig, body []b
 	if !ok {
 		transport = protocol.Transport{Method: ctx.Method(), Authority: ctx.Host()}
 	}
-	request, protocolError := protocol.PrepareRequest(transport, body, func(method string) bool {
-		return config.methodHandlers[method] != nil
+	request, protocolError := protocol.PrepareRequestWithPolicy(transport, body, func(method string) protocol.MethodPolicy {
+		return modernMethodPolicy(config, method)
 	})
 	if protocolError != nil {
 		id := protocol.ID{}
@@ -840,11 +858,27 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config McpServerConfig, body []b
 	return utils.HandleModernJsonRpcMethod(ctx, request, config.methodHandlers)
 }
 
+func modernMethodPolicy(config McpServerConfig, method string) protocol.MethodPolicy {
+	if _, isProxy := config.server.(*McpProxyServer); isProxy {
+		return protocol.MethodPolicy{}
+	}
+	return protocol.MethodPolicy{Available: config.methodHandlers[method] != nil}
+}
+
 // ModernRequestContext returns the typed modern request contract for business
 // handlers and successor adapters. Legacy handlers never receive this value.
 func ModernRequestContext(ctx wrapper.HttpContext) (*protocol.RequestContext, bool) {
 	request, ok := ctx.GetContext(consts.CtxProtocolRequest).(*protocol.RequestContext)
 	return request, ok && request != nil && request.Era == protocol.EraModern
+}
+
+func bindModernToolCancellation(ctx wrapper.HttpContext, tool Tool) func() {
+	request, modern := ModernRequestContext(ctx)
+	cancellable, supportsCancellation := tool.(RequestScopedCancellableTool)
+	if !modern || !supportsCancellation {
+		return func() {}
+	}
+	return request.OnCancel(cancellable.Cancel)
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config McpServerConfig) types.Action {

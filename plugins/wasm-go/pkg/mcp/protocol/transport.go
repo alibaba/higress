@@ -34,15 +34,19 @@ const (
 // Transport contains only protocol-relevant request metadata. It intentionally
 // excludes authorization, cookies, request IDs, and all runtime session state.
 type Transport struct {
-	Method          string
-	Authority       string
-	ContentType     string
-	Accept          string
-	Origin          string
-	ProtocolVersion string
-	MCPMethod       string
-	MCPName         string
-	AmbiguousHeader bool
+	Method                string
+	Authority             string
+	ContentType           string
+	Accept                string
+	Origin                string
+	ProtocolVersion       string
+	MCPMethod             string
+	MCPName               string
+	AmbiguousHeader       bool
+	HasProtocolVersion    bool
+	HasMCPMethod          bool
+	HasMCPName            bool
+	AmbiguousModernHeader bool
 }
 
 // NewTransport captures relevant headers without retaining credentials.
@@ -63,21 +67,38 @@ func NewTransport(method, authority string, headers [][2]string) Transport {
 			target = &transport.Origin
 		case strings.ToLower(HeaderProtocolVersion):
 			target = &transport.ProtocolVersion
+			transport.HasProtocolVersion = true
 		case strings.ToLower(HeaderMethod):
 			target = &transport.MCPMethod
+			transport.HasMCPMethod = true
 		case strings.ToLower(HeaderName):
 			target = &transport.MCPName
+			transport.HasMCPName = true
 		default:
 			continue
 		}
 		if seen[name] {
 			transport.AmbiguousHeader = true
+			if name == strings.ToLower(HeaderProtocolVersion) || name == strings.ToLower(HeaderMethod) || name == strings.ToLower(HeaderName) {
+				transport.AmbiguousModernHeader = true
+			}
 			continue
 		}
 		seen[name] = true
 		*target = strings.TrimSpace(header[1])
 	}
 	return transport
+}
+
+// HasModernIdentityHeaders reports whether a request carries any header that
+// belongs exclusively to the modern profile. Incomplete modern identity must
+// never fall back to legacy dispatch.
+func HasModernIdentityHeaders(transport Transport) bool {
+	return transport.HasMCPMethod || transport.HasMCPName ||
+		transport.MCPMethod != "" || transport.MCPName != "" ||
+		transport.AmbiguousModernHeader ||
+		(transport.HasProtocolVersion && transport.ProtocolVersion == "") ||
+		(transport.ProtocolVersion != "" && !IsLegacyVersion(Version(transport.ProtocolVersion)))
 }
 
 // ValidateModernTransport performs checks which do not depend on the JSON-RPC

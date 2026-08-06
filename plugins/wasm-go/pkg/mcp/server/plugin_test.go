@@ -18,6 +18,10 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/consts"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/protocol"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -713,4 +717,102 @@ func TestBaseMCPServer_CloneBase_DeepCopiesTools(t *testing.T) {
 	got, ok := cloned.GetMCPTools()["a"]
 	require.True(t, ok)
 	assert.Same(t, stub, got, "existing tools are shared by reference (no deep clone of Tool itself)")
+}
+
+func TestModernMethodPolicyDisablesMCPProxyHandlers(t *testing.T) {
+	handler := func(_ wrapper.HttpContext, _ utils.JsonRpcID, _ gjson.Result) error { return nil }
+	proxyConfig := McpServerConfig{
+		server:         NewMcpProxyServer("proxy"),
+		methodHandlers: utils.MethodHandlers{"tools/call": handler},
+	}
+	assert.False(t, modernMethodPolicy(proxyConfig, "tools/call").Available,
+		"modern requests must not enter proxy handlers that log raw arguments")
+
+	regularConfig := McpServerConfig{
+		server:         &stubServer{},
+		methodHandlers: utils.MethodHandlers{"tools/call": handler},
+	}
+	assert.True(t, modernMethodPolicy(regularConfig, "tools/call").Available)
+}
+
+type protocolTestHTTPContext struct {
+	wrapper.HttpContext
+	values map[string]any
+}
+
+func (c *protocolTestHTTPContext) SetContext(key string, value any) {
+	if c.values == nil {
+		c.values = make(map[string]any)
+	}
+	c.values[key] = value
+}
+
+func (c *protocolTestHTTPContext) GetContext(key string) any {
+	return c.values[key]
+}
+
+type pendingCancellableTool struct {
+	pending     bool
+	cancelCalls int
+}
+
+func (t *pendingCancellableTool) Create(_ []byte) Tool { return t }
+func (t *pendingCancellableTool) Description() string  { return "pending" }
+func (t *pendingCancellableTool) InputSchema() map[string]any {
+	return map[string]any{"type": "object"}
+}
+func (t *pendingCancellableTool) Call(_ HttpContext, _ Server) error { t.pending = true; return nil }
+func (t *pendingCancellableTool) Cancel() {
+	if t.pending {
+		t.pending = false
+		t.cancelCalls++
+	}
+}
+
+func TestModernDisconnectCancelsPendingToolOnce(t *testing.T) {
+	transport := protocol.Transport{
+		Method:          "POST",
+		Authority:       "mcp.example.com",
+		ContentType:     "application/json",
+		Accept:          "application/json, text/event-stream",
+		ProtocolVersion: string(protocol.Version20260728),
+		MCPMethod:       "tools/call",
+		MCPName:         "slow",
+	}
+	body := []byte(`{
+		"jsonrpc":"2.0",
+		"id":1,
+		"method":"tools/call",
+		"params":{
+			"name":"slow",
+			"arguments":{},
+			"_meta":{
+				"io.modelcontextprotocol/protocolVersion":"2026-07-28",
+				"io.modelcontextprotocol/clientCapabilities":{}
+			}
+		}
+	}`)
+	request, protocolError := protocol.PrepareRequest(transport, body, func(method string) bool {
+		return method == "tools/call"
+	})
+	require.Nil(t, protocolError)
+	require.NotNil(t, request)
+
+	ctx := &protocolTestHTTPContext{values: map[string]any{consts.CtxProtocolRequest: request}}
+	tool := &pendingCancellableTool{}
+	unregister := bindModernToolCancellation(ctx, tool)
+	require.NoError(t, tool.Call(ctx, &stubServer{}))
+	require.True(t, tool.pending)
+
+	onHttpStreamDone(ctx, McpServerConfig{})
+	onHttpStreamDone(ctx, McpServerConfig{})
+	unregister()
+
+	assert.False(t, tool.pending)
+	assert.Equal(t, 1, tool.cancelCalls, "disconnect cleanup must run exactly once")
+	select {
+	case <-request.Cancellation.Done():
+	default:
+		t.Fatal("modern request cancellation channel was not closed")
+	}
 }

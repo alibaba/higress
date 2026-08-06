@@ -14,17 +14,28 @@
 
 package protocol
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"slices"
+)
 
 const (
-	CodeParseError         = -32700
-	CodeInvalidRequest     = -32600
-	CodeMethodNotFound     = -32601
-	CodeInvalidParams      = -32602
-	CodeInternalError      = -32603
-	CodeHeaderMismatch     = -32020
-	CodeUnsupportedVersion = -32022
+	CodeParseError                      = -32700
+	CodeInvalidRequest                  = -32600
+	CodeMethodNotFound                  = -32601
+	CodeInvalidParams                   = -32602
+	CodeInternalError                   = -32603
+	CodeHeaderMismatch                  = -32020
+	CodeMissingRequiredClientCapability = -32021
+	CodeUnsupportedVersion              = -32022
 )
+
+// ErrorData is the typed data contract for modern protocol errors.
+type ErrorData struct {
+	Supported            []Version `json:"supported,omitempty"`
+	Requested            Version   `json:"requested,omitempty"`
+	RequiredCapabilities []string  `json:"requiredCapabilities,omitempty"`
+}
 
 // Error is a transport-aware JSON-RPC error. Messages are deliberately fixed
 // and must not contain request parameters, credentials, or other hostile input.
@@ -32,6 +43,7 @@ type Error struct {
 	HTTPStatus uint32
 	Code       int
 	Message    string
+	Data       *ErrorData
 }
 
 func (e *Error) Error() string {
@@ -61,8 +73,22 @@ func HeaderMismatch() *Error {
 	return newError(400, CodeHeaderMismatch, "MCP header does not match request body")
 }
 
-func UnsupportedVersion() *Error {
-	return newError(400, CodeUnsupportedVersion, "unsupported MCP protocol version")
+func MissingRequiredClientCapability(requiredCapabilities []string) *Error {
+	required := slices.Clone(requiredCapabilities)
+	slices.Sort(required)
+	required = slices.Compact(required)
+	protocolError := newError(400, CodeMissingRequiredClientCapability, "missing required client capability")
+	protocolError.Data = &ErrorData{RequiredCapabilities: required}
+	return protocolError
+}
+
+func UnsupportedVersion(requested Version, supported []Version) *Error {
+	protocolError := newError(400, CodeUnsupportedVersion, "unsupported MCP protocol version")
+	protocolError.Data = &ErrorData{
+		Supported: slices.Clone(supported),
+		Requested: requested,
+	}
+	return protocolError
 }
 
 func MethodNotFound() *Error {
@@ -90,8 +116,9 @@ func RequestTooLarge() *Error {
 }
 
 type errorObject struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int        `json:"code"`
+	Message string     `json:"message"`
+	Data    *ErrorData `json:"data,omitempty"`
 }
 
 type errorEnvelope struct {
@@ -113,6 +140,7 @@ func MarshalErrorResponse(id ID, protocolError *Error) []byte {
 		Error: errorObject{
 			Code:    protocolError.Code,
 			Message: protocolError.Message,
+			Data:    protocolError.Data,
 		},
 	})
 	return body

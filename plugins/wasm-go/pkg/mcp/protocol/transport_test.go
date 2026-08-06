@@ -66,3 +66,54 @@ func TestNewTransportRejectsDuplicateSensitiveHeaders(t *testing.T) {
 		t.Fatal("duplicate case-insensitive identity header was not marked ambiguous")
 	}
 }
+
+func TestHasModernIdentityHeaders(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers [][2]string
+		want    bool
+	}{
+		{
+			name:    "modern method without protocol header",
+			headers: [][2]string{{HeaderMethod, "tools/list"}},
+			want:    true,
+		},
+		{
+			name:    "modern name without protocol header",
+			headers: [][2]string{{HeaderName, "weather"}},
+			want:    true,
+		},
+		{
+			name:    "present but empty modern method",
+			headers: [][2]string{{HeaderMethod, " "}},
+			want:    true,
+		},
+		{
+			name:    "empty protocol identity",
+			headers: [][2]string{{HeaderProtocolVersion, " "}},
+			want:    true,
+		},
+		{
+			name: "duplicate modern identity",
+			headers: [][2]string{
+				{HeaderMethod, "tools/list"},
+				{HeaderMethod, "tools/list"},
+			},
+			want: true,
+		},
+		{
+			name:    "legacy protocol only",
+			headers: [][2]string{{HeaderProtocolVersion, string(Version20250618)}},
+			want:    false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := NewTransport("POST", "mcp.example.com", test.headers)
+			if got := HasModernIdentityHeaders(transport); got != test.want {
+				t.Fatalf("HasModernIdentityHeaders() = %v, want %v; transport = %+v", got, test.want, transport)
+			}
+		})
+	}
+}

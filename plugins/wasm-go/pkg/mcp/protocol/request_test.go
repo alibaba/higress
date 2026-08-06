@@ -16,8 +16,10 @@ package protocol
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -171,7 +173,7 @@ func TestPrepareRequestRejectsModernBoundaryViolationsBeforeMethodLookup(t *test
 		{"missing name header", modernTransport("tools/call", ""), modernCallRequest, nil, 400, CodeHeaderMismatch},
 		{"mismatched name header", modernTransport("tools/call", "other"), modernCallRequest, nil, 400, CodeHeaderMismatch},
 		{"unexpected name header", modernTransport("tools/list", "echo"), modernListRequest, nil, 400, CodeHeaderMismatch},
-		{"missing metadata", modernTransport("tools/list", ""), `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`, nil, 400, CodeInvalidParams},
+		{"missing metadata", modernTransport("tools/list", ""), `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`, nil, 400, CodeHeaderMismatch},
 		{"missing capabilities", modernTransport("tools/list", ""), `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}`, nil, 400, CodeInvalidParams},
 		{"invalid clientInfo", modernTransport("tools/list", ""), strings.Replace(modernListRequest, `"io.modelcontextprotocol/clientCapabilities":{}`, `"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk"}`, 1), nil, 400, CodeInvalidParams},
 	}
@@ -196,6 +198,125 @@ func TestPrepareRequestRejectsModernBoundaryViolationsBeforeMethodLookup(t *test
 				t.Fatalf("business method lookup ran %d times before validation completed", lookups)
 			}
 		})
+	}
+}
+
+func TestModernOnlyHeadersCannotDowngradeToLegacy(t *testing.T) {
+	transport := modernTransport("tools/list", "")
+	transport.ProtocolVersion = ""
+	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`)
+	request, protocolError := PrepareRequest(transport, body, func(string) bool {
+		t.Fatal("method lookup must not run for incomplete modern identity")
+		return true
+	})
+	if request != nil || protocolError == nil || protocolError.HTTPStatus != 400 || protocolError.Code != CodeHeaderMismatch {
+		t.Fatalf("request=%+v error=%+v, want HTTP 400/code %d", request, protocolError, CodeHeaderMismatch)
+	}
+
+	transport.Origin = "https://evil.example"
+	_, protocolError = PrepareRequest(transport, []byte(`{"deeply":"malformed"`), available)
+	if protocolError == nil || protocolError.HTTPStatus != 403 {
+		t.Fatalf("cross-origin modern candidate error = %+v, want HTTP 403 before body parsing", protocolError)
+	}
+}
+
+func TestMCPNameBase64Sentinel(t *testing.T) {
+	validNames := []string{
+		"Hello, 世界",
+		"\t leading and trailing \n",
+		"=?base64?literal?=",
+	}
+	for _, name := range validNames {
+		t.Run(strconv.Quote(name), func(t *testing.T) {
+			body := strings.Replace(modernCallRequest, `"name":"echo"`, `"name":`+strconv.Quote(name), 1)
+			header := nameHeaderPrefix + base64.StdEncoding.EncodeToString([]byte(name)) + nameHeaderSuffix
+			request, protocolError := PrepareRequest(modernTransport("tools/call", header), []byte(body), available)
+			if protocolError != nil || request == nil || request.Era != EraModern {
+				t.Fatalf("valid sentinel rejected: request=%+v error=%+v", request, protocolError)
+			}
+		})
+	}
+
+	invalidHeaders := []string{
+		"=?base64??=",
+		"=?base64?not-base64?=",
+		"=?base64?ZWNoby\n?=",
+		"=?base64?/w==?=",
+		"=?base64?SGVsbG8=",
+		"Hello, 世界",
+		" leading",
+	}
+	for _, header := range invalidHeaders {
+		t.Run(header, func(t *testing.T) {
+			_, protocolError := PrepareRequest(modernTransport("tools/call", header), []byte(modernCallRequest), available)
+			if protocolError == nil || protocolError.Code != CodeHeaderMismatch {
+				t.Fatalf("malformed/plain-unsafe header error = %+v, want code %d", protocolError, CodeHeaderMismatch)
+			}
+		})
+	}
+}
+
+func TestModernMetadataSchemaAndExtensions(t *testing.T) {
+	completeInfo := `{
+		"name":"sdk","title":"SDK","version":"1.0","description":"client",
+		"websiteUrl":"https://example.com/sdk",
+		"icons":[{"src":"https://example.com/icon.svg","mimeType":"image/svg+xml","sizes":["any"],"theme":"dark"}]
+	}`
+	body := strings.Replace(modernListRequest,
+		`"io.modelcontextprotocol/clientCapabilities":{}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"roots":{}},"io.modelcontextprotocol/clientInfo":`+completeInfo+`,"vendor.example/trace":{"enabled":true}`,
+		1,
+	)
+	request, protocolError := PrepareRequest(modernTransport("tools/list", ""), []byte(body), available)
+	if protocolError != nil {
+		t.Fatalf("complete metadata rejected: %+v", protocolError)
+	}
+	if request.Metadata.ClientInfo == nil || request.Metadata.ClientInfo.Title != "SDK" || len(request.Metadata.ClientInfo.Icons) != 1 {
+		t.Fatalf("clientInfo not preserved: %+v", request.Metadata.ClientInfo)
+	}
+	if _, ok := request.Metadata.Extensions["vendor.example/trace"]; !ok {
+		t.Fatal("extensible _meta member was not preserved")
+	}
+
+	invalidMembers := []string{
+		`"io.modelcontextprotocol/clientCapabilities":{"roots":true}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":"not-an-array"}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","websiteUrl":7}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","future":true}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":[{"src":"https://example.com/i","theme":"system"}]}`,
+	}
+	for _, member := range invalidMembers {
+		t.Run(member, func(t *testing.T) {
+			invalidBody := strings.Replace(modernListRequest, `"io.modelcontextprotocol/clientCapabilities":{}`, member, 1)
+			_, protocolError := PrepareRequest(modernTransport("tools/list", ""), []byte(invalidBody), available)
+			if protocolError == nil || protocolError.Code != CodeInvalidParams {
+				t.Fatalf("invalid metadata error = %+v, want code %d", protocolError, CodeInvalidParams)
+			}
+		})
+	}
+}
+
+func TestRequiredClientCapabilityHook(t *testing.T) {
+	bodyWithRoots := strings.Replace(modernListRequest,
+		`"io.modelcontextprotocol/clientCapabilities":{}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"roots":{}}`,
+		1,
+	)
+	request, protocolError := PrepareRequestWithPolicy(modernTransport("tools/list", ""), []byte(bodyWithRoots), func(string) MethodPolicy {
+		return MethodPolicy{Available: true, RequiredClientCapabilities: []string{"sampling", "roots"}}
+	})
+	if request == nil || protocolError == nil || protocolError.Code != CodeMissingRequiredClientCapability {
+		t.Fatalf("request=%+v error=%+v, want missing capability", request, protocolError)
+	}
+	if protocolError.Data == nil || !reflect.DeepEqual(protocolError.Data.RequiredCapabilities, []string{"sampling"}) {
+		t.Fatalf("required capability data = %+v", protocolError.Data)
+	}
+
+	request, protocolError = PrepareRequestWithPolicy(modernTransport("tools/list", ""), []byte(bodyWithRoots), func(string) MethodPolicy {
+		return MethodPolicy{Available: true, RequiredClientCapabilities: []string{"roots"}}
+	})
+	if protocolError != nil || request == nil {
+		t.Fatalf("declared required capability rejected: request=%+v error=%+v", request, protocolError)
 	}
 }
 
@@ -283,8 +404,20 @@ func TestModernCancellationIsRequestScopedAndIdempotent(t *testing.T) {
 	if protocolError != nil {
 		t.Fatalf("PrepareRequest() error = %+v", protocolError)
 	}
+	cleanupCalls := 0
+	request.OnCancel(func() { cleanupCalls++ })
+	unregister := request.OnCancel(func() { cleanupCalls += 100 })
+	unregister()
+	unregister()
 	request.Cancel()
 	request.Cancel()
+	if cleanupCalls != 1 {
+		t.Fatalf("cleanup calls = %d, want 1", cleanupCalls)
+	}
+	request.OnCancel(func() { cleanupCalls++ })
+	if cleanupCalls != 2 {
+		t.Fatalf("late cleanup calls = %d, want 2", cleanupCalls)
+	}
 	select {
 	case <-request.Cancellation.Done():
 	default:
