@@ -42,7 +42,7 @@ Higressは、ゲートウェイのリロードによる長時間接続への影�
 gRPC/Dubboの負荷分散上の課題を解決するため、Alibabaで誕生しました。
 現在はベンダーニュートラルなCNCFプロジェクトとしてコミュニティにより
 開発され、複数業界の組織で利用されています。公開されている採用組織と
-ユースケースは[`ADOPTERS.md`](./ADOPTERS.md)を参照してください。
+ユースケースは[`ADOPTERS.md`](https://github.com/higress-group/community/blob/main/ADOPTERS.md)を参照してください。
 
 
 ## 目次
@@ -201,12 +201,12 @@ K8sでのHelmデプロイなどの他のインストール方法については�
 Higress コミュニティは
 [**CNCF Code of Conduct**](https://github.com/cncf/foundation/blob/main/code-of-conduct.md)
 に従っています。プロジェクトが採用している行動規範は
-[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) に記載されていますので、コミュニティに参加する前にご確認ください。
+[`CODE_OF_CONDUCT.md`](https://github.com/higress-group/community/blob/main/CODE_OF_CONDUCT.md) に記載されていますので、コミュニティに参加する前にご確認ください。
 
 ### ガバナンスとメンテナー
 
 プロジェクトのガバナンス、メンテナー一覧、コントリビューションモデルについては
-[`GOVERNANCE.md`](./GOVERNANCE.md) と [`MAINTAINERS.md`](./MAINTAINERS.md) を参照してください。
+[`GOVERNANCE.md`](https://github.com/higress-group/community/blob/main/GOVERNANCE.md) と [`MAINTAINERS.md`](https://github.com/higress-group/community/blob/main/MAINTAINERS.md) を参照してください。
 初めて貢献される方は [`CONTRIBUTING_EN.md`](./CONTRIBUTING_EN.md) からお読みください。
 
 ### セキュリティ
