@@ -244,38 +244,10 @@ func classify(transport Transport, body []byte) Era {
 	if HasModernIdentityHeaders(transport) {
 		return EraModern
 	}
-	if len(body) > int(ModernMaxBodyBytes) {
-		if hasStructuredModernMetadata(body) {
-			return EraModern
-		}
-		return EraLegacy
-	}
-	envelope, protocolError := decodeEnvelope(body)
-	if protocolError != nil {
-		return EraLegacy
-	}
-	if hasModernMetadata(envelope.Params) {
+	if hasStructuredModernMetadata(body) {
 		return EraModern
 	}
 	return EraLegacy
-}
-
-func hasModernMetadata(params json.RawMessage) bool {
-	var envelope struct {
-		Meta map[string]json.RawMessage `json:"_meta"`
-	}
-	if json.Unmarshal(params, &envelope) == nil {
-		if _, ok := envelope.Meta[MetaProtocolVersion]; ok {
-			return true
-		}
-		if _, ok := envelope.Meta[MetaClientCapabilities]; ok {
-			return true
-		}
-		if _, ok := envelope.Meta[MetaClientInfo]; ok {
-			return true
-		}
-	}
-	return false
 }
 
 func decodeMetadata(params json.RawMessage) (Metadata, *Error) {
