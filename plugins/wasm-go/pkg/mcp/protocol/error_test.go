@@ -37,12 +37,14 @@ func TestModernErrorDataSerialization(t *testing.T) {
 			},
 		},
 		{
-			name:          "missing required client capability",
-			protocolError: MissingRequiredClientCapability([]string{"tools", "roots", "tools"}),
-			wantCode:      CodeMissingRequiredClientCapability,
-			wantData: ErrorData{
-				RequiredCapabilities: []string{"roots", "tools"},
-			},
+			name: "missing required client capability",
+			protocolError: MissingRequiredClientCapability(ClientCapabilities{
+				Sampling: &SamplingCapabilities{Tools: &JSONObject{}},
+			}),
+			wantCode: CodeMissingRequiredClientCapability,
+			wantData: ErrorData{RequiredCapabilities: &ClientCapabilities{
+				Sampling: &SamplingCapabilities{Tools: &JSONObject{}},
+			}},
 		},
 	}
 	for _, test := range tests {

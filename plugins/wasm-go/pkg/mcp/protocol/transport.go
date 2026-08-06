@@ -29,6 +29,7 @@ const (
 	// ModernMaxBodyBytes bounds a modern single-message exchange without
 	// changing the existing legacy buffer limit.
 	ModernMaxBodyBytes uint32 = 1024 * 1024
+	LegacyMaxBodyBytes uint32 = 100 * 1024 * 1024
 )
 
 // Transport contains only protocol-relevant request metadata. It intentionally
@@ -104,6 +105,9 @@ func HasModernIdentityHeaders(transport Transport) bool {
 // ValidateModernTransport performs checks which do not depend on the JSON-RPC
 // envelope and therefore can run before request-body processing.
 func ValidateModernTransport(transport Transport) *Error {
+	if protocolError := ValidateOrigin(transport); protocolError != nil {
+		return protocolError
+	}
 	if transport.AmbiguousHeader {
 		return HeaderMismatch()
 	}
@@ -117,6 +121,12 @@ func ValidateModernTransport(transport Transport) *Error {
 	if !accepts(transport.Accept, "application/json") || !accepts(transport.Accept, "text/event-stream") {
 		return NotAcceptable()
 	}
+	return nil
+}
+
+// ValidateOrigin is intentionally independent of protocol-era classification.
+// A hostile Origin is rejected before version disclosure or body parsing.
+func ValidateOrigin(transport Transport) *Error {
 	if !trustedOrigin(transport.Origin, transport.Authority) {
 		return UntrustedOrigin()
 	}

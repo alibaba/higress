@@ -35,9 +35,9 @@ import (
 )
 
 const (
-	DefaultMaxBodyBytes   uint32 = 100 * 1024 * 1024
-	GlobalToolRegistryKey        = "GlobalToolRegistry"
-	DefaultServerVersion         = "1.0.0"
+	DefaultMaxBodyBytes   = protocol.LegacyMaxBodyBytes
+	GlobalToolRegistryKey = "GlobalToolRegistry"
+	DefaultServerVersion  = "1.0.0"
 )
 
 // SupportedMCPVersions contains all supported MCP protocol versions
@@ -793,6 +793,11 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config McpServerConfig) types
 	proxywasm.RemoveHttpRequestHeader(protocol.HeaderMethod)
 	proxywasm.RemoveHttpRequestHeader(protocol.HeaderName)
 
+	if protocolError := protocol.ValidateOrigin(transport); protocolError != nil {
+		utils.SendProtocolError(ctx, protocol.ID{}, protocolError, "mcp_request_origin_rejected")
+		return types.HeaderStopAllIterationAndWatermark
+	}
+
 	if protocol.HasModernIdentityHeaders(transport) {
 		ctx.SetRequestBodyBufferLimit(protocol.ModernMaxBodyBytes)
 		if transport.ProtocolVersion != "" &&
@@ -860,6 +865,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config McpServerConfig, body []b
 
 func modernMethodPolicy(config McpServerConfig, method string) protocol.MethodPolicy {
 	if _, isProxy := config.server.(*McpProxyServer); isProxy {
+		return protocol.MethodPolicy{}
+	}
+	if config.isComposed && method == "tools/call" {
 		return protocol.MethodPolicy{}
 	}
 	return protocol.MethodPolicy{Available: config.methodHandlers[method] != nil}

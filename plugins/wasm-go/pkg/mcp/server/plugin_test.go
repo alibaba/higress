@@ -15,12 +15,16 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"slices"
 	"testing"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/consts"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/protocol"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
+	wasmtest "github.com/higress-group/wasm-go/pkg/test"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -733,6 +737,110 @@ func TestModernMethodPolicyDisablesMCPProxyHandlers(t *testing.T) {
 		methodHandlers: utils.MethodHandlers{"tools/call": handler},
 	}
 	assert.True(t, modernMethodPolicy(regularConfig, "tools/call").Available)
+
+	composedConfig := McpServerConfig{
+		server:         &stubServer{},
+		isComposed:     true,
+		methodHandlers: utils.MethodHandlers{"tools/call": handler},
+	}
+	assert.False(t, modernMethodPolicy(composedConfig, "tools/call").Available,
+		"modern requests must not enter the legacy composed tools/call handler")
+}
+
+func TestProductionEntryModernBoundary(t *testing.T) {
+	savedGlobalContext := globalContext
+	globalContext = Context{servers: make(map[string]Server)}
+	Initialize()
+	t.Cleanup(func() { globalContext = savedGlobalContext })
+
+	newHost := func(t *testing.T) wasmtest.TestHost {
+		t.Helper()
+		host, status := wasmtest.NewTestHost(json.RawMessage(`{
+			"toolSet": {
+				"name": "compound",
+				"serverTools": []
+			}
+		}`))
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		t.Cleanup(host.Reset)
+		return host
+	}
+	commonHeaders := func() [][2]string {
+		return [][2]string{
+			{":authority", "mcp.example.com"},
+			{":method", "POST"},
+			{":path", "/mcp"},
+			{"content-type", "application/json"},
+			{"accept", "application/json, text/event-stream"},
+		}
+	}
+
+	t.Run("origin rejection precedes version disclosure", func(t *testing.T) {
+		host := newHost(t)
+		headers := append(commonHeaders(),
+			[2]string{"origin", "https://evil.example"},
+			[2]string{protocol.HeaderProtocolVersion, "2025-11-25"},
+			[2]string{protocol.HeaderMethod, "tools/list"},
+		)
+		action := host.CallOnHttpRequestHeaders(headers)
+		require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
+		response := host.GetLocalResponse()
+		require.NotNil(t, response)
+		assert.Equal(t, uint32(403), response.StatusCode)
+		assert.Equal(t, int64(protocol.CodeInvalidRequest), gjson.GetBytes(response.Data, "error.code").Int())
+	})
+
+	t.Run("large legacy marker string remains legacy", func(t *testing.T) {
+		host := newHost(t)
+		action := host.CallOnHttpRequestHeaders(commonHeaders())
+		require.Equal(t, types.ActionPause, action)
+
+		body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"note":"` + protocol.MetaProtocolVersion + `"},"padding":"`)
+		body = append(body, bytes.Repeat([]byte("x"), int(protocol.ModernMaxBodyBytes)+128)...)
+		body = append(body, []byte(`"}`)...)
+		action = host.CallOnHttpRequestBody(body)
+		require.Equal(t, types.ActionContinue, action)
+		response := host.GetLocalResponse()
+		require.NotNil(t, response)
+		assert.Equal(t, uint32(200), response.StatusCode)
+		assert.True(t, gjson.GetBytes(response.Data, "result.tools").Exists())
+		assert.False(t, gjson.GetBytes(response.Data, "error").Exists())
+	})
+
+	t.Run("late direct modern metadata is rejected at modern limit", func(t *testing.T) {
+		host := newHost(t)
+		action := host.CallOnHttpRequestHeaders(commonHeaders())
+		require.Equal(t, types.ActionPause, action)
+
+		body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"padding":"`)
+		body = append(body, bytes.Repeat([]byte("x"), int(protocol.ModernMaxBodyBytes)+128)...)
+		body = append(body, []byte(`","_meta":{"`+protocol.MetaProtocolVersion+`":"2026-07-28","`+protocol.MetaClientCapabilities+`":{},"`+protocol.MetaClientInfo+`":{"name":"test","version":"1.0.0"}}}}`)...)
+		action = host.CallOnHttpRequestBody(body)
+		require.Equal(t, types.ActionContinue, action)
+		response := host.GetLocalResponse()
+		require.NotNil(t, response)
+		assert.Equal(t, uint32(413), response.StatusCode)
+		assert.Equal(t, int64(protocol.CodeInvalidRequest), gjson.GetBytes(response.Data, "error.code").Int())
+	})
+
+	t.Run("composed tools call uses modern unavailable mapping", func(t *testing.T) {
+		host := newHost(t)
+		headers := append(commonHeaders(),
+			[2]string{protocol.HeaderProtocolVersion, string(protocol.Version20260728)},
+			[2]string{protocol.HeaderMethod, "tools/call"},
+			[2]string{protocol.HeaderName, "echo"},
+		)
+		action := host.CallOnHttpRequestHeaders(headers)
+		require.Equal(t, types.ActionPause, action)
+
+		body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"echo","arguments":{},"_meta":{"` + protocol.MetaProtocolVersion + `":"2026-07-28","` + protocol.MetaClientCapabilities + `":{},"` + protocol.MetaClientInfo + `":{"name":"test","version":"1.0.0"}}}}`)
+		action = host.CallOnHttpRequestBody(body)
+		require.Equal(t, types.ActionContinue, action)
+		response := host.GetLocalResponse()
+		require.NotNil(t, response)
+		assert.Equal(t, uint32(404), response.StatusCode)
+		assert.Equal(t, int64(protocol.CodeMethodNotFound), gjson.GetBytes(response.Data, "error.code").Int())
+	})
 }
 
 type protocolTestHTTPContext struct {

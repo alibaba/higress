@@ -220,6 +220,49 @@ func TestModernOnlyHeadersCannotDowngradeToLegacy(t *testing.T) {
 	}
 }
 
+func TestOriginPrecedesVersionAndBodyClassification(t *testing.T) {
+	transport := modernTransport("tools/list", "")
+	transport.ProtocolVersion = "2025-11-25"
+	transport.Origin = "https://evil.example"
+	_, protocolError := PrepareRequest(transport, []byte(`{"malformed":`), func(string) bool {
+		t.Fatal("method lookup must not run for an untrusted Origin")
+		return true
+	})
+	if protocolError == nil || protocolError.HTTPStatus != 403 || protocolError.Code != CodeInvalidRequest {
+		t.Fatalf("origin-first error = %+v, want HTTP 403/code %d", protocolError, CodeInvalidRequest)
+	}
+}
+
+func TestHeaderlessLargeLegacyMarkerAndLateModernMetadata(t *testing.T) {
+	transport := Transport{
+		Method:      "POST",
+		Authority:   "mcp.example.com",
+		ContentType: "application/json",
+		Accept:      "application/json, text/event-stream",
+	}
+	padding := strings.Repeat("x", int(ModernMaxBodyBytes))
+	legacyBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"note":"` +
+		MetaProtocolVersion + padding + `"}}`)
+	request, protocolError := PrepareRequest(transport, legacyBody, func(string) bool {
+		t.Fatal("large headerless legacy request must not enter modern method lookup")
+		return true
+	})
+	if protocolError != nil || request == nil || request.Era != EraLegacy {
+		t.Fatalf("large legacy marker string misclassified: request=%+v error=%+v", request, protocolError)
+	}
+
+	modernBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"padding":"` +
+		padding + `","_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28",` +
+		`"io.modelcontextprotocol/clientCapabilities":{}}}}`)
+	request, protocolError = PrepareRequest(transport, modernBody, func(string) bool {
+		t.Fatal("oversized body-only modern request must fail before business dispatch")
+		return true
+	})
+	if request != nil || protocolError == nil || protocolError.HTTPStatus != 413 || protocolError.Code != CodeInvalidRequest {
+		t.Fatalf("late body-only modern error = %+v, want HTTP 413/code %d", protocolError, CodeInvalidRequest)
+	}
+}
+
 func TestMCPNameBase64Sentinel(t *testing.T) {
 	validNames := []string{
 		"Hello, 世界",
@@ -264,7 +307,14 @@ func TestModernMetadataSchemaAndExtensions(t *testing.T) {
 	}`
 	body := strings.Replace(modernListRequest,
 		`"io.modelcontextprotocol/clientCapabilities":{}`,
-		`"io.modelcontextprotocol/clientCapabilities":{"roots":{}},"io.modelcontextprotocol/clientInfo":`+completeInfo+`,"vendor.example/trace":{"enabled":true}`,
+		`"io.modelcontextprotocol/clientCapabilities":{
+			"roots":{},
+			"sampling":{"context":{},"tools":{}},
+			"elicitation":{"form":{},"url":{}},
+			"experimental":{"vendor.feature":{"level":1}},
+			"extensions":{"com.example/ui":{"mimeTypes":["text/html"]}},
+			"vendorCapability":{"nested":true}
+		},"io.modelcontextprotocol/clientInfo":`+completeInfo+`,"vendor.example/trace":{"enabled":true}`,
 		1,
 	)
 	request, protocolError := PrepareRequest(modernTransport("tools/list", ""), []byte(body), available)
@@ -277,12 +327,31 @@ func TestModernMetadataSchemaAndExtensions(t *testing.T) {
 	if _, ok := request.Metadata.Extensions["vendor.example/trace"]; !ok {
 		t.Fatal("extensible _meta member was not preserved")
 	}
+	if request.Metadata.ClientCapabilities.Sampling == nil || request.Metadata.ClientCapabilities.Sampling.Tools == nil ||
+		request.Metadata.ClientCapabilities.Elicitation == nil || request.Metadata.ClientCapabilities.Extensions["com.example/ui"] == nil {
+		t.Fatalf("structured client capabilities not preserved: %+v", request.Metadata.ClientCapabilities)
+	}
 
 	invalidMembers := []string{
 		`"io.modelcontextprotocol/clientCapabilities":{"roots":true}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"roots":{"listChanged":true}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"sampling":{"tools":true}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"sampling":{"tools":null}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"sampling":{"unknown":{}}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"elicitation":{"form":null}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"experimental":{"vendor":null}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"extensions":{"not-prefixed":{}}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"extensions":{"com.example/ui":null}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"":{}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":null`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","title":null}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":null}`,
 		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":"not-an-array"}`,
 		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","websiteUrl":7}`,
 		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","future":true}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":[{"src":"https://example.com/i","mimeType":null}]}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":[{"src":"https://example.com/i","sizes":null}]}`,
+		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":[{"src":"https://example.com/i","sizes":[null]}]}`,
 		`"io.modelcontextprotocol/clientCapabilities":{},"io.modelcontextprotocol/clientInfo":{"name":"sdk","version":"1","icons":[{"src":"https://example.com/i","theme":"system"}]}`,
 	}
 	for _, member := range invalidMembers {
@@ -299,21 +368,28 @@ func TestModernMetadataSchemaAndExtensions(t *testing.T) {
 func TestRequiredClientCapabilityHook(t *testing.T) {
 	bodyWithRoots := strings.Replace(modernListRequest,
 		`"io.modelcontextprotocol/clientCapabilities":{}`,
-		`"io.modelcontextprotocol/clientCapabilities":{"roots":{}}`,
+		`"io.modelcontextprotocol/clientCapabilities":{"roots":{},"sampling":{"context":{}}}`,
 		1,
 	)
+	requiredTools := JSONObject{}
+	requiredCapabilities := ClientCapabilities{
+		Roots:    &RootCapabilities{},
+		Sampling: &SamplingCapabilities{Tools: &requiredTools},
+	}
 	request, protocolError := PrepareRequestWithPolicy(modernTransport("tools/list", ""), []byte(bodyWithRoots), func(string) MethodPolicy {
-		return MethodPolicy{Available: true, RequiredClientCapabilities: []string{"sampling", "roots"}}
+		return MethodPolicy{Available: true, RequiredClientCapabilities: requiredCapabilities}
 	})
 	if request == nil || protocolError == nil || protocolError.Code != CodeMissingRequiredClientCapability {
 		t.Fatalf("request=%+v error=%+v, want missing capability", request, protocolError)
 	}
-	if protocolError.Data == nil || !reflect.DeepEqual(protocolError.Data.RequiredCapabilities, []string{"sampling"}) {
+	wantMissingTools := ClientCapabilities{Sampling: &SamplingCapabilities{Tools: &JSONObject{}}}
+	if protocolError.Data == nil || protocolError.Data.RequiredCapabilities == nil ||
+		!reflect.DeepEqual(*protocolError.Data.RequiredCapabilities, wantMissingTools) {
 		t.Fatalf("required capability data = %+v", protocolError.Data)
 	}
 
 	request, protocolError = PrepareRequestWithPolicy(modernTransport("tools/list", ""), []byte(bodyWithRoots), func(string) MethodPolicy {
-		return MethodPolicy{Available: true, RequiredClientCapabilities: []string{"roots"}}
+		return MethodPolicy{Available: true, RequiredClientCapabilities: ClientCapabilities{Roots: &RootCapabilities{}}}
 	})
 	if protocolError != nil || request == nil {
 		t.Fatalf("declared required capability rejected: request=%+v error=%+v", request, protocolError)

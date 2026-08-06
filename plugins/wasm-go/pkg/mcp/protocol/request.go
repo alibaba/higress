@@ -42,12 +42,6 @@ type Implementation struct {
 	Icons       []Icon `json:"icons,omitempty"`
 }
 
-// ClientCapability is an extensible, typed capability object. Individual
-// capability names are open, but each declared member must be an object.
-type ClientCapability map[string]json.RawMessage
-
-type ClientCapabilities map[string]ClientCapability
-
 // Metadata is required on every modern request. ClientInfo is optional.
 type Metadata struct {
 	ProtocolVersion    Version
@@ -163,7 +157,7 @@ type SemanticResult struct {
 // capabilities are validated before the business handler is invoked.
 type MethodPolicy struct {
 	Available                  bool
-	RequiredClientCapabilities []string
+	RequiredClientCapabilities ClientCapabilities
 }
 
 type MethodPolicyLookup func(method string) MethodPolicy
@@ -178,6 +172,9 @@ func PrepareRequest(transport Transport, body []byte, methodAvailable func(strin
 }
 
 func PrepareRequestWithPolicy(transport Transport, body []byte, policyLookup MethodPolicyLookup) (*RequestContext, *Error) {
+	if protocolError := ValidateOrigin(transport); protocolError != nil {
+		return nil, protocolError
+	}
 	era := classify(transport, body)
 	if era == EraLegacy {
 		return &RequestContext{
@@ -186,6 +183,9 @@ func PrepareRequestWithPolicy(transport Transport, body []byte, policyLookup Met
 			Transport: transport,
 			Envelope:  Envelope{Raw: bytes.Clone(body)},
 		}, nil
+	}
+	if len(body) > int(ModernMaxBodyBytes) {
+		return nil, RequestTooLarge()
 	}
 	if transport.ProtocolVersion != "" &&
 		!IsModernVersion(Version(transport.ProtocolVersion)) &&
@@ -232,8 +232,8 @@ func PrepareRequestWithPolicy(transport Transport, body []byte, policyLookup Met
 	if !policy.Available {
 		return request, MethodNotFound()
 	}
-	missingCapabilities := missingCapabilities(metadata.ClientCapabilities, policy.RequiredClientCapabilities)
-	if len(missingCapabilities) > 0 {
+	missingCapabilities := missingClientCapabilities(metadata.ClientCapabilities, policy.RequiredClientCapabilities)
+	if !missingCapabilities.isEmpty() {
 		return request, MissingRequiredClientCapability(missingCapabilities)
 	}
 	request.Cancellation = newCancellation()
@@ -245,7 +245,7 @@ func classify(transport Transport, body []byte) Era {
 		return EraModern
 	}
 	if len(body) > int(ModernMaxBodyBytes) {
-		if containsModernMetadataMarker(body) {
+		if hasStructuredModernMetadata(body) {
 			return EraModern
 		}
 		return EraLegacy
@@ -278,12 +278,6 @@ func hasModernMetadata(params json.RawMessage) bool {
 	return false
 }
 
-func containsModernMetadataMarker(body []byte) bool {
-	return bytes.Contains(body, []byte(`"`+MetaProtocolVersion+`"`)) ||
-		bytes.Contains(body, []byte(`"`+MetaClientCapabilities+`"`)) ||
-		bytes.Contains(body, []byte(`"`+MetaClientInfo+`"`))
-}
-
 func decodeMetadata(params json.RawMessage) (Metadata, *Error) {
 	if len(params) == 0 {
 		return Metadata{}, HeaderMismatch()
@@ -302,20 +296,9 @@ func decodeMetadata(params json.RawMessage) (Metadata, *Error) {
 	if !ok || !isJSONObject(capabilitiesRaw) {
 		return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is required")
 	}
-	capabilityMembers := make(map[string]json.RawMessage)
-	if err := json.Unmarshal(capabilitiesRaw, &capabilityMembers); err != nil {
+	var capabilities ClientCapabilities
+	if err := json.Unmarshal(capabilitiesRaw, &capabilities); err != nil {
 		return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is invalid")
-	}
-	capabilities := make(ClientCapabilities, len(capabilityMembers))
-	for name, rawCapability := range capabilityMembers {
-		if name == "" || !isJSONObject(rawCapability) {
-			return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is invalid")
-		}
-		capability := make(ClientCapability)
-		if err := json.Unmarshal(rawCapability, &capability); err != nil {
-			return Metadata{}, InvalidParams("modern MCP clientCapabilities metadata is invalid")
-		}
-		capabilities[name] = capability
 	}
 	metadata := Metadata{
 		ProtocolVersion:    Version(version),
@@ -328,7 +311,7 @@ func decodeMetadata(params json.RawMessage) (Metadata, *Error) {
 		}
 	}
 	if clientInfoRaw, ok := decoded.Meta[MetaClientInfo]; ok {
-		if !isJSONObject(clientInfoRaw) {
+		if !validImplementationShape(clientInfoRaw) {
 			return Metadata{}, InvalidParams("modern MCP clientInfo metadata is invalid")
 		}
 		var clientInfo Implementation
@@ -340,6 +323,66 @@ func decodeMetadata(params json.RawMessage) (Metadata, *Error) {
 		metadata.ClientInfo = &clientInfo
 	}
 	return metadata, nil
+}
+
+func validImplementationShape(raw json.RawMessage) bool {
+	members, err := decodeJSONObject(raw)
+	if err != nil || !validRequiredString(members, "name") || !validRequiredString(members, "version") {
+		return false
+	}
+	for _, name := range []string{"title", "description", "websiteUrl"} {
+		if value, ok := members[name]; ok && !validJSONString(value) {
+			return false
+		}
+	}
+	iconsRaw, hasIcons := members["icons"]
+	if !hasIcons {
+		return true
+	}
+	var icons []json.RawMessage
+	if isJSONNull(iconsRaw) || json.Unmarshal(iconsRaw, &icons) != nil || icons == nil {
+		return false
+	}
+	for _, iconRaw := range icons {
+		icon, iconErr := decodeJSONObject(iconRaw)
+		if iconErr != nil || !validRequiredString(icon, "src") {
+			return false
+		}
+		for _, name := range []string{"mimeType", "theme"} {
+			if value, ok := icon[name]; ok && !validJSONString(value) {
+				return false
+			}
+		}
+		if sizesRaw, ok := icon["sizes"]; ok {
+			var sizes []json.RawMessage
+			if isJSONNull(sizesRaw) || json.Unmarshal(sizesRaw, &sizes) != nil || sizes == nil {
+				return false
+			}
+			for _, size := range sizes {
+				if !validJSONString(size) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+func validRequiredString(members JSONObject, name string) bool {
+	value, ok := members[name]
+	return ok && validJSONString(value)
+}
+
+func validJSONString(raw json.RawMessage) bool {
+	if isJSONNull(raw) {
+		return false
+	}
+	var value string
+	return json.Unmarshal(raw, &value) == nil
+}
+
+func isJSONNull(raw json.RawMessage) bool {
+	return bytes.Equal(bytes.TrimSpace(raw), []byte("null"))
 }
 
 func validImplementation(clientInfo Implementation) bool {
@@ -424,16 +467,6 @@ func decodeNameHeader(value string, present bool) (string, bool) {
 		}
 	}
 	return value, true
-}
-
-func missingCapabilities(capabilities ClientCapabilities, required []string) []string {
-	missing := make([]string, 0, len(required))
-	for _, name := range required {
-		if _, ok := capabilities[name]; !ok {
-			missing = append(missing, name)
-		}
-	}
-	return missing
 }
 
 func isCurrentModernMethod(method string) bool {

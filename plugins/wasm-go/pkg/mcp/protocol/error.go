@@ -32,9 +32,9 @@ const (
 
 // ErrorData is the typed data contract for modern protocol errors.
 type ErrorData struct {
-	Supported            []Version `json:"supported,omitempty"`
-	Requested            Version   `json:"requested,omitempty"`
-	RequiredCapabilities []string  `json:"requiredCapabilities,omitempty"`
+	Supported            []Version           `json:"supported,omitempty"`
+	Requested            Version             `json:"requested,omitempty"`
+	RequiredCapabilities *ClientCapabilities `json:"requiredCapabilities,omitempty"`
 }
 
 // Error is a transport-aware JSON-RPC error. Messages are deliberately fixed
@@ -73,12 +73,10 @@ func HeaderMismatch() *Error {
 	return newError(400, CodeHeaderMismatch, "MCP header does not match request body")
 }
 
-func MissingRequiredClientCapability(requiredCapabilities []string) *Error {
-	required := slices.Clone(requiredCapabilities)
-	slices.Sort(required)
-	required = slices.Compact(required)
+func MissingRequiredClientCapability(requiredCapabilities ClientCapabilities) *Error {
+	required := cloneClientCapabilities(requiredCapabilities)
 	protocolError := newError(400, CodeMissingRequiredClientCapability, "missing required client capability")
-	protocolError.Data = &ErrorData{RequiredCapabilities: required}
+	protocolError.Data = &ErrorData{RequiredCapabilities: &required}
 	return protocolError
 }
 
