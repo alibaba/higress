@@ -39,6 +39,7 @@ header:
     - '.claude/**'
     - '.agents/**'
     - '.issue-spec/**'
+    - 'issue-spec/**'
 
   comment: on-failure
 dependency:
