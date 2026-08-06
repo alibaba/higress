@@ -822,6 +822,22 @@ func TestProductionEntryModernBoundary(t *testing.T) {
 		assert.False(t, gjson.GetBytes(response.Data, "result").Exists())
 	})
 
+	t.Run("invalid literal before modern marker never dispatches legacy", func(t *testing.T) {
+		host := newHost(t)
+		action := host.CallOnHttpRequestHeaders(commonHeaders())
+		require.Equal(t, types.ActionPause, action)
+
+		body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","junk":truX,"params":{"_meta":{"` + protocol.MetaProtocolVersion + `":"2026-07-28"}}}`)
+		action = host.CallOnHttpRequestBody(body)
+		require.Equal(t, types.ActionContinue, action)
+		response := host.GetLocalResponse()
+		require.NotNil(t, response)
+		assert.Equal(t, uint32(400), response.StatusCode)
+		assert.Equal(t, int64(protocol.CodeParseError), gjson.GetBytes(response.Data, "error.code").Int())
+		assert.Equal(t, "null", gjson.GetBytes(response.Data, "id").Raw)
+		assert.False(t, gjson.GetBytes(response.Data, "result").Exists())
+	})
+
 	t.Run("late direct modern metadata is rejected at modern limit", func(t *testing.T) {
 		host := newHost(t)
 		action := host.CallOnHttpRequestHeaders(commonHeaders())

@@ -175,7 +175,10 @@ func PrepareRequestWithPolicy(transport Transport, body []byte, policyLookup Met
 	if protocolError := ValidateOrigin(transport); protocolError != nil {
 		return nil, protocolError
 	}
-	era := classify(transport, body)
+	era, classificationError := classify(transport, body)
+	if classificationError != nil {
+		return nil, classificationError
+	}
 	if era == EraLegacy {
 		return &RequestContext{
 			Era:       EraLegacy,
@@ -240,14 +243,18 @@ func PrepareRequestWithPolicy(transport Transport, body []byte, policyLookup Met
 	return request, nil
 }
 
-func classify(transport Transport, body []byte) Era {
+func classify(transport Transport, body []byte) (Era, *Error) {
 	if HasModernIdentityHeaders(transport) {
-		return EraModern
+		return EraModern, nil
 	}
-	if hasStructuredModernMetadata(body) {
-		return EraModern
+	switch classifyRequestBody(body) {
+	case bodyClassificationModern:
+		return EraModern, nil
+	case bodyClassificationLegacy:
+		return EraLegacy, nil
+	default:
+		return EraLegacy, ParseError()
 	}
-	return EraLegacy
 }
 
 func decodeMetadata(params json.RawMessage) (Metadata, *Error) {

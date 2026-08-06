@@ -448,7 +448,7 @@ func TestPrepareRequestExactVersionAndMethodErrors(t *testing.T) {
 }
 
 func TestPrepareRequestPreservesAllLegacyProfiles(t *testing.T) {
-	legacyBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}} trailing-legacy-data`)
+	legacyBody := []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"opaque":"trailing-legacy-data"}}`)
 	for _, version := range LegacyVersions() {
 		t.Run(string(version), func(t *testing.T) {
 			transport := Transport{Method: "PUT", ProtocolVersion: string(version)}

@@ -55,27 +55,38 @@ const (
 	classificationPendingMask   byte = 0xc0
 )
 
-// hasStructuredModernMetadata is a bounded, non-recursive JSON lexer. It
-// materializes neither keys nor values and keeps only one byte of state per
-// open container. A complete reserved key directly under root.params._meta is
-// sufficient modern identity; strict envelope parsing remains a later step, so
-// trailing or malformed data after that key can only fail closed as modern.
-func hasStructuredModernMetadata(body []byte) bool {
+type bodyClassification uint8
+
+const (
+	bodyClassificationInvalid bodyClassification = iota
+	bodyClassificationLegacy
+	bodyClassificationModern
+)
+
+// classifyRequestBody is a bounded, non-recursive JSON lexer. It materializes
+// neither keys nor values and keeps only one byte of state per open container.
+// A complete reserved key directly under root.params._meta is sufficient
+// modern identity. Without that identity, only one complete syntactically
+// valid JSON value is proven legacy; malformed or trailing input is invalid.
+func classifyRequestBody(body []byte) bodyClassification {
 	if len(body) > int(LegacyMaxBodyBytes) {
 		body = body[:LegacyMaxBodyBytes]
 	}
 	i := skipClassificationWhitespace(body, 0)
-	if i >= len(body) || body[i] != '{' {
-		return false
+	if i >= len(body) {
+		return bodyClassificationInvalid
 	}
-	stack := make([]byte, 1, 64)
-	stack[0] = makeClassificationFrame(classificationObject, classificationInitial, classificationRoot, classificationOther)
-	i++
+	stack := make([]byte, 0, 64)
+	var ok bool
+	i, ok = consumeClassificationValue(body, i, classificationRoot, &stack)
+	if !ok {
+		return bodyClassificationInvalid
+	}
 
 	for len(stack) > 0 {
 		i = skipClassificationWhitespace(body, i)
 		if i >= len(body) {
-			return false
+			return bodyClassificationInvalid
 		}
 		top := len(stack) - 1
 		frame := stack[top]
@@ -84,7 +95,7 @@ func hasStructuredModernMetadata(body []byte) bool {
 			case classificationInitial, classificationNext:
 				if body[i] == ']' {
 					if classificationFrameState(frame) != classificationInitial {
-						return false
+						return bodyClassificationInvalid
 					}
 					stack = stack[:top]
 					i++
@@ -94,7 +105,7 @@ func hasStructuredModernMetadata(body []byte) bool {
 				var ok bool
 				i, ok = consumeClassificationValue(body, i, classificationOther, &stack)
 				if !ok {
-					return false
+					return bodyClassificationInvalid
 				}
 			case classificationCommaOrEnd:
 				switch body[i] {
@@ -105,10 +116,10 @@ func hasStructuredModernMetadata(body []byte) bool {
 					stack = stack[:top]
 					i++
 				default:
-					return false
+					return bodyClassificationInvalid
 				}
 			default:
-				return false
+				return bodyClassificationInvalid
 			}
 			continue
 		}
@@ -117,23 +128,23 @@ func hasStructuredModernMetadata(body []byte) bool {
 		case classificationInitial, classificationNext:
 			if body[i] == '}' {
 				if classificationFrameState(frame) != classificationInitial {
-					return false
+					return bodyClassificationInvalid
 				}
 				stack = stack[:top]
 				i++
 				continue
 			}
 			if body[i] != '"' {
-				return false
+				return bodyClassificationInvalid
 			}
 			var key classificationKey
 			var ok bool
 			i, key, ok = scanClassificationString(body, i, classificationFramePath(frame))
 			if !ok {
-				return false
+				return bodyClassificationInvalid
 			}
 			if key == classificationKeyModern {
-				return true
+				return bodyClassificationModern
 			}
 			pending := classificationOther
 			switch key {
@@ -146,14 +157,14 @@ func hasStructuredModernMetadata(body []byte) bool {
 			stack[top] = setClassificationFrameState(frame, classificationColon)
 		case classificationColon:
 			if body[i] != ':' {
-				return false
+				return bodyClassificationInvalid
 			}
 			i++
 			stack[top] = setClassificationFrameState(frame, classificationCommaOrEnd)
 			var ok bool
 			i, ok = consumeClassificationValue(body, i, classificationFramePending(frame), &stack)
 			if !ok {
-				return false
+				return bodyClassificationInvalid
 			}
 		case classificationCommaOrEnd:
 			switch body[i] {
@@ -164,13 +175,16 @@ func hasStructuredModernMetadata(body []byte) bool {
 				stack = stack[:top]
 				i++
 			default:
-				return false
+				return bodyClassificationInvalid
 			}
 		default:
-			return false
+			return bodyClassificationInvalid
 		}
 	}
-	return false
+	if skipClassificationWhitespace(body, i) != len(body) {
+		return bodyClassificationInvalid
+	}
+	return bodyClassificationLegacy
 }
 
 func consumeClassificationValue(body []byte, i int, path classificationPath, stack *[]byte) (int, bool) {
