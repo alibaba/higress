@@ -27,6 +27,8 @@ import (
 	"github.com/invopop/jsonschema"
 	"github.com/tidwall/gjson"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/consts"
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/protocol"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -646,7 +648,11 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				return nil
 			}
 
-			log.Debugf("Tool call [%s] on server [%s] with arguments[%s]", toolName, currentServerNameForHandlers, args.Raw)
+			if utils.IsModernRequest(ctx) {
+				log.Debugf("Modern tool call [%s] on server [%s]", toolName, currentServerNameForHandlers)
+			} else {
+				log.Debugf("Tool call [%s] on server [%s] with arguments[%s]", toolName, currentServerNameForHandlers, args.Raw)
+			}
 			toolInstance := toolToCall.Create([]byte(args.Raw))
 			err := toolInstance.Call(ctx, config.server) // Pass the single server instance
 			if err != nil {
@@ -703,6 +709,7 @@ func Initialize() {
 		wrapper.ProcessRequestBody(onHttpRequestBody),
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBody(onHttpStreamingResponseBody),
+		wrapper.ProcessStreamDone(onHttpStreamDone),
 		wrapper.WithRebuildMaxMemBytes[McpServerConfig](200*1024*1024),
 	)
 }
@@ -764,20 +771,30 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config McpServerConfig) types
 	// This ensures we can properly process and modify the response body
 	proxywasm.RemoveHttpRequestHeader("accept-encoding")
 
-	// Parse MCP-Protocol-Version header and store in context
-	// This allows clients to specify the MCP protocol version via HTTP header
-	// instead of only through the JSON-RPC initialize method
-	protocolVersion, _ := proxywasm.GetHttpRequestHeader("MCP-Protocol-Version")
-	if protocolVersion != "" {
-		// Validate the protocol version against supported versions
-		if slices.Contains(SupportedMCPVersions, protocolVersion) {
-			log.Debugf("MCP Protocol Version set from header: %s", protocolVersion)
-		} else {
-			log.Warnf("Unsupported MCP Protocol Version in header: %s", protocolVersion)
-		}
+	requestHeaders, _ := proxywasm.GetHttpRequestHeaders()
+	transport := protocol.NewTransport(ctx.Method(), ctx.Host(), requestHeaders)
+	ctx.SetContext(consts.CtxProtocolTransport, transport)
 
-		// Remove the header from the request to prevent it from being forwarded
-		proxywasm.RemoveHttpRequestHeader("MCP-Protocol-Version")
+	// Mirrored protocol identity is consumed locally. Successor proxy adapters
+	// rebuild outbound headers for their selected upstream profile.
+	proxywasm.RemoveHttpRequestHeader(protocol.HeaderProtocolVersion)
+	proxywasm.RemoveHttpRequestHeader(protocol.HeaderMethod)
+	proxywasm.RemoveHttpRequestHeader(protocol.HeaderName)
+
+	if transport.ProtocolVersion != "" && !protocol.IsLegacyVersion(protocol.Version(transport.ProtocolVersion)) {
+		ctx.SetRequestBodyBufferLimit(protocol.ModernMaxBodyBytes)
+		if !protocol.IsModernVersion(protocol.Version(transport.ProtocolVersion)) {
+			utils.SendProtocolError(ctx, protocol.ID{}, protocol.UnsupportedVersion(), "mcp_modern_unsupported_version")
+			return types.HeaderStopAllIterationAndWatermark
+		}
+		if protocolError := protocol.ValidateModernTransport(transport); protocolError != nil {
+			utils.SendProtocolError(ctx, protocol.ID{}, protocolError, "mcp_modern_transport_rejected")
+			return types.HeaderStopAllIterationAndWatermark
+		}
+		if !ctx.HasRequestBody() {
+			utils.SendProtocolError(ctx, protocol.ID{}, protocol.InvalidRequest("request body is required"), "mcp_modern_missing_body")
+			return types.HeaderStopAllIterationAndWatermark
+		}
 	}
 
 	if ctx.Method() == "GET" {
@@ -801,7 +818,33 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config McpServerConfig) types
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config McpServerConfig, body []byte) types.Action {
-	return utils.HandleJsonRpcMethod(ctx, body, config.methodHandlers)
+	transport, ok := ctx.GetContext(consts.CtxProtocolTransport).(protocol.Transport)
+	if !ok {
+		transport = protocol.Transport{Method: ctx.Method(), Authority: ctx.Host()}
+	}
+	request, protocolError := protocol.PrepareRequest(transport, body, func(method string) bool {
+		return config.methodHandlers[method] != nil
+	})
+	if protocolError != nil {
+		id := protocol.ID{}
+		if request != nil {
+			id = request.Envelope.ID
+		}
+		utils.SendProtocolError(ctx, id, protocolError, "mcp_modern_request_rejected")
+		return types.ActionContinue
+	}
+	if request.Era == protocol.EraLegacy {
+		return utils.HandleJsonRpcMethod(ctx, body, config.methodHandlers)
+	}
+	ctx.SetContext(consts.CtxProtocolRequest, request)
+	return utils.HandleModernJsonRpcMethod(ctx, request, config.methodHandlers)
+}
+
+// ModernRequestContext returns the typed modern request contract for business
+// handlers and successor adapters. Legacy handlers never receive this value.
+func ModernRequestContext(ctx wrapper.HttpContext) (*protocol.RequestContext, bool) {
+	request, ok := ctx.GetContext(consts.CtxProtocolRequest).(*protocol.RequestContext)
+	return request, ok && request != nil && request.Era == protocol.EraModern
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config McpServerConfig) types.Action {
@@ -826,6 +869,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config McpServerConfig) type
 }
 
 func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config McpServerConfig, data []byte, endOfStream bool) []byte {
+	if request, ok := ModernRequestContext(ctx); ok && endOfStream {
+		defer request.Cancel()
+	}
 	// Check if this request initiated SSE channel (tools/list or tools/call with SSE transport)
 	// Only these requests need special SSE streaming response processing
 	if ctx.GetContext(CtxSSEProxyState) != nil {
@@ -834,4 +880,10 @@ func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config McpServerConfig
 
 	// For non-SSE streaming requests, return data as-is
 	return data
+}
+
+func onHttpStreamDone(ctx wrapper.HttpContext, config McpServerConfig) {
+	if request, ok := ModernRequestContext(ctx); ok {
+		request.Cancel()
+	}
 }

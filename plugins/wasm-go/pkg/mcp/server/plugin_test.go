@@ -15,12 +15,20 @@
 package server
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func TestSupportedMCPVersionsRemainLegacyOnly(t *testing.T) {
+	want := []string{"2024-11-05", "2025-03-26", "2025-06-18"}
+	assert.Equal(t, want, SupportedMCPVersions)
+	assert.False(t, slices.Contains(SupportedMCPVersions, "2026-07-28"), "modern must not enter legacy initialize negotiation")
+	assert.False(t, slices.Contains(SupportedMCPVersions, "2025-11-25"), "deferred profile must not be advertised")
+}
 
 // -----------------------------------------------------------------------------
 // validateURL
