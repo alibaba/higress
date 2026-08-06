@@ -68,7 +68,8 @@ maintainers:
 - Tianyi Zhang ([@johnlanni](https://github.com/johnlanni))
 - Jingfeng Xu ([@lexburner](https://github.com/lexburner))
 
-[`MAINTAINERS.md`](./MAINTAINERS.md) is authoritative for membership. A merged
+[`MAINTAINERS.md`](https://github.com/higress-group/community/blob/main/MAINTAINERS.md)
+is authoritative for membership. A merged
 change to that roster onboards or offboards the same person from the SRT and
 their private security access must be updated promptly.
 
