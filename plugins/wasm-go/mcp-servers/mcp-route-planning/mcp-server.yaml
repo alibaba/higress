@@ -1,0 +1,527 @@
+server:
+  name: route-planning
+  config:
+    appCode: ""
+tools:
+  - name: bus-route
+    description: 公交路线规划
+    args:
+      - name: alternativeRoute
+        description: 返回方案条数 可传入1-10的阿拉伯数字，代表返回的不同条数
+        type: string
+        position: body
+      - name: date
+        description: 请求日期 例如:2023-10-28
+        type: string
+        position: body
+      - name: destAddCode
+        description: 终点所在行政区域编码 参考国家行政区域编码表
+        type: string
+        position: body
+      - name: destCityCode
+        description: 目的地所在城市 仅支持citycode，参考国家行政区域编码表 相同时代表同城，不同时代表跨城 譬如西湖区citycode为330106
+        type: string
+        required: true
+        position: body
+      - name: destination
+        description: 目的地经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: maxTrans
+        description: 最大换乘次数 0：直达 1：最多换乘1次 2：最多换乘2次 3：最多换乘3次 4：最多换乘4次
+        type: string
+        position: body
+      - name: multiexPort
+        description: 地铁出入口数量 0：只返回一个地铁出入口 1：返回全部地铁出入口
+        type: string
+        position: body
+      - name: nightFlag
+        description: 考虑夜班车 0：不考虑夜班车 1：考虑夜班车
+        type: string
+        position: body
+      - name: origAddCode
+        description: 起点所在行政区域编码 参考国家行政区域编码表
+        type: string
+        position: body
+      - name: origCityCode
+        description: 起点所在城市 仅支持citycode，参考国家行政区域编码表 相同时代表同城，不同时代表跨城 譬如西湖区citycode为330106
+        type: string
+        required: true
+        position: body
+      - name: origin
+        description: 起点经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: showFields
+        description: 返回结果控制 详见show_fields说明 show_fields用来筛选response结果中可选字段。show_fields的使用需要遵循如下规则： 1、具体可指定返回的字段类请见下方返回结果说明中的“show_fields”内字段类型；>的“show_fields”内字段类型； 2、多个字段间采用“,”进行分割； 3、show_fields未设置时，只返回基础信息类内字段；
+        type: string
+        position: body
+      - name: strategy
+        description: 公共交通换乘策略 可选值： 0：推荐模式，综合权重，同高德APP默认 1：最经济模式，票价最低 2：最少换乘模式，换乘次数少 3：最少步行模式，尽可能减少步行距离 4：最舒适模式，尽可能乘坐空调车 5：不乘地铁模式，不乘坐地铁路线 6：地铁图模式，起终点都是地铁站 （地铁图模式下originpoi及destinationpoi为必填项） 7：地铁优先模式，步行距离不超过4KM 8：时间短模式，方案花费总时间最少
+        type: string
+        position: body
+      - name: time
+        description: 请求时间 例如:9-54
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jmlxgh.market.alicloudapi.com/route/public-transit
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.strategyList**:  (Type: object)
+            - **data.strategyList.destination**: 终点经纬度 (Type: string)
+            - **data.strategyList.distance**: 本条路线的总距离，单位：米 (Type: string)
+            - **data.strategyList.origin**: 起点经纬度 (Type: string)
+            - **data.strategyList.transits**:  (Type: array)
+              - **data.strategyList.transits[].distance**: 本条路线的总距离，单位：米 (Type: string)
+              - **data.strategyList.transits[].nightflag**: 0：非夜班车；1：夜班车 (Type: string)
+              - **data.strategyList.transits[].segments**:  (Type: array)
+                - **data.strategyList.transits[].segments[].bus**:  (Type: object)
+                  - **data.strategyList.transits[].segments[].bus.buslines**:  (Type: array)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].arrival_stop**:  (Type: object)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].arrival_stop.id**: 站点id (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].arrival_stop.location**: 站点经纬度 (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].arrival_stop.name**: 站点名字 (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].bus_time_tips**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].bustimetag**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop**:  (Type: object)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.entrance**:  (Type: object)
+                        - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.entrance.location**: 入口经纬度 (Type: string)
+                        - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.entrance.name**: 入口名称 (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.exit**:  (Type: object)
+                        - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.exit.location**: 出口经纬度 (Type: string)
+                        - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.exit.name**: 出口名称 (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.id**: 站点id (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.location**: 站点经纬度 (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].departure_stop.name**: 站点名字 (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].distance**: 公交行驶距离 单位：米 (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].end_time**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].id**: 公交路线id (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].name**: 公交路线名称 (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].start_time**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].type**: 公交类型 格式如：地铁线路 (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].via_num**: 此段途经公交站数 (Type: string)
+                    - **data.strategyList.transits[].segments[].bus.buslines[].via_stops**:  (Type: array)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].via_stops[].id**: 公交站点编号 (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].via_stops[].location**: 公交站点经纬度 (Type: string)
+                      - **data.strategyList.transits[].segments[].bus.buslines[].via_stops[].name**: 途径公交站点信息 (Type: string)
+                - **data.strategyList.transits[].segments[].railway**:  (Type: object)
+                  - **data.strategyList.transits[].segments[].railway.alters**:  (Type: object)
+                    - **data.strategyList.transits[].segments[].railway.alters.id**: 备选线路名称 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.alters.name**: 备选方案ID (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.arrival_stop**:  (Type: object)
+                    - **data.strategyList.transits[].segments[].railway.arrival_stop.adcode**: 下车站点所在城市的adcode (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.arrival_stop.end**: 是否为终点站，1表示为终点站，0表示非终点站 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.arrival_stop.id**: 下车站点ID (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.arrival_stop.location**: 下车站点经纬度 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.arrival_stop.name**: 下车站点名称 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.arrival_stop.time**: 到站时间，如大于24:00，则表示跨天 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.departure_stop**:  (Type: object)
+                    - **data.strategyList.transits[].segments[].railway.departure_stop.adcode**: 上车站点所在城市的adcode (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.departure_stop.id**: 上车站点ID (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.departure_stop.location**: 上车站点经纬度 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.departure_stop.name**: 上车站点名称 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.departure_stop.start**: 是否始发站，1表示为始发站，0表示非始发站 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.departure_stop.time**: 上车点发车时间 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.distance**: 该item换乘段的行车总距离 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.id**: 线路id编号 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.name**: 线路名称 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.spaces**:  (Type: array)
+                    - **data.strategyList.transits[].segments[].railway.spaces[].code**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.spaces[].cost**: 仓位费用 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.time**: 该线路车段耗时 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.trip**: 线路车次号 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.type**: 线路车次类型 (Type: string)
+                  - **data.strategyList.transits[].segments[].railway.via_stop**:  (Type: object)
+                    - **data.strategyList.transits[].segments[].railway.via_stop.id**: 途径站点的ID (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.via_stop.location**: 途径站点的坐标点 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.via_stop.name**: 途径站点的名称 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.via_stop.time**: 途径站点的进站时间，如大于24:00,则表示跨天 (Type: string)
+                    - **data.strategyList.transits[].segments[].railway.via_stop.wait**: 途径站点的停靠时间，单位：分钟 (Type: string)
+                - **data.strategyList.transits[].segments[].taxi**:  (Type: object)
+                  - **data.strategyList.transits[].segments[].taxi.distance**:  (Type: string)
+                  - **data.strategyList.transits[].segments[].taxi.drivetime**:  (Type: string)
+                  - **data.strategyList.transits[].segments[].taxi.endname**:  (Type: string)
+                  - **data.strategyList.transits[].segments[].taxi.endpoint**:  (Type: string)
+                  - **data.strategyList.transits[].segments[].taxi.polyline**:  (Type: string)
+                  - **data.strategyList.transits[].segments[].taxi.price**: 打车预计花费金额 (Type: string)
+                  - **data.strategyList.transits[].segments[].taxi.startname**:  (Type: string)
+                  - **data.strategyList.transits[].segments[].taxi.startpoint**:  (Type: string)
+                - **data.strategyList.transits[].segments[].walking**:  (Type: object)
+                  - **data.strategyList.transits[].segments[].walking.destination**: 终点坐标 (Type: string)
+                  - **data.strategyList.transits[].segments[].walking.distance**: 每段线路步行距离 单位：米 (Type: string)
+                  - **data.strategyList.transits[].segments[].walking.duration**: 步行预计时间  单位：秒 (Type: string)
+                  - **data.strategyList.transits[].segments[].walking.origin**: 起点坐标 (Type: string)
+                  - **data.strategyList.transits[].segments[].walking.steps**:  (Type: array)
+                    - **data.strategyList.transits[].segments[].walking.steps[].action**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].walking.steps[].assistant_action**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].walking.steps[].distance**: 此段路的距离 (Type: string)
+                    - **data.strategyList.transits[].segments[].walking.steps[].duration**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].walking.steps[].instruction**: 此段路的行走介绍 (Type: string)
+                    - **data.strategyList.transits[].segments[].walking.steps[].polyline**:  (Type: string)
+                    - **data.strategyList.transits[].segments[].walking.steps[].road**:  (Type: string)
+              - **data.strategyList.transits[].walking_distance**:  (Type: string)
+          - **data.strategyNum**: 路径规划方案总数 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: walking-route
+    description: 步行路线规划
+    args:
+      - name: alternativeRoute
+        description: 返回路线条数 1：多备选路线中第一条路线 2：多备选路线中前两条路线 3：多备选路线中三条路线 不传则默认返回一条路线方案
+        type: string
+        position: body
+      - name: destination
+        description: 目的地经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: origin
+        description: 起点经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: showFields
+        description: 返回结果控制 详见show_fields说明 show_fields用来筛选response结果中可选字段。show_fields的使用需要遵循如下规则： 1、具体可指定返回的字段类请见下方返回结果说明中的“show_fields”内字段类型； 2、多个字段间采用“,”进行分割； 3、show_fields未设置时，只返回基础信息类内字段；
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jmlxgh.market.alicloudapi.com/route/walk
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.strategyList**:  (Type: object)
+            - **data.strategyList.destination**: 终点经纬度 (Type: string)
+            - **data.strategyList.origin**: 起点经纬度 (Type: string)
+            - **data.strategyList.paths**:  (Type: array)
+              - **data.strategyList.paths[].cost**:  (Type: object)
+                - **data.strategyList.paths[].cost.duration**: 线路耗时，包括方案总耗时及分段step中的耗时 (Type: string)
+              - **data.strategyList.paths[].distance**: 方案距离，单位：米 (Type: string)
+              - **data.strategyList.paths[].steps**:  (Type: array)
+                - **data.strategyList.paths[].steps[].instruction**: 步行指示 (Type: string)
+                - **data.strategyList.paths[].steps[].orientation**: 进入道路方向 (Type: string)
+                - **data.strategyList.paths[].steps[].road_name**: 分段道路名称 (Type: string)
+                - **data.strategyList.paths[].steps[].step_distance**: 分段距离信息 (Type: string)
+          - **data.strategyNum**: 路径规划方案总数 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: elevator-route
+    description: 电动车骑行路线规划
+    args:
+      - name: alternativeRoute
+        description: 返回路线条数 1：多备选路线中第一条路线 2：多备选路线中前两条路线 3：多备选路线中三条路线 不传则默认返回一条路线方案
+        type: string
+        position: body
+      - name: destination
+        description: 目的地经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: origin
+        description: 起点经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: showFields
+        description: 返回结果控制 详见show_fields说明 show_fields用来筛选response结果中可选字段。show_fields的使用需要遵循如下规则： 1、具体可指定返回的字段类请见下方返回结果说明中的“show_fields”内字段类型；>的“show_fields”内字段类型； 2、多个字段间采用“,”进行分割； 3、show_fields未设置时，只返回基础信息类内字段；
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jmlxgh.market.alicloudapi.com/route/electric-bicycle
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.strategyList**:  (Type: object)
+            - **data.strategyList.destination**: 终点经纬度 (Type: string)
+            - **data.strategyList.origin**: 起点经纬度 (Type: string)
+            - **data.strategyList.paths**:  (Type: array)
+              - **data.strategyList.paths[].distance**: 方案距离，单位：米 (Type: string)
+              - **data.strategyList.paths[].duration**: 线路耗时，包括方案总耗时及分段step中的耗时 (Type: string)
+              - **data.strategyList.paths[].steps**:  (Type: array)
+                - **data.strategyList.paths[].steps[].instruction**: 骑行指示 (Type: string)
+                - **data.strategyList.paths[].steps[].orientation**: 进入道路方向 (Type: string)
+                - **data.strategyList.paths[].steps[].road_name**: 分段道路名称 (Type: string)
+                - **data.strategyList.paths[].steps[].step_distance**: 分段距离信息 (Type: integer)
+          - **data.strategyNum**: 路径规划方案总数 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: bicycle-route
+    description: 自行车骑行路线规划
+    args:
+      - name: alternativeRoute
+        description: 返回路线条数 1：多备选路线中第一条路线 2：多备选路线中前两条路线 3：多备选路线中三条路线 不传则默认返回一条路线方案
+        type: string
+        position: body
+      - name: destination
+        description: 目的地经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: origin
+        description: 起点经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: showFields
+        description: 返回结果控制 详见show_fields说明 show_fields用来筛选response结果中可选字段。show_fields的使用需要遵循如下规则： 1、具体可指定返回的字段类请见下方返回结果说明中的“show_fields”内字段类型； 2、多个字段间采用“,”进行分割； 3、show_fields未设置时，只返回基础信息类内字段；
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jmlxgh.market.alicloudapi.com/route/ride
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.strategyList**:  (Type: object)
+            - **data.strategyList.destination**: 终点经纬度 (Type: string)
+            - **data.strategyList.origin**: 起点经纬度 (Type: string)
+            - **data.strategyList.paths**:  (Type: array)
+              - **data.strategyList.paths[].distance**: 方案距离，单位：米 (Type: string)
+              - **data.strategyList.paths[].duration**: 线路耗时，包括方案总耗时及分段step中的耗时 (Type: string)
+              - **data.strategyList.paths[].steps**:  (Type: array)
+                - **data.strategyList.paths[].steps[].instruction**: 骑行指示 (Type: string)
+                - **data.strategyList.paths[].steps[].orientation**: 进入道路方向 (Type: string)
+                - **data.strategyList.paths[].steps[].road_name**: 分段道路名称 (Type: string)
+                - **data.strategyList.paths[].steps[].step_distance**: 分段距离信息 (Type: integer)
+          - **data.strategyNum**: 路径规划方案总数 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: destination-distance
+    description: 行程距离测量
+    args:
+      - name: destination
+        description: 目的地 规则：lon，lat经度，纬度， “,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: origins
+        description: 出发点 ，经度和纬度用”,”分隔
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: 路径计算的方式和方法 0：直线距离 1：驾车导航距离（仅支持国内坐标）。 当为1时会考虑路况,故在不同时间请求能不同。 此策略和驾车路径规划接口的strategy=4策略基本一致,策略为”拥堵的路线,但是可能会存在绕路的情况,耗时可能较长”实现高德地图客户端效果,考虑使用驾车路径规划接口 3：步行规划距离（仅支持5km之间的距离）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jmlxgh.market.alicloudapi.com/route/distance-measurement
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.count**: 结果总数 (Type: string)
+          - **data.results**:  (Type: array)
+            - **data.results[].dest_id**: 终点坐标，终点坐标序列号（从１开始） (Type: string)
+            - **data.results[].distance**: 路径距离，单位：米 (Type: string)
+            - **data.results[].duration**: 预计行驶时间，单位：秒 (Type: string)
+            - **data.results[].origin_id**: 起点坐标，起点坐标序列号（从１开始） (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: car-route
+    description: 驾车路线规划
+    args:
+      - name: avoidpolygons
+        description: 避让区域 区域避让，默认支持1个避让区域，每个区域最多可有16个顶点；多个区域坐标按顺序以英文竖线符号分隔，如果是四边形则有四个坐标点，如果是五边形则有五个坐标点；最大支持32个避让区域。同时传入避让区域及避让道路，仅支持避让道路；每个避让区域不能超过81平方公里，否则避让区域会失效
+        type: string
+        position: body
+      - name: avoidroad
+        description: 避让道路名 只支持一条避让道路
+        type: string
+        position: body
+      - name: carType
+        description: 车辆类型 0：普通燃油汽车 1：纯电动汽车 2：插电式混动汽车
+        type: string
+        position: body
+      - name: destination
+        description: 目的地经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: ferry
+        description: 是否使用轮渡 0:使用渡轮 1:不使用渡轮
+        type: string
+        position: body
+      - name: origin
+        description: 起点经纬度 经度在前，纬度在后，经度和纬度用”,”分割，经纬度小数点后不得超过6位
+        type: string
+        required: true
+        position: body
+      - name: originType
+        description: 起点处道路类型 填入此值可以辅助更精准的起点算路 0：普通道路 1：高架上 2：高架下 3：主路 4：辅路 5：隧道 7：环岛 9：停车场内部
+        type: string
+        position: body
+      - name: plate
+        description: 车牌号码 车牌号，如 京AHA322，支持6位传统车牌和7位新能源车牌，用于判断限行相关
+        type: string
+        position: body
+      - name: showFields
+        description: 返回结果控制 详见show_fields说明 show_fields用来筛选response结果中可选字段。show_fields的使用需要遵循如下规则： 1、具体可指定返回的字段类请见下方返回结果说明中的“show_fields”内字段类型； 2、多个字段间采用“,”进行分割； 3、show_fields未设置时，只返回基础信息类内字段；
+        type: string
+        position: body
+      - name: strategy
+        description: 驾车算路策略 0：速度优先（只返回一条路线），此路线不一定距离最短 1：费用优先（只返回一条路线），不走收费路段，且耗时最少的路线 2：距离优先（只返回一条路线），仅走距离最短的路线，但是可能存在穿越小路/小区的情况 3：速度优先（只返回一条路线），不走快速路，例如京通快速路 32：默认，高德推荐，同高德地图APP默认 33：躲避拥堵 34：高速优先 35：不走高速 36：少收费 37：大路优先 38：速度最快 39：躲避拥堵＋高速优先 40：躲避拥堵＋不走高速 41：躲避拥堵＋少收费 42：少收费＋不走高速 43：躲避拥堵＋少收费＋不走高速 44：躲避拥堵＋大路优先 45：躲避拥堵＋速度最快
+        type: string
+        position: body
+      - name: waypoints
+        description: 途经点 途径点坐标串，默认支持1个有序途径点。多个途径点坐标按顺序以英文分号;分隔。最大支持16个途经点
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jmlxgh.market.alicloudapi.com/route/drive
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.strategyList**:  (Type: object)
+            - **data.strategyList.destination**: 终点经纬度 (Type: string)
+            - **data.strategyList.origin**: 起点经纬度 (Type: string)
+            - **data.strategyList.paths**:  (Type: array)
+              - **data.strategyList.paths[].distance**: 方案距离，单位：米 (Type: string)
+              - **data.strategyList.paths[].restriction**: 0代表限行已规避或未限行，即该路线没有限行路段 1代表限行无法规避，即该线路有限行路段 (Type: string)
+              - **data.strategyList.paths[].steps**:  (Type: array)
+                - **data.strategyList.paths[].steps[].instruction**: 行驶指示 (Type: string)
+                - **data.strategyList.paths[].steps[].orientation**: 进入道路方向 (Type: string)
+                - **data.strategyList.paths[].steps[].road_name**: 分段道路名称 (Type: string)
+                - **data.strategyList.paths[].steps[].step_distance**: 分段距离信息 (Type: string)
+            - **data.strategyList.taxi_cost**: 预计出租车费用，单位：元 (Type: string)
+          - **data.strategyNum**: 路径规划方案总数 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+

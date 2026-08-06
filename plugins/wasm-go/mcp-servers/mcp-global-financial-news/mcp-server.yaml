@@ -1,0 +1,112 @@
+server:
+  name: global-financial-news
+  config:
+    appCode: ""
+tools:
+  - name: global-financial-news
+    description: |-
+      全球财经假期日历
+      包括：时间、国/区、市场、节日、详细安排
+    args:
+      - name: date
+        description: 日期
+        type: string
+        required: true
+        position: path
+      - name: year
+        description: 年
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: http://caijin.market.alicloudapi.com/holiday/{year}/{date}
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+  - name: global-financial-news-kuaixun
+    description: 全球财经实时快讯接口
+    args:
+      - name: lastOutId
+        description: lastOutId
+        type: string
+        position: query
+      - name: size
+        description: size
+        type: integer
+        position: query
+    requestTemplate:
+      url: http://caijin.market.alicloudapi.com/kuaixun/newest
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+  - name: global-financial-news-kuaixun2
+    description: 全球财经实时快讯+经济数据接口
+    args:
+      - name: lastOutId
+        description: lastOutId
+        type: string
+        position: query
+      - name: size
+        description: size
+        type: integer
+        position: query
+    requestTemplate:
+      url: http://caijin.market.alicloudapi.com/kuaixun2/newest
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+  - name: global-financial-news-economics
+    description: |-
+      全球财经经济数据日历
+      包括：时间、国/区、指标名称、重要性、前值、预测值、公布值、影响
+    args:
+      - name: date
+        description: 日期
+        type: string
+        required: true
+        position: path
+      - name: year
+        description: 年
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: http://caijin.market.alicloudapi.com/economics/{year}/{date}
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+  - name: global-financial-news-event
+    description: |-
+      全球财经财经大事日历
+      包括：时间、国家/地区、城市、重要性、事件
+    args:
+      - name: date
+        description: 日期
+        type: string
+        required: true
+        position: path
+      - name: year
+        description: 年
+        type: string
+        required: true
+        position: path
+    requestTemplate:
+      url: http://caijin.market.alicloudapi.com/event/{year}/{date}
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'

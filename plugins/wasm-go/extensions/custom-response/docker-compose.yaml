@@ -1,0 +1,25 @@
+services:
+  envoy:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.0.7
+    entrypoint: /usr/local/bin/envoy
+    # 注意这里对 Wasm 开启了 debug 级别日志，在生产环境部署时请使用默认的 info 级别
+    # 如果需要将 Envoy 的日志级别调整为 debug，将 --log-level 参数设置为 debug
+    command: -c /etc/envoy/envoy.yaml --log-level info --component-log-level wasm:debug
+    depends_on:
+      - echo-server
+    networks:
+      - wasmtest
+    ports:
+      - "10000:10000"
+      - "9901:9901"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+      - ./plugin.wasm:/etc/envoy/plugin.wasm
+  echo-server:
+    image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/echo-server:1.3.0
+    networks:
+      - wasmtest
+    ports:
+      - "3000:3000"
+networks:
+  wasmtest: {}

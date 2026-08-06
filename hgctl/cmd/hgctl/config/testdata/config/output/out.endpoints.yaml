@@ -1,0 +1,21 @@
+---
+"@type": type.googleapis.com/envoy.admin.v3.EndpointsConfigDump
+staticEndpointConfigs:
+- endpointConfig:
+    "@type": type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment
+    clusterName: xds_cluster
+    endpoints:
+    - locality: {}
+      lbEndpoints:
+      - endpoint:
+          address:
+            socketAddress:
+              address: 0.0.0.0
+              portValue: 18000
+          healthCheckConfig: {}
+          hostname: higress
+        healthStatus: HEALTHY
+        metadata: {}
+        loadBalancingWeight: 1
+    policy:
+      overprovisioningFactor: 140

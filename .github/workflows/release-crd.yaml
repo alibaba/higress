@@ -1,0 +1,24 @@
+name: Release CRD to GitHub
+
+on:
+  push:
+    tags:
+    - "v*.*.*"
+  workflow_dispatch: ~
+
+jobs:
+  release-crd:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: generate crds
+      run: |
+        cat helm/core/crds/customresourcedefinitions.gen.yaml helm/core/crds/istio-envoyfilter.yaml > crd.yaml
+
+    - name: Upload hgctl packages to the GitHub release
+      uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          crd.yaml

@@ -1,0 +1,202 @@
+server:
+  name: parking-lot-query
+  config:
+    appCode: ""
+tools:
+  - name: parking-lat-lng-query
+    description: 根据经纬度查询停车场信息
+    args:
+      - name: distance
+        description: 距离范围，默认1000米
+        type: string
+        position: body
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lng
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: page
+        description: 页码，默认1
+        type: string
+        position: body
+      - name: size
+        description: 页码，默认10
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jumparking.market.alicloudapi.com/parking/query/nearby
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].address**: 地址 (Type: string)
+            - **data.list[].area**: 区域名 (Type: string)
+            - **data.list[].bookprice**: 预定价格 (Type: string)
+            - **data.list[].canbook**: 是否可预订 (Type: string)
+            - **data.list[].city**: 城市名 (Type: string)
+            - **data.list[].lat**: 纬度（百度经纬度） (Type: number)
+            - **data.list[].leftnum**: 剩余车位数 (Type: integer)
+            - **data.list[].lng**: 经度（百度经纬度） (Type: number)
+            - **data.list[].name**: 停车场名称 (Type: string)
+            - **data.list[].num**: 总车位数 (Type: integer)
+            - **data.list[].piclist**:  (Type: array)
+              - **data.list[].piclist[]**: Items of type string
+            - **data.list[].pid**: 停车场ID (Type: integer)
+            - **data.list[].price**: 价格 (Type: integer)
+            - **data.list[].pricedesc**: 收费描述 (Type: string)
+            - **data.list[].priceunit**: 价格单位 (Type: string)
+            - **data.list[].province**: 省份名 (Type: string)
+            - **data.list[].type**: 停车场类型 (Type: string)
+          - **data.total**: 总数 (Type: integer)
+        - **msg**: 返回码对应的描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: parking-city-query
+    description: 根据城市名称查询停车场信息
+    args:
+      - name: city
+        description: 城市名称
+        type: string
+        required: true
+        position: body
+      - name: page
+        description: 页码，默认1
+        type: string
+        position: body
+      - name: size
+        description: 页码，默认10
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jumparking.market.alicloudapi.com/parking/query/city
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].address**: 地址 (Type: string)
+            - **data.list[].area**: 区域名 (Type: string)
+            - **data.list[].bookprice**: 预定价格 (Type: string)
+            - **data.list[].canbook**: 是否可预订 (Type: string)
+            - **data.list[].city**: 城市名 (Type: string)
+            - **data.list[].lat**: 纬度（百度经纬度） (Type: number)
+            - **data.list[].leftnum**: 剩余车位数 (Type: integer)
+            - **data.list[].lng**: 经度（百度经纬度） (Type: number)
+            - **data.list[].name**: 停车场名称 (Type: string)
+            - **data.list[].num**: 总车位数 (Type: integer)
+            - **data.list[].piclist**: 停车场图片列表 (Type: array)
+              - **data.list[].piclist[]**: Items of type string
+            - **data.list[].pid**: 停车场ID (Type: integer)
+            - **data.list[].price**: 价格 (Type: integer)
+            - **data.list[].pricedesc**: 收费描述 (Type: string)
+            - **data.list[].priceunit**: 价格单位 (Type: string)
+            - **data.list[].province**: 省份名 (Type: string)
+            - **data.list[].type**: 停车场类型 (Type: string)
+          - **data.total**: 总数 (Type: integer)
+        - **msg**: code 对应的描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: parking-detail-query
+    description: 根据停车场id查询停车场
+    args:
+      - name: id
+        description: 停车场id
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jumparking.market.alicloudapi.com/parking/query/detail
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.address**: 地址 (Type: string)
+          - **data.area**: 区域名 (Type: string)
+          - **data.bookprice**: 预定价格 (Type: string)
+          - **data.canbook**: 是否可预订 (Type: string)
+          - **data.city**: 城市名 (Type: string)
+          - **data.lat**: 纬度（百度经纬度） (Type: number)
+          - **data.leftnum**: 剩余车位数 (Type: integer)
+          - **data.lng**: 经度（百度经纬度） (Type: number)
+          - **data.name**: 停车场名称 (Type: string)
+          - **data.num**: 总车位数 (Type: integer)
+          - **data.piclist**: 停车场图片列表 (Type: array)
+            - **data.piclist[]**: Items of type string
+          - **data.pid**: 停车场ID (Type: integer)
+          - **data.price**: 价格 (Type: integer)
+          - **data.pricedesc**: 收费描述 (Type: string)
+          - **data.priceunit**: 价格单位 (Type: string)
+          - **data.province**: 省份名 (Type: string)
+          - **data.type**: 停车场类型 (Type: string)
+        - **msg**: 返回码对应的描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+

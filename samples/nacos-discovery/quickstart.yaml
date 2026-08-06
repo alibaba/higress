@@ -1,0 +1,42 @@
+apiVersion: networking.higress.io/v1
+kind: McpBridge
+metadata:
+  name: default
+  namespace: higress-system
+spec:
+  registries:
+  # This domain is your nacos service server's ip address
+  - domain: 192.168.3.32
+    nacosGroups:
+    - DEFAULT_GROUP
+    # If services is registered to a specified namespace, you need to set the nacosNamespaceId
+    # nacosNamespaceId: d8ac64f3-37f9-4857-a1a9-47a814ecf358
+    name: my-local-nacos
+    port: 8848
+    # If your nacos server version is lower than 2.0.0, then you need to set the type to `nacos`
+    type: nacos2
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    # If the service specifies a namespace, the namespace part of the host is the namespace id, as shown below
+    # higress.io/destination: service-provider.DEFAULT-GROUP.d8ac64f3-37f9-4857-a1a9-47a814ecf358.nacos
+    # If the service does not specify a namespace, the namespace part of the host is `public`
+    higress.io/destination: service-provider.DEFAULT-GROUP.public.nacos
+  name: echo
+  namespace: default
+spec:
+  ingressClassName: higress
+  rules:
+  - http:
+      paths:
+      - backend:
+          resource:
+            apiGroup: networking.higress.io
+            kind: McpBridge
+            name: default
+        path: /echo
+        pathType: Prefix

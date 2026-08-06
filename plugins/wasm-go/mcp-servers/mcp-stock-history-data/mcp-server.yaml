@@ -1,0 +1,1480 @@
+server:
+  name: stock-history-data
+  config:
+    appCode: ""
+tools:
+  - name: boll-data
+    description: 沪深港boll布林通道查询
+    args:
+      - name: begin_date
+        description: 开始日期，格式yyyyMMdd，不填默认当日
+        type: string
+        position: query
+      - name: code
+        description: 要查的股票代码
+        type: string
+        required: true
+        position: query
+      - name: end_date
+        description: 结束日期，格式yyyyMMdd，不填默认当日，最大时间跨度不能超过一个季度
+        type: string
+        position: query
+      - name: fqtype
+        description: 数据复权类型：hfq（后复权），bfq（不复权），qfq（前复权），默认不复权，港股和北交所暂时只有不复权的数据。
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/boll
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].date**: 日期 (Type: string)
+            - **showapi_res_body.list[].down**: 下限值 (Type: string)
+            - **showapi_res_body.list[].ma**: 移动平均值 (Type: string)
+            - **showapi_res_body.list[].up**: 上限值 (Type: string)
+          - **showapi_res_body.remark**: 返回信息 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码，0表示成功 (Type: integer)
+        - **showapi_res_code**:  (Type: integer)
+        - **showapi_res_error**:  (Type: string)
+        - **showapi_res_id**:  (Type: string)
+
+        ## Original Response
+
+  - name: single-stock-data
+    description: 股票上个交易日参考数据
+    args:
+      - name: code
+        description: 股票编码，比如000002，也可以使用拼音首字母。例如腾讯控股的是 txkg，查询的数据为上一个交易日的历史数据
+        type: string
+        required: true
+        position: query
+      - name: needIndex
+        description: 是否需要返回指数信息。1为需要，0为不需要。
+        type: string
+        position: query
+      - name: need_k_pic
+        description: 是否需要返回k线图地址。1为需要，0为不需要。
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/real-stockinfo
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.indexList**:  (Type: array)
+            - **showapi_res_body.indexList[].code**:  (Type: string)
+            - **showapi_res_body.indexList[].diff_money**: 涨跌点数 (Type: string)
+            - **showapi_res_body.indexList[].diff_rate**: 涨跌幅度% (Type: string)
+            - **showapi_res_body.indexList[].max52**: 52周最大点数 (Type: string)
+            - **showapi_res_body.indexList[].maxPrice**: 历史交易日最高点数 (Type: string)
+            - **showapi_res_body.indexList[].min52**: 52周最低点数 (Type: string)
+            - **showapi_res_body.indexList[].minPrice**: 最近历史交易日最低点数 (Type: string)
+            - **showapi_res_body.indexList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.indexList[].nowPrice**: 当前点数 (Type: string)
+            - **showapi_res_body.indexList[].swing**: 振幅 % (Type: string)
+            - **showapi_res_body.indexList[].time**:  (Type: string)
+            - **showapi_res_body.indexList[].todayOpenPrice**: 最近历史交易日开盘点数 (Type: string)
+            - **showapi_res_body.indexList[].tradeAmount**: 成交金额（金额，元） (Type: string)
+            - **showapi_res_body.indexList[].tradeNum**: 成交量(手) (Type: string)
+            - **showapi_res_body.indexList[].yestodayClosePrice**: 上个交易日收盘点数 (Type: string)
+          - **showapi_res_body.ret_code**: 返回状态码 (Type: integer)
+          - **showapi_res_body.stockMarket**:  (Type: object)
+            - **showapi_res_body.stockMarket.all_value**: 总市值，亿元 (Type: string)
+            - **showapi_res_body.stockMarket.buy1_m**: 买一报价（金额，元） (Type: string)
+            - **showapi_res_body.stockMarket.buy1_n**: 买一数量（股） (Type: string)
+            - **showapi_res_body.stockMarket.buy2_m**: 买二报价 (Type: string)
+            - **showapi_res_body.stockMarket.buy2_n**: 买二 (Type: string)
+            - **showapi_res_body.stockMarket.buy3_m**: 买三报价 (Type: string)
+            - **showapi_res_body.stockMarket.buy3_n**: 买三 (Type: string)
+            - **showapi_res_body.stockMarket.buy4_m**: 买四报价 (Type: string)
+            - **showapi_res_body.stockMarket.buy4_n**: 买四 (Type: string)
+            - **showapi_res_body.stockMarket.buy5_m**: 买五报价 (Type: string)
+            - **showapi_res_body.stockMarket.buy5_n**: 买五 (Type: string)
+            - **showapi_res_body.stockMarket.circulation_value**: 流通市值，亿元 (Type: string)
+            - **showapi_res_body.stockMarket.closePrice**: 上个交易日收盘价 (Type: string)
+            - **showapi_res_body.stockMarket.code**: sh000001 (Type: string)
+            - **showapi_res_body.stockMarket.currcapital**:  (Type: string)
+            - **showapi_res_body.stockMarket.date**: 日期 (Type: string)
+            - **showapi_res_body.stockMarket.diff_money**: 涨跌金额 (Type: string)
+            - **showapi_res_body.stockMarket.diff_rate**: 涨跌幅度 (Type: string)
+            - **showapi_res_body.stockMarket.downLimit**: 跌停价 (Type: string)
+            - **showapi_res_body.stockMarket.highLimit**: 涨停价 (Type: string)
+            - **showapi_res_body.stockMarket.market**:  (Type: string)
+            - **showapi_res_body.stockMarket.max52**: 52周最高价 (Type: string)
+            - **showapi_res_body.stockMarket.min52**: 52周最低价 (Type: string)
+            - **showapi_res_body.stockMarket.name**: 上证指数 (Type: string)
+            - **showapi_res_body.stockMarket.nowPrice**: 当前价 (Type: string)
+            - **showapi_res_body.stockMarket.openPrice**: 历史交易日开盘价 (Type: string)
+            - **showapi_res_body.stockMarket.pb**: 市净率 (Type: string)
+            - **showapi_res_body.stockMarket.pe**: 市盈率(TTM,动态) (Type: string)
+            - **showapi_res_body.stockMarket.sell1_m**: 卖一报价 (Type: string)
+            - **showapi_res_body.stockMarket.sell1_n**: 卖一 (Type: string)
+            - **showapi_res_body.stockMarket.sell2_m**: 卖二 (Type: string)
+            - **showapi_res_body.stockMarket.sell2_n**: 卖二 (Type: string)
+            - **showapi_res_body.stockMarket.sell3_m**: 卖三报价 (Type: string)
+            - **showapi_res_body.stockMarket.sell3_n**: 卖三 (Type: string)
+            - **showapi_res_body.stockMarket.sell4_m**: 卖四报价 (Type: string)
+            - **showapi_res_body.stockMarket.sell4_n**: 卖四 (Type: string)
+            - **showapi_res_body.stockMarket.sell5_m**: 卖五报价 (Type: string)
+            - **showapi_res_body.stockMarket.sell5_n**: 卖五 (Type: string)
+            - **showapi_res_body.stockMarket.swing**: 振幅 (Type: string)
+            - **showapi_res_body.stockMarket.time**: 时间 (Type: string)
+            - **showapi_res_body.stockMarket.todayMax**: 历史交易日日最高价 (Type: string)
+            - **showapi_res_body.stockMarket.todayMin**: 最近历史交易日最低价 (Type: string)
+            - **showapi_res_body.stockMarket.totalcapital**: 总股本，万股 (Type: string)
+            - **showapi_res_body.stockMarket.tradeAmount**: 成交金额（元） (Type: string)
+            - **showapi_res_body.stockMarket.tradeNum**: 成交量(股，不是手) (Type: string)
+            - **showapi_res_body.stockMarket.turnover**: 换手率 (Type: string)
+            - **showapi_res_body.stockMarket.yestodayClosePrice**: 上个交易日日收盘价 (Type: string)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: history-month-kline
+    description: 股指历史K线图
+    args:
+      - name: beginDay
+        description: 开始时间，格式为yyyyMMdd，如果不写则默认是当天。结束时间永远是当前时间
+        type: string
+        position: query
+      - name: code
+        description: 股指编码，不要写市场名，直接写
+        type: string
+        required: true
+        position: query
+      - name: time
+        description: 查询的周期。 5 = 5分k线(默认) 30 = 30分k线 60 = 60分k线 day = 日k线 week = 周k线 month = 月k线 注意：港股股指只有day以上的K线。
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/index-kline
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 指数代码 (Type: string)
+          - **showapi_res_body.count**: 数据条数 (Type: string)
+          - **showapi_res_body.dataList**:  (Type: array)
+            - **showapi_res_body.dataList[].close**: 时间区间结束的价格 (Type: string)
+            - **showapi_res_body.dataList[].max**: 时间区间内最高的价格 (Type: string)
+            - **showapi_res_body.dataList[].min**: 时间区间内最小的价格 (Type: string)
+            - **showapi_res_body.dataList[].open**: 时间区间开始的价格 (Type: string)
+            - **showapi_res_body.dataList[].time**: 时间点，5分|30分|60分k线时，此时间返回到分钟级别。day|week|month的k线时，时间返回到天级别。 (Type: string)
+            - **showapi_res_body.dataList[].volumn**: 时间区间成交手数总合 (Type: string)
+          - **showapi_res_body.market**: 市场代码 (Type: string)
+          - **showapi_res_body.name**: 指数名称 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码 (Type: integer)
+        - **showapi_res_code**: 响应代码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: history-query
+    description: 大盘历史查询
+    args:
+      - name: code
+        description: 股指代码。
+        type: string
+        position: query
+      - name: month
+        description: 月份，格式为yyyyMM
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/indexDayHis
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].close_price**: 收盘价 (Type: string)
+            - **showapi_res_body.list[].date**: 日期 (Type: string)
+            - **showapi_res_body.list[].diff_money**: 涨跌额 (Type: string)
+            - **showapi_res_body.list[].diff_rate**: 涨跌幅 (Type: string)
+            - **showapi_res_body.list[].max_price**: 最高价 (Type: string)
+            - **showapi_res_body.list[].min_price**: 最低价 (Type: string)
+            - **showapi_res_body.list[].open_price**: 开盘价 (Type: string)
+            - **showapi_res_body.list[].trade_money**: 交易金额（元） (Type: string)
+            - **showapi_res_body.list[].trade_num**: 交易手数 (Type: string)
+          - **showapi_res_body.month**: 月份 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+        - **showapi_res_code**: 响应代码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: week-and-month-kline
+    description: 查询股指的历史K线,每周更新数据
+    args:
+      - name: beginDate
+        description: 要检索的开始日期,时间格式为yyyyMMdd
+        type: string
+        required: true
+        position: query
+      - name: code
+        description: 要查历史的股指代码
+        type: string
+        required: true
+        position: query
+      - name: endDate
+        description: 要检索的结束日期,时间格式为yyyyMMdd
+        type: string
+        required: true
+        position: query
+      - name: type
+        description: week代表周K线,month代表月K线
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stockIndexHistory
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_fee_num**:  (Type: integer)
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].amount**: 成交额 (Type: string)
+            - **showapi_res_body.list[].change**: 涨跌数 (Type: string)
+            - **showapi_res_body.list[].close**: 收盘点位 (Type: string)
+            - **showapi_res_body.list[].code**: 指数代码 (Type: string)
+            - **showapi_res_body.list[].high**: 最高点位 (Type: string)
+            - **showapi_res_body.list[].low**: 最低点位 (Type: string)
+            - **showapi_res_body.list[].open**:  (Type: string)
+            - **showapi_res_body.list[].pct_chg**: 涨跌幅 (Type: string)
+            - **showapi_res_body.list[].pre_close**: 收盘点 (Type: string)
+            - **showapi_res_body.list[].trade_date**:  (Type: string)
+            - **showapi_res_body.list[].vol**: 成交量 (Type: string)
+          - **showapi_res_body.remark**:  (Type: string)
+          - **showapi_res_body.ret_code**:  (Type: integer)
+        - **showapi_res_code**:  (Type: integer)
+        - **showapi_res_error**:  (Type: string)
+        - **showapi_res_id**:  (Type: string)
+
+        ## Original Response
+
+  - name: stock-index-list
+    description: 股指列表查询
+    args:
+      - name: market
+        description: 市场简写。支持 sh、sz、hk
+        type: string
+        position: query
+      - name: page
+        description: 第几页。每页最多返回50条记录
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stockindexsearch
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.allNum**: 总记录数 (Type: integer)
+          - **showapi_res_body.allPages**: 总页数 (Type: integer)
+          - **showapi_res_body.contentlist**:  (Type: array)
+            - **showapi_res_body.contentlist[].code**: 编码 (Type: string)
+            - **showapi_res_body.contentlist[].market**: 市场简写 (Type: string)
+            - **showapi_res_body.contentlist[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.contentlist[].pinyin**: 拼音首字母 (Type: string)
+          - **showapi_res_body.currentPage**: 当前页码 (Type: integer)
+          - **showapi_res_body.maxResult**: 每页最大记录数 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: stock-index-timeline
+    description: 大盘历史白黄线
+    args:
+      - name: code
+        description: 股指编码，不需要写市场名称
+        type: string
+        required: true
+        position: query
+      - name: day
+        description: 返回多少天的分时线数据，1代表的就是当天。 目前支持1至5的范围。 不写则默认1，表示上一个交易日
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/index-timeline
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 指数代码 (Type: string)
+          - **showapi_res_body.dataList**:  (Type: array)
+            - **showapi_res_body.dataList[].count**: 总条目数 (Type: string)
+            - **showapi_res_body.dataList[].date**: 日期 (Type: string)
+            - **showapi_res_body.dataList[].lastVolume**: 上一个交易日成交量 (Type: string)
+            - **showapi_res_body.dataList[].minuteList**:  (Type: array)
+              - **showapi_res_body.dataList[].minuteList[].avgPrice**: 均价 (Type: string)
+              - **showapi_res_body.dataList[].minuteList[].nowPrice**: 时间的价格 (Type: string)
+              - **showapi_res_body.dataList[].minuteList[].time**: 分钟 (Type: string)
+              - **showapi_res_body.dataList[].minuteList[].volume**: 交易量(单位股) (Type: string)
+            - **showapi_res_body.dataList[].yestclose**: 上一个交易日收盘价 (Type: string)
+          - **showapi_res_body.market**: 市场代码 (Type: string)
+          - **showapi_res_body.name**: 指数名称 (Type: string)
+          - **showapi_res_body.ret_code**: 返回状态码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 返回码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，为空表示无错误 (Type: string)
+
+        ## Original Response
+
+  - name: stock-index-timeline-batch
+    description: 大盘股指历史行情_批量
+    args:
+      - name: stocks
+        description: 每次最多10个编码。股指编码以逗号分隔，如果不写，则默认为sh000001,sz399001,sz399005,sz399006,hkhsi
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stockIndex
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.indexList**:  (Type: array)
+            - **showapi_res_body.indexList[].code**: 指数编码 (Type: string)
+            - **showapi_res_body.indexList[].diff_money**: 涨跌金额 (Type: string)
+            - **showapi_res_body.indexList[].diff_rate**: 涨跌幅度 (Type: string)
+            - **showapi_res_body.indexList[].max52**: 52周最高价 (Type: string)
+            - **showapi_res_body.indexList[].maxPrice**: 最高价 (Type: number)
+            - **showapi_res_body.indexList[].min52**: 52周最低价 (Type: string)
+            - **showapi_res_body.indexList[].minPrice**: 最低价 (Type: number)
+            - **showapi_res_body.indexList[].name**: 指数名称 (Type: string)
+            - **showapi_res_body.indexList[].nowPrice**: 当前价 (Type: number)
+            - **showapi_res_body.indexList[].swing**: 振幅 (Type: string)
+            - **showapi_res_body.indexList[].time**: 时间 (Type: string)
+            - **showapi_res_body.indexList[].todayOpenPrice**: 交易日开盘价 (Type: number)
+            - **showapi_res_body.indexList[].tradeAmount**: 成交金额 (Type: number)
+            - **showapi_res_body.indexList[].tradeNum**: 成交量 (Type: integer)
+            - **showapi_res_body.indexList[].yestodayClosePrice**: 上个交易日收盘价 (Type: number)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+        - **showapi_res_code**: 响应代码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: stock-batch-history
+    description: 批量获取股票历史数据，多个股票代码间以英文逗号分隔，最多输入20个代码。数据为上个交易日参考数据
+    args:
+      - name: needIndex
+        description: 是否需要返回4大股票指数（上证指数、深证成指、恒生指数、创业板指）。1为需要，0为不需要。
+        type: string
+        position: query
+      - name: stocks
+        description: 股票编码 。多个股票代码间以英文逗号分隔，最多输入20个代码。如果超出，系统只取前20个代码。
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/batch-real-stockinfo
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.indexList**:  (Type: array)
+            - **showapi_res_body.indexList[].code**: 指数代码 (Type: string)
+            - **showapi_res_body.indexList[].diff_money**: 涨跌点数 (Type: string)
+            - **showapi_res_body.indexList[].diff_rate**: 涨跌幅度% (Type: string)
+            - **showapi_res_body.indexList[].max52**: 52周最大点数 (Type: string)
+            - **showapi_res_body.indexList[].maxPrice**: 最近交易日最高点数 (Type: string)
+            - **showapi_res_body.indexList[].min52**: 52周最低点数 (Type: string)
+            - **showapi_res_body.indexList[].minPrice**: 最近交易日最低点数 (Type: string)
+            - **showapi_res_body.indexList[].name**: 指数名称 (Type: string)
+            - **showapi_res_body.indexList[].nowPrice**: 当前点数 (Type: string)
+            - **showapi_res_body.indexList[].swing**: 振幅 % (Type: string)
+            - **showapi_res_body.indexList[].time**: 时间 (Type: string)
+            - **showapi_res_body.indexList[].todayOpenPrice**: 最近交易日开盘点数 (Type: string)
+            - **showapi_res_body.indexList[].tradeAmount**: 成交金额（金额，元） (Type: string)
+            - **showapi_res_body.indexList[].tradeNum**: 成交量(手) (Type: string)
+            - **showapi_res_body.indexList[].yestodayClosePrice**: 上个交易日收盘点数 (Type: string)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].all_value**: 总市值，亿元 (Type: string)
+            - **showapi_res_body.list[].appointRate**: 委差，单位手 (Type: string)
+            - **showapi_res_body.list[].buy1_m**: 买一报价（金额，元） (Type: string)
+            - **showapi_res_body.list[].buy1_n**: 买一数量（股） (Type: string)
+            - **showapi_res_body.list[].buy2_m**: 买二报价 (Type: string)
+            - **showapi_res_body.list[].buy2_n**: 买二 (Type: string)
+            - **showapi_res_body.list[].buy3_m**: 买三报价 (Type: string)
+            - **showapi_res_body.list[].buy3_n**: 买三 (Type: string)
+            - **showapi_res_body.list[].buy4_m**: 买四报价 (Type: string)
+            - **showapi_res_body.list[].buy4_n**: 买四 (Type: string)
+            - **showapi_res_body.list[].buy5_m**: 买五报价 (Type: string)
+            - **showapi_res_body.list[].buy5_n**: 买五 (Type: string)
+            - **showapi_res_body.list[].circulation_value**: 流通市值，亿元 (Type: string)
+            - **showapi_res_body.list[].closePrice**: 上个交易日收盘价 (Type: string)
+            - **showapi_res_body.list[].code**: 股票代码 (Type: string)
+            - **showapi_res_body.list[].currcapital**: 总股本，万股 (Type: string)
+            - **showapi_res_body.list[].date**: 日期 (Type: string)
+            - **showapi_res_body.list[].diff_money**: 涨跌金额 (Type: string)
+            - **showapi_res_body.list[].diff_rate**: 涨跌幅度 (Type: string)
+            - **showapi_res_body.list[].downLimit**: 跌停价 (Type: string)
+            - **showapi_res_body.list[].highLimit**: 涨停价 (Type: string)
+            - **showapi_res_body.list[].market**: 市场 (Type: string)
+            - **showapi_res_body.list[].max52**: 52周最高价 (Type: string)
+            - **showapi_res_body.list[].min52**: 52周最低价 (Type: string)
+            - **showapi_res_body.list[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.list[].nowPrice**: 当前价 (Type: string)
+            - **showapi_res_body.list[].openPrice**: 最近交易日开盘价 (Type: string)
+            - **showapi_res_body.list[].pb**: 市净率 (Type: string)
+            - **showapi_res_body.list[].pe**: 市盈率(TTM,动态) (Type: string)
+            - **showapi_res_body.list[].sell1_m**: 卖一报价 (Type: string)
+            - **showapi_res_body.list[].sell1_n**: 卖一 (Type: string)
+            - **showapi_res_body.list[].sell2_m**: 卖二 (Type: string)
+            - **showapi_res_body.list[].sell2_n**: 卖二 (Type: string)
+            - **showapi_res_body.list[].sell3_m**: 卖三报价 (Type: string)
+            - **showapi_res_body.list[].sell3_n**: 卖三 (Type: string)
+            - **showapi_res_body.list[].sell4_m**: 卖四报价 (Type: string)
+            - **showapi_res_body.list[].sell4_n**: 卖四 (Type: string)
+            - **showapi_res_body.list[].sell5_m**: 卖五报价 (Type: string)
+            - **showapi_res_body.list[].sell5_n**: 卖五 (Type: string)
+            - **showapi_res_body.list[].swing**: 振幅 (Type: string)
+            - **showapi_res_body.list[].time**: 刷新时间 (Type: string)
+            - **showapi_res_body.list[].todayMax**: 最近交易日最高价 (Type: string)
+            - **showapi_res_body.list[].todayMin**: 最近交易日最低价 (Type: string)
+            - **showapi_res_body.list[].totalcapital**: 总股本，万股 (Type: string)
+            - **showapi_res_body.list[].tradeAmount**: 成交金额（元） (Type: string)
+            - **showapi_res_body.list[].tradeNum**: 成交量(股，不是手) (Type: string)
+            - **showapi_res_body.list[].turnover**: 换手率 (Type: string)
+            - **showapi_res_body.list[].yestodayClosePrice**: 上个交易日收盘价 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+        - **showapi_res_code**: 响应代码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: kdj-query
+    description: 查询沪深两市股票的KDJ（随机指数）（9,3,3）最大查询时间段跨度为60天，支持返回实时KDJ
+    args:
+      - name: code
+        description: 要查询的股票代码，注意不需要加市场代码
+        type: string
+        required: true
+        position: query
+      - name: end
+        description: 要查询的结束日期，数据格式为yyyyMMdd
+        type: string
+        required: true
+        position: query
+      - name: fqtype
+        description: 数据复权类型，qfq表示前复权、hfq表示后复权、bfq表示不复权，默认不复权。
+        type: string
+        position: query
+      - name: start
+        description: 要查询的开始日期，数据格式为yyyyMMdd
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stockKDJ
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 股票代码 (Type: string)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].d**:  (Type: number)
+            - **showapi_res_body.list[].date**: 日期 (Type: string)
+            - **showapi_res_body.list[].j**:  (Type: number)
+            - **showapi_res_body.list[].k**:  (Type: number)
+          - **showapi_res_body.remark**: 返回信息 (Type: string)
+          - **showapi_res_body.ret_code**: 返回状态码 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**:  (Type: string)
+        - **showapi_res_id**: 响应ID (Type: string)
+
+        ## Original Response
+
+  - name: macd-query
+    description: 股票MACD数据查询，支持复权数据，最大查询时间跨度为一个季度
+    args:
+      - name: code
+        description: 要查询的股票代码，暂只支持沪深两市的股票
+        type: string
+        position: query
+      - name: end
+        description: 要查询的结束时间
+        type: string
+        position: query
+      - name: fqtype
+        description: 数据复权类型，qfq表示前复权、hfq表示后复权、bfq表示不复权，默认不复权。
+        type: string
+        position: query
+      - name: start
+        description: 要查询的的开始时间
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/macd
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 股票代码 (Type: string)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].code**: 股票代码 (Type: string)
+            - **showapi_res_body.list[].date**: 日期 (Type: string)
+            - **showapi_res_body.list[].dea**: DEA值 (Type: number)
+            - **showapi_res_body.list[].dif**: DIF值 (Type: number)
+            - **showapi_res_body.list[].macd**: MACD值 (Type: number)
+          - **showapi_res_body.remark**: 返回信息 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+        - **showapi_res_id**: 响应ID (Type: string)
+
+        ## Original Response
+
+  - name: rsi-query
+    description: 可以查询沪深股票的RSI（相对强弱指数），查询时间区间最大跨度为一个季度
+    args:
+      - name: code
+        description: 要查询的股票代码
+        type: string
+        required: true
+        position: query
+      - name: end
+        description: 要查询的结束日期，数据格式为yyyyMMdd
+        type: string
+        required: true
+        position: query
+      - name: fqtype
+        description: 数据复权类型，qfq表示前复权、hfq表示后复权、bfq表示不复权，默认不复权。
+        type: string
+        position: query
+      - name: start
+        description: 要查询的开始日期，数据格式为yyyyMMdd
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/rsi
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 股票代码 (Type: string)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].code**: 股票代码 (Type: string)
+            - **showapi_res_body.list[].date**: 日期 (Type: string)
+            - **showapi_res_body.list[].rsi12**: 12日相对强弱指数 (Type: number)
+            - **showapi_res_body.list[].rsi24**: 24日相对强弱指数 (Type: number)
+            - **showapi_res_body.list[].rsi6**: 6日相对强弱指数 (Type: number)
+          - **showapi_res_body.remark**: 返回描述 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+        - **showapi_res_id**: 响应ID (Type: string)
+
+        ## Original Response
+
+  - name: history-trade
+    description: 查询沪深股票最近一个交易日历史的50条逐笔交易数据
+    args:
+      - name: code
+        description: 股票编码，比如000002，也可以使用拼音首字母。例如腾讯控股的是 txkg
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/everytrade
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].price**: 价格 (Type: string)
+            - **showapi_res_body.list[].time**: 交易时间 (Type: string)
+            - **showapi_res_body.list[].tradeNum**: 交易手数 (Type: string)
+            - **showapi_res_body.list[].type**: 交易类型 B买盘 S卖盘 E中性盘 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 响应状态码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，无错误时为空字符串 (Type: string)
+
+        ## Original Response
+
+  - name: history-in-out
+    description: 沪深股票内外盘历史数据，历史盘口
+    args:
+      - name: code
+        description: 股票编码，不需要输入市场编码。
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/in-out-data
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.inTradeNum**: 内盘股数，不是手 (Type: string)
+          - **showapi_res_body.outTradeNum**: 外盘股数，不是手 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 响应代码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，为空时表示无错误 (Type: string)
+
+        ## Original Response
+
+  - name: day-average
+    description: 查询股票日均线数据，最多返回三个月数据，A股支持前后复权
+    args:
+      - name: code
+        description: 要查询的股票代码
+        type: string
+        required: true
+        position: query
+      - name: date
+        description: 要查询的日期，格式为yyyyMMdd，返回查询日期之前三个月的MA数据
+        type: string
+        required: true
+        position: query
+      - name: fqtype
+        description: A股数据复权类型，支持"'bfq","qfq","hfq"，分别代表不复权，前复权和后复权，默认不复权。
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/ma
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].date**: 日期 (Type: string)
+            - **showapi_res_body.list[].ma10**: 10日均线 (Type: number)
+            - **showapi_res_body.list[].ma20**: 20日均线 (Type: number)
+            - **showapi_res_body.list[].ma30**: 30日均线 (Type: number)
+            - **showapi_res_body.list[].ma5**: 5日均线 (Type: number)
+            - **showapi_res_body.list[].ma60**: 60日均线 (Type: number)
+          - **showapi_res_body.remark**: 返回说明 (Type: string)
+          - **showapi_res_body.ret_code**: 返回状态码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 返回状态码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，无错误时为空字符串 (Type: string)
+        - **showapi_res_id**: 请求ID (Type: string)
+
+        ## Original Response
+
+  - name: history
+    description: 沪深及港股历史行情
+    args:
+      - name: begin
+        description: 开始日期，格式yyyy-MM-dd
+        type: string
+        required: true
+        position: query
+      - name: code
+        description: 股票编码，不需要写市场名
+        type: string
+        required: true
+        position: query
+      - name: end
+        description: 结束日期，格式yyyy-MM-dd，注意时间范围为31天
+        type: string
+        required: true
+        position: query
+      - name: type
+        description: K线数据复权类型，qfq代表“前复权”，hfq代表“后复权”，bfq代表“不复权”，默认值为bfq，港股数据暂时只有不复权的。
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/sz-sh-stock-history
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].close_price**: 收盘价 (Type: string)
+            - **showapi_res_body.list[].code**: 股票代码 (Type: string)
+            - **showapi_res_body.list[].date**: 日期，例如2015-09-02 (Type: string)
+            - **showapi_res_body.list[].market**: 市场，例如sh (Type: string)
+            - **showapi_res_body.list[].max_price**: 最高价 (Type: string)
+            - **showapi_res_body.list[].min_price**: 最低价 (Type: string)
+            - **showapi_res_body.list[].open_price**: 开盘价 (Type: string)
+            - **showapi_res_body.list[].trade_money**: 交易金额元 (Type: string)
+            - **showapi_res_body.list[].trade_num**: 交易手数 (Type: string)
+          - **showapi_res_body.ret_code**: 返回状态码 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: stock-in-block
+    description: 查询沪深板块中的股票列表
+    args:
+      - name: page
+        description: 返回第几页数据。每页最多返回40条记录。
+        type: string
+        required: true
+        position: query
+      - name: typeId
+        description: 板块编码，其来源于【板块股票列表】接口中返回code字段。
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stock-in-block
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.pagebean**:  (Type: object)
+            - **showapi_res_body.pagebean.allNum**: 总记录数 (Type: integer)
+            - **showapi_res_body.pagebean.allPages**: 总页数 (Type: integer)
+            - **showapi_res_body.pagebean.contentlist**:  (Type: array)
+              - **showapi_res_body.pagebean.contentlist[].code**: 股票代码 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].currcapital_val**: 流通市值，万元 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].market**: 市场代码 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].name**: 公司名称 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].totalcapital_val**: 总市值，万元 (Type: string)
+            - **showapi_res_body.pagebean.currentPage**: 当前页数 (Type: integer)
+            - **showapi_res_body.pagebean.maxResult**: 每页最大记录数 (Type: integer)
+            - **showapi_res_body.pagebean.name**: 行业名称 (Type: string)
+            - **showapi_res_body.pagebean.typeId**: 类型ID (Type: string)
+          - **showapi_res_body.ret_code**: 返回码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 响应代码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，成功时为空字符串 (Type: string)
+
+        ## Original Response
+
+  - name: hongkong-block-list
+    description: 港股板块列表
+    args: []
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/hk-block-list
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].childList**:  (Type: array)
+              - **showapi_res_body.list[].childList[].code**: 子板块编码 (Type: string)
+              - **showapi_res_body.list[].childList[].name**: 子板块名称 (Type: string)
+            - **showapi_res_body.list[].code**: 板块编码 (Type: string)
+            - **showapi_res_body.list[].name**: 板块名称 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码，0为成功 (Type: integer)
+        - **showapi_res_code**: 响应代码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，空字符串表示无错误 (Type: string)
+
+        ## Original Response
+
+  - name: hongkong-in-block
+    description: 查询港股板块中的股票列表
+    args:
+      - name: page
+        description: page
+        type: string
+        required: true
+        position: query
+      - name: typeId
+        description: 板块id，其来源于【港股板块股票列表】接入点。
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/hk-in-block
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.pagebean**:  (Type: object)
+            - **showapi_res_body.pagebean.allNum**: 总条目数 (Type: integer)
+            - **showapi_res_body.pagebean.allPages**: 总页数 (Type: integer)
+            - **showapi_res_body.pagebean.contentlist**:  (Type: array)
+              - **showapi_res_body.pagebean.contentlist[].code**: 股票代码 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].currcapital_val**: 流通市值，万元 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].market**: 市场代码 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].name**: 公司名称 (Type: string)
+              - **showapi_res_body.pagebean.contentlist[].totalcapital_val**: 总市值，万元 (Type: string)
+            - **showapi_res_body.pagebean.currentPage**: 当前页码 (Type: integer)
+            - **showapi_res_body.pagebean.maxResult**: 每页最大条目数 (Type: integer)
+            - **showapi_res_body.pagebean.name**: 分类名称 (Type: string)
+            - **showapi_res_body.pagebean.typeId**: 类型ID (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: tech-stock-list
+    description: 此接入点可以返回科创版股票信息，包括股票名称、股票代码等，每页固定返回40条数据，每日更新数据
+    args:
+      - name: page
+        description: 页数，每页固定返回40条数据
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/131-63
+      method: POST
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.data**:  (Type: array)
+            - **showapi_res_body.data[].code**: 代码 (Type: string)
+            - **showapi_res_body.data[].market**: 市场标识 (Type: string)
+            - **showapi_res_body.data[].name**: 名称 (Type: string)
+            - **showapi_res_body.data[].pinyin**: 拼音缩写 (Type: string)
+          - **showapi_res_body.page**: 当前页码 (Type: integer)
+          - **showapi_res_body.remark**: 备注 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码 (Type: integer)
+          - **showapi_res_body.showapi_fee_code**: 费用代码 (Type: integer)
+        - **showapi_res_code**: 响应代码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+        - **showapi_res_id**: 响应ID (Type: string)
+
+        ## Original Response
+
+  - name: stock-info
+    description: 根据名称或编码查询股票信息
+    args:
+      - name: code
+        description: 比如002739, 支持模糊查询，至少输入3位code，系统返回匹配的前100条记录。
+        type: string
+        position: query
+      - name: name
+        description: 要查询的股票名称
+        type: string
+        position: query
+      - name: pinyin
+        description: 拼音首字母，可前置模糊查询
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/name-to-stockinfo
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].code**: 股票代码 (Type: string)
+            - **showapi_res_body.list[].ct**: 股票入平台日期 (Type: string)
+            - **showapi_res_body.list[].currcapital**: 流通股本，单位为万股 (Type: string)
+            - **showapi_res_body.list[].listing_date**: 上市日期 (Type: string)
+            - **showapi_res_body.list[].market**: 市场标识 (Type: string)
+            - **showapi_res_body.list[].mgjzc**: 每股净资产，单位为元 (Type: string)
+            - **showapi_res_body.list[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.list[].pinyin**: 股票名称拼音缩写 (Type: string)
+            - **showapi_res_body.list[].profit_four**: 最近四个季度净利润，单位为亿元 (Type: string)
+            - **showapi_res_body.list[].state**: 交易状态 (Type: string)
+            - **showapi_res_body.list[].totalcapital**: 总股本，单位为万股 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 响应代码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，为空时表示无错误 (Type: string)
+
+        ## Original Response
+
+  - name: stock-list
+    description: 股票列表查询
+    args:
+      - name: market
+        description: 市场简写。支持 sh、sz、hk
+        type: string
+        position: query
+      - name: page
+        description: 第几页。每页最多返回50条记录
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stocklist
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.allNum**: 总记录数 (Type: integer)
+          - **showapi_res_body.allPages**: 总页数 (Type: integer)
+          - **showapi_res_body.contentlist**:  (Type: array)
+            - **showapi_res_body.contentlist[].code**: 股票代码 (Type: string)
+            - **showapi_res_body.contentlist[].currcapital**: 流通股本，单位：万股 (Type: string)
+            - **showapi_res_body.contentlist[].listing_date**: 上市日期 (Type: string)
+            - **showapi_res_body.contentlist[].market**: 市场 (Type: string)
+            - **showapi_res_body.contentlist[].mgjzc**: 每股净资产，单位：元 (Type: string)
+            - **showapi_res_body.contentlist[].name**: 公司名称 (Type: string)
+            - **showapi_res_body.contentlist[].pinyin**: 公司名称拼音 (Type: string)
+            - **showapi_res_body.contentlist[].profit_four**: 四季度净利润，单位：亿元 (Type: string)
+            - **showapi_res_body.contentlist[].state**: 状态，1为上市，其他下市 (Type: integer)
+            - **showapi_res_body.contentlist[].totalcapital**: 总股本，单位：万股 (Type: string)
+          - **showapi_res_body.currentPage**: 当前页码 (Type: integer)
+          - **showapi_res_body.maxResult**: 每页最大记录数 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: stock-history-month-kline
+    description: 股票历史月K线图
+    args:
+      - name: beginDay
+        description: 开始时间，格式为yyyyMMdd，如果不写则默认是当天。结束时间永远是当前时间
+        type: string
+        position: query
+      - name: code
+        description: 沪深、港股股票编码
+        type: string
+        required: true
+        position: query
+      - name: time
+        description: 5 = 5分k线(默认) ，30 = 30分k线，60 = 60分k线，day = 日k线，week = 周k线，month = 月k线。注意港股不支持5分、30分和60分k线。
+        type: string
+        position: query
+      - name: type
+        description: 复权方式，支持两种方式 。  bfq =不复权(默认方式) qfq =前复权   hfq=后复权。当time为[day,week,month]时此字段有效。
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/realtime-k
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 股票代码 (Type: string)
+          - **showapi_res_body.count**: 数据条目数量 (Type: string)
+          - **showapi_res_body.dataList**:  (Type: array)
+            - **showapi_res_body.dataList[].close**: 时间区间结束的价格 (Type: string)
+            - **showapi_res_body.dataList[].max**: 时间区间内最高的价格 (Type: string)
+            - **showapi_res_body.dataList[].min**: 时间区间内最小的价格 (Type: string)
+            - **showapi_res_body.dataList[].open**: 时间区间开始的价格 (Type: string)
+            - **showapi_res_body.dataList[].time**: 时间点，5分|30分|60分k线时，此时间返回到分钟级别。day|week|month的k线时，时间返回到天级别。 (Type: string)
+            - **showapi_res_body.dataList[].volumn**: 时间区间成交手数总合 (Type: string)
+          - **showapi_res_body.market**: 市场标识 (Type: string)
+          - **showapi_res_body.name**: 股票名称 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 响应代码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，成功时为空字符串 (Type: string)
+
+        ## Original Response
+
+  - name: stock-history-white-yellow-line
+    description: 股票历史白黄线数据
+    args:
+      - name: code
+        description: 沪深和港股的股票编码，不需要写市场名称
+        type: string
+        required: true
+        position: query
+      - name: day
+        description: 返回多少天的白线数据，1代表的就是上个历史交易日。目前支持1至5的范围。
+        type: string
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/timeline
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 股票代码 (Type: string)
+          - **showapi_res_body.dataList**:  (Type: array)
+            - **showapi_res_body.dataList[].count**: 总条目数 (Type: string)
+            - **showapi_res_body.dataList[].date**: 历史交易日日期 (Type: string)
+            - **showapi_res_body.dataList[].lastVolume**: 上个交易日成交量 (Type: string)
+            - **showapi_res_body.dataList[].minuteList**:  (Type: array)
+              - **showapi_res_body.dataList[].minuteList[].avgPrice**: 均价 (Type: string)
+              - **showapi_res_body.dataList[].minuteList[].nowPrice**: 历史交易日时间的价格 (Type: string)
+              - **showapi_res_body.dataList[].minuteList[].time**: 历史交易日分钟 (Type: string)
+              - **showapi_res_body.dataList[].minuteList[].volume**: 交易量 (Type: string)
+            - **showapi_res_body.dataList[].yestclose**: 上个交易日收盘价 (Type: string)
+          - **showapi_res_body.market**: 市场代码 (Type: string)
+          - **showapi_res_body.name**: 股票名称 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码 (Type: integer)
+        - **showapi_res_code**: 响应代码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: stock-block-list
+    description: 股票板块列表
+    args: []
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stock-block-list
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].childList**:  (Type: array)
+              - **showapi_res_body.list[].childList[].code**: 子板块代码 (Type: string)
+              - **showapi_res_body.list[].childList[].name**: 子板块名称 (Type: string)
+            - **showapi_res_body.list[].code**: 板块代码 (Type: string)
+            - **showapi_res_body.list[].name**: 板块名称 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+
+  - name: divide-stop-start
+    description: 查询历史的除权|停复牌|上市股票
+    args:
+      - name: date
+        description: 日期，格式为yyyyMMdd
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://shares1213.market.alicloudapi.com/stop-start-divide
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.addNewStockNetPublishList**:  (Type: array)
+            - **showapi_res_body.addNewStockNetPublishList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.addNewStockNetPublishList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.addNewStockNetPublishList[].reason**: 增发新股上市原因 (Type: string)
+          - **showapi_res_body.date**: 日期 (Type: string)
+          - **showapi_res_body.newStockNetPublishList**:  (Type: array)
+            - **showapi_res_body.newStockNetPublishList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.newStockNetPublishList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.newStockNetPublishList[].reason**: 首发新股网上发行原因 (Type: string)
+          - **showapi_res_body.recoverList**:  (Type: array)
+            - **showapi_res_body.recoverList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.recoverList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.recoverList[].reason**: 复牌原因 (Type: string)
+          - **showapi_res_body.ret_code**: 返回码 (Type: integer)
+          - **showapi_res_body.shareDividendList**:  (Type: array)
+            - **showapi_res_body.shareDividendList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.shareDividendList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.shareDividendList[].reason**: 除权除息原因 (Type: string)
+          - **showapi_res_body.shareRegistList**:  (Type: array)
+            - **showapi_res_body.shareRegistList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.shareRegistList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.shareRegistList[].reason**: 分红转增股权登记原因 (Type: string)
+          - **showapi_res_body.startList**:  (Type: array)
+            - **showapi_res_body.startList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.startList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.startList[].reason**: 首发上市原因 (Type: string)
+          - **showapi_res_body.stockAlarmList**:  (Type: array)
+            - **showapi_res_body.stockAlarmList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.stockAlarmList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.stockAlarmList[].reason**: 退市风险警示原因 (Type: string)
+          - **showapi_res_body.stockholderList**:  (Type: array)
+            - **showapi_res_body.stockholderList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.stockholderList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.stockholderList[].reason**: 股东资格登记日原因 (Type: string)
+          - **showapi_res_body.stopList**:  (Type: array)
+            - **showapi_res_body.stopList[].code**: 股票编码 (Type: string)
+            - **showapi_res_body.stopList[].name**: 股票名称 (Type: string)
+            - **showapi_res_body.stopList[].reason**: 停牌原因 (Type: string)
+        - **showapi_res_code**: 响应状态码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+

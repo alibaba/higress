@@ -1,0 +1,139 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: higress-https
+  namespace: higress-system
+data:
+  cert: |
+    automaticHttps: true
+    renewBeforeDays: 30
+    fallbackForInvalidSecret: true
+    acmeIssuer:
+    - ak: test
+      sk: test
+      email: test@example.com
+      name: letsencrypt
+    credentialConfig:
+    - cacertSecret: foo-com-ca-secret
+      domains:
+      - foo.com
+      - '*.foo.com'
+      tlsSecret: foo-com-secret
+    version: test
+
+---
+
+apiVersion: v1
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURMRENDQWhTZ0F3SUJBZ0lSQUw4TGhJL1F1N3lJYUg3Ny8rdCtsSDR3RFFZSktvWklodmNOQVFFTEJRQXcKTFRFWk1CY0dBMVVFQ2hNUVNHbG5jbVZ6Y3lCRk1rVWdWR1Z6ZERFUU1BNEdBMVVFQXhNSFpHVm1ZWFZzZERBZQpGdzB5TkRBMU16RXdOVEV5TkRKYUZ3MHlOVEExTXpFd05URXlOREphTUMweEdUQVhCZ05WQkFvVEVFaHBaM0psCmMzTWdSVEpGSUZSbGMzUXhFREFPQmdOVkJBTVRCMlJsWm1GMWJIUXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRQ2xZOWZlUGNxK0FhMnNBcWJFSlFyb1R5OVdOTndpejg5YlVQSExHSlE3QVpLNApiTm9nYzB4NGVNT0tZVjlXVnExS0NZZkdlQWJEYys5elV1Z3VtRFEyNUlwWWo1MGlNVnIwek81TFZzTllBdEFwCnFvNExNaVh1UStCZ3hIamlYQldXOFFPbVZxbVBKZnZ0RTNsZWdROFl2bVRSMGZIK254eHlRbVlqbkdJcHVlMmEKeGREc005cHJQYk56U0V4Um9QL2FDWElxWExvS0NaYzArUlVmK2JEQzE1QzJEamJoOXVyT1JQU1ZhKzR0TDlteQpwdGY4RTJIS0xuSUFuNWdBMUhORXR3STYxb0c0dmtUcDVwdDAyRzlpSlZPTGN5NnhjRDFUU0lBUktVUW5VcXQzClIycGxHTDREdEY5M2gyWjZ1YWt5TDh5VHAvUzFjRU8wWnEzTUdZYVBBZ01CQUFHalJ6QkZNQTRHQTFVZER3RUIKL3dRRUF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0ZBWURWUjBSQkEwdwpDNElKS2k1bWIyOHVZMjl0TUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFBcGtHTU1KWFU0OXJ6Ym1VM3BZVWVoCnk5dDNsVmpzU1lYUEhZVzBvclA1NWdSRGNnRTZ0SDY2WjlUa05BYlZ0RUczWFkwUWhrd0Q2MWNwN0VJSXBBOHIKcnVVS3lnR29vT1g1Zy9WSEhNWmI5Qmtud1MwQlpwaFhQaWs1K213L3U2QnJnRCtEUUgzTUU0MkdFOVppZmUzcwp2blBvQTVQVURXNmZPR3FPWENSdFlCeGQ3MXdmYy83MCszcVZiaDVEayt3TnlxM1U4S0xQdDBHOXpsUnZhclVsCmJ3eFFEeDAxNGtvUVo4ZStEUXU2QzFRWTBPZjZIVkp2Yk1tVUVWeENLUWNjTEFIdFl6dnZKdWdLeHdONWtsZEkKUS9UMWJZc24zNXZEZUpYL1NUQ2Radjk0eWhhVVl3TUt1OHkxNnExaHFGcmdpNWRNcWZ0RDZ6RVlKYUwyRFh1LwotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBcFdQWDNqM0t2Z0d0ckFLbXhDVUs2RTh2VmpUY0lzL1BXMUR4eXhpVU93R1N1R3phCklITk1lSGpEaW1GZlZsYXRTZ21IeG5nR3czUHZjMUxvTHBnME51U0tXSStkSWpGYTlNenVTMWJEV0FMUUthcU8KQ3pJbDdrUGdZTVI0NGx3Vmx2RURwbGFwanlYNzdSTjVYb0VQR0w1azBkSHgvcDhjY2tKbUk1eGlLYm50bXNYUQo3RFBhYXoyemMwaE1VYUQvMmdseUtseTZDZ21YTlBrVkgvbXd3dGVRdGc0MjRmYnF6a1QwbFd2dUxTL1pzcWJYCi9CTmh5aTV5QUorWUFOUnpSTGNDT3RhQnVMNUU2ZWFiZE5odllpVlRpM011c1hBOVUwaUFFU2xFSjFLcmQwZHEKWlJpK0E3UmZkNGRtZXJtcE1pL01rNmYwdFhCRHRHYXR6Qm1HandJREFRQUJBb0lCQUhrVjRSeGZwd2gzR0J5QQpFSEk0SUlVMlBCVGtQR3JzTkFiSisweFRJV3NWMnNKVlIxbE1zS2JlMjJKN3FaMy9kWDFuL3RUS1dVRk5wdmlLCnNWd3pxTDZya2JJRzZ1YjJ0WDNXYjN3TytKTjk4OE1ka0VNWUl2Y1BFTDRuK2N6WDJDS2JMNjNmY3VKUHorS2gKU0ZGdE1ZMVBEMmNpU3dhOG5NbjJYT3NqZWliTFFKcWFNbGZnb2sraHBaUTlBcXV1STMzdmk3R1J4cWg0bEhvUgptU05uc21DZHpsQ3ovRTdvWHZ1Q2lwcnNPNjVkT21wNG0vUVZ4dktFbjlFQmRaekdONC9MWHZNdnA3N2lBRjc2CkpjTjBQVjk3TkZpdk9BMTY0c2QxaHg2TTJkd2lVWmZVdmdFbklBMWdpQThFYmx6M2pFM3FuS054KzRJZml6di8KNk5SWmxta0NnWUVBME5kU2g2NGFMc2UvY3lFMUZPRUh5bjNzNTlaN3Zia2hnYWU5WHUrcmdrWWdidGFQNVczWApLUHBlWThSL1QwZkVDMklxb29uZWhBUmxIUzNMTzV6VmN5OStERkJWSjArWHUxdG5TZVptOFI5bnpaQURmQXN5ClV3VUFteUZpa1g2dFRwaENPa085S2NkaWl4OXovZ1kwMVdtVng2V1o3TEI2VXM5V05vYTdKQU1DZ1lFQXlyeXoKdWxmTHdDaElMa1FkU1BmcXc5L2V2MGdGWDBRUmQxZHptVytiSXNqdEJxalhRbzYvNkEwdlBUcUNIem40NzFrRgprcWh4VitqNGZWT3ZOUGM3NUZnSEtUS0dkYVV6eTJna3RVWE9ldkxwNU5OZE5rRk5CM2tLOUgvc2psY3BmYjlVCnplMDVjbldtdHMzWkNxUFFEang3alFnT2MveWtlT0JhTStJR200VUNnWUVBaEh5Vk5zNFVmaWpxSTdlbFhTR0YKTjhpN1NqaWZON1VDdEtZZFZPVG5BVFpMelFVQk5LT0NJOVR4bklsRDJwL0VseFFueUFWK3pIR2RVKzJCU01ndQpBV3pYb2lnMFhVUDVGanJlUTl1TzR0anhtVThMWnQ0VGh1ZGRnd3lpNDNwaHA4S2dBU2FJRXNFU212L1JMZzN4CjVwR2RHNUxMRzRTNWxWOURha1ArNU5FQ2dZQXFkdEh5WXZkVFhWeVpERDFTRGxPSENYb2ZlSmRmZCtOc3FzMlUKd3RLc3U0Y2lFUFZkaEliZnRQdERDT0UrWnlja0F2SnU0SWMxRWFBU3FCZVhzWDFDKzhrc01PQUcvajVXQ1k4Kwp4TXRWNTFGa1UzMC9vdmZlYTlVR2wxRFdFNTJtTUJBMFBjNzlrWFVFN3lMWjNxdnlmMnFsaEoxNlg5MlhUKzYwCjFVL3EvUUtCZ0RQVUxrQ1V3ZElRYXZpTXczUXZjYUZoVGR3dTBJT2hQYWhlWm9kRmdYSXpWUVdZbmovT2lpSTIKK0U2eHhNVGNyY0czTGgwWkFyNTBXaUZKYWpMeUswd042WUVGVWNlcHV0c0ZOQjdEOXFCeStlZWoyVGRCS2kwVwozRTk3cmVjVXdZR3QvdnpPaURiU29zajdWbitCQVFaQnRGOXBCdTJwYzZDaW1Vb1JsOGZjCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+kind: Secret
+metadata:
+  name: foo-com-secret
+  namespace: higress-system
+type: kubernetes.io/tls
+
+---
+
+apiVersion: v1
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURLakNDQWhLZ0F3SUJBZ0lSQVBObk9PUTBvQVJvMHhTN2xKVDJXWHN3RFFZSktvWklodmNOQVFFTEJRQXcKTFRFWk1CY0dBMVVFQ2hNUVNHbG5jbVZ6Y3lCRk1rVWdWR1Z6ZERFUU1BNEdBMVVFQXhNSFpHVm1ZWFZzZERBZQpGdzB5TkRBMU16RXdOVEExTURKYUZ3MHlOVEExTXpFd05UQTFNREphTUMweEdUQVhCZ05WQkFvVEVFaHBaM0psCmMzTWdSVEpGSUZSbGMzUXhFREFPQmdOVkJBTVRCMlJsWm1GMWJIUXdnZ0VpTUEwR0NTcUdTSWIzRFFFQkFRVUEKQTRJQkR3QXdnZ0VLQW9JQkFRRDBVTnlaNjlRVXQvbFhOclBGcCtPVjhBT2k4bVQvTkJ2UGFpQnRBZzkxc05keApSSXRZUWJ4WVpxNnJTMTJMQmQvVjdpK1VkZjNPbW5Bc053QXo3UnFLaVVtTTN2cXdvdTQxVzVyMExGbkJxVEkwCjJrZDdlelplUUlWS2lHMThGVzl5VmxMVE5ralN1YTRsZmg5K2ZwUEJZT0dMY1lXVm9ETDhkb09OKzUwY0RPNmMKeURwUjFzRGZQNFUyT2YrMm8wU1pYQmxodkYzdEMxMlAwR1Y5VWNwTTRENDFUR1dYTlVtV2N5bmJBaEF3RGZwQQprZmZXLytDU0RQa3F1TlB6UEtteklBcDVxbFdrajBXbDBkM1RzbVpZTzFnTjdwRFI4Wk9KMThWa1dCRCtJbEM5CktQanBqK00yK1liRjgzZHJ1ODlya3NzbXVUYWN4WGttMzZjbVR0YjlBZ01CQUFHalJUQkRNQTRHQTFVZER3RUIKL3dRRUF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0VnWURWUjBSQkFzdwpDWUlIWW1GeUxtTnZiVEFOQmdrcWhraUc5dzBCQVFzRkFBT0NBUUVBVFdHd3N2bEpPM1NzVHpsYVRoRnQ4QjRKCk5JTDhYbWpWbytzMkFra2k4T0hGT3dXVnVEOEM2Q3d3cDRiODBzc2ZEbkdpTXl0Y0NnMFlvMFJzQmRGaFh6Y0cKVlRkSnpQY3hoblhEZkhTTXd1SnlYd3oybVd6SDN4UjhlVWUvSEcvaXYyWnRkQ29YMlNVNTBIQ2RiOVVaTE1jWApzVWpNUnJhcEpCMWNPNERJcTIvYTM4NWRobnRXTXp2VVBGLzBQaEZnaER1WGFjamg3bU5Xb2lWVE9HdWpiYTBlCnIvZk9pdUt5L1IwZ0xFUmlCN0tieHJRU1paM3hyMlNZdjJvM1JaOUhGdFRkdFdmdDlFcXVVWFhwWHRLK01VMmsKS0ZnK0NWTnd6emg3REtKa2czWlJRWTJXTUU1RjBRYUdMelJKeHdQRVMzSmZwK3RpQSs0RHNDMGJVUUo0eHc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBOUZEY21ldlVGTGY1VnphenhhZmpsZkFEb3ZKay96UWJ6Mm9nYlFJUGRiRFhjVVNMCldFRzhXR2F1cTB0ZGl3WGYxZTR2bEhYOXpwcHdMRGNBTSswYWlvbEpqTjc2c0tMdU5WdWE5Q3had2FreU5OcEgKZTNzMlhrQ0ZTb2h0ZkJWdmNsWlMwelpJMHJtdUpYNGZmbjZUd1dEaGkzR0ZsYUF5L0hhRGpmdWRIQXp1bk1nNgpVZGJBM3orRk5qbi90cU5FbVZ3WllieGQ3UXRkajlCbGZWSEtUT0ErTlV4bGx6Vkpsbk1wMndJUU1BMzZRSkgzCjF2L2drZ3o1S3JqVDh6eXBzeUFLZWFwVnBJOUZwZEhkMDdKbVdEdFlEZTZRMGZHVGlkZkZaRmdRL2lKUXZTajQKNlkvak52bUd4Zk4zYTd2UGE1TExKcmsybk1WNUp0K25KazdXL1FJREFRQUJBb0lCQUdiTUN6WDhZenpnZDlvNQpXd1RFY2w3cElTNlRuT2xBVEo5R0FTUzhwREtaMk55QXdieTkwL2pDSTZaUlRLZXRMaFErWnVpcGlNUkFlUWd4CmtEVkpBMHpkSFFSWDRkVW1pT0lNakRORzRmRTVOclhFVGlWbm4yV2k4ako5R3N3RjNPR1g3cnVOOExBeGpsT2EKTUxneG5BdldycS9VY1NlV3d6MDB4SCtlS2VuZHVLZGx0amtoTUNXUmhaMmFGeGI3UnNPalpHMENVdC9nU0c0QgptenBvREVnQmZyV1dTVGJVUS9UU1o2VEFkdHFOQjBycjhwZmV4Qk9QSndyVmxMS1o5bkZKMFlVclYvb3JsV3U1Cjk1NUFCb0RlU2N3Zy9oVis5UlhTajdtb09sdGp4Uk1TL3dKdkR4K3p4T2s0cWRRRlZ1QXYyVjZML0tsUEhhLzQKbGpQTmc4VUNnWUVBK3RRbDZiN3V5a0J3U21pVlZiYk9EWVdjNE5IREVmaGJxc0RRdWdMNDZ5OVFKLy9sSDd0bgpObElFcWFPRCtKRVFVOThLR2src0FOQzh0ekNybTZ6aGd5YVZ5T0RyQWNBVzcyZ3JkSm9pMDY5Szg0aE5uU0tkClNQM1M5UmlLcitwSlg4WlJpVGV4bitzdzZYcHJTbm9nZ2FOSzFKcWtPNndtS25oRHdvWmFlVGNDZ1lFQStWcFcKNVp1U3hkMCs5VXRuWnorVXhRSWJPUGVYb2V2eTVwNWV0d1I4czFVc3VhWU5nQ3M5NUJoOCtxMXpmbTN0VzcxcgpWTitKNS9WKzFvM3E4cy9jZEZ6OGRTc0sxTTFaS0E5NmJqeHV6YS9uWHplU25hTnE5TzhkOTdRa25BRlRPMm1JCldOcE1aQjNLOTRGclBOSnJ3Tm1OTFg2QmVrMGVXeFdadnpVbHUyc0NnWUF1WS9oVEgvNFlLQXpjcGpVZ2NqdnYKNGt0ZWhVMDMwS0JibDJmRFQzTnNSQWJtTHZ6WWZwZWJRMVliYmVPbG9HYk5yRTI1Q2cwODVWNVIzMDJOOEU2UgpMQnk5MTJOL29tQmJqUCtraERGMngwL3NkTVF1RU0zWVJ5R3lOUVRKZm1KdHRVYzFRcmkyWkJCYXprcHpydHkrClBVNUV2Z2tzQkMzVzR3RmRRKzROeHdLQmdRRFpXdFVhYW1ValVyczVpTlFHM1JacU1HN1lWb0ozbzd2bEtURjQKcVZHbDVONEtxZU5rME15dlVtVkhBZ0VGdVA3SkZERkdGMkVYc0JneklCd29NZWFDRERnSVRrK3Z0Wnc4M2xragpWRXhsd1NxWEJsTW9WRFc4Y2Q4V2Q1SGQ1dzNOWVMxMy9qbk9uMlc0SDdrQm1JNVMyWkJGa3R0OFoxTEpwT2VUCkU5bmpKd0tCZ1FEYi81VzlhN2Q5Qzc4LzBHWjN6OVg1dnZKYU1YMkF6WDN5d3oydWl6U0sydkZsUnJ2MFZzTUcKZzArcmxGSnlYMGZDZE1wSTFwZUJYZUh4QlZDOXY3VXk3VkN4c3EwVEJVaHdaMTJobUtUVkNRSzBQR0F4dURzOQpLbEcxQXpDOFp6cXI4TWxUY1djaXNWNkhRSG5sc3NOUTBHZVd1NHNuRWxzK3Z6ZUFBLzMyb3c9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+kind: Secret
+metadata:
+  name: bar-com-secret
+  namespace: higress-conformance-infra
+type: kubernetes.io/tls
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httproute-bar-configmap-https
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "bar.com"
+      secretName: bar-com-secret
+  rules:
+    - host: "bar.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/barhttps"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httproute-afoo-configmap-https
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "a.foo.com"
+  rules:
+    - host: "a.foo.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/afoohttps"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+
+
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: httproute-foo2-configmap-https
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  tls:
+    - hosts:
+        - "b.foo.com"
+      secretName: b-foo-com-secret
+  rules:
+    - host: "b.foo.com"
+      http:
+        paths:
+          - pathType: Exact
+            path: "/bfoohttps"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+
+
+
+
+

@@ -1,0 +1,183 @@
+server:
+  name: exchange-rate-query
+  config:
+    appCode: ""
+tools:
+  - name: topbank-exchange-rate
+    description: 十大银行的外汇牌价
+    args:
+      - name: bank
+        description: 银行编码。工商银行：ICBC ，中国银行：BOC ，农业银行：ABCHINA ，交通银行：BANKCOMM ，建设银行：CCB ，招商银行：CMBCHINA ，光大银行：CEBBANK ，浦发银行：SPDB ，兴业银行：CIB ，中信银行：ECITIC，默认BOC
+        type: string
+        position: query
+    requestTemplate:
+      url: https://jisuhuilv.market.alicloudapi.com/exchange/bank
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 状态信息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.bank**: 银行代号 (Type: string)
+          - **result.list**:  (Type: array)
+            - **result.list[].cashbuyprice**: 钞买价 (Type: string)
+            - **result.list[].cashsellprice**: 钞卖价 (Type: string)
+            - **result.list[].code**: 货币代码 (Type: string)
+            - **result.list[].forexbuyprice**: 汇买价 (Type: string)
+            - **result.list[].forexsellprice**: 汇卖价 (Type: string)
+            - **result.list[].midprice**: 中间价 (Type: string)
+            - **result.list[].name**: 货币名称 (Type: string)
+            - **result.list[].updatetime**: 更新时间 (Type: string)
+        - **status**: 返回状态码 (Type: integer)
+
+        ## Original Response
+
+  - name: single-exchange-rate
+    description: 查询单个货币与其他货币间的汇率及更新时间。
+    args:
+      - name: currency
+        description: 货币（所有货币查询接口中获取）
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisuhuilv.market.alicloudapi.com/exchange/single
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**:  (Type: string)
+        - **result**:  (Type: object)
+          - **result.currency**:  (Type: string)
+          - **result.list**:  (Type: object)
+            - **result.list.EUR**:  (Type: object)
+              - **result.list.EUR.name**:  (Type: string)
+              - **result.list.EUR.rate**:  (Type: string)
+              - **result.list.EUR.updatetime**:  (Type: string)
+            - **result.list.HKD**:  (Type: object)
+              - **result.list.HKD.name**:  (Type: string)
+              - **result.list.HKD.rate**:  (Type: string)
+              - **result.list.HKD.updatetime**:  (Type: string)
+            - **result.list.USD**:  (Type: object)
+              - **result.list.USD.name**:  (Type: string)
+              - **result.list.USD.rate**:  (Type: string)
+              - **result.list.USD.updatetime**:  (Type: string)
+          - **result.name**:  (Type: string)
+        - **status**:  (Type: string)
+
+        ## Original Response
+
+  - name: all-currency
+    description: 查询货币名称。
+    args: []
+    requestTemplate:
+      url: https://jisuhuilv.market.alicloudapi.com/exchange/currency
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**:  (Type: string)
+        - **result**:  (Type: array)
+          - **result[].currency**:  (Type: string)
+          - **result[].name**:  (Type: string)
+        - **status**:  (Type: string)
+
+        ## Original Response
+
+  - name: exchange-rate-convert
+    description: 汇率转换
+    args:
+      - name: amount
+        description: 数量
+        type: string
+        required: true
+        position: query
+      - name: from
+        description: 要换算的单位（所有货币接口中获取，若为空取CNY或USD）
+        type: string
+        required: true
+        position: query
+      - name: to
+        description: 换算后的单位（所有货币接口中获取，若为空取CNY或USD）
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisuhuilv.market.alicloudapi.com/exchange/convert
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 返回信息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.camount**: 计算后的金额 (Type: string)
+          - **result.from**: 源货币代码 (Type: string)
+          - **result.fromname**: 源货币名称 (Type: string)
+          - **result.rate**: 汇率 (Type: string)
+          - **result.to**: 目标货币代码 (Type: string)
+          - **result.toname**: 目标货币名称 (Type: string)
+          - **result.updatetime**: 更新时间 (Type: string)
+        - **status**: 状态码 (Type: string)
+
+        ## Original Response
+

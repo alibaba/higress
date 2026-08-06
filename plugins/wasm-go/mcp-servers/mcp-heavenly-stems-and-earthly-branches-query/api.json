@@ -1,0 +1,457 @@
+{
+  "info": {
+    "description": "根据出生的年月日、时辰、分钟，确定你的生辰八字、坤/乾造、纳音、旬空、行大运时间、流年等信息。",
+    "title": "八字排盘",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/bazi/paipan": {
+      "get": {
+        "operationId": "八字排盘接口",
+        "summary": "根据出生的年月日、时辰、分钟，确定你的生辰八字、坤/乾造、纳音、旬空、行大运时间、流年等信息。",
+        "parameters": [
+          {
+            "description": "是否使用太阳时 默认0不使用",
+            "example": "0",
+            "in": "query",
+            "name": "istaiyang",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否是阴历 默认0阳历",
+            "example": "请输入是否",
+            "in": "query",
+            "name": "islunar",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "性别 1男 0女",
+            "example": "1",
+            "in": "query",
+            "name": "sex",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分",
+            "example": "5",
+            "in": "query",
+            "name": "minute",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "时",
+            "example": "2",
+            "in": "query",
+            "name": "hour",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "日",
+            "example": "18",
+            "in": "query",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "月",
+            "example": "10",
+            "in": "query",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "年",
+            "example": "2009",
+            "in": "query",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "城市",
+            "example": "请输入城市",
+            "in": "query",
+            "name": "city",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "姓名",
+            "example": "请输入姓名",
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "0"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "year": {
+                          "type": "string",
+                          "example": "2009"
+                        },
+                        "month": {
+                          "type": "string",
+                          "example": "10"
+                        },
+                        "day": {
+                          "type": "string",
+                          "example": "18"
+                        },
+                        "hour": {
+                          "type": "string",
+                          "example": "02"
+                        },
+                        "minute": {
+                          "type": "string",
+                          "example": "05"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "city": {
+                          "type": "string"
+                        },
+                        "istaiyang": {
+                          "type": "string",
+                          "example": "0"
+                        },
+                        "lunaryear": {
+                          "type": "string",
+                          "example": "2009"
+                        },
+                        "lunarmonth": {
+                          "type": "string",
+                          "example": "九月"
+                        },
+                        "lunarday": {
+                          "type": "string",
+                          "example": "初一"
+                        },
+                        "lunarhour": {
+                          "type": "string",
+                          "example": "丑时"
+                        },
+                        "animal": {
+                          "type": "string",
+                          "example": "牛"
+                        },
+                        "yearganzhi": {
+                          "type": "string",
+                          "example": "己丑"
+                        },
+                        "jieqiprev": {
+                          "type": "object",
+                          "properties": {
+                            "jieqiname": {
+                              "type": "string",
+                              "example": "寒露"
+                            },
+                            "date": {
+                              "type": "string",
+                              "example": "2009-10-08 11:40:03"
+                            }
+                          }
+                        },
+                        "jieqinext": {
+                          "type": "object",
+                          "properties": {
+                            "jieqiname": {
+                              "type": "string",
+                              "example": "立冬"
+                            },
+                            "date": {
+                              "type": "string",
+                              "example": "2009-11-07 14:56:15"
+                            }
+                          }
+                        },
+                        "bazi": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": [
+                            "己丑",
+                            "甲戌",
+                            "丙申",
+                            "己丑"
+                          ]
+                        },
+                        "taiyuan": {
+                          "type": "string",
+                          "example": "乙丑"
+                        },
+                        "minggong": {
+                          "type": "string",
+                          "example": "庚午"
+                        },
+                        "xunkong": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": [
+                            "午未",
+                            "申酉",
+                            "辰巳",
+                            "午未"
+                          ]
+                        },
+                        "qiyun": {
+                          "type": "object",
+                          "properties": {
+                            "year": {
+                              "type": "string",
+                              "example": "3"
+                            },
+                            "month": {
+                              "type": "string",
+                              "example": "2"
+                            },
+                            "day": {
+                              "type": "string",
+                              "example": "12"
+                            },
+                            "hour": {
+                              "type": "string",
+                              "example": "2"
+                            }
+                          }
+                        },
+                        "jiaoyun": {
+                          "type": "object",
+                          "properties": {
+                            "year": {
+                              "type": "string",
+                              "example": "2012"
+                            },
+                            "month": {
+                              "type": "string",
+                              "example": "12"
+                            },
+                            "day": {
+                              "type": "string",
+                              "example": "30"
+                            },
+                            "hour": {
+                              "type": "string",
+                              "example": "04"
+                            }
+                          }
+                        },
+                        "qiankunzao": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "oneOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              ]
+                            }
+                          },
+                          "example": [
+                            [
+                              "伤官",
+                              "偏印",
+                              "日元",
+                              "伤官"
+                            ],
+                            [
+                              "己丑",
+                              "甲戌",
+                              "丙申",
+                              "己丑",
+                              "(辰巳空)"
+                            ],
+                            [
+                              [
+                                "癸正官",
+                                "辛正财",
+                                "戊食神",
+                                "癸正官"
+                              ]
+                            ]
+                          ]
+                        },
+                        "nayin": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "example": [
+                            "霹雳火",
+                            "山头火",
+                            "山下火",
+                            "霹雳火"
+                          ]
+                        },
+                        "shensha": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "example": [
+                            [
+                              "太极贵人",
+                              "华盖",
+                              "国印贵人",
+                              "十恶大败"
+                            ],
+                            [
+                              "太极贵人",
+                              "寡宿",
+                              "吊客"
+                            ]
+                          ]
+                        },
+                        "dayun": {
+                          "type": "object",
+                          "properties": {
+                            "nayin": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "example": [
+                                "山头火",
+                                "剑锋金"
+                              ]
+                            },
+                            "shishen": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "example": [
+                                "偏印",
+                                "正官"
+                              ]
+                            },
+                            "ganzhi": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "example": [
+                                "甲戌",
+                                "癸酉",
+                                "壬申"
+                              ]
+                            },
+                            "sui": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "example": [
+                                "1-2岁",
+                                "3岁",
+                                "13岁",
+                                "23岁",
+                                "33岁"
+                              ]
+                            },
+                            "year": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              },
+                              "example": [
+                                "2009",
+                                "2012",
+                                "2022",
+                                "2032"
+                              ]
+                            }
+                          }
+                        },
+                        "liunian": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "example": [
+                            [
+                              "己丑",
+                              "壬辰",
+                              "壬寅"
+                            ]
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jisubazi.market.alicloudapi.com"
+    }
+  ]
+}

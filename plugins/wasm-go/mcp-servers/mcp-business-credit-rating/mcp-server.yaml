@@ -1,0 +1,60 @@
+server:
+  name: business-credit-rating
+  config:
+    appCode: ""
+tools:
+  - name: bussiness-credit-rating
+    description: 企业信用评级
+    args:
+      - name: keyword
+        description: 搜索关键字（公司名称、注册号或社会统一信用代码）
+        type: string
+        required: true
+        position: query
+      - name: pageNum
+        description: 分页数量 1开始
+        type: string
+        position: query
+      - name: pageSize
+        description: 每页数量 默认 10
+        type: string
+        position: query
+    requestTemplate:
+      url: https://slyhonour.market.alicloudapi.com/credit/rating
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.items**:  (Type: array)
+            - **data.items[].alias**: 评级公司别名 (Type: string)
+            - **data.items[].bondCreditLevel**: 债券信用等级 (Type: string)
+            - **data.items[].gid**: 全球ID (Type: string)
+            - **data.items[].logo**: 评级公司Logo (Type: string)
+            - **data.items[].ratingCompanyName**: 评级公司名称 (Type: string)
+            - **data.items[].ratingDate**: 评级日期 (Type: string)
+            - **data.items[].ratingOutlook**: 评级展望 (Type: string)
+            - **data.items[].subjectLevel**: 主体等级 (Type: string)
+          - **data.orderNo**: 订单号 (Type: string)
+          - **data.total**: 总数 (Type: integer)
+        - **msg**: 响应消息 (Type: string)
+        - **success**: 是否成功 (Type: boolean)
+
+        ## Original Response
+

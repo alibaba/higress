@@ -1,0 +1,31 @@
+{
+	"@type": "type.googleapis.com/envoy.admin.v3.RoutesConfigDump",
+	"dynamic_route_configs": [{
+		"version_info": "cb1e51997a9c3aa6f4d920f39fd5bdbd966e9382b7b6bdf42efca8c22c6c3442",
+		"route_config": {
+			"@type": "type.googleapis.com/envoy.config.route.v3.RouteConfiguration",
+			"name": "default-higress-http",
+			"virtual_hosts": [{
+				"name": "default-higress-http",
+				"domains": [
+					"*"
+				],
+				"routes": [{
+					"match": {
+						"prefix": "/",
+						"headers": [{
+							"name": ":authority",
+							"string_match": {
+								"exact": "www.example.com"
+							}
+						}]
+					},
+					"route": {
+						"cluster": "default-backend-rule-0-match-0-www.example.com"
+					}
+				}]
+			}]
+		},
+		"last_updated": "2023-02-23T09:05:38.448Z"
+	}]
+}

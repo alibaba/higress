@@ -1,0 +1,50 @@
+diff --git a/src/crypto/fipsmodule/rand/internal.h b/src/crypto/fipsmodule/rand/internal.h
+index 127e5d1..87fc6f0 100644
+--- a/src/crypto/fipsmodule/rand/internal.h
++++ b/src/crypto/fipsmodule/rand/internal.h
+@@ -27,7 +27,7 @@ extern "C" {
+ 
+ 
+ #if !defined(OPENSSL_WINDOWS) && !defined(OPENSSL_FUCHSIA) && \
+-    !defined(BORINGSSL_UNSAFE_DETERMINISTIC_MODE) && !defined(OPENSSL_TRUSTY)
++  !defined(BORINGSSL_UNSAFE_DETERMINISTIC_MODE) && !defined(OPENSSL_TRUSTY) && !defined(__EMSCRIPTEN__)
+ #define OPENSSL_URANDOM
+ #endif
+ 
+diff --git a/src/crypto/internal.h b/src/crypto/internal.h
+index b288583..b2e9321 100644
+--- a/src/crypto/internal.h
++++ b/src/crypto/internal.h
+@@ -130,6 +130,10 @@
+ #endif
+ #endif
+ 
++#if defined(__EMSCRIPTEN__)
++#undef OPENSSL_THREADS
++#endif
++
+ #if defined(OPENSSL_THREADS) && \
+     (!defined(OPENSSL_WINDOWS) || defined(__MINGW32__))
+ #include <pthread.h>
+@@ -493,7 +497,7 @@ OPENSSL_EXPORT void CRYPTO_once(CRYPTO_once_t *once, void (*init)(void));
+ 
+ // Automatically enable C11 atomics if implemented.
+ #if !defined(OPENSSL_C11_ATOMIC) && !defined(__STDC_NO_ATOMICS__) && \
+-    defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
++    defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__EMSCRIPTEN__)
+ #define OPENSSL_C11_ATOMIC
+ #endif
+ 
+diff --git a/src/crypto/rand_extra/deterministic.c b/src/crypto/rand_extra/deterministic.c
+index 435f063..13a77db 100644
+--- a/src/crypto/rand_extra/deterministic.c
++++ b/src/crypto/rand_extra/deterministic.c
+@@ -14,7 +14,7 @@
+ 
+ #include <openssl/rand.h>
+ 
+-#if defined(BORINGSSL_UNSAFE_DETERMINISTIC_MODE)
++#if defined(BORINGSSL_UNSAFE_DETERMINISTIC_MODE) || defined(__EMSCRIPTEN__)
+ 
+ #include <string.h>
+ 

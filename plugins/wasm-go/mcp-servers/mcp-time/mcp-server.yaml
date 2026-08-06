@@ -1,0 +1,15 @@
+server:
+  name: time
+tools:
+  - name: get-current-time
+    description: |
+      Because your understanding of dates comes from training data and you do not have an internal clock, you must use this tool to get the current time (including the day of the week) when you need date/time information to complete other instructions.
+    args:
+      - name: timeZone
+        description: |
+          IANA timezone name (e.g., 'America/New_York', 'Europe/London'),One can try to locate the user's position through IP, thereby obtaining the timezone.
+        type: string
+        default: "Asia/Shanghai"
+    responseTemplate:
+      body: |
+        {{ dateInZone "Monday, 2006-01-02 15:04:05" now .args.timeZone }}

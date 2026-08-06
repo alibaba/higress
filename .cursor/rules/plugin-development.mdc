@@ -1,0 +1,135 @@
+---
+description: Plugin Development Standards - Applies to all new wasm and golang-filter plugins
+globs:
+  - "plugins/wasm-go/extensions/*/**"
+  - "plugins/wasm-cpp/extensions/*/**"
+  - "plugins/wasm-rust/extensions/*/**"
+  - "plugins/wasm-assemblyscript/extensions/*/**"
+  - "plugins/golang-filter/*/**"
+alwaysApply: false
+---
+
+# Plugin Development Standards
+
+## Strict Requirements for New Independent Plugins
+
+When creating **new independent plugins** (e.g., newly implemented wasm plugins or golang-filter plugins), you **MUST** follow these standards:
+
+### 1. Design Documentation Directory Requirements
+
+- You **MUST** create a `design/` directory within the plugin directory
+- Directory structure example:
+  ```
+  plugins/wasm-go/extensions/my-new-plugin/
+    ├── design/
+    │   ├── design-doc.md          # Design document
+    │   ├── architecture.md         # Architecture (optional)
+    │   └── requirements.md         # Requirements (optional)
+    ├── main.go
+    ├── go.mod
+    └── README.md
+  ```
+
+### 2. Design Documentation Content Requirements
+
+The design documentation in the `design/` directory should include:
+
+- **Plugin Purpose and Use Cases**: Clearly explain what problem the plugin solves
+- **Core Functionality Design**: Detailed description of main features and implementation approach
+- **Configuration Parameters**: List all configuration items and their meanings
+- **Technology Selection and Dependencies**: Explain the technology stack and third-party libraries used
+- **Boundary Conditions and Limitations**: Define the applicable scope and limitations of the plugin
+- **Testing Strategy**: How to verify plugin functionality
+
+### 3. Documentation Provided to AI Coding Tools
+
+If you are using AI Coding tools (such as Cursor, GitHub Copilot, etc.) to generate code:
+
+- You **MUST** save the complete design documents, requirement descriptions, and prompts you provided to the AI in the `design/` directory
+- Recommended file naming:
+  - `ai-prompts.md` - AI prompts record
+  - `design-doc.md` - Complete design document
+  - `requirements.md` - Feature requirements list
+
+### 4. Files NOT to Commit to Git
+
+Note: The following files should **NOT** be committed to Git:
+- AI Coding tool work summary documents (should be placed in PR description)
+- Temporary feature change summary documents
+
+Design documents in the `design/` directory **SHOULD** be committed to Git, as they serve as the design basis and technical documentation for the plugin.
+
+## Examples
+
+### Good Plugin Directory Structure Example
+
+```
+plugins/wasm-go/extensions/ai-security-guard/
+  ├── design/
+  │   ├── design-doc.md          # ✅ Detailed design document
+  │   ├── ai-prompts.md          # ✅ Prompts provided to AI
+  │   └── architecture.png        # ✅ Architecture diagram
+  ├── main.go
+  ├── config.go
+  ├── README.md
+  └── go.mod
+```
+
+### Design Document Template
+
+When creating `design/design-doc.md`, you can refer to the following template:
+
+```markdown
+# [Plugin Name] Design Document
+
+## Overview
+- Plugin purpose
+- Problem it solves
+- Target users
+
+## Functional Design
+### Core Feature 1
+- Feature description
+- Implementation approach
+- Key code logic
+
+### Core Feature 2
+...
+
+## Configuration Parameters
+| Parameter | Type | Required | Description | Default |
+|-----------|------|----------|-------------|---------|
+| ...       | ...  | ...      | ...         | ...     |
+
+## Technical Implementation
+- Technology selection
+- Dependencies
+- Performance considerations
+
+## Test Plan
+- Unit tests
+- Integration tests
+- Boundary tests
+
+## Limitations and Notes
+- Known limitations
+- Usage recommendations
+```
+
+## Execution Checklist
+
+When creating a new plugin, please confirm:
+
+- [ ] Created `design/` directory within the plugin directory
+- [ ] Placed design documentation in the `design/` directory
+- [ ] If using AI Coding tools, saved prompts/requirement documents in the `design/` directory
+- [ ] Prepared AI Coding tool work summary (for PR description)
+- [ ] Design documentation is complete with necessary technical details
+
+## Tips
+
+- Design documentation is important technical documentation for the plugin, helpful for:
+  - Understanding design intent during code review
+  - Quickly understanding implementation approach during future maintenance
+  - Learning and reference for other developers
+  - Tracing the reasoning behind design decisions

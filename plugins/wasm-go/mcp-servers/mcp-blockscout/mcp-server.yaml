@@ -1,0 +1,387 @@
+server:
+  name: blockscout-mcp-server
+  config:
+    baseUrl: "https://mcp.blockscout.com/v1"
+tools:
+  - name: __get_instructions__
+    description: |
+      This tool MUST be called BEFORE any other tool.
+      Without calling it, the MCP server will not work as expected.
+      It MUST be called once in a session.
+    args: []
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_instructions"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_block_info
+    description: |
+      Get block information like timestamp, gas used, burnt fees, transaction count etc.
+      Can optionally include the list of transaction hashes contained in the block. Transaction hashes are omitted by default; request them only when you truly need them, because on high-traffic chains the list may exhaust the context.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: number_or_hash
+        description: "Block number or hash"
+        type: string
+        required: true
+      - name: include_transactions
+        description: "If true, includes a list of transaction hashes from the block."
+        type: boolean
+        required: false
+        default: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_block_info"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_latest_block
+    description: |
+      Get the latest indexed block number and timestamp, which represents the most recent state of the blockchain.
+      No transactions or token transfers can exist beyond this point, making it useful as a reference timestamp for other API calls.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_latest_block"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_address_by_ens_name
+    description: |
+      Useful for when you need to convert an ENS domain name (e.g. "blockscout.eth")
+      to its corresponding Ethereum address.
+    args:
+      - name: name
+        description: "ENS domain name to resolve"
+        type: string
+        required: true
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_address_by_ens_name"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_transactions_by_address
+    description: |
+      Retrieves native currency transfers and smart contract interactions (calls, internal txs) for an address.
+      **EXCLUDES TOKEN TRANSFERS**: Filters out direct token balance changes (ERC-20, etc.). You'll see calls *to* token contracts, but not the `Transfer` events. For token history, use `get_token_transfers_by_address`.
+      A single tx can have multiple records from internal calls; use `internal_transaction_index` for execution order.
+      Use cases:
+        - `get_transactions_by_address(address, age_from)` - get all txs to/from the address since a given date.
+        - `get_transactions_by_address(address, age_from, age_to)` - get all txs to/from the address between given dates.
+        - `get_transactions_by_address(address, age_from, age_to, methods)` - get all txs to/from the address between given dates, filtered by method.
+      **SUPPORTS PAGINATION**: If response includes 'pagination' field, use the provided next_call to get additional pages.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: address
+        description: "Address which either sender or receiver of the transaction"
+        type: string
+        required: true
+      - name: age_from
+        description: "Start date and time (e.g 2025-05-22T23:00:00.00Z)."
+        type: string
+        required: false
+      - name: age_to
+        description: "End date and time (e.g 2025-05-22T22:30:00.00Z)."
+        type: string
+        required: false
+      - name: methods
+        description: "A method signature to filter transactions by (e.g 0x304e6ade)"
+        type: string
+        required: false
+      - name: cursor
+        description: "The pagination cursor from a previous response to get the next page of results."
+        type: string
+        required: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_transactions_by_address"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_token_transfers_by_address
+    description: |
+      Get ERC-20 token transfers for an address within a specific time range.
+      Use cases:
+        - `get_token_transfers_by_address(address, age_from)` - get all transfers of any ERC-20 token to/from the address since the given date up to the current time
+        - `get_token_transfers_by_address(address, age_from, age_to)` - get all transfers of any ERC-20 token to/from the address between the given dates
+        - `get_token_transfers_by_address(address, age_from, age_to, token)` - get all transfers of the given ERC-20 token to/from the address between the given dates
+      **SUPPORTS PAGINATION**: If response includes 'pagination' field, use the provided next_call to get additional pages.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: address
+        description: "Address which either transfer initiator or transfer receiver"
+        type: string
+        required: true
+      - name: age_from
+        description: "Start date and time (e.g 2025-05-22T23:00:00.00Z). This parameter should be provided in most cases to limit transfers and avoid heavy database queries. Omit only if you absolutely need the full history."
+        type: string
+        required: false
+      - name: age_to
+        description: "End date and time (e.g 2025-05-22T22:30:00.00Z). Can be omitted to get all transfers up to the current time."
+        type: string
+        required: false
+      - name: token
+        description: "An ERC-20 token contract address to filter transfers by a specific token. If omitted, returns transfers of all tokens."
+        type: string
+        required: false
+      - name: cursor
+        description: "The pagination cursor from a previous response to get the next page of results."
+        type: string
+        required: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_token_transfers_by_address"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: lookup_token_by_symbol
+    description: |
+      Search for token addresses by symbol or name. Returns multiple potential matches based on symbol or token name similarity. Only the first 7 matches from the Blockscout API are returned.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: symbol
+        description: "Token symbol or name to search for"
+        type: string
+        required: true
+    requestTemplate:
+      url: "{{.config.baseUrl}}/lookup_token_by_symbol"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_contract_abi
+    description: |
+      Get smart contract ABI (Application Binary Interface).
+      An ABI defines all functions, events, their parameters, and return types. The ABI is required to format function calls or interpret contract data.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: address
+        description: "Smart contract address"
+        type: string
+        required: true
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_contract_abi"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_address_info
+    description: |
+      Get comprehensive information about an address, including:
+      - Address existence check
+      - Native token (ETH) balance (provided as is, without adjusting by decimals)
+      - ENS name association (if any)
+      - Contract status (whether the address is a contract, whether it is verified)
+      - Proxy contract information (if applicable): determines if a smart contract is a proxy contract (which forwards calls to implementation contracts), including proxy type and implementation addresses
+      - Token details (if the contract is a token): name, symbol, decimals, total supply, etc.
+      Essential for address analysis, contract investigation, token research, and DeFi protocol analysis.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: address
+        description: "Address to get information about"
+        type: string
+        required: true
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_address_info"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_tokens_by_address
+    description: |
+      Get comprehensive ERC20 token holdings for an address with enriched metadata and market data.
+      Returns detailed token information including contract details (name, symbol, decimals), market metrics (exchange rate, market cap, volume), holders count, and actual balance (provided as is, without adjusting by decimals).
+      Essential for portfolio analysis, wallet auditing, and DeFi position tracking.
+      **SUPPORTS PAGINATION**: If response includes 'pagination' field, use the provided next_call to get additional pages.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: address
+        description: "Wallet address"
+        type: string
+        required: true
+      - name: cursor
+        description: "The pagination cursor from a previous response to get the next page of results."
+        type: string
+        required: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_tokens_by_address"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: transaction_summary
+    description: |
+      Get human-readable transaction summaries from Blockscout Transaction Interpreter.
+      Automatically classifies transactions into natural language descriptions (transfers, swaps, NFT sales, DeFi operations)
+      Essential for rapid transaction comprehension, dashboard displays, and initial analysis.
+      Note: Not all transactions can be summarized and accuracy is not guaranteed for complex patterns.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: transaction_hash
+        description: "Transaction hash"
+        type: string
+        required: true
+    requestTemplate:
+      url: "{{.config.baseUrl}}/transaction_summary"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: nft_tokens_by_address
+    description: |
+      Retrieve NFT tokens (ERC-721, ERC-404, ERC-1155) owned by an address, grouped by collection.
+      Provides collection details (type, address, name, symbol, total supply, holder count) and individual token instance data (ID, name, description, external URL, metadata attributes).
+      Essential for a detailed overview of an address's digital collectibles and their associated collection data.
+      **SUPPORTS PAGINATION**: If response includes 'pagination' field, use the provided next_call to get additional pages.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: address
+        description: "NFT owner address"
+        type: string
+        required: true
+      - name: cursor
+        description: "The pagination cursor from a previous response to get the next page of results."
+        type: string
+        required: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/nft_tokens_by_address"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_transaction_info
+    description: |
+      Get comprehensive transaction information.
+      Unlike standard eth_getTransactionByHash, this tool returns enriched data including decoded input parameters, detailed token transfers with token metadata, transaction fee breakdown (priority fees, burnt fees) and categorized transaction types.
+      By default, the raw transaction input is omitted if a decoded version is available to save context; request it with `include_raw_input=True` only when you truly need the raw hex data.
+      Essential for transaction analysis, debugging smart contract interactions, tracking DeFi operations.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: transaction_hash
+        description: "Transaction hash"
+        type: string
+        required: true
+      - name: include_raw_input
+        description: "If true, includes the raw transaction input data."
+        type: boolean
+        required: false
+        default: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_transaction_info"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_transaction_logs
+    description: |
+      Get comprehensive transaction logs.
+      Unlike standard eth_getLogs, this tool returns enriched logs, primarily focusing on decoded event parameters with their types and values (if event decoding is applicable).
+      Essential for analyzing smart contract events, tracking token transfers, monitoring DeFi protocol interactions, debugging event emissions, and understanding complex multi-contract transaction flows.
+      **SUPPORTS PAGINATION**: If response includes 'pagination' field, use the provided next_call to get additional pages.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: transaction_hash
+        description: "Transaction hash"
+        type: string
+        required: true
+      - name: cursor
+        description: "The pagination cursor from a previous response to get the next page of results."
+        type: string
+        required: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_transaction_logs"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_address_logs
+    description: |
+      Get comprehensive logs emitted by a specific address.
+      Returns enriched logs, primarily focusing on decoded event parameters with their types and values (if event decoding is applicable).
+      Essential for analyzing smart contract events emitted by specific addresses, monitoring token contract activities, tracking DeFi protocol state changes, debugging contract event emissions, and understanding address-specific event history flows.
+      **SUPPORTS PAGINATION**: If response includes 'pagination' field, use the provided next_call to get additional pages.
+    args:
+      - name: chain_id
+        description: "The ID of the blockchain"
+        type: string
+        required: true
+      - name: address
+        description: "Account address"
+        type: string
+        required: true
+      - name: cursor
+        description: "The pagination cursor from a previous response to get the next page of results."
+        type: string
+        required: false
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_address_logs"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}
+  - name: get_chains_list
+    description: |
+      Get the list of known blockchain chains with their IDs.
+      Useful for getting a chain ID when the chain name is known. This information can be used in other tools that require a chain ID to request information.
+    args: []
+    requestTemplate:
+      url: "{{.config.baseUrl}}/get_chains_list"
+      method: GET
+      argsToUrlParam: true
+    responseTemplate:
+      body: |
+        {{ . }}

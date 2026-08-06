@@ -1,0 +1,479 @@
+{
+  "info": {
+    "description": "火车查询，提供全国火车票时刻查询、火车站站查询、火车余票查询等3个接口。",
+    "title": "【极速数据】火车票查询_火车查询_火车车次_火车车站查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/train/line": {
+      "get": {
+        "operationId": "车次查询接口",
+        "summary": "通过查询车次，获取类型、序号、车站、天数等信息。",
+        "parameters": [
+          {
+            "description": "车次",
+            "example": "G34",
+            "in": "query",
+            "name": "trainno",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "时间",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "trainno": {
+                          "type": "string",
+                          "description": "列车编号"
+                        },
+                        "type": {
+                          "type": "string",
+                          "description": "列车型号"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "sequenceno": {
+                                "type": "string",
+                                "description": "序号"
+                              },
+                              "station": {
+                                "type": "string",
+                                "description": "车站名称"
+                              },
+                              "day": {
+                                "type": "string",
+                                "description": "天数"
+                              },
+                              "arrivaltime": {
+                                "type": "string",
+                                "description": "到达时间"
+                              },
+                              "departuretime": {
+                                "type": "string",
+                                "description": "出发时间"
+                              },
+                              "stoptime": {
+                                "type": "string",
+                                "description": "停靠时间"
+                              },
+                              "costtime": {
+                                "type": "string",
+                                "description": "行驶时间"
+                              },
+                              "distance": {
+                                "type": "string",
+                                "description": "距离"
+                              },
+                              "isend": {
+                                "type": "string",
+                                "description": "是否为终点站"
+                              },
+                              "pricesw": {
+                                "type": "string",
+                                "description": "商务座价格"
+                              },
+                              "pricetd": {
+                                "type": "string",
+                                "description": "特等座价格"
+                              },
+                              "pricegr1": {
+                                "type": "string",
+                                "description": "一等座价格"
+                              },
+                              "pricegr2": {
+                                "type": "string",
+                                "description": "二等座价格"
+                              },
+                              "pricerw1": {
+                                "type": "string",
+                                "description": "高级软卧上铺价格"
+                              },
+                              "pricerw2": {
+                                "type": "string",
+                                "description": "高级软卧下铺价格"
+                              },
+                              "priceyw1": {
+                                "type": "string",
+                                "description": "软卧上铺价格"
+                              },
+                              "priceyw2": {
+                                "type": "string",
+                                "description": "软卧下铺价格"
+                              },
+                              "priceyw3": {
+                                "type": "string",
+                                "description": "软卧包厢价格"
+                              },
+                              "priceyd": {
+                                "type": "string",
+                                "description": "动卧价格"
+                              },
+                              "priceed": {
+                                "type": "string",
+                                "description": "二等座打折价格"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/train/station2s": {
+      "get": {
+        "operationId": "站站查询接口",
+        "summary": "根据出发、到达、是否高铁返回车次、类型、出发站、到达站等信息。",
+        "parameters": [
+          {
+            "description": "出发",
+            "example": "杭州",
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否高铁",
+            "example": "0",
+            "in": "query",
+            "name": "ishigh",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "到达",
+            "example": "北京",
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "时间",
+            "example": "2019-11-21",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "0"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "result": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "trainno": {
+                            "type": "string",
+                            "example": "G34"
+                          },
+                          "type": {
+                            "type": "string",
+                            "example": "高铁"
+                          },
+                          "station": {
+                            "type": "string",
+                            "example": "杭州东"
+                          },
+                          "endstation": {
+                            "type": "string",
+                            "example": "北京南"
+                          },
+                          "departuretime": {
+                            "type": "string",
+                            "example": "07:18"
+                          },
+                          "arrivaltime": {
+                            "type": "string",
+                            "example": "13:07"
+                          },
+                          "sequenceno": {
+                            "type": "string",
+                            "example": "1"
+                          },
+                          "costtime": {
+                            "type": "string",
+                            "example": "5时49分"
+                          },
+                          "distance": {
+                            "type": "string",
+                            "example": "1279"
+                          },
+                          "isend": {
+                            "type": "string",
+                            "example": "1"
+                          },
+                          "pricesw": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pricetd": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pricegr1": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pricegr2": {
+                            "type": "string",
+                            "example": ""
+                          },
+                          "pricerw1": {
+                            "type": "string",
+                            "example": "0.0"
+                          },
+                          "pricerw2": {
+                            "type": "string",
+                            "example": "0.0"
+                          },
+                          "priceyw1": {
+                            "type": "string",
+                            "example": "0.0"
+                          },
+                          "priceyw2": {
+                            "type": "string",
+                            "example": "0.0"
+                          },
+                          "priceyw3": {
+                            "type": "string",
+                            "example": "0.0"
+                          },
+                          "priceyd": {
+                            "type": "string",
+                            "example": "907.0"
+                          },
+                          "priceed": {
+                            "type": "string",
+                            "example": "538.5"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/train/ticket": {
+      "get": {
+        "operationId": "余票查询接口",
+        "summary": "通过出发、到达、时间，获取车次、车型、始发站、终点站等信息。",
+        "parameters": [
+          {
+            "description": "出发",
+            "example": "杭州",
+            "in": "query",
+            "name": "start",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "到达",
+            "example": "北京",
+            "in": "query",
+            "name": "end",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "时间",
+            "example": "2015-10-20",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "消息"
+                    },
+                    "result": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "trainno": {
+                            "type": "string",
+                            "description": "列车号"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "列车型号"
+                          },
+                          "departstation": {
+                            "type": "string",
+                            "description": "出发站"
+                          },
+                          "terminalstation": {
+                            "type": "string",
+                            "description": "终点站"
+                          },
+                          "station": {
+                            "type": "string",
+                            "description": "当前站"
+                          },
+                          "endstation": {
+                            "type": "string",
+                            "description": "最终站"
+                          },
+                          "day": {
+                            "type": "string",
+                            "description": "日期"
+                          },
+                          "departuretime": {
+                            "type": "string",
+                            "description": "出发时间"
+                          },
+                          "arrivaltime": {
+                            "type": "string",
+                            "description": "到达时间"
+                          },
+                          "costtime": {
+                            "type": "string",
+                            "description": "用时"
+                          },
+                          "numsw": {
+                            "type": "string",
+                            "description": "商务座"
+                          },
+                          "numtd": {
+                            "type": "string",
+                            "description": "特等座"
+                          },
+                          "numyd": {
+                            "type": "string",
+                            "description": "一等座"
+                          },
+                          "numed": {
+                            "type": "string",
+                            "description": "二等座"
+                          },
+                          "numrz": {
+                            "type": "string",
+                            "description": "软座"
+                          },
+                          "numyz": {
+                            "type": "string",
+                            "description": "硬座"
+                          },
+                          "numgr": {
+                            "type": "string",
+                            "description": "高级软卧"
+                          },
+                          "numrw": {
+                            "type": "string",
+                            "description": "软卧"
+                          },
+                          "numyw": {
+                            "type": "string",
+                            "description": "硬卧"
+                          },
+                          "numwz": {
+                            "type": "string",
+                            "description": "无座"
+                          },
+                          "numqt": {
+                            "type": "string",
+                            "description": "其他"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jisutrain.market.alicloudapi.com"
+    }
+  ]
+}

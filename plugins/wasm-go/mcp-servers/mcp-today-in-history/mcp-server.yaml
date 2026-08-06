@@ -1,0 +1,51 @@
+server:
+  name: today-in-history
+  config:
+    appCode: ""
+tools:
+  - name: today-in-history
+    description: 历史上的今天
+    args:
+      - name: date
+        description: 日期，不写的话默认为当前天
+        type: string
+        position: query
+      - name: needContent
+        description: 是否返回历史事件的详细内容，1表示需要，0表示不需要
+        type: string
+        position: query
+    requestTemplate:
+      url: https://today15.market.alicloudapi.com/today-of-history
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.list**:  (Type: array)
+            - **showapi_res_body.list[].content**: 详细内容，需要在请求参数中上传needContent=1才有该字段返回 (Type: string)
+            - **showapi_res_body.list[].day**: 日期 (Type: integer)
+            - **showapi_res_body.list[].img**: 图片链接 (Type: string)
+            - **showapi_res_body.list[].month**: 月份 (Type: integer)
+            - **showapi_res_body.list[].title**: 发生事件 (Type: string)
+            - **showapi_res_body.list[].year**: 年份 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码，0表示成功 (Type: integer)
+        - **showapi_res_code**: 响应代码，0表示成功 (Type: integer)
+        - **showapi_res_error**: 错误信息，成功时为空 (Type: string)
+
+        ## Original Response
+

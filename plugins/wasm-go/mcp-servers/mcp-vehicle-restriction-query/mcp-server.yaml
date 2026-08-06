@@ -1,0 +1,87 @@
+server:
+  name: vehicle-restriction-query
+  config:
+    appCode: ""
+tools:
+  - name: restriction-query
+    description: 通过城市代号和日期获取城市车辆限行信息查询。
+    args:
+      - name: city
+        description: 城市代号
+        type: string
+        required: true
+        position: query
+      - name: date
+        description: 日期 默认为今天 格式为：2015-12-02
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisuclwhxx.market.alicloudapi.com/vehiclelimit/query
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 消息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.area**: 限行区域描述 (Type: string)
+          - **result.city**: 城市代码 (Type: string)
+          - **result.cityname**: 城市名称 (Type: string)
+          - **result.date**: 日期 (Type: string)
+          - **result.number**: 限行号码 (Type: string)
+          - **result.numberrule**: 限行号码规则 (Type: string)
+          - **result.summary**: 限行规则摘要 (Type: string)
+          - **result.time**: 限行时间段 (Type: array)
+            - **result.time[]**: Items of type string
+          - **result.week**: 星期 (Type: string)
+        - **status**: 状态码 (Type: string)
+
+        ## Original Response
+
+  - name: get-city-list
+    description: 获取城市代号和城市名称。
+    args: []
+    requestTemplate:
+      url: https://jisuclwhxx.market.alicloudapi.com/vehiclelimit/city
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 响应消息 (Type: string)
+        - **result**: 城市列表 (Type: array)
+          - **result[].city**: 城市代码 (Type: string)
+          - **result[].cityname**: 城市名称 (Type: string)
+        - **status**: 状态码，0表示成功 (Type: string)
+
+        ## Original Response
+

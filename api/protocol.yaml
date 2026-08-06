@@ -1,0 +1,5 @@
+protoc:
+  # This is ignored because we always run with
+  # --protoc-bin-path=/usr/bin/protoc to use the protoc from our
+  # container
+  version: 3.6.1

@@ -1,0 +1,30 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  annotations:
+    higress.io/wasm-plugin-description: 用于识别并阻止互联网爬虫对站点资源的爬取
+    higress.io/wasm-plugin-title: Bot Detect
+  creationTimestamp: '2024-01-03T10:34:36Z'
+  generation: 2
+  labels:
+    higress.io/resource-definer: higress
+    higress.io/wasm-plugin-built-in: 'true'
+    higress.io/wasm-plugin-category: custom
+    higress.io/wasm-plugin-name: bot-detect
+    higress.io/wasm-plugin-version: 1.0.0
+  name: bot-detect
+  namespace: higress-system
+spec:
+  defaultConfigDisable: true
+  matchRules:
+    - config:
+        blocked_code: 401
+        blocked_message: a bot
+        deny:
+          - Chrome
+      configDisable: false
+      ingress:
+        - test
+  phase: AUTHN
+  priority: 310
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/20240103/bot-detect:1.0.0

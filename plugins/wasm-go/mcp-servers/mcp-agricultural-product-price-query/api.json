@@ -1,0 +1,130 @@
+{
+  "info": {
+    "description": "惠农行情数据接口可提供全国31个省级行政区、2818个县级行政区的蔬菜、水果、畜禽、水产等3000多个品类，2万多个常见农产品的价格数据服务、历史数据最早可追溯至2013年。惠农行情大数据是基于惠农网的线上电商交易平台，线下行情官系统和农业专家团队所发布的农产品信息，经标准化清洗、分类和数据库建设而形成的农业全产业链专业数据库；是农产品生产经营管理监测、分析、预警的有力工具。",
+    "title": "农产品价格行情数据接口",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/aliyun/market/category/detail": {
+      "get": {
+        "operationId": "类目数据价格行情",
+        "summary": "阿里云api市场-1日数据统计信息(类目)",
+        "parameters": [
+          {
+            "description": "中国地理行政区（县级市），支持地区下载路径https://files.cnhnb.com/area_list.xlsx",
+            "example": "岳麓区",
+            "in": "query",
+            "name": "areaName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "农产品三级类目名称，具体名单参照https://files.cnhnb.com/category_list.xlsx",
+            "example": "大米",
+            "in": "query",
+            "name": "categoryName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "要查询的日期。 例子: 2020-12-25",
+            "example": "2020-12-22",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码",
+                      "example": 0
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息",
+                      "example": "success"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "description": "跟踪ID",
+                      "example": "77e70b08b4ca064d"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "cateName": {
+                            "type": "string",
+                            "description": "类别名称",
+                            "example": "大米"
+                          },
+                          "breedName": {
+                            "type": "string",
+                            "description": "品种名称",
+                            "example": "有机米"
+                          },
+                          "unit": {
+                            "type": "string",
+                            "description": "单位",
+                            "example": "斤"
+                          },
+                          "nowAvgPrice": {
+                            "type": "number",
+                            "description": "当前平均价格",
+                            "example": 2.8
+                          },
+                          "provinceName": {
+                            "type": "string",
+                            "description": "省份名称",
+                            "example": "湖南省"
+                          },
+                          "cityName": {
+                            "type": "string",
+                            "description": "城市名称",
+                            "example": "长沙市"
+                          },
+                          "areaName": {
+                            "type": "string",
+                            "description": "区域名称",
+                            "example": "岳麓区"
+                          },
+                          "marketDate": {
+                            "type": "string",
+                            "description": "市场日期",
+                            "example": "2020-12-24T00:00:00Z"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://agroprice.market.alicloudapi.com"
+    }
+  ]
+}

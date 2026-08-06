@@ -1,0 +1,99 @@
+server:
+  name: logistics-tracking-query
+  config:
+    appCode: ""
+tools:
+  - name: mail-company-query
+    description: 智能识别单号对应的快递公司
+    args:
+      - name: mailNo
+        description: 快递单号
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://kdzsgw.market.alicloudapi.com/logistics/discern
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: array)
+          - **data[].companyName**: 快递公司名称 (Type: string)
+          - **data[].cpCode**: 快递公司代码 (Type: string)
+
+        ## Original Response
+
+  - name: common-logistics-tracking-query
+    description: 查询各大快递公司物流轨迹
+    args:
+      - name: cpCode
+        description: 快递公司编码
+        type: string
+        required: true
+        position: body
+      - name: mailNo
+        description: 快递单号
+        type: string
+        required: true
+        position: body
+      - name: phone
+        description: 顺丰、丰网快递需要传收件或寄件人手机号或者手机号后四位
+        type: string
+        position: body
+    requestTemplate:
+      url: https://kdzsgw.market.alicloudapi.com/logistics/search
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.cpCode**:  (Type: string)
+          - **data.logisticsCompanyName**:  (Type: string)
+          - **data.logisticsStatus**:  (Type: string)
+          - **data.logisticsStatusDesc**:  (Type: string)
+          - **data.logisticsTraceDetailList**:  (Type: array)
+            - **data.logisticsTraceDetailList[].desc**:  (Type: string)
+            - **data.logisticsTraceDetailList[].logisticsStatus**:  (Type: string)
+            - **data.logisticsTraceDetailList[].time**:  (Type: integer)
+          - **data.mailNo**:  (Type: string)
+          - **data.theLastMessage**:  (Type: string)
+          - **data.theLastTime**:  (Type: string)
+
+        ## Original Response
+

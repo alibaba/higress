@@ -1,0 +1,940 @@
+server:
+  config:
+    apiKey: ""
+  name: "rest-crawl-server"
+tools:
+- args:
+  - description: "要抓取的URL"
+    name: "url"
+    required: true
+    type: "string"
+  - default:
+    - "markdown"
+    description: "输出中包含的格式"
+    items:
+      enum:
+      - "markdown"
+      - "html"
+      - "rawHtml"
+      - "links"
+      - "screenshot"
+      - "screenshot@fullPage"
+      - "json"
+      type: "string"
+    name: "formats"
+    type: "array"
+  - default: true
+    description: "是否只返回主要内容"
+    name: "onlyMainContent"
+    type: "boolean"
+  - description: "输出中包含的标签"
+    items:
+      type: "string"
+    name: "includeTags"
+    type: "array"
+  - description: "输出中排除的标签"
+    items:
+      type: "string"
+    name: "excludeTags"
+    type: "array"
+  - description: "请求头信息"
+    name: "headers"
+    type: "object"
+  - default: 0
+    description: "抓取前的等待时间（毫秒）"
+    name: "waitFor"
+    type: "integer"
+  - default: false
+    description: "是否模拟移动设备"
+    name: "mobile"
+    type: "boolean"
+  - default: false
+    description: "是否跳过TLS验证"
+    name: "skipTlsVerification"
+    type: "boolean"
+  - default: 30000
+    description: "请求超时时间（毫秒）"
+    name: "timeout"
+    type: "integer"
+  - description: "JSON提取选项"
+    name: "jsonOptions"
+    properties:
+      prompt:
+        description: "提取提示"
+        type: "string"
+      schema:
+        description: "提取使用的schema"
+        type: "object"
+      systemPrompt:
+        description: "系统提示"
+        type: "string"
+    type: "object"
+  - description: "抓取前执行的操作"
+    items:
+      oneOf:
+      - properties:
+          milliseconds:
+            minimum: 1
+            type: "integer"
+          selector:
+            type: "string"
+          type:
+            enum:
+            - "wait"
+            type: "string"
+        type: "object"
+      - properties:
+          fullPage:
+            default: false
+            type: "boolean"
+          type:
+            enum:
+            - "screenshot"
+            type: "string"
+        type: "object"
+      - properties:
+          all:
+            default: false
+            type: "boolean"
+          selector:
+            type: "string"
+          type:
+            enum:
+            - "click"
+            type: "string"
+        type: "object"
+      - properties:
+          text:
+            type: "string"
+          type:
+            enum:
+            - "write"
+            type: "string"
+        type: "object"
+      - properties:
+          key:
+            type: "string"
+          type:
+            enum:
+            - "press"
+            type: "string"
+        type: "object"
+      - properties:
+          direction:
+            default: "down"
+            enum:
+            - "up"
+            - "down"
+            type: "string"
+          selector:
+            type: "string"
+          type:
+            enum:
+            - "scroll"
+            type: "string"
+        type: "object"
+      - properties:
+          type:
+            enum:
+            - "scrape"
+            type: "string"
+        type: "object"
+      - properties:
+          script:
+            type: "string"
+          type:
+            enum:
+            - "executeJavascript"
+            type: "string"
+        type: "object"
+    name: "actions"
+    type: "array"
+  - description: "位置设置"
+    name: "location"
+    properties:
+      country:
+        default: "US"
+        pattern: "^[A-Z]{2}$"
+        type: "string"
+      languages:
+        items:
+          type: "string"
+        type: "array"
+    type: "object"
+  - description: "是否移除base64图片"
+    name: "removeBase64Images"
+    type: "boolean"
+  - default: true
+    description: "是否启用广告拦截"
+    name: "blockAds"
+    type: "boolean"
+  - description: "使用的代理类型"
+    enum:
+    - "basic"
+    - "stealth"
+    name: "proxy"
+    type: "string"
+  description: "抓取单个URL并可选地使用LLM提取信息"
+  name: "scrape"
+  requestTemplate:
+    argsToJsonBody: true
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "POST"
+    url: "https://api.firecrawl.dev/v1/scrape"
+  responseTemplate:
+    body: |
+      {{- if .success }}
+      成功: {{ .success }}
+      数据:
+        Markdown: {{ .data.markdown }}
+        HTML: {{ .data.html }}
+        Raw HTML: {{ .data.rawHtml }}
+        链接: {{ .data.links }}
+        截图: {{ .data.screenshot }}
+        元数据:
+          标题: {{ .data.metadata.title }}
+          描述: {{ .data.metadata.description }}
+          语言: {{ .data.metadata.language }}
+          源URL: {{ .data.metadata.sourceURL }}
+          状态码: {{ .data.metadata.statusCode }}
+          错误: {{ .data.metadata.error }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "要抓取的URL列表"
+    items:
+      format: "uri"
+      type: "string"
+    name: "urls"
+    required: true
+    type: "array"
+  - description: "Webhook配置"
+    name: "webhook"
+    properties:
+      events:
+        description: "触发Webhook的事件类型"
+        items:
+          enum:
+          - "completed"
+          - "page"
+          - "failed"
+          - "started"
+          type: "string"
+        type: "array"
+      headers:
+        description: "Webhook请求头"
+        type: "object"
+      metadata:
+        description: "自定义元数据"
+        type: "object"
+      url:
+        description: "Webhook URL"
+        type: "string"
+    type: "object"
+  - default: false
+    description: "是否忽略无效URL"
+    name: "ignoreInvalidURLs"
+    type: "boolean"
+  - default:
+    - "markdown"
+    description: "输出中包含的格式"
+    items:
+      enum:
+      - "markdown"
+      - "html"
+      - "rawHtml"
+      - "links"
+      - "screenshot"
+      - "screenshot@fullPage"
+      - "json"
+      type: "string"
+    name: "formats"
+    type: "array"
+  - default: true
+    description: "是否只返回主要内容"
+    name: "onlyMainContent"
+    type: "boolean"
+  - description: "输出中包含的标签"
+    items:
+      type: "string"
+    name: "includeTags"
+    type: "array"
+  - description: "输出中排除的标签"
+    items:
+      type: "string"
+    name: "excludeTags"
+    type: "array"
+  - description: "请求头信息"
+    name: "headers"
+    type: "object"
+  - default: 0
+    description: "抓取前的等待时间（毫秒）"
+    name: "waitFor"
+    type: "integer"
+  - default: false
+    description: "是否模拟移动设备"
+    name: "mobile"
+    type: "boolean"
+  - default: false
+    description: "是否跳过TLS验证"
+    name: "skipTlsVerification"
+    type: "boolean"
+  - default: 30000
+    description: "请求超时时间（毫秒）"
+    name: "timeout"
+    type: "integer"
+  - description: "JSON提取选项"
+    name: "jsonOptions"
+    properties:
+      prompt:
+        description: "提取提示"
+        type: "string"
+      schema:
+        description: "提取使用的schema"
+        type: "object"
+      systemPrompt:
+        description: "系统提示"
+        type: "string"
+    type: "object"
+  - description: "抓取前执行的操作"
+    items:
+      oneOf:
+      - properties:
+          milliseconds:
+            minimum: 1
+            type: "integer"
+          selector:
+            type: "string"
+          type:
+            enum:
+            - "wait"
+            type: "string"
+        type: "object"
+      - properties:
+          fullPage:
+            default: false
+            type: "boolean"
+          type:
+            enum:
+            - "screenshot"
+            type: "string"
+        type: "object"
+      - properties:
+          all:
+            default: false
+            type: "boolean"
+          selector:
+            type: "string"
+          type:
+            enum:
+            - "click"
+            type: "string"
+        type: "object"
+      - properties:
+          text:
+            type: "string"
+          type:
+            enum:
+            - "write"
+            type: "string"
+        type: "object"
+      - properties:
+          key:
+            type: "string"
+          type:
+            enum:
+            - "press"
+            type: "string"
+        type: "object"
+      - properties:
+          direction:
+            default: "down"
+            enum:
+            - "up"
+            - "down"
+            type: "string"
+          selector:
+            type: "string"
+          type:
+            enum:
+            - "scroll"
+            type: "string"
+        type: "object"
+      - properties:
+          type:
+            enum:
+            - "scrape"
+            type: "string"
+        type: "object"
+      - properties:
+          script:
+            type: "string"
+          type:
+            enum:
+            - "executeJavascript"
+            type: "string"
+        type: "object"
+    name: "actions"
+    type: "array"
+  - description: "位置设置"
+    name: "location"
+    properties:
+      country:
+        default: "US"
+        pattern: "^[A-Z]{2}$"
+        type: "string"
+      languages:
+        items:
+          type: "string"
+        type: "array"
+    type: "object"
+  - description: "是否移除base64图片"
+    name: "removeBase64Images"
+    type: "boolean"
+  - default: true
+    description: "是否启用广告拦截"
+    name: "blockAds"
+    type: "boolean"
+  - description: "使用的代理类型"
+    enum:
+    - "basic"
+    - "stealth"
+    name: "proxy"
+    type: "string"
+  description: "批量抓取多个URL并可选地使用LLM提取信息"
+  name: "batch_scrape"
+  requestTemplate:
+    argsToJsonBody: true
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "POST"
+    url: "https://api.firecrawl.dev/v1/batch/scrape"
+  responseTemplate:
+    body: |
+      {{- if .success }}
+      成功: {{ .success }}
+      任务ID: {{ .id }}
+      URL: {{ .url }}
+      无效URL: {{ .invalidURLs }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "基础URL"
+    format: "uri"
+    name: "url"
+    required: true
+    type: "string"
+  - description: "搜索查询"
+    name: "search"
+    type: "string"
+  - default: true
+    description: "是否忽略网站地图"
+    name: "ignoreSitemap"
+    type: "boolean"
+  - default: false
+    description: "是否只返回网站地图中的链接"
+    name: "sitemapOnly"
+    type: "boolean"
+  - default: false
+    description: "是否包含子域名"
+    name: "includeSubdomains"
+    type: "boolean"
+  - default: 5000
+    description: "最大返回链接数"
+    maximum: 5000
+    name: "limit"
+    type: "integer"
+  - description: "超时时间（毫秒）"
+    name: "timeout"
+    type: "integer"
+  description: "根据选项映射多个URL"
+  name: "map"
+  requestTemplate:
+    argsToJsonBody: true
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "POST"
+    url: "https://api.firecrawl.dev/v1/map"
+  responseTemplate:
+    body: |
+      {{- if .success }}
+      成功: {{ .success }}
+      链接: {{ .links }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "要提取数据的URL"
+    items:
+      format: "uri"
+      type: "string"
+    name: "urls"
+    required: true
+    type: "array"
+  - description: "指导提取过程的提示"
+    name: "prompt"
+    type: "string"
+  - description: "定义提取数据结构的schema"
+    name: "schema"
+    properties:
+      property1:
+        description: "属性1的描述"
+        required: true
+        type: "string"
+      property2:
+        description: "属性2的描述"
+        required: true
+        type: "integer"
+    type: "object"
+  - default: false
+    description: "是否启用网络搜索"
+    name: "enableWebSearch"
+    type: "boolean"
+  - default: false
+    description: "是否忽略网站地图"
+    name: "ignoreSitemap"
+    type: "boolean"
+  - default: true
+    description: "是否包含子域名"
+    name: "includeSubdomains"
+    type: "boolean"
+  - default: false
+    description: "是否显示数据来源"
+    name: "showSources"
+    type: "boolean"
+  - description: "抓取选项"
+    name: "scrapeOptions"
+    properties:
+      actions:
+        description: "抓取前执行的操作"
+        items:
+          oneOf:
+          - properties:
+              milliseconds:
+                minimum: 1
+                type: "integer"
+              selector:
+                type: "string"
+              type:
+                enum:
+                - "wait"
+                type: "string"
+            type: "object"
+          - properties:
+              fullPage:
+                default: false
+                type: "boolean"
+              type:
+                enum:
+                - "screenshot"
+                type: "string"
+            type: "object"
+          - properties:
+              all:
+                default: false
+                type: "boolean"
+              selector:
+                type: "string"
+              type:
+                enum:
+                - "click"
+                type: "string"
+            type: "object"
+          - properties:
+              text:
+                type: "string"
+              type:
+                enum:
+                - "write"
+                type: "string"
+            type: "object"
+          - properties:
+              key:
+                type: "string"
+              type:
+                enum:
+                - "press"
+                type: "string"
+            type: "object"
+          - properties:
+              direction:
+                default: "down"
+                enum:
+                - "up"
+                - "down"
+                type: "string"
+              selector:
+                type: "string"
+              type:
+                enum:
+                - "scroll"
+                type: "string"
+            type: "object"
+          - properties:
+              type:
+                enum:
+                - "scrape"
+                type: "string"
+            type: "object"
+          - properties:
+              script:
+                type: "string"
+              type:
+                enum:
+                - "executeJavascript"
+                type: "string"
+            type: "object"
+        type: "array"
+      blockAds:
+        default: true
+        description: "是否启用广告拦截"
+        type: "boolean"
+      excludeTags:
+        description: "输出中排除的标签"
+        items:
+          type: "string"
+        type: "array"
+      formats:
+        default:
+        - "markdown"
+        description: "输出中包含的格式"
+        items:
+          enum:
+          - "markdown"
+          - "html"
+          - "rawHtml"
+          - "links"
+          - "screenshot"
+          - "screenshot@fullPage"
+          - "json"
+          type: "string"
+        type: "array"
+      headers:
+        description: "请求头信息"
+        type: "object"
+      includeTags:
+        description: "输出中包含的标签"
+        items:
+          type: "string"
+        type: "array"
+      jsonOptions:
+        description: "JSON提取选项"
+        properties:
+          prompt:
+            description: "提取提示"
+            type: "string"
+          schema:
+            description: "提取使用的schema"
+            type: "object"
+          systemPrompt:
+            description: "系统提示"
+            type: "string"
+        type: "object"
+      location:
+        description: "位置设置"
+        properties:
+          country:
+            default: "US"
+            pattern: "^[A-Z]{2}$"
+            type: "string"
+          languages:
+            items:
+              type: "string"
+            type: "array"
+        type: "object"
+      mobile:
+        default: false
+        description: "是否模拟移动设备"
+        type: "boolean"
+      onlyMainContent:
+        default: true
+        description: "是否只返回主要内容"
+        type: "boolean"
+      proxy:
+        description: "使用的代理类型"
+        enum:
+        - "basic"
+        - "stealth"
+        type: "string"
+      removeBase64Images:
+        description: "是否移除base64图片"
+        type: "boolean"
+      skipTlsVerification:
+        default: false
+        description: "是否跳过TLS验证"
+        type: "boolean"
+      timeout:
+        default: 30000
+        description: "请求超时时间（毫秒）"
+        type: "integer"
+      waitFor:
+        default: 0
+        description: "抓取前的等待时间（毫秒）"
+        type: "integer"
+    type: "object"
+  description: "使用LLM从页面中提取结构化数据"
+  name: "extract"
+  requestTemplate:
+    argsToJsonBody: true
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "POST"
+    url: "https://api.firecrawl.dev/v1/extract"
+  responseTemplate:
+    body: |
+      {{- if .success }}
+      成功: {{ .success }}
+      任务ID: {{ .id }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "搜索查询"
+    name: "query"
+    required: true
+    type: "string"
+  - default: 5
+    description: "最大返回结果数"
+    maximum: 10
+    minimum: 1
+    name: "limit"
+    type: "integer"
+  - description: "基于时间的搜索参数"
+    name: "tbs"
+    type: "string"
+  - default: "en"
+    description: "搜索结果的语言代码"
+    name: "lang"
+    type: "string"
+  - default: "us"
+    description: "搜索结果的国家代码"
+    name: "country"
+    type: "string"
+  - description: "搜索结果的location参数"
+    name: "location"
+    type: "string"
+  - default: 60000
+    description: "超时时间（毫秒）"
+    name: "timeout"
+    type: "integer"
+  - default: {}
+    description: "抓取搜索结果的选项"
+    name: "scrapeOptions"
+    properties:
+      formats:
+        default: []
+        description: "输出中包含的格式"
+        items:
+          enum:
+          - "markdown"
+          - "html"
+          - "rawHtml"
+          - "links"
+          - "screenshot"
+          - "screenshot@fullPage"
+          - "extract"
+          type: "string"
+        type: "array"
+    type: "object"
+  description: "搜索并可选地抓取搜索结果"
+  name: "search"
+  requestTemplate:
+    argsToJsonBody: true
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "POST"
+    url: "https://api.firecrawl.dev/v1/search"
+  responseTemplate:
+    body: |
+      {{- if .success }}
+      成功: {{ .success }}
+      数据:
+      {{- range .data }}
+        - 标题: {{ .title }}
+          描述: {{ .description }}
+          URL: {{ .url }}
+          Markdown: {{ .markdown }}
+          HTML: {{ .html }}
+          Raw HTML: {{ .rawHtml }}
+          链接: {{ .links }}
+          截图: {{ .screenshot }}
+          元数据:
+            标题: {{ .metadata.title }}
+            描述: {{ .metadata.description }}
+            源URL: {{ .metadata.sourceURL }}
+            状态码: {{ .metadata.statusCode }}
+            错误: {{ .metadata.error }}
+      {{- end }}
+      警告: {{ .warning }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "批量抓取任务的ID"
+    name: "id"
+    required: true
+    type: "string"
+  description: "获取批量抓取任务的状态"
+  name: "get_batch_scrape_status"
+  requestTemplate:
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "GET"
+    url: "https://api.firecrawl.dev/v1/batch/scrape/{{.args.id}}"
+  responseTemplate:
+    body: |
+      {{- if .status }}
+      状态: {{ .status }}
+      总数: {{ .total }}
+      已完成: {{ .completed }}
+      使用信用: {{ .creditsUsed }}
+      过期时间: {{ .expiresAt }}
+      数据:
+      {{- range .data }}
+        - Markdown: {{ .markdown }}
+          HTML: {{ .html }}
+          Raw HTML: {{ .rawHtml }}
+          链接: {{ .links }}
+          截图: {{ .screenshot }}
+          元数据:
+            标题: {{ .metadata.title }}
+            描述: {{ .metadata.description }}
+            语言: {{ .metadata.language }}
+            源URL: {{ .metadata.sourceURL }}
+            状态码: {{ .metadata.statusCode }}
+            错误: {{ .metadata.error }}
+      {{- end }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "批量抓取任务的ID"
+    name: "id"
+    required: true
+    type: "string"
+  description: "获取批量抓取任务的错误信息"
+  name: "get_batch_scrape_errors"
+  requestTemplate:
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "GET"
+    url: "https://api.firecrawl.dev/v1/batch/scrape/{{.args.id}}/errors"
+  responseTemplate:
+    body: |
+      {{- if .errors }}
+      错误:
+      {{- range .errors }}
+        - ID: {{ .id }}
+          时间戳: {{ .timestamp }}
+          URL: {{ .url }}
+          错误信息: {{ .error }}
+      {{- end }}
+      被robots.txt阻止的URL:
+      {{- range .robotsBlocked }}
+        - {{ . }}
+      {{- end }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "爬取任务的ID"
+    name: "id"
+    required: true
+    type: "string"
+  description: "获取爬取任务的状态"
+  name: "get_crawl_status"
+  requestTemplate:
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "GET"
+    url: "https://api.firecrawl.dev/v1/crawl/{{.args.id}}"
+  responseTemplate:
+    body: |
+      {{- if .status }}
+      状态: {{ .status }}
+      总数: {{ .total }}
+      已完成: {{ .completed }}
+      使用信用: {{ .creditsUsed }}
+      过期时间: {{ .expiresAt }}
+      数据:
+      {{- range .data }}
+        - Markdown: {{ .markdown }}
+          HTML: {{ .html }}
+          Raw HTML: {{ .rawHtml }}
+          链接: {{ .links }}
+          截图: {{ .screenshot }}
+          元数据:
+            标题: {{ .metadata.title }}
+            描述: {{ .metadata.description }}
+            语言: {{ .metadata.language }}
+            源URL: {{ .metadata.sourceURL }}
+            状态码: {{ .metadata.statusCode }}
+            错误: {{ .metadata.error }}
+      {{- end }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "爬取任务的ID"
+    name: "id"
+    required: true
+    type: "string"
+  description: "获取爬取任务的错误信息"
+  name: "get_crawl_errors"
+  requestTemplate:
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "GET"
+    url: "https://api.firecrawl.dev/v1/crawl/{{.args.id}}/errors"
+  responseTemplate:
+    body: |
+      {{- if .errors }}
+      错误:
+      {{- range .errors }}
+        - ID: {{ .id }}
+          时间戳: {{ .timestamp }}
+          URL: {{ .url }}
+          错误信息: {{ .error }}
+      {{- end }}
+      被robots.txt阻止的URL:
+      {{- range .robotsBlocked }}
+        - {{ . }}
+      {{- end }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}
+- args:
+  - description: "提取任务的ID"
+    name: "id"
+    required: true
+    type: "string"
+  description: "获取提取任务的状态"
+  name: "get_extract_job_status"
+  requestTemplate:
+    headers:
+    - key: "Authorization"
+      value: "Bearer {{.config.apiKey}}"
+    method: "GET"
+    url: "https://api.firecrawl.dev/v1/extract/{{.args.id}}"
+  responseTemplate:
+    body: |
+      {{- if .success }}
+      成功: {{ .success }}
+      数据: {{ .data }}
+      状态: {{ .status }}
+      过期时间: {{ .expiresAt }}
+      {{- else }}
+      错误: {{ .error }}
+      {{- end }}

@@ -1,0 +1,374 @@
+server:
+  name: calendar-holiday-helper
+  config:
+    appCode: ""
+tools:
+  - name: chinese-holiday-list
+    description: 查询指定年份的中国节假日信息，调休信息等
+    args:
+      - name: year
+        description: 需要查询的年份，可以传空字符串表示今年，在不确定年份的情况下，请传空字符串
+        type: string
+        required: true
+    requestTemplate:
+      url: https://jmhlysjjr.market.alicloudapi.com/holiday/list
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+      body: |
+        year={{ if empty .args.year }}{{ now | date "2006" }}{{ else }}{{ .args.year }}{{ end }}
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.count**: 一年的节假日数量 (Type: integer)
+          - **data.items**:  (Type: array)
+            - **data.items[].begin**: 节假日的开始时间 (Type: string)
+            - **data.items[].end**: 节假日的结束时间  (Type: string)
+            - **data.items[].holiday**: 节假日名称 (Type: string)
+            - **data.items[].holiday_remark**: 节假日描述 (Type: string)
+            - **data.items[].inverse_days**: 具体调修日期列表 (Type: array)
+              - **data.items[].inverse_days[]**: Items of type string
+        - **msg**: 返回信息 (Type: string)
+        - **taskNo**: 请求号 (Type: string)
+
+        ## Original Response
+
+  - name: chinese-holiday-detail
+    description: 中国节假日详情查询
+    args:
+      - name: date
+        description: 查询的日期，格式为yyyyMMdd，可以传空字符串，则默认当天，在不确定日期的情况下，请传空字符串
+        type: string
+        required: true
+      - name: needDesc
+        description: 是否需要返回当日公众日、国际日和我国传统节日的简介，1-返回，默认不返回
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jmhlysjjr.market.alicloudapi.com/holiday/detail
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+      body: |
+        date={{ if empty .args.date }}{{ dateInZone "20060102" now "Asia/Shanghai" }}{{ else }}{{ .args.date }}{{ end }} 
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.begin**: 节日或周末开始时间 (Type: string)
+          - **data.cn**: 星期几的中文名 (Type: string)
+          - **data.day**: 查询的日期 (Type: string)
+          - **data.en**: 星期几的英文名 (Type: string)
+          - **data.end**: 节日或周末结束时间 (Type: string)
+          - **data.h**:  (Type: array)
+            - **data.h[].day**: 节日公历日期 (Type: string)
+            - **data.h[].genus**: 节日种类 (Type: string)
+            - **data.h[].info**:  (Type: string)
+            - **data.h[].lunaDay**:  (Type: string)
+            - **data.h[].name**: 节日名称 (Type: string)
+            - **data.h[].origin**:  (Type: string)
+          - **data.holiday**: 节日名称 (Type: string)
+          - **data.holiday_remark**: 节日备注 (Type: string)
+          - **data.type**: 日期类型 (Type: string)
+          - **data.weekDay**: 星期几的数字 (Type: integer)
+        - **msg**: 返回消息 (Type: string)
+        - **taskNo**: 请求号 (Type: string)
+
+        ## Original Response
+
+  - name: chinese-almanac-auspicious-time
+    description: 查询中国黄历指定日期的吉时
+    args:
+      - name: date
+        description: 查询的日期，格式为yyyyMMdd，可以传空字符串，则默认当天，在不确定日期的情况下，请传空字符串
+        type: string
+        required: true
+      - name: timeZone
+        description: 基于IANA时区数据库规范的时区字符串（例如：Asia/Shanghai），仅当date传空字符串时有效，用于在服务器获取指定时区下的当天日期，可以尝试通过IP定位用户的位置，从而获取时区
+        type: string
+        default: Asia/Shanghai        
+    requestTemplate:
+      url: https://jmhlysjjr.market.alicloudapi.com/luck-tendency/auspicious-time
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+      body: |
+        date={{ if empty .args.date }}{{ dateInZone "20060102" now .args.timeZone }}{{ else }}{{ .args.date }}{{ end }}          
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.ut**: 来源数据更新时间 (Type: string)
+          - **data.zi**: 子时 (11pm - 1am)
+            - **data.zi.jishen**: 吉神（其他时辰含义相同，不赘述） (Type: string)
+            - **data.zi.jixiong**: 吉凶 （其他时辰含义相同，不赘述）(Type: string)
+            - **data.zi.shichong**: 相冲的生肖（其他时辰含义相同，不赘述） (Type: string)
+            - **data.zi.shijian**: 时间（其他时辰含义相同，不赘述）(Type: string)
+            - **data.zi.shizhu**: 时柱（其他时辰含义相同，不赘述） (Type: string)
+            - **data.zi.xiongshen**: 凶神 (Type: string)
+          - **data.chou**: 丑时 (1am - 3am)
+            - **data.chou.jishen**: (Type: string)
+            - **data.chou.jixiong**: (Type: string)
+            - **data.chou.shichong**: (Type: string)
+            - **data.chou.shijian**: (Type: string)
+            - **data.chou.shizhu**: (Type: string)
+            - **data.chou.xiongshen**: (Type: string)
+          - **data.yin**: 寅时 (3am - 5am)
+            - **data.yin.jishen**: (Type: string)
+            - **data.yin.jixiong**: (Type: string)
+            - **data.yin.shichong**: (Type: string)
+            - **data.yin.shijian**: (Type: string)
+            - **data.yin.shizhu**: (Type: string)
+            - **data.yin.xiongshen**: (Type: string)
+          - **data.mao**: 卯时 (5am - 7am)
+            - **data.mao.jishen**: (Type: string)
+            - **data.mao.jixiong**: (Type: string)
+            - **data.mao.shichong**: (Type: string)
+            - **data.mao.shijian**: (Type: string)
+            - **data.mao.shizhu**: (Type: string)
+            - **data.mao.xiongshen**: (Type: string)
+          - **data.cheng**: 辰时 (7am - 9am)
+            - **data.cheng.jishen**: 吉神 (Type: string)
+            - **data.cheng.jixiong**: 吉凶 (Type: string)
+            - **data.cheng.shichong**: 时冲 (Type: string)
+            - **data.cheng.shijian**: 时间 (Type: string)
+            - **data.cheng.shizhu**: 时柱 (Type: string)
+            - **data.cheng.xiongshen**: 凶神 (Type: string)
+          - **data.si**: 巳时 (9am - 11am)
+            - **data.si.jishen**: (Type: string)
+            - **data.si.jixiong**: (Type: string)
+            - **data.si.shichong**: (Type: string)
+            - **data.si.shijian**: (Type: string)
+            - **data.si.shizhu**: (Type: string)
+            - **data.si.xiongshen**: (Type: string)
+          - **data.wu**: 午时 (11am - 1pm)
+            - **data.wu.jishen**: (Type: string)
+            - **data.wu.jixiong**: (Type: string)
+            - **data.wu.shichong**: (Type: string)
+            - **data.wu.shijian**: (Type: string)
+            - **data.wu.shizhu**: (Type: string)
+            - **data.wu.xiongshen**: (Type: string)
+          - **data.wei**: 未时 (1pm - 3pm)
+            - **data.wei.jishen**: (Type: string)
+            - **data.wei.jixiong**: (Type: string)
+            - **data.wei.shichong**: (Type: string)
+            - **data.wei.shijian**: (Type: string)
+            - **data.wei.shizhu**: (Type: string)
+            - **data.wei.xiongshen**: (Type: string)
+          - **data.shen**: 申时 (3pm - 5pm)
+            - **data.shen.jishen**: (Type: string)
+            - **data.shen.jixiong**: (Type: string)
+            - **data.shen.shichong**: (Type: string)
+            - **data.shen.shijian**: (Type: string)
+            - **data.shen.shizhu**: (Type: string)
+            - **data.shen.xiongshen**: (Type: string)
+          - **data.you**: 酉时 (5pm - 7pm)
+            - **data.you.jishen**: (Type: string)
+            - **data.you.jixiong**: (Type: string)
+            - **data.you.shichong**: (Type: string)
+            - **data.you.shijian**: (Type: string)
+            - **data.you.shizhu**: (Type: string)
+            - **data.you.xiongshen**: (Type: string)
+          - **data.xu**: 戌时 (7pm - 9pm)
+            - **data.xu.jishen**: (Type: string)
+            - **data.xu.jixiong**: (Type: string)
+            - **data.xu.shichong**: (Type: string)
+            - **data.xu.shijian**: (Type: string)
+            - **data.xu.shizhu**: (Type: string)
+            - **data.xu.xiongshen**: (Type: string)
+          - **data.hai**: 亥时 (9pm - 11pm)
+            - **data.hai.jishen**: (Type: string)
+            - **data.hai.jixiong**: (Type: string)
+            - **data.hai.shichong**: (Type: string)
+            - **data.hai.shijian**: (Type: string)
+            - **data.hai.shizhu**: (Type: string)
+            - **data.hai.xiongshen**: (Type: string)
+
+        ## Original Response
+
+  - name: chinese-almanac-time-deities-and-spirits
+    description: 查询中国黄历指定日期的吉神凶煞
+    args:
+      - name: date
+        description: 查询的日期，格式为yyyyMMdd，可以传空字符串，则默认当天，在不确定日期的情况下，请传空字符串
+        type: string
+        required: true
+      - name: timeZone
+        description: 基于IANA时区数据库规范的时区字符串（例如：Asia/Shanghai），仅当date传空字符串时有效，用于在服务器获取指定时区下的当天日期，可以尝试通过IP定位用户的位置，从而获取时区
+        type: string
+        default: Asia/Shanghai     
+    requestTemplate:
+      url: https://jmhlysjjr.market.alicloudapi.com/luck-tendency/auspicious-demon
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'          
+      body: |
+        date={{ if empty .args.date }}{{ dateInZone "20060102" now .args.timeZone }}{{ else }}{{ .args.date }}{{ end }}           
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.caishen**: 财神 (Type: string)
+          - **data.esbx**: 二十八宿 (Type: string)
+          - **data.fantaisui**: 犯太岁 (Type: string)
+          - **data.fushen**: 福神 (Type: string)
+          - **data.jiuxing**: 九星 (Type: string)
+          - **data.liuyao**: 六曜 (Type: string)
+          - **data.niankongwang**: 年空亡 (Type: string)
+          - **data.nianqisha**: 年空亡 (Type: string)
+          - **data.niansansha**: 年三煞 (Type: string)
+          - **data.niantaisui**: 年太岁 (Type: string)
+          - **data.rikongwang**: 日空亡 (Type: string)
+          - **data.rilu**: 日禄 (Type: string)
+          - **data.riqisha**: 日七煞 (Type: string)
+          - **data.risansha**: 日三煞 (Type: string)
+          - **data.suipowei**: 岁破位 (Type: string)
+          - **data.taisuiwei**: 太岁位 (Type: string)
+          - **data.tjjs**: 推荐吉时 (Type: string)
+          - **data.wuhou**: 物候 (Type: string)
+          - **data.xishen**: 喜神 (Type: string)
+          - **data.yangguishen**: 阳贵神 (Type: string)
+          - **data.yinguishen**: 阴贵神 (Type: string)
+          - **data.yjgx**: 易经卦象 (Type: string)
+          - **data.yuekongwang**: 月空亡 (Type: string)
+          - **data.yueling**: 月令 (Type: string)
+          - **data.yueqisha**: 月七煞 (Type: string)
+          - **data.yuesansha**: 月三煞 (Type: string)
+          - **data.yuexiang**: 月相 (Type: string)
+          - **data.yuezhi**: 月支 (Type: string)
+          - **data.zhiri12**: 十二值日 (Type: string)
+          - **data.zhishn12**: 十二值神 (Type: string)
+          - **data.zhongdong**: 仲冬 (Type: string)
+        - **msg**:  (Type: string)
+        - **taskNo**:  (Type: string)
+
+        ## Original Response
+
+  - name: chinese-almanac-time-detail
+    description: 查询中国黄历指定日期的详情信息
+    args:
+      - name: date
+        description: 查询的日期，格式为yyyyMMdd，可以传空字符串，则默认当天，在不确定日期的情况下，请传空字符串
+        type: string
+        required: true
+      - name: timeZone
+        description: 基于IANA时区数据库规范的时区字符串（例如：Asia/Shanghai），仅当date传空字符串时有效，用于在服务器获取指定时区下的当天日期，可以尝试通过IP定位用户的位置，从而获取时区
+        type: string
+        default: Asia/Shanghai
+    requestTemplate:
+      url: https://jmhlysjjr.market.alicloudapi.com/luck-tendency/almanac
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+      body: |
+        date={{ if empty .args.date }}{{ dateInZone "20060102" now .args.timeZone }}{{ else }}{{ .args.date }}{{ end }}            
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.chongsha**: 冲煞 (Type: string)
+          - **data.dizhi**: 地支 (Type: string)
+          - **data.ganzhi**: 干支 (Type: string)
+          - **data.gongli**: 公历 (Type: string)
+          - **data.ji**: 忌 (Type: string)
+          - **data.jieqi24**: 当前月包含的24节气 (Type: string)
+          - **data.jieri**: 节日 (Type: string)
+          - **data.jsyq**: 吉神宜趋 (Type: string)
+          - **data.nayin**: 纳音 (Type: string)
+          - **data.nongli**: 农历 (Type: string)
+          - **data.pzbj**: 彭祖百忌 (Type: string)
+          - **data.qixiang**: 气象 (Type: string)
+          - **data.rulueli**: 儒略历 (Type: string)
+          - **data.shengxiao**: 生肖 (Type: string)
+          - **data.tszf**: 胎神占方 (Type: string)
+          - **data.xingzuo**: 星座 (Type: string)
+          - **data.xsyj**: 凶神宜忌 (Type: string)
+          - **data.yi**: 宜 (Type: string)
+          - **data.zhiri**: 值日 (Type: string)
+          - **data.zhishen**: 值神 (Type: string)
+        - **msg**:  (Type: string)
+        - **taskNo**:  (Type: string)
+
+        ## Original Response
+

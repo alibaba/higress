@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    higress.io/destination: |
+      33% service-provider.DEFAULT-GROUP.public.nacos
+      33% service-provider-gray.DEFAULT-GROUP.public.nacos
+      34% bar-service.default.svc.cluster.local:5678
+  name: echo
+  namespace: default
+spec:
+  ingressClassName: higress
+  rules:
+  - http:
+      paths:
+      - backend:
+          resource:
+            apiGroup: networking.higress.io
+            kind: McpBridge
+            name: default
+        path: /echo
+        pathType: Prefix

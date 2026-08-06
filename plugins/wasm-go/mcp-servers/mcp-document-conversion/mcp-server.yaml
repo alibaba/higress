@@ -1,0 +1,168 @@
+server:
+  name: document-conversion
+  config:
+    appCode: ""
+tools:
+  - name: pdf-to-doc
+    description: 将PDF转换为Word、PPT、Excel
+    args:
+      - name: callBackUrl
+        description: 接入商接收文件转换结果的接口地址，聚美智数通过该地址，将信息推送给接入商，详见：推送说明
+        type: string
+        position: body
+      - name: fileUrl
+        description: 可外网下载的文件URL地址，支持Word、PPT、Excel，PDF文件最大支持30M，页数限制在80页之内
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: 转换为目标文档扩展名，可选值：docx, doc, pptx, ppt, xlsx, xls
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmwjzhwjzh.market.alicloudapi.com/file-convert/pdf2word
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.convertTaskId**: 转换任务Id (Type: string)
+        - **msg**: 消息 (Type: string)
+        - **taskNo**: 任务编号 (Type: string)
+
+        ## Original Response
+
+  - name: doc-to-pdf
+    description: 文件转PDF
+    args:
+      - name: callBackUrl
+        description: 接入商接收文件转换结果的接口地址，聚美智数通过该地址，将信息推送给接入商，详见：推送说明
+        type: string
+        position: body
+      - name: fileUrl
+        description: 可外网下载的文件URL地址，支持Word、Excel、PPT和txt，Word和Excel最大支持10M，PPT最大支持80M, txt最大支持2M
+        type: string
+        required: true
+        position: body
+      - name: watermarkColor
+        description: 文字水印颜色，16进制值，默认：#666666
+        type: string
+        position: body
+      - name: watermarkFontName
+        description: 文字水印字体，直接传字体的中文名称。支持：宋体、黑体、微软雅黑。默认： 黑体
+        type: string
+        position: body
+      - name: watermarkFontSize
+        description: 文字水印大小，默认：20
+        type: integer
+        position: body
+      - name: watermarkImage
+        description: 水印图片，base64或图片url，若需要在转换后的pdf加上图片水印，传入该参数即可
+        type: string
+        position: body
+      - name: watermarkLocation
+        description: 位置，默认：LAY。LAY - 3 * 3 平铺，TOP_LEFT - 顶部居左，TOP_CENTER - 顶部居中，TOP_RIGHT - 顶部局右，CENTER_LEFT - 中部居左，CENTER - 居中，CENTER_RIGHT - 中部局右，BOTTOM_LEFT - 底部居左，BOTTOM_CENTER - 底部居中，BOTTOM_RIGHT - 底部局右
+        type: string
+        position: body
+      - name: watermarkRotation
+        description: 内容旋转角度，默认：0
+        type: integer
+        position: body
+      - name: watermarkText
+        description: 水印文字，若需要在转换后的pdf加上文字水印，传入该参数即可
+        type: string
+        position: body
+      - name: watermarkTransparency
+        description: 透明度，默认：0.4
+        type: number
+        position: body
+    requestTemplate:
+      url: https://jmwjzhwjzh.market.alicloudapi.com/file-convert/word2pdf
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.convertTaskId**: 转换任务Id (Type: string)
+        - **msg**: 返回信息 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: doc-convert-result-query
+    description: 文件转换结果查询
+    args:
+      - name: convertTaskId
+        description: 转换任务ID
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmwjzhwjzh.market.alicloudapi.com/file-convert/result
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.urls**:  (Type: array)
+            - **data.urls[]**: Items of type string
+        - **msg**:  (Type: string)
+        - **taskNo**:  (Type: string)
+
+        ## Original Response
+

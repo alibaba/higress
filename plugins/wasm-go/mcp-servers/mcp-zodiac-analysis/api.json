@@ -1,0 +1,196 @@
+{
+  "info": {
+    "description": "本数据包含十二星座的每日运势，明日运势，每周运势，当年运势以及星座配对。具体包括缘份星座、吉利颜色、幸运数字、爱情提醒、运势简评、爱情运势、工作运势、财富运势、健康运势、情欲分析等。可用于微信公众号、小程序、网站等引流及增加与用户的联系等场景。",
+    "title": "【万维易源】星座运势-每日星座查询-星座分析-占星预测-每周运势-星座配对",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/star": {
+      "get": {
+        "operationId": "星座运势查询",
+        "summary": "星座运势查询",
+        "parameters": [
+          {
+            "description": "是否需要本月运势的数据，1为需要，其他不需要",
+            "example": "0",
+            "in": "query",
+            "name": "needMonth",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "十二星座，其值分别为 baiyang jinniu shuangzi juxie shizi chunv tiancheng tianxie sheshou mojie shuiping shuangyu",
+            "example": "baiyang",
+            "in": "query",
+            "name": "star",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否需要本周运势的数据，1为需要，其他不需要",
+            "example": "0",
+            "in": "query",
+            "name": "needWeek",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否需要明天的数据，1为需要，其他不需要",
+            "example": "0",
+            "in": "query",
+            "name": "needTomorrow",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否需要本年运势的数据，1为需要，其他不需要",
+            "example": "0",
+            "in": "query",
+            "name": "needYear",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "showapi_res_code": {
+                      "type": "integer",
+                      "description": "响应状态码",
+                      "example": 0
+                    },
+                    "showapi_res_error": {
+                      "type": "string",
+                      "description": "错误信息",
+                      "example": ""
+                    },
+                    "showapi_res_body": {
+                      "type": "object",
+                      "properties": {
+                        "ret_code": {
+                          "type": "integer",
+                          "description": "返回码",
+                          "example": 0
+                        },
+                        "star": {
+                          "type": "string",
+                          "description": "星座",
+                          "example": "shizi"
+                        },
+                        "day": {
+                          "type": "object",
+                          "properties": {
+                            "love_txt": {
+                              "type": "string",
+                              "description": "爱情运势",
+                              "example": "单身者多注意自己的穿着打扮，可提升异性缘；恋爱中的人有机会拜见双方父母。"
+                            },
+                            "work_txt": {
+                              "type": "string",
+                              "description": "工作运势",
+                              "example": "重复、乏味的工作会让你显得无精打采，事业中需要新挑战或新事物进行调剂。"
+                            },
+                            "work_star": {
+                              "type": "integer",
+                              "description": "工作指数，最高5分",
+                              "example": 3
+                            },
+                            "money_star": {
+                              "type": "integer",
+                              "description": "财富指数，最高5分",
+                              "example": 2
+                            },
+                            "lucky_color": {
+                              "type": "string",
+                              "description": "吉色",
+                              "example": "草根白"
+                            },
+                            "lucky_time": {
+                              "type": "string",
+                              "description": "吉时",
+                              "example": "下午5:00--6:00"
+                            },
+                            "love_star": {
+                              "type": "integer",
+                              "description": "爱情指数，最高5分",
+                              "example": 4
+                            },
+                            "lucky_direction": {
+                              "type": "string",
+                              "description": "吉利方位",
+                              "example": "正西方"
+                            },
+                            "summary_star": {
+                              "type": "integer",
+                              "description": "综合指数，最高5分",
+                              "example": 3
+                            },
+                            "time": {
+                              "type": "string",
+                              "description": "时间",
+                              "example": "20161011"
+                            },
+                            "money_txt": {
+                              "type": "string",
+                              "description": "财富运势",
+                              "example": "财气不稳定，外力干扰多，不利于投资买卖。有金钱耗损的迹象，趁今日去吃吃喝喝，把钱花在享受上吧！"
+                            },
+                            "general_txt": {
+                              "type": "string",
+                              "description": "运势简评",
+                              "example": "单身者与性情直率的人颇合得来，而恋爱中的人则在小打小闹中增进了彼此的情谊。切莫因喜好而盲目消费，今天财运犯小人，谨慎为妙。越是忙碌反而越觉得空虚，人也变得有些焦躁，找家人聊聊，可解除烦恼。"
+                            },
+                            "grxz": {
+                              "type": "string",
+                              "description": "贵人星座",
+                              "example": "天蝎座"
+                            },
+                            "lucky_num": {
+                              "type": "string",
+                              "description": "幸运数字",
+                              "example": "8"
+                            },
+                            "day_notice": {
+                              "type": "string",
+                              "description": "今日提醒",
+                              "example": "工作情绪起伏不断。"
+                            }
+                          }
+                        },
+                        "day_notice": {
+                          "type": "string",
+                          "example": "aa"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://luck141219.market.alicloudapi.com"
+    }
+  ]
+}

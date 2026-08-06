@@ -1,0 +1,106 @@
+{
+  "info": {
+    "description": "“历史上的今天”是一款致力于回顾和展示历史上重要事件的图文信息聚合服务。通过我们的API接口，用户可以轻松查询指定日期发生的国家大事、国际大事、政府重要决策部署等内容，图文并茂地了解历史。我们持续更新内容，为用户带来丰富的历史信息。",
+    "title": "【万维易源】历史上的今天-历史事件-历史回顾",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/today-of-history": {
+      "get": {
+        "operationId": "历史上的今天",
+        "summary": "历史上的今天",
+        "parameters": [
+          {
+            "description": "日期，不写的话默认为当前天",
+            "example": "0705",
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "是否返回历史事件的详细内容，1表示需要，0表示不需要",
+            "example": "1",
+            "in": "query",
+            "name": "needContent",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "showapi_res_code": {
+                      "type": "integer",
+                      "description": "响应代码，0表示成功"
+                    },
+                    "showapi_res_error": {
+                      "type": "string",
+                      "description": "错误信息，成功时为空"
+                    },
+                    "showapi_res_body": {
+                      "type": "object",
+                      "properties": {
+                        "ret_code": {
+                          "type": "integer",
+                          "description": "返回代码，0表示成功"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string",
+                                "description": "发生事件"
+                              },
+                              "month": {
+                                "type": "integer",
+                                "description": "月份"
+                              },
+                              "img": {
+                                "type": "string",
+                                "description": "图片链接"
+                              },
+                              "year": {
+                                "type": "string",
+                                "description": "年份"
+                              },
+                              "day": {
+                                "type": "integer",
+                                "description": "日期"
+                              },
+                              "content": {
+                                "type": "string",
+                                "description": "详细内容，需要在请求参数中上传needContent=1才有该字段返回"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://today15.market.alicloudapi.com"
+    }
+  ]
+}

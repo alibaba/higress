@@ -1,0 +1,775 @@
+server:
+  name: business-info-query
+  config:
+    appCode: ""
+tools:
+  - name: business-patent-query
+    description: 查询企业公布的专利信息，包括发明专利，实用新型，实用外观，发明授权等类型
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyPatentsInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].createDate**: 创建日期 (Type: string)
+            - **data.list[].createNum**: 专利编号 (Type: string)
+            - **data.list[].patentName**: 专利名称 (Type: string)
+            - **data.list[].type**: 专利类型 (Type: string)
+          - **data.total**: 总数 (Type: integer)
+        - **status**: 请求状态 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-other-copyright-query
+    description: 企业其它著作权信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyOtherCopyrightsInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].className**: 类别名称 (Type: string)
+            - **data.list[].createDate**: 创建日期 (Type: string)
+            - **data.list[].name**: 名称 (Type: string)
+            - **data.list[].publishDate**: 发布日期 (Type: string)
+            - **data.list[].regNo**: 注册号 (Type: string)
+          - **data.total**: 总数量 (Type: integer)
+        - **status**: 状态标志，表示请求是否成功 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-branch-query
+    description: 企业所有分支机构信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: PageNum
+        description: 查询页数，默认为第一页
+        type: integer
+        position: query
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyBranchInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].name**: 分公司名称 (Type: string)
+          - **data.total**: 总数 (Type: integer)
+        - **status**: 状态标志，表示请求是否成功 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-name-query
+    description: 企业工商名称搜索建议查询,只返回推荐匹配的企业名称，适合联想查询，输入框搜索建议
+    args:
+      - name: Keyword
+        description: 查询关键字，至少3个字
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: 当请求查询关键字无返回结果时是否抛出404错误。0为否，1为是，默认为否。可以避免传入无效关键字时扣减次数。
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/fuzzySuggestCompanyName/{Keyword}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].companyname**: 公司名称 (Type: string)
+        - **status**: 响应状态，true表示成功 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-trademark-query
+    description: 企业商标信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyTrademarksInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].name**: 名称 (Type: string)
+            - **data.list[].status**: 当前状态 (Type: string)
+            - **data.list[].type**: 类型 (Type: string)
+          - **data.total**: 总数 (Type: integer)
+        - **status**: 状态标志 (Type: boolean)
+
+        ## Original Response
+
+  - name: busiiness-invest-query
+    description: 企业对外投资信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyInvestEventsInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].investCapital**: 投资金额 (Type: string)
+            - **data.list[].investCompanyName**: 投资公司名称 (Type: string)
+            - **data.list[].investDate**: 投资日期 (Type: string)
+          - **data.total**: 列表总数 (Type: integer)
+        - **status**: 操作状态，true表示成功 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-basic-query
+    description: 企业工商基本数据模糊查询
+    args:
+      - name: CompanyName
+        description: 支持企业名称、简称、注册号、信任号等模糊匹配
+        type: string
+        required: true
+        position: path
+      - name: PageNum
+        description: 查询页数，默认为第一页
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/fuzzyQueryCompanyInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].legal_person_name**: 法人代表姓名 (Type: string)
+            - **data.list[].name**: 公司名称 (Type: string)
+            - **data.list[].reg_capital**: 注册资本 (Type: string)
+            - **data.list[].reg_date**: 注册日期 (Type: string)
+          - **data.num**: 当前数量 (Type: integer)
+          - **data.total**: 总数 (Type: integer)
+        - **message**: 消息 (Type: string)
+        - **status**: 状态码 (Type: string)
+
+        ## Original Response
+
+  - name: exact-business-query
+    description: 精准查询企业工商基本数据,包括工商注册信息,股东信息,变更记录,分支机构,董事会信息
+    args:
+      - name: CompanyNameOrCreditNo
+        description: 支持企业全称和企业社会信任代码
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: 当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyBaseInfo/{CompanyNameOrCreditNo}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.changeRecordData**:  (Type: object)
+            - **data.changeRecordData.hasMore**: 是否有更多变更记录 (Type: boolean)
+            - **data.changeRecordData.list**:  (Type: array)
+              - **data.changeRecordData.list[].after**: 变更后内容 (Type: string)
+              - **data.changeRecordData.list[].before**: 变更前内容 (Type: string)
+              - **data.changeRecordData.list[].date**: 变更日期 (Type: string)
+              - **data.changeRecordData.list[].item**: 变更项目 (Type: string)
+          - **data.employeeData**:  (Type: object)
+            - **data.employeeData.list**:  (Type: array)
+              - **data.employeeData.list[].name**: 员工姓名 (Type: string)
+              - **data.employeeData.list[].title**: 职位 (Type: string)
+            - **data.employeeData.total**: 员工总数 (Type: integer)
+          - **data.legalPersonName**: 法定代表人姓名 (Type: string)
+          - **data.name**: 公司名称 (Type: string)
+          - **data.partnerData**:  (Type: object)
+            - **data.partnerData.list**:  (Type: array)
+              - **data.partnerData.list[].partnerName**: 股东姓名 (Type: string)
+              - **data.partnerData.list[].partnerType**: 股东类型 (Type: string)
+              - **data.partnerData.list[].totalRealCapital**: 实缴资本 (Type: string)
+              - **data.partnerData.list[].totalShouldCapital**: 认缴资本 (Type: string)
+            - **data.partnerData.total**: 股东总数 (Type: integer)
+          - **data.registerCapital**: 注册资本 (Type: string)
+          - **data.registerData**:  (Type: object)
+            - **data.registerData.address**: 公司地址 (Type: string)
+            - **data.registerData.belongOrg**: 登记机关 (Type: string)
+            - **data.registerData.businessScope**: 经营范围 (Type: string)
+            - **data.registerData.businessTerm**: 营业期限 (Type: string)
+            - **data.registerData.creditNo**: 统一社会信用代码 (Type: string)
+            - **data.registerData.orgNo**: 组织机构代码 (Type: string)
+            - **data.registerData.regType**: 企业类型 (Type: string)
+            - **data.registerData.registerNo**: 工商注册号 (Type: string)
+            - **data.registerData.status**: 经营状态 (Type: string)
+          - **data.startDate**: 公司成立日期 (Type: string)
+        - **status**: 响应状态 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-year-report-query
+    description: 企业年报信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyYearReportInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: array)
+          - **data[].rptDate**: 报告日期 (Type: string)
+          - **data[].rptDetail**:  (Type: object)
+            - **data[].rptDetail.creditNo**: 统一社会信用代码 (Type: string)
+            - **data[].rptDetail.isEquity**: 是否有股权 (Type: string)
+            - **data[].rptDetail.isInvest**: 是否有投资 (Type: string)
+            - **data[].rptDetail.name**: 公司名称 (Type: string)
+            - **data[].rptDetail.staffNum**: 员工人数 (Type: string)
+            - **data[].rptDetail.status**: 公司状态 (Type: string)
+          - **data[].rptYear**: 报告年度 (Type: string)
+        - **status**: 响应状态 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-jobs-query
+    description: 企业招聘信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyJobsInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].date**: 发布日期 (Type: string)
+            - **data.list[].education**: 学历要求 (Type: string)
+            - **data.list[].position**: 职位名称 (Type: string)
+            - **data.list[].salary**: 薪资范围 (Type: string)
+            - **data.list[].years**: 工作年限 (Type: string)
+          - **data.total**: 总数 (Type: integer)
+        - **status**: 响应状态 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-lawsuit-query
+    description: 企业法律诉讼信息，主要是裁判文书
+    args:
+      - name: CompanyName
+        description: 传入企业全称
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyLawsuitInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: array)
+          - **data[].caseContent**: 案件内容 (Type: string)
+          - **data[].caseName**: 案件名称 (Type: string)
+          - **data[].caseNo**: 案号 (Type: string)
+          - **data[].caseReason**: 案由 (Type: string)
+          - **data[].pulishDate**: 发布日期 (Type: string)
+        - **status**: 请求状态 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-court-query
+    description: 企业法院公告信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyCourtInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: array)
+          - **data[].courtName**: 法庭名称 (Type: string)
+          - **data[].courtNo**: 案件编号 (Type: string)
+          - **data[].pulishDate**: 发布日期和时间 (Type: string)
+        - **status**: 请求状态 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-abnormal-query
+    description: 企业经营异常信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyAbnormalInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].iDate**:  (Type: string)
+            - **data.list[].iReason**:  (Type: string)
+            - **data.list[].oDate**:  (Type: string)
+            - **data.list[].oReason**:  (Type: string)
+            - **data.list[].orgName**:  (Type: string)
+          - **data.total**:  (Type: integer)
+        - **status**:  (Type: boolean)
+
+        ## Original Response
+
+  - name: business-financing-query
+    description: 企业融资信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyFinancingInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: array)
+          - **data[].amount**: 投资金额 (Type: string)
+          - **data[].date**: 投资日期 (Type: string)
+          - **data[].investors**: 投资者列表 (Type: string)
+          - **data[].round**: 融资轮次 (Type: string)
+        - **status**: 状态标识，true表示成功 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-debtor-query
+    description: 企业被执行人信息
+    args:
+      - name: CompanyName
+        description: 传入企业全称
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyJudgmentDebtorInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].caseMoney**: 案件金额 (Type: string)
+            - **data.list[].caseNo**: 案件编号 (Type: string)
+            - **data.list[].caseOrg**: 案件所属法院 (Type: string)
+            - **data.list[].parties**: 当事人 (Type: string)
+            - **data.list[].pulishDate**: 发布日期 (Type: string)
+          - **data.total**: 数据总数 (Type: integer)
+        - **status**: 状态标识，true表示成功 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-software-copyrights-query
+    description: 企业软件著作权信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: "当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。\t"
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanySoftwareCopyrightsInfo/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].name**: 软件名称 (Type: string)
+            - **data.list[].publishDate**: 发布日期 (Type: string)
+            - **data.list[].regNo**: 注册号 (Type: string)
+            - **data.list[].shortName**: 简称 (Type: string)
+            - **data.list[].typeNo**: 类型编号 (Type: string)
+            - **data.list[].versionNo**: 版本号 (Type: string)
+          - **data.total**: 总数量 (Type: integer)
+        - **status**: 请求状态，true表示成功 (Type: boolean)
+
+        ## Original Response
+
+  - name: business-profile-tags-query
+    description: 基于大数据对企业的画像标签信息
+    args:
+      - name: CompanyName
+        description: CompanyName
+        type: string
+        required: true
+        position: path
+      - name: isRaiseErrorCode
+        description: 当请求传入不存在企业名称时是否抛出404错误。0为否，1为是，默认为否。可以避免传入不存在企业时扣减次数。
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://api.81api.com/getCompanyProfileTags/{CompanyName}/
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**: 数据列表 (Type: array)
+          - **data[]**: Items of type string
+        - **status**: 响应状态，true表示成功 (Type: boolean)
+
+        ## Original Response
+

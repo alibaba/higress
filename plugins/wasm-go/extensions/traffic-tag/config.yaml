@@ -1,0 +1,62 @@
+apiVersion: 2.0.0
+info:
+  # 插件类型
+  type: enterprise
+  # 功能分类
+  category: traffic
+  # 插件名称
+  name: traffic-tag
+  # 国际版插件标题
+  title: traffic-tag
+  x-title-i18n:
+    # 插件标题
+    zh-CN: traffic-tag
+  # 国际版插件简介
+  description: Mark request traffic by adding specific request headers based on weight or specific request content.
+  x-description-i18n:
+    # 中文插件简介
+    zh-CN: 根据权重或特定请求内容通过添加特定请求头的方式对请求流量进行标记。
+  # 插件版本
+  version: 1.0.0
+  # 插件镜像名称
+  image: platform_wasm/traffic-tag
+  # 支持的最小网关版本
+  gatewayMinVersion: ""
+spec:
+  # 执行阶段
+  phase: default
+  # 执行优先级
+  priority: 400
+  configSchema:
+    openAPIV3Schema:
+      # 配置示例字段
+      example:
+        conditionGroups:
+          - headerName: x-mse-tag
+            headerValue: gray
+            logic: and
+            conditions:
+              - conditionType: header
+                key: role
+                operator: not_in
+                value:
+                  - user
+                  - viewer
+                  - editor
+  routeConfigSchema:
+    openAPIV3Schema:
+      # 域名/路由级配置示例字段
+      example:
+        conditionGroups:
+          - headerName: x-mse-tag
+            headerValue: gray
+            logic: and
+            conditions:
+              - conditionType: header
+                key: role
+                operator: not_in
+                value:
+                  - user
+                  - viewer
+                  - editor
+       

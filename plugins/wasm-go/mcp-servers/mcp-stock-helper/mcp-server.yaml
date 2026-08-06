@@ -1,0 +1,1164 @@
+server:
+  name: stock-helper
+  config:
+    appCode: ""
+tools:
+  - name: china-stock-candlestick
+    description: 中国A股K线查询
+    args:
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: ma
+        description: 返回ma均线，可选值为：5,10,15,20,25,30，可不传
+        type: string
+        position: body
+      - name: symbol
+        description: 股票代码，交易所标识需要小写后放在数字之前
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: k线类型， 1:1分钟，5：五分钟；15：15分钟；30:30分钟，60:60分钟，120:120分钟，240:日K，1200:周K，7200:月K，86400:年K
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/a-shares-kline
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].amount**:  (Type: string)
+            - **data.list[].close**: 当前收盘价 (Type: string)
+            - **data.list[].day**: 数据时间 (Type: string)
+            - **data.list[].high**: 当前最高价 (Type: string)
+            - **data.list[].low**: 当前最低价 (Type: string)
+            - **data.list[].ma_price5**: 5条均价 (Type: number)
+            - **data.list[].ma_volume5**: 5条均成交量正常返回示例 (Type: integer)
+            - **data.list[].open**: 当前开盘价 (Type: string)
+            - **data.list[].volume**: 当前成交数 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-stock-candlestick-restoration
+    description: 中国A股K线复权查询
+    args:
+      - name: fuquan
+        description: 复权状态，0不复权，1前复权，2后复权
+        type: string
+        required: true
+        position: body
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: symbol
+        description: 股票代码，交易所标识需要小写后放在数字之前
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: 1:1分钟K线;5:5分钟K线;15:15分钟K线; 30:30分钟K线;60:60分钟K线;101:日K线;102:周K线;103:月K线; 104:季度K线;105:半年K线;106:年K线
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/a-kline-restoration
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].change**: 涨跌额 (Type: number)
+            - **data.list[].changeRate**: 涨跌率 (Type: number)
+            - **data.list[].close_px**: 收盘价 (Type: number)
+            - **data.list[].day**: 数据时间，具体到分钟 (Type: string)
+            - **data.list[].high_px**: 最高价 (Type: number)
+            - **data.list[].low_px**: 最低价 (Type: number)
+            - **data.list[].open**: 开盘价 (Type: number)
+            - **data.list[].value**: 成交额 (Type: integer)
+            - **data.list[].volume**: 成交量 (Type: integer)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-stock-price
+    description: 中国A股报价查询
+    args:
+      - name: symbol
+        description: 股票代码，以英文逗号分割，交易所标识需要小写后放在数字之前
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/a-shares-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.sh688193**:  (Type: object)
+            - **data.sh688193.ask**:  (Type: string)
+            - **data.sh688193.ask1**: 卖1价 (Type: string)
+            - **data.sh688193.ask1_vol**: 卖1量 (Type: string)
+            - **data.sh688193.ask2**: 卖2价 (Type: string)
+            - **data.sh688193.ask2_vol**: 卖2量 (Type: string)
+            - **data.sh688193.ask3**: 卖3价 (Type: string)
+            - **data.sh688193.ask3_vol**: 卖3量 (Type: string)
+            - **data.sh688193.ask4**: 卖4价 (Type: string)
+            - **data.sh688193.ask4_vol**: 卖4量 (Type: string)
+            - **data.sh688193.ask5**: 卖5价 (Type: string)
+            - **data.sh688193.ask5_vol**: 卖5量 (Type: string)
+            - **data.sh688193.bid**:  (Type: string)
+            - **data.sh688193.bid1**: 买1价 (Type: string)
+            - **data.sh688193.bid1_vol**: 买1量 (Type: string)
+            - **data.sh688193.bid2**: 买2价 (Type: string)
+            - **data.sh688193.bid2_vol**: 买2量 (Type: string)
+            - **data.sh688193.bid3**: 买3价 (Type: string)
+            - **data.sh688193.bid3_vol**: 买3量 (Type: string)
+            - **data.sh688193.bid4**: 买4价 (Type: string)
+            - **data.sh688193.bid4_vol**: 买4量 (Type: string)
+            - **data.sh688193.bid5**: 买5价 (Type: string)
+            - **data.sh688193.bid5_vol**: 买5量 (Type: string)
+            - **data.sh688193.change**: 涨跌额 (Type: string)
+            - **data.sh688193.changeRate**: 涨跌率 (Type: string)
+            - **data.sh688193.high**: 今日最高价 (Type: string)
+            - **data.sh688193.low**: 今日最低价 (Type: string)
+            - **data.sh688193.name**: 品种名称 (Type: string)
+            - **data.sh688193.open**: 今日开盘价 (Type: string)
+            - **data.sh688193.preclose**: 昨日收盘价 (Type: string)
+            - **data.sh688193.price**: 实时价格 (Type: string)
+            - **data.sh688193.update_time**: 数据时间戳 (Type: integer)
+            - **data.sh688193.value**: 成交额 (Type: string)
+            - **data.sh688193.volume**: 成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-stock-rank
+    description: 中国A股排行查询
+    args:
+      - name: asc
+        description: 排序顺序，0 倒序（由大到小）， 1正序（由小到大），默认0
+        type: string
+        position: body
+      - name: limit
+        description: 每页条数，最大100条，默认10
+        type: string
+        position: body
+      - name: market
+        description: 市场代码，可选：hs_a 沪深A股 ，hs_b 沪深B股，hs_bjs 北交所，kcb 科创板，cyb 创业板，hs 沪深所有（AB股全包含）
+        type: string
+        required: true
+        position: body
+      - name: page
+        description: 页码，默认1
+        type: string
+        position: body
+      - name: sort
+        description: 排序字段，可选：changeRate 涨跌率排序，volume 成交量排序，value 成交额排序，amplitude 振幅排序， turnOver 换手率排序，volumeRatio 量比排序，pe 市盈率排序，pb 市净率排序，totalShare 总市值排序，changes_5m 五分钟涨跌幅排序， aov_5m 五分钟振幅排序，turnover_5m 五分钟换手率排序，changes_5d aov_5d turnover_5d 为五日数据，changes_20d aov_20d turnover_20d 为20日数据
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/a-shares-ranking
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].change**: 涨跌额 (Type: string)
+            - **data.list[].changeRate**: 涨跌率 (Type: string)
+            - **data.list[].high**: 今日最高价 (Type: string)
+            - **data.list[].low**: 今日最低价 (Type: string)
+            - **data.list[].name**: 品种名称 (Type: string)
+            - **data.list[].open**: 今日开盘价 (Type: string)
+            - **data.list[].preclose**: 昨日收盘价 (Type: string)
+            - **data.list[].price**: 实时价格 (Type: string)
+            - **data.list[].symbol**: 股票代码 (Type: string)
+            - **data.list[].update_time**: 数据时间戳 (Type: integer)
+            - **data.list[].value**: 成交额 (Type: string)
+            - **data.list[].volume**: 成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: world-index-candlestick
+    description: 全球指数K线
+    args:
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: symbol
+        description: 指数品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: k线类型， 240:日K，1200:周K，7200:月K，21600:季K，43200:半年K，86400:年K
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/global-index-kline
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].amount**: 当前成交额 (Type: string)
+            - **data.list[].close**: 当前收盘价 (Type: string)
+            - **data.list[].day**: 数据时间 (Type: string)
+            - **data.list[].high**: 当前最高价 (Type: string)
+            - **data.list[].low**: 当前最低价 (Type: string)
+            - **data.list[].open**: 当前开盘价 (Type: string)
+            - **data.list[].volume**: 当前成交数 (Type: integer)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: world-index-price
+    description: 全球指数报价
+    args:
+      - name: symbol
+        description: 指数品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/global-index-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.UKX**:  (Type: object)
+            - **data.UKX.change**: 涨跌额 (Type: string)
+            - **data.UKX.changeRate**: 涨跌率 (Type: string)
+            - **data.UKX.high**: 今日最高价 (Type: string)
+            - **data.UKX.low**: 今日最低价 (Type: string)
+            - **data.UKX.name**: 品种名称 (Type: string)
+            - **data.UKX.open**: 今日开盘价 (Type: string)
+            - **data.UKX.preclose**: 昨日收盘价 (Type: string)
+            - **data.UKX.price**: 实时价格 (Type: string)
+            - **data.UKX.update_time**: 数据时间戳 (Type: integer)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-futures-candlestick
+    description: 中国内盘期货K线
+    args:
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: symbol
+        description: 期货品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: k线类型，0:日k，1:1分钟，5：五分钟；30:30分钟，60:60分钟，120:120分钟，240:240分钟
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/internal-futures-kline
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.fields**: open - 开盘价
+        close - 收盘价
+        high - 最高价
+        low - 最低价
+        change - 涨跌额，注意此处行业内计算方式有三种，1、收盘价-开盘价(本接口采用)，2、收盘价-上个收盘价，3、收盘价-上个结算价
+        changeRate - 涨跌率，注意此处行业内计算方式有三种，1、(收盘价-开盘价)*100/开盘价(本接口采用)，2、(收盘价-上个收盘价)*100/上个收盘价，3、(收盘价-上个结算价)*100/上个结算价
+        volume - 成交数
+        tick_at - 数据时间戳
+         (Type: array)
+            - **data.fields[]**: Items of type string
+          - **data.lines**:  (Type: array)
+            - **data.lines[]**: Items of type array
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: chinna-futures-contract
+    description: 中国内盘期货合约
+    args:
+      - name: symbol
+        description: 期货品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/internal-futures-contract
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].name**:  (Type: string)
+            - **data.list[].symbol**:  (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-futures-price
+    description: 中国内盘期货报价
+    args:
+      - name: symbol
+        description: 期货品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/internal-futures-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.ask**:  (Type: string)
+          - **data.ask1**: 卖1价 (Type: string)
+          - **data.ask1_vol**: 卖1量 (Type: string)
+          - **data.ask2**: 卖2价 (Type: string)
+          - **data.ask2_vol**: 卖2量 (Type: string)
+          - **data.ask3**: 卖3价 (Type: string)
+          - **data.ask3_vol**: 卖3量 (Type: string)
+          - **data.ask4**: 卖4价 (Type: string)
+          - **data.ask4_vol**: 卖4量 (Type: string)
+          - **data.ask5**: 卖5价 (Type: string)
+          - **data.ask5_vol**: 卖5量 (Type: string)
+          - **data.ask_vol**:  (Type: string)
+          - **data.avg_px**: 均价 (Type: string)
+          - **data.bid**:  (Type: string)
+          - **data.bid1**: 买1价 (Type: string)
+          - **data.bid1_vol**: 买1量 (Type: string)
+          - **data.bid2**: 买2价 (Type: string)
+          - **data.bid2_vol**: 买2量 (Type: string)
+          - **data.bid3**: 买3价 (Type: string)
+          - **data.bid3_vol**: 买3量 (Type: string)
+          - **data.bid4**: 买4价 (Type: string)
+          - **data.bid4_vol**: 买4量 (Type: string)
+          - **data.bid5**: 买5价 (Type: string)
+          - **data.bid5_vol**: 买5量 (Type: string)
+          - **data.bid_vol**:  (Type: string)
+          - **data.change**: 涨跌额 (Type: string)
+          - **data.changeRate**: 涨跌率 (Type: string)
+          - **data.high**: 今日最高价 (Type: string)
+          - **data.hold**: 持仓量 (Type: string)
+          - **data.low**: 今日最低价 (Type: string)
+          - **data.name**: 品种名称 (Type: string)
+          - **data.open**: 今日开盘价 (Type: string)
+          - **data.presettle**: 昨日结算价 (Type: string)
+          - **data.price**: 实时价格 (Type: string)
+          - **data.settle**:  (Type: string)
+          - **data.update_time**: 数据时间戳 (Type: integer)
+          - **data.volume**: 成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: world-forex-candlestick
+    description: 外汇K线
+    args:
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: symbol
+        description: 外汇品种代码
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: k线类型，0:日k，1:1分钟，5：五分钟；15：十五分钟；30:30分钟，60:60分钟，120:120分钟，240:240分钟
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/foreign-exchange-kline
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.fields**:  (Type: array)
+            - **data.fields[]**: Items of type string
+          - **data.lines**:  (Type: array)
+            - **data.lines[]**: Items of type array
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: world-forex-price
+    description: 外汇报价
+    args:
+      - name: symbol
+        description: 外汇品种代码
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/foreign-exchange-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.CNYRUB**:  (Type: object)
+          - **data.FXINDEX**:  (Type: object)
+            - **data.FXINDEX.ask**: 卖价 (Type: string)
+            - **data.FXINDEX.bid**: 买价 (Type: string)
+            - **data.FXINDEX.bofu**: 波幅 (Type: string)
+            - **data.FXINDEX.change**: 涨跌额 (Type: string)
+            - **data.FXINDEX.changeRate**: 涨跌率 (Type: string)
+            - **data.FXINDEX.high**: 今日最高价 (Type: string)
+            - **data.FXINDEX.low**: 今日最低价 (Type: string)
+            - **data.FXINDEX.name**: 品种名称 (Type: string)
+            - **data.FXINDEX.open**: 今日开盘价 (Type: string)
+            - **data.FXINDEX.preclose**: 昨日收盘价 (Type: string)
+            - **data.FXINDEX.price**: 实时价格 (Type: string)
+            - **data.FXINDEX.update_time**: 数据时间戳 (Type: integer)
+            - **data.FXINDEX.zhenfu**: 振幅 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: world-forex-futures-candlestick
+    description: 外盘期货K线
+    args:
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: symbol
+        description: 期货品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: k线类型，0:日k，1:1分钟，5：五分钟；30:30分钟，60:60分钟，120:120分钟，240:240分钟
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/external-futures-kline
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.fields**:  (Type: array)
+            - **data.fields[]**: Items of type string
+          - **data.lines**:  (Type: array)
+            - **data.lines[]**: Items of type array
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: world-futures-contract
+    description: 外盘期货合约
+    args:
+      - name: symbol
+        description: 期货品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/external-futures-contract
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[]**: Items of type string
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: world-forex-futures-price
+    description: 外盘期货报价
+    args:
+      - name: symbol
+        description: 期货品种代码，详见代码表
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/external-futures-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.ask**: 卖价 (Type: string)
+          - **data.ask_vol**: 卖量 (Type: string)
+          - **data.bid**: 买价 (Type: string)
+          - **data.bid_vol**: 买量 (Type: string)
+          - **data.change**: 涨跌额 (Type: string)
+          - **data.changeRate**: 涨跌率 (Type: string)
+          - **data.high**: 最高价 (Type: string)
+          - **data.hold**: 持仓量 (Type: string)
+          - **data.low**: 最低价 (Type: string)
+          - **data.name**: 品种名称 (Type: string)
+          - **data.open**: 开盘价 (Type: string)
+          - **data.preclose**: 昨日收盘价 (Type: string)
+          - **data.price**: 实时价格 (Type: string)
+          - **data.update_time**: 数据时间戳 (Type: integer)
+          - **data.volume**: 成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-hongkong-candlestick
+    description: 中国港股K线
+    args:
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: symbol
+        description: 股票代码
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: k线类型， 1:1分钟，5：五分钟；15：15分钟；30:30分钟，60:60分钟，120:120分钟，240:日K，1200:周K，7200:月K，21600:季K，43200:半年K，86400:年K
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/hk-stocks-kline
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].amount**: 当前成交额 (Type: string)
+            - **data.list[].close**: 当前收盘价 (Type: string)
+            - **data.list[].day**: 数据时间 (Type: string)
+            - **data.list[].high**: 当前最高价 (Type: string)
+            - **data.list[].low**: 当前最低价 (Type: string)
+            - **data.list[].open**: 当前开盘价 (Type: string)
+            - **data.list[].volume**: 当前成交数 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-hongkong-price
+    description: 中国港股报价
+    args:
+      - name: symbol
+        description: 股票代码，以英文逗号分割，如：08026,02203
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/hk-stocks-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.02203**:  (Type: object)
+          - **data.08026**:  (Type: object)
+            - **data.08026.52week_high**: 52周最高价 (Type: string)
+            - **data.08026.52week_low**: 52周最低价 (Type: string)
+            - **data.08026.ask**: 卖价 (Type: string)
+            - **data.08026.bid**: 买价 (Type: string)
+            - **data.08026.change**: 涨跌额 (Type: string)
+            - **data.08026.changeRate**: 涨跌率 (Type: string)
+            - **data.08026.enname**: 英文缩写 (Type: string)
+            - **data.08026.high**: 今日最高价 (Type: string)
+            - **data.08026.low**: 今日最低价 (Type: string)
+            - **data.08026.name**: 品种名称 (Type: string)
+            - **data.08026.open**: 今日开盘价 (Type: string)
+            - **data.08026.pe**: 市盈率 (Type: string)
+            - **data.08026.preclose**: 昨日收盘价 (Type: string)
+            - **data.08026.price**: 实时价格 (Type: string)
+            - **data.08026.update_time**: 数据时间戳 (Type: integer)
+            - **data.08026.value**: 成交额 (Type: string)
+            - **data.08026.volume**: 成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: china-hongkong-ranking
+    description: 中国港股排行
+    args:
+      - name: asc
+        description: 排序顺序，0 倒序（由大到小）， 1正序（由小到大），默认0
+        type: string
+        position: body
+      - name: limit
+        description: 每页条数，最大100条，默认10
+        type: string
+        position: body
+      - name: page
+        description: 页码，默认1
+        type: string
+        position: body
+      - name: sort
+        description: 排序字段，目前仅支持：changeRate 涨跌率排序
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/hk-shares-ranking
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].52week_high**: 52周最高价 (Type: string)
+            - **data.list[].52week_low**: 52周最低价 (Type: string)
+            - **data.list[].ask**: 卖价 (Type: string)
+            - **data.list[].bid**: 买价 (Type: string)
+            - **data.list[].change**: 涨跌额 (Type: string)
+            - **data.list[].changeRate**: 涨跌率 (Type: string)
+            - **data.list[].dividend**: 股息率 (Type: string)
+            - **data.list[].eps**: 每股收益 (Type: string)
+            - **data.list[].high**: 今日最高价 (Type: string)
+            - **data.list[].low**: 今日最低价 (Type: string)
+            - **data.list[].market_value**: 总市值 (Type: string)
+            - **data.list[].name**: 品种名称 (Type: string)
+            - **data.list[].open**: 今日开盘价 (Type: string)
+            - **data.list[].pe**: 市盈率 (Type: string)
+            - **data.list[].preclose**: 昨日收盘价 (Type: string)
+            - **data.list[].price**: 实时价格 (Type: string)
+            - **data.list[].shares**: 总股本 (Type: string)
+            - **data.list[].symbol**: 股票代码 (Type: string)
+            - **data.list[].update_time**: 数据时间戳 (Type: integer)
+            - **data.list[].value**: 成交额 (Type: string)
+            - **data.list[].volume**: 成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: america-stock-candlestick
+    description: 美股K线
+    args:
+      - name: limit
+        description: 返回条数，默认10
+        type: string
+        position: body
+      - name: symbol
+        description: 股票代码
+        type: string
+        required: true
+        position: body
+      - name: type
+        description: k线类型， 1:1分钟，5：五分钟；15：15分钟；30:30分钟，60:60分钟，120:120分钟，240:日K，1200:周K，7200:月K，21600:季K，43200:半年K，86400:年K
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/us-shares-kline
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].amount**: 当前成交额正常返回示例 (Type: integer)
+            - **data.list[].close**: 当前收盘价 (Type: string)
+            - **data.list[].day**: 数据时间 (Type: string)
+            - **data.list[].high**: 当前最高价 (Type: string)
+            - **data.list[].low**: 当前最低价 (Type: string)
+            - **data.list[].open**: 当前开盘价 (Type: string)
+            - **data.list[].volume**: 当前成交数 (Type: integer)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: america-stock-price
+    description: 美股报价
+    args:
+      - name: symbol
+        description: 股票代码，以英文逗号分割
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/us-shares-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.AAPL**:  (Type: object)
+            - **data.AAPL.52week_high**: 52周最高价 (Type: string)
+            - **data.AAPL.52week_low**: 52周最低价 (Type: string)
+            - **data.AAPL.after_change**: 盘后涨跌额 (Type: string)
+            - **data.AAPL.after_changeRate**: 盘后涨跌率 (Type: string)
+            - **data.AAPL.after_price**: 盘后价格 (Type: string)
+            - **data.AAPL.after_time**: 盘后数据时间 (Type: string)
+            - **data.AAPL.after_volume**: 盘后成交量 (Type: string)
+            - **data.AAPL.change**: 涨跌额 (Type: string)
+            - **data.AAPL.changeRate**: 涨跌率 (Type: string)
+            - **data.AAPL.dividend**: 股息率 (Type: string)
+            - **data.AAPL.eps**: 每股收益 (Type: string)
+            - **data.AAPL.high**: 今日最高价 (Type: string)
+            - **data.AAPL.low**: 今日最低价 (Type: string)
+            - **data.AAPL.market_value**: 总市值 (Type: string)
+            - **data.AAPL.name**: 品种名称 (Type: string)
+            - **data.AAPL.open**: 今日开盘价 (Type: string)
+            - **data.AAPL.pe**: 市盈率 (Type: string)
+            - **data.AAPL.preclose**: 昨日收盘价 (Type: string)
+            - **data.AAPL.price**: 实时价格 (Type: string)
+            - **data.AAPL.shares**: 总股本 (Type: string)
+            - **data.AAPL.trade_time**: 交易时间 (Type: string)
+            - **data.AAPL.update_time**: 数据时间 (Type: string)
+            - **data.AAPL.volume**: 成交量 (Type: string)
+            - **data.AAPL.volume_avg10**: 10日平均成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: america-stock-ranking
+    description: 美股排行
+    args:
+      - name: asc
+        description: 排序顺序，0 倒序（由大到小）， 1正序（由小到大），默认0
+        type: string
+        position: body
+      - name: limit
+        description: 每页条数，最大100条，默认10
+        type: string
+        position: body
+      - name: market
+        description: 市场代码，可选：all 全部美股 ，tech 科技股，china 中概股，star 明星股
+        type: string
+        required: true
+        position: body
+      - name: page
+        description: 页码，默认1
+        type: string
+        position: body
+      - name: sort
+        description: 排序字段，可选：changeRate 涨跌率排序，volume 成交量排序，value 成交额排序 ， totalShare 总市值排序
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jmqqgphqcx.market.alicloudapi.com/finance/us-shares-ranking
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].change**: 涨跌额 (Type: string)
+            - **data.list[].changeRate**: 涨跌率 (Type: string)
+            - **data.list[].high**: 今日最高价 (Type: string)
+            - **data.list[].low**: 今日最低价 (Type: string)
+            - **data.list[].name**: 品种名称 (Type: string)
+            - **data.list[].open**: 今日开盘价 (Type: string)
+            - **data.list[].preclose**: 昨日收盘价 (Type: string)
+            - **data.list[].price**: 实时价格 (Type: string)
+            - **data.list[].symbol**: 股票代码 (Type: string)
+            - **data.list[].totalShare**:  (Type: string)
+            - **data.list[].value**: 成交额 (Type: string)
+            - **data.list[].volume**: 成交量 (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+

@@ -1,0 +1,70 @@
+server:
+  name: deadbeat-query
+  config:
+    appCode: ""
+tools:
+  - name: deadbeat-query
+    description: 根据姓名、身份证号和手机号返回个人失信被执行情况
+    args:
+      - name: idcard_number
+        description: 身份证号
+        type: string
+        required: true
+        position: body
+      - name: mobile_number
+        description: 手机号
+        type: string
+        required: true
+        position: body
+      - name: name
+        description: 姓名
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jumjokk.market.alicloudapi.com/personal/disenforcement
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.caseCount**:  (Type: integer)
+          - **data.caseList**:  (Type: array)
+            - **data.caseList[].age**: 年龄 (Type: string)
+            - **data.caseList[].areaname**: 地域名称 (Type: string)
+            - **data.caseList[].buesinessentity**: 企业法人姓名 (Type: string)
+            - **data.caseList[].casecode**: 案号 (Type: string)
+            - **data.caseList[].courtname**: 执行法院 (Type: string)
+            - **data.caseList[].datatype**: 数据类型 (Type: string)
+            - **data.caseList[].gistcid**: 执行依据文号 (Type: string)
+            - **data.caseList[].iname**: 失信被执行人姓名 (Type: string)
+            - **data.caseList[].partytypename**: 标识自然人或企业法人,取值范围：空：未表明是自然人或企业，0:自然人,1:企业 (Type: string)
+            - **data.caseList[].publishdate**: 发布时间 YYYY-MM-DD (Type: string)
+            - **data.caseList[].regdate**: 立案时间 YYYY-MM-DD (Type: string)
+            - **data.caseList[].sexname**: 性别 (Type: string)
+            - **data.caseList[].sign**: 下架标识，0为已下架,1/空/其他均为未下架 (Type: string)
+            - **data.caseList[].signalDesc**: 信号描述，对应信号等级内容详情 (Type: string)
+            - **data.caseList[].signalRating**: 信号等级，返回1、2、3、4、5、6、7；1为风险最高，7为风险最低 (Type: string)
+        - **msg**:  (Type: string)
+        - **taskNo**:  (Type: string)
+
+        ## Original Response
+

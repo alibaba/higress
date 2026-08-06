@@ -1,0 +1,143 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# higress-same-host-and-path-01 and -02: to test same header key and different header value
+# higress-same-host-and-path-03 and -04: to test route match precedence (04 > 03)
+# higress-same-host-and-path-01 and -04: to test same header key and value but different order
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    # exact matching
+    higress.io/exact-match-header-abc: "123"
+    higress.io/exact-match-header-def: "456"
+  name: higress-same-host-and-path-01
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+  - http:
+      paths:
+      - pathType: Prefix
+        path: "/hello-world"
+        backend:
+          service:
+            name: infra-backend-v1
+            port:
+              number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    # exact matching
+    higress.io/exact-match-header-abc: "123"
+    higress.io/exact-match-header-def: "def"
+  name: higress-same-host-and-path-02
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - pathType: Prefix
+            path: "/hello-world"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    # exact matching
+    higress.io/exact-match-header-abc: "123"
+  name: higress-same-host-and-path-03
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - pathType: Prefix
+            path: "/hello-world"
+            backend:
+              service:
+                name: infra-backend-v3
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    # exact matching
+    higress.io/exact-match-header-def: "456"
+    higress.io/exact-match-header-abc: "123"
+  name: higress-same-host-and-path-04
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - pathType: Prefix
+            path: "/hello-world"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: higress-same-host-and-path-05
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    # exact matching
+    higress.io/exact-match-header-abc: "123"
+  name: higress-same-host-and-path-06
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v2
+                port:
+                  number: 8080

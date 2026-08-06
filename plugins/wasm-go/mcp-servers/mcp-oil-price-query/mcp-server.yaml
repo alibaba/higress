@@ -1,0 +1,53 @@
+server:
+  name: oil-price-query
+  config:
+    appCode: ""
+tools:
+  - name: today-oil-price
+    description: 今日油价
+    args:
+      - name: prov
+        description: 省份，如北京，广西
+        type: string
+        position: query
+    requestTemplate:
+      url: https://smjryjcx.market.alicloudapi.com/oil/price
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.list**:  (Type: array)
+            - **data.list[].ct**: 更新时间 (Type: string)
+            - **data.list[].p0**: 0号油价格 (Type: string)
+            - **data.list[].p89**: 89号油价格 (Type: string)
+            - **data.list[].p90**: 90号油价格 (Type: string)
+            - **data.list[].p92**: 92号油价格 (Type: string)
+            - **data.list[].p93**: 93号油价格 (Type: string)
+            - **data.list[].p95**: 95号油价格 (Type: string)
+            - **data.list[].p97**: 97号油价格 (Type: string)
+            - **data.list[].p98**: 98号油价格 (Type: string)
+            - **data.list[].prov**: 省份 (Type: string)
+          - **data.orderNo**: 订单号 (Type: string)
+          - **data.ret_code**: 返回码，0表示成功，其他表示失败 (Type: integer)
+        - **msg**: 响应消息 (Type: string)
+        - **success**: 是否成功 (Type: boolean)
+
+        ## Original Response
+

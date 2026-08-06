@@ -1,0 +1,51 @@
+from typing import Literal
+from agentscope.agent import ReActAgent
+from agentscope.formatter import FormatterBase
+from agentscope.memory import LongTermMemoryBase, MemoryBase
+from agentscope.model import ChatModelBase
+from agentscope.plan import PlanNotebook
+from agentscope.rag import KnowledgeBase
+from agentscope.tool import Toolkit
+from agentscope.tts import TTSModelBase
+
+
+class Agent(ReActAgent):
+    def __init__(
+        self,
+        name: str,
+        sys_prompt: str,
+        model: ChatModelBase,
+        formatter: FormatterBase,
+        toolkit: Toolkit | None = None,
+        memory: MemoryBase | None = None,
+        long_term_memory: LongTermMemoryBase | None = None,
+        long_term_memory_mode: (
+            Literal["agent_control"] | Literal["static_control"] | Literal["both"]
+        ) = "both",
+        enable_meta_tool: bool = False,
+        parallel_tool_calls: bool = False,
+        knowledge: KnowledgeBase | list[KnowledgeBase] | None = None,
+        enable_rewrite_query: bool = True,
+        plan_notebook: PlanNotebook | None = None,
+        print_hint_msg: bool = False,
+        max_iters: int = 10,
+        tts_model: TTSModelBase | None = None,
+    ) -> None:
+        super().__init__(
+            name,
+            sys_prompt,
+            model,
+            formatter,
+            toolkit,
+            memory,
+            long_term_memory,
+            long_term_memory_mode,
+            enable_meta_tool,
+            parallel_tool_calls,
+            knowledge,
+            enable_rewrite_query,
+            plan_notebook,
+            print_hint_msg,
+            max_iters,
+            tts_model,
+        )
