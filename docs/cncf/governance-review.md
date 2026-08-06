@@ -8,10 +8,11 @@ the public review.
 
 - **Review state:** Project self-assessment approved in
   [higress-group/higress#4177](https://github.com/higress-group/higress/pull/4177);
-  public-meeting Must-Fix and CNCF Project Reviews verification pending
+  no project-side Must-Fix items remain; CNCF Project Reviews verification
+  pending
 - **Evidence branch:**
   [`higress-group/higress@main`](https://github.com/higress-group/higress/tree/main)
-- **Template verified:** 2026-08-04 against `cncf/toc` `main`
+- **Template verified:** 2026-08-06 against `cncf/toc` `main`
 - **Intended TOC snapshot:**
   `projects/higress/governance-review/YYYY-MM-DD.md`
 
@@ -22,7 +23,7 @@ snapshot is archived.
 
 ## Summary and Assessment
 
-**Status: Mostly Satisfactory**
+**Status: Satisfactory**
 
 Higress has discoverable governance, maintainer, code-owner, contribution,
 community, security, and Code of Conduct documents. The project defines
@@ -31,16 +32,15 @@ scope, vendor-neutral decisions, maintainer lifecycle, communication channels,
 and security-response roles. The maintainer list includes seven publicly active
 people affiliated with four organizations.
 
-The documentation and public evidence satisfy all Governance Review criteria
-except one Incubation-required item: Higress does not currently publish an
-up-to-date public meeting scheduler or integrate its meetings with the CNCF
-calendar. The project should establish that real public meeting infrastructure
-before asserting that the Governance Review has no remaining Must-Fix item.
+The documentation and public evidence satisfy all Incubation-required
+Governance Review criteria. Higress publishes a recurring community meeting,
+public joining information, agenda and meeting-record process, and an LFX
+public meeting scheduler.
 
 ### Executing the Assessment
 
 The self-assessment reviewed the following repository evidence as it exists on
-2026-08-04:
+2026-08-06:
 
 - [`GOVERNANCE.md`](https://github.com/higress-group/higress/blob/main/GOVERNANCE.md)
 - [`MAINTAINERS.md`](https://github.com/higress-group/higress/blob/main/MAINTAINERS.md)
@@ -48,6 +48,7 @@ The self-assessment reviewed the following repository evidence as it exists on
 - [`CONTRIBUTING_EN.md`](https://github.com/higress-group/higress/blob/main/CONTRIBUTING_EN.md)
 - [`CODE_OF_CONDUCT.md`](https://github.com/higress-group/higress/blob/main/CODE_OF_CONDUCT.md)
 - [`COMMUNITY.md`](https://github.com/higress-group/higress/blob/main/COMMUNITY.md)
+- [`MEETINGS.md`](https://github.com/higress-group/higress/blob/main/MEETINGS.md)
 - [`SECURITY.md`](https://github.com/higress-group/higress/blob/main/SECURITY.md)
 - [`README.md`](https://github.com/higress-group/higress/blob/main/README.md)
 - Git history for the governance, maintainer, and ownership files
@@ -57,11 +58,8 @@ It does not infer private processes or settings that are not publicly recorded.
 
 ### Must-Fix Items
 
-The following issues need to be resolved before the Higress Incubation
-application asserts completion of its Governance Review:
-
-1. Publish an up-to-date public meeting scheduler and/or integrate the project
-   meetings with the CNCF calendar.
+No project-side Must-Fix items remain in this self-assessment. CNCF Project
+Reviews verification and the dated `cncf/toc` snapshot remain pending.
 
 ### Points of Excellence
 
@@ -131,8 +129,8 @@ security documents from its Community section.
 
 Public issue/PR collaboration and lazy consensus are consistent with the
 repository workflow. Code-owner authority, security-team operation, and the
-absence of a current recurring public meeting are documented without claiming
-unobserved processes.
+current recurring public meeting and record process are documented without
+claiming unobserved processes.
 
 **Vendor-neutral direction — Incubating: Suggested — Satisfied.**
 
@@ -251,16 +249,17 @@ GitHub Issues, pull requests, and Discord are publicly documented.
 **All public/private channels documented — Incubating: Required — Satisfied.**
 
 `COMMUNITY.md` is the authoritative inventory for project and subproject GitHub
-channels, Discord, mailing and localized community channels, documentation,
-and narrowly scoped private security and Code of Conduct reporting. It states
-that informal or employer-internal conversations are not project decision
-channels and requires public decision records.
+channels, Discord, localized community channels, public meetings,
+documentation, and narrowly scoped private security and Code of Conduct
+reporting. It states that informal or employer-internal conversations are not
+project decision channels and requires public decision records.
 
-**Public meeting scheduler/CNCF calendar — Incubating: Required — Not
-satisfied.**
+**Public meeting scheduler/CNCF calendar — Incubating: Required — Satisfied.**
 
-No current public meeting scheduler or CNCF calendar integration is linked from
-the reviewed repository documents.
+`COMMUNITY.md` and `MEETINGS.md` publish the monthly schedule, public joining
+information, agenda and meeting-record process, and the
+[LFX public calendar](https://zoom-lfx.platform.linuxfoundation.org/meetings/higress).
+The recurring series starts on 2026-08-20 and is open without an invitation.
 
 **Contribution documentation — Incubating: Required — Satisfied.**
 

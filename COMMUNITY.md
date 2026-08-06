@@ -12,8 +12,8 @@ discussions, pull requests, or published meeting notes.
 | [GitHub Issues](https://github.com/higress-group/higress/issues) | Bug reports, feature requests, and work tracking for the primary repository |
 | [GitHub Pull Requests](https://github.com/higress-group/higress/pulls) | Public change proposals, reviews, and decision records |
 | [GitHub Discussions](https://github.com/higress-group/higress/discussions) | User questions, ideas, announcements, and longer-form community discussion |
+| [Higress Community Meeting](./MEETINGS.md) | Monthly public project updates, technical discussions, roadmap planning, and community questions; schedule and joining details are published on the [LFX public calendar](https://zoom-lfx.platform.linuxfoundation.org/meetings/higress) |
 | [Discord](https://discord.gg/tSbww9VDaM) | Public real-time user and contributor chat; decisions arising there must be recorded on GitHub |
-| [Higress mailing list](mailto:higress@googlegroups.com) | Community questions and contributor contact by email |
 | [Chinese-language community group](./README_ZH.md#%E4%BA%A4%E6%B5%81%E7%BE%A4) | Publicly advertised Chinese-language user and contributor chat |
 | [Higress WeChat Official Account](./README_ZH.md#%E6%8A%80%E6%9C%AF%E5%88%86%E4%BA%AB) | Chinese-language technical articles and project announcements; broadcast rather than a decision channel |
 | [Higress website and documentation](https://higress.cn/en/) | Published user and contributor documentation and project announcements |
@@ -49,16 +49,12 @@ non-sensitive decision and rationale must be recorded publicly.
 
 ## Community meetings
 
-Higress does not currently run a recurring public community meeting and does
-not yet have a CNCF calendar entry. Establishing an up-to-date public meeting
-scheduler and/or CNCF calendar integration is tracked as an Incubation
-readiness item in
-[`docs/cncf/governance-review.md`](./docs/cncf/governance-review.md).
-
-When a recurring meeting is established, its schedule and joining information
-will be published here and on the CNCF calendar. Agendas, notes, recordings,
-and decisions will be public, with confidential security and Code of Conduct
-matters excluded.
+The [Higress Community Meeting](./MEETINGS.md) is held on the third Thursday of
+each month from 20:00 to 21:00 Asia/Shanghai (UTC+8). Its current schedule and
+public joining information are published on the
+[LFX public calendar](https://zoom-lfx.platform.linuxfoundation.org/meetings/higress).
+The meeting document also defines the public agenda, notes, decisions, action
+items, recordings, and transcripts process.
 
 ## Contributor activity and recruitment
 

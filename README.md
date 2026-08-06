@@ -184,6 +184,9 @@ Join our Discord community! This is where you can connect with developers and ot
 
 [![discord](https://img.shields.io/discord/1364956090566971515?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/tSbww9VDaM)
 
+Join the monthly [Higress Community Meeting](./MEETINGS.md) for public project
+updates, technical discussions, roadmap planning, and community questions.
+
 The complete inventory of public and private communication channels,
 subproject channels, meeting information, and contributor activity is in
 [`COMMUNITY.md`](./COMMUNITY.md).
