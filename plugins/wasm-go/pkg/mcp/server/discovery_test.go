@@ -61,7 +61,12 @@ func TestProductionDiscoveryAndToolsListResultContracts(t *testing.T) {
 		"server":{"name":"catalog"},
 		"tools":[
 			{"name":"zeta","description":"z","requestTemplate":{"url":"/z","method":"GET"}},
-			{"name":"alpha","description":"a","requestTemplate":{"url":"/a","method":"GET"}}
+			{
+				"name":"alpha",
+				"description":"a",
+				"requestTemplate":{"url":"/a","method":"GET"},
+				"outputSchema":{"type":"object","properties":{"answer":{"type":"string"}}}
+			}
 		]
 	}`)
 	newHost := func(t *testing.T) wasmtest.TestHost {
@@ -126,6 +131,11 @@ func TestProductionDiscoveryAndToolsListResultContracts(t *testing.T) {
 		if got, want := []string{tools[0].(map[string]any)["name"].(string), tools[1].(map[string]any)["name"].(string)}, []string{"alpha", "zeta"}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("tool order = %v, want %v", got, want)
 		}
+		for _, tool := range tools {
+			if _, exists := tool.(map[string]any)["outputSchema"]; exists {
+				t.Fatalf("modern descriptor exposed unvalidated outputSchema: %#v", tool)
+			}
+		}
 	})
 
 	t.Run("proxy discovery omits unavailable tools", func(t *testing.T) {
@@ -166,6 +176,23 @@ func TestProductionDiscoveryAndToolsListResultContracts(t *testing.T) {
 			require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
 			response := host.GetLocalResponse()
 			require.NotNil(t, response)
+			var envelope struct {
+				Result struct {
+					Tools []map[string]any `json:"tools"`
+				} `json:"result"`
+			}
+			require.NoError(t, json.Unmarshal(response.Data, &envelope))
+			var alpha map[string]any
+			for _, tool := range envelope.Result.Tools {
+				if tool["name"] == "alpha" {
+					alpha = tool
+					break
+				}
+			}
+			require.NotNil(t, alpha)
+			outputSchema, ok := alpha["outputSchema"].(map[string]any)
+			require.True(t, ok, "legacy descriptor must retain outputSchema: %#v", alpha)
+			require.Equal(t, "object", outputSchema["type"])
 			for _, path := range []string{"result.resultType", "result._meta", "result.ttlMs", "result.cacheScope"} {
 				if gjson.GetBytes(response.Data, path).Exists() {
 					t.Fatalf("legacy tools/list gained %s: %s", path, response.Data)

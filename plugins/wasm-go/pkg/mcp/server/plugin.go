@@ -358,7 +358,7 @@ func computeEffectiveAllowToolsFromHeader(configAllowTools *map[string]struct{},
 	}
 }
 
-func buildToolList(server Server, effectiveAllowTools *map[string]struct{}) []map[string]any {
+func buildToolList(server Server, effectiveAllowTools *map[string]struct{}, includeOutputSchema bool) []map[string]any {
 	var listedTools []map[string]any
 	for _, entry := range snapshotTools(server) {
 		if effectiveAllowTools != nil {
@@ -371,9 +371,11 @@ func buildToolList(server Server, effectiveAllowTools *map[string]struct{}) []ma
 			"description": entry.tool.Description(),
 			"inputSchema": entry.tool.InputSchema(),
 		}
-		if toolWithSchema, ok := entry.tool.(ToolWithOutputSchema); ok {
-			if outputSchema := toolWithSchema.OutputSchema(); len(outputSchema) > 0 {
-				toolDef["outputSchema"] = outputSchema
+		if includeOutputSchema {
+			if toolWithSchema, ok := entry.tool.(ToolWithOutputSchema); ok {
+				if outputSchema := toolWithSchema.OutputSchema(); len(outputSchema) > 0 {
+					toolDef["outputSchema"] = outputSchema
+				}
 			}
 		}
 		listedTools = append(listedTools, toolDef)
@@ -619,13 +621,16 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 			// Compute effective allowTools using helper function
 			effectiveAllowTools := computeEffectiveAllowTools(allowTools)
+			request, modern := ModernRequestContext(ctx)
+			// Current direct-tool execution does not validate outputSchema. Keep the
+			// legacy descriptor contract, but do not promise it to modern clients.
+			includeOutputSchema := !modern
 			semantic := protocol.SemanticResult{
 				Value: map[string]any{
-					"tools": buildToolList(config.server, effectiveAllowTools),
+					"tools": buildToolList(config.server, effectiveAllowTools, includeOutputSchema),
 				},
 				ResultType: resultTypeComplete,
 			}
-			request, _ := ModernRequestContext(ctx)
 			utils.OnMCPResponseSuccess(ctx, ShapeResult(request, currentServerNameForHandlers, semantic), fmt.Sprintf("mcp:%s:tools/list", currentServerNameForHandlers))
 			return nil
 		}
