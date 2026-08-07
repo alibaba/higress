@@ -35,9 +35,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryCount): "1",
 			},
 			expect: &RetryConfig{
-				retryCount:      1,
-				retryOn:         "5xx",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 1,
+				retryOn:    "5xx",
 			},
 		},
 		{
@@ -58,9 +57,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryOn):    "off",
 			},
 			expect: &RetryConfig{
-				retryCount:      0,
-				retryOn:         "5xx",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 0,
+				retryOn:    "5xx",
 			},
 		},
 		{
@@ -69,9 +67,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryOn):    "error,timeout",
 			},
 			expect: &RetryConfig{
-				retryCount:      2,
-				retryOn:         "5xx",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 2,
+				retryOn:    "5xx",
 			},
 		},
 		{
@@ -80,9 +77,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryOn):    "error  timeout",
 			},
 			expect: &RetryConfig{
-				retryCount:      2,
-				retryOn:         "5xx",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 2,
+				retryOn:    "5xx",
 			},
 		},
 		{
@@ -90,9 +86,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryOn): "timeout,non_idempotent",
 			},
 			expect: &RetryConfig{
-				retryCount:      3,
-				retryOn:         "5xx,non_idempotent",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 3,
+				retryOn:    "5xx,non_idempotent",
 			},
 		},
 		{
@@ -100,9 +95,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryOn): "timeout non_idempotent",
 			},
 			expect: &RetryConfig{
-				retryCount:      3,
-				retryOn:         "5xx,non_idempotent",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 3,
+				retryOn:    "5xx,non_idempotent",
 			},
 		},
 		{
@@ -110,9 +104,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryOn): "timeout,http_503,http_502,http_404",
 			},
 			expect: &RetryConfig{
-				retryCount:      3,
-				retryOn:         "5xx,retriable-status-codes,503,502,404",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 3,
+				retryOn:    "5xx,retriable-status-codes,503,502,404",
 			},
 		},
 		{
@@ -120,9 +113,8 @@ func TestRetryParse(t *testing.T) {
 				buildNginxAnnotationKey(retryOn): "timeout http_503  http_502 http_404",
 			},
 			expect: &RetryConfig{
-				retryCount:      3,
-				retryOn:         "5xx,retriable-status-codes,503,502,404",
-				perRetryTimeout: &duration.Duration{},
+				retryCount: 3,
+				retryOn:    "5xx,retriable-status-codes,503,502,404",
 			},
 		},
 	}
@@ -160,6 +152,27 @@ func TestRetryApplyRoute(t *testing.T) {
 				Retries: &networking.HTTPRetry{
 					Attempts: 3,
 					RetryOn:  "test",
+				},
+			},
+		},
+		{
+			config: &Ingress{
+				Retry: &RetryConfig{
+					retryCount: 3,
+					perRetryTimeout: &duration.Duration{
+						Seconds: 10,
+					},
+					retryOn: "test",
+				},
+			},
+			input: &networking.HTTPRoute{},
+			expect: &networking.HTTPRoute{
+				Retries: &networking.HTTPRetry{
+					Attempts: 3,
+					PerTryTimeout: &duration.Duration{
+						Seconds: 10,
+					},
+					RetryOn: "test",
 				},
 			},
 		},

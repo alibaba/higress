@@ -50,9 +50,8 @@ func (r retry) Parse(annotations Annotations, config *Ingress, _ *GlobalContext)
 	}
 
 	retryConfig := &RetryConfig{
-		retryCount:      defaultRetryCount,
-		perRetryTimeout: &duration.Duration{},
-		retryOn:         defaultRetryOn,
+		retryCount: defaultRetryCount,
+		retryOn:    defaultRetryOn,
 	}
 	defer func() {
 		config.Retry = retryConfig
