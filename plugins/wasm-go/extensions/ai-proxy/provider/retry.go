@@ -7,14 +7,15 @@ import (
 	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/gjson"
 )
 
 const (
-	ctxRetryCount = "retryCount"
+	ctxRetryCount              = "retryCount"
+	defaultRetryFailureTimeout = 30 * 1000
 )
 
 type retryOnFailure struct {
@@ -36,7 +37,7 @@ func (r *retryOnFailure) FromJson(json gjson.Result) {
 	}
 	r.retryTimeout = json.Get("retryTimeout").Int()
 	if r.retryTimeout == 0 {
-		r.retryTimeout = 60 * 1000
+		r.retryTimeout = defaultRetryFailureTimeout
 	}
 	for _, status := range json.Get("retryOnStatus").Array() {
 		r.retryOnStatus = append(r.retryOnStatus, status.String())
