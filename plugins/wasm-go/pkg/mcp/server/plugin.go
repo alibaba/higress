@@ -160,6 +160,7 @@ type ToolInfo struct {
 	Description  string
 	InputSchema  map[string]any
 	OutputSchema map[string]any // New field for MCP Protocol Version 2025-06-18
+	LegacyOnly   bool           // Explicitly unavailable to modern direct-tool profiles
 	ServerName   string         // Original server name
 	Tool         Tool           // The actual tool instance for cloning
 }
@@ -190,6 +191,9 @@ func (r *GlobalToolRegistry) RegisterTool(serverName string, toolName string, to
 	// Check if tool implements OutputSchema (MCP Protocol Version 2025-06-18)
 	if toolWithSchema, ok := tool.(ToolWithOutputSchema); ok {
 		toolInfo.OutputSchema = toolWithSchema.OutputSchema()
+	}
+	if compatibility, ok := tool.(legacySchemaCompatibleTool); ok {
+		toolInfo.LegacyOnly = compatibility.legacyOnlyInputSchema()
 	}
 	r.serverTools[serverName][toolName] = toolInfo
 	log.Debugf("Registered tool %s/%s", serverName, toolName)

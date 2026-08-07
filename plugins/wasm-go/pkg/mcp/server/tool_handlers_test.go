@@ -377,6 +377,46 @@ func TestDirectToolSnapshotsKeepProfileCompatibleDescriptors(t *testing.T) {
 	}
 }
 
+func TestComposedSnapshotPreservesLegacyOnlyRESTCompatibility(t *testing.T) {
+	rest := NewRestMCPServer("rest")
+	require.NoError(t, rest.AddRestTool(RestTool{
+		Name:        "legacy",
+		Description: "legacy",
+		LegacyOnly:  true,
+		Args: []RestToolArg{{
+			Name:        "value",
+			Description: "value",
+			Type:        "array",
+			Items:       map[string]any{"oneOf": []any{}},
+		}},
+		RequestTemplate: RestToolRequestTemplate{URL: "/legacy", Method: "POST"},
+	}))
+	registry := &GlobalToolRegistry{}
+	registry.Initialize()
+	registry.RegisterTool("rest", "legacy", rest.GetMCPTools()["legacy"])
+
+	config := &McpServerConfig{}
+	require.NoError(t, ParseConfigCore(gjson.Parse(`{
+		"toolSet":{"name":"composed","serverTools":[{"serverName":"rest","tools":["legacy"]}]}
+	}`), config, &ConfigOptions{Servers: map[string]Server{}, ToolRegistry: registry}))
+	assert.True(t, config.isComposed)
+	assert.Empty(t, config.directTools.buildModernToolList(nil))
+	assert.Contains(t, config.directTools.legacyOnly["rest___legacy"], `unsupported schema keyword "oneOf"`)
+	assert.False(t, modernMethodPolicy(*config, "tools/call").Available)
+
+	legacy := buildToolList(config.server, nil, true)
+	require.Len(t, legacy, 1)
+	assert.Equal(t, "rest___legacy", legacy[0]["name"])
+	inputSchema := legacy[0]["inputSchema"].(map[string]any)
+	items := inputSchema["properties"].(map[string]any)["value"].(map[string]any)["items"].(map[string]any)
+	assert.Contains(t, items, "oneOf", "legacy descriptor must retain unsupported schema semantics")
+
+	clonedSnapshot, err := compileDirectToolSnapshot(config.server.Clone())
+	require.NoError(t, err)
+	assert.Empty(t, clonedSnapshot.buildModernToolList(nil))
+	assert.Contains(t, clonedSnapshot.legacyOnly, "rest___legacy")
+}
+
 func TestDirectToolSchemasAreRejectedBeforeServing(t *testing.T) {
 	unsupported := map[string]any{
 		"type":  "object",

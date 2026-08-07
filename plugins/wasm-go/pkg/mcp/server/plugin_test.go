@@ -189,6 +189,28 @@ func TestGlobalToolRegistry_RegisterTool_PlainToolHasNoOutputSchema(t *testing.T
 	assert.Nil(t, info.OutputSchema)
 }
 
+func TestGlobalToolRegistry_RegisterTool_CapturesLegacyOnlyCompatibility(t *testing.T) {
+	r := &GlobalToolRegistry{}
+	r.Initialize()
+	r.RegisterTool("rest", "legacy", &RestMCPTool{
+		name: "legacy",
+		toolConfig: RestTool{
+			Name:        "legacy",
+			Description: "legacy",
+			LegacyOnly:  true,
+			Args: []RestToolArg{{
+				Name:  "value",
+				Type:  "array",
+				Items: map[string]any{"oneOf": []any{}},
+			}},
+		},
+	})
+
+	info, ok := r.GetToolInfo("rest", "legacy")
+	require.True(t, ok)
+	assert.True(t, info.LegacyOnly)
+}
+
 func TestGlobalToolRegistry_GetToolInfo_Misses(t *testing.T) {
 	r := &GlobalToolRegistry{}
 	r.Initialize()
