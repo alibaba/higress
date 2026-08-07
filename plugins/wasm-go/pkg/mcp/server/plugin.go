@@ -278,6 +278,7 @@ type McpServerConfig struct {
 	methodHandlers utils.MethodHandlers
 	toolSet        *ToolSetConfig // Parsed toolset configuration
 	isComposed     bool
+	directTools    directToolSnapshot
 }
 
 // GetServerName returns the server name for external access
@@ -516,7 +517,12 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				if serverInstance, exist := opts.Servers[config.serverName]; exist {
 					clonedServer := serverInstance.Clone()
 					clonedServer.SetConfig([]byte(serverConfigJsonForInstance)) // Pass the server's specific config
+					directTools, err := compileDirectToolSnapshot(clonedServer)
+					if err != nil {
+						return err
+					}
 					config.server = clonedServer
+					config.directTools = directTools
 					// Register tools from this server to registry
 					for toolName, toolInstance := range clonedServer.GetMCPTools() {
 						opts.ToolRegistry.RegisterTool(config.serverName, toolName, toolInstance)
@@ -528,6 +534,19 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		}
 	} else {
 		return errors.New("either 'server' or 'toolSet' field must be present in the configuration")
+	}
+
+	// Proxy descriptors remain upstream-owned and transparent. Direct tools use
+	// one compiled snapshot for modern discovery and invocation so unsupported
+	// schema semantics fail before the configuration can serve requests.
+	if config.server != nil {
+		if _, isProxy := config.server.(*McpProxyServer); !isProxy && config.directTools.byName == nil {
+			directTools, err := compileDirectToolSnapshot(config.server)
+			if err != nil {
+				return err
+			}
+			config.directTools = directTools
+		}
 	}
 
 	// Parse allowTools - this might need adjustment for composed servers
@@ -622,12 +641,17 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 			// Compute effective allowTools using helper function
 			effectiveAllowTools := computeEffectiveAllowTools(allowTools)
 			request, modern := ModernRequestContext(ctx)
-			// Current direct-tool execution does not validate outputSchema. Keep the
-			// legacy descriptor contract, but do not promise it to modern clients.
-			includeOutputSchema := !modern
+			var tools []map[string]any
+			if modern {
+				// The modern descriptor comes from the same validated snapshot used by
+				// tools/call and deliberately omits unvalidated outputSchema.
+				tools = config.directTools.buildModernToolList(effectiveAllowTools)
+			} else {
+				tools = buildToolList(config.server, effectiveAllowTools, true)
+			}
 			semantic := protocol.SemanticResult{
 				Value: map[string]any{
-					"tools": buildToolList(config.server, effectiveAllowTools, includeOutputSchema),
+					"tools": tools,
 				},
 				ResultType: resultTypeComplete,
 			}
@@ -664,14 +688,33 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				}
 			}
 
-			proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(currentServerNameForHandlers))
-			proxywasm.SetProperty([]string{"mcp_tool_name"}, []byte(toolName))
-
-			toolToCall, ok := config.server.GetMCPTools()[toolName]
+			var toolToCall Tool
+			var ok bool
+			if _, modern := ModernRequestContext(ctx); modern {
+				validatedTool, exists := config.directTools.byName[toolName]
+				if exists {
+					toolToCall = validatedTool.tool
+					ok = true
+					if err := validatedTool.validator.validateArguments(args.Raw); err != nil {
+						sendToolExecutionError(
+							ctx,
+							currentServerNameForHandlers,
+							fmt.Errorf("invalid arguments for tool %q: %w", toolName, err),
+							fmt.Sprintf("mcp:%s:tools/call:invalid_arguments", currentServerNameForHandlers),
+						)
+						return nil
+					}
+				}
+			} else {
+				toolToCall, ok = config.server.GetMCPTools()[toolName]
+			}
 			if !ok {
 				utils.OnMCPResponseError(ctx, fmt.Errorf("unknown tool: %s", toolName), utils.ErrInvalidParams, fmt.Sprintf("mcp:%s:tools/call:invalid_tool_name", currentServerNameForHandlers))
 				return nil
 			}
+
+			proxywasm.SetProperty([]string{"mcp_server_name"}, []byte(currentServerNameForHandlers))
+			proxywasm.SetProperty([]string{"mcp_tool_name"}, []byte(toolName))
 
 			if utils.IsModernRequest(ctx) {
 				log.Debugf("Modern tool call [%s] on server [%s]", toolName, currentServerNameForHandlers)
@@ -686,7 +729,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				unregisterCancellation()
 			}
 			if err != nil {
-				utils.OnMCPToolCallError(ctx, err)
+				sendToolExecutionError(ctx, currentServerNameForHandlers, err, fmt.Sprintf("mcp:%s:tools/call:error", currentServerNameForHandlers))
 				return nil
 			}
 			return nil

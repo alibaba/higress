@@ -26,8 +26,8 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/sjson"
 
-	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
@@ -327,13 +327,17 @@ func (s *RestMCPServer) AddRestTool(toolConfig RestTool) error {
 	if err := toolConfig.parseTemplates(); err != nil {
 		return err
 	}
-
-	s.toolsConfig[toolConfig.Name] = toolConfig
-	s.base.AddMCPTool(toolConfig.Name, &RestMCPTool{
+	candidate := &RestMCPTool{
 		serverName: s.name,
 		name:       toolConfig.Name,
 		toolConfig: toolConfig,
-	})
+	}
+	if _, err := compileToolInputSchema(candidate.InputSchema()); err != nil {
+		return fmt.Errorf("invalid input schema: %w", err)
+	}
+
+	s.toolsConfig[toolConfig.Name] = toolConfig
+	s.base.AddMCPTool(toolConfig.Name, candidate)
 
 	return nil
 }
