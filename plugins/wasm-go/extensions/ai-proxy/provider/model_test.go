@@ -16,6 +16,10 @@ func TestChatMessageParseContentSkipsMalformedStructuredParts(t *testing.T) {
 			Type: contentTypeText,
 			Text: "valid text",
 		},
+		{
+			Type: contentTypeText,
+			Text: "valid text",
+		},
 	}
 	tests := []struct {
 		name      string
@@ -95,11 +99,34 @@ func TestChatMessageParseContentSkipsMalformedStructuredParts(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			message := chatMessage{Content: []any{tt.malformed, validText}}
+			message := chatMessage{Content: []any{validText, tt.malformed, validText}}
 
 			assert.Equal(t, wantText, message.ParseContent())
 		})
 	}
+}
+
+func TestChatMessageParseContentReturnsEmptyForAllMalformedStructuredParts(t *testing.T) {
+	message := chatMessage{Content: []any{
+		map[string]any{
+			"type":      contentTypeImageUrl,
+			"image_url": map[string]any{},
+		},
+		map[string]any{
+			"type": contentTypeInputAudio,
+			"input_audio": map[string]any{
+				"data": "audio data",
+			},
+		},
+		map[string]any{
+			"type": contentTypeFile,
+			"file": map[string]any{
+				"file_id": false,
+			},
+		},
+	}}
+
+	assert.Empty(t, message.ParseContent())
 }
 
 func TestChatMessageParseContentPreservesValidStructuredParts(t *testing.T) {
