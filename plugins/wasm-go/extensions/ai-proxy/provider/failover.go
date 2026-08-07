@@ -639,16 +639,20 @@ func removeApiTokenUnavailableSince(key, apiToken string) {
 }
 
 func (c *ProviderConfig) GetGlobalRandomToken() string {
-	apiTokens, _, err := getApiTokens(c.failover.ctxApiTokens)
-	unavailableApiTokens, _, err := getApiTokens(c.failover.ctxUnavailableApiTokens)
+	apiTokens, _, err1 := getApiTokens(c.failover.ctxApiTokens)
+	unavailableApiTokens, _, err2 := getApiTokens(c.failover.ctxUnavailableApiTokens)
 	log.Debugf("apiTokens: %v, unavailableApiTokens: %v", apiTokens, unavailableApiTokens)
 
-	if err != nil {
+	if err1 != nil || err2 != nil {
 		return ""
 	}
 	count := len(apiTokens)
 	switch count {
 	case 0:
+		if len(unavailableApiTokens) == 0 {
+			log.Warn("all tokens are unavailable and no unavailable tokens recorded")
+			return ""
+		}
 		log.Warn("all tokens are unavailable, will use random one of the unavailable tokens")
 		return unavailableApiTokens[rand.Intn(len(unavailableApiTokens))]
 	case 1:
