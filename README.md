@@ -21,7 +21,7 @@
 [**Official Site**](https://higress.ai/en/) &nbsp; |
 &nbsp; [**Docs**](https://higress.cn/en/docs/latest/overview/what-is-higress/) &nbsp; |
 &nbsp; [**Blog**](https://higress.cn/en/blog/) &nbsp; |
-&nbsp; [**Roadmap**](./ROADMAP.md) &nbsp; |
+&nbsp; [**Roadmap**](https://github.com/higress-group/community/blob/main/ROADMAP.md) &nbsp; |
 &nbsp; [**MCP Server QuickStart**](https://higress.cn/en/ai/mcp-quick-start/) &nbsp; |
 &nbsp; [**Developer Guide**](https://higress.cn/en/docs/latest/dev/architecture/) &nbsp; |
 &nbsp; [**Wasm Plugin Hub**](https://higress.cn/en/plugin/) &nbsp; |
@@ -48,7 +48,7 @@ Higress originated at Alibaba to address long-connection disruption during
 gateway reloads and improve gRPC/Dubbo load balancing. It is now developed as
 a vendor-neutral CNCF project and is used by organizations across multiple
 industries. Public adopters and their use cases are listed in
-[`ADOPTERS.md`](./ADOPTERS.md).
+[`ADOPTERS.md`](https://github.com/higress-group/community/blob/main/ADOPTERS.md).
 
 
 ## Summary
@@ -184,25 +184,31 @@ Join our Discord community! This is where you can connect with developers and ot
 
 [![discord](https://img.shields.io/discord/1364956090566971515?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/tSbww9VDaM)
 
+Join the monthly [Higress Community Meeting](https://github.com/higress-group/community/blob/main/MEETINGS.md) for public project
+updates, technical discussions, roadmap planning, and community questions.
+
 The complete inventory of public and private communication channels,
 subproject channels, meeting information, and contributor activity is in
-[`COMMUNITY.md`](./COMMUNITY.md).
+[`COMMUNITY.md`](https://github.com/higress-group/community/blob/main/COMMUNITY.md).
 
 ### Code of Conduct
 
 The Higress community follows the
 [**CNCF Code of Conduct**](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
 The project's adopted Code of Conduct is documented in
-[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md). Please review it before
+[`CODE_OF_CONDUCT.md`](https://github.com/higress-group/community/blob/main/CODE_OF_CONDUCT.md).
+Please review it before
 participating in the community.
 
 ### Governance & Maintainers
 
 Project governance, the maintainer roster, and the contribution model are
-described in [`GOVERNANCE.md`](./GOVERNANCE.md) and
-[`MAINTAINERS.md`](./MAINTAINERS.md). New contributors are encouraged to start
+described in [`GOVERNANCE.md`](https://github.com/higress-group/community/blob/main/GOVERNANCE.md)
+and [`MAINTAINERS.md`](https://github.com/higress-group/community/blob/main/MAINTAINERS.md).
+New contributors are encouraged to start
 with [`CONTRIBUTING_EN.md`](./CONTRIBUTING_EN.md). Forward planning and release
-procedures are documented in [`ROADMAP.md`](./ROADMAP.md) and
+procedures are documented in [`ROADMAP.md`](https://github.com/higress-group/community/blob/main/ROADMAP.md)
+and
 [`RELEASE.md`](./RELEASE.md).
 
 ### Security

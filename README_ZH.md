@@ -48,7 +48,7 @@ Higress 的 AI 网关能力支持国内外所有[主流模型供应商](https://
 Higress 最初在阿里内部为解决网关 reload 对长连接业务有损，以及
 gRPC/Dubbo 负载均衡能力不足而诞生。Higress 目前作为厂商中立的 CNCF
 项目由社区共同开发，并已被多个行业的组织采用。公开采用者和使用场景见
-[`ADOPTERS.md`](./ADOPTERS.md)。
+[`ADOPTERS.md`](https://github.com/higress-group/community/blob/main/ADOPTERS.md)。
 
 ## Summary
 
@@ -222,12 +222,12 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 ### 行为准则（Code of Conduct）
 
 Higress 社区遵循 [**CNCF Code of Conduct**](https://github.com/cncf/foundation/blob/main/code-of-conduct.md)。
-项目采纳的行为准则详见 [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)，参与社区前请先阅读。
+项目采纳的行为准则详见 [`CODE_OF_CONDUCT.md`](https://github.com/higress-group/community/blob/main/CODE_OF_CONDUCT.md)，参与社区前请先阅读。
 
 ### 治理与维护者
 
-项目治理、维护者名单与贡献模型分别记录于 [`GOVERNANCE.md`](./GOVERNANCE.md) 与
-[`MAINTAINERS.md`](./MAINTAINERS.md)，新贡献者请先查阅
+项目治理、维护者名单与贡献模型分别记录于 [`GOVERNANCE.md`](https://github.com/higress-group/community/blob/main/GOVERNANCE.md) 与
+[`MAINTAINERS.md`](https://github.com/higress-group/community/blob/main/MAINTAINERS.md)，新贡献者请先查阅
 [`CONTRIBUTING_CN.md`](./CONTRIBUTING_CN.md)。
 
 ### 安全

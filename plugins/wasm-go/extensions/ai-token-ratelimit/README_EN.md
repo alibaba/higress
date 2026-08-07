@@ -59,11 +59,11 @@ Plugin execution priority: `600`
 | limit_by_param              | string          | No, one of `limit_by_*` is required | - | Configures the source of the rate limiting key value as the URL parameter name                                                                                                                              |
 | limit_by_consumer           | string          | No, one of `limit_by_*` is required | - | Performs rate limiting based on the consumer name; no actual value needs to be added                                                                                                                         |
 | limit_by_cookie             | string          | No, one of `limit_by_*` is required | - | Configures the source of the rate limiting key value as the key name in the Cookie                                                                                                                           |
-| limit_by_per_header         | string          | No, one of `limit_by_*` is required | - | Matches specific HTTP request headers by rule and calculates rate limits for each header separately. Configures the source of the rate limiting key value as the HTTP request header name. Regular expressions or `*` are supported when configuring `limit_keys`. |
-| limit_by_per_param          | string          | No, one of `limit_by_*` is required | - | Matches specific URL parameters by rule and calculates rate limits for each parameter separately. Configures the source of the rate limiting key value as the URL parameter name. Regular expressions or `*` are supported when configuring `limit_keys`.       |
-| limit_by_per_consumer       | string          | No, one of `limit_by_*` is required | - | Matches specific consumers by rule and calculates rate limits for each consumer separately. Performs rate limiting based on the consumer name; no actual value needs to be added. Regular expressions or `*` are supported when configuring `limit_keys`.      |
-| limit_by_per_cookie         | string          | No, one of `limit_by_*` is required | - | Matches specific Cookies by rule and calculates rate limits for each Cookie separately. Configures the source of the rate limiting key value as the key name in the Cookie. Regular expressions or `*` are supported when configuring `limit_keys`.             |
-| limit_by_per_ip             | string          | No, one of `limit_by_*` is required | - | Matches specific IPs by rule and calculates rate limits for each IP separately. Configures the source of the rate limiting key value as the IP parameter name, obtained from the request header in the format `from-header-corresponding_header_name` (e.g., `from-header-x-forwarded-for`), or directly obtains the peer socket IP by configuring `from-remote-addr`. |
+| limit_by_per_header         | string          | No, one of `limit_by_*` is required | - | Calculates a separate limit per header value. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_header` (drop `per_`). |
+| limit_by_per_param          | string          | No, one of `limit_by_*` is required | - | Calculates a separate limit per parameter value. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_param` (drop `per_`). |
+| limit_by_per_consumer       | string          | No, one of `limit_by_*` is required | - | Calculates a separate limit per consumer. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_consumer` (drop `per_`). |
+| limit_by_per_cookie         | string          | No, one of `limit_by_*` is required | - | Calculates a separate limit per Cookie value. `limit_keys` **MUST NOT be a literal name; only `*` or `regexp:...` is accepted**. For an exact match, use `limit_by_cookie` (drop `per_`). |
+| limit_by_per_ip             | string          | No, one of `limit_by_*` is required | - | Selects the client-IP source: `from-header-<header_name>` or `from-remote-addr`. Put IP/CIDR values in `limit_keys[].key`. |
 | limit_keys                  | array of object | Yes      | -             | Configures the rate limiting count after matching the key value                                                                                                                                             |
 
 #### `rule_items` Multi-Rule Matching Semantics
@@ -79,7 +79,7 @@ Plugin execution priority: `600`
 
 | Configuration Item    | Type   | Required | Default Value | Description                                                                                                                                                                                                 |
 |-----------------------|--------|----------|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| key                   | string | Yes      | -             | The matched key value. For types `limit_by_per_header`, `limit_by_per_param`, `limit_by_per_consumer`, and `limit_by_per_cookie`, regular expressions (starting with `regexp:` followed by the regular expression, e.g., `regexp:^d.*` for all strings starting with "d") or `*` (representing all) are supported. For `limit_by_per_ip`, IP addresses or IP segments are supported. |
+| key                   | string | Yes      | -             | Non-`per_` types accept exact literals. `limit_by_per_header`, `limit_by_per_param`, `limit_by_per_consumer`, and `limit_by_per_cookie` accept only `regexp:...` or `*`. `limit_by_per_ip` accepts IP addresses or CIDR blocks. |
 | token_per_second      | int    | No, one of `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` is required | - | Allowed number of request tokens per second   |
 | token_per_minute      | int    | No, one of `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` is required | - | Allowed number of request tokens per minute   |
 | token_per_hour        | int    | No, one of `token_per_second`, `token_per_minute`, `token_per_hour`, `token_per_day` is required | - | Allowed number of request tokens per hour     |
@@ -226,6 +226,73 @@ rejected_msg: '{"code":-1,"msg":"Too many requests"}'
 redis:
   service_name: redis.static
 ```
+
+## Common Pitfalls
+
+### Literal consumer name under `limit_by_per_consumer`
+
+```yaml
+# ❌ Wrong: per_consumer limit_keys accepts only * or regexp:...
+rule_items:
+  - limit_by_per_consumer: ""
+    limit_keys:
+      - key: "alice"
+        token_per_day: 100
+
+# ✅ Right: drop per_ for an exact-name match
+rule_items:
+  - limit_by_consumer: ""
+    limit_keys:
+      - key: "alice"
+        token_per_day: 100
+```
+
+### CIDR placed in `limit_by_per_ip`
+
+```yaml
+# ❌ Wrong: limit_by_per_ip selects the IP source; it is not a CIDR field
+rule_items:
+  - limit_by_per_ip: "0.0.0.0/0"
+
+# ✅ Right: put the CIDR in limit_keys
+rule_items:
+  - limit_by_per_ip: "from-remote-addr"
+    limit_keys:
+      - key: "0.0.0.0/0"
+        token_per_day: 1000
+```
+
+### Missing `limit_keys`
+
+```yaml
+# ❌ Wrong: the entire rule_item is rejected
+rule_items:
+  - limit_by_per_ip: "from-remote-addr"
+
+# ✅ Right: provide at least one key and token threshold
+rule_items:
+  - limit_by_per_ip: "from-remote-addr"
+    limit_keys:
+      - key: "0.0.0.0/0"
+        token_per_day: 1000
+```
+
+## Diagnosing
+
+See the [Rate-limit Plugin FAQ](../../../../docs/faq/rate-limit-plugin-faq-en.md#rate-limit-not-taking-effect) for complete diagnosis recipes.
+
+| Symptom | Check first |
+| --- | --- |
+| Requests always return 200 and Redis has no rate-limit keys | No rule matched, or configuration parsing prevented the rule from loading |
+| Redis cluster `cx_connect_fail` is greater than 0 | Port, credentials, or network connectivity |
+| Wasm `update_rejected` / `config_fail` keeps increasing | The parser rejected the pushed configuration; inspect the concrete gateway log error |
+
+```bash
+kubectl -n higress-system logs <gateway-pod> --tail=2000 \
+  | grep -Ei 'ai-token-ratelimit|limit_by_per_|missing limit_keys|must start with'
+```
+
+Seeing configuration in `config_dump` proves only that the control plane delivered it; it does not prove that the data-plane plugin loaded it. Correlate `/stats`, `/clusters`, and gateway logs.
 
 ## Example
 
