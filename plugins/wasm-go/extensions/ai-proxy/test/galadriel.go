@@ -491,6 +491,10 @@ func RunGaladrielOnStreamingResponseBodyTests(t *testing.T) {
 				{"Content-Type", "application/json"},
 			})
 
+			requestBody := `{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"test"}],"stream":true}`
+			action := host.CallOnHttpRequestBody([]byte(requestBody))
+			require.Equal(t, types.ActionContinue, action)
+
 			// 设置流式响应头
 			host.CallOnHttpResponseHeaders([][2]string{
 				{":status", "200"},
@@ -506,16 +510,14 @@ func RunGaladrielOnStreamingResponseBodyTests(t *testing.T) {
 			}
 
 			for _, chunk := range streamChunks {
-				chunk = chunk + "\n\n"
-				action := host.CallOnHttpResponseBody([]byte(chunk))
+				streamChunk := chunk + "\n\n"
+				action := host.CallOnHttpStreamingResponseBody([]byte(streamChunk), false)
 				require.Equal(t, types.ActionContinue, action)
+				require.Contains(t, string(host.GetResponseBody()), chunk)
 			}
 
-			// 验证流式响应处理 - 检查是否包含流式数据或DONE标记
-			actualResponseBody := host.GetResponseBody()
-			responseStr := string(actualResponseBody)
-			// 应该包含流式数据或结束标记
-			require.True(t, strings.Contains(responseStr, "chat.completion.chunk") || strings.Contains(responseStr, "[DONE]"))
+			action = host.CallOnHttpStreamingResponseBody([]byte{}, true)
+			require.Equal(t, types.ActionContinue, action)
 		})
 	})
 }

@@ -62,6 +62,11 @@ func (g *galadrielProvider) OnRequestBody(ctx wrapper.HttpContext, apiName ApiNa
 }
 
 func (g *galadrielProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, apiName ApiName, chunk []byte, isLastChunk bool) ([]byte, error) {
+	if len(chunk) == 0 {
+		return nil, nil
+	}
+	// Galadriel chat completion streams use the OpenAI-compatible SSE format,
+	// so no provider-specific conversion is required here.
 	return chunk, nil
 }
 
