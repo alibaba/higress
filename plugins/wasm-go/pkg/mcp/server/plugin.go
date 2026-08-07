@@ -358,6 +358,29 @@ func computeEffectiveAllowToolsFromHeader(configAllowTools *map[string]struct{},
 	}
 }
 
+func buildToolList(server Server, effectiveAllowTools *map[string]struct{}) []map[string]any {
+	var listedTools []map[string]any
+	for _, entry := range snapshotTools(server) {
+		if effectiveAllowTools != nil {
+			if _, allow := (*effectiveAllowTools)[entry.name]; !allow {
+				continue
+			}
+		}
+		toolDef := map[string]any{
+			"name":        entry.name,
+			"description": entry.tool.Description(),
+			"inputSchema": entry.tool.InputSchema(),
+		}
+		if toolWithSchema, ok := entry.tool.(ToolWithOutputSchema); ok {
+			if outputSchema := toolWithSchema.OutputSchema(); len(outputSchema) > 0 {
+				toolDef["outputSchema"] = outputSchema
+			}
+		}
+		listedTools = append(listedTools, toolDef)
+	}
+	return listedTools
+}
+
 // parseConfigCore contains the core config parsing logic with dependency injection
 func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *ConfigOptions) error {
 	toolSetJson := configJson.Get("toolSet")
@@ -568,6 +591,18 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		}, fmt.Sprintf("mcp:%s:initialize", currentServerNameForHandlers))
 		return nil
 	}
+	config.methodHandlers["server/discover"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
+		request, modern := ModernRequestContext(ctx)
+		if !modern {
+			utils.OnMCPResponseError(ctx, errors.New("method not found:server/discover"), utils.ErrMethodNotFound, fmt.Sprintf("mcp:%s:server/discover:legacy", currentServerNameForHandlers))
+			return nil
+		}
+		toolsAvailable := modernMethodPolicy(*config, "tools/list").Available &&
+			modernMethodPolicy(*config, "tools/call").Available
+		result := ShapeResult(request, currentServerNameForHandlers, DiscoveryResult(toolsAvailable))
+		utils.OnMCPResponseSuccess(ctx, result, fmt.Sprintf("mcp:%s:server/discover", currentServerNameForHandlers))
+		return nil
+	}
 
 	// Override tools/list and tools/call handlers for MCP proxy servers first
 	if config.server != nil {
@@ -582,38 +617,16 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 	// Default tools/list handler for non-proxy servers
 	if config.methodHandlers["tools/list"] == nil {
 		config.methodHandlers["tools/list"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
-			var listedTools []map[string]any
-			// GetMCPTools() will return appropriately formatted tools for both single and composed servers
-			allTools := config.server.GetMCPTools() // For composed, keys are "serverName/toolName"
-
 			// Compute effective allowTools using helper function
 			effectiveAllowTools := computeEffectiveAllowTools(allowTools)
-
-			for toolFullName, tool := range allTools {
-				// For composed server, toolFullName is "originalServerName/originalToolName"
-				// For single server, toolFullName is "originalToolName"
-				// The allowTools map should use the same format as toolFullName
-				if effectiveAllowTools != nil {
-					if _, allow := (*effectiveAllowTools)[toolFullName]; !allow {
-						continue
-					}
-				}
-				toolDef := map[string]any{
-					"name":        toolFullName,
-					"description": tool.Description(),
-					"inputSchema": tool.InputSchema(),
-				}
-				// Add outputSchema if tool implements ToolWithOutputSchema (MCP Protocol Version 2025-06-18)
-				if toolWithSchema, ok := tool.(ToolWithOutputSchema); ok {
-					if outputSchema := toolWithSchema.OutputSchema(); len(outputSchema) > 0 {
-						toolDef["outputSchema"] = outputSchema
-					}
-				}
-				listedTools = append(listedTools, toolDef)
+			semantic := protocol.SemanticResult{
+				Value: map[string]any{
+					"tools": buildToolList(config.server, effectiveAllowTools),
+				},
+				ResultType: resultTypeComplete,
 			}
-			utils.OnMCPResponseSuccess(ctx, map[string]any{
-				"tools": listedTools,
-			}, fmt.Sprintf("mcp:%s:tools/list", currentServerNameForHandlers))
+			request, _ := ModernRequestContext(ctx)
+			utils.OnMCPResponseSuccess(ctx, ShapeResult(request, currentServerNameForHandlers, semantic), fmt.Sprintf("mcp:%s:tools/list", currentServerNameForHandlers))
 			return nil
 		}
 	}
@@ -864,6 +877,9 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config McpServerConfig, body []b
 }
 
 func modernMethodPolicy(config McpServerConfig, method string) protocol.MethodPolicy {
+	if method == "server/discover" {
+		return protocol.MethodPolicy{Available: config.methodHandlers[method] != nil}
+	}
 	if _, isProxy := config.server.(*McpProxyServer); isProxy {
 		return protocol.MethodPolicy{}
 	}
