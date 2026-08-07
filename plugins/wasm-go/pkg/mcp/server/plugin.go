@@ -672,6 +672,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				utils.OnMCPResponseError(ctx, errors.New(errMsg), utils.ErrMethodNotFound, fmt.Sprintf("mcp:%s:tools/call:not_supported_on_toolset", currentServerNameForHandlers))
 				return nil
 			}
+			installDirectToolResultAdapter(ctx, currentServerNameForHandlers)
 
 			// Logic for single (non-composed) server
 			toolName := params.Get("name").String() // For single server, this is the direct tool name
@@ -698,12 +699,19 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 					if err := validatedTool.validator.validateArguments(args.Raw); err != nil {
 						sendToolExecutionError(
 							ctx,
-							currentServerNameForHandlers,
 							fmt.Errorf("invalid arguments for tool %q: %w", toolName, err),
 							fmt.Sprintf("mcp:%s:tools/call:invalid_arguments", currentServerNameForHandlers),
 						)
 						return nil
 					}
+				}
+				if reason, legacyOnly := config.directTools.legacyOnly[toolName]; legacyOnly {
+					sendToolExecutionError(
+						ctx,
+						fmt.Errorf("tool %q is unavailable in the modern profile because its input schema cannot be validated: %s", toolName, reason),
+						fmt.Sprintf("mcp:%s:tools/call:legacy_only_schema", currentServerNameForHandlers),
+					)
+					return nil
 				}
 			} else {
 				toolToCall, ok = config.server.GetMCPTools()[toolName]
@@ -729,7 +737,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				unregisterCancellation()
 			}
 			if err != nil {
-				sendToolExecutionError(ctx, currentServerNameForHandlers, err, fmt.Sprintf("mcp:%s:tools/call:error", currentServerNameForHandlers))
+				sendToolExecutionError(ctx, err, fmt.Sprintf("mcp:%s:tools/call:error", currentServerNameForHandlers))
 				return nil
 			}
 			return nil

@@ -32,18 +32,28 @@ type directToolEntry struct {
 // directToolSnapshot binds discovery and invocation to one validated tool
 // generation. It is immutable after configuration publication.
 type directToolSnapshot struct {
-	ordered []directToolEntry
-	byName  map[string]directToolEntry
+	ordered    []directToolEntry
+	byName     map[string]directToolEntry
+	legacyOnly map[string]string
 }
 
 func compileDirectToolSnapshot(server Server) (directToolSnapshot, error) {
 	entries := snapshotTools(server)
 	snapshot := directToolSnapshot{
-		ordered: make([]directToolEntry, 0, len(entries)),
-		byName:  make(map[string]directToolEntry, len(entries)),
+		ordered:    make([]directToolEntry, 0, len(entries)),
+		byName:     make(map[string]directToolEntry, len(entries)),
+		legacyOnly: make(map[string]string),
 	}
 	for _, entry := range entries {
 		validator, err := compileToolInputSchema(entry.tool.InputSchema())
+		if compatibility, ok := entry.tool.(legacySchemaCompatibleTool); ok && compatibility.legacyOnlyInputSchema() {
+			reason := "configured as legacy-only"
+			if err != nil {
+				reason = err.Error()
+			}
+			snapshot.legacyOnly[entry.name] = reason
+			continue
+		}
 		if err != nil {
 			return directToolSnapshot{}, fmt.Errorf("tool %q has invalid input schema: %w", entry.name, err)
 		}
@@ -58,6 +68,10 @@ func compileDirectToolSnapshot(server Server) (directToolSnapshot, error) {
 		snapshot.byName[entry.name] = validated
 	}
 	return snapshot, nil
+}
+
+type legacySchemaCompatibleTool interface {
+	legacyOnlyInputSchema() bool
 }
 
 func (snapshot directToolSnapshot) buildModernToolList(effectiveAllowTools *map[string]struct{}) []map[string]any {
@@ -77,19 +91,20 @@ func (snapshot directToolSnapshot) buildModernToolList(effectiveAllowTools *map[
 	return tools
 }
 
-func sendToolExecutionError(ctx wrapper.HttpContext, serverName string, err error, debugInfo string) {
-	request, _ := ModernRequestContext(ctx)
-	semantic := protocol.SemanticResult{
-		Value: map[string]any{
-			"content": []map[string]any{
-				{
-					"type": "text",
-					"text": err.Error(),
-				},
-			},
-			"isError": true,
-		},
-		ResultType: resultTypeComplete,
+func installDirectToolResultAdapter(ctx wrapper.HttpContext, serverName string) {
+	request, modern := ModernRequestContext(ctx)
+	if !modern {
+		utils.SetMCPResultAdapter(ctx, nil)
+		return
 	}
-	utils.OnMCPResponseSuccess(ctx, ShapeResult(request, serverName, semantic), debugInfo)
+	utils.SetMCPResultAdapter(ctx, func(result map[string]any) map[string]any {
+		return ShapeResult(request, serverName, protocol.SemanticResult{
+			Value:      result,
+			ResultType: resultTypeComplete,
+		})
+	})
+}
+
+func sendToolExecutionError(ctx wrapper.HttpContext, err error, debugInfo string) {
+	utils.OnMCPToolCallError(ctx, err, debugInfo)
 }

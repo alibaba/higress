@@ -16,8 +16,10 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/consts"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/protocol"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -25,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"gopkg.in/yaml.v3"
 )
 
 type validationTestServer struct {
@@ -169,6 +172,8 @@ func TestModernRegisteredToolInvokesAfterValidation(t *testing.T) {
 	response := host.GetLocalResponse()
 	require.NotNil(t, response)
 	assert.False(t, gjson.GetBytes(response.Data, "result.isError").Bool())
+	assert.Equal(t, resultTypeComplete, gjson.GetBytes(response.Data, "result.resultType").String())
+	assert.Equal(t, "registered", gjson.GetBytes(response.Data, "result._meta.io\\.modelcontextprotocol/serverInfo.name").String())
 	assert.Equal(t, 1, counters.create)
 	assert.Equal(t, 1, counters.call)
 }
@@ -197,6 +202,7 @@ func TestModernRegisteredToolFailureIsToolExecutionError(t *testing.T) {
 	assert.True(t, gjson.GetBytes(response.Data, "result.isError").Bool())
 	assert.Equal(t, "tool failed", gjson.GetBytes(response.Data, "result.content.0.text").String())
 	assert.Equal(t, resultTypeComplete, gjson.GetBytes(response.Data, "result.resultType").String())
+	assert.Equal(t, "registered", gjson.GetBytes(response.Data, "result._meta.io\\.modelcontextprotocol/serverInfo.name").String())
 	assert.Equal(t, 1, counters.create)
 	assert.Equal(t, 1, counters.call)
 }
@@ -260,6 +266,53 @@ func TestModernRESTToolAcceptsValidArguments(t *testing.T) {
 	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(modernToolHeaders("lookup")))
 	require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(modernToolCallBody("lookup", `{"count":2}`)))
 	assert.Nil(t, host.GetLocalResponse(), "valid arguments must not be rejected at the protocol boundary")
+}
+
+func TestRESTAsyncResultAdapterPreservesToolResultShapes(t *testing.T) {
+	transport := protocol.Transport{
+		Method:          "POST",
+		Authority:       "mcp.example.com",
+		ContentType:     "application/json",
+		Accept:          "application/json, text/event-stream",
+		ProtocolVersion: string(protocol.Version20260728),
+		MCPMethod:       "tools/call",
+		MCPName:         "result",
+	}
+	request, protocolError := protocol.PrepareRequest(transport, modernToolCallBody("result", `{}`), func(method string) bool {
+		return method == "tools/call"
+	})
+	require.Nil(t, protocolError)
+	ctx := &protocolTestHTTPContext{values: map[string]any{consts.CtxProtocolRequest: request}}
+
+	// Installation happens in the synchronous tools/call frame. Applying it
+	// later models REST success/error callbacks after Tool.Call has returned.
+	installDirectToolResultAdapter(ctx, "rest-result")
+	results := []struct {
+		name  string
+		value map[string]any
+	}{
+		{name: "text", value: map[string]any{"content": []map[string]any{{"type": "text", "text": "plain"}}, "isError": false}},
+		{name: "image", value: map[string]any{"content": []map[string]any{{"type": "image", "data": "AAEC", "mimeType": "image/png"}}, "isError": false}},
+		{name: "structured", value: map[string]any{"content": []map[string]any{{"type": "text", "text": `{"answer":42}`}}, "structuredContent": json.RawMessage(`{"answer":42}`), "isError": false}},
+		{name: "error", value: map[string]any{"content": []map[string]any{{"type": "text", "text": "upstream failed"}}, "isError": true}},
+	}
+	for _, result := range results {
+		t.Run(result.name, func(t *testing.T) {
+			shaped := utils.ApplyMCPResultAdapter(ctx, result.value)
+			assert.Equal(t, result.value["content"], shaped["content"])
+			assert.Equal(t, result.value["structuredContent"], shaped["structuredContent"])
+			assert.Equal(t, result.value["isError"], shaped["isError"])
+			assert.Equal(t, resultTypeComplete, shaped["resultType"])
+			meta := shaped["_meta"].(map[string]any)
+			serverInfo := meta["io.modelcontextprotocol/serverInfo"].(map[string]any)
+			assert.Equal(t, "rest-result", serverInfo["name"])
+		})
+	}
+
+	legacy := &protocolTestHTTPContext{}
+	installDirectToolResultAdapter(legacy, "rest-result")
+	legacyResult := map[string]any{"content": []map[string]any{{"type": "text", "text": "plain"}}, "isError": false}
+	assert.Equal(t, legacyResult, utils.ApplyMCPResultAdapter(legacy, legacyResult))
 }
 
 func TestDirectToolSnapshotsKeepProfileCompatibleDescriptors(t *testing.T) {
@@ -359,6 +412,7 @@ func TestDirectToolSchemasAreRejectedBeforeServing(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `unsupported schema keyword "oneOf"`)
+		assert.Contains(t, err.Error(), "legacyOnly: true")
 		assert.Empty(t, rest.GetMCPTools())
 	})
 
@@ -374,4 +428,84 @@ func TestDirectToolSchemasAreRejectedBeforeServing(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), `unsupported schema keyword "oneOf"`)
 	})
+}
+
+func checkedInRESTConfig(t *testing.T, name string) json.RawMessage {
+	t.Helper()
+	raw, err := os.ReadFile("../../../mcp-servers/" + name + "/mcp-server.yaml")
+	require.NoError(t, err)
+	var config map[string]any
+	require.NoError(t, yaml.Unmarshal(raw, &config))
+	encoded, err := json.Marshal(config)
+	require.NoError(t, err)
+	return encoded
+}
+
+func parseRESTConfigForTest(t *testing.T, raw json.RawMessage) *McpServerConfig {
+	t.Helper()
+	registry := &GlobalToolRegistry{}
+	registry.Initialize()
+	config := &McpServerConfig{}
+	require.NoError(t, ParseConfigCore(gjson.ParseBytes(raw), config, &ConfigOptions{
+		Servers:      map[string]Server{},
+		ToolRegistry: registry,
+	}))
+	return config
+}
+
+func TestCheckedInRESTSchemasRemainLegacyCompatibleAndModernHonest(t *testing.T) {
+	tests := []struct {
+		name            string
+		legacyOnlyTools []string
+		reasonTool      string
+		wantReason      string
+	}{
+		{
+			name:            "mcp-e2bdev",
+			legacyOnlyTools: []string{"create_sandbox"},
+			reasonTool:      "create_sandbox",
+			wantReason:      `unsupported type "int"`,
+		},
+		{
+			name:            "mcp-firecrawl",
+			legacyOnlyTools: []string{"scrape", "batch_scrape", "map", "extract", "search"},
+			reasonTool:      "scrape",
+			wantReason:      `unsupported schema keyword "oneOf"`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := parseRESTConfigForTest(t, checkedInRESTConfig(t, test.name))
+			legacy := buildToolList(config.server, nil, true)
+			modern := config.directTools.buildModernToolList(nil)
+			require.NotEmpty(t, legacy)
+			actualLegacyOnly := make([]string, 0, len(config.directTools.legacyOnly))
+			for name := range config.directTools.legacyOnly {
+				actualLegacyOnly = append(actualLegacyOnly, name)
+			}
+			assert.ElementsMatch(t, test.legacyOnlyTools, actualLegacyOnly)
+			assert.Contains(t, config.directTools.legacyOnly[test.reasonTool], test.wantReason)
+			assert.Len(t, modern, len(legacy)-len(config.directTools.legacyOnly))
+			for _, descriptor := range modern {
+				assert.NotContains(t, config.directTools.legacyOnly, descriptor["name"].(string))
+			}
+		})
+	}
+}
+
+func TestModernCannotInvokeCheckedInLegacyOnlyRESTSchema(t *testing.T) {
+	savedGlobalContext := globalContext
+	globalContext = Context{servers: make(map[string]Server)}
+	Initialize()
+	t.Cleanup(func() { globalContext = savedGlobalContext })
+	host := newValidationHost(t, checkedInRESTConfig(t, "mcp-e2bdev"))
+
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(modernToolHeaders("create_sandbox")))
+	require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(modernToolCallBody("create_sandbox", `{"timeout":300}`)))
+	response := host.GetLocalResponse()
+	require.NotNil(t, response)
+	assert.True(t, gjson.GetBytes(response.Data, "result.isError").Bool())
+	assert.Equal(t, resultTypeComplete, gjson.GetBytes(response.Data, "result.resultType").String())
+	assert.Contains(t, gjson.GetBytes(response.Data, "result.content.0.text").String(), "unavailable in the modern profile")
+	assert.Empty(t, host.GetHttpCalloutAttributes(), "legacy-only schema must not reach the REST upstream for modern calls")
 }

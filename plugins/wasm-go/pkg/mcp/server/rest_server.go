@@ -84,7 +84,8 @@ type RestToolResponseTemplate struct {
 type RestTool struct {
 	Name                  string                   `json:"name"`
 	Description           string                   `json:"description"`
-	Security              SecurityRequirement      `json:"security,omitempty"` // Tool-level security for MCP Client to MCP Server
+	LegacyOnly            bool                     `json:"legacyOnly,omitempty"` // Keep unsupported historical schemas on legacy profiles only
+	Security              SecurityRequirement      `json:"security,omitempty"`   // Tool-level security for MCP Client to MCP Server
 	Args                  []RestToolArg            `json:"args"`
 	OutputSchema          map[string]any           `json:"outputSchema,omitempty"` // Output schema for MCP Protocol Version 2025-06-18
 	RequestTemplate       RestToolRequestTemplate  `json:"requestTemplate,omitempty"`
@@ -332,10 +333,9 @@ func (s *RestMCPServer) AddRestTool(toolConfig RestTool) error {
 		name:       toolConfig.Name,
 		toolConfig: toolConfig,
 	}
-	if _, err := compileToolInputSchema(candidate.InputSchema()); err != nil {
-		return fmt.Errorf("invalid input schema: %w", err)
+	if _, err := compileToolInputSchema(candidate.InputSchema()); err != nil && !toolConfig.LegacyOnly {
+		return fmt.Errorf("invalid input schema: %w (set legacyOnly: true to retain this tool only for legacy profiles)", err)
 	}
-
 	s.toolsConfig[toolConfig.Name] = toolConfig
 	s.base.AddMCPTool(toolConfig.Name, candidate)
 
@@ -952,6 +952,13 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 // Description implements Tool interface
 func (t *RestMCPTool) Description() string {
 	return t.toolConfig.Description
+}
+
+// legacyOnlyInputSchema reports an explicit compatibility declaration for a
+// historical REST schema that the modern P0 validator must not advertise or
+// execute.
+func (t *RestMCPTool) legacyOnlyInputSchema() bool {
+	return t.toolConfig.LegacyOnly
 }
 
 // InputSchema implements Tool interface
