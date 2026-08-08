@@ -398,6 +398,18 @@ install-inference-extension-crds: download-inference-extension-conformance
 		kubectl wait --for=condition=Established "crd/$${crd}" --timeout=120s; \
 	done
 
+# install-inference-extension-istio-crds installs the Istio APIs used by the
+# conformance environment into a newly-created Kind cluster. Keep this out of
+# run-inference-extension-conformance-test so that rerunning against an existing
+# cluster does not update its cluster-scoped Istio APIs.
+.PHONY: install-inference-extension-istio-crds
+install-inference-extension-istio-crds: prebuild
+	kubectl apply --server-side=true --force-conflicts \
+		--field-manager='higress-inference-extension' \
+		-f istio/istio/manifests/charts/base/files/crd-all.gen.yaml
+	kubectl wait --for=condition=Established \
+		crd/destinationrules.networking.istio.io --timeout=120s
+
 .PHONY: create-inference-extension-cluster
 create-inference-extension-cluster: $(tools/kind-gateway-api)
 	KIND=$(tools/kind-gateway-api) KIND_NODE_TAG=$(INFERENCE_EXTENSION_KIND_NODE_TAG) tools/hack/create-cluster.sh
@@ -430,7 +442,7 @@ setup-inference-extension-epp-tls:
 	kubectl apply -f test/inference-extension/manifests/epp-tls.yaml
 
 .PHONY: inference-extension-conformance-test-prepare
-inference-extension-conformance-test-prepare: delete-inference-extension-cluster create-inference-extension-cluster install-inference-extension-metallb install-inference-extension-crds docker-build build-test-pilot kube-load-inference-extension-images install-dev-inference-extension
+inference-extension-conformance-test-prepare: delete-inference-extension-cluster create-inference-extension-cluster install-inference-extension-metallb install-inference-extension-crds install-inference-extension-istio-crds docker-build build-test-pilot kube-load-inference-extension-images install-dev-inference-extension
 	kubectl wait --timeout=10m -n $(INFERENCE_EXTENSION_SYSTEM_NAMESPACE) deployment/higress-controller --for=condition=Available
 	kubectl wait --timeout=10m -n $(INFERENCE_EXTENSION_SYSTEM_NAMESPACE) deployment/higress-gateway --for=condition=Available
 	kubectl wait --timeout=10m gatewayclass/higress --for=condition=Accepted
