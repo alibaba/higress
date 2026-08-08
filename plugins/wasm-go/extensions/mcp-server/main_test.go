@@ -54,6 +54,35 @@ var restMCPServerConfig = func() json.RawMessage {
 	return data
 }()
 
+var restMCPServerWithVersionConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"server": map[string]interface{}{
+			"name":    "rest-test-server",
+			"type":    "rest",
+			"version": "2.5.0",
+		},
+		"tools": []map[string]interface{}{
+			{
+				"name":        "get_weather",
+				"description": "获取天气信息",
+				"args": []map[string]interface{}{
+					{
+						"name":        "location",
+						"description": "城市名称",
+						"type":        "string",
+						"required":    true,
+					},
+				},
+				"requestTemplate": map[string]interface{}{
+					"url":    "https://httpbin.org/get?city={{.location}}",
+					"method": "GET",
+				},
+			},
+		},
+	})
+	return data
+}()
+
 // MCP代理服务器配置
 var mcpProxyServerConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -172,6 +201,51 @@ func TestMcpProxyServerConfig(t *testing.T) {
 // TestRestMCPServerBasicFlow 测试REST MCP服务器基本流程
 func TestRestMCPServerBasicFlow(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
+		t.Run("initialize returns configured server version", func(t *testing.T) {
+			host, status := test.NewTestHost(restMCPServerWithVersionConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			initializeRequest := `{
+				"jsonrpc": "2.0",
+				"id": 1,
+				"method": "initialize",
+				"params": {
+					"protocolVersion": "2025-03-26"
+				}
+			}`
+
+			host.InitHttp()
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "mcp-server.example.com"},
+				{":method", "POST"},
+				{":path", "/mcp"},
+				{"content-type", "application/json"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+
+			action = host.CallOnHttpRequestBody([]byte(initializeRequest))
+			require.Equal(t, types.ActionContinue, action)
+
+			localResponse := host.GetLocalResponse()
+			require.NotNil(t, localResponse)
+			require.NotEmpty(t, localResponse.Data)
+
+			var response map[string]interface{}
+			err := json.Unmarshal(localResponse.Data, &response)
+			require.NoError(t, err)
+
+			result, ok := response["result"].(map[string]interface{})
+			require.True(t, ok)
+			serverInfo, ok := result["serverInfo"].(map[string]interface{})
+			require.True(t, ok)
+			require.Equal(t, "rest-test-server", serverInfo["name"])
+			require.Equal(t, "2.5.0", serverInfo["version"])
+
+			host.CompleteHttp()
+		})
+
 		t.Run("tools/list request", func(t *testing.T) {
 			host, status := test.NewTestHost(restMCPServerConfig)
 			defer host.Reset()

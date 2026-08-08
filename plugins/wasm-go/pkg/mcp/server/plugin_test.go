@@ -432,6 +432,75 @@ func TestParseConfigCore_McpProxy_HappyPath_NoTools(t *testing.T) {
 	assert.NotNil(t, c.methodHandlers["tools/call"])
 }
 
+func TestParseConfigCore_ServerVersion(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			name: "defaults when missing",
+			raw: `{
+				"server":{
+					"name":"p",
+					"type":"mcp-proxy",
+					"transport":"http",
+					"mcpServerURL":"http://b"
+				}
+			}`,
+			want: DefaultServerVersion,
+		},
+		{
+			name: "uses configured server version",
+			raw: `{
+				"server":{
+					"name":"p",
+					"version":"2.3.4",
+					"type":"mcp-proxy",
+					"transport":"http",
+					"mcpServerURL":"http://b"
+				}
+			}`,
+			want: "2.3.4",
+		},
+		{
+			name: "trims configured server version",
+			raw: `{
+				"server":{
+					"name":"p",
+					"version":" 2.3.4 ",
+					"type":"mcp-proxy",
+					"transport":"http",
+					"mcpServerURL":"http://b"
+				}
+			}`,
+			want: "2.3.4",
+		},
+		{
+			name: "blank configured server version falls back to default",
+			raw: `{
+				"server":{
+					"name":"p",
+					"version":" ",
+					"type":"mcp-proxy",
+					"transport":"http",
+					"mcpServerURL":"http://b"
+				}
+			}`,
+			want: DefaultServerVersion,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &McpServerConfig{}
+			err := ParseConfigCore(gjson.Parse(tt.raw), c, newValidationOpts())
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, c.GetServerVersion())
+		})
+	}
+}
+
 func TestParseConfigCore_McpProxy_BadProxyToolJson(t *testing.T) {
 	c := &McpServerConfig{}
 	err := ParseConfigCore(gjson.Parse(`{
@@ -566,6 +635,25 @@ func TestParseConfigCore_ToolSet_HappyPath(t *testing.T) {
 	assert.True(t, c.GetIsComposed(), "toolSet must produce a composed server")
 	assert.Equal(t, "compound", c.GetServerName(), "composed server uses toolSet.name as serverName")
 	require.NotNil(t, c.server)
+}
+
+func TestParseConfigCore_ToolSetVersion(t *testing.T) {
+	opts := newValidationOpts()
+	opts.ToolRegistry.RegisterTool("alpha", "search", &stubTool{
+		desc:  "alpha search",
+		input: map[string]any{"type": "object"},
+	})
+
+	c := &McpServerConfig{}
+	err := ParseConfigCore(gjson.Parse(`{
+		"toolSet":{
+			"name":"compound",
+			"version":"3.0.1",
+			"serverTools":[{"serverName":"alpha","tools":["search"]}]
+		}
+	}`), c, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "3.0.1", c.GetServerVersion())
 }
 
 // -----------------------------------------------------------------------------
