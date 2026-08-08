@@ -452,10 +452,14 @@ func (m *chatMessage) ParseContent() []chatMessageContent {
 				}
 			case contentTypeImageUrl:
 				if subObj, ok := contentMap[contentTypeImageUrl].(map[string]any); ok {
+					imageUrl, ok := stringField(subObj, "url")
+					if !ok {
+						continue
+					}
 					msg := chatMessageContent{
 						Type: contentTypeImageUrl,
 						ImageUrl: &chatMessageContentImageUrl{
-							Url: subObj["url"].(string),
+							Url: imageUrl,
 						},
 					}
 					if detail, ok := subObj["detail"].(string); ok {
@@ -465,20 +469,29 @@ func (m *chatMessage) ParseContent() []chatMessageContent {
 				}
 			case contentTypeInputAudio:
 				if subObj, ok := contentMap[contentTypeInputAudio].(map[string]any); ok {
+					data, dataOk := stringField(subObj, "data")
+					format, formatOk := stringField(subObj, "format")
+					if !dataOk || !formatOk {
+						continue
+					}
 					contentList = append(contentList, chatMessageContent{
 						Type: contentTypeInputAudio,
 						InputAudio: &chatMessageContentAudio{
-							Data:   subObj["data"].(string),
-							Format: subObj["format"].(string),
+							Data:   data,
+							Format: format,
 						},
 					})
 				}
 			case contentTypeFile:
 				if subObj, ok := contentMap[contentTypeFile].(map[string]any); ok {
+					fileId, ok := stringField(subObj, "file_id")
+					if !ok {
+						continue
+					}
 					contentList = append(contentList, chatMessageContent{
 						Type: contentTypeFile,
 						File: &chatMessageContentFile{
-							FileId: subObj["file_id"].(string),
+							FileId: fileId,
 							// FileName: subObj["file_name"].(string),
 							// FileData: subObj["file_data"].(string),
 						},
@@ -489,6 +502,11 @@ func (m *chatMessage) ParseContent() []chatMessageContent {
 		return contentList
 	}
 	return nil
+}
+
+func stringField(values map[string]any, key string) (string, bool) {
+	value, ok := values[key].(string)
+	return value, ok
 }
 
 type toolCall struct {
