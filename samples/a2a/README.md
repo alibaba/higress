@@ -12,5 +12,10 @@ application/a2a+json` and `A2A-Version: 1.0`. The plugin removes untrusted
 `x-higress-a2a-*` request headers and publishes bounded canonical metadata for
 later authentication, authorization, rate-limit, and observability plugins.
 
+Agent Card responses on `/.well-known/agent-card.json` and the legacy
+`/.well-known/agent.json` path are bounded and validated. JSON-RPC interface
+URLs are rewritten to the configured public `agent.externalBaseURL`. Signed
+Cards use `preserve` mode and are never rewritten without re-signing.
+
 The gateway observes task state returned by the upstream Agent; it does not
 store or own task state.

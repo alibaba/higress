@@ -16,9 +16,22 @@ legacy03:
   enabled: false
 agent:
   id: weather-agent
+  externalBaseURL: https://agents.example.com/a2a
+agentCard:
+  path: /.well-known/agent-card.json
+  rewrite: true
+  signatureMode: preserve
+  maxResponseBytes: 262144
 jsonrpc:
   maxRequestBytes: 4194304
   maxSSEEventBytes: 262144
 authorization:
   exposeInternalHeaders: true
 ```
+
+GET responses from the canonical Agent Card path and the legacy
+`/.well-known/agent.json` path are validated before forwarding. The plugin
+accepts public HTTPS JSON-RPC endpoints, preserves unknown fields, and rewrites
+only declared endpoint fields to `agent.externalBaseURL` (or the sanitized
+external request origin). Signed Cards are passed through unchanged in
+`preserve` mode.

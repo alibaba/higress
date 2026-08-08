@@ -54,6 +54,12 @@ spec:
           enabled: false
         agent:
           id: weather-agent
+          externalBaseURL: https://agents.example.com/a2a
+        agentCard:
+          path: /.well-known/agent-card.json
+          rewrite: true
+          signatureMode: preserve
+          maxResponseBytes: 262144
         jsonrpc:
           maxRequestBytes: 4194304
           maxSSEEventBytes: 262144
