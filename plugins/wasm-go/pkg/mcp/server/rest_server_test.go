@@ -1059,12 +1059,12 @@ func TestParseTemplates_HeaderWithEmptyKeySkipped(t *testing.T) {
 
 func TestParseTemplates_PopulatesArgPositions(t *testing.T) {
 	tool := RestTool{
-		RequestTemplate: RestToolRequestTemplate{URL: "http://x", Method: "GET"},
+		RequestTemplate:  RestToolRequestTemplate{URL: "http://x", Method: "GET"},
 		ResponseTemplate: RestToolResponseTemplate{Body: "{{.}}"},
 		Args: []RestToolArg{
-			{Name: "q", Position: "QUERY"},  // lower-cased in argPositions
+			{Name: "q", Position: "QUERY"}, // lower-cased in argPositions
 			{Name: "h", Position: "Header"},
-			{Name: "noPos"},                   // no position → not stored
+			{Name: "noPos"}, // no position → not stored
 		},
 	}
 	require := assert.New(t)
@@ -1142,6 +1142,8 @@ func TestRestServer_GetToolConfig(t *testing.T) {
 func TestRestServer_Clone_Independence(t *testing.T) {
 	orig := NewRestMCPServer("rest")
 	orig.SetPassthroughAuthHeader(true)
+	orig.SetDefaultDownstreamSecurity(SecurityRequirement{ID: "K", Passthrough: true})
+	orig.SetDefaultUpstreamSecurity(SecurityRequirement{ID: "K", Credential: "server-token"})
 	orig.SetConfig([]byte(`{"v":1}`))
 	orig.AddSecurityScheme(SecurityScheme{ID: "K", Type: "apiKey", In: "header", Name: "X"})
 	require.NoError(t, orig.AddRestTool(RestTool{
@@ -1153,6 +1155,10 @@ func TestRestServer_Clone_Independence(t *testing.T) {
 	require.NotNil(t, clonedI)
 	cloned, ok := clonedI.(*RestMCPServer)
 	require.True(t, ok)
+
+	assert.True(t, cloned.GetPassthroughAuthHeader())
+	assert.Equal(t, orig.GetDefaultDownstreamSecurity(), cloned.GetDefaultDownstreamSecurity())
+	assert.Equal(t, orig.GetDefaultUpstreamSecurity(), cloned.GetDefaultUpstreamSecurity())
 
 	// Mutate the original: cloned must not see the change.
 	orig.AddSecurityScheme(SecurityScheme{ID: "K2", Type: "apiKey", In: "header", Name: "Y"})
@@ -1273,6 +1279,42 @@ func TestRestMCPTool_Create_MalformedJSONStillProducesTool(t *testing.T) {
 	// Bad JSON is logged + ignored; defaults still applied.
 	created := tool.Create([]byte("{not json")).(*RestMCPTool)
 	assert.Equal(t, 7, created.arguments["d"], "default still applied when params unparseable")
+}
+
+func TestAppendPassthroughAuthHeader(t *testing.T) {
+	t.Run("appends authorization header", func(t *testing.T) {
+		headers := [][2]string{{"Accept", "*/*"}}
+
+		appendPassthroughAuthHeader(&headers, "Bearer client-token")
+
+		value, ok := findHeader(headers, "Authorization")
+		require.True(t, ok)
+		assert.Equal(t, "Bearer client-token", value)
+		assert.Equal(t, 1, countHeader(headers, "Authorization"))
+	})
+
+	t.Run("replaces existing authorization header", func(t *testing.T) {
+		headers := [][2]string{
+			{"Authorization", "Bearer configured-token"},
+			{"Accept", "*/*"},
+		}
+
+		appendPassthroughAuthHeader(&headers, "Bearer client-token")
+
+		value, ok := findHeader(headers, "Authorization")
+		require.True(t, ok)
+		assert.Equal(t, "Bearer client-token", value)
+		assert.Equal(t, 1, countHeader(headers, "Authorization"))
+	})
+
+	t.Run("ignores empty authorization header", func(t *testing.T) {
+		headers := [][2]string{{"Accept", "*/*"}}
+
+		appendPassthroughAuthHeader(&headers, "")
+
+		_, ok := findHeader(headers, "Authorization")
+		assert.False(t, ok)
+	})
 }
 
 // ---------------------------------------------------------------------------

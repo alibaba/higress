@@ -26,8 +26,8 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/sjson"
 
-	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
@@ -356,10 +356,13 @@ func (s *RestMCPServer) GetConfig(v any) {
 // Clone implements Server interface
 func (s *RestMCPServer) Clone() Server {
 	newServer := &RestMCPServer{
-		name:            s.name,
-		base:            s.base.CloneBase(),
-		toolsConfig:     make(map[string]RestTool),
-		securitySchemes: make(map[string]SecurityScheme), // Initialize the map
+		name:                      s.name,
+		base:                      s.base.CloneBase(),
+		toolsConfig:               make(map[string]RestTool),
+		securitySchemes:           make(map[string]SecurityScheme), // Initialize the map
+		defaultDownstreamSecurity: s.defaultDownstreamSecurity,
+		defaultUpstreamSecurity:   s.defaultUpstreamSecurity,
+		passthroughAuthHeader:     s.passthroughAuthHeader,
 	}
 	for k, v := range s.toolsConfig {
 		newServer.toolsConfig[k] = v
@@ -628,11 +631,14 @@ func (t *RestMCPTool) Call(httpCtx HttpContext, server Server) error {
 		headers = append(headers, [2]string{header.Key, value})
 	}
 
-	// Authorization or specific API key headers are handled by extractAndRemoveIncomingCredential if tool-level security is defined.
-	// If no tool-level security is defined, this generic RemoveHttpRequestHeader("Authorization") acts as a fallback.
-	// Unless passthroughAuthHeader is explicitly set to true.
-	if t.toolConfig.Security.ID == "" {
-		if !restServer.GetPassthroughAuthHeader() {
+	// Authorization or specific API key headers are handled by extractAndRemoveIncomingCredential if downstream security is defined.
+	// If no downstream security is defined, RemoveHttpRequestHeader("Authorization") acts as a fallback unless
+	// passthroughAuthHeader is explicitly set to true.
+	if downstreamSecurity.ID == "" {
+		if restServer.GetPassthroughAuthHeader() {
+			authHeader, _ := proxywasm.GetHttpRequestHeader("Authorization")
+			appendPassthroughAuthHeader(&headers, authHeader)
+		} else {
 			proxywasm.RemoveHttpRequestHeader("Authorization") // Remove if not handled by specific scheme
 		}
 	}
@@ -1012,6 +1018,13 @@ func (t *RestMCPTool) InputSchema() map[string]any {
 // OutputSchema implements Tool interface (MCP Protocol Version 2025-06-18)
 func (t *RestMCPTool) OutputSchema() map[string]any {
 	return t.toolConfig.OutputSchema
+}
+
+func appendPassthroughAuthHeader(headers *[][2]string, authHeader string) {
+	if authHeader == "" {
+		return
+	}
+	setOrReplaceHeader(headers, "Authorization", authHeader)
 }
 
 func convertHeaders(responseHeaders [][2]string) map[string]string {
