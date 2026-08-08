@@ -77,7 +77,7 @@ func TestPublishA2AContinuesWhenPluginAlreadyExists(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-	if err := PublishA2A(NewClient(server.URL, "", ""), "weather", "http://127.0.0.1:8080/", "https://gateway.example.com/a2a"); err != nil {
+	if err := PublishA2A(NewClient(server.URL, "", ""), "weather", "http://127.0.0.1:8080/", "https://gateway.example.com/"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -102,9 +102,37 @@ func TestBuildA2APublicationUsesConsoleStaticServiceContract(t *testing.T) {
 }
 
 func TestBuildA2APublicationRequiresTrustedExternalBaseURL(t *testing.T) {
-	for _, externalBaseURL := range []string{"", "http://gateway.example.com/a2a", "https://user@gateway.example.com/a2a"} {
+	for _, externalBaseURL := range []string{
+		"",
+		"http://gateway.example.com/a2a",
+		"https://user@gateway.example.com/a2a",
+		"https://gateway.example.com/a2a#fragment",
+		"https://gateway.example.com:0/a2a",
+		"https://gateway.example.com:65536/a2a",
+		"https://gateway.example.com:notaport/a2a",
+		"https://127.0.0.1/a2a",
+		"https://127.1/a2a",
+		"https://gateway.localhost/a2a",
+		"https://0.0.0.0/a2a",
+		"https://10.0.0.1/a2a",
+		"https://169.254.1.2/a2a",
+		"https://224.0.0.1/a2a",
+		"https://[::]/a2a",
+		"https://[::1]/a2a",
+		"https://[fd00::1]/a2a",
+		"https://[ff02::1]/a2a",
+	} {
 		if _, err := buildA2APublication("weather", "http://127.0.0.1:8080/a2a", externalBaseURL); err == nil {
 			t.Fatalf("expected external URL %q to be rejected", externalBaseURL)
 		}
+	}
+}
+
+func TestBuildA2APublicationRequiresExternalPathToMatchRoute(t *testing.T) {
+	if _, err := buildA2APublication("weather", "http://agent.example.com/internal/a2a", "https://gateway.example.com/public/a2a"); err == nil {
+		t.Fatal("expected mismatched external and route paths to be rejected")
+	}
+	if _, err := buildA2APublication("weather", "http://agent.example.com/a2a/", "https://gateway.example.com/a2a"); err != nil {
+		t.Fatalf("expected equivalent route paths to be accepted: %v", err)
 	}
 }

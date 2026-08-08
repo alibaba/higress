@@ -20,6 +20,7 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -80,7 +81,7 @@ func buildA2APublication(name, rawURL, externalBaseURL string) (*a2aPublication,
 		return nil, fmt.Errorf("invalid A2A agent URL %q", rawURL)
 	}
 	external, err := url.Parse(externalBaseURL)
-	if err != nil || externalBaseURL == "" || external.Hostname() == "" || external.Scheme != "https" || external.User != nil || external.Fragment != "" {
+	if err != nil || externalBaseURL == "" || !external.IsAbs() || external.Hostname() == "" || !strings.EqualFold(external.Scheme, "https") || external.User != nil || external.Fragment != "" || validateA2AExternalPort(external.Port()) != nil || !isPublicA2AHost(external.Hostname()) {
 		return nil, fmt.Errorf("a public HTTPS external A2A base URL is required")
 	}
 	port := upstream.Port()
@@ -106,6 +107,10 @@ func buildA2APublication(name, rawURL, externalBaseURL string) (*a2aPublication,
 	matchPath := path.Clean("/" + strings.TrimPrefix(upstream.EscapedPath(), "/"))
 	if matchPath == "." {
 		matchPath = "/"
+	}
+	externalPath := path.Clean("/" + strings.TrimPrefix(external.EscapedPath(), "/"))
+	if externalPath != matchPath {
+		return nil, fmt.Errorf("external A2A URL path %q must match route path %q", externalPath, matchPath)
 	}
 	service := map[string]interface{}{
 		"domain": serviceDomain, "type": serviceType, "port": servicePort,
@@ -155,6 +160,49 @@ func buildA2APublication(name, rawURL, externalBaseURL string) (*a2aPublication,
 			{name: discoveryRouteName, route: discoveryRoute, instance: instance(discoveryRouteName)},
 		},
 	}, nil
+}
+
+func validateA2AExternalPort(port string) error {
+	if port == "" {
+		return nil
+	}
+	number, err := strconv.Atoi(port)
+	if err != nil || number < 1 || number > 65535 {
+		return fmt.Errorf("invalid external A2A port")
+	}
+	return nil
+}
+
+func isPublicA2AHost(host string) bool {
+	normalized := strings.TrimSuffix(strings.ToLower(host), ".")
+	if normalized == "localhost" || strings.HasSuffix(normalized, ".localhost") || isNonCanonicalA2AIPv4Literal(normalized) {
+		return false
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return !ip.IsLoopback() && !ip.IsUnspecified() && !ip.IsLinkLocalUnicast() && !ip.IsLinkLocalMulticast() && !ip.IsPrivate() && !ip.IsMulticast()
+	}
+	return true
+}
+
+func isNonCanonicalA2AIPv4Literal(host string) bool {
+	if strings.Contains(host, ":") || net.ParseIP(host) != nil {
+		return false
+	}
+	parts := strings.Split(host, ".")
+	if len(parts) > 4 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" {
+			return false
+		}
+		if _, err := strconv.ParseUint(part, 0, 64); err != nil {
+			if _, err = strconv.ParseUint(part, 10, 64); err != nil {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func boundedResponse(response []byte) string {
