@@ -310,6 +310,27 @@ func TestSetupMcpProxyServer_InvalidTransport(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid transport value")
 }
 
+func TestSetupMcpProxyServer_InvalidProtocolStrategy(t *testing.T) {
+	j := mustGJSON(t, `{"transport":"http","protocolStrategy":"auto","mcpServerURL":"http://b"}`)
+	_, err := setupMcpProxyServer("s", j, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "protocolStrategy")
+}
+
+func TestSetupMcpProxyServer_ModernRequiresHTTP(t *testing.T) {
+	j := mustGJSON(t, `{"transport":"sse","protocolStrategy":"modern","mcpServerURL":"http://b"}`)
+	_, err := setupMcpProxyServer("s", j, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "requires transport 'http'")
+}
+
+func TestSetupMcpProxyServer_AbsentProtocolStrategyDefaultsLegacy(t *testing.T) {
+	j := mustGJSON(t, `{"transport":"http","mcpServerURL":"http://b"}`)
+	srv, err := setupMcpProxyServer("s", j, "")
+	require.NoError(t, err)
+	assert.Equal(t, ProtocolStrategyLegacy, srv.GetProtocolStrategy())
+}
+
 func TestSetupMcpProxyServer_MissingMcpServerURL(t *testing.T) {
 	j := mustGJSON(t, `{"transport":"http"}`)
 	_, err := setupMcpProxyServer("s", j, "")
@@ -360,6 +381,7 @@ func TestSetupMcpProxyServer_BadDefaultUpstreamSecurity(t *testing.T) {
 func TestSetupMcpProxyServer_HappyPath_AppliesAllFields(t *testing.T) {
 	raw := `{
 		"transport":"sse",
+		"protocolStrategy":"legacy",
 		"mcpServerURL":"https://backend.example/mcp",
 		"timeout":7777,
 		"passthroughAuthHeader":true,
@@ -375,6 +397,7 @@ func TestSetupMcpProxyServer_HappyPath_AppliesAllFields(t *testing.T) {
 
 	assert.Equal(t, "alpha", srv.Name)
 	assert.Equal(t, TransportSSE, srv.GetTransport())
+	assert.Equal(t, ProtocolStrategyLegacy, srv.GetProtocolStrategy())
 	assert.Equal(t, "https://backend.example/mcp", srv.GetMcpServerURL())
 	assert.Equal(t, 7777, srv.GetTimeout())
 	assert.True(t, srv.GetPassthroughAuthHeader())
@@ -745,14 +768,14 @@ func TestBaseMCPServer_CloneBase_DeepCopiesTools(t *testing.T) {
 	assert.Same(t, stub, got, "existing tools are shared by reference (no deep clone of Tool itself)")
 }
 
-func TestModernMethodPolicyDisablesMCPProxyHandlers(t *testing.T) {
+func TestModernMethodPolicyEnablesMCPProxyHandlers(t *testing.T) {
 	handler := func(_ wrapper.HttpContext, _ utils.JsonRpcID, _ gjson.Result) error { return nil }
 	proxyConfig := McpServerConfig{
 		server:         NewMcpProxyServer("proxy"),
 		methodHandlers: utils.MethodHandlers{"tools/call": handler},
 	}
-	assert.False(t, modernMethodPolicy(proxyConfig, "tools/call").Available,
-		"modern requests must not enter proxy handlers that log raw arguments")
+	assert.True(t, modernMethodPolicy(proxyConfig, "tools/call").Available,
+		"proxy handlers implement explicit modern and legacy upstream bridging")
 
 	regularConfig := McpServerConfig{
 		server:         &stubServer{},

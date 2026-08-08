@@ -87,6 +87,21 @@ func setupMcpProxyServer(serverName string, serverJson gjson.Result, serverConfi
 	}
 	proxyServer.SetTransport(transport)
 
+	// protocolStrategy is explicit for new deployments and defaults to legacy
+	// for compatibility with configurations created before the modern profile.
+	strategyStr := serverJson.Get("protocolStrategy").String()
+	if strategyStr == "" {
+		strategyStr = string(ProtocolStrategyLegacy)
+	}
+	strategy := ProtocolStrategy(strategyStr)
+	if strategy != ProtocolStrategyLegacy && strategy != ProtocolStrategyModern {
+		return nil, fmt.Errorf("invalid protocolStrategy value: %s, must be 'modern' or 'legacy'", strategyStr)
+	}
+	if strategy == ProtocolStrategyModern && transport != TransportHTTP {
+		return nil, errors.New("protocolStrategy 'modern' requires transport 'http'")
+	}
+	proxyServer.SetProtocolStrategy(strategy)
+
 	// Parse and validate mcpServerURL (required for mcp-proxy)
 	mcpServerURL := serverJson.Get("mcpServerURL").String()
 	if mcpServerURL == "" {
@@ -624,6 +639,13 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		}
 		toolsAvailable := modernMethodPolicy(*config, "tools/list").Available &&
 			modernMethodPolicy(*config, "tools/call").Available
+		// Proxy upstream capabilities are not known without an outbound discovery
+		// exchange. Discovery fallback/caching is deliberately outside this
+		// change, so do not advertise unverified proxy capabilities even though
+		// direct modern tools/list and tools/call bridging is available.
+		if _, isProxy := config.server.(*McpProxyServer); isProxy {
+			toolsAvailable = false
+		}
 		result := ShapeResult(request, currentServerNameForHandlers, DiscoveryResult(toolsAvailable))
 		utils.OnMCPResponseSuccess(ctx, result, fmt.Sprintf("mcp:%s:server/discover", currentServerNameForHandlers))
 		return nil
@@ -939,9 +961,6 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config McpServerConfig, body []b
 func modernMethodPolicy(config McpServerConfig, method string) protocol.MethodPolicy {
 	if method == "server/discover" {
 		return protocol.MethodPolicy{Available: config.methodHandlers[method] != nil}
-	}
-	if _, isProxy := config.server.(*McpProxyServer); isProxy {
-		return protocol.MethodPolicy{}
 	}
 	if config.isComposed && method == "tools/call" {
 		return protocol.MethodPolicy{}
