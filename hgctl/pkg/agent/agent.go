@@ -19,6 +19,7 @@ import (
 	"io"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
+	publishservices "github.com/alibaba/higress/hgctl/pkg/services"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -125,6 +126,9 @@ func publishAgentAPIToHigress(arg AgentAddArg) error {
 
 	switch arg.typ {
 	case A2A:
+		if err := publishservices.PublishA2A(publishservices.NewClient(arg.hgURL, arg.hgUser, arg.hgPassword), arg.name, arg.url); err != nil {
+			return err
+		}
 	case MODEL:
 		// add ai service
 		body := services.BuildAIProviderServiceBody(arg.name, arg.url)
