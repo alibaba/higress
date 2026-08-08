@@ -187,6 +187,7 @@ jobs:
             check-name: inference-extension-conformance-test (v1.4.0)
     env:
       HIGRESS_TEST_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+      INFERENCE_EXTENSION_SYSTEM_NAMESPACE: inference-conformance-infra
     steps:
       - uses: actions/checkout@v4
         with:
@@ -247,8 +248,8 @@ jobs:
           mkdir -p out/gateway-api-inference-extension/diagnostics
           kubectl get gatewayclass,gateway,httproute,inferencepool,service,pod -A -o yaml > out/gateway-api-inference-extension/diagnostics/resources.yaml 2>&1 || true
           kubectl get events -A --sort-by=.lastTimestamp > out/gateway-api-inference-extension/diagnostics/events.txt 2>&1 || true
-          kubectl logs -n inference-conformance-system deployment/higress-controller --all-containers --prefix > out/gateway-api-inference-extension/diagnostics/controller.log 2>&1 || true
-          kubectl logs -n inference-conformance-system deployment/higress-gateway --all-containers --prefix > out/gateway-api-inference-extension/diagnostics/gateway.log 2>&1 || true
+          kubectl logs -n "${INFERENCE_EXTENSION_SYSTEM_NAMESPACE}" deployment/higress-controller --all-containers --prefix > out/gateway-api-inference-extension/diagnostics/controller.log 2>&1 || true
+          kubectl logs -n "${INFERENCE_EXTENSION_SYSTEM_NAMESPACE}" deployment/higress-gateway --all-containers --prefix > out/gateway-api-inference-extension/diagnostics/gateway.log 2>&1 || true
           for pod in $(kubectl get pod -n inference-conformance-app-backend -o name 2>/dev/null); do
             kubectl logs -n inference-conformance-app-backend "${pod}" --all-containers --prefix
           done > out/gateway-api-inference-extension/diagnostics/backends.log 2>&1 || true
