@@ -78,6 +78,24 @@ var ports = []*model.Port{
 	},
 }
 
+var inferencePoolPorts = []*model.Port{
+	{
+		Name:     "http-0",
+		Port:     54321,
+		Protocol: "HTTP",
+	},
+	{
+		Name:     "http-1",
+		Port:     54322,
+		Protocol: "HTTP",
+	},
+	{
+		Name:     "http-2",
+		Port:     54323,
+		Protocol: "HTTP",
+	},
+}
+
 var services = []*model.Service{
 	{
 		Attributes: model.ServiceAttributes{
@@ -136,7 +154,7 @@ var services = []*model.Service{
 				InferencePoolExtensionRefFailureMode: "FailClose",
 			},
 		},
-		Ports: ports,
+		Ports: inferencePoolPorts,
 		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", func() string {
 			name, _ := InferencePoolServiceName("infpool-gen")
 			return name
@@ -151,7 +169,7 @@ var services = []*model.Service{
 				InferencePoolExtensionRefFailureMode: "FailClose",
 			},
 		},
-		Ports: ports,
+		Ports: inferencePoolPorts,
 		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", func() string {
 			name, _ := InferencePoolServiceName("infpool-gen2")
 			return name
@@ -166,7 +184,7 @@ var services = []*model.Service{
 				InferencePoolExtensionRefFailureMode: "FailClose",
 			},
 		},
-		Ports: ports,
+		Ports: inferencePoolPorts,
 		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", func() string {
 			name, _ := InferencePoolServiceName("infpool-model1")
 			return name
@@ -181,7 +199,7 @@ var services = []*model.Service{
 				InferencePoolExtensionRefFailureMode: "FailClose",
 			},
 		},
-		Ports: ports,
+		Ports: inferencePoolPorts,
 		Hostname: host.Name(fmt.Sprintf("%s.default.svc.domain.suffix", func() string {
 			name, _ := InferencePoolServiceName("infpool-model2")
 			return name
@@ -1733,6 +1751,16 @@ func readConfig(t testing.TB, filename string, validator *crdvalidation.Validato
 		if name == "" {
 			name, _, _ = strings.Cut(svc.Hostname.String(), ".")
 		}
+		servicePorts := svcPorts
+		if _, isInferencePool := svc.Attributes.Labels[InferencePoolExtensionRefSvc]; isInferencePool {
+			servicePorts = slices.Map(svc.Ports, func(port *model.Port) corev1.ServicePort {
+				return corev1.ServicePort{
+					Name:     port.Name,
+					Port:     int32(port.Port),
+					Protocol: corev1.ProtocolTCP,
+				}
+			})
+		}
 		svcObj := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: svc.Attributes.Namespace,
@@ -1740,7 +1768,7 @@ func readConfig(t testing.TB, filename string, validator *crdvalidation.Validato
 				Labels:    svc.Attributes.Labels,
 			},
 			Spec: corev1.ServiceSpec{
-				Ports: svcPorts,
+				Ports: servicePorts,
 			},
 		}
 		objs = append(objs, svcObj)
