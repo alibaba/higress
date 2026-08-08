@@ -40,6 +40,26 @@ func testConfigWithExternalURL(t *testing.T, externalURL string) []byte {
 	return data
 }
 
+func testConfigWithCardRewrite(t *testing.T, legacy, rewrite bool) []byte {
+	t.Helper()
+	var config map[string]interface{}
+	require.NoError(t, json.Unmarshal(testConfig(t, legacy), &config))
+	config["agentCard"] = map[string]interface{}{"rewrite": rewrite}
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+	return data
+}
+
+func testConfigWithExternalPath(t *testing.T, externalPath string) []byte {
+	t.Helper()
+	var config map[string]interface{}
+	require.NoError(t, json.Unmarshal(testConfig(t, false), &config))
+	config["agent"].(map[string]interface{})["externalPath"] = externalPath
+	data, err := json.Marshal(config)
+	require.NoError(t, err)
+	return data
+}
+
 func TestTrustedHeadersReplaceSpoofedInput(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		host, status := test.NewTestHost(testConfig(t, false))
@@ -48,7 +68,7 @@ func TestTrustedHeadersReplaceSpoofedInput(t *testing.T) {
 		host.InitHttp()
 		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestHeaders([][2]string{
 			{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"},
-			{"content-type", "application/a2a+json"}, {"a2a-version", "1.0"},
+			{"content-type", "application/json"}, {"a2a-version", "1.0"},
 			{"x-higress-a2a-method", "CancelTask"}, {"x-higress-a2a-task-id", "spoofed"},
 		}))
 		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":"r1","method":"GetTask","params":{"id":"real-task"}}`)))
@@ -72,7 +92,7 @@ func TestLegacyAliasAndStrictUnknownMethod(t *testing.T) {
 		defer host.Reset()
 		require.Equal(t, types.OnPluginStartStatusOK, status)
 		host.InitHttp()
-		host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}})
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}, {"a2a-version", "0.3"}})
 		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":1,"method":"tasks/cancel","params":{"id":"t1"}}`)))
 		headers := map[string]string{}
 		for _, pair := range host.GetRequestHeaders() {
@@ -88,8 +108,64 @@ func TestLegacyAliasAndStrictUnknownMethod(t *testing.T) {
 		defer host.Reset()
 		require.Equal(t, types.OnPluginStartStatusOK, status)
 		host.InitHttp()
-		host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/a2a+json"}, {"a2a-version", "1.0"}})
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}, {"a2a-version", "1.0"}})
 		require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":1,"method":"unknown"}`)))
+		host.CompleteHttp()
+	})
+}
+
+func TestRequestVersionControlsLegacyMethodSemantics(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfig(t, true))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}})
+		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":1,"method":"tasks/get","params":{"id":"t1"}}`)))
+		require.Equal(t, "0.3", headerMap(host.GetRequestHeaders())["x-higress-a2a-version"])
+		host.CompleteHttp()
+	})
+
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfig(t, true))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}, {"a2a-version", "1.0"}})
+		require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":1,"method":"tasks/get","params":{"id":"t1"}}`)))
+		require.Contains(t, string(host.GetLocalResponse().Data), `"code":-32601`)
+		host.CompleteHttp()
+	})
+
+	for _, headers := range [][][2]string{
+		{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}},
+		{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}, {"a2a-version", "0.3"}},
+	} {
+		test.RunGoTest(t, func(t *testing.T) {
+			host, status := test.NewTestHost(testConfig(t, false))
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			host.InitHttp()
+			host.CallOnHttpRequestHeaders(headers)
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":1,"method":"tasks/get"}`)))
+			require.Contains(t, string(host.GetLocalResponse().Data), `"code":-32009`)
+			host.CompleteHttp()
+		})
+	}
+}
+
+func TestEncodedA2ARequestFailsClosedBeforeBodyCallback(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfig(t, false))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		action := host.CallOnHttpRequestHeaders([][2]string{
+			{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"},
+			{"content-type", "application/json"}, {"content-encoding", "gzip"}, {"a2a-version", "1.0"},
+		})
+		require.Equal(t, types.ActionPause, action)
+		require.Contains(t, string(host.GetLocalResponse().Data), `"code":-32600`)
 		host.CompleteHttp()
 	})
 }
@@ -115,14 +191,14 @@ func TestCanonicalAgentCardRewritesPublicInterfacesAndPreservesUnknownFields(t *
 		require.Equal(t, types.OnPluginStartStatusOK, status)
 		host.InitHttp()
 		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestHeaders([][2]string{
-			{":method", "GET"}, {":scheme", "http"}, {":path", "/agents/weather/.well-known/agent-card.json"},
-			{":authority", "internal.example.com"}, {"x-forwarded-proto", "https"}, {"x-forwarded-host", "agents.example.com"},
+			{":method", "GET"}, {":scheme", "https"}, {":path", "/agents/weather/.well-known/agent-card.json"},
+			{":authority", "agents.example.com"}, {"x-forwarded-proto", "http"}, {"x-forwarded-host", "attacker.example.com"},
 			{"x-mse-consumer", "consumer-a"},
 		}))
 		require.Equal(t, types.HeaderStopIteration, host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}, {"etag", `"upstream"`}, {"x-higress-a2a-card-cache-key", "untrusted-shared-key"}}))
 		body := []byte(`{
 			"name":"Weather",
-			"supportedInterfaces":[{"url":"https://upstream.example.com/a2a","transport":"JSONRPC","x-interface":{"keep":true}}],
+			"supportedInterfaces":[{"url":"http://internal-agent:8080/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0","x-interface":{"keep":true}}],
 			"x-vendor":{"nested":[1,"two",{"three":3}]}
 		}`)
 		require.Equal(t, types.ActionContinue, host.CallOnHttpResponseBody(body))
@@ -143,7 +219,7 @@ func TestCanonicalAgentCardRewritesPublicInterfacesAndPreservesUnknownFields(t *
 
 func TestLegacyAgentCardPathRewritesTopLevelURL(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
-		host, status := test.NewTestHost(testConfig(t, false))
+		host, status := test.NewTestHost(testConfig(t, true))
 		defer host.Reset()
 		require.Equal(t, types.OnPluginStartStatusOK, status)
 		host.InitHttp()
@@ -152,11 +228,51 @@ func TestLegacyAgentCardPathRewritesTopLevelURL(t *testing.T) {
 			{":authority", "agents.example.com"},
 		})
 		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json; charset=utf-8"}})
-		host.CallOnHttpResponseBody([]byte(`{"name":"Weather","url":"https://upstream.example.com/a2a","preferredTransport":"JSON-RPC","x-safe":"kept"}`))
+		host.CallOnHttpResponseBody([]byte(`{"name":"Weather","url":"http://internal-agent/a2a","preferredTransport":"JSON-RPC","additionalInterfaces":[{"url":"http://169.254.1.2/a2a","transport":"HTTP+JSON"}],"x-safe":"kept"}`))
 		var card map[string]interface{}
 		require.NoError(t, json.Unmarshal(host.GetResponseBody(), &card))
 		require.Equal(t, "https://agents.example.com/a2a", card["url"])
+		additional := card["additionalInterfaces"].([]interface{})[0].(map[string]interface{})
+		require.Equal(t, "https://agents.example.com/a2a", additional["url"])
 		require.Equal(t, "kept", card["x-safe"])
+		host.CompleteHttp()
+	})
+}
+
+func TestLegacyAgentCardAtCanonicalPathWhenCompatibilityEnabled(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfig(t, true))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "GET"}, {":scheme", "https"}, {":path", canonicalAgentCardPath}, {":authority", "agents.example.com"}})
+		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}})
+		host.CallOnHttpResponseBody([]byte(`{"url":"http://internal-agent/a2a","preferredTransport":"JSONRPC"}`))
+		var card map[string]interface{}
+		require.NoError(t, json.Unmarshal(host.GetResponseBody(), &card))
+		require.Equal(t, "https://agents.example.com", card["url"])
+		host.CompleteHttp()
+	})
+}
+
+func TestV1AgentCardAcceptsAllStandardBindings(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfigWithExternalURL(t, "https://public.example.com/a2a"))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "GET"}, {":scheme", "https"}, {":path", canonicalAgentCardPath}, {":authority", "agents.example.com"}})
+		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}})
+		host.CallOnHttpResponseBody([]byte(`{"supportedInterfaces":[
+			{"url":"http://internal-agent/jsonrpc","protocolBinding":"JSONRPC","protocolVersion":"1.0"},
+			{"url":"http://internal-agent/grpc","protocolBinding":"GRPC","protocolVersion":"1.0"},
+			{"url":"http://internal-agent/http-json","protocolBinding":"HTTP+JSON","protocolVersion":"1.0"}
+		]}`))
+		var card map[string]interface{}
+		require.NoError(t, json.Unmarshal(host.GetResponseBody(), &card))
+		for _, item := range card["supportedInterfaces"].([]interface{}) {
+			require.Equal(t, "https://public.example.com/a2a", item.(map[string]interface{})["url"])
+		}
 		host.CompleteHttp()
 	})
 }
@@ -172,11 +288,28 @@ func TestConfiguredExternalURLTakesPrecedence(t *testing.T) {
 			{"x-forwarded-host", "also-ignored.example.com"},
 		})
 		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}})
-		host.CallOnHttpResponseBody([]byte(`{"supportedInterfaces":[{"url":"https://upstream.example.com/a2a","transport":"JSONRPC"}]}`))
+		host.CallOnHttpResponseBody([]byte(`{"supportedInterfaces":[{"url":"http://internal-agent:8080/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`))
 		var card map[string]interface{}
 		require.NoError(t, json.Unmarshal(host.GetResponseBody(), &card))
 		iface := card["supportedInterfaces"].([]interface{})[0].(map[string]interface{})
 		require.Equal(t, "https://public.example.com/weather", iface["url"])
+		host.CompleteHttp()
+	})
+}
+
+func TestConfiguredExternalPathAdvertisesRPCPathFromStandardDiscoveryRoute(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfigWithExternalPath(t, "/a2a"))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "GET"}, {":scheme", "https"}, {":path", canonicalAgentCardPath}, {":authority", "agents.example.com"}})
+		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}})
+		host.CallOnHttpResponseBody([]byte(`{"supportedInterfaces":[{"url":"http://internal-agent:8080/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`))
+		var card map[string]interface{}
+		require.NoError(t, json.Unmarshal(host.GetResponseBody(), &card))
+		iface := card["supportedInterfaces"].([]interface{})[0].(map[string]interface{})
+		require.Equal(t, "https://agents.example.com/a2a", iface["url"])
 		host.CompleteHttp()
 	})
 }
@@ -186,15 +319,19 @@ func TestAgentCardRejectsUnsafeEndpointAndUnsupportedTransport(t *testing.T) {
 		name string
 		body string
 	}{
-		{"loopback endpoint", `{"supportedInterfaces":[{"url":"https://127.0.0.1/a2a","transport":"JSONRPC"}]}`},
-		{"link-local endpoint", `{"supportedInterfaces":[{"url":"https://169.254.1.2/a2a","transport":"JSONRPC"}]}`},
-		{"unspecified endpoint", `{"supportedInterfaces":[{"url":"https://0.0.0.0/a2a","transport":"JSONRPC"}]}`},
-		{"unsupported transport", `{"supportedInterfaces":[{"url":"https://upstream.example.com/a2a","transport":"GRPC"}]}`},
+		{"loopback endpoint", `{"supportedInterfaces":[{"url":"https://127.0.0.1/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`},
+		{"link-local endpoint", `{"supportedInterfaces":[{"url":"https://169.254.1.2/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`},
+		{"unspecified endpoint", `{"supportedInterfaces":[{"url":"https://0.0.0.0/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`},
+		{"private endpoint", `{"supportedInterfaces":[{"url":"https://10.0.0.1/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`},
+		{"ULA endpoint", `{"supportedInterfaces":[{"url":"https://[fd00::1]/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`},
+		{"multicast endpoint", `{"supportedInterfaces":[{"url":"https://224.0.0.1/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}]}`},
+		{"unsupported binding", `{"supportedInterfaces":[{"url":"https://upstream.example.com/a2a","protocolBinding":"websocket","protocolVersion":"1.0"}]}`},
+		{"missing protocol version", `{"supportedInterfaces":[{"url":"https://upstream.example.com/a2a","protocolBinding":"JSONRPC"}]}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			test.RunGoTest(t, func(t *testing.T) {
-				host, status := test.NewTestHost(testConfig(t, false))
+				host, status := test.NewTestHost(testConfigWithCardRewrite(t, false, false))
 				defer host.Reset()
 				require.Equal(t, types.OnPluginStartStatusOK, status)
 				host.InitHttp()
@@ -207,6 +344,20 @@ func TestAgentCardRejectsUnsafeEndpointAndUnsupportedTransport(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestLegacyAgentCardRejectsUnsafeAdditionalInterfaceWithoutRewrite(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfigWithCardRewrite(t, true, false))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "GET"}, {":scheme", "https"}, {":path", legacyAgentCardPath}, {":authority", "agents.example.com"}})
+		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}})
+		host.CallOnHttpResponseBody([]byte(`{"url":"https://agent.example.com/a2a","preferredTransport":"JSONRPC","additionalInterfaces":[{"url":"https://10.0.0.1/a2a","transport":"HTTP+JSON"}]}`))
+		require.Equal(t, "502", headerMap(host.GetResponseHeaders())[":status"])
+		host.CompleteHttp()
+	})
 }
 
 func TestAgentCardRejectsInvalidContentTypeAndDeclaredOversize(t *testing.T) {
@@ -243,9 +394,23 @@ func TestSignedAgentCardPreserveModeDoesNotRewriteBytes(t *testing.T) {
 		host.InitHttp()
 		host.CallOnHttpRequestHeaders([][2]string{{":method", "GET"}, {":scheme", "https"}, {":path", canonicalAgentCardPath}, {":authority", "agents.example.com"}})
 		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}})
-		body := []byte(`{ "supportedInterfaces": [{"url":"https://upstream.example.com/a2a","transport":"JSONRPC"}], "signatures": [{"protected":"abc","signature":"def"}] }`)
+		body := []byte(`{ "supportedInterfaces": [{"url":"https://upstream.example.com/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}], "signatures": [{"protected":"abc","signature":"def"}] }`)
 		host.CallOnHttpResponseBody(body)
 		require.True(t, bytes.Equal(body, host.GetResponseBody()))
+		host.CompleteHttp()
+	})
+}
+
+func TestSignedAgentCardPreserveRejectsPrivateEndpoint(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfig(t, false))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		host.CallOnHttpRequestHeaders([][2]string{{":method", "GET"}, {":scheme", "https"}, {":path", canonicalAgentCardPath}, {":authority", "agents.example.com"}})
+		host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "application/json"}})
+		host.CallOnHttpResponseBody([]byte(`{"supportedInterfaces":[{"url":"https://10.0.0.1/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"signatures":[{"signature":"def"}]}`))
+		require.Equal(t, "502", headerMap(host.GetResponseHeaders())[":status"])
 		host.CompleteHttp()
 	})
 }

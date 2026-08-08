@@ -61,20 +61,24 @@ func processAgentCard(body []byte, config pluginConfig, legacy bool, externalURL
 	if err := ensureJSONEOF(decoder); err != nil {
 		return cardResult{}, fmt.Errorf("%w: trailing JSON data", errInvalidAgentCard)
 	}
-	if legacy {
-		if err := validateAndRewriteLegacyCard(card, externalURL, config.AgentCard.rewrite); err != nil {
-			return cardResult{}, err
-		}
-	} else if err := validateAndRewriteV1Card(card, externalURL, config.AgentCard.rewrite); err != nil {
+	signed := hasCardSignature(card)
+	if signed && config.AgentCard.rewrite && config.AgentCard.SignatureMode == cardSignatureResign {
+		return cardResult{}, fmt.Errorf("%w: signature resigning is not configured", errInvalidAgentCard)
+	}
+	exposeOriginalEndpoints := !config.AgentCard.rewrite || signed
+	legacy, err := detectLegacyCard(card, config.Legacy03.Enabled, legacy)
+	if err != nil {
 		return cardResult{}, err
 	}
-	if hasCardSignature(card) && config.AgentCard.rewrite {
-		switch config.AgentCard.SignatureMode {
-		case cardSignaturePreserve:
-			return cardResult{body: body}, nil
-		case cardSignatureResign:
-			return cardResult{}, fmt.Errorf("%w: signature resigning is not configured", errInvalidAgentCard)
+	if legacy {
+		if err := validateAndRewriteLegacyCard(card, externalURL, config.AgentCard.rewrite, exposeOriginalEndpoints); err != nil {
+			return cardResult{}, err
 		}
+	} else if err := validateAndRewriteV1Card(card, externalURL, config.AgentCard.rewrite, exposeOriginalEndpoints); err != nil {
+		return cardResult{}, err
+	}
+	if signed && config.AgentCard.rewrite {
+		return cardResult{body: body}, nil
 	}
 	if !config.AgentCard.rewrite {
 		return cardResult{body: body}, nil
@@ -86,7 +90,23 @@ func processAgentCard(body []byte, config pluginConfig, legacy bool, externalURL
 	return cardResult{body: rewritten, rewritten: true}, nil
 }
 
-func validateAndRewriteV1Card(card map[string]json.RawMessage, externalURL string, rewrite bool) error {
+func detectLegacyCard(card map[string]json.RawMessage, legacyEnabled, legacyPath bool) (bool, error) {
+	if legacyPath {
+		if !legacyEnabled {
+			return false, fmt.Errorf("%w: legacy Agent Cards are disabled", errInvalidAgentCard)
+		}
+		return true, nil
+	}
+	if _, ok := card["supportedInterfaces"]; ok {
+		return false, nil
+	}
+	if _, ok := card["url"]; ok && legacyEnabled {
+		return true, nil
+	}
+	return false, nil
+}
+
+func validateAndRewriteV1Card(card map[string]json.RawMessage, externalURL string, rewrite, exposeOriginalEndpoints bool) error {
 	raw, ok := card["supportedInterfaces"]
 	if !ok {
 		return fmt.Errorf("%w: supportedInterfaces is required", errInvalidAgentCard)
@@ -100,12 +120,15 @@ func validateAndRewriteV1Card(card map[string]json.RawMessage, externalURL strin
 		if err != nil {
 			return fmt.Errorf("%w: supportedInterfaces[%d].url", errInvalidAgentCard, i)
 		}
-		if err := validateHTTPSURL(endpoint); err != nil {
+		if err := validateEndpointURL(endpoint, exposeOriginalEndpoints); err != nil {
 			return fmt.Errorf("supportedInterfaces[%d]: %w", i, err)
 		}
-		transport, err := requiredString(iface, "transport")
-		if err != nil || !isJSONRPCTransport(transport) {
-			return fmt.Errorf("%w: supportedInterfaces[%d] uses unsupported transport", errInvalidAgentCard, i)
+		binding, err := requiredString(iface, "protocolBinding")
+		if err != nil || !isSupportedBinding(binding) {
+			return fmt.Errorf("%w: supportedInterfaces[%d] uses unsupported protocolBinding", errInvalidAgentCard, i)
+		}
+		if _, err := requiredString(iface, "protocolVersion"); err != nil {
+			return fmt.Errorf("%w: supportedInterfaces[%d].protocolVersion is required", errInvalidAgentCard, i)
 		}
 		if rewrite {
 			iface["url"], _ = json.Marshal(externalURL)
@@ -117,18 +140,43 @@ func validateAndRewriteV1Card(card map[string]json.RawMessage, externalURL strin
 	return nil
 }
 
-func validateAndRewriteLegacyCard(card map[string]json.RawMessage, externalURL string, rewrite bool) error {
+func validateAndRewriteLegacyCard(card map[string]json.RawMessage, externalURL string, rewrite, exposeOriginalEndpoints bool) error {
 	endpoint, err := requiredString(card, "url")
 	if err != nil {
 		return fmt.Errorf("%w: url is required", errInvalidAgentCard)
 	}
-	if err := validateHTTPSURL(endpoint); err != nil {
+	if err := validateEndpointURL(endpoint, exposeOriginalEndpoints); err != nil {
 		return err
 	}
 	if raw, ok := card["preferredTransport"]; ok {
 		var transport string
-		if json.Unmarshal(raw, &transport) != nil || !isJSONRPCTransport(transport) {
+		if json.Unmarshal(raw, &transport) != nil || !isSupportedBinding(transport) {
 			return fmt.Errorf("%w: unsupported preferredTransport", errInvalidAgentCard)
+		}
+	}
+	if raw, ok := card["additionalInterfaces"]; ok {
+		var interfaces []map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &interfaces); err != nil {
+			return fmt.Errorf("%w: additionalInterfaces must be an array", errInvalidAgentCard)
+		}
+		for i, iface := range interfaces {
+			endpoint, err := requiredString(iface, "url")
+			if err != nil {
+				return fmt.Errorf("%w: additionalInterfaces[%d].url is required", errInvalidAgentCard, i)
+			}
+			if err := validateEndpointURL(endpoint, exposeOriginalEndpoints); err != nil {
+				return fmt.Errorf("additionalInterfaces[%d]: %w", i, err)
+			}
+			transport, err := requiredString(iface, "transport")
+			if err != nil || !isSupportedBinding(transport) {
+				return fmt.Errorf("%w: additionalInterfaces[%d] uses unsupported transport", errInvalidAgentCard, i)
+			}
+			if rewrite {
+				iface["url"], _ = json.Marshal(externalURL)
+			}
+		}
+		if rewrite {
+			card["additionalInterfaces"], _ = json.Marshal(interfaces)
 		}
 	}
 	if rewrite {
@@ -149,21 +197,31 @@ func requiredString(object map[string]json.RawMessage, key string) (string, erro
 	return value, nil
 }
 
-func isJSONRPCTransport(transport string) bool {
-	normalized := strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(transport), "-", ""))
-	return normalized == "JSONRPC"
+func isSupportedBinding(binding string) bool {
+	normalized := strings.NewReplacer("-", "", "+", "", "_", "", " ", "").Replace(strings.ToUpper(strings.TrimSpace(binding)))
+	return normalized == "JSONRPC" || normalized == "GRPC" || normalized == "HTTPJSON"
 }
 
 func validateHTTPSURL(raw string) error {
+	return validateEndpointURL(raw, true)
+}
+
+func validateEndpointURL(raw string, requirePublicHTTPS bool) error {
 	parsed, err := url.Parse(raw)
-	if err != nil || !parsed.IsAbs() || !strings.EqualFold(parsed.Scheme, "https") || parsed.Hostname() == "" {
-		return fmt.Errorf("%w: endpoint must be an absolute HTTPS URL", errUnsafeEndpoint)
+	if err != nil || !parsed.IsAbs() || parsed.Hostname() == "" || (!strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https")) {
+		return fmt.Errorf("%w: endpoint must be an absolute HTTP or HTTPS URL", errUnsafeEndpoint)
 	}
 	if parsed.User != nil || parsed.Fragment != "" {
 		return fmt.Errorf("%w: credentials and fragments are forbidden", errUnsafeEndpoint)
 	}
 	if err := validatePort(parsed.Port()); err != nil {
 		return err
+	}
+	if !requirePublicHTTPS {
+		return nil
+	}
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return fmt.Errorf("%w: exposed endpoint must use HTTPS", errUnsafeEndpoint)
 	}
 	return validatePublicHost(parsed.Hostname())
 }
@@ -174,8 +232,8 @@ func validatePublicHost(host string) error {
 		return fmt.Errorf("%w: loopback host is forbidden", errUnsafeEndpoint)
 	}
 	if ip := net.ParseIP(host); ip != nil {
-		if ip.IsLoopback() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			return fmt.Errorf("%w: loopback, link-local, and unspecified addresses are forbidden", errUnsafeEndpoint)
+		if ip.IsLoopback() || ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsPrivate() || ip.IsMulticast() {
+			return fmt.Errorf("%w: loopback, link-local, private, multicast, and unspecified addresses are forbidden", errUnsafeEndpoint)
 		}
 	}
 	return nil
@@ -218,14 +276,8 @@ func deriveExternalAgentURL(ctx requestContext, config pluginConfig, requestPath
 		}
 		return strings.TrimRight(config.Agent.ExternalBaseURL, "/"), nil
 	}
-	scheme := firstForwardedValue(ctx.header("x-forwarded-proto"))
-	if scheme == "" {
-		scheme = ctx.scheme()
-	}
-	authority := firstForwardedValue(ctx.header("x-forwarded-host"))
-	if authority == "" {
-		authority = ctx.host()
-	}
+	scheme := ctx.scheme()
+	authority := ctx.host()
 	candidate := strings.ToLower(scheme) + "://" + authority
 	if err := validateHTTPSURL(candidate); err != nil {
 		return "", fmt.Errorf("request-visible gateway endpoint: %w", err)
@@ -234,24 +286,30 @@ func deriveExternalAgentURL(ctx requestContext, config pluginConfig, requestPath
 	if err != nil || parsedCandidate.EscapedPath() != "" || parsedCandidate.RawQuery != "" || parsedCandidate.Fragment != "" {
 		return "", fmt.Errorf("request-visible gateway authority is malformed")
 	}
-	routePrefix := stripAgentCardSuffix(requestPath, config.AgentCard.Path)
+	routePrefix := config.Agent.ExternalPath
+	if routePrefix == "" {
+		routePrefix = stripAgentCardSuffix(requestPath, config.AgentCard.Path)
+	}
 	if routePrefix == "/" {
 		routePrefix = ""
 	}
 	return strings.TrimRight(candidate, "/") + routePrefix, nil
 }
 
+func validateExternalPath(externalPath string) error {
+	if externalPath == "" {
+		return nil
+	}
+	parsed, err := url.Parse(externalPath)
+	if err != nil || !strings.HasPrefix(externalPath, "/") || parsed.IsAbs() || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("agent.externalPath must be an absolute path without query or fragment")
+	}
+	return nil
+}
+
 type requestContext interface {
 	scheme() string
 	host() string
-	header(string) string
-}
-
-func firstForwardedValue(value string) string {
-	if index := strings.IndexByte(value, ','); index >= 0 {
-		value = value[:index]
-	}
-	return strings.TrimSpace(value)
 }
 
 func stripAgentCardSuffix(requestPath, configuredPath string) string {

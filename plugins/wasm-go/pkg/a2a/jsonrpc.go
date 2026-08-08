@@ -39,17 +39,17 @@ var (
 )
 
 var canonicalMethods = map[string]string{
-	"SendMessage":                             "SendMessage",
-	"SendStreamingMessage":                    "SendStreamingMessage",
-	"GetTask":                                 "GetTask",
-	"ListTasks":                               "ListTasks",
-	"CancelTask":                              "CancelTask",
-	"SubscribeToTask":                         "SubscribeToTask",
-	"SetTaskPushNotificationConfiguration":    "SetTaskPushNotificationConfiguration",
-	"GetTaskPushNotificationConfiguration":    "GetTaskPushNotificationConfiguration",
-	"ListTaskPushNotificationConfigurations":  "ListTaskPushNotificationConfigurations",
-	"DeleteTaskPushNotificationConfiguration": "DeleteTaskPushNotificationConfiguration",
-	"GetExtendedAgentCard":                    "GetExtendedAgentCard",
+	"SendMessage":                      "SendMessage",
+	"SendStreamingMessage":             "SendStreamingMessage",
+	"GetTask":                          "GetTask",
+	"ListTasks":                        "ListTasks",
+	"CancelTask":                       "CancelTask",
+	"SubscribeToTask":                  "SubscribeToTask",
+	"CreateTaskPushNotificationConfig": "CreateTaskPushNotificationConfig",
+	"GetTaskPushNotificationConfig":    "GetTaskPushNotificationConfig",
+	"ListTaskPushNotificationConfigs":  "ListTaskPushNotificationConfigs",
+	"DeleteTaskPushNotificationConfig": "DeleteTaskPushNotificationConfig",
+	"GetExtendedAgentCard":             "GetExtendedAgentCard",
 }
 
 var legacyMethods = map[string]string{
@@ -59,10 +59,10 @@ var legacyMethods = map[string]string{
 	"tasks/list":                          "ListTasks",
 	"tasks/cancel":                        "CancelTask",
 	"tasks/resubscribe":                   "SubscribeToTask",
-	"tasks/pushNotificationConfig/set":    "SetTaskPushNotificationConfiguration",
-	"tasks/pushNotificationConfig/get":    "GetTaskPushNotificationConfiguration",
-	"tasks/pushNotificationConfig/list":   "ListTaskPushNotificationConfigurations",
-	"tasks/pushNotificationConfig/delete": "DeleteTaskPushNotificationConfiguration",
+	"tasks/pushNotificationConfig/set":    "CreateTaskPushNotificationConfig",
+	"tasks/pushNotificationConfig/get":    "GetTaskPushNotificationConfig",
+	"tasks/pushNotificationConfig/list":   "ListTaskPushNotificationConfigs",
+	"tasks/pushNotificationConfig/delete": "DeleteTaskPushNotificationConfig",
 	"agent/getAuthenticatedExtendedCard":  "GetExtendedAgentCard",
 }
 
@@ -96,15 +96,17 @@ type rpcError struct {
 }
 
 type identifiers struct {
-	Kind      string       `json:"kind"`
-	ID        string       `json:"id"`
-	TaskID    string       `json:"taskId"`
-	ContextID string       `json:"contextId"`
-	MessageID string       `json:"messageId"`
-	State     string       `json:"state"`
-	Message   *identifiers `json:"message"`
-	Task      *identifiers `json:"task"`
-	Status    *identifiers `json:"status"`
+	Kind           string       `json:"kind"`
+	ID             string       `json:"id"`
+	TaskID         string       `json:"taskId"`
+	ContextID      string       `json:"contextId"`
+	MessageID      string       `json:"messageId"`
+	State          string       `json:"state"`
+	Message        *identifiers `json:"message"`
+	Task           *identifiers `json:"task"`
+	Status         *identifiers `json:"status"`
+	StatusUpdate   *identifiers `json:"statusUpdate"`
+	ArtifactUpdate *identifiers `json:"artifactUpdate"`
 }
 
 // CanonicalMethod validates a method and maps an enabled 0.3 alias to its 1.0
@@ -204,7 +206,19 @@ func mergeIdentifiers(meta *Metadata, raw json.RawMessage) {
 	mergeOne(meta, &ids)
 	mergeOne(meta, ids.Message)
 	mergeOne(meta, ids.Task)
+	if ids.Task != nil {
+		mergeOne(meta, ids.Task.Status)
+	}
 	mergeOne(meta, ids.Status)
+	if ids.StatusUpdate != nil {
+		mergeOne(meta, ids.StatusUpdate)
+		mergeOne(meta, ids.StatusUpdate.Status)
+		meta.StreamEventType = "status"
+	}
+	if ids.ArtifactUpdate != nil {
+		mergeOne(meta, ids.ArtifactUpdate)
+		meta.StreamEventType = "artifact"
+	}
 	if meta.TaskID == "" {
 		meta.TaskID = bounded(ids.ID)
 	}
@@ -216,6 +230,9 @@ func mergeOne(meta *Metadata, ids *identifiers) {
 	}
 	if meta.TaskID == "" {
 		meta.TaskID = bounded(ids.TaskID)
+	}
+	if meta.TaskID == "" {
+		meta.TaskID = bounded(ids.ID)
 	}
 	if meta.ContextID == "" {
 		meta.ContextID = bounded(ids.ContextID)

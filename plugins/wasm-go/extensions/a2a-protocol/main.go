@@ -62,6 +62,7 @@ type pluginConfig struct {
 	Agent struct {
 		ID              string `json:"id"`
 		ExternalBaseURL string `json:"externalBaseURL"`
+		ExternalPath    string `json:"externalPath"`
 	} `json:"agent"`
 	AgentCard struct {
 		Path             string `json:"path"`
@@ -134,9 +135,12 @@ func parseConfig(raw gjson.Result, config *pluginConfig) error {
 		return fmt.Errorf("agentCard.maxResponseBytes exceeds hard limit %d", hardMaxCardBytes)
 	}
 	if config.Agent.ExternalBaseURL != "" {
-		if _, err := deriveExternalAgentURL(staticRequestContext{}, *config, config.AgentCard.Path); err != nil {
-			return err
+		if err := validateHTTPSURL(config.Agent.ExternalBaseURL); err != nil {
+			return fmt.Errorf("configured agent.externalBaseURL: %w", err)
 		}
+	}
+	if err := validateExternalPath(config.Agent.ExternalPath); err != nil {
+		return err
 	}
 	if config.JSONRPC.MaxRequestBytes <= 0 {
 		config.JSONRPC.MaxRequestBytes = a2a.DefaultMaxRequestBytes
@@ -177,13 +181,17 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config pluginConfig) types.Ac
 		return types.ActionContinue
 	}
 	contentType, _ := proxywasm.GetHttpRequestHeader("content-type")
-	if ctx.Method() != "POST" || !isJSONRPCContentType(contentType, config.Legacy03.Enabled) {
+	if ctx.Method() != "POST" || !isJSONRPCContentType(contentType) {
 		ctx.DontReadRequestBody()
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
 	ctx.SetRequestBodyBufferLimit(uint32(config.JSONRPC.MaxRequestBytes))
 	ctx.SetContext("a2a.candidate", true)
+	if contentEncoding, _ := proxywasm.GetHttpRequestHeader("content-encoding"); strings.TrimSpace(contentEncoding) != "" {
+		ctx.DontReadRequestBody()
+		return rejectOrAudit(ctx, config, a2a.Metadata{Binding: "jsonrpc", ParseStatus: "invalid"}, -32600, "A2A Content-Encoding is not supported")
+	}
 	if contentLengthOversized(config) {
 		meta := a2a.Metadata{Binding: "jsonrpc", ParseStatus: "oversized"}
 		version, _ := proxywasm.GetHttpRequestHeader("a2a-version")
@@ -193,18 +201,18 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config pluginConfig) types.Ac
 			ctx.DontReadRequestBody()
 			return types.ActionContinue
 		}
-		_ = proxywasm.SendHttpResponse(413, [][2]string{{"content-type", "application/a2a+json"}}, []byte(`{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"A2A request exceeds configured limit"}}`), -1)
+		_ = proxywasm.SendHttpResponse(413, [][2]string{{"content-type", "application/json"}}, []byte(`{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"A2A request exceeds configured limit"}}`), -1)
 		return types.ActionPause
 	}
 	return types.ActionContinue
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config pluginConfig, body []byte) types.Action {
-	version, versionStatus := effectiveVersion(config)
+	version, allowLegacy, versionStatus := effectiveVersion(config)
 	if versionStatus != "" {
-		return rejectOrAudit(ctx, config, a2a.Metadata{Version: version, Binding: "jsonrpc", ParseStatus: "invalid"}, -32090, versionStatus)
+		return rejectOrAudit(ctx, config, a2a.Metadata{Version: version, Binding: "jsonrpc", ParseStatus: "invalid"}, -32009, versionStatus)
 	}
-	meta, err := a2a.ParseRequest(body, config.JSONRPC.MaxRequestBytes, version, config.Legacy03.Enabled)
+	meta, err := a2a.ParseRequest(body, config.JSONRPC.MaxRequestBytes, version, allowLegacy)
 	if err != nil {
 		code := -32600
 		if errors.Is(err, a2a.ErrUnknownMethod) {
@@ -312,18 +320,18 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config pluginConfig, body []byt
 	return types.ActionContinue
 }
 
-func effectiveVersion(config pluginConfig) (string, string) {
+func effectiveVersion(config pluginConfig) (string, bool, string) {
 	version, _ := proxywasm.GetHttpRequestHeader("a2a-version")
-	if version == "" && config.Legacy03.Enabled {
-		return "0.3", ""
-	}
 	if version == "" {
-		return "", "A2A-Version is required"
+		version = "0.3"
 	}
-	if version != config.ProtocolVersion {
-		return version, "unsupported A2A-Version"
+	if version == config.ProtocolVersion {
+		return version, false, ""
 	}
-	return version, ""
+	if version == "0.3" && config.Legacy03.Enabled {
+		return version, true, ""
+	}
+	return version, false, "A2A VersionNotSupportedError"
 }
 
 func rejectOrAudit(ctx wrapper.HttpContext, config pluginConfig, meta a2a.Metadata, code int, message string) types.Action {
@@ -341,7 +349,7 @@ func rejectOrAudit(ctx wrapper.HttpContext, config pluginConfig, meta a2a.Metada
 			"message": message,
 		},
 	})
-	_ = proxywasm.SendHttpResponse(400, [][2]string{{"content-type", "application/a2a+json"}}, body, -1)
+	_ = proxywasm.SendHttpResponse(400, [][2]string{{"content-type", "application/json"}}, body, -1)
 	return types.ActionPause
 }
 
@@ -379,9 +387,9 @@ func removeSpoofedHeaders() {
 	}
 }
 
-func isJSONRPCContentType(contentType string, legacy bool) bool {
+func isJSONRPCContentType(contentType string) bool {
 	typeName := strings.ToLower(mediaType(contentType))
-	return typeName == "application/a2a+json" || (legacy && typeName == "application/json")
+	return typeName == "application/json" || typeName == "application/a2a+json"
 }
 
 func mediaType(contentType string) string {
@@ -407,16 +415,6 @@ type proxyRequestContext struct {
 
 func (c proxyRequestContext) scheme() string { return c.ctx.Scheme() }
 func (c proxyRequestContext) host() string   { return c.ctx.Host() }
-func (c proxyRequestContext) header(name string) string {
-	value, _ := proxywasm.GetHttpRequestHeader(name)
-	return value
-}
-
-type staticRequestContext struct{}
-
-func (staticRequestContext) scheme() string       { return "" }
-func (staticRequestContext) host() string         { return "" }
-func (staticRequestContext) header(string) string { return "" }
 
 func isAgentCardPath(requestPath, configuredPath string) bool {
 	path := pathWithoutQuery(requestPath)

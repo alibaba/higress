@@ -8,6 +8,7 @@ aliases without translating payloads.
 
 The upstream Agent remains authoritative for task state. The plugin never
 copies Parts, artifacts, credentials, or callback URLs into headers or logs.
+Normative A2A 1.0 JSON-RPC requests use `Content-Type: application/json`.
 
 ```yaml
 protocolVersion: "1.0"
@@ -31,7 +32,11 @@ authorization:
 
 GET responses from the canonical Agent Card path and the legacy
 `/.well-known/agent.json` path are validated before forwarding. The plugin
-accepts public HTTPS JSON-RPC endpoints, preserves unknown fields, and rewrites
+accepts the standard declared bindings, preserves unknown fields, and rewrites
 only declared endpoint fields to `agent.externalBaseURL` (or the sanitized
-external request origin). Signed Cards are passed through unchanged in
-`preserve` mode.
+external request origin). Endpoints returned without rewriting must be public
+HTTPS URLs. Signed Cards are passed through unchanged in `preserve` mode.
+
+When discovery is exposed at the root well-known path but JSON-RPC uses a
+non-root route, `agent.externalPath` appends that configured route path to the
+sanitized request origin. `hgctl agent add --type a2a` sets it automatically.

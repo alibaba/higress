@@ -51,6 +51,16 @@ func TestSSEClassifiesArtifactUpdateWithoutCopyingArtifact(t *testing.T) {
 	}
 }
 
+func TestSSEParsesV1StatusAndArtifactUpdateOneof(t *testing.T) {
+	parser := NewSSEParser(4096)
+	input := []byte("data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"statusUpdate\":{\"taskId\":\"t5\",\"contextId\":\"c5\",\"status\":{\"state\":\"working\"}}}}\n\n" +
+		"data: {\"jsonrpc\":\"2.0\",\"id\":2,\"result\":{\"artifactUpdate\":{\"taskId\":\"t5\",\"contextId\":\"c5\",\"artifact\":{\"parts\":[{\"raw\":\"secret\"}]}}}}\n\n")
+	events := parser.Feed(input, true, "1.0", "SendStreamingMessage")
+	if len(events) != 2 || events[0].Metadata.StreamEventType != "status" || events[0].Metadata.TaskState != "working" || events[1].Metadata.StreamEventType != "artifact" || events[1].Metadata.TaskID != "t5" {
+		t.Fatalf("unexpected events: %#v", events)
+	}
+}
+
 func FuzzSSEChunkBoundaries(f *testing.F) {
 	f.Add([]byte("data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n"), uint8(8))
 	f.Fuzz(func(t *testing.T, input []byte, rawSplit uint8) {

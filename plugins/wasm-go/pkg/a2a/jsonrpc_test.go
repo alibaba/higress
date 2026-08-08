@@ -10,7 +10,7 @@ import (
 )
 
 func TestParseRequestMethodsAndIdentifiers(t *testing.T) {
-	methods := []string{"SendMessage", "SendStreamingMessage", "GetTask", "ListTasks", "CancelTask", "SubscribeToTask", "SetTaskPushNotificationConfiguration", "GetTaskPushNotificationConfiguration", "ListTaskPushNotificationConfigurations", "DeleteTaskPushNotificationConfiguration", "GetExtendedAgentCard"}
+	methods := []string{"SendMessage", "SendStreamingMessage", "GetTask", "ListTasks", "CancelTask", "SubscribeToTask", "CreateTaskPushNotificationConfig", "GetTaskPushNotificationConfig", "ListTaskPushNotificationConfigs", "DeleteTaskPushNotificationConfig", "GetExtendedAgentCard"}
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
 			body := `{"jsonrpc":"2.0","id":"request-1","method":"` + method + `","params":{"id":"task-from-id","taskId":"task-1","contextId":"context-1","message":{"messageId":"message-1"}}}`
@@ -19,6 +19,43 @@ func TestParseRequestMethodsAndIdentifiers(t *testing.T) {
 				t.Fatal(err)
 			}
 			if meta.Method != method || meta.RequestID != "request-1" || meta.ContextID != "context-1" || meta.MessageID != "message-1" {
+				t.Fatalf("unexpected metadata: %#v", meta)
+			}
+		})
+	}
+}
+
+func TestObsoletePushNotificationMethodNamesAreRejected(t *testing.T) {
+	for _, method := range []string{"SetTaskPushNotificationConfiguration", "GetTaskPushNotificationConfiguration", "ListTaskPushNotificationConfigurations", "DeleteTaskPushNotificationConfiguration"} {
+		body := `{"jsonrpc":"2.0","id":1,"method":"` + method + `"}`
+		if _, err := ParseRequest([]byte(body), 1024, "1.0", false); !errors.Is(err, ErrUnknownMethod) {
+			t.Fatalf("%s: expected unknown method, got %v", method, err)
+		}
+	}
+}
+
+func TestParseV1StreamResponseVariants(t *testing.T) {
+	tests := []struct {
+		name      string
+		result    string
+		taskID    string
+		contextID string
+		state     string
+		eventType string
+	}{
+		{"task", `{"task":{"id":"t1","contextId":"c1","status":{"state":"working"}}}`, "t1", "c1", "working", ""},
+		{"message", `{"message":{"taskId":"t2","contextId":"c2","messageId":"m2"}}`, "t2", "c2", "", ""},
+		{"status update", `{"statusUpdate":{"taskId":"t3","contextId":"c3","status":{"state":"completed"},"final":true}}`, "t3", "c3", "completed", "status"},
+		{"artifact update", `{"artifactUpdate":{"taskId":"t4","contextId":"c4","artifact":{"artifactId":"a4"},"append":false}}`, "t4", "c4", "", "artifact"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `{"jsonrpc":"2.0","id":"r1","result":` + tt.result + `}`
+			meta, err := ParseResponse([]byte(body), 4096, "1.0", "SendStreamingMessage")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if meta.TaskID != tt.taskID || meta.ContextID != tt.contextID || meta.TaskState != tt.state || meta.StreamEventType != tt.eventType {
 				t.Fatalf("unexpected metadata: %#v", meta)
 			}
 		})
