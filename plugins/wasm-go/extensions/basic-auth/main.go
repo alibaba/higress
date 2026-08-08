@@ -86,7 +86,6 @@ type BasicAuthConfig struct {
 	allow []string `yaml:"allow"`
 
 	credential2Name map[string]string `yaml:"-"`
-	username2Passwd map[string]string `yaml:"-"`
 }
 
 type Consumer struct {
@@ -113,7 +112,6 @@ func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log log.Log) 
 	// log.Debug("global config")
 	ruleSet = false
 	global.credential2Name = make(map[string]string)
-	global.username2Passwd = make(map[string]string)
 
 	consumers := json.Get("consumers")
 	if !consumers.Exists() {
@@ -135,8 +133,7 @@ func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log log.Log) 
 		if _, ok := global.credential2Name[credential.String()]; ok {
 			return errors.Errorf("duplicate consumer credential: %s", credential.String())
 		}
-		userAndPasswd := strings.Split(credential.String(), ":")
-		if len(userAndPasswd) != 2 {
+		if _, _, found := strings.Cut(credential.String(), ":"); !found {
 			return errors.Errorf("invalid credential format: %s", credential.String())
 		}
 
@@ -146,7 +143,6 @@ func parseGlobalConfig(json gjson.Result, global *BasicAuthConfig, log log.Log) 
 		}
 		global.consumers = append(global.consumers, consumer)
 		global.credential2Name[consumer.credential] = consumer.name
-		global.username2Passwd[userAndPasswd[0]] = userAndPasswd[1]
 	}
 
 	globalAuth := json.Get("global_auth")
@@ -235,28 +231,15 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config BasicAuthConfig, log l
 	}
 
 	credential := string(credentialByte)
-	userAndPasswd := strings.Split(credential, ":")
-	if len(userAndPasswd) != 2 {
+	if _, _, found := strings.Cut(credential, ":"); !found {
 		log.Warnf("invalid credential format: %s", credential)
 		return deniedInvalidCredentials()
 	}
 
-	user, passwd := userAndPasswd[0], userAndPasswd[1]
-	if correctPasswd, ok := config.username2Passwd[user]; !ok {
-		log.Warnf("credential username %q is not configured", user)
-		return deniedInvalidCredentials()
-	} else {
-		if passwd != correctPasswd {
-			log.Warnf("credential password is not correct for username %q", user)
-			return deniedInvalidCredentials()
-		}
-	}
-
-	// 以下为 username 和 password 正确的情况：
 	name, ok := config.credential2Name[credential]
-	if !ok { // 理论上该分支永远不可达，因为 username 和 password 都是从 credential 中获取的
+	if !ok {
 		log.Warnf("credential %q is not configured", credential)
-		return deniedUnauthorizedConsumer()
+		return deniedInvalidCredentials()
 	}
 
 	// 全局生效：

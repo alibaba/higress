@@ -60,6 +60,38 @@ var globalAuthTrueConfig = func() json.RawMessage {
 	return data
 }()
 
+// 测试配置：同一用户名对应多个完整凭证
+var sharedUsernameConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"consumers": []map[string]interface{}{
+			{
+				"name":       "consumer1",
+				"credential": "shared:first",
+			},
+			{
+				"name":       "consumer2",
+				"credential": "shared:second",
+			},
+		},
+		"global_auth": true,
+	})
+	return data
+}()
+
+// 测试配置：密码中包含冒号
+var colonPasswordConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"consumers": []map[string]interface{}{
+			{
+				"name":       "consumer1",
+				"credential": "admin:first:second",
+			},
+		},
+		"global_auth": true,
+	})
+	return data
+}()
+
 // 测试配置：路由鉴权配置
 var routeAuthConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -827,6 +859,56 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 
 			host.CompleteHttp()
 		})
+	})
+}
+
+func TestAuthenticateCompleteCredential(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		tests := []struct {
+			name       string
+			config     json.RawMessage
+			credential string
+			consumer   string
+		}{
+			{
+				name:       "first credential for shared username",
+				config:     sharedUsernameConfig,
+				credential: "shared:first",
+				consumer:   "consumer1",
+			},
+			{
+				name:       "second credential for shared username",
+				config:     sharedUsernameConfig,
+				credential: "shared:second",
+				consumer:   "consumer2",
+			},
+			{
+				name:       "password containing colon",
+				config:     colonPasswordConfig,
+				credential: "admin:first:second",
+				consumer:   "consumer1",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				host, status := test.NewTestHost(tt.config)
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+
+				authorization := "Basic " + base64.StdEncoding.EncodeToString([]byte(tt.credential))
+				action := host.CallOnHttpRequestHeaders([][2]string{
+					{":authority", "example.com"},
+					{":path", "/api/test"},
+					{":method", "GET"},
+					{"authorization", authorization},
+				})
+				require.Equal(t, types.ActionContinue, action)
+				require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer", tt.consumer))
+
+				host.CompleteHttp()
+			})
+		}
 	})
 }
 
