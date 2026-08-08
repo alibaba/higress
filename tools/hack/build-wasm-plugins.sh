@@ -50,6 +50,7 @@ then
     else
         echo "🚀 Build Rust WasmPlugin: $INNER_PLUGIN_NAME"
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make lint 
+        PLUGIN_NAME=${INNER_PLUGIN_NAME} make test
         PLUGIN_NAME=${INNER_PLUGIN_NAME} make build
     fi
 else
