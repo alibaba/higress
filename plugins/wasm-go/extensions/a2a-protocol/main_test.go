@@ -70,22 +70,22 @@ func TestTrustedHeadersReplaceSpoofedInput(t *testing.T) {
 		defer host.Reset()
 		require.Equal(t, types.OnPluginStartStatusOK, status)
 		host.InitHttp()
-		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestHeaders([][2]string{
+		require.Equal(t, types.HeaderStopIteration, host.CallOnHttpRequestHeaders([][2]string{
 			{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"},
 			{"content-type", "application/json"}, {"a2a-version", "1.0"},
-			{"x-higress-a2a-method", "CancelTask"}, {"x-higress-a2a-task-id", "spoofed"},
+			{"x-higress-a2a-method", "DeleteTask"}, {"x-higress-a2a-task-id", "spoofed"},
 		}))
-		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":"r1","method":"GetTask","params":{"id":"real-task"}}`)))
+		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":"r1","method":"SendMessage","params":{"message":{"messageId":"message-1"}}}`)))
 		headers := map[string]string{}
 		for _, pair := range host.GetRequestHeaders() {
 			headers[pair[0]] = pair[1]
 		}
-		require.Equal(t, "GetTask", headers["x-higress-a2a-method"])
-		require.Equal(t, "real-task", headers["x-higress-a2a-task-id"])
+		require.Equal(t, "SendMessage", headers["x-higress-a2a-method"])
+		require.Equal(t, "message-1", headers["x-higress-a2a-message-id"])
 		require.Equal(t, "weather-agent", headers["x-higress-a2a-agent-id"])
 		method, err := host.GetProperty([]string{"a2a", "method"})
 		require.NoError(t, err)
-		require.Equal(t, "GetTask", string(method))
+		require.Equal(t, "SendMessage", string(method))
 		host.CompleteHttp()
 	})
 }
@@ -174,6 +174,22 @@ func TestEncodedA2ARequestFailsClosedBeforeBodyCallback(t *testing.T) {
 	})
 }
 
+func TestEmptyA2ARequestFailsClosedWithoutWaitingForBody(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfig(t, false))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		action := host.CallOnHttpRequestHeaders([][2]string{
+			{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"},
+			{"content-type", "application/json"}, {"a2a-version", "1.0"},
+		}, test.WithEndOfStream(true))
+		require.Equal(t, types.ActionPause, action)
+		require.Contains(t, string(host.GetLocalResponse().Data), `"code":-32600`)
+		host.CompleteHttp()
+	})
+}
+
 func TestNonA2ARequestPassesWithoutTrustedHeaders(t *testing.T) {
 	test.RunGoTest(t, func(t *testing.T) {
 		host, status := test.NewTestHost(testConfig(t, false))
@@ -210,20 +226,36 @@ func TestResponseTrustedHeadersReplaceSpoofedUpstream(t *testing.T) {
 		defer host.Reset()
 		require.Equal(t, types.OnPluginStartStatusOK, status)
 		host.InitHttp()
-		host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}, {"a2a-version", "1.0"}})
-		host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":"r1","method":"GetTask","params":{"id":"request-task"}}`))
-		host.CallOnHttpResponseHeaders([][2]string{
+		require.Equal(t, types.HeaderStopIteration, host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}, {"a2a-version", "1.0"}}))
+		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":"r1","method":"SendMessage","params":{"message":{"messageId":"message-1"}}}`)))
+		require.Equal(t, types.HeaderStopIteration, host.CallOnHttpResponseHeaders([][2]string{
 			{":status", "200"}, {"content-type", "application/json"},
 			{"x-higress-a2a-task-id", "spoofed"}, {"x-higress-a2a-agent-id", "spoofed-agent"}, {"x-higress-a2a-error-code", "spoofed-error"},
-		})
+		}))
 		headers := headerMap(host.GetResponseHeaders())
 		require.Empty(t, headers["x-higress-a2a-task-id"])
 		require.Empty(t, headers["x-higress-a2a-agent-id"])
 		require.Empty(t, headers["x-higress-a2a-error-code"])
-		host.CallOnHttpResponseBody([]byte(`{"jsonrpc":"2.0","id":"r1","result":{"id":"real-response-task"}}`))
+		require.Equal(t, types.ActionContinue, host.CallOnHttpResponseBody([]byte(`{"jsonrpc":"2.0","id":"r1","result":{"id":"task-unary-1","contextId":"ctx-unary-1","status":{"state":"completed"}}}`)))
 		headers = headerMap(host.GetResponseHeaders())
-		require.Equal(t, "real-response-task", headers["x-higress-a2a-task-id"])
+		require.Equal(t, "task-unary-1", headers["x-higress-a2a-task-id"])
+		require.Equal(t, "ctx-unary-1", headers["x-higress-a2a-context-id"])
+		require.Equal(t, "completed", headers["x-higress-a2a-task-state"])
 		require.Equal(t, "weather-agent", headers["x-higress-a2a-agent-id"])
+		host.CompleteHttp()
+	})
+}
+
+func TestSSEResponseHeadersContinueWithoutFullStreamBuffering(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(testConfig(t, false))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		host.InitHttp()
+		require.Equal(t, types.HeaderStopIteration, host.CallOnHttpRequestHeaders([][2]string{{":method", "POST"}, {":path", "/a2a"}, {":authority", "agent.example.com"}, {"content-type", "application/json"}, {"a2a-version", "1.0"}}))
+		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":"r1","method":"SendStreamingMessage","params":{"message":{"messageId":"message-1"}}}`)))
+		require.Equal(t, types.ActionContinue, host.CallOnHttpResponseHeaders([][2]string{{":status", "200"}, {"content-type", "text/event-stream"}}))
+		require.Equal(t, types.ActionContinue, host.CallOnHttpStreamingResponseBody([]byte("data: {}\n\n"), false))
 		host.CompleteHttp()
 	})
 }

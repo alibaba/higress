@@ -188,6 +188,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config pluginConfig) types.Ac
 		ctx.DontReadRequestBody()
 		return rejectOrAudit(ctx, config, a2a.Metadata{Binding: "jsonrpc", ParseStatus: "invalid"}, -32600, "A2A Content-Encoding is not supported")
 	}
+	if !ctx.HasRequestBody() {
+		ctx.DontReadRequestBody()
+		return rejectOrAudit(ctx, config, a2a.Metadata{Binding: "jsonrpc", ParseStatus: "invalid"}, -32600, "A2A request body is required")
+	}
 	if contentLengthOversized(config) {
 		meta := a2a.Metadata{Binding: "jsonrpc", ParseStatus: "oversized"}
 		version, _ := proxywasm.GetHttpRequestHeader("a2a-version")
@@ -200,7 +204,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config pluginConfig) types.Ac
 		_ = proxywasm.SendHttpResponse(413, [][2]string{{"content-type", "application/json"}}, []byte(`{"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"A2A request exceeds configured limit"}}`), -1)
 		return types.ActionPause
 	}
-	return types.ActionContinue
+	// Keep request headers in the filter chain until the JSON-RPC body has
+	// been validated and canonical metadata headers have been published.
+	return types.HeaderStopIteration
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config pluginConfig, body []byte) types.Action {
@@ -262,6 +268,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config pluginConfig) types.A
 		ctx.DontReadResponseBody()
 		return types.ActionContinue
 	}
+	if !ctx.HasResponseBody() || ctx.IsBinaryResponseBody() {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 	contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 	if strings.EqualFold(mediaType(contentType), "text/event-stream") && isStreamingMethod(ctx.GetStringContext("a2a.method", "")) {
 		ctx.SetContext("a2a.sse", a2a.NewSSEParser(config.JSONRPC.MaxSSEEventBytes))
@@ -269,7 +279,9 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config pluginConfig) types.A
 	}
 	ctx.BufferResponseBody()
 	ctx.SetResponseBodyBufferLimit(uint32(config.JSONRPC.MaxRequestBytes))
-	return types.ActionContinue
+	// Unary response metadata is derived from the body, so retain response
+	// headers until the body callback has published the trusted fields.
+	return types.HeaderStopIteration
 }
 
 func onHttpStreamingResponseBody(ctx wrapper.HttpContext, config pluginConfig, data []byte, endOfStream bool) []byte {
