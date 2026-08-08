@@ -156,7 +156,8 @@ jobs:
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
             if [ "$BUILT_IMAGE" == "" ]; then
-              TAG=${image#*:}
+              IMAGE_NAME=${image##*/}
+              TAG=${IMAGE_NAME##*:}
               HUB=${image%:*}
               HUB=${HUB%/*}
               BUILT_IMAGE="$HUB/pilot:$TAG"
@@ -246,7 +247,8 @@ jobs:
           for image in ${IMAGES[@]}; do
             echo "Image: $image"
             if [ "$BUILT_IMAGE" == "" ]; then
-              TAG=${image#*:}
+              IMAGE_NAME=${image##*/}
+              TAG=${IMAGE_NAME##*:}
               HUB=${image%:*}
               HUB=${HUB%/*}
               BUILT_IMAGE="$HUB/proxyv2:$TAG"
