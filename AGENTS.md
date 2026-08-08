@@ -31,6 +31,16 @@ work and allows only the declared trivial exception for spelling, punctuation,
 whitespace, or formatting changes with no substantive choice or behavioral
 effect.
 
+For work subject to this gate, the maintainer-approved issue-spec Design Issue
+is the authoritative design carrier. Do not create or require a plugin-local
+`design/` document for the gate. An optional durable capability spec serves a
+separate long-lived purpose and, only when maintainers request one, belongs at
+`issue-spec/specs/<plugin-qualified-capability>/spec.md`, using a unique
+lowercase, hyphen-separated capability slug that identifies the plugin. It
+must not replace or duplicate the approved Design Issue. Higress leaves
+`durable_specs` unset; do not invent a path field or enable repository
+projection without explicit maintainer direction.
+
 ## Repository layout
 
 Top-level directories (all paths relative to repo root):

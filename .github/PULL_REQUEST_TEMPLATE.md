@@ -40,10 +40,21 @@ Choose exactly one participation declaration:
       participated in analysis, design, implementation, testing, or PR
       preparation.
 
-For material participation, choose exactly one gate status:
+For material participation, check each timed obligation:
 
-- [ ] The mandatory issue-spec gate was completed before implementation began.
-- [ ] The gate was not completed; the noncompliance is explained below.
+- [ ] **Before implementation began:** A Higress maintainer had approved the
+      Proposal and Design Issues, and authorized implementation TASKs linked the
+      work to the applicable SPECs.
+- [ ] **Before verification began:** The Design contained a concrete
+      Verification Plan.
+- [ ] **Before requesting maintainer review or acceptance:** Applicable
+      implementation and verification TASKs were `done` with exact commands,
+      results, evidence links, and hashes.
+
+Then choose exactly one overall gate status:
+
+- [ ] Complete: all three timed obligations above were satisfied.
+- [ ] Noncompliant: one or more obligations were not satisfied; explain below.
 - [ ] N/A because the PR is human-only or qualifies for the trivial exception.
 
 **Gate-status explanation (or N/A):**
@@ -64,9 +75,6 @@ For material participation, choose exactly one gate status:
 
 
 **Verification Plan and verification TASK/evidence link(s) (or N/A with explanation):**
-
-
-**Standalone plugin `design/` document link (or N/A with explanation):**
 
 
 ## V. Testing and verification

@@ -51,17 +51,36 @@ issue-spec workflow before implementation begins**:
    containing or linking the exact commands, results, evidence locations, and
    hashes.
 
-New standalone Wasm or golang-filter plugins must also retain the existing
-in-repository design document under the plugin's `design/` directory. Every PR
-that used an AI or coding agent must disclose the prompts or instructions and
-provide an AI-assisted work summary covering key decisions, major changes, and
-important limitations.
+Every PR that used an AI or coding agent must disclose the prompts or
+instructions and provide an AI-assisted work summary covering key decisions,
+major changes, and important limitations.
 
 Agent-assisted PRs that declare material participation but do not satisfy this
 gate receive low review priority, and timely maintainer review is not
 guaranteed. The author declaration in the pull-request template is the
 deterministic signal used for this prioritization. This is not an assertion
 that CI can detect hidden agent use or automatically reject a PR.
+
+### Authoritative Design Issue and optional durable specs
+
+For contributions subject to this gate, the maintainer-approved issue-spec
+Design Issue is the authoritative design carrier. A plugin-local `design/`
+document is not required for the gate and is not authoritative.
+
+A durable capability spec is optional and serves a separate, long-lived
+purpose: recording stable capability requirements rather than change-specific
+design. If maintainers request one, use
+`issue-spec/specs/<plugin-qualified-capability>/spec.md`, where
+`<plugin-qualified-capability>` is a unique lowercase, hyphen-separated slug
+that identifies the plugin and capability. The durable spec does not replace
+or duplicate the approved Design Issue. Workflow configuration supports only
+`durable_specs.mode: none` or `durable_specs.mode: repository`. Repository mode
+is project-wide: it cannot be scoped to selected plugins and can materialize
+only at the canonical path above, or at an already-existing legacy
+`openspec/specs/<plugin-qualified-capability>/spec.md`, never inside a
+plugin-owned directory. Higress leaves `durable_specs` unset. Do not invent a
+path field or enable repository projection without explicit maintainer
+direction.
 
 ## Use the current issue-spec workflow
 

@@ -183,17 +183,18 @@ maintainers to accept the verification or review.
 Material participation includes substantive analysis or design, choosing an
 implementation or verification approach, producing or materially transforming
 code/tests/docs/configuration, interpreting test results, or preparing
-substantive PR content. Mechanical autocomplete is not automatically material.
-The only exception is declared agent use limited to spelling, punctuation,
-whitespace, or formatting with no substantive choice or behavioral effect.
-Human-only PRs are unaffected.
+substantive PR content. Mechanical autocomplete that the author independently
+directs and verifies is not automatically material. The only exception is
+declared agent use limited to spelling, punctuation, whitespace, or formatting
+with no substantive choice or behavioral effect. Human-only PRs are unaffected.
 
 All PRs that used an AI or coding agent must disclose the prompts/instructions
 and provide an AI-assisted work summary with key decisions, major changes, and
-important limitations. New standalone Wasm or golang-filter plugins must also
-keep their design document in the plugin's `design/` directory. Materially
-agent-assisted PRs that do not satisfy the gate receive **lower review
-priority**, and timely maintainer review is **not guaranteed**.
+important limitations. For contributions subject to this gate, the
+maintainer-approved issue-spec Design Issue is the authoritative design
+carrier; no plugin-local `design/` document is required for the gate.
+Materially agent-assisted PRs that do not satisfy the gate receive **lower
+review priority**, and timely maintainer review is **not guaranteed**.
 
 See the canonical
 [agent-assisted contribution policy](./docs/developers/agent-assisted-contributions.md)
