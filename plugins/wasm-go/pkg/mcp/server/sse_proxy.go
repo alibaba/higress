@@ -787,10 +787,20 @@ func handleWaitingInitResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 
 					var authInfo *ProxyAuthInfo
 					if authInfoRaw != nil {
-						authInfo = authInfoRaw.(*ProxyAuthInfo)
+						authInfo, ok = authInfoRaw.(*ProxyAuthInfo)
+						if !ok {
+							log.Errorf("Invalid auth info type in context")
+							injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid auth info"), utils.ErrInternalError)
+							return []byte{}
+						}
 					}
 
-					proxyServer := proxyServerRaw.(*McpProxyServer)
+					proxyServer, ok := proxyServerRaw.(*McpProxyServer)
+					if !ok {
+						log.Errorf("Invalid proxy server type in context")
+						injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid proxy server"), utils.ErrInternalError)
+						return []byte{}
+					}
 
 					// Send notification
 					// The notification callback will send the tool request after notification succeeds
