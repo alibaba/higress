@@ -8,6 +8,29 @@ plugins (Go/Rust/C++/AssemblyScript) and a Go-based `golang-filter`. It supports
 Ingress/Gateway API and ships a rich plugin ecosystem (including AI gateway
 plugins).
 
+## Mandatory issue-spec gate for agent-assisted changes
+
+Before substantive implementation, determine whether an AI or coding agent is
+materially participating under the
+[agent-assisted contribution policy](docs/developers/agent-assisted-contributions.md).
+For every contribution to which that policy applies:
+
+- do not begin implementation until a Higress maintainer has approved both the
+  Proposal Issue and Design Issue; an issue-spec status or agent assertion is
+  not maintainer approval;
+- implement only through TASKs authorized by the approved Design and preserve
+  traceability to the applicable SPECs;
+- ensure the Design contains a concrete Verification Plan before verification
+  begins; and
+- create and complete the corresponding verification TASKs with exact commands,
+  results, evidence links, and hashes before claiming success or asking
+  maintainers to accept verification or review.
+
+Declare agent participation in the PR template. The policy excludes human-only
+work and allows only the declared trivial exception for spelling, punctuation,
+whitespace, or formatting changes with no substantive choice or behavioral
+effect.
+
 ## Repository layout
 
 Top-level directories (all paths relative to repo root):
