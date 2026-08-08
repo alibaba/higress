@@ -62,7 +62,6 @@ type pluginConfig struct {
 	Agent struct {
 		ID              string `json:"id"`
 		ExternalBaseURL string `json:"externalBaseURL"`
-		ExternalPath    string `json:"externalPath"`
 	} `json:"agent"`
 	AgentCard struct {
 		Path             string `json:"path"`
@@ -139,9 +138,6 @@ func parseConfig(raw gjson.Result, config *pluginConfig) error {
 			return fmt.Errorf("configured agent.externalBaseURL: %w", err)
 		}
 	}
-	if err := validateExternalPath(config.Agent.ExternalPath); err != nil {
-		return err
-	}
 	if config.JSONRPC.MaxRequestBytes <= 0 {
 		config.JSONRPC.MaxRequestBytes = a2a.DefaultMaxRequestBytes
 	}
@@ -172,7 +168,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config pluginConfig) types.Ac
 		ctx.DontReadRequestBody()
 		ctx.SetContext("a2a.card", true)
 		ctx.SetContext("a2a.card.legacy", isLegacyAgentCardPath(ctx.Path()))
-		externalURL, err := deriveExternalAgentURL(proxyRequestContext{ctx: ctx}, config, ctx.Path())
+		externalURL, err := deriveExternalAgentURL(config)
 		if err != nil {
 			ctx.SetContext("a2a.card.external_error", true)
 		} else {
@@ -231,8 +227,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config pluginConfig, body []byte
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, config pluginConfig) types.Action {
+	removeSpoofedResponseHeaders()
 	if ctx.GetBoolContext("a2a.card", false) {
-		_ = proxywasm.RemoveHttpResponseHeader("x-higress-a2a-card-cache-key")
 		status, _ := proxywasm.GetHttpResponseHeader(":status")
 		statusCode, _ := strconv.Atoi(status)
 		if statusCode < 200 || statusCode >= 300 {
@@ -245,6 +241,10 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config pluginConfig) types.A
 		}
 		contentType, _ := proxywasm.GetHttpResponseHeader("content-type")
 		if !isAgentCardContentType(contentType) {
+			markAgentCardRejection(ctx)
+			return types.ActionContinue
+		}
+		if contentEncoding, _ := proxywasm.GetHttpResponseHeader("content-encoding"); strings.TrimSpace(contentEncoding) != "" {
 			markAgentCardRejection(ctx)
 			return types.ActionContinue
 		}
@@ -387,9 +387,17 @@ func removeSpoofedHeaders() {
 	}
 }
 
+func removeSpoofedResponseHeaders() {
+	_ = proxywasm.RemoveHttpResponseHeader("x-higress-a2a-agent-id")
+	_ = proxywasm.RemoveHttpResponseHeader("x-higress-a2a-card-cache-key")
+	for _, field := range trustedHeaderFields {
+		_ = proxywasm.RemoveHttpResponseHeader("x-higress-a2a-" + field.name)
+	}
+}
+
 func isJSONRPCContentType(contentType string) bool {
 	typeName := strings.ToLower(mediaType(contentType))
-	return typeName == "application/json" || typeName == "application/a2a+json"
+	return typeName == "application/json"
 }
 
 func mediaType(contentType string) string {
@@ -408,13 +416,6 @@ func contentLengthOversized(config pluginConfig) bool {
 	length, err := strconv.Atoi(value)
 	return err == nil && length > config.JSONRPC.MaxRequestBytes
 }
-
-type proxyRequestContext struct {
-	ctx wrapper.HttpContext
-}
-
-func (c proxyRequestContext) scheme() string { return c.ctx.Scheme() }
-func (c proxyRequestContext) host() string   { return c.ctx.Host() }
 
 func isAgentCardPath(requestPath, configuredPath string) bool {
 	path := pathWithoutQuery(requestPath)
@@ -448,6 +449,7 @@ func markAgentCardRejection(ctx wrapper.HttpContext) {
 	_ = proxywasm.ReplaceHttpResponseHeader("content-type", "application/json")
 	_ = proxywasm.RemoveHttpResponseHeader("content-length")
 	_ = proxywasm.RemoveHttpResponseHeader("etag")
+	_ = proxywasm.ReplaceHttpResponseHeader("cache-control", "no-store")
 	ctx.SetContext("a2a.card.rejection", []byte(`{"error":"invalid A2A Agent Card"}`))
 }
 
@@ -456,5 +458,6 @@ func replaceWithAgentCardRejection() {
 	_ = proxywasm.ReplaceHttpResponseHeader("content-type", "application/json")
 	_ = proxywasm.RemoveHttpResponseHeader("content-length")
 	_ = proxywasm.RemoveHttpResponseHeader("etag")
+	_ = proxywasm.ReplaceHttpResponseHeader("cache-control", "no-store")
 	_ = proxywasm.ReplaceHttpResponseBody([]byte(`{"error":"invalid A2A Agent Card"}`))
 }

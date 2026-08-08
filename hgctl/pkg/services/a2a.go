@@ -43,8 +43,8 @@ type a2aPublication struct {
 
 // PublishA2A creates the service and route before attaching the protocol
 // plugin to that route. It does not create or persist Agent task state.
-func PublishA2A(client *Client, name, rawURL string) error {
-	publication, err := buildA2APublication(name, rawURL)
+func PublishA2A(client *Client, name, rawURL, externalBaseURL string) error {
+	publication, err := buildA2APublication(name, rawURL, externalBaseURL)
 	if err != nil {
 		return err
 	}
@@ -71,13 +71,17 @@ func PublishA2A(client *Client, name, rawURL string) error {
 	return nil
 }
 
-func buildA2APublication(name, rawURL string) (*a2aPublication, error) {
+func buildA2APublication(name, rawURL, externalBaseURL string) (*a2aPublication, error) {
 	if name == "" {
 		return nil, fmt.Errorf("A2A agent name is required")
 	}
 	upstream, err := url.Parse(rawURL)
 	if err != nil || upstream.Hostname() == "" || (upstream.Scheme != "http" && upstream.Scheme != "https") {
 		return nil, fmt.Errorf("invalid A2A agent URL %q", rawURL)
+	}
+	external, err := url.Parse(externalBaseURL)
+	if err != nil || externalBaseURL == "" || external.Hostname() == "" || external.Scheme != "https" || external.User != nil || external.Fragment != "" {
+		return nil, fmt.Errorf("a public HTTPS external A2A base URL is required")
 	}
 	port := upstream.Port()
 	if port == "" {
@@ -129,7 +133,7 @@ func buildA2APublication(name, rawURL string) (*a2aPublication, error) {
 	configurations := map[string]interface{}{
 		"protocolVersion": "1.0", "mode": "enforce",
 		"legacy03":      map[string]interface{}{"enabled": false},
-		"agent":         map[string]interface{}{"id": name, "externalPath": matchPath},
+		"agent":         map[string]interface{}{"id": name, "externalBaseURL": strings.TrimRight(externalBaseURL, "/")},
 		"jsonrpc":       map[string]interface{}{"maxRequestBytes": 4194304, "maxSSEEventBytes": 262144},
 		"authorization": map[string]interface{}{"exposeInternalHeaders": true},
 	}

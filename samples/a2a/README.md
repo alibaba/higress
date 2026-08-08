@@ -13,9 +13,10 @@ and `A2A-Version: 1.0`. The plugin removes untrusted
 later authentication, authorization, rate-limit, and observability plugins.
 
 Agent Card responses on `/.well-known/agent-card.json` and the legacy
-`/.well-known/agent.json` path are bounded and validated. Declared interface
-URLs are rewritten to the configured public `agent.externalBaseURL`. Signed
-Cards use `preserve` mode and are never rewritten without re-signing.
+`/.well-known/agent.json` path are bounded and validated. Only the JSON-RPC 1.0
+interface supported by this route is advertised, and its URL is rewritten to
+the explicitly configured public `agent.externalBaseURL`. Signed Cards use
+`preserve` mode only when their endpoint already matches that trusted URL.
 
 The gateway observes task state returned by the upstream Agent; it does not
 store or own task state.

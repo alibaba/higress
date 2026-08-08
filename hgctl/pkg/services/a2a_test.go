@@ -28,7 +28,7 @@ func TestPublishA2ACreatesServiceRoutePluginAndAttachment(t *testing.T) {
 	}))
 	defer server.Close()
 
-	if err := PublishA2A(NewClient(server.URL, "admin", "secret"), "weather", "https://agent.example.com:8443/a2a"); err != nil {
+	if err := PublishA2A(NewClient(server.URL, "admin", "secret"), "weather", "https://agent.example.com:8443/a2a", "https://gateway.example.com/a2a"); err != nil {
 		t.Fatal(err)
 	}
 	if len(requests) != 6 {
@@ -63,7 +63,7 @@ func TestPublishA2ACreatesServiceRoutePluginAndAttachment(t *testing.T) {
 	}
 	config := requests[4].body["configurations"].(map[string]interface{})
 	agent := config["agent"].(map[string]interface{})
-	if agent["id"] != "weather" || agent["externalPath"] != "/a2a" {
+	if agent["id"] != "weather" || agent["externalBaseURL"] != "https://gateway.example.com/a2a" {
 		t.Fatalf("unexpected attachment: %#v", requests[4].body)
 	}
 }
@@ -77,19 +77,19 @@ func TestPublishA2AContinuesWhenPluginAlreadyExists(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
-	if err := PublishA2A(NewClient(server.URL, "", ""), "weather", "http://127.0.0.1:8080/"); err != nil {
+	if err := PublishA2A(NewClient(server.URL, "", ""), "weather", "http://127.0.0.1:8080/", "https://gateway.example.com/a2a"); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestBuildA2APublicationRejectsInvalidURL(t *testing.T) {
-	if _, err := buildA2APublication("weather", "file:///tmp/agent"); err == nil {
+	if _, err := buildA2APublication("weather", "file:///tmp/agent", "https://gateway.example.com/a2a"); err == nil {
 		t.Fatal("expected invalid URL error")
 	}
 }
 
 func TestBuildA2APublicationUsesConsoleStaticServiceContract(t *testing.T) {
-	publication, err := buildA2APublication("weather", "http://127.0.0.1:8080/a2a")
+	publication, err := buildA2APublication("weather", "http://127.0.0.1:8080/a2a", "https://gateway.example.com/a2a")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,5 +98,13 @@ func TestBuildA2APublicationUsesConsoleStaticServiceContract(t *testing.T) {
 	}
 	if len(publication.routes) != 2 || publication.routes[1].route["name"] != "weather-discovery-route" {
 		t.Fatalf("unexpected routes: %#v", publication.routes)
+	}
+}
+
+func TestBuildA2APublicationRequiresTrustedExternalBaseURL(t *testing.T) {
+	for _, externalBaseURL := range []string{"", "http://gateway.example.com/a2a", "https://user@gateway.example.com/a2a"} {
+		if _, err := buildA2APublication("weather", "http://127.0.0.1:8080/a2a", externalBaseURL); err == nil {
+			t.Fatalf("expected external URL %q to be rejected", externalBaseURL)
+		}
 	}
 }

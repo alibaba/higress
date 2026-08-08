@@ -32,11 +32,14 @@ authorization:
 
 GET responses from the canonical Agent Card path and the legacy
 `/.well-known/agent.json` path are validated before forwarding. The plugin
-accepts the standard declared bindings, preserves unknown fields, and rewrites
-only declared endpoint fields to `agent.externalBaseURL` (or the sanitized
-external request origin). Endpoints returned without rewriting must be public
-HTTPS URLs. Signed Cards are passed through unchanged in `preserve` mode.
+preserves unknown fields, advertises only the JSON-RPC 1.0 interface supported
+by the route, and rewrites its declared endpoint to the explicitly trusted
+`agent.externalBaseURL`. The plugin never derives this URL from request
+authority or forwarding headers. Cards fail closed if this setting is absent,
+if the response is compressed, or if a preserved endpoint does not exactly
+match the configured public HTTPS endpoint.
 
-When discovery is exposed at the root well-known path but JSON-RPC uses a
-non-root route, `agent.externalPath` appends that configured route path to the
-sanitized request origin. `hgctl agent add --type a2a` sets it automatically.
+Signed Cards with structurally valid signatures are passed through unchanged
+in `preserve` mode only when they already advertise that configured endpoint.
+Use `hgctl agent add --type a2a --a2a-external-base-url
+https://agents.example.com/a2a ...` when publishing through `hgctl`.
