@@ -396,7 +396,10 @@ func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LL
 	if action == "Final Answer" {
 		return types.ActionContinue, actionInput
 	}
-	count := ctx.GetContext(ToolCallsCount).(int)
+	count, ok := ctx.GetContext(ToolCallsCount).(int)
+	if !ok {
+		count = 0
+	}
 	count++
 	log.Debugf("toolCallsCount:%d, config.LLMInfo.MaxIterations=%d", count, llmInfo.MaxIterations)
 	// 函数递归调用次数，达到了预设的循环次数，强制结束
