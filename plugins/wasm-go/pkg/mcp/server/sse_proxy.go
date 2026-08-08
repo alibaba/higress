@@ -234,6 +234,9 @@ func ParseSSEMessage(data []byte) (*SSEMessage, []byte, error) {
 func ExtractEndpointURL(endpointData string, baseURL string) (string, error) {
 	// Case 1: endpointData is a full URL
 	if strings.HasPrefix(endpointData, "http://") || strings.HasPrefix(endpointData, "https://") {
+		if err := validateSSEEndpointOrigin(endpointData, baseURL); err != nil {
+			return "", err
+		}
 		return endpointData, nil
 	}
 
@@ -256,6 +259,66 @@ func ExtractEndpointURL(endpointData string, baseURL string) (string, error) {
 
 	// Case 3: baseURL is also just a path, return endpointData as-is
 	return endpointData, nil
+}
+
+func validateSSEEndpointOrigin(endpointURL, configuredURL string) error {
+	endpoint, err := url.Parse(endpointURL)
+	if err != nil {
+		return errors.New("failed to parse SSE endpoint URL")
+	}
+	if endpoint.Scheme == "" && endpoint.Host == "" {
+		return nil
+	}
+	configured, err := url.Parse(configuredURL)
+	if err != nil {
+		return errors.New("failed to parse configured MCP server URL")
+	}
+	endpointScheme, endpointHost, endpointPort, endpointOK := normalizedHTTPOrigin(endpoint)
+	configuredScheme, configuredHost, configuredPort, configuredOK := normalizedHTTPOrigin(configured)
+	if !endpointOK || !configuredOK || endpointScheme != configuredScheme || endpointHost != configuredHost || endpointPort != configuredPort {
+		return errors.New("SSE endpoint origin does not match configured MCP server origin")
+	}
+	return nil
+}
+
+func normalizedHTTPOrigin(parsedURL *url.URL) (scheme, host, port string, ok bool) {
+	scheme = strings.ToLower(parsedURL.Scheme)
+	host = strings.ToLower(parsedURL.Hostname())
+	if (scheme != "http" && scheme != "https") || host == "" {
+		return "", "", "", false
+	}
+	port = parsedURL.Port()
+	if port == "" {
+		if scheme == "http" {
+			port = "80"
+		} else {
+			port = "443"
+		}
+	}
+	return scheme, host, port, true
+}
+
+func prepareSSEUpstreamRequest(server *McpProxyServer, authInfo *ProxyAuthInfo, headers *[][2]string, targetURL string) (string, error) {
+	if err := validateSSEEndpointOrigin(targetURL, server.GetMcpServerURL()); err != nil {
+		return "", err
+	}
+	if authInfo == nil {
+		return targetURL, nil
+	}
+	if authInfo.SecuritySchemeID != "" {
+		modifiedURL, err := applyProxyAuthenticationForSSE(server, authInfo.SecuritySchemeID, authInfo.PassthroughCredential, headers, targetURL)
+		if err != nil {
+			return "", fmt.Errorf("failed to apply proxy authentication: %v", err)
+		}
+		return modifiedURL, nil
+	}
+	if authInfo.ForwardAuthorization != "" {
+		if strings.ContainsAny(authInfo.ForwardAuthorization, "\r\n") {
+			return "", errors.New("invalid forwarded authorization header")
+		}
+		ensureHeader(headers, "Authorization", authInfo.ForwardAuthorization)
+	}
+	return targetURL, nil
 }
 
 // sendSSEInitialize sends the initialize request for SSE protocol
@@ -292,14 +355,10 @@ func sendSSEInitialize(ctx wrapper.HttpContext, endpointURL string, authInfo *Pr
 	// Override required headers for SSE initialize
 	ensureHeader(&finalHeaders, "Content-Type", "application/json")
 
-	// Apply authentication to headers and URL
-	finalURL := endpointURL
-	if authInfo != nil && authInfo.SecuritySchemeID != "" {
-		modifiedURL, err := applyProxyAuthenticationForSSE(proxyServer, authInfo.SecuritySchemeID, authInfo.PassthroughCredential, &finalHeaders, endpointURL)
-		if err != nil {
-			return fmt.Errorf("failed to apply proxy authentication: %v", err)
-		}
-		finalURL = modifiedURL
+	// Validate the endpoint origin before applying explicit authentication.
+	finalURL, err := prepareSSEUpstreamRequest(proxyServer, authInfo, &finalHeaders, endpointURL)
+	if err != nil {
+		return err
 	}
 
 	// Note: headers are already copied from the current request (which has server-level headers applied)
@@ -349,14 +408,10 @@ func sendSSENotification(ctx wrapper.HttpContext, endpointURL string, authInfo *
 	// Override required headers for SSE notification
 	ensureHeader(&finalHeaders, "Content-Type", "application/json")
 
-	// Apply authentication to headers and URL
-	finalURL := endpointURL
-	if authInfo != nil && authInfo.SecuritySchemeID != "" {
-		modifiedURL, err := applyProxyAuthenticationForSSE(proxyServer, authInfo.SecuritySchemeID, authInfo.PassthroughCredential, &finalHeaders, endpointURL)
-		if err != nil {
-			return fmt.Errorf("failed to apply proxy authentication: %v", err)
-		}
-		finalURL = modifiedURL
+	// Validate the endpoint origin before applying explicit authentication.
+	finalURL, err := prepareSSEUpstreamRequest(proxyServer, authInfo, &finalHeaders, endpointURL)
+	if err != nil {
+		return err
 	}
 
 	// Note: headers are already copied from the current request (which has server-level headers applied)
@@ -441,14 +496,10 @@ func sendSSEToolRequest(ctx wrapper.HttpContext, endpointURL string, authInfo *P
 	// Override required headers for SSE tool request
 	ensureHeader(&finalHeaders, "Content-Type", "application/json")
 
-	// Apply authentication to headers and URL
-	finalURL := endpointURL
-	if authInfo != nil && authInfo.SecuritySchemeID != "" {
-		modifiedURL, err := applyProxyAuthenticationForSSE(proxyServer, authInfo.SecuritySchemeID, authInfo.PassthroughCredential, &finalHeaders, endpointURL)
-		if err != nil {
-			return fmt.Errorf("failed to apply proxy authentication: %v", err)
-		}
-		finalURL = modifiedURL
+	// Validate the endpoint origin before applying explicit authentication.
+	finalURL, err := prepareSSEUpstreamRequest(proxyServer, authInfo, &finalHeaders, endpointURL)
+	if err != nil {
+		return err
 	}
 
 	// Note: headers are already copied from the current request (which has server-level headers applied)

@@ -138,7 +138,7 @@ func TestProductionDiscoveryAndToolsListResultContracts(t *testing.T) {
 		}
 	})
 
-	t.Run("proxy discovery omits unavailable tools", func(t *testing.T) {
+	t.Run("proxy discovery advertises implemented tools", func(t *testing.T) {
 		host, status := wasmtest.NewTestHost(json.RawMessage(`{
 			"server":{
 				"name":"proxy-only",
@@ -163,8 +163,9 @@ func TestProductionDiscoveryAndToolsListResultContracts(t *testing.T) {
 		require.NoError(t, json.Unmarshal(response.Data, &envelope))
 		assertModernCompleteResult(t, envelope.Result, "proxy-only", true)
 		capabilities := envelope.Result["capabilities"].(map[string]any)
-		if len(capabilities) != 0 {
-			t.Fatalf("proxy advertised unavailable capabilities: %#v", capabilities)
+		tools, ok := capabilities["tools"].(map[string]any)
+		if !ok || len(tools) != 0 {
+			t.Fatalf("proxy omitted implemented tools capability: %#v", capabilities)
 		}
 	})
 

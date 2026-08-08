@@ -1138,7 +1138,9 @@ func CreateMcpProxyMethodHandlers(server *McpProxyServer, allowTools *map[string
 			arguments := make(map[string]interface{})
 			argsResult := params.Get("arguments")
 			if argsResult.Exists() {
-				if err := json.Unmarshal([]byte(argsResult.Raw), &arguments); err != nil {
+				var err error
+				arguments, err = decodeBackendJSONObject([]byte(argsResult.Raw))
+				if err != nil {
 					return fmt.Errorf("invalid arguments: %v", err)
 				}
 			}
@@ -1335,7 +1337,9 @@ func handleSSEToolsCall(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjso
 	arguments := make(map[string]interface{})
 	argsResult := params.Get("arguments")
 	if argsResult.Exists() {
-		if err := json.Unmarshal([]byte(argsResult.Raw), &arguments); err != nil {
+		var err error
+		arguments, err = decodeBackendJSONObject([]byte(argsResult.Raw))
+		if err != nil {
 			return fmt.Errorf("invalid arguments: %v", err)
 		}
 	}
@@ -1458,15 +1462,11 @@ func initiateSSEChannelInRequestPhase(ctx wrapper.HttpContext, server *McpProxyS
 	finalURL := server.GetMcpServerURL()
 	finalHeaders := getHeaders
 
-	if authInfo != nil && authInfo.SecuritySchemeID != "" {
-		modifiedURL, err := applyProxyAuthenticationForSSE(server, authInfo.SecuritySchemeID, authInfo.PassthroughCredential, &finalHeaders, finalURL)
-		if err != nil {
-			return fmt.Errorf("failed to apply proxy authentication: %v", err)
-		}
-		finalURL = modifiedURL
-	} else if authInfo != nil && authInfo.ForwardAuthorization != "" {
-		ensureHeader(&finalHeaders, "Authorization", authInfo.ForwardAuthorization)
+	preparedURL, err := prepareSSEUpstreamRequest(server, authInfo, &finalHeaders, finalURL)
+	if err != nil {
+		return err
 	}
+	finalURL = preparedURL
 
 	// Parse the target URL
 	parsedURL, err := url.Parse(finalURL)

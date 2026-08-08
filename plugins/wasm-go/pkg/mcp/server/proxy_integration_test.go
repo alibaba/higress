@@ -79,6 +79,32 @@ func assertNoProxyLeakHeaders(t *testing.T, headers [][2]string) {
 	}
 }
 
+func TestModernProxyDiscoveryAdvertisesImplementedToolsCapability(t *testing.T) {
+	for _, strategy := range []ProtocolStrategy{ProtocolStrategyModern, ProtocolStrategyLegacy} {
+		t.Run(string(strategy), func(t *testing.T) {
+			host := newProxyBridgeHost(t, strategy)
+			headers := [][2]string{
+				{":authority", "mcp.example.com"},
+				{":method", "POST"},
+				{":path", "/mcp"},
+				{"content-type", "application/json"},
+				{"accept", "application/json, text/event-stream"},
+				{protocol.HeaderProtocolVersion, string(protocol.Version20260728)},
+				{protocol.HeaderMethod, "server/discover"},
+			}
+			body := []byte(`{"jsonrpc":"2.0","id":3,"method":"server/discover","params":{"_meta":{"` +
+				protocol.MetaProtocolVersion + `":"2026-07-28","` + protocol.MetaClientCapabilities + `":{}}}}`)
+			require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(headers))
+			require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
+
+			response := host.GetLocalResponse()
+			require.NotNil(t, response)
+			assert.True(t, gjson.GetBytes(response.Data, "result.capabilities.tools").Exists())
+			assert.Empty(t, host.GetHttpCalloutAttributes(), "discovery describes implemented gateway methods without probing upstream")
+		})
+	}
+}
+
 func TestModernToModernProxyUsesSingleStatelessCallAndPreservesOpaqueResult(t *testing.T) {
 	host := newProxyBridgeHost(t, ProtocolStrategyModern)
 	body := modernProxyListBody(7)
@@ -155,6 +181,32 @@ func TestModernToLegacyProxyRunsRequestScopedHandshakeAndShapesResult(t *testing
 	assert.Equal(t, int64(0), gjson.GetBytes(response.Data, "result.ttlMs").Int())
 	assert.Equal(t, cacheScopePrivate, gjson.GetBytes(response.Data, "result.cacheScope").String())
 	assert.Empty(t, host.GetHttpCalloutAttributes())
+}
+
+func TestModernToLegacyProxyPreservesLargeIntegerToolArguments(t *testing.T) {
+	host := newProxyBridgeHost(t, ProtocolStrategyLegacy)
+	headers := [][2]string{
+		{":authority", "mcp.example.com"},
+		{":method", "POST"},
+		{":path", "/mcp"},
+		{"content-type", "application/json"},
+		{"accept", "application/json, text/event-stream"},
+		{protocol.HeaderProtocolVersion, string(protocol.Version20260728)},
+		{protocol.HeaderMethod, "tools/call"},
+		{protocol.HeaderName, "counter"},
+	}
+	body := []byte(`{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"counter","arguments":{"value":9007199254740993},"_meta":{"` +
+		protocol.MetaProtocolVersion + `":"2026-07-28","` + protocol.MetaClientCapabilities + `":{}}}}`)
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(headers))
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody(body))
+
+	initialize := calloutAt(t, host, 0)
+	completeCallout(host, initialize, "200", [][2]string{{"Mcp-Session-Id", "request-session"}}, []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"legacy","version":"1"}}}`))
+	notification := calloutAt(t, host, 0)
+	completeCallout(host, notification, "202", nil, nil)
+	toolCall := calloutAt(t, host, 0)
+	assert.Equal(t, "9007199254740993", gjson.GetBytes(toolCall.Body, "params.arguments.value").Raw)
+	completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{"jsonrpc":"2.0","id":2,"result":{"content":[]}}`))
 }
 
 func TestModernProxyPreservesUpstreamAuthenticationStatusAndChallenge(t *testing.T) {

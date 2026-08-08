@@ -639,13 +639,6 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		}
 		toolsAvailable := modernMethodPolicy(*config, "tools/list").Available &&
 			modernMethodPolicy(*config, "tools/call").Available
-		// Proxy upstream capabilities are not known without an outbound discovery
-		// exchange. Discovery fallback/caching is deliberately outside this
-		// change, so do not advertise unverified proxy capabilities even though
-		// direct modern tools/list and tools/call bridging is available.
-		if _, isProxy := config.server.(*McpProxyServer); isProxy {
-			toolsAvailable = false
-		}
 		result := ShapeResult(request, currentServerNameForHandlers, DiscoveryResult(toolsAvailable))
 		utils.OnMCPResponseSuccess(ctx, result, fmt.Sprintf("mcp:%s:server/discover", currentServerNameForHandlers))
 		return nil
