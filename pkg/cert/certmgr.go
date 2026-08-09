@@ -238,10 +238,12 @@ func (s *CertMgr) OnEvent(ctx context.Context, event string, data map[string]any
 		}
 		privateKey, err := s.cfg.Storage.Load(context.Background(), privateKeyPath)
 		if err != nil {
+			CertLog.Errorf("failed to load private key for domain %s from path %s: %v", domain, privateKeyPath, err)
 			return err
 		}
 		certificate, err := s.cfg.Storage.Load(context.Background(), certificatePath)
 		if err != nil {
+			CertLog.Errorf("failed to load certificate for domain %s from path %s: %v", domain, certificatePath, err)
 			return err
 		}
 		certChain, err := parseCertsFromPEMBundle(certificate)
