@@ -212,11 +212,11 @@
       "derivation": "append ASCII whitespace until the request exceeds the 1 MiB modern body limit",
       "sha256": "68a0c55e72ade5b082867d2a17b457828ebce4236c97ab955d41fca259515be8"
     },
-    "oversized-name-header": {
+    "oversized-tool-name": {
       "base": "call-tool-request.json",
       "basePath": "schema/draft/examples/CallToolRequest/call-tool-request.json",
-      "derivation": "replace Mcp-Name with 8193 ASCII bytes, one byte beyond the encoded header limit",
-      "sha256": "426fe76654750bf58f1b68cc8bb06d90e183546cae5a9a723c0a006c99cf77a4"
+      "derivation": "replace params.name and Mcp-Name with the same 4097 ASCII bytes, one byte beyond the decoded tool-name limit",
+      "sha256": "0fb6ca58e133f21566cf8e72c0533b0d729aca4e9be213712994b013fdd78452"
     },
     "invalid-tool-name-type": {
       "base": "call-tool-request.json",

@@ -185,6 +185,45 @@ func TestOfficial20260728PositiveRequestsAndCapabilityHonesty(t *testing.T) {
 	})
 }
 
+func TestOfficial20260728MissingRequiredClientCapabilityPolicy(t *testing.T) {
+	body := readOfficialFixture(t, "list-tools-request.json")
+	transport := protocol.NewTransport("POST", "mcp.example.com", modernHeaders(body))
+	request, protocolError := protocol.PrepareRequestWithPolicy(transport, body, func(method string) protocol.MethodPolicy {
+		require.Equal(t, "tools/list", method)
+		return protocol.MethodPolicy{
+			Available: true,
+			RequiredClientCapabilities: protocol.ClientCapabilities{
+				Elicitation: &protocol.ElicitationCapabilities{},
+			},
+		}
+	})
+	require.NotNil(t, request)
+	require.NotNil(t, protocolError)
+
+	reference := readOfficialFixture(t, "missing-required-client-capability-error.json")
+	require.Equal(t, uint32(400), protocolError.HTTPStatus)
+	require.Equal(t, int(gjson.GetBytes(reference, "error.code").Int()), protocolError.Code)
+	require.Equal(t, "missing required client capability", protocolError.Message)
+	require.NotNil(t, protocolError.Data)
+	require.NotNil(t, protocolError.Data.RequiredCapabilities)
+	requiredCapabilities, err := json.Marshal(protocolError.Data.RequiredCapabilities)
+	require.NoError(t, err)
+	require.JSONEq(t, gjson.GetBytes(reference, "error.data.requiredCapabilities").Raw, string(requiredCapabilities))
+
+	response := protocol.MarshalErrorResponse(request.Envelope.ID, protocolError)
+	var envelope map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(response, &envelope))
+	require.ElementsMatch(t, []string{"jsonrpc", "id", "error"}, mapKeys(envelope))
+	require.JSONEq(t, `"2.0"`, string(envelope["jsonrpc"]))
+	require.JSONEq(t, gjson.GetBytes(body, "id").Raw, string(envelope["id"]))
+	var responseError map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(envelope["error"], &responseError))
+	require.ElementsMatch(t, []string{"code", "message", "data"}, mapKeys(responseError))
+	require.Equal(t, gjson.GetBytes(reference, "error.code").Int(), gjson.GetBytes(envelope["error"], "code").Int())
+	require.Equal(t, "missing required client capability", gjson.GetBytes(envelope["error"], "message").String())
+	require.JSONEq(t, gjson.GetBytes(reference, "error.data.requiredCapabilities").Raw, gjson.GetBytes(envelope["error"], "data.requiredCapabilities").Raw)
+}
+
 func TestOfficial20260728NegativeContracts(t *testing.T) {
 	wasmtest.RunTest(t, func(t *testing.T) {
 		for _, tc := range derivedConformanceCases(t) {
@@ -387,9 +426,11 @@ func derivedConformanceCases(t *testing.T) []derivedCase {
 	oversizedBody.Body = append(oversizedBody.Body, bytes.Repeat([]byte(" "), int(protocol.ModernMaxBodyBytes)+1)...)
 	oversizedBody.WantError = invalidRequestAtHeaders(413, "request body exceeds the modern MCP limit")
 
-	oversizedNameHeader := newCase("oversized-name-header", "call-tool-request.json", "replace Mcp-Name with 8193 ASCII bytes, one byte beyond the encoded header limit")
-	oversizedNameHeader.Headers = replaceHeader(t, oversizedNameHeader.Headers, "Mcp-Name", strings.Repeat("a", 8193))
-	oversizedNameHeader.WantError = cloneExpectation(headerMismatchWithCallID)
+	oversizedToolName := newCase("oversized-tool-name", "call-tool-request.json", "replace params.name and Mcp-Name with the same 4097 ASCII bytes, one byte beyond the decoded tool-name limit")
+	longToolName := strings.Repeat("a", 4097)
+	oversizedToolName.Body = mutateJSONObject(t, oversizedToolName.Body, func(object map[string]any) { requestParams(t, object)["name"] = longToolName })
+	oversizedToolName.Headers = replaceHeader(t, oversizedToolName.Headers, "Mcp-Name", longToolName)
+	oversizedToolName.WantError = &errorExpectation{HTTPStatus: 400, Code: -32602, Message: "tools/call params.name is required", ID: `"call-tool-example"`, Reference: "invalid-tool-arguments-error.json"}
 
 	invalidToolName := newCase("invalid-tool-name-type", "call-tool-request.json", "replace params.name string with JSON number 7 while retaining the original Mcp-Name header")
 	invalidToolName.Body = mutateJSONObject(t, invalidToolName.Body, func(object map[string]any) { requestParams(t, object)["name"] = 7 })
@@ -408,7 +449,7 @@ func derivedConformanceCases(t *testing.T) []derivedCase {
 		mismatchedMethod, mismatchedName, mismatchedBodyVersion, unsupportedHeaderVersion,
 		nullID, fractionalID, booleanID, integerID, notification,
 		missingMeta, missingProtocolMeta, missingCapabilities, optionalClientInfo,
-		cancelled, oversizedBody, oversizedNameHeader, invalidToolName, methodNotFound,
+		cancelled, oversizedBody, oversizedToolName, invalidToolName, methodNotFound,
 	}
 }
 
@@ -419,8 +460,14 @@ func cloneExpectation(expectation errorExpectation) *errorExpectation {
 
 func assertCacheWireContract(t *testing.T, response *wasmtestLocalResponse) {
 	t.Helper()
-	require.Equal(t, int64(0), gjson.GetBytes(response.Data, "result.ttlMs").Int())
-	require.Equal(t, "private", gjson.GetBytes(response.Data, "result.cacheScope").String())
+	ttl := gjson.GetBytes(response.Data, "result.ttlMs")
+	require.True(t, ttl.Exists(), "result.ttlMs missing from %s", response.Data)
+	require.Equal(t, gjson.Number, ttl.Type)
+	require.Equal(t, int64(0), ttl.Int())
+	cacheScope := gjson.GetBytes(response.Data, "result.cacheScope")
+	require.True(t, cacheScope.Exists(), "result.cacheScope missing from %s", response.Data)
+	require.Equal(t, gjson.String, cacheScope.Type)
+	require.Equal(t, "private", cacheScope.String())
 }
 
 func assertSuccessEnvelope(t *testing.T, response *wasmtestLocalResponse, status uint32, wantID string) {
