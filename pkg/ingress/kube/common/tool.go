@@ -213,8 +213,15 @@ func SortHTTPRoutes(routes []*WrapperHTTPRoute) {
 				return in > jn
 			}
 
-			if len(routes[i].HTTPRoute.Match) == 0 || len(routes[j].HTTPRoute.Match) == 0 {
+			lenI, lenJ := len(routes[i].HTTPRoute.Match), len(routes[j].HTTPRoute.Match)
+			if lenI == 0 && lenJ == 0 {
 				return false
+			}
+			if lenI == 0 {
+				return false
+			}
+			if lenJ == 0 {
+				return true
 			}
 			match1, match2 := routes[i].HTTPRoute.Match[0], routes[j].HTTPRoute.Match[0]
 			// methods

@@ -1183,3 +1183,132 @@ func TestGetLbStatusListV1AndV1Beta1(t *testing.T) {
 		}, lbiList)
 	})
 }
+
+
+func makeSortRoute(path string, pathType PathType, isDefault bool, match *networking.HTTPMatchRequest) *WrapperHTTPRoute {
+	r := &WrapperHTTPRoute{
+		HTTPRoute: &networking.HTTPRoute{
+			Match: nil,
+		},
+		WrapperConfig: &WrapperConfig{
+			Config: &config.Config{},
+		},
+		OriginPath:       path,
+		OriginPathType:   pathType,
+		IsDefaultBackend: isDefault,
+	}
+	if match != nil {
+		r.HTTPRoute.Match = []*networking.HTTPMatchRequest{match}
+	}
+	return r
+}
+
+func TestSortHTTPRoutes_EmptyMatchSlice(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("/api/v1", Exact, false, nil),
+		makeSortRoute("/", Prefix, false, &networking.HTTPMatchRequest{}),
+	}
+	routes[0].HTTPRoute.Match = []*networking.HTTPMatchRequest{}
+
+	SortHTTPRoutes(routes)
+
+	if routes[0].OriginPath != "/api/v1" {
+		t.Errorf("expected /api/v1 first, got %s", routes[0].OriginPath)
+	}
+}
+
+func TestSortHTTPRoutes_NilMatchSlice(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("/api/v1", Exact, false, &networking.HTTPMatchRequest{}),
+		makeSortRoute("/", Prefix, false, nil),
+	}
+
+	SortHTTPRoutes(routes)
+
+	if routes[0].OriginPath != "/api/v1" {
+		t.Errorf("expected /api/v1 first, got %s", routes[0].OriginPath)
+	}
+}
+
+func TestSortHTTPRoutes_DefaultBackendLast(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("", "", true, nil),
+		makeSortRoute("/api", Prefix, false, &networking.HTTPMatchRequest{}),
+	}
+
+	SortHTTPRoutes(routes)
+
+	if !routes[1].IsDefaultBackend {
+		t.Errorf("expected default backend last")
+	}
+}
+
+func TestSortHTTPRoutes_AllCatchLast(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("/", Prefix, false, nil),
+		makeSortRoute("/api/v1", Prefix, false, &networking.HTTPMatchRequest{}),
+	}
+
+	SortHTTPRoutes(routes)
+
+	if routes[0].OriginPath != "/api/v1" {
+		t.Errorf("expected /api/v1 first, got %s", routes[0].OriginPath)
+	}
+}
+
+func TestSortHTTPRoutes_ExactBeforePrefix(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("/api", Prefix, false, &networking.HTTPMatchRequest{}),
+		makeSortRoute("/api", Exact, false, &networking.HTTPMatchRequest{}),
+	}
+
+	SortHTTPRoutes(routes)
+
+	if routes[0].OriginPathType != Exact {
+		t.Errorf("expected Exact first, got %s", routes[0].OriginPathType)
+	}
+}
+
+func TestSortHTTPRoutes_LongerPathFirst(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("/api", Prefix, false, &networking.HTTPMatchRequest{}),
+		makeSortRoute("/api/v1/users", Prefix, false, &networking.HTTPMatchRequest{}),
+	}
+
+	SortHTTPRoutes(routes)
+
+	if routes[0].OriginPath != "/api/v1/users" {
+		t.Errorf("expected /api/v1/users first, got %s", routes[0].OriginPath)
+	}
+}
+
+func TestSortHTTPRoutes_EmptyVsNonEmptyMatch(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("/api", Prefix, false, nil),
+		makeSortRoute("/api", Prefix, false, &networking.HTTPMatchRequest{}),
+	}
+	routes[0].HTTPRoute.Match = []*networking.HTTPMatchRequest{}
+
+	SortHTTPRoutes(routes)
+
+	// Route with match should come before route with empty match
+	if len(routes[0].HTTPRoute.Match) == 0 {
+		t.Errorf("expected route with match first")
+	}
+}
+
+func TestSortHTTPRoutes_NoPanic(t *testing.T) {
+	routes := []*WrapperHTTPRoute{
+		makeSortRoute("", "", true, nil),
+		makeSortRoute("/", Prefix, false, nil),
+		makeSortRoute("/api", Prefix, false, &networking.HTTPMatchRequest{}),
+		makeSortRoute("/api/exact", Exact, false, &networking.HTTPMatchRequest{}),
+	}
+	routes[1].HTTPRoute.Match = []*networking.HTTPMatchRequest{}
+
+	SortHTTPRoutes(routes)
+
+	if !routes[len(routes)-1].IsDefaultBackend {
+		t.Errorf("expected default backend last")
+	}
+}
