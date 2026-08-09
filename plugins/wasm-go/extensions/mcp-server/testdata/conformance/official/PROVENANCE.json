@@ -1,0 +1,28 @@
+{
+  "repository": "https://github.com/modelcontextprotocol/modelcontextprotocol",
+  "commit": "f817239f4d6b1efff2c4dfc2f7af85c985d73076",
+  "release": "2026-07-28",
+  "sourceRoot": "schema/draft/examples",
+  "files": {
+    "discover-request.json": "DiscoverRequest/server-discover-request.json",
+    "discover-result.json": "DiscoverResult/server-capabilities-discovery.json",
+    "list-tools-request.json": "ListToolsRequest/list-tools-request.json",
+    "call-tool-request.json": "CallToolRequest/call-tool-request.json",
+    "header-mismatch-error.json": "HeaderMismatchError/header-mismatch.json",
+    "unsupported-version-error.json": "UnsupportedProtocolVersionError/unsupported-version.json",
+    "invalid-tool-arguments-error.json": "InvalidParamsError/invalid-tool-arguments.json",
+    "method-not-found-error.json": "MethodNotFoundError/prompts-not-supported.json",
+    "parse-error.json": "ParseError/invalid-json.json"
+  },
+  "sha256": {
+    "discover-request.json": "9a3b843d325275c4840ce7556204133547d56d8906c42aa243956beec3b48640",
+    "discover-result.json": "2025afe831909d22e9f5824366e587f1c5e2ebfc0eb15836bf788bd749ecfd9c",
+    "list-tools-request.json": "d22da12df78cc674498e3effe7b498900db1512665771206c9733f8e5d426e87",
+    "call-tool-request.json": "d275701f77b9ccdaf603b91c9570619720b912ef00a4d7a621175576e9610719",
+    "header-mismatch-error.json": "d3861ec4e8b1d6fb7764d90642675d4e661784ae452b7cf57d7d85e621f89d14",
+    "unsupported-version-error.json": "6f6ff9030449c6a588ebcbc35fdac3fff0c9bb7c0677f1b11010369b820cbcc4",
+    "invalid-tool-arguments-error.json": "bd3f341a3f3373f3c405546265bdf912a946d60a956b53d9857bddae0e866408",
+    "method-not-found-error.json": "429f9c32bf2b6776f638c26ff4e9648182f45054a25f6c73a0abc39ecfd90ea2",
+    "parse-error.json": "7d34ed3b0397d7264718e3fc24e0ca4e8645bfad20fc8e604dbe291099de36ae"
+  }
+}

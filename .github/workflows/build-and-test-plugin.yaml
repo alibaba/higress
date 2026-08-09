@@ -69,6 +69,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-go
 
+      - name: Build required MCP 2026 conformance plugin
+        if: matrix.wasmPluginType == 'GO'
+        run: GOPROXY="https://proxy.golang.org,direct" make build-mcp-server-wasmplugin
+
       - run: git stash # restore patch
 
       - name: "Run Ingress WasmPlugins Tests"

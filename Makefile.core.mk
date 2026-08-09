@@ -226,6 +226,10 @@ build-istio-local: prebuild
 build-wasmplugins:
 	./tools/hack/build-wasm-plugins.sh
 
+.PHONY: build-mcp-server-wasmplugin
+build-mcp-server-wasmplugin:
+	PLUGIN_TYPE=GO PLUGIN_NAME=mcp-server ./tools/hack/build-wasm-plugins.sh
+
 pre-install:
 	cp api/kubernetes/customresourcedefinitions.gen.yaml helm/core/crds
 
