@@ -8,6 +8,8 @@ on:
       - "test/**"
       - "helm/**"
       - "Makefile.core.mk"
+      - ".github/workflows/build-and-test-plugin.yaml"
+      - "tools/hack/build-wasm-plugins.sh"
   pull_request:
     branches: ["*"]
     paths:
@@ -15,6 +17,8 @@ on:
       - "test/**"
       - "helm/**"
       - "Makefile.core.mk"
+      - ".github/workflows/build-and-test-plugin.yaml"
+      - "tools/hack/build-wasm-plugins.sh"
   workflow_dispatch: ~
 
 jobs:

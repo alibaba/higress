@@ -8,13 +8,14 @@
 
 ## MCP 2026 Tools baseline
 
-The plugin supports the stateless HTTP Tools baseline from MCP `2026-07-28`:
+The plugin retains its legacy profile and adds the stateless HTTP Tools baseline from MCP `2026-07-28`:
 
-- `server/discover`, `tools/list`, and `tools/call`;
-- validation of `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`, and per-request `_meta`;
-- REST servers and both `modern` and `legacy` upstream strategies for `mcp-proxy`;
-- same-origin enforcement, batch rejection, and structured JSON-RPC errors;
-- compatibility with the existing legacy `initialize`, `tools/list`, and `tools/call` flow.
+| Profile | Exact supported versions | Lifecycle and transport |
+| --- | --- | --- |
+| legacy | `2024-11-05`, `2025-03-26`, `2025-06-18` | Retains `initialize` / `notifications/initialized` and the existing session and HTTP/SSE compatibility behavior |
+| modern | `2026-07-28` | Per-request `_meta`, no initialize and no protocol session; no GET/DELETE/Last-Event-ID recovery |
+
+The current modern profile implements only `server/discover`, `tools/list`, and `tools/call`. It validates Content-Type, Accept, same-origin Origin, single-message JSON-RPC boundaries, mirrored identity headers, and resource bounds. Batches, response envelopes, and trailing JSON are rejected.
 
 A modern request must carry both the transport headers and request metadata:
 
@@ -43,7 +44,37 @@ Accept: application/json, text/event-stream
 }
 ```
 
-For `mcp-proxy`, `protocolStrategy` describes the upstream protocol. `modern` forwards one stateless 2026 request; `legacy` performs an isolated legacy handshake for each modern request and translates the result. The default is `legacy`. Do not place runtime session IDs in configuration or test evidence.
+### Capabilities and result contract
+
+- `server/discover` advertises only the effective `tools: {}` capability. It does not advertise `tools.listChanged`, MRTR, subscriptions, resources, prompts, or any other unimplemented capability.
+- Every successful modern result uses `resultType: complete` and carries server identity in `_meta.io.modelcontextprotocol/serverInfo`.
+- `server/discover` and `tools/list` additionally return `ttlMs: 0` and `cacheScope: private`. These are wire-contract fields only: this milestone has no response/descriptor cache engine, shared cache, or active invalidation.
+
+### Proxy profile matrix
+
+`protocolStrategy` describes only the upstream profile and is explicit in this milestone:
+
+| Downstream | Upstream | Current status |
+| --- | --- | --- |
+| modern | registered / REST / composed | Supported |
+| modern | `protocolStrategy: modern` | Supported as one stateless request per exchange |
+| modern | `protocolStrategy: legacy` | Supported with an isolated legacy handshake inside one downstream exchange |
+| legacy | legacy upstream | Existing behavior retained |
+| legacy | modern-only upstream | Unsupported and deferred |
+
+Outbound headers are rebuilt for every RPC. `Authorization` is generated or forwarded only through an explicit proxy authentication policy. Cookies, downstream sessions, `Last-Event-ID`, internal routing headers, and unrelated credentials are not forwarded by default. A well-formed but unrecognized `Mcp-Param-*` header is forwarded only for the current Tool RPC on a modern-to-modern path; it must not enter discover, initialize, or a legacy RPC.
+
+### Migration and defaults
+
+An existing `mcp-proxy` without `protocolStrategy` continues to default to `legacy`; its legacy downstream-to-legacy upstream initialize/session/transport path is unchanged. Set `modern` explicitly only after confirming that the upstream supports `2026-07-28`. This milestone does not auto-detect, fall back, or retry another profile, and runtime session IDs must not be placed in configuration or test evidence.
+
+### Explicitly deferred scope
+
+| Level | Capabilities outside this milestone |
+| --- | --- |
+| Deferred P1 | `protocolStrategy: auto`, the `2025-11-25` profile, full JSON Schema 2020-12 and output validation, large tools pagination/cursors, and the legacy downstream-to-modern-only bridge |
+| Deferred P2 | MRTR / generation of `input_required`, subscriptions/listen and `tools.listChanged`, and generic state/requestState TTL, persistence, and recovery |
+| Separate Proposal | Complete OAuth resource server/client behavior, Tasks, MCP Apps, Resources, Prompts, Completion, and protocol synchronization for the independent native `plugins/golang-filter/mcp-server` |
 
 ## Configuration
 

@@ -15,13 +15,14 @@
 
 ## MCP 2026 Tools 基线
 
-插件支持 MCP `2026-07-28` 的无状态 HTTP Tools 基线：
+插件同时保留 legacy profile，并提供 MCP `2026-07-28` 的无状态 HTTP Tools 基线：
 
-- `server/discover`、`tools/list` 和 `tools/call`；
-- `MCP-Protocol-Version`、`Mcp-Method`、`Mcp-Name` 及每请求 `_meta` 校验；
-- REST Server，以及 `mcp-proxy` 的 `modern` / `legacy` 上游策略；
-- 同源 `Origin` 校验、批量请求拒绝和结构化 JSON-RPC 错误；
-- 既有 `initialize`、`tools/list`、`tools/call` 旧版调用保持兼容。
+| Profile | 精确支持版本 | 生命周期与传输 |
+| --- | --- | --- |
+| legacy | `2024-11-05`、`2025-03-26`、`2025-06-18` | 保留 `initialize` / `notifications/initialized`、现有 session 与 HTTP/SSE 兼容行为 |
+| modern | `2026-07-28` | 每请求 `_meta`、无 initialize、无协议 session；不提供 GET/DELETE/Last-Event-ID 恢复 |
+
+Modern profile 本期只实现 `server/discover`、`tools/list` 和 `tools/call`。它会校验 Content-Type、Accept、同源 Origin、JSON-RPC 单消息边界、身份镜像头与资源上限；批量、response envelope 和 trailing JSON 会被拒绝。
 
 现代请求必须同时发送传输头和 `_meta`，例如：
 
@@ -50,7 +51,37 @@ Accept: application/json, text/event-stream
 }
 ```
 
-`mcp-proxy` 的 `protocolStrategy` 描述上游协议：`modern` 直接转发 2026 无状态请求，`legacy` 为每个现代请求执行隔离的旧版握手并转换结果。默认值为 `legacy`。不要把运行期会话 ID 写入配置或测试凭据。
+### 能力与结果合同
+
+- `server/discover` 只声明当前真正可用的 `tools: {}`；不声明 `tools.listChanged`、MRTR、subscriptions、resources、prompts 或其他未实现能力。
+- 所有 modern 成功结果使用 `resultType: complete`，并在 `_meta.io.modelcontextprotocol/serverInfo` 携带服务端身份。
+- `server/discover` 和 `tools/list` 额外返回 `ttlMs: 0` 与 `cacheScope: private`。这只是 wire contract；本期没有 response/descriptor cache 引擎、共享缓存或主动失效。
+
+### Proxy profile 矩阵
+
+`protocolStrategy` 只描述上游 profile，本期是显式配置：
+
+| Downstream | Upstream | 当前状态 |
+| --- | --- | --- |
+| modern | registered / REST / composed | 支持 |
+| modern | `protocolStrategy: modern` | 支持，每请求无状态转发 |
+| modern | `protocolStrategy: legacy` | 支持，在单次下游交换内执行隔离的 legacy handshake |
+| legacy | legacy upstream | 保留现有行为 |
+| legacy | modern-only upstream | 不支持，已暂缓 |
+
+Outbound headers 按每个 RPC 重建。`Authorization` 只会根据显式 proxy auth policy 生成或转发。`Cookie`、下游 session、`Last-Event-ID`、内部路由头和无关凭据默认不转发。未识别但格式合法的 `Mcp-Param-*` 仅在 modern→modern 的当前 Tool RPC 中透传，不得进入 discover、initialize 或 legacy RPC。
+
+### 迁移与默认行为
+
+现有未配置 `protocolStrategy` 的 `mcp-proxy` 继续默认使用 `legacy`，legacy downstream→legacy upstream 的 initialize/session/transport 路径不变。只有已确认上游支持 `2026-07-28` 时才应显式切换为 `modern`。本期不会自动探测、回退或重试其他版本，也不应将运行期 session ID 写入配置或测试凭据。
+
+### 明确暂缓范围
+
+| 层级 | 不属于本期的能力 |
+| --- | --- |
+| Deferred P1 | `protocolStrategy: auto`、`2025-11-25` profile、完整 JSON Schema 2020-12 与 output validation、大规模 tools pagination/cursor、legacy downstream→modern-only bridge |
+| Deferred P2 | MRTR / `input_required` 生成、subscriptions/listen 与 `tools.listChanged`、通用 state/requestState 的 TTL、持久化与恢复 |
+| Separate Proposal | 完整 OAuth resource server/client、Tasks、MCP Apps、Resources、Prompts、Completion，以及独立 native `plugins/golang-filter/mcp-server` 的协议同步 |
 
 ## 配置说明
 
