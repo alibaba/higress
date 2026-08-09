@@ -327,6 +327,9 @@ type ProviderConfig struct {
 	// @Title zh-CN 失败请求重试
 	// @Description zh-CN 对失败的请求立即进行重试
 	retryOnFailure *retryOnFailure `required:"false" yaml:"retryOnFailure" json:"retryOnFailure"`
+	// @Title zh-CN 禁用流式使用统计
+	// @Description zh-CN 禁用后流式请求不会注入 stream_options.include_usage 字段。启用此选项后，流式请求的 token 使用统计将不可用，影响 ai-statistics/access-log 的 usage 字段。适用于不支持 stream_options 的旧版推理引擎（如 vLLM 0.4.3）。
+	disableStreamUsageStats bool `required:"false" yaml:"disableStreamUsageStats" json:"disableStreamUsageStats"`
 	// @Title zh-CN 推理内容处理方式
 	// @Description zh-CN 如何处理大模型服务返回的推理内容。目前支持以下取值：passthrough（正常输出推理内容）、ignore（不输出推理内容）、concat（将推理内容拼接在常规输出内容之前）。默认为 normal。仅支持通义千问服务。
 	reasoningContentMode string `required:"false" yaml:"reasoningContentMode" json:"reasoningContentMode"`
@@ -523,6 +526,10 @@ func (c *ProviderConfig) GetType() string {
 	return c.typ
 }
 
+func (c *ProviderConfig) IsStreamUsageStatsDisabled() bool {
+	return c.disableStreamUsageStats
+}
+
 func (c *ProviderConfig) GetProtocol() string {
 	return c.protocol
 }
@@ -706,6 +713,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	if retryOnFailureJson.Exists() {
 		c.retryOnFailure.FromJson(retryOnFailureJson)
 	}
+	c.disableStreamUsageStats = json.Get("disableStreamUsageStats").Bool()
 	c.difyApiUrl = json.Get("difyApiUrl").String()
 	c.botType = json.Get("botType").String()
 	c.inputVariable = json.Get("inputVariable").String()
@@ -1231,6 +1239,7 @@ func (c *ProviderConfig) handleRequestBody(
 		converter := &ClaudeToOpenAIConverter{}
 		body, err = converter.ConvertClaudeRequestToOpenAIWithOptions(body, ClaudeToOpenAIConvertOptions{
 			PreserveMessageReasoningContent: c.supportsMessageReasoningContent(),
+			DisableStreamUsageStats:          c.disableStreamUsageStats,
 		})
 		if err != nil {
 			return types.ActionContinue, fmt.Errorf("failed to convert claude request to openai: %v", err)
