@@ -1,6 +1,6 @@
 module github.com/alibaba/higress/hgctl
 
-go 1.24.4
+go 1.26.0
 
 replace github.com/spf13/viper => github.com/istio/viper v1.3.3-0.20190515210538-2789fed3109c
 
