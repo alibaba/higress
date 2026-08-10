@@ -7,9 +7,9 @@ import (
 	"net/http"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/gjson"
 )
 
@@ -81,9 +81,14 @@ func (c *ProviderConfig) retryCall(
 	ctx wrapper.HttpContext, activeProvider Provider,
 	apiName ApiName, statusCode int, responseHeaders http.Header, responseBody []byte,
 	retryClient *wrapper.ClusterClient[wrapper.RouteCluster],
-	apiTokenInUse string, apiTokens []string) {
-
-	retryCount := ctx.GetContext(ctxRetryCount).(int)
+	apiTokenInUse string, apiTokens []string,
+) {
+	retryCount, ok := ctx.GetContext(ctxRetryCount).(int)
+	if !ok {
+		log.Errorf("retryCount context value missing or invalid, aborting retry")
+		proxywasm.ResumeHttpResponse()
+		return
+	}
 	log.Infof("Sent retry request: %d/%d", retryCount, c.retryOnFailure.maxRetries)
 
 	if statusCode == 200 {
@@ -114,8 +119,8 @@ func (c *ProviderConfig) retryCall(
 func (c *ProviderConfig) sendRetryRequest(
 	ctx wrapper.HttpContext, apiName ApiName, activeProvider Provider,
 	retryClient *wrapper.ClusterClient[wrapper.RouteCluster],
-	apiTokenInUse string, apiTokens []string) error {
-
+	apiTokenInUse string, apiTokens []string,
+) error {
 	// Remove last failed token from retry apiTokens list
 	apiTokens = removeApiTokenFromRetryList(apiTokens, apiTokenInUse)
 	if len(apiTokens) == 0 {

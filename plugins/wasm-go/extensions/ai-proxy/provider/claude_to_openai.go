@@ -133,6 +133,10 @@ type ClaudeToOpenAIConvertOptions struct {
 	// PreserveMessageReasoningContent enables the non-standard message-level
 	// reasoning_content field for providers that explicitly support it.
 	PreserveMessageReasoningContent bool
+	// DisableStreamUsageStats prevents injecting stream_options.include_usage
+	// into the converted OpenAI request, for compatibility with older
+	// inference engines that reject unknown fields.
+	DisableStreamUsageStats bool
 }
 
 func (r *contentConversionResult) reasoningContent() string {
@@ -177,7 +181,7 @@ func (c *ClaudeToOpenAIConverter) ConvertClaudeRequestToOpenAIWithOptions(body [
 		Stop:        claudeRequest.StopSequences,
 	}
 
-	if openaiRequest.Stream {
+	if openaiRequest.Stream && !options.DisableStreamUsageStats {
 		openaiRequest.StreamOptions = &streamOptions{
 			IncludeUsage: true,
 		}
