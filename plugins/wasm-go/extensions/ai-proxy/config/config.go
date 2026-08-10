@@ -630,11 +630,12 @@ func (c sessionAffinityConfig) selectPersistentProviderID(key string) (string, e
 	if err != nil {
 		return "", err
 	}
-	records[key] = sessionAffinityRecord{
+	record := sessionAffinityRecord{
 		ProviderID: providerID,
 		ExpiresAt:  now + c.TTLSeconds,
 	}
-	if err := c.storePersistentRecords(records, cas); err != nil {
+	records[key] = record
+	if err := c.storePersistentRecords(records, key, record, now, cas); err != nil {
 		return providerID, nil
 	}
 	return providerID, nil
@@ -650,11 +651,12 @@ func (c sessionAffinityConfig) updatePersistentRecord(key, providerID string) {
 		return
 	}
 	pruneExpiredPersistentRecords(records, now)
-	records[key] = sessionAffinityRecord{
+	record := sessionAffinityRecord{
 		ProviderID: providerID,
 		ExpiresAt:  now + c.TTLSeconds,
 	}
-	_ = c.storePersistentRecords(records, cas)
+	records[key] = record
+	_ = c.storePersistentRecords(records, key, record, now, cas)
 }
 
 func pruneExpiredPersistentRecords(records map[string]sessionAffinityRecord, now int64) {
@@ -680,7 +682,7 @@ func (c sessionAffinityConfig) loadPersistentRecords() (map[string]sessionAffini
 	return records, cas, nil
 }
 
-func (c sessionAffinityConfig) storePersistentRecords(records map[string]sessionAffinityRecord, cas uint32) error {
+func (c sessionAffinityConfig) storePersistentRecords(records map[string]sessionAffinityRecord, key string, record sessionAffinityRecord, now int64, cas uint32) error {
 	data, err := json.Marshal(records)
 	if err != nil {
 		return err
@@ -697,9 +699,8 @@ func (c sessionAffinityConfig) storePersistentRecords(records map[string]session
 		if loadErr != nil {
 			return loadErr
 		}
-		for key, record := range records {
-			latest[key] = record
-		}
+		pruneExpiredPersistentRecords(latest, now)
+		latest[key] = record
 		records = latest
 		cas = latestCas
 		data, err = json.Marshal(records)

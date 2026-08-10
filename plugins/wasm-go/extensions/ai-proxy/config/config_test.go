@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/iface"
@@ -468,6 +470,79 @@ func TestPluginConfig_SessionAffinity(t *testing.T) {
 		}
 		if gotID != wantID {
 			t.Fatalf("selected provider = %q, want %q", gotID, wantID)
+		}
+	})
+
+	t.Run("persistent_store_cas_retry_preserves_concurrent_updates", func(t *testing.T) {
+		now := time.Now().Unix()
+		staleRecords := map[string]sessionAffinityRecord{
+			"A": {ProviderID: "oldA", ExpiresAt: now + 30},
+			"B": {ProviderID: "oldB", ExpiresAt: now + 30},
+		}
+		latestRecords := map[string]sessionAffinityRecord{
+			"A": {ProviderID: "newA", ExpiresAt: now + 30},
+			"B": {ProviderID: "oldB", ExpiresAt: now + 30},
+		}
+		intendedRecord := sessionAffinityRecord{ProviderID: "newB", ExpiresAt: now + 60}
+		staleRecords["B"] = intendedRecord
+
+		c := sessionAffinityConfig{
+			Enabled:       true,
+			Type:          sessionAffinityModePersistent,
+			TTLSeconds:    60,
+			sharedDataKey: "test-persistent-store-cas-retry",
+		}
+		originalGetSharedData := getSharedData
+		originalSetSharedData := setSharedData
+		var (
+			storedRecords map[string]sessionAffinityRecord
+			setCalls      int
+			loadCalls     int
+		)
+		getSharedData = func(string) ([]byte, uint32, error) {
+			loadCalls++
+			data, err := json.Marshal(latestRecords)
+			if err != nil {
+				t.Fatalf("marshal latest records: %v", err)
+			}
+			return data, 2, nil
+		}
+		setSharedData = func(_ string, data []byte, cas uint32) error {
+			setCalls++
+			if setCalls == 1 {
+				if cas != 1 {
+					t.Fatalf("first set cas = %d, want 1", cas)
+				}
+				return types.ErrorStatusCasMismatch
+			}
+			if err := json.Unmarshal(data, &storedRecords); err != nil {
+				t.Fatalf("unmarshal stored records: %v", err)
+			}
+			if cas != 2 {
+				t.Fatalf("retry set cas = %d, want 2", cas)
+			}
+			return nil
+		}
+		defer func() {
+			getSharedData = originalGetSharedData
+			setSharedData = originalSetSharedData
+		}()
+
+		err := c.storePersistentRecords(staleRecords, "B", intendedRecord, now, 1)
+		if err != nil {
+			t.Fatalf("storePersistentRecords() err = %v, want nil", err)
+		}
+		if setCalls != 2 {
+			t.Fatalf("setSharedData calls = %d, want 2", setCalls)
+		}
+		if loadCalls != 1 {
+			t.Fatalf("getSharedData calls = %d, want 1", loadCalls)
+		}
+		if got := storedRecords["A"].ProviderID; got != "newA" {
+			t.Fatalf("stored A provider = %q, want newA", got)
+		}
+		if got := storedRecords["B"].ProviderID; got != "newB" {
+			t.Fatalf("stored B provider = %q, want newB", got)
 		}
 	})
 }
