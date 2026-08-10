@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'plugins/wasm-go/extensions/**'
+      - 'plugins/wasm-go/pkg/mcp/**'
       - '.github/workflows/wasm-plugin-unit-test.yml'
       - 'go.mod'
       - 'go.sum'
@@ -12,6 +13,7 @@ on:
     branches: [ "*" ]
     paths:
       - 'plugins/wasm-go/extensions/**'
+      - 'plugins/wasm-go/pkg/mcp/**'
       - '.github/workflows/wasm-plugin-unit-test.yml'
       - 'go.mod'
       - 'go.sum'
@@ -59,6 +61,15 @@ jobs:
             PLUGIN_NAME="${BASH_REMATCH[1]}"
             if [[ ! " $CHANGED_PLUGINS " =~ " $PLUGIN_NAME " ]]; then
               # 修复：只在非空时添加空格
+              if [ -z "$CHANGED_PLUGINS" ]; then
+                CHANGED_PLUGINS="$PLUGIN_NAME"
+              else
+                CHANGED_PLUGINS="$CHANGED_PLUGINS $PLUGIN_NAME"
+              fi
+            fi
+          elif [[ $file =~ ^plugins/wasm-go/pkg/mcp/ ]]; then
+            PLUGIN_NAME="mcp-server"
+            if [[ ! " $CHANGED_PLUGINS " =~ " $PLUGIN_NAME " ]]; then
               if [ -z "$CHANGED_PLUGINS" ]; then
                 CHANGED_PLUGINS="$PLUGIN_NAME"
               else
@@ -189,6 +200,45 @@ jobs:
         name: codecov-${{ matrix.plugin }}
         fail_ci_if_error: false
         verbose: true
+
+  mcp-server-interop:
+    name: MCP 2026 Conformance and Official SDK Interop
+    runs-on: ubuntu-latest
+    needs: detect-changed-plugins
+    if: contains(needs.detect-changed-plugins.outputs.changed-plugins, 'mcp-server')
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go 1.25
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.25'
+        cache: true
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Test production MCP packages
+      working-directory: plugins/wasm-go/pkg/mcp
+      run: go test -count=1 ./...
+
+    - name: Test mcp-server conformance and legacy regressions
+      working-directory: plugins/wasm-go/extensions/mcp-server
+      run: go test -count=1 ./...
+
+    - name: Build mcp-server WASM explicitly
+      working-directory: plugins/wasm-go/extensions/mcp-server
+      run: GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o "${RUNNER_TEMP}/mcp-server.wasm" ./
+
+    - name: Run official Go and TypeScript SDK interoperability
+      working-directory: plugins/wasm-go/extensions/mcp-server
+      env:
+        npm_config_registry: https://registry.npmjs.org
+      run: ./testdata/interop/run.sh
 
   test-summary:
     name: Test Summary & Coverage

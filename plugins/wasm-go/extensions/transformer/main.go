@@ -39,6 +39,7 @@ func init() {
 		wrapper.ProcessRequestBodyBy(onHttpRequestBody),
 		wrapper.ProcessResponseHeadersBy(onHttpResponseHeaders),
 		wrapper.ProcessResponseBodyBy(onHttpResponseBody),
+		wrapper.WithRebuildMaxMemBytes[TransformerConfig](200*1024*1024),
 	)
 }
 
@@ -343,11 +344,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	isValidRequestContent := isValidRequestContentType(contentType)
 	isBodyChange := config.reqTrans.IsBodyChange()
 	needBodyMapSource := config.reqTrans.NeedBodyMapSource()
+	hasRequestBody := ctx.HasRequestBody()
 
-	log.Debugf("contentType:%s, isValidRequestContent:%v, isBodyChange:%v, needBodyMapSource:%v",
-		contentType, isValidRequestContent, isBodyChange, needBodyMapSource)
+	log.Debugf("contentType:%s, isValidRequestContent:%v, isBodyChange:%v, needBodyMapSource:%v, hasRequestBody:%v",
+		contentType, isValidRequestContent, isBodyChange, needBodyMapSource, hasRequestBody)
 
-	if isBodyChange && isValidRequestContent {
+	if isBodyChange && isValidRequestContent && hasRequestBody {
 		delete(hs, "content-length")
 	}
 
@@ -361,7 +363,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config TransformerConfig, log
 	ctx.SetContext("headers", hs)
 	ctx.SetContext("querys", qs)
 
-	if !isValidRequestContent || (!isBodyChange && !needBodyMapSource) {
+	if !hasRequestBody || !isValidRequestContent || (!isBodyChange && !needBodyMapSource) {
 		ctx.DontReadRequestBody()
 	} else if needBodyMapSource {
 		// we need do transform during body phase
@@ -932,7 +934,11 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 			for _, replace := range kvtOp.replaceKvtGroup {
 				key, newValue := replace.key, replace.newValue
 				if replace.reg != nil {
-					newValue = replace.reg.matchAndReplace(newValue, host, path)
+					var matched bool
+					newValue, matched = replace.reg.matchAndReplace(newValue, host, path)
+					if !matched {
+						continue
+					}
 				}
 				kvs[key] = []string{newValue}
 			}
@@ -944,7 +950,11 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 					continue
 				}
 				if add.reg != nil {
-					value = add.reg.matchAndReplace(value, host, path)
+					var matched bool
+					value, matched = add.reg.matchAndReplace(value, host, path)
+					if !matched {
+						continue
+					}
 				}
 				kvs[key] = []string{value}
 			}
@@ -954,7 +964,11 @@ func (h kvHandler) handle(host, path string, kvs map[string][]string, mapSourceD
 			for _, append_ := range kvtOp.appendKvtGroup {
 				key, appendValue := append_.key, append_.appendValue
 				if append_.reg != nil {
-					appendValue = append_.reg.matchAndReplace(appendValue, host, path)
+					var matched bool
+					appendValue, matched = append_.reg.matchAndReplace(appendValue, host, path)
+					if !matched {
+						continue
+					}
 				}
 				kvs[key] = append(kvs[key], appendValue)
 			}
@@ -1069,7 +1083,11 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map
 			for _, replace := range kvtOp.replaceKvtGroup {
 				key, newValue, valueType := replace.key, replace.newValue, replace.typ
 				if valueType == "string" && replace.reg != nil {
-					newValue = replace.reg.matchAndReplace(newValue, host, path)
+					var matched bool
+					newValue, matched = replace.reg.matchAndReplace(newValue, host, path)
+					if !matched {
+						continue
+					}
 				}
 				convertedNewValue, err := convertByJsonType(valueType, newValue)
 				if err != nil {
@@ -1087,7 +1105,11 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map
 					continue
 				}
 				if valueType == "string" && add.reg != nil {
-					value = add.reg.matchAndReplace(value, host, path)
+					var matched bool
+					value, matched = add.reg.matchAndReplace(value, host, path)
+					if !matched {
+						continue
+					}
 				}
 				convertedValue, err := convertByJsonType(valueType, value)
 				if err != nil {
@@ -1103,7 +1125,11 @@ func (h jsonHandler) handle(host, path string, oriData []byte, mapSourceData map
 			for _, append_ := range kvtOp.appendKvtGroup {
 				key, appendValue, valueType := append_.key, append_.appendValue, append_.typ
 				if valueType == "string" && append_.reg != nil {
-					appendValue = append_.reg.matchAndReplace(appendValue, host, path)
+					var matched bool
+					appendValue, matched = append_.reg.matchAndReplace(appendValue, host, path)
+					if !matched {
+						continue
+					}
 				}
 				convertedAppendValue, err := convertByJsonType(valueType, appendValue)
 				if err != nil {
@@ -1474,12 +1500,12 @@ func newReg(hostPatten, pathPatten string) (r *reg, err error) {
 	return
 }
 
-func (r reg) matchAndReplace(value, host, path string) string {
+func (r reg) matchAndReplace(value, host, path string) (string, bool) {
 	if r.hostReg != nil && r.hostReg.MatchString(host) {
-		return r.hostReg.ReplaceAllString(host, value)
+		return r.hostReg.ReplaceAllString(host, value), true
 	}
 	if r.pathReg != nil && r.pathReg.MatchString(path) {
-		return r.pathReg.ReplaceAllString(path, value)
+		return r.pathReg.ReplaceAllString(path, value), true
 	}
-	return value
+	return value, false
 }

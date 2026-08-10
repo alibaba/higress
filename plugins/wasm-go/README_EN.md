@@ -2,6 +2,15 @@
 
 This SDK is used to develop the WASM Plugins for Higress in Go.
 
+The MCP `2026-07-28` conformance path for `mcp-server` has an explicit build entry that does not depend on the batch builder's `VERSION`/`-alpha` discovery rule:
+
+```bash
+make build-mcp-server-wasmplugin
+cd plugins/wasm-go/extensions/mcp-server && ./testdata/interop/run.sh
+```
+
+The interoperability harness locks the official Go SDK to `v1.7.0` and the TypeScript client to `2.0.0`; they require Go 1.25+ and Node.js 20+, respectively. See the [mcp-server documentation](extensions/mcp-server/README_EN.md).
+
 ## Quick build with Higress wasm-go builder
 
 The wasm-go plugin can be built quickly with the following command:
@@ -9,6 +18,10 @@ The wasm-go plugin can be built quickly with the following command:
 ```bash
 # NOTE: if you want to set EXTRA_TAGS for the wasm plugin
 # please set them in the .buildrc file under extensions/${PLUGIN_NAME} directory
+# NOTE: to override the output image short name (default: plugin directory name),
+# add `IMAGE_NAME=<your-image-name>` to .buildrc.
+# The image name must contain only [a-z0-9._-], or the build will fail.
+# This affects the pushed image tag only, not the source code path.
 $ PLUGIN_NAME=request-block make build
 ```
 

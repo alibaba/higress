@@ -4,6 +4,15 @@
 
 此 SDK 用于使用 Go 语言开发 Higress 的 Wasm 插件。
 
+`mcp-server` 的 MCP `2026-07-28` 一致性验证有独立构建入口，不依赖仅扫描 `VERSION` 以 `-alpha` 结尾插件的批量规则：
+
+```bash
+make build-mcp-server-wasmplugin
+cd plugins/wasm-go/extensions/mcp-server && ./testdata/interop/run.sh
+```
+
+互操作测试固定使用官方 Go SDK `v1.7.0` 和 TypeScript Client `2.0.0`，分别要求 Go 1.25+ 和 Node.js 20+。详见 [mcp-server 文档](extensions/mcp-server/README.md)。
+
 ## 使用 Higress wasm-go builder 快速构建
 
 使用以下命令可以快速构建 wasm-go 插件:
@@ -11,6 +20,10 @@
 ```bash
 # NOTE: 如果你想在构建插件的时候设置额外的构建参数 EXTRA_TAGS
 # 请更新 extensions/${PLUGIN_NAME} 插件目录对应的 .buildrc 文件
+# NOTE: 如果你想自定义最终推送的镜像短名（覆盖默认的插件目录名），
+# 可以在 .buildrc 中添加 IMAGE_NAME=<your-image-name>。
+# 镜像短名只能包含小写字母、数字、`.`、`_`、`-`，否则构建会失败。
+# 本设置仅影响推送的镜像 tag，不影响源码路径。
 $ PLUGIN_NAME=request-block make build
 ```
 

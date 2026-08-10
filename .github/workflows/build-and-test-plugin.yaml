@@ -8,6 +8,8 @@ on:
       - "test/**"
       - "helm/**"
       - "Makefile.core.mk"
+      - ".github/workflows/build-and-test-plugin.yaml"
+      - "tools/hack/build-wasm-plugins.sh"
   pull_request:
     branches: ["*"]
     paths:
@@ -15,20 +17,11 @@ on:
       - "test/**"
       - "helm/**"
       - "Makefile.core.mk"
+      - ".github/workflows/build-and-test-plugin.yaml"
+      - "tools/hack/build-wasm-plugins.sh"
   workflow_dispatch: ~
 
 jobs:
-  lint:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 1.24
-    # There are too many lint errors in current code bases
-    # uncomment when we decide what lint should be addressed or ignored.
-    # - run: make lint
-
   higress-wasmplugin-test:
     runs-on: ubuntu-22.04
     strategy:
@@ -79,6 +72,10 @@ jobs:
           key: ${{ runner.os }}-go-${{ github.run_id }}
           restore-keys: |
             ${{ runner.os }}-go
+
+      - name: Build required MCP 2026 conformance plugin
+        if: matrix.wasmPluginType == 'GO'
+        run: GOPROXY="https://proxy.golang.org,direct" make build-mcp-server-wasmplugin
 
       - run: git stash # restore patch
 

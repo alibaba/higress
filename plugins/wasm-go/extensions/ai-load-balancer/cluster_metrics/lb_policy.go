@@ -178,10 +178,21 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpResponseHeaders(ctx wrapper.Http
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpStreamingResponseBody(ctx wrapper.HttpContext, data []byte, endOfStream bool) []byte {
 	if ctx.GetContext("ttft_recorded") == nil {
-		candidate := ctx.GetContext(lb.ClusterHeader).(string)
-		duration := float64(time.Now().UnixMilli() - ctx.GetContext("request_start").(int64))
+		candidate, ok := ctx.GetContext(lb.ClusterHeader).(string)
+		if !ok {
+			return data
+		}
+		requestStart, ok := ctx.GetContext("request_start").(int64)
+		if !ok {
+			return data
+		}
+		duration := float64(time.Now().UnixMilli() - requestStart)
 		// punish failed request
-		if ctx.GetContext("statusCode").(string) != "200" {
+		statusCode, ok := ctx.GetContext("statusCode").(string)
+		if !ok {
+			statusCode = ""
+		}
+		if statusCode != "200" {
 			for _, svc := range lb.ServiceList {
 				ttft := lb.getServiceTTFT(svc)
 				if duration < ttft {
@@ -201,11 +212,22 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpResponseBody(ctx wrapper.HttpCon
 }
 
 func (lb ClusterEndpointLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpContext) {
-	candidate := ctx.GetContext(lb.ClusterHeader).(string)
+	candidate, ok := ctx.GetContext(lb.ClusterHeader).(string)
+	if !ok {
+		return
+	}
 	lb.ServiceRequestOngoing[candidate] -= 1
-	duration := float64(time.Now().UnixMilli() - ctx.GetContext("request_start").(int64))
+	requestStart, ok := ctx.GetContext("request_start").(int64)
+	if !ok {
+		return
+	}
+	duration := float64(time.Now().UnixMilli() - requestStart)
 	// punish failed request
-	if ctx.GetContext("statusCode").(string) != "200" {
+	statusCode, ok := ctx.GetContext("statusCode").(string)
+	if !ok {
+		statusCode = ""
+	}
+	if statusCode != "200" {
 		for _, svc := range lb.ServiceList {
 			rt := lb.getServiceTotalRT(svc)
 			if duration < rt {
