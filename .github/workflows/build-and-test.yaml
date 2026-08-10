@@ -7,7 +7,7 @@ on:
     branches: ["*"]
 
 env:
-  GO_VERSION: 1.24
+  GO_VERSION: 1.26
 jobs:
   lint:
     runs-on: ubuntu-22.04
@@ -92,8 +92,33 @@ jobs:
           path: out/
 
   gateway-conformance-test:
+    name: ${{ matrix.check-name }}
     runs-on: ubuntu-22.04
-    needs: [build]
+    needs: [lint]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - gateway-api-version: v1.4.0
+            check-name: gateway-conformance-test (v1.4.0)
+            test-directory: test/gateway/v1.4
+            crd-versions: v1.4.0
+            crd-channel: standard
+            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io
+            profiles: GATEWAY-HTTP
+            supported-features: Gateway,HTTPRoute,ReferenceGrant
+            allow-crds-mismatch: "false"
+            supports-test-cleanup: "false"
+          - gateway-api-version: v1.6.0
+            check-name: gateway-conformance-test (v1.6.0)
+            test-directory: test/gateway/v1.6
+            crd-versions: v1.6.0
+            crd-channel: standard
+            required-crds: gatewayclasses.gateway.networking.k8s.io gateways.gateway.networking.k8s.io httproutes.gateway.networking.k8s.io referencegrants.gateway.networking.k8s.io
+            profiles: GATEWAY-HTTP
+            supported-features: Gateway,HTTPRoute,ReferenceGrant
+            allow-crds-mismatch: "false"
+            supports-test-cleanup: "true"
     env:
       GATEWAY_API_TEST_NAMESPACE: gateway-conformance-infra
       HIGRESS_TEST_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -127,7 +152,7 @@ jobs:
       - name: "Setup Go"
         uses: actions/setup-go@v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: ${{ matrix.test-directory }}/go.mod
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -142,7 +167,16 @@ jobs:
         run: |-
           GOPROXY="https://proxy.golang.org,direct" make gateway-conformance-test \
             TAG="${HIGRESS_TEST_IMAGE_TAG}" \
-            HIGRESS_CONFORMANCE_VERSION="${HIGRESS_TEST_IMAGE_TAG}"
+            HIGRESS_CONFORMANCE_VERSION="${HIGRESS_TEST_IMAGE_TAG}" \
+            GATEWAY_API_VERSION="${{ matrix.gateway-api-version }}" \
+            GATEWAY_CONFORMANCE_TEST_DIR="${{ matrix.test-directory }}" \
+            GATEWAY_API_CRD_VERSIONS="${{ matrix.crd-versions }}" \
+            GATEWAY_API_CRD_CHANNEL="${{ matrix.crd-channel }}" \
+            GATEWAY_API_REQUIRED_CRDS="${{ matrix.required-crds }}" \
+            GATEWAY_CONFORMANCE_PROFILE="${{ matrix.profiles }}" \
+            GATEWAY_CONFORMANCE_SUPPORTED_FEATURES="${{ matrix.supported-features }}" \
+            GATEWAY_CONFORMANCE_ALLOW_CRDS_MISMATCH="${{ matrix.allow-crds-mismatch }}" \
+            GATEWAY_CONFORMANCE_SUPPORTS_TEST_CLEANUP="${{ matrix.supports-test-cleanup }}"
 
       - name: Collect Gateway API Test Diagnostics
         if: always()
@@ -158,7 +192,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gateway-conformance-test
+          name: gateway-conformance-test-${{ matrix.gateway-api-version }}
           path: out/gateway-api-conformance/
           if-no-files-found: warn
 
