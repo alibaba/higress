@@ -449,7 +449,7 @@ func toolsCall(ctx wrapper.HttpContext, llmClient wrapper.HttpClient, llmInfo LL
 									// 删除已经使用过的
 									delete(data, param)
 									// 替换模板中的占位符
-									urlParts[i] = url.QueryEscape(value.(string))
+									urlParts[i] = url.QueryEscape(fmt.Sprintf("%v", value))
 								}
 							}
 						}
