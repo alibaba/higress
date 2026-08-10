@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	ctxRetryCount = "retryCount"
+	ctxRetryCount              = "retryCount"
+	defaultRetryFailureTimeout = 30 * 1000
 )
 
 type retryOnFailure struct {
@@ -36,7 +37,7 @@ func (r *retryOnFailure) FromJson(json gjson.Result) {
 	}
 	r.retryTimeout = json.Get("retryTimeout").Int()
 	if r.retryTimeout == 0 {
-		r.retryTimeout = 60 * 1000
+		r.retryTimeout = defaultRetryFailureTimeout
 	}
 	for _, status := range json.Get("retryOnStatus").Array() {
 		r.retryOnStatus = append(r.retryOnStatus, status.String())
