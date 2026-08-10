@@ -502,15 +502,16 @@ func InferencePoolServiceName(poolName string) (string, error) {
 }
 
 func translateShadowServiceToService(existingLabels map[string]string, shadow shadowServiceInfo, extRef extRefInfo) *corev1.Service {
-	// Create the ports used by the shadow service
+	// Create one service port for each InferencePool targetPort so Istio discovers
+	// all target endpoints. Dummy ports 54321, 54322, ... map to the real targetPorts.
+	baseDummyPort := int32(54321)
 	ports := make([]corev1.ServicePort, 0, len(shadow.targetPorts))
-	dummyPort := int32(54321) // Dummy port, not used for anything
-	for i, port := range shadow.targetPorts {
+	for i, targetPort := range shadow.targetPorts {
 		ports = append(ports, corev1.ServicePort{
-			Name:       "port" + strconv.Itoa(i),
+			Name:       fmt.Sprintf("http-%d", i),
 			Protocol:   corev1.ProtocolTCP,
-			Port:       dummyPort + int32(i),
-			TargetPort: intstr.FromInt(int(port.port)),
+			Port:       baseDummyPort + int32(i),
+			TargetPort: intstr.FromInt(int(targetPort.port)),
 		})
 	}
 

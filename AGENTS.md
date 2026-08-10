@@ -8,6 +8,39 @@ plugins (Go/Rust/C++/AssemblyScript) and a Go-based `golang-filter`. It supports
 Ingress/Gateway API and ships a rich plugin ecosystem (including AI gateway
 plugins).
 
+## Mandatory issue-spec gate for agent-assisted changes
+
+Before substantive implementation, determine whether an AI or coding agent is
+materially participating under the
+[agent-assisted contribution policy](docs/developers/agent-assisted-contributions.md).
+For every contribution to which that policy applies:
+
+- do not begin implementation until a Higress maintainer has approved both the
+  Proposal Issue and Design Issue; an issue-spec status or agent assertion is
+  not maintainer approval;
+- implement only through TASKs authorized by the approved Design and preserve
+  traceability to the applicable SPECs;
+- ensure the Design contains a concrete Verification Plan before verification
+  begins; and
+- create and complete the corresponding verification TASKs with exact commands,
+  results, evidence links, and hashes before claiming success or asking
+  maintainers to accept verification or review.
+
+Declare agent participation in the PR template. The policy excludes human-only
+work and allows only the declared trivial exception for spelling, punctuation,
+whitespace, or formatting changes with no substantive choice or behavioral
+effect.
+
+For work subject to this gate, the maintainer-approved issue-spec Design Issue
+is the authoritative design carrier. Do not create or require a plugin-local
+`design/` document for the gate. An optional durable capability spec serves a
+separate long-lived purpose and, only when maintainers request one, belongs at
+`issue-spec/specs/<plugin-qualified-capability>/spec.md`, using a unique
+lowercase, hyphen-separated capability slug that identifies the plugin. It
+must not replace or duplicate the approved Design Issue. Higress leaves
+`durable_specs` unset; do not invent a path field or enable repository
+projection without explicit maintainer direction.
+
 ## Repository layout
 
 Top-level directories (all paths relative to repo root):

@@ -24,9 +24,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"
 )
@@ -60,18 +60,22 @@ func injectSSEResponseSuccess(ctx wrapper.HttpContext, result map[string]any) {
 		log.Errorf("JSON-RPC ID not found in context for SSE response")
 		return
 	}
-	jsonRpcID := jsonRpcIDRaw.(utils.JsonRpcID)
+	jsonRpcID, ok := jsonRpcIDRaw.(utils.JsonRpcID)
+	if !ok {
+		log.Errorf("Invalid JSON-RPC ID type in context for SSE response")
+		return
+	}
 
 	var body []byte
 	var err error
 	if jsonRpcID.IsString {
-		body, err = json.Marshal(map[string]interface{}{
+		body, err = json.Marshal(map[string]any{
 			"jsonrpc": "2.0",
 			"id":      jsonRpcID.StringValue,
 			"result":  result,
 		})
 	} else {
-		body, err = json.Marshal(map[string]interface{}{
+		body, err = json.Marshal(map[string]any{
 			"jsonrpc": "2.0",
 			"id":      jsonRpcID.IntValue,
 			"result":  result,
@@ -94,24 +98,28 @@ func injectSSEResponseError(ctx wrapper.HttpContext, err error, errorCode int) {
 		log.Errorf("JSON-RPC ID not found in context for SSE error response")
 		return
 	}
-	jsonRpcID := jsonRpcIDRaw.(utils.JsonRpcID)
+	jsonRpcID, ok := jsonRpcIDRaw.(utils.JsonRpcID)
+	if !ok {
+		log.Errorf("Invalid JSON-RPC ID type in context for SSE error response")
+		return
+	}
 
 	var body []byte
 	var marshalErr error
 	if jsonRpcID.IsString {
-		body, marshalErr = json.Marshal(map[string]interface{}{
+		body, marshalErr = json.Marshal(map[string]any{
 			"jsonrpc": "2.0",
 			"id":      jsonRpcID.StringValue,
-			"error": map[string]interface{}{
+			"error": map[string]any{
 				"code":    errorCode,
 				"message": err.Error(),
 			},
 		})
 	} else {
-		body, marshalErr = json.Marshal(map[string]interface{}{
+		body, marshalErr = json.Marshal(map[string]any{
 			"jsonrpc": "2.0",
 			"id":      jsonRpcID.IntValue,
-			"error": map[string]interface{}{
+			"error": map[string]any{
 				"code":    errorCode,
 				"message": err.Error(),
 			},
@@ -231,20 +239,20 @@ func ExtractEndpointURL(endpointData string, baseURL string) (string, error) {
 
 // sendSSEInitialize sends the initialize request for SSE protocol
 func sendSSEInitialize(ctx wrapper.HttpContext, endpointURL string, authInfo *ProxyAuthInfo, proxyServer *McpProxyServer) error {
-	initRequest := map[string]interface{}{
+	initRequest := map[string]any{
 		"jsonrpc": "2.0",
 		"id":      1,
 		"method":  "initialize",
-		"params": map[string]interface{}{
+		"params": map[string]any{
 			"protocolVersion": "2025-03-26",
-			"capabilities": map[string]interface{}{
-				"roots": map[string]interface{}{
+			"capabilities": map[string]any{
+				"roots": map[string]any{
 					"listChanged": true,
 				},
-				"sampling":    map[string]interface{}{},
-				"elicitation": map[string]interface{}{},
+				"sampling":    map[string]any{},
+				"elicitation": map[string]any{},
 			},
-			"clientInfo": map[string]interface{}{
+			"clientInfo": map[string]any{
 				"name":    "Higress-mcp-proxy",
 				"title":   "Higress MCP Proxy",
 				"version": "1.0.0",
@@ -305,7 +313,7 @@ func sendSSEInitialize(ctx wrapper.HttpContext, endpointURL string, authInfo *Pr
 
 // sendSSENotification sends the notifications/initialized message for SSE protocol
 func sendSSENotification(ctx wrapper.HttpContext, endpointURL string, authInfo *ProxyAuthInfo, proxyServer *McpProxyServer) error {
-	notification := map[string]interface{}{
+	notification := map[string]any{
 		"jsonrpc": "2.0",
 		"method":  "notifications/initialized",
 	}
@@ -368,13 +376,33 @@ func sendSSENotification(ctx wrapper.HttpContext, endpointURL string, authInfo *
 			return
 		}
 
-		endpointURL := endpointURLRaw.(string)
-		proxyServer := proxyServerRaw.(*McpProxyServer)
-		requestBody := requestBodyRaw.([]byte)
+		endpointURL, ok := endpointURLRaw.(string)
+		if !ok {
+			log.Errorf("Invalid endpoint URL type in context")
+			injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid endpoint URL"), utils.ErrInternalError)
+			return
+		}
+		proxyServer, ok := proxyServerRaw.(*McpProxyServer)
+		if !ok {
+			log.Errorf("Invalid proxy server type in context")
+			injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid proxy server"), utils.ErrInternalError)
+			return
+		}
+		requestBody, ok := requestBodyRaw.([]byte)
+		if !ok {
+			log.Errorf("Invalid request body type in context")
+			injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid request body"), utils.ErrInternalError)
+			return
+		}
 
 		var authInfo *ProxyAuthInfo
 		if authInfoRaw != nil {
-			authInfo = authInfoRaw.(*ProxyAuthInfo)
+			authInfo, ok = authInfoRaw.(*ProxyAuthInfo)
+			if !ok {
+				log.Errorf("Invalid auth info type in context")
+				injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid auth info"), utils.ErrInternalError)
+				return
+			}
 		}
 
 		// Parse to get request ID
@@ -549,7 +577,13 @@ func handleSSEStreamingResponse(ctx wrapper.HttpContext, config McpServerConfig,
 	// Get or initialize buffer
 	var buffer []byte
 	if bufferRaw := ctx.GetContext(CtxSSEProxyBuffer); bufferRaw != nil {
-		buffer = bufferRaw.([]byte)
+		var ok bool
+		buffer, ok = bufferRaw.([]byte)
+		if !ok {
+			log.Errorf("Invalid buffer type in context")
+			injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid buffer"), utils.ErrInternalError)
+			return []byte{}
+		}
 	}
 
 	// Append new data to buffer
@@ -572,10 +606,17 @@ func handleSSEStreamingResponse(ctx wrapper.HttpContext, config McpServerConfig,
 		ctx.SetContext(CtxSSEProxyState, state)
 	}
 
-	log.Debugf("SSE proxy state: %s, now buffering data: %q", state.(string), string(buffer))
+	stateStr, ok := state.(string)
+	if !ok {
+		log.Errorf("Invalid state type in context")
+		injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid state"), utils.ErrInternalError)
+		return []byte{}
+	}
+
+	log.Debugf("SSE proxy state: %s, now buffering data: %q", stateStr, string(buffer))
 
 	// Process based on state
-	switch state.(string) {
+	switch stateStr {
 	case SSEStateWaitingEndpoint:
 		return handleWaitingEndpoint(ctx, config, &buffer)
 
@@ -623,7 +664,12 @@ func handleWaitingEndpoint(ctx wrapper.HttpContext, config McpServerConfig, buff
 				injectSSEResponseError(ctx, errors.New("internal error"), utils.ErrInternalError)
 				return []byte{}
 			}
-			proxyServer := proxyServerRaw.(*McpProxyServer)
+			proxyServer, ok := proxyServerRaw.(*McpProxyServer)
+			if !ok {
+				log.Errorf("Invalid proxy server type in context")
+				injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid proxy server"), utils.ErrInternalError)
+				return []byte{}
+			}
 
 			endpointURL, err := ExtractEndpointURL(msg.Data, proxyServer.GetMcpServerURL())
 			if err != nil {
@@ -640,7 +686,13 @@ func handleWaitingEndpoint(ctx wrapper.HttpContext, config McpServerConfig, buff
 
 			var authInfo *ProxyAuthInfo
 			if authInfoRaw != nil {
-				authInfo = authInfoRaw.(*ProxyAuthInfo)
+				var ok bool
+				authInfo, ok = authInfoRaw.(*ProxyAuthInfo)
+				if !ok {
+					log.Errorf("Invalid auth info type in context")
+					injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid auth info"), utils.ErrInternalError)
+					return []byte{}
+				}
 			}
 
 			// Send initialize request
@@ -690,7 +742,7 @@ func handleWaitingInitResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 		// Check for message event
 		if msg.Event == "message" {
 			// Parse JSON-RPC response
-			var jsonRpcResp map[string]interface{}
+			var jsonRpcResp map[string]any
 			if err := json.Unmarshal([]byte(msg.Data), &jsonRpcResp); err != nil {
 				log.Errorf("Failed to parse JSON-RPC response: %v", err)
 				continue
@@ -699,12 +751,18 @@ func handleWaitingInitResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 			// Check if this is the initialize response
 			respID := jsonRpcResp["id"]
 			if respID != nil {
+				reqID, ok := requestID.(int)
+				if !ok {
+					log.Errorf("Invalid request ID type in context")
+					injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid request ID"), utils.ErrInternalError)
+					return []byte{}
+				}
 				var idMatch bool
 				switch v := respID.(type) {
 				case float64:
-					idMatch = int(v) == requestID.(int)
+					idMatch = int(v) == reqID
 				case int:
-					idMatch = v == requestID.(int)
+					idMatch = v == reqID
 				}
 
 				if idMatch {
@@ -718,16 +776,31 @@ func handleWaitingInitResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 					log.Debugf("Received initialize response, sending notification")
 
 					// Get endpoint URL and auth info
-					endpointURL := ctx.GetContext(CtxSSEProxyEndpointURL).(string)
+					endpointURL, ok := ctx.GetContext(CtxSSEProxyEndpointURL).(string)
+					if !ok {
+						log.Errorf("Endpoint URL not found in context during init response handling")
+						injectSSEResponseError(ctx, fmt.Errorf("internal error: missing endpoint URL"), utils.ErrInternalError)
+						return []byte{}
+					}
 					authInfoRaw := ctx.GetContext(CtxSSEProxyAuthInfo)
 					proxyServerRaw := ctx.GetContext("mcp_proxy_server")
 
 					var authInfo *ProxyAuthInfo
 					if authInfoRaw != nil {
-						authInfo = authInfoRaw.(*ProxyAuthInfo)
+						authInfo, ok = authInfoRaw.(*ProxyAuthInfo)
+						if !ok {
+							log.Errorf("Invalid auth info type in context")
+							injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid auth info"), utils.ErrInternalError)
+							return []byte{}
+						}
 					}
 
-					proxyServer := proxyServerRaw.(*McpProxyServer)
+					proxyServer, ok := proxyServerRaw.(*McpProxyServer)
+					if !ok {
+						log.Errorf("Invalid proxy server type in context")
+						injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid proxy server"), utils.ErrInternalError)
+						return []byte{}
+					}
 
 					// Send notification
 					// The notification callback will send the tool request after notification succeeds
@@ -790,7 +863,7 @@ func handleWaitingToolResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 		// Check for message event
 		if msg.Event == "message" {
 			// Parse JSON-RPC response
-			var jsonRpcResp map[string]interface{}
+			var jsonRpcResp map[string]any
 			if err := json.Unmarshal([]byte(msg.Data), &jsonRpcResp); err != nil {
 				log.Errorf("Failed to parse JSON-RPC response: %v", err)
 				continue
@@ -799,12 +872,18 @@ func handleWaitingToolResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 			// Check if this is the expected response
 			respID := jsonRpcResp["id"]
 			if respID != nil {
+				reqID, ok := requestID.(int)
+				if !ok {
+					log.Errorf("Invalid request ID type in context")
+					injectSSEResponseError(ctx, fmt.Errorf("internal error: invalid request ID"), utils.ErrInternalError)
+					return []byte{}
+				}
 				var idMatch bool
 				switch v := respID.(type) {
 				case float64:
-					idMatch = int(v) == requestID.(int)
+					idMatch = int(v) == reqID
 				case int:
-					idMatch = v == requestID.(int)
+					idMatch = v == reqID
 				}
 
 				if idMatch {
@@ -817,7 +896,7 @@ func handleWaitingToolResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 
 					// Extract result and return to client
 					if result, hasResult := jsonRpcResp["result"]; hasResult {
-						if resultMap, ok := result.(map[string]interface{}); ok {
+						if resultMap, ok := result.(map[string]any); ok {
 							// Apply allowTools filtering if this is a tools/list response
 							filteredResult := resultMap
 							if _, hasTools := resultMap["tools"]; hasTools {
@@ -826,10 +905,10 @@ func handleWaitingToolResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 									if effectiveAllowTools, ok := allowToolsCtx.(*map[string]struct{}); ok && effectiveAllowTools != nil {
 										// Apply filtering
 										if tools, hasToolsArray := resultMap["tools"]; hasToolsArray {
-											if toolsArray, ok := tools.([]interface{}); ok {
-												filteredTools := make([]interface{}, 0)
+											if toolsArray, ok := tools.([]any); ok {
+												filteredTools := make([]any, 0)
 												for _, tool := range toolsArray {
-													if toolMap, ok := tool.(map[string]interface{}); ok {
+													if toolMap, ok := tool.(map[string]any); ok {
 														if name, hasName := toolMap["name"]; hasName {
 															if toolName, ok := name.(string); ok {
 																if _, allow := (*effectiveAllowTools)[toolName]; allow {
@@ -840,7 +919,7 @@ func handleWaitingToolResp(ctx wrapper.HttpContext, config McpServerConfig, buff
 													}
 												}
 												// Create filtered result
-												filteredResult = make(map[string]interface{})
+												filteredResult = make(map[string]any)
 												for k, v := range resultMap {
 													filteredResult[k] = v
 												}
