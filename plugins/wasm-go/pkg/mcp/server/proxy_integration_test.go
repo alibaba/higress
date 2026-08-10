@@ -159,6 +159,7 @@ func TestModernToLegacyProxyRunsRequestScopedHandshakeAndShapesResult(t *testing
 		{"content-type", "application/json"},
 		{"Mcp-Session-Id", "upstream-request-session"},
 	}, []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"legacy","version":"1"}}}`))
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "initialize is an internal subcall")
 
 	notification := calloutAt(t, host, 0)
 	assert.Equal(t, "notifications/initialized", gjson.GetBytes(notification.Body, "method").String())
@@ -166,6 +167,7 @@ func TestModernToLegacyProxyRunsRequestScopedHandshakeAndShapesResult(t *testing
 	_, notificationParam := findHeader(notification.Headers, "Mcp-Param-Future")
 	assert.False(t, notificationParam)
 	completeCallout(host, notification, "202", nil, nil)
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "notification completion must not release the downstream request")
 
 	toolCall := calloutAt(t, host, 0)
 	assert.Equal(t, "tools/list", gjson.GetBytes(toolCall.Body, "method").String())
@@ -173,6 +175,7 @@ func TestModernToLegacyProxyRunsRequestScopedHandshakeAndShapesResult(t *testing
 	_, toolParam := findHeader(toolCall.Headers, "Mcp-Param-Future")
 	assert.False(t, toolParam)
 	completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}`))
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "the exchange completes through a local response, not router fallthrough")
 
 	response := host.GetLocalResponse()
 	require.NotNil(t, response)
@@ -202,11 +205,99 @@ func TestModernToLegacyProxyPreservesLargeIntegerToolArguments(t *testing.T) {
 
 	initialize := calloutAt(t, host, 0)
 	completeCallout(host, initialize, "200", [][2]string{{"Mcp-Session-Id", "request-session"}}, []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"legacy","version":"1"}}}`))
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction())
 	notification := calloutAt(t, host, 0)
 	completeCallout(host, notification, "202", nil, nil)
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "tools/call must remain owned by the bridge after initialized")
 	toolCall := calloutAt(t, host, 0)
 	assert.Equal(t, "9007199254740993", gjson.GetBytes(toolCall.Body, "params.arguments.value").Raw)
 	completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{"jsonrpc":"2.0","id":2,"result":{"content":[]}}`))
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction())
+	response := host.GetLocalResponse()
+	require.NotNil(t, response)
+	assert.Equal(t, resultTypeComplete, gjson.GetBytes(response.Data, "result.resultType").String())
+	assert.Empty(t, host.GetHttpCalloutAttributes())
+}
+
+func TestLegacyBridgeInitializedNotificationHTTPFailureStaysPausedUntilToolResponse(t *testing.T) {
+	host := newProxyBridgeHost(t, ProtocolStrategyLegacy)
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(modernProxyListHeaders()))
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody(modernProxyListBody(12)))
+
+	initialize := calloutAt(t, host, 0)
+	completeCallout(host, initialize, "200", [][2]string{{"Mcp-Session-Id", "request-session"}}, []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{}}}`))
+	notification := calloutAt(t, host, 0)
+	completeCallout(host, notification, "500", nil, nil)
+
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "a failed notification must not release the original request")
+	assert.Nil(t, host.GetLocalResponse(), "the configured legacy behavior still attempts the pending tool RPC")
+	toolCall := calloutAt(t, host, 0)
+	assert.Equal(t, "tools/list", gjson.GetBytes(toolCall.Body, "method").String())
+	completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}`))
+	require.NotNil(t, host.GetLocalResponse())
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction())
+}
+
+func TestLegacyBridgeInitializedNotificationAuthFailureReturnsLocallyWithoutResume(t *testing.T) {
+	host := newProxyBridgeHost(t, ProtocolStrategyLegacy)
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(modernProxyListHeaders()))
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody(modernProxyListBody(13)))
+
+	initialize := calloutAt(t, host, 0)
+	completeCallout(host, initialize, "200", [][2]string{{"Mcp-Session-Id", "request-session"}}, []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{}}}`))
+	notification := calloutAt(t, host, 0)
+	completeCallout(host, notification, "401", [][2]string{
+		{"WWW-Authenticate", `Bearer realm="legacy"`},
+		{"Set-Cookie", "must-not-leak=1"},
+	}, []byte(`{"secret":"must-not-leak"}`))
+
+	response := host.GetLocalResponse()
+	require.NotNil(t, response)
+	assert.Equal(t, uint32(401), response.StatusCode)
+	assert.Equal(t, `Bearer realm="legacy"`, mustHeaderValue(t, response.Headers, "WWW-Authenticate"))
+	assert.NotContains(t, string(response.Data), "must-not-leak")
+	assert.Empty(t, host.GetHttpCalloutAttributes(), "authentication failure must stop before the tool RPC")
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "the local auth response owns completion")
+}
+
+func TestLegacyBridgeCancellationDuringInitializedNotificationDoesNotFallThrough(t *testing.T) {
+	host := newProxyBridgeHost(t, ProtocolStrategyLegacy)
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(modernProxyListHeaders()))
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody(modernProxyListBody(14)))
+
+	initialize := calloutAt(t, host, 0)
+	completeCallout(host, initialize, "200", [][2]string{{"Mcp-Session-Id", "request-session"}}, []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{}}}`))
+	notification := calloutAt(t, host, 0)
+	host.CompleteHttp()
+	completeCallout(host, notification, "202", nil, nil)
+
+	assert.Nil(t, host.GetLocalResponse(), "a cancelled exchange must not emit a late response")
+	assert.Empty(t, host.GetHttpCalloutAttributes(), "a cancelled exchange must not dispatch the pending tool RPC")
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "cancellation cleanup must not resume the original request")
+}
+
+func TestLegacyBridgeInitializedNotificationDispatchFailureReturnsLocallyWithoutResume(t *testing.T) {
+	previousDispatch := dispatchMCPUpstream
+	dispatchMCPUpstream = func(finalURL string, timeoutMillis int, headers [][2]string, body []byte, callback func(int, [][2]string, []byte)) error {
+		if gjson.GetBytes(body, "method").String() == "notifications/initialized" {
+			return assert.AnError
+		}
+		return previousDispatch(finalURL, timeoutMillis, headers, body, callback)
+	}
+	t.Cleanup(func() { dispatchMCPUpstream = previousDispatch })
+
+	host := newProxyBridgeHost(t, ProtocolStrategyLegacy)
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(modernProxyListHeaders()))
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody(modernProxyListBody(15)))
+
+	initialize := calloutAt(t, host, 0)
+	completeCallout(host, initialize, "200", [][2]string{{"Mcp-Session-Id", "request-session"}}, []byte(`{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{}}}`))
+
+	response := host.GetLocalResponse()
+	require.NotNil(t, response)
+	assert.Equal(t, int64(-32603), gjson.GetBytes(response.Data, "error.code").Int())
+	assert.Empty(t, host.GetHttpCalloutAttributes(), "synchronous notification dispatch failure must not reach the tool RPC")
+	assert.Equal(t, types.ActionPause, host.GetHttpStreamAction(), "the local dispatch error owns completion")
 }
 
 func TestModernProxyPreservesUpstreamAuthenticationStatusAndChallenge(t *testing.T) {

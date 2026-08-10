@@ -778,8 +778,10 @@ func (h *McpProtocolHandler) sendMcpRequest(ctx wrapper.HttpContext, body []byte
 }
 
 func (h *McpProtocolHandler) postToUpstream(finalURL string, headers [][2]string, body []byte, callback func(int, [][2]string, []byte)) error {
-	return postMCPUpstream(finalURL, h.timeout, headers, body, callback)
+	return dispatchMCPUpstream(finalURL, h.timeout, headers, body, callback)
 }
+
+var dispatchMCPUpstream = postMCPUpstream
 
 // postMCPUpstream is intentionally independent of the generic HTTP wrapper:
 // that wrapper logs full URLs, headers, request bodies, and response bodies.
@@ -869,8 +871,8 @@ func (h *McpProtocolHandler) sendInitializedNotification(ctx wrapper.HttpContext
 
 	// Send the notification (no response expected)
 	err = h.sendMcpRequest(ctx, requestBody, authInfo, func(statusCode int, responseHeaders [][2]string, responseBody []byte) {
-		// Always resume at the end, regardless of success or failure
-		defer proxywasm.ResumeHttpRequest()
+		// The notification is an internal bridge subcall. The downstream stream
+		// stays paused until the pending tool RPC emits a local response.
 		if proxyRequestCancelled(ctx) {
 			finishProxyRequest(ctx)
 			return
