@@ -11,13 +11,20 @@
 
 # 配置说明
 
-本插件通过编译期注册 MCP Server，**WasmPlugin 的 `defaultConfig` 通常无需额外字段**。具体工具列表、参数与鉴权由各子 Server 实现决定，开发新 MCP Server 请参考 [MCP Server 实现指南](../../mcp-servers/README.md)。
+本插件通过编译期注册 MCP Server，**WasmPlugin 的 `defaultConfig` 通常无需额外字段**。如需在 MCP `initialize` 响应中展示自定义服务版本，可在 `server.version` 中配置；未配置时默认返回 `1.0.0`。具体工具列表、参数与鉴权由各子 Server 实现决定，开发新 MCP Server 请参考 [MCP Server 实现指南](../../mcp-servers/README.md)。
 
 # 配置示例
 
 ```yaml
 # 多数场景下使用空配置或仅配置路由匹配即可
 {}
+```
+
+```yaml
+# 自定义 initialize 响应中的 serverInfo.version
+server:
+  name: quark-search
+  version: 2.5.0
 ```
 
 # 引用插件

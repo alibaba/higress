@@ -27,14 +27,15 @@ import (
 	"github.com/invopop/jsonschema"
 	"github.com/tidwall/gjson"
 
-	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
+	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 )
 
 const (
 	DefaultMaxBodyBytes   uint32 = 100 * 1024 * 1024
 	GlobalToolRegistryKey        = "GlobalToolRegistry"
+	DefaultServerVersion         = "1.0.0"
 )
 
 // SupportedMCPVersions contains all supported MCP protocol versions
@@ -243,6 +244,7 @@ type ToolWithOutputSchema interface {
 // ToolSetConfig defines the configuration for a toolset.
 type ToolSetConfig struct {
 	Name        string             `json:"name"`
+	Version     string             `json:"version,omitempty"`
 	ServerTools []ServerToolConfig `json:"serverTools"`
 }
 
@@ -262,6 +264,7 @@ type ConfigOptions struct {
 
 type McpServerConfig struct {
 	serverName     string // Store the server name directly
+	serverVersion  string
 	server         Server // Can be a single server or a composed server
 	methodHandlers utils.MethodHandlers
 	toolSet        *ToolSetConfig // Parsed toolset configuration
@@ -273,9 +276,22 @@ func (c *McpServerConfig) GetServerName() string {
 	return c.serverName
 }
 
+// GetServerVersion returns the configured server version.
+func (c *McpServerConfig) GetServerVersion() string {
+	return c.serverVersion
+}
+
 // GetIsComposed returns whether this is a composed server for external access
 func (c *McpServerConfig) GetIsComposed() bool {
 	return c.isComposed
+}
+
+func normalizeServerVersion(version string) string {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return DefaultServerVersion
+	}
+	return version
 }
 
 // computeEffectiveAllowTools computes the effective allowTools by taking the intersection
@@ -338,6 +354,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 	toolSetJson := configJson.Get("toolSet")
 	serverJson := configJson.Get("server")                        // This is for single server or REST server definition
 	pluginServerConfigJson := configJson.Get("server.config").Raw // Config for the plugin instance itself, if any.
+	config.serverVersion = DefaultServerVersion
 
 	// serverConfigJsonForInstance is the config passed to the specific server instance (single or REST)
 	// It's distinct from pluginServerConfigJson which might be for the mcp-server plugin itself.
@@ -351,6 +368,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		}
 		config.toolSet = &tsConfig
 		config.serverName = tsConfig.Name // Use toolSet name as the server name for composed server
+		config.serverVersion = normalizeServerVersion(tsConfig.Version)
 		log.Infof("Parsing toolSet configuration: %s", config.serverName)
 
 		composedServer := NewComposedMCPServer(config.serverName, tsConfig.ServerTools, opts.ToolRegistry)
@@ -363,6 +381,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		if config.serverName == "" {
 			return errors.New("server.name field is missing for single server config")
 		}
+		config.serverVersion = normalizeServerVersion(serverJson.Get("version").String())
 		// This is the config for the specific server being defined (e.g. REST server's own config)
 		serverConfigJsonForInstance = serverJson.Get("config").Raw
 		log.Infof("Parsing single server configuration: %s", config.serverName)
@@ -495,6 +514,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 	config.methodHandlers = make(utils.MethodHandlers)
 	// Use config.serverName which is now reliably set
 	currentServerNameForHandlers := config.serverName
+	currentServerVersionForHandlers := config.serverVersion
 
 	config.methodHandlers["ping"] = func(ctx wrapper.HttpContext, id utils.JsonRpcID, params gjson.Result) error {
 		utils.OnMCPResponseSuccess(ctx, map[string]any{}, fmt.Sprintf("mcp:%s:ping", currentServerNameForHandlers))
@@ -534,7 +554,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 			},
 			"serverInfo": map[string]any{
 				"name":    currentServerNameForHandlers, // Use the actual server name (single or composed)
-				"version": "1.0.0",
+				"version": currentServerVersionForHandlers,
 			},
 		}, fmt.Sprintf("mcp:%s:initialize", currentServerNameForHandlers))
 		return nil
