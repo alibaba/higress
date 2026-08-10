@@ -217,13 +217,14 @@ func (c *ConfigmapProfileStore) listConfigmaps(name string, namespace string, si
 }
 
 func (c *ConfigmapProfileStore) applyConfigmap(configmap *corev1.ConfigMap) error {
-	_, err := c.kubeCli.KubernetesInterface().CoreV1().ConfigMaps(configmap.Namespace).Get(context.Background(), configmap.Name, metav1.GetOptions{})
+	existing, err := c.kubeCli.KubernetesInterface().CoreV1().ConfigMaps(configmap.Namespace).Get(context.Background(), configmap.Name, metav1.GetOptions{})
 	if err != nil && errors.IsNotFound(err) {
 		_, err = c.kubeCli.KubernetesInterface().CoreV1().ConfigMaps(configmap.Namespace).Create(context.Background(), configmap, metav1.CreateOptions{})
 		return err
 	} else if err != nil {
 		return err
 	} else {
+		configmap.ResourceVersion = existing.ResourceVersion
 		_, err = c.kubeCli.KubernetesInterface().CoreV1().ConfigMaps(configmap.Namespace).Update(context.Background(), configmap, metav1.UpdateOptions{})
 		return err
 	}
