@@ -154,6 +154,50 @@ func TestConstructRouteName(t *testing.T) {
 	}
 }
 
+func TestWrapperConfigForMcpDestinationProtocol(t *testing.T) {
+	base := &WrapperConfig{
+		AnnotationsConfig: &annotations.Ingress{
+			UpstreamTLS: &annotations.UpstreamTLSConfig{
+				BackendProtocol: "HTTPS",
+				EnableSNI:       true,
+				SNI:             "example.com",
+			},
+			Destination: &annotations.DestinationConfig{
+				Protocols: map[string]string{
+					"plain.example.com:80":   "HTTP",
+					"secure.example.com:443": "HTTPS",
+				},
+			},
+		},
+	}
+
+	httpWrapper := WrapperConfigForMcpDestination(base, &networking.HTTPRouteDestination{
+		Destination: &networking.Destination{
+			Host: "plain.example.com",
+			Port: &networking.PortSelector{Number: 80},
+		},
+	})
+	assert.Nil(t, httpWrapper.AnnotationsConfig.UpstreamTLS)
+	assert.NotSame(t, base, httpWrapper)
+	assert.NotNil(t, base.AnnotationsConfig.UpstreamTLS)
+
+	httpsWrapper := WrapperConfigForMcpDestination(base, &networking.HTTPRouteDestination{
+		Destination: &networking.Destination{
+			Host: "secure.example.com",
+			Port: &networking.PortSelector{Number: 443},
+		},
+	})
+	assert.NotSame(t, base, httpsWrapper)
+	assert.Equal(t, "HTTPS", httpsWrapper.AnnotationsConfig.UpstreamTLS.BackendProtocol)
+	assert.True(t, httpsWrapper.AnnotationsConfig.UpstreamTLS.EnableSNI)
+	assert.Equal(t, "example.com", httpsWrapper.AnnotationsConfig.UpstreamTLS.SNI)
+
+	plainWrapper := WrapperConfigForMcpDestination(base, &networking.HTTPRouteDestination{
+		Destination: &networking.Destination{Host: "other.example.com"},
+	})
+	assert.Same(t, base, plainWrapper)
+}
+
 func TestGenerateUniqueRouteName(t *testing.T) {
 	input := &WrapperHTTPRoute{
 		WrapperConfig: &WrapperConfig{
