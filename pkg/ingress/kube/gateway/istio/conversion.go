@@ -1144,9 +1144,18 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 		if ipCfg.endpointPickerDst == "" || ipCfg.endpointPickerPort == "" || ipCfg.endpointPickerFailureMode == "" {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestination, Message: "InferencePool service invalid, extensionRef labels not found"}
 		}
+
+		// InferencePool routes always target the first dummy service port. The
+		// corresponding cluster aggregates endpoints from every targetPort so
+		// the EPP can select an exact PodIP:targetPort host.
+		var destPort uint32
+		if len(svc.Ports) > 0 {
+			destPort = uint32(svc.Ports[0].Port)
+		}
+
 		return &istio.Destination{
 			Host: hostname,
-			// Port: &istio.PortSelector{Number: uint32(*to.Port)},
+			Port: &istio.PortSelector{Number: destPort},
 		}, ipCfg, invalidBackendErr
 	default:
 		return &istio.Destination{}, nil, &ConfigError{

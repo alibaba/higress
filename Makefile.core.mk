@@ -36,6 +36,21 @@ GATEWAY_API_LOCAL_HTTPS_PORT ?= 443
 GATEWAY_API_KIND_NODE_TAG ?= v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
 HIGRESS_CONFORMANCE_VERSION ?= $(shell git rev-parse HEAD)
 
+INFERENCE_EXTENSION_VERSION ?= v1.4.0
+INFERENCE_EXTENSION_GATEWAY_API_VERSION ?= v1.5.0
+INFERENCE_EXTENSION_SOURCE_DIR ?= $(abspath out/gateway-api-inference-extension-source/$(INFERENCE_EXTENSION_VERSION))
+INFERENCE_EXTENSION_REPORT ?= out/gateway-api-inference-extension/report.yaml
+INFERENCE_EXTENSION_EXPECTED_PASSED ?= 12
+INFERENCE_EXTENSION_CONTACT ?= @higress-group/maintainers
+INFERENCE_EXTENSION_RUN_TEST ?=
+INFERENCE_EXTENSION_SYSTEM_NAMESPACE ?= inference-conformance-infra
+INFERENCE_EXTENSION_APP_NAMESPACE ?= inference-conformance-app-backend
+INFERENCE_EXTENSION_GATEWAY_SERVICE_TYPE ?= LoadBalancer
+INFERENCE_EXTENSION_GATEWAY_IMAGE_TAG ?= gie-v14-dc8a83fe-gofilter
+INFERENCE_EXTENSION_GATEWAY_IMAGE_DIGEST ?= sha256:057171104acacc7381560e41491511dde0f919d44afe3860b7c8654736b98957
+INFERENCE_EXTENSION_KIND_NODE_TAG ?= $(GATEWAY_API_KIND_NODE_TAG)
+INFERENCE_EXTENSION_METALLB_VERSION ?= v0.13.7
+
 TARGET_ARCH ?= amd64
 
 VALID_ARCHS := amd64 arm64
@@ -229,6 +244,17 @@ install-dev: pre-install
 install-dev-gateway-api: pre-install
 	helm install higress helm/core -n $(GATEWAY_API_TEST_NAMESPACE) --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true' --set 'gateway.service.type=$(GATEWAY_API_GATEWAY_SERVICE_TYPE)'
 
+.PHONY: install-dev-inference-extension
+install-dev-inference-extension: pre-install
+	helm install higress helm/core -n $(INFERENCE_EXTENSION_SYSTEM_NAMESPACE) --create-namespace \
+		--set 'controller.tag=$(TAG)' \
+		--set 'gateway.replicas=1' \
+		--set 'pilot.tag=$(TAG)' \
+		--set 'gateway.tag=$(INFERENCE_EXTENSION_GATEWAY_IMAGE_TAG)' \
+		--set 'global.local=true' \
+		--set 'global.enableInferenceExtension=true' \
+		--set 'gateway.service.type=$(INFERENCE_EXTENSION_GATEWAY_SERVICE_TYPE)'
+
 install-dev-wasmplugin: build-wasmplugins pre-install
 	helm install higress helm/core -n higress-system --create-namespace --set 'controller.tag=$(TAG)' --set 'gateway.replicas=1' --set 'pilot.tag=$(ISTIO_LATEST_IMAGE_TAG)' --set 'gateway.tag=$(ENVOY_LATEST_IMAGE_TAG)' --set 'global.local=true'  --set 'global.volumeWasmPlugins=true' --set 'global.onlyPushRouteCluster=false'
 
@@ -346,6 +372,103 @@ gateway-conformance-test: gateway-conformance-test-prepare run-gateway-conforman
 # gateway-conformance-test-clean deletes the Gateway API test cluster.
 .PHONY: gateway-conformance-test-clean
 gateway-conformance-test-clean: delete-gateway-api-cluster
+
+# download-inference-extension-conformance downloads an isolated, exact upstream release.
+.PHONY: download-inference-extension-conformance
+download-inference-extension-conformance:
+	INFERENCE_EXTENSION_VERSION='$(INFERENCE_EXTENSION_VERSION)' \
+	INFERENCE_EXTENSION_SOURCE_DIR='$(INFERENCE_EXTENSION_SOURCE_DIR)' \
+		tools/hack/download-inference-extension-conformance.sh
+
+# install-inference-extension-crds installs the Gateway API and InferencePool CRDs
+# required by the selected Inference Extension release.
+.PHONY: install-inference-extension-crds
+install-inference-extension-crds: download-inference-extension-conformance
+	kubectl apply --server-side=true --force-conflicts \
+		--field-manager='gateway-api-$(INFERENCE_EXTENSION_GATEWAY_API_VERSION)' \
+		-f 'https://github.com/kubernetes-sigs/gateway-api/releases/download/$(INFERENCE_EXTENSION_GATEWAY_API_VERSION)/standard-install.yaml'
+	kubectl apply --server-side=true --force-conflicts \
+		--field-manager='gateway-api-inference-extension-$(INFERENCE_EXTENSION_VERSION)' \
+		-f '$(INFERENCE_EXTENSION_SOURCE_DIR)/config/crd/bases/inference.networking.k8s.io_inferencepools.yaml'
+	@for crd in \
+		gatewayclasses.gateway.networking.k8s.io \
+		gateways.gateway.networking.k8s.io \
+		httproutes.gateway.networking.k8s.io \
+		inferencepools.inference.networking.k8s.io; do \
+		kubectl wait --for=condition=Established "crd/$${crd}" --timeout=120s; \
+	done
+
+# install-inference-extension-istio-crds installs the Istio APIs used by the
+# conformance environment into a newly-created Kind cluster. Keep this out of
+# run-inference-extension-conformance-test so that rerunning against an existing
+# cluster does not update its cluster-scoped Istio APIs.
+.PHONY: install-inference-extension-istio-crds
+install-inference-extension-istio-crds: prebuild
+	kubectl apply --server-side=true --force-conflicts \
+		--field-manager='higress-inference-extension' \
+		-f istio/istio/manifests/charts/base/files/crd-all.gen.yaml
+	kubectl wait --for=condition=Established \
+		crd/destinationrules.networking.istio.io --timeout=120s
+
+.PHONY: create-inference-extension-cluster
+create-inference-extension-cluster: $(tools/kind-gateway-api)
+	KIND=$(tools/kind-gateway-api) KIND_NODE_TAG=$(INFERENCE_EXTENSION_KIND_NODE_TAG) tools/hack/create-cluster.sh
+
+.PHONY: delete-inference-extension-cluster
+delete-inference-extension-cluster: $(tools/kind-gateway-api)
+	$(tools/kind-gateway-api) delete cluster --name higress
+
+.PHONY: install-inference-extension-metallb
+install-inference-extension-metallb:
+	METALLB_VERSION='$(INFERENCE_EXTENSION_METALLB_VERSION)' tools/hack/install-kind-metallb.sh
+
+# build-test-pilot builds the Pilot image from the checked-out Istio submodule.
+.PHONY: build-test-pilot
+build-test-pilot: prebuild
+	TARGET_ARCH=$(TARGET_ARCH) DOCKER_TARGETS='docker.pilot' IMG_URL='$(HUB)/pilot:$(TAG)' ./tools/hack/build-istio-image.sh docker
+
+.PHONY: kube-load-inference-extension-images
+kube-load-inference-extension-images: $(tools/kind-gateway-api)
+	tools/hack/docker-pull-image.sh $(HUB)/gateway $(INFERENCE_EXTENSION_GATEWAY_IMAGE_TAG)
+	@test "$$(docker image inspect '$(HUB)/gateway:$(INFERENCE_EXTENSION_GATEWAY_IMAGE_TAG)' --format '{{range .RepoDigests}}{{println .}}{{end}}' | grep -F '$(INFERENCE_EXTENSION_GATEWAY_IMAGE_DIGEST)' | wc -l | tr -d ' ')" -gt 0 || \
+		{ echo 'Gateway image digest does not match $(INFERENCE_EXTENSION_GATEWAY_IMAGE_DIGEST)' >&2; exit 1; }
+	KIND=$(tools/kind-gateway-api) tools/hack/kind-load-image.sh $(HUB)/higress $(TAG)
+	KIND=$(tools/kind-gateway-api) tools/hack/kind-load-image.sh $(HUB)/pilot $(TAG)
+	KIND=$(tools/kind-gateway-api) tools/hack/kind-load-image.sh $(HUB)/gateway $(INFERENCE_EXTENSION_GATEWAY_IMAGE_TAG)
+
+.PHONY: setup-inference-extension-epp-tls
+setup-inference-extension-epp-tls:
+	kubectl create namespace $(INFERENCE_EXTENSION_APP_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
+	kubectl apply -f test/inference-extension/manifests/epp-tls.yaml
+
+.PHONY: inference-extension-conformance-test-prepare
+inference-extension-conformance-test-prepare: delete-inference-extension-cluster create-inference-extension-cluster install-inference-extension-metallb install-inference-extension-crds install-inference-extension-istio-crds docker-build build-test-pilot kube-load-inference-extension-images install-dev-inference-extension
+	kubectl wait --timeout=10m -n $(INFERENCE_EXTENSION_SYSTEM_NAMESPACE) deployment/higress-controller --for=condition=Available
+	kubectl wait --timeout=10m -n $(INFERENCE_EXTENSION_SYSTEM_NAMESPACE) deployment/higress-gateway --for=condition=Available
+	kubectl wait --timeout=10m gatewayclass/higress --for=condition=Accepted
+	@for attempt in $$(seq 1 120); do \
+		address="$$(kubectl -n $(INFERENCE_EXTENSION_SYSTEM_NAMESPACE) get service higress-gateway -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)"; \
+		if [ -n "$${address}" ]; then echo "Higress gateway address: $${address}"; exit 0; fi; \
+		sleep 1; \
+	done; \
+	echo 'Timed out waiting for the Higress gateway LoadBalancer address' >&2; exit 1
+
+.PHONY: run-inference-extension-conformance-test
+run-inference-extension-conformance-test: download-inference-extension-conformance setup-inference-extension-epp-tls
+	INFERENCE_EXTENSION_VERSION='$(INFERENCE_EXTENSION_VERSION)' \
+	INFERENCE_EXTENSION_SOURCE_DIR='$(INFERENCE_EXTENSION_SOURCE_DIR)' \
+	INFERENCE_EXTENSION_REPORT='$(abspath $(INFERENCE_EXTENSION_REPORT))' \
+	INFERENCE_EXTENSION_EXPECTED_PASSED='$(INFERENCE_EXTENSION_EXPECTED_PASSED)' \
+	INFERENCE_EXTENSION_CONTACT='$(INFERENCE_EXTENSION_CONTACT)' \
+	INFERENCE_EXTENSION_RUN_TEST='$(INFERENCE_EXTENSION_RUN_TEST)' \
+	HIGRESS_CONFORMANCE_VERSION='$(HIGRESS_CONFORMANCE_VERSION)' \
+		tools/hack/run-inference-extension-conformance.sh
+
+.PHONY: inference-extension-conformance-test
+inference-extension-conformance-test: inference-extension-conformance-test-prepare run-inference-extension-conformance-test
+
+.PHONY: inference-extension-conformance-test-clean
+inference-extension-conformance-test-clean: delete-inference-extension-cluster
 
 # higress-conformance-test-prepare prepares the environment for higress conformance tests.
 .PHONY: higress-conformance-test-prepare
