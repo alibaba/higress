@@ -54,15 +54,16 @@ podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify config \
 podman compose -f "$HARNESS_DIR/compose.yaml" up -d backend-primary backend-secondary gateway-auto || exit 4
 sleep 2
 podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-auto-state.json" || exit 4
-podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-auto \
-  | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-auto.log"
 podman compose -f "$HARNESS_DIR/compose.yaml" up -d gateway || exit 4
 set +e
 podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify run --rm verifier
 VERIFY_STATUS=$?
 set -e
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway gateway-auto || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' -e 's/downstream-[A-Za-z0-9_-]*/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway.log"
+podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-auto \
+  | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-auto.log"
 cleanup
 trap - EXIT INT TERM
 if test -z "$(podman ps -a --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --format '{{.ID}}')"; then

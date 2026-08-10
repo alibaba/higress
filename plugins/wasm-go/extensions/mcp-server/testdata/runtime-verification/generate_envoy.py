@@ -81,7 +81,7 @@ def listener_yaml(port, name, cluster, config):
                     "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
                     log_format:
                       text_format_source:
-                        inline_string: "listener={name} method=%REQ(:METHOD)% path=%REQ(:PATH)% code=%RESPONSE_CODE% flags=%RESPONSE_FLAGS%\\n"
+                        inline_string: "access request_id=%REQ(X-REQUEST-ID)% listener={name} method=%REQ(:METHOD)% path=%REQ(:PATH)% code=%RESPONSE_CODE% flags=%RESPONSE_FLAGS%\\n"
               route_config:
                 name: route-{name}
                 virtual_hosts:

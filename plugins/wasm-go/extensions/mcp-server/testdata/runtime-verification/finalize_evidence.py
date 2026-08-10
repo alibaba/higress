@@ -4,6 +4,8 @@
 import hashlib
 import json
 import os
+import re
+from collections import Counter
 from pathlib import Path
 
 
@@ -25,6 +27,32 @@ matrix["summary"] = {
 }
 matrix_path.write_text(json.dumps(matrix, indent=2, sort_keys=True) + "\n")
 
+client_exchanges = json.loads((root / "client-exchanges.json").read_text()).get("exchanges", [])
+expected_request_ids = [exchange.get("accessRequestId") for exchange in client_exchanges]
+gateway_log = (root / "gateway.log").read_text(errors="replace") if (root / "gateway.log").exists() else ""
+access_request_ids = re.findall(r"access request_id=([^ ]+)", gateway_log)
+expected_counts = Counter(expected_request_ids)
+access_counts = Counter(access_request_ids)
+missing_request_ids = sorted(request_id for request_id in expected_counts if access_counts[request_id] == 0)
+duplicate_request_ids = sorted(request_id for request_id, count in access_counts.items() if count != 1)
+unexpected_request_ids = sorted(request_id for request_id in access_counts if request_id not in expected_counts)
+access_ok = (
+    len(expected_request_ids) == len(set(expected_request_ids))
+    and len(access_request_ids) == len(expected_request_ids)
+    and not missing_request_ids
+    and not duplicate_request_ids
+    and not unexpected_request_ids
+)
+access_coverage = {
+    "status": "PASS" if access_ok else "FAIL",
+    "recordedClientExchangeCount": len(expected_request_ids),
+    "accessRecordCount": len(access_request_ids),
+    "missingRequestIds": missing_request_ids,
+    "duplicateRequestIds": duplicate_request_ids,
+    "unexpectedRequestIds": unexpected_request_ids,
+}
+(root / "access-coverage.json").write_text(json.dumps(access_coverage, indent=2, sort_keys=True) + "\n")
+
 
 def lines(name):
     path = root / name
@@ -42,8 +70,10 @@ manifest = {
     "podman_version": (lines("podman-version.txt") or [""])[0],
     "compose_version": lines("compose-version.txt"),
     "matrix": "matrix.json",
+    "client_exchange_count": len(client_exchanges),
+    "access_coverage": access_coverage,
     "evidence_index": [
-        "manifest.json", "matrix.json", "compose-config.yaml", "envoy.yaml", "envoy-auto.yaml",
+        "manifest.json", "matrix.json", "client-exchanges.json", "access-coverage.json", "compose-config.yaml", "envoy.yaml", "envoy-auto.yaml",
         "gateway.log", "gateway-auto.log", "backend-auto-state.json", "backend-primary-final.json", "backend-secondary-final.json",
         "cleanup-proof.txt", "SHA256SUMS",
     ],
@@ -58,5 +88,5 @@ for path in sorted(root.iterdir()):
         checksums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
 (root / "SHA256SUMS").write_text("\n".join(checksums) + "\n")
 
-print(json.dumps({"evidence": str(root), "source_sha": manifest["source_sha"], "plugin_sha256": manifest["plugin_sha256"], **matrix["summary"]}, sort_keys=True))
-raise SystemExit(0 if matrix["summary"]["fail"] == 0 else 1)
+print(json.dumps({"evidence": str(root), "source_sha": manifest["source_sha"], "plugin_sha256": manifest["plugin_sha256"], "access_coverage": access_coverage["status"], **matrix["summary"]}, sort_keys=True))
+raise SystemExit(0 if matrix["summary"]["fail"] == 0 and access_ok else 1)

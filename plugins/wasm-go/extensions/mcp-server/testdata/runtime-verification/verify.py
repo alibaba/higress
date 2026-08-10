@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 """Execute the MCP runtime matrix entirely through Envoy listeners."""
 
+import hashlib
 import json
 import os
 import socket
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
 
 EVIDENCE = Path(os.environ.get("RUNTIME_EVIDENCE", "/evidence"))
 RESULTS = []
-RESPONSES = {}
+EXCHANGES = []
+CURRENT_CASE = None
 MODERN = "2026-07-28"
 LEGACY = ("2024-11-05", "2025-03-26", "2025-06-18")
 
@@ -39,6 +42,45 @@ def exchange(url, body=None, headers=None, method="POST"):
         parsed = json.loads(raw) if raw else None
     except json.JSONDecodeError:
         parsed = {"raw": raw.decode("utf-8", "replace")[:500]}
+    request_headers = {name.lower(): value for name, value in (headers or {}).items()}
+    access_request_id = request_headers.get("x-request-id")
+    if access_request_id:
+        response_header_lookup = {name.lower(): value for name, value in response_headers.items()}
+        selected_response_headers = {}
+        for name in ("content-type", "www-authenticate", "mcp-protocol-version", "x-request-id"):
+            if name in response_header_lookup:
+                selected_response_headers[name] = response_header_lookup[name]
+        selected_response_headers["mcp-session-id-present"] = "mcp-session-id" in response_header_lookup
+        canonical_body = json.dumps(parsed, sort_keys=True, separators=(",", ":")).encode()
+        request_body = body if isinstance(body, dict) else {}
+        request_params = request_body.get("params") or {}
+        EXCHANGES.append({
+            "case": CURRENT_CASE,
+            "accessRequestId": access_request_id,
+            "request": {
+                "listenerPort": urllib.parse.urlparse(url).port,
+                "httpMethod": method,
+                "path": urllib.parse.urlparse(url).path,
+                "rpcMethod": request_body.get("method"),
+                "rpcId": request_body.get("id"),
+                "toolName": request_params.get("name"),
+                "protocolVersion": request_headers.get("mcp-protocol-version"),
+                "mcpMethod": request_headers.get("mcp-method"),
+                "mcpName": request_headers.get("mcp-name"),
+                "origin": request_headers.get("origin"),
+                "authorizationPresent": "authorization" in request_headers,
+                "cookiePresent": "cookie" in request_headers,
+                "sessionPresent": "mcp-session-id" in request_headers,
+                "lastEventIDPresent": "last-event-id" in request_headers,
+                "futureParamPresent": "mcp-param-future" in request_headers,
+            },
+            "response": {
+                "status": status,
+                "headers": selected_response_headers,
+                "body": parsed,
+                "bodySha256": hashlib.sha256(canonical_body).hexdigest(),
+            },
+        })
     return status, response_headers, parsed
 
 
@@ -74,6 +116,7 @@ def modern_rpc(port, rpc_method, rpc_id, name=None, arguments=None, extra_header
         "Host": "mcp.runtime.test", "Origin": origin,
         "Content-Type": "application/json", "Accept": "application/json, text/event-stream",
         "MCP-Protocol-Version": MODERN, "Mcp-Method": rpc_method,
+        "X-Request-ID": f"rv-{port}-{rpc_id}",
     }
     if name is not None:
         headers["Mcp-Name"] = name
@@ -81,8 +124,10 @@ def modern_rpc(port, rpc_method, rpc_id, name=None, arguments=None, extra_header
     return exchange(f"http://gateway:{port}/mcp", body, headers)
 
 
-def legacy_rpc(port, body, session=None, version=None):
+def legacy_rpc(port, body, session=None, version=None, request_id=None):
     headers = {"Host": "mcp.runtime.test", "Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+    stable_id = request_id or body.get("id") or body.get("method", "request").replace("/", "-")
+    headers["X-Request-ID"] = f"rv-{port}-{stable_id}"
     if session:
         headers["Mcp-Session-Id"] = session
     if version:
@@ -115,13 +160,19 @@ def evidence_snapshot():
 
 
 def record(name, callback):
+    global CURRENT_CASE
+    start = len(EXCHANGES)
+    CURRENT_CASE = name
     try:
         detail = callback() or {}
+        detail["clientExchanges"] = EXCHANGES[start:]
         RESULTS.append({"case": name, "status": "PASS", "detail": detail})
         print(f"PASS {name}", flush=True)
     except Exception as exc:
-        RESULTS.append({"case": name, "status": "FAIL", "detail": {"error": str(exc), "backendEvents": evidence_snapshot()}})
+        RESULTS.append({"case": name, "status": "FAIL", "detail": {"error": str(exc), "backendEvents": evidence_snapshot(), "clientExchanges": EXCHANGES[start:]}})
         print(f"FAIL {name}: {exc}", flush=True)
+    finally:
+        CURRENT_CASE = None
 
 
 def backend_reset(host="backend-primary"):
@@ -188,7 +239,7 @@ def legacy_direct_versions():
         status, headers, response = legacy_rpc(10001, init)
         check(status == 200 and response["result"]["protocolVersion"] == version, f"legacy initialize failed: {status} {response}")
         initialized = {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
-        status, _, _ = legacy_rpc(10001, initialized, version=version)
+        status, _, _ = legacy_rpc(10001, initialized, version=version, request_id=f"initialized-{index}")
         check(status in (200, 202), f"initialized failed: {status}")
         status, _, listed = legacy_rpc(10001, {"jsonrpc": "2.0", "id": f"list-{index}", "method": "tools/list", "params": {}}, version=version)
         check(status == 200 and listed.get("result", {}).get("tools"), f"legacy list failed: {status} {listed}")
@@ -251,7 +302,7 @@ def default_legacy_proxy():
         init = {"jsonrpc": "2.0", "id": f"default-init-{index}", "method": "initialize", "params": {"protocolVersion": version, "capabilities": {}, "clientInfo": {"name": "runtime-verifier", "version": "1"}}}
         status, headers, response = legacy_rpc(10005, init)
         check(status == 200 and response.get("result", {}).get("protocolVersion") == version, f"default legacy init failed: {status} {response}")
-        status, _, _ = legacy_rpc(10005, {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}, version=version)
+        status, _, _ = legacy_rpc(10005, {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}, version=version, request_id=f"default-initialized-{index}")
         check(status in (200, 202), f"default legacy initialized failed: {status}")
         status, _, listed = legacy_rpc(10005, {"jsonrpc": "2.0", "id": f"default-list-{index}", "method": "tools/list", "params": {}}, version=version)
         check(status == 200 and listed.get("result", {}).get("tools"), f"default legacy list failed: {status} {listed}")
@@ -273,7 +324,7 @@ def unsupported_legacy_to_modern():
     init = {"jsonrpc": "2.0", "id": "unsupported", "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "runtime-verifier", "version": "1"}}}
     status, _, response = legacy_rpc(10003, init)
     check(status == 200, f"legacy initialize compatibility failed before unsupported bridge: {status} {response}")
-    status, _, _ = legacy_rpc(10003, {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}, version="2025-06-18")
+    status, _, _ = legacy_rpc(10003, {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}, version="2025-06-18", request_id="unsupported-initialized")
     check(status in (200, 202), f"legacy initialized failed: {status}")
     status, _, response = legacy_rpc(10003, {"jsonrpc": "2.0", "id": "unsupported-list", "method": "tools/list", "params": {}}, version="2025-06-18")
     check(status >= 400 or "error" in (response or {}), f"legacy-to-modern list unexpectedly bridged: {status} {response}")
@@ -324,6 +375,7 @@ def main():
     secondary = backend_state("backend-secondary")
     (EVIDENCE / "backend-primary-final.json").write_text(json.dumps(primary, indent=2, sort_keys=True))
     (EVIDENCE / "backend-secondary-final.json").write_text(json.dumps(secondary, indent=2, sort_keys=True))
+    (EVIDENCE / "client-exchanges.json").write_text(json.dumps({"exchanges": EXCHANGES}, indent=2, sort_keys=True))
     (EVIDENCE / "matrix.json").write_text(json.dumps({"cases": RESULTS}, indent=2, sort_keys=True))
     failed = [result for result in RESULTS if result["status"] != "PASS"]
     print(f"SUMMARY pass={len(RESULTS) - len(failed)} fail={len(failed)}", flush=True)

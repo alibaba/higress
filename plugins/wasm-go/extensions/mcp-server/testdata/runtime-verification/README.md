@@ -8,7 +8,7 @@ Run from a clean committed checkout:
 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/run.sh
 ```
 
-The command prints a sibling `/Users/.../higress-mcp-runtime.*` evidence directory outside the worktree and returns non-zero when any matrix case fails. Podman machine can bind-mount that shared macOS path but cannot bind-mount an arbitrary host `/tmp` path. It records source/plugin/image identities, Podman and external Compose versions, a sanitized Compose config, per-case results with complete sanitized backend event snapshots, sanitized gateway logs, checksums, and cleanup proof. `plugin.wasm` is deleted after the run and is never committed.
+The command prints a sibling `/Users/.../higress-mcp-runtime.*` evidence directory outside the worktree and returns non-zero when any matrix case fails. Podman machine can bind-mount that shared macOS path but cannot bind-mount an arbitrary host `/tmp` path. It records source/plugin/image identities, Podman and external Compose versions, a sanitized Compose config, per-case results with complete sanitized backend event snapshots and client response bodies, sanitized gateway logs, checksums, and cleanup proof. Every client exchange uses a stable `X-Request-ID`; the gateway is stopped before log collection, and `access-coverage.json` machine-checks one flushed access record for every recorded exchange. Session and credential header values are never written to the client ledger. `plugin.wasm` is deleted after the run and is never committed.
 
 The standalone composed endpoint intentionally verifies `tools/list` and rejects `tools/call`: successful composed calls require the separate `mcp-router` routing layer. This is an architecture boundary, not a runtime defect in `mcp-server`.
 
