@@ -150,6 +150,33 @@ func Test_isSupportedRequestContentType(t *testing.T) {
 	}
 }
 
+func Test_contentLengthExceedsLimit(t *testing.T) {
+	const limit uint32 = 100
+	tests := []struct {
+		name          string
+		contentLength string
+		want          bool
+	}{
+		{"missing", "", false},
+		{"blank", " \t", false},
+		{"below limit", "99", false},
+		{"equal limit", "100", false},
+		{"above limit", "101", true},
+		{"trim spaces", " 101 ", true},
+		{"invalid", "invalid", false},
+		{"negative", "-1", false},
+		{"overflow", "184467440737095516160", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := contentLengthExceedsLimit(tt.contentLength, limit); got != tt.want {
+				t.Fatalf("contentLengthExceedsLimit(%q, %d) = %v, want %v", tt.contentLength, limit, got, tt.want)
+			}
+		})
+	}
+}
+
 func Test_normalizeOpenAiRequestBody(t *testing.T) {
 	t.Run("stream_adds_include_usage", func(t *testing.T) {
 		in := []byte(`{"model":"x","stream":true}`)
