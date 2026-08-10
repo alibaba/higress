@@ -170,6 +170,18 @@ var weatherMCPServerConfig = func() json.RawMessage {
 	return data
 }()
 
+func calloutAt(t *testing.T, host test.TestHost, index int) proxytest.HttpCalloutAttribute {
+	t.Helper()
+	callouts := host.GetHttpCalloutAttributes()
+	require.Greater(t, len(callouts), index)
+	return callouts[index]
+}
+
+func completeCallout(host test.TestHost, callout proxytest.HttpCalloutAttribute, status string, headers [][2]string, body []byte) {
+	allHeaders := append([][2]string{{":status", status}}, headers...)
+	host.CallOnHttpCallResponse(callout.CalloutID, allHeaders, nil, body)
+}
+
 // TestRestMCPServerConfig 测试REST MCP服务器配置解析
 func TestRestMCPServerConfig(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
@@ -469,15 +481,14 @@ func TestMcpProxyServerToolsList(t *testing.T) {
 			}
 		}`
 
-		// 这是对executeToolsList中ctx.RouteCall的响应
-		host.CallOnHttpResponseHeaders([][2]string{
-			{":status", "200"},
-			{"content-type", "application/json"},
-		})
-		host.CallOnHttpResponseBody([]byte(toolsListResponse))
+		toolCall := calloutAt(t, host, 0)
+		require.Contains(t, string(toolCall.Body), `"method":"tools/list"`)
+		completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(toolsListResponse))
 
 		// 验证最终MCP响应
-		responseBody := host.GetResponseBody()
+		localResp := host.GetLocalResponse()
+		require.NotNil(t, localResp)
+		responseBody := localResp.Data
 		require.NotEmpty(t, responseBody)
 
 		var response map[string]interface{}
@@ -588,15 +599,14 @@ func TestMcpProxyServerToolsCall(t *testing.T) {
 			}
 		}`
 
-		// 这是对executeToolsCall中ctx.RouteCall的响应
-		host.CallOnHttpResponseHeaders([][2]string{
-			{":status", "200"},
-			{"content-type", "application/json"},
-		})
-		host.CallOnHttpResponseBody([]byte(toolsCallResponse))
+		toolCall := calloutAt(t, host, 0)
+		require.Contains(t, string(toolCall.Body), `"method":"tools/call"`)
+		completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(toolsCallResponse))
 
 		// 验证最终MCP响应
-		responseBody := host.GetResponseBody()
+		localResp := host.GetLocalResponse()
+		require.NotNil(t, localResp)
+		responseBody := localResp.Data
 		require.NotEmpty(t, responseBody)
 
 		var response map[string]interface{}
@@ -718,8 +728,9 @@ func TestMcpProxyServerAuthentication(t *testing.T) {
 				}
 			}`
 
-			// 验证tools/list请求的认证头（在响应处理前获取发送给后端的请求头）
-			requestHeaders := host.GetRequestHeaders()
+			// Inspect the actual DispatchHttpCall request sent to the backend.
+			toolCall := calloutAt(t, host, 0)
+			requestHeaders := toolCall.Headers
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath, "Path header should exist")
 			require.Contains(t, pathValue, "/mcp", "Path should be MCP endpoint")
@@ -728,15 +739,12 @@ func TestMcpProxyServerAuthentication(t *testing.T) {
 			require.True(t, hasApiKey, "X-API-Key header should exist in tools/list request")
 			require.Equal(t, "test-default-key", apiKeyValue, "Should use default credential for tools/list")
 
-			// 这是对executeToolsList中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(toolsListResponse))
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(toolsListResponse))
 
 			// 验证响应
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -840,8 +848,9 @@ func TestMcpProxyServerAuthentication(t *testing.T) {
 				}
 			}`
 
-			// 验证tools/call请求的认证头（在响应处理前获取发送给后端的请求头）
-			requestHeaders := host.GetRequestHeaders()
+			// Inspect the actual DispatchHttpCall request sent to the backend.
+			toolCall := calloutAt(t, host, 0)
+			requestHeaders := toolCall.Headers
 			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
 			require.True(t, hasPath, "Path header should exist")
 			require.Contains(t, pathValue, "/mcp", "Path should be MCP endpoint")
@@ -850,15 +859,12 @@ func TestMcpProxyServerAuthentication(t *testing.T) {
 			require.True(t, hasApiKey, "X-API-Key header should exist in tools/call request")
 			require.Equal(t, "test-default-key", apiKeyValue, "Should use default credential for tools/call")
 
-			// 这是对executeToolsCall中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(secureToolResponse))
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(secureToolResponse))
 
 			// 验证响应
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -1065,15 +1071,13 @@ func TestMcpProxyServerErrorHandling(t *testing.T) {
 				}
 			}`
 
-			// 这是对executeToolsCall中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(toolErrorResponse))
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(toolErrorResponse))
 
 			// 验证错误被正确传播
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			if len(responseBody) > 0 {
 				var response map[string]interface{}
 				err := json.Unmarshal(responseBody, &response)
@@ -1178,15 +1182,13 @@ func TestMcpProxyServerSessionManagement(t *testing.T) {
 				}
 			}`
 
-			// 这是对executeToolsList中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(toolsListResponse))
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(toolsListResponse))
 
 			// 验证tools/list响应
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			if len(responseBody) > 0 {
 				var response map[string]interface{}
 				err := json.Unmarshal(responseBody, &response)
@@ -1268,15 +1270,13 @@ func TestMcpProxyServerSessionManagement(t *testing.T) {
 				}
 			}`
 
-			// 这是对executeToolsCall中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(toolsCallResponse1))
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(toolsCallResponse1))
 
 			// 验证第一个请求的响应
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			if len(responseBody) > 0 {
 				var response map[string]interface{}
 				err := json.Unmarshal(responseBody, &response)
@@ -1341,15 +1341,13 @@ func TestMcpProxyServerSessionManagement(t *testing.T) {
 				}
 			}`
 
-			// 这是对executeToolsCall中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(toolsCallResponse2))
+			toolCall = calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(toolsCallResponse2))
 
 			// 验证第二个请求的响应
-			responseBody = host.GetResponseBody()
+			localResp = host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody = localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -1549,13 +1547,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 				"result": {}
 			}`))
 
-			// Mock tools/list response with 3 tools (但只有2个会被返回)
-			// 这是对executeToolsList中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(`{
+			// Complete the actual tools/list DispatchHttpCall.
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{
 				"jsonrpc": "2.0",
 				"id": 2,
 				"result": {
@@ -1582,7 +1576,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 			host.CompleteHttp()
 
 			// 验证响应只包含允许的工具
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -1663,13 +1659,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 				"result": {}
 			}`))
 
-			// Mock tools/list response with multiple tools
-			// 这是对executeToolsList中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(`{
+			// Complete the actual tools/list DispatchHttpCall.
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{
 				"jsonrpc": "2.0",
 				"id": 2, 
 				"result": {
@@ -1691,7 +1683,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 			host.CompleteHttp()
 
 			// 验证响应只包含请求头中允许的工具
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -1767,13 +1761,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 				"result": {}
 			}`))
 
-			// Mock tools/list response
-			// 这是对executeToolsList中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(`{
+			// Complete the actual tools/list DispatchHttpCall.
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{
 				"jsonrpc": "2.0",
 				"id": 3,
 				"result": {
@@ -1800,7 +1790,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 			host.CompleteHttp()
 
 			// 验证响应只包含交集中的工具
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -1874,13 +1866,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 				"result": {}
 			}`))
 
-			// Mock tools/list response
-			// 这是对executeToolsList中ctx.RouteCall的响应
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(`{
+			// Complete the actual tools/list DispatchHttpCall.
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{
 				"jsonrpc": "2.0",
 				"id": 4,
 				"result": {
@@ -1902,7 +1890,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 			host.CompleteHttp()
 
 			// 验证响应不包含任何工具（空白header应该被当作配置为空，禁止所有工具）
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -1973,12 +1963,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 				"result": {}
 			}`))
 
-			// Mock tools/list response with multiple tools
-			host.CallOnHttpResponseHeaders([][2]string{
-				{":status", "200"},
-				{"content-type", "application/json"},
-			})
-			host.CallOnHttpResponseBody([]byte(`{
+			// Complete the actual tools/list DispatchHttpCall.
+			toolCall := calloutAt(t, host, 0)
+			completeCallout(host, toolCall, "200", [][2]string{{"content-type", "application/json"}}, []byte(`{
 				"jsonrpc": "2.0",
 				"id": 5,
 				"result": {
@@ -2005,7 +1992,9 @@ func TestMcpProxyServerAllowTools(t *testing.T) {
 			host.CompleteHttp()
 
 			// 验证响应包含所有工具（header不存在时允许所有工具）
-			responseBody := host.GetResponseBody()
+			localResp := host.GetLocalResponse()
+			require.NotNil(t, localResp)
+			responseBody := localResp.Data
 			require.NotEmpty(t, responseBody)
 
 			var response map[string]interface{}
@@ -3456,8 +3445,9 @@ func TestPlugin_McpProtocolVersionHeaderStripped(t *testing.T) {
 	})
 }
 
-func TestPlugin_McpProtocolVersionUnsupportedStillStripped(t *testing.T) {
-	// Unsupported version logs a warning but still strips the header and continues.
+func TestPlugin_McpProtocolVersionUnsupportedRejected(t *testing.T) {
+	// Unsupported modern protocol identities are consumed locally and rejected
+	// before request forwarding.
 	test.RunTest(t, func(t *testing.T) {
 		host, status := test.NewTestHost(restMCPServerConfig)
 		defer host.Reset()
@@ -3469,9 +3459,26 @@ func TestPlugin_McpProtocolVersionUnsupportedStillStripped(t *testing.T) {
 			{"content-type", "application/json"},
 			{"MCP-Protocol-Version", "9999-99-99"},
 		})
-		require.Equal(t, types.HeaderStopIteration, action)
+		require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
+
+		localResp := host.GetLocalResponse()
+		require.NotNil(t, localResp, "unsupported protocol version must produce a local error")
+		require.Equal(t, uint32(400), localResp.StatusCode)
+		require.JSONEq(t, `{
+			"jsonrpc": "2.0",
+			"id": null,
+			"error": {
+				"code": -32022,
+				"message": "unsupported MCP protocol version",
+				"data": {
+					"supported": ["2024-11-05", "2025-03-26", "2025-06-18", "2026-07-28"],
+					"requested": "9999-99-99"
+				}
+			}
+		}`, string(localResp.Data))
+
 		_, stillPresent := test.GetHeaderValue(host.GetRequestHeaders(), "MCP-Protocol-Version")
-		require.False(t, stillPresent, "even unsupported MCP-Protocol-Version must be stripped")
+		require.False(t, stillPresent, "rejected MCP-Protocol-Version must not leak downstream")
 		host.CompleteHttp()
 	})
 }
