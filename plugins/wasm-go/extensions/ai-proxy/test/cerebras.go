@@ -52,20 +52,22 @@ var invalidCerebrasConfig = func() json.RawMessage {
 	return data
 }()
 
-// 测试配置：Cerebras 自定义URL配置
-var cerebrasCustomUrlConfig = func() json.RawMessage {
+func newCerebrasCustomURLConfig(customURL string) json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
 		"provider": map[string]interface{}{
 			"type":            "cerebras",
 			"apiTokens":       []string{"csk-cerebras-custom"},
-			"openaiCustomUrl": "https://custom.cerebras.ai/custom/path",
+			"openaiCustomUrl": customURL,
 			"modelMapping": map[string]string{
 				"*": "llama3.1-8b",
 			},
 		},
 	})
 	return data
-}()
+}
+
+// 测试配置：Cerebras 自定义URL配置
+var cerebrasCustomUrlConfig = newCerebrasCustomURLConfig("https://custom.cerebras.ai/custom/path")
 
 // RunCerebrasParseConfigTests 测试 Cerebras 配置解析
 func RunCerebrasParseConfigTests(t *testing.T) {
@@ -195,33 +197,91 @@ func RunCerebrasOnHttpRequestHeadersTests(t *testing.T) {
 
 		// 测试 Cerebras 自定义URL请求头处理
 		t.Run("cerebras custom url request headers", func(t *testing.T) {
-			host, status := test.NewTestHost(cerebrasCustomUrlConfig)
-			defer host.Reset()
-			require.Equal(t, types.OnPluginStartStatusOK, status)
+			tests := []struct {
+				name        string
+				customURL   string
+				requestPath string
+				method      string
+				wantPath    string
+			}{
+				{
+					name:        "host base chat completion",
+					customURL:   "https://custom.cerebras.ai",
+					requestPath: "/v1/chat/completions",
+					method:      "POST",
+					wantPath:    "/chat/completions",
+				},
+				{
+					name:        "versioned base chat completion",
+					customURL:   "https://custom.cerebras.ai/v1",
+					requestPath: "/v1/chat/completions",
+					method:      "POST",
+					wantPath:    "/v1/chat/completions",
+				},
+				{
+					name:        "nested base chat completion",
+					customURL:   "https://custom.cerebras.ai/custom/path",
+					requestPath: "/v1/chat/completions",
+					method:      "POST",
+					wantPath:    "/custom/path/chat/completions",
+				},
+				{
+					name:        "direct chat completion endpoint",
+					customURL:   "https://custom.cerebras.ai/v1/chat/completions",
+					requestPath: "/v1/chat/completions",
+					method:      "POST",
+					wantPath:    "/v1/chat/completions",
+				},
+				{
+					name:        "host base models",
+					customURL:   "https://custom.cerebras.ai",
+					requestPath: "/v1/models",
+					method:      "GET",
+					wantPath:    "/models",
+				},
+				{
+					name:        "versioned base models",
+					customURL:   "https://custom.cerebras.ai/v1",
+					requestPath: "/v1/models",
+					method:      "GET",
+					wantPath:    "/v1/models",
+				},
+				{
+					name:        "direct models endpoint",
+					customURL:   "https://custom.cerebras.ai/v1/models",
+					requestPath: "/v1/models",
+					method:      "GET",
+					wantPath:    "/v1/models",
+				},
+			}
 
-			// 设置请求头
-			action := host.CallOnHttpRequestHeaders([][2]string{
-				{":authority", "example.com"},
-				{":path", "/v1/chat/completions"},
-				{":method", "POST"},
-				{"Content-Type", "application/json"},
-			})
+			for _, tt := range tests {
+				t.Run(tt.name, func(t *testing.T) {
+					host, status := test.NewTestHost(newCerebrasCustomURLConfig(tt.customURL))
+					defer host.Reset()
+					require.Equal(t, types.OnPluginStartStatusOK, status)
 
-			require.Equal(t, types.HeaderStopIteration, action)
+					action := host.CallOnHttpRequestHeaders([][2]string{
+						{":authority", "example.com"},
+						{":path", tt.requestPath},
+						{":method", tt.method},
+						{"Content-Type", "application/json"},
+					})
 
-			// 验证请求头处理
-			requestHeaders := host.GetRequestHeaders()
-			require.NotNil(t, requestHeaders)
+					require.Equal(t, types.HeaderStopIteration, action)
 
-			// 验证 Host 转换为自定义域名
-			hostValue, hasHost := test.GetHeaderValue(requestHeaders, ":authority")
-			require.True(t, hasHost)
-			require.Equal(t, "custom.cerebras.ai", hostValue, "Host should be changed to custom domain")
+					requestHeaders := host.GetRequestHeaders()
+					require.NotNil(t, requestHeaders)
 
-			// 验证 Path 转换为自定义路径
-			pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
-			require.True(t, hasPath)
-			require.Contains(t, pathValue, "/custom/path", "Path should contain custom path")
+					hostValue, hasHost := test.GetHeaderValue(requestHeaders, ":authority")
+					require.True(t, hasHost)
+					require.Equal(t, "custom.cerebras.ai", hostValue, "Host should be changed to custom domain")
+
+					pathValue, hasPath := test.GetHeaderValue(requestHeaders, ":path")
+					require.True(t, hasPath)
+					require.Equal(t, tt.wantPath, pathValue)
+				})
+			}
 		})
 	})
 }

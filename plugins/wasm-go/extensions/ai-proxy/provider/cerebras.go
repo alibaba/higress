@@ -43,18 +43,22 @@ func (c *cerebrasProviderInitializer) CreateProvider(config ProviderConfig) (Pro
 		if len(pairs) == 2 {
 			customPath += pairs[1]
 		}
+		isDirectCustomPath := isDirectPath(customPath)
 		capabilities := c.DefaultCapabilities()
-		for key, mapPath := range capabilities {
-			capabilities[key] = path.Join(customPath, strings.TrimPrefix(mapPath, "/v1"))
+		if !isDirectCustomPath {
+			for key, mapPath := range capabilities {
+				capabilities[key] = path.Join(customPath, strings.TrimPrefix(mapPath, "/v1"))
+			}
 		}
 		config.setDefaultCapabilities(capabilities)
-		log.Debugf("ai-proxy: cerebras provider customDomain:%s, customPath:%s, capabilities:%v",
-			pairs[0], customPath, capabilities)
+		log.Debugf("ai-proxy: cerebras provider customDomain:%s, customPath:%s, isDirectCustomPath:%v, capabilities:%v",
+			pairs[0], customPath, isDirectCustomPath, capabilities)
 		return &cerebrasProvider{
-			config:       config,
-			contextCache: createContextCache(&config),
-			customDomain: pairs[0],
-			customPath:   customPath,
+			config:             config,
+			contextCache:       createContextCache(&config),
+			customDomain:       pairs[0],
+			customPath:         customPath,
+			isDirectCustomPath: isDirectCustomPath,
 		}, nil
 	}
 
@@ -68,10 +72,11 @@ func (c *cerebrasProviderInitializer) CreateProvider(config ProviderConfig) (Pro
 }
 
 type cerebrasProvider struct {
-	config       ProviderConfig
-	contextCache *contextCache
-	customDomain string
-	customPath   string
+	config             ProviderConfig
+	contextCache       *contextCache
+	customDomain       string
+	customPath         string
+	isDirectCustomPath bool
 }
 
 func (p *cerebrasProvider) GetProviderType() string {
@@ -84,7 +89,7 @@ func (p *cerebrasProvider) OnRequestHeaders(ctx wrapper.HttpContext, apiName Api
 }
 
 func (p *cerebrasProvider) TransformRequestHeaders(ctx wrapper.HttpContext, apiName ApiName, headers http.Header) {
-	if p.customPath != "" {
+	if p.isDirectCustomPath {
 		util.OverwriteRequestPathHeader(headers, p.customPath)
 	} else if apiName != "" {
 		util.OverwriteRequestPathHeaderByCapability(headers, string(apiName), p.config.capabilities)
