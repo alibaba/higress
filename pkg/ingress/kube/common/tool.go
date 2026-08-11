@@ -84,13 +84,24 @@ func NetworkingIngressAvailable(client kube.Client) bool {
 	return runningVersion.AtLeast(version118)
 }
 
-// SortIngressByCreationTime sorts the list of config objects in ascending order by their creation time (if available).
+// SortIngressByCreationTime sorts the list of config objects in ascending
+// order by their creation time (if available). When two objects share the
+// same creation timestamp, ties are broken by namespace first and then by
+// name, both in lexicographic order.
+//
+// Note: this sorter does NOT actively identify canary ingresses. A base
+// ingress sorting before its "<name>-canary-*" variants is merely a
+// lexicographic consequence of the namespace/name ordering, and is only
+// guaranteed when the canary names share the base name as a prefix. Canary
+// ingresses named without that prefix may sort in any order relative to the
+// base, since canary status is determined by annotations rather than by name.
 func SortIngressByCreationTime(configs []config.Config) {
 	sort.Slice(configs, func(i, j int) bool {
 		if configs[i].CreationTimestamp == configs[j].CreationTimestamp {
-			in := configs[i].Name + "." + configs[i].Namespace
-			jn := configs[j].Name + "." + configs[j].Namespace
-			return in < jn
+			if configs[i].Namespace != configs[j].Namespace {
+				return configs[i].Namespace < configs[j].Namespace
+			}
+			return configs[i].Name < configs[j].Name
 		}
 		return configs[i].CreationTimestamp.Before(configs[j].CreationTimestamp)
 	})
