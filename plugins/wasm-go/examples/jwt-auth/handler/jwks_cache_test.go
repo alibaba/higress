@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
+	"github.com/alibaba/higress/plugins/wasm-go/examples/jwt-auth/config"
 )
 
 func cacheRemoteJWKsForTest(name, uri, raw string, expiresAt time.Time) {

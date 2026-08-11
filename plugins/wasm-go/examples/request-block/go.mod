@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/wasm-go/extensions/request-block
+module github.com/alibaba/higress/plugins/wasm-go/examples/request-block
 
 go 1.24.1
 
