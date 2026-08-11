@@ -36,11 +36,17 @@ Choose exactly one participation declaration:
 - [ ] **Trivial agent-use exception:** Agent use was limited to spelling,
       punctuation, whitespace, or formatting with no substantive choice or
       behavioral effect; the explanation is below.
+- [ ] **Verified maintainer/administrator exception:** Material agent
+      participation occurred, and authenticated `gh` verification confirmed
+      a `role_name` of `maintain` or `admin` on `higress-group/higress`, and the
+      verified login matches this PR's GitHub author; record the required
+      evidence and rationale below.
 - [ ] **Material agent participation:** An AI or coding agent materially
       participated in analysis, design, implementation, testing, or PR
       preparation.
 
-For material participation, check each timed obligation:
+For material participation that does not use the verified maintainer/administrator
+exception, check each timed obligation:
 
 - [ ] **Before implementation began:** A Higress maintainer had approved the
       Proposal and Design Issues, and authorized implementation TASKs linked the
@@ -55,11 +61,27 @@ Then choose exactly one overall gate status:
 
 - [ ] Complete: all three timed obligations above were satisfied.
 - [ ] Noncompliant: one or more obligations were not satisfied; explain below.
+- [ ] Verified exception: material agent participation used the
+      verified-maintainer/administrator exception; provide the required evidence
+      and rationale below.
 - [ ] N/A because the PR is human-only or qualifies for the trivial exception.
 
 **Gate-status explanation (or N/A):**
 
 **Trivial-exception explanation (or N/A):**
+
+
+**Verified maintainer/administrator exception evidence (or N/A):**
+<!-- Required when the verified exception is checked; otherwise write N/A. Run the policy's commands with GH_TOKEN and GITHUB_TOKEN unset after this PR is created but before requesting review. Record this PR's number or URL, the authenticated login, returned `role_name` of `maintain` or `admin`, and the author returned by `gh pr view`; the two logins must match. Explicitly attest that both token override variables were unset for every verification command. Never paste a token. The accepting or merging maintainer independently validates the current live evidence. -->
+
+- This PR's number or URL:
+- Authenticated `gh` login:
+- Canonical-repository `role_name`:
+- Actual PR author from `gh pr view`:
+- Login/author match:
+- Token override attestation (`GH_TOKEN` and `GITHUB_TOKEN` were unset for every verification command; required: `yes`):
+- Bypass rationale:
+- Maintainer live validation (review URL or N/A until performed):
 
 
 **Approved Proposal Issue URL (or N/A with explanation):**

@@ -188,6 +188,18 @@ directs and verifies is not automatically material. The only exception is
 declared agent use limited to spelling, punctuation, whitespace, or formatting
 with no substantive choice or behavioral effect. Human-only PRs are unaffected.
 
+A canonical-repository maintainer or administrator may elect to bypass the
+planning gate only after using authenticated `gh` to verify the current login
+and a canonical-repository collaborator `role_name` of `maintain` or `admin` for
+`higress-group/higress`. The PR must select the verified-maintainer/
+administrator exception, ensure its GitHub author matches that login, record the
+current PR number or URL, login, returned `role_name`, PR author (never a token),
+attest that `GH_TOKEN` and `GITHUB_TOKEN` were unset for every verification
+command, and explain the bypass. A failed or mismatched check disqualifies the
+exception; the accepting or merging maintainer independently validates current
+live evidence with token overrides unset. This does not waive AI disclosure,
+review, merge requirements, or runtime verification for bug fixes.
+
 All PRs that used an AI or coding agent must disclose the prompts/instructions
 and provide an AI-assisted work summary with key decisions, major changes, and
 important limitations. For contributions subject to this gate, the

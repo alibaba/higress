@@ -31,6 +31,17 @@ work. Small documentation-only corrections limited to spelling, punctuation,
 whitespace, or formatting (such as typo adjustments) may skip the issue-spec
 workflow when they involve no substantive choice or behavioral effect.
 Agent-assisted bug fixes and material feature work must still follow this gate.
+An authenticated `gh` user with canonical-repository `role_name` of `maintain`
+or `admin` may use the verified maintainer/administrator exception documented
+in the canonical policy. Before bypassing the gate, run the documented `gh`
+identity and collaborator-permission checks, record the login, returned
+`role_name`, actual PR author, and rationale in the PR, and still disclose agent
+participation. The PR author must match the verified login and the PR must attest
+that `GH_TOKEN` and `GITHUB_TOKEN` were unset for every verification command;
+any failed or mismatched check disqualifies the exception. Select the matching
+verified-exception status in the PR template. The accepting or merging maintainer
+must independently validate current live evidence with token overrides unset.
+This exception never waives bug-fix runtime verification.
 
 For work subject to this gate, the maintainer-approved issue-spec Design Issue
 is the authoritative design carrier. Do not create or require a plugin-local
