@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/wasm-go/examples/model-mapper
+module github.com/alibaba/higress/plugins/wasm-go/extensions/model-mapper
 
 go 1.24.1
 

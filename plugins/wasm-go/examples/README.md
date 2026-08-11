@@ -11,10 +11,11 @@ The following examples are Go counterparts of official C++ plugins:
 - `custom-response`
 - `jwt-auth`
 - `key-auth`
-- `model-mapper`
-- `model-router`
 - `request-block`
 - `sni-misdirect`
+
+`model-mapper` and `model-router` remain official Go plugins under
+`extensions/`; their C++ counterparts do not make them reference-only.
 
 Build one from `plugins/wasm-go/` with:
 
