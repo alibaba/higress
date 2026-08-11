@@ -103,10 +103,11 @@ overview. Prebuilt plugin images are published to
   `github.com/higress-group/proxy-wasm-go-sdk` (NOT an in-repo SDK dir).
   In-repo, `plugins/wasm-go/pkg/mcp/` provides MCP helpers and
   `plugins/wasm-go/mcp-servers/` holds MCP server plugins.
-- `examples/` — minimal reference plugins (custom-log, custom-span-attribute,
-  test-foreign-function).
-- Build: `plugins/wasm-go/Makefile`. `PLUGIN_NAME=<name> make build` builds a
-  wasm file (output to `extensions/<name>/plugin.wasm`) + image via
+- `examples/` — reference plugins, including the Go counterparts of C++
+  plugins. These are excluded from official plugin release discovery.
+- Build: `plugins/wasm-go/Makefile`. `PLUGIN_NAME=<name> make build` builds an
+  official plugin; add `PLUGIN_ROOT=examples` for a reference plugin. The wasm
+  file is written below the selected root, and the image is built via
   `Dockerfile`/`DockerfileBuilder` (uses a `wasm-go-builder` image, Go 1.24,
   TinyGo optional). `make build-push` pushes the image; `make local-build`
   builds locally with `GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`.
@@ -116,11 +117,12 @@ overview. Prebuilt plugin images are published to
 
 ### plugins/wasm-rust/ (Rust WASM plugins)
 
-- Workspace-style: root `Cargo.toml`/`Cargo.lock`, shared `src/`,
-  `extensions/<name>/` per plugin (e.g. `ai-data-masking`, `ai-intent`,
-  `request-block`, `say-hello`, `demo-wasm`), `example/`.
+- Workspace-style: root `Cargo.toml`/`Cargo.lock`, shared `src/`, the official
+  `extensions/ai-data-masking/` plugin, and reference implementations under
+  `example/`.
 - Build via `plugins/wasm-rust/Makefile` (`PLUGIN_NAME=<name> make build`, plus
-  `lint`/`test`); the batch builder runs it when `PLUGIN_TYPE=RUST`.
+  `lint`/`test`); add `PLUGIN_ROOT=example` for a reference plugin. The batch
+  builder runs only official `extensions/` plugins when `PLUGIN_TYPE=RUST`.
 
 ### plugins/wasm-cpp/ (C++ WASM plugins, Bazel)
 

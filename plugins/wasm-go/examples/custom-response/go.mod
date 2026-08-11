@@ -1,4 +1,4 @@
-module github.com/alibaba/higress/plugins/wasm-go/extensions/basic-auth
+module github.com/alibaba/higress/plugins/wasm-go/examples/custom-response
 
 go 1.24.1
 
@@ -7,7 +7,6 @@ toolchain go1.24.4
 require (
 	github.com/higress-group/proxy-wasm-go-sdk v0.0.0-20250822030947-8345453fddd0
 	github.com/higress-group/wasm-go v1.0.2-0.20250821081215-b573359becf8
-	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.18.0
 )

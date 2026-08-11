@@ -15,8 +15,8 @@
 package main
 
 import (
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/handler"
+	"github.com/alibaba/higress/plugins/wasm-go/examples/jwt-auth/config"
+	"github.com/alibaba/higress/plugins/wasm-go/examples/jwt-auth/handler"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/tidwall/gjson"

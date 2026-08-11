@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
+	"github.com/alibaba/higress/plugins/wasm-go/examples/jwt-auth/config"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/tidwall/gjson"

@@ -18,7 +18,7 @@ import (
 	"net/url"
 	"strings"
 
-	cfg "github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
+	cfg "github.com/alibaba/higress/plugins/wasm-go/examples/jwt-auth/config"
 )
 
 // extracToken 从三个来源中依次尝试抽取Token，若找不到Token则返回空字符串

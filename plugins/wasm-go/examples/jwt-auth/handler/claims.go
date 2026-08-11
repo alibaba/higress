@@ -15,21 +15,20 @@
 package handler
 
 import (
-	"testing"
+	"fmt"
 
-	"github.com/alibaba/higress/plugins/wasm-go/extensions/jwt-auth/config"
+	cfg "github.com/alibaba/higress/plugins/wasm-go/examples/jwt-auth/config"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 )
 
-func TestActionForVerifiedConsumerUsesConfigRuleSetSnapshot(t *testing.T) {
-	action, resume := actionForVerifiedConsumer(config.JWTAuthConfig{
-		RuleSet: true,
-		Allow:   []string{"allowed-consumer"},
-	}, "other-consumer", &testLogger{T: t})
-
-	if resume {
-		t.Fatalf("expected route-level allow list to deny non-allowed consumer")
-	}
-	if action == nil {
-		t.Fatalf("expected a deny action for non-allowed consumer")
+func claimsToHeader(claims map[string]any, cth []cfg.ClaimsToHeader) {
+	for i := range cth {
+		if v, ok := claims[cth[i].Claim]; ok {
+			if *cth[i].Override {
+				proxywasm.ReplaceHttpRequestHeader(cth[i].Header, fmt.Sprint(v))
+			} else {
+				proxywasm.AddHttpRequestHeader(cth[i].Header, fmt.Sprint(v))
+			}
+		}
 	}
 }

@@ -308,7 +308,7 @@ must pin the affected or otherwise relevant release.
 
 Concrete plugin-local references remain useful when adapting the generic
 harness, including the
-[Wasm Go custom-response example](../../plugins/wasm-go/extensions/custom-response/docker-compose.yaml)
+[Wasm Go custom-response example](../../plugins/wasm-go/examples/custom-response/docker-compose.yaml)
 and the
 [Wasm Rust SSE timing example](../../plugins/wasm-rust/example/sse-timing/docker-compose.yaml).
 
