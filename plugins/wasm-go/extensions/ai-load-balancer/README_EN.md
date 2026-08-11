@@ -225,8 +225,8 @@ lb_config:
 | `p2c_choices` | int | optional | 2 | Number of sampled services compared by `AdaptiveScore`; compares all services when the value is not less than the service count |
 | `ttft_weight` | float | optional | 0.7 | First-token latency weight used by `AdaptiveScore` |
 | `total_latency_weight` | float | optional | 0.3 | Total response latency weight used by `AdaptiveScore` |
-| `error_penalty` | float | optional | 3.0 | Recent error-rate penalty used by `AdaptiveScore` |
-| `failure_cooldown_ms` | int | optional | 30000 | Cooldown duration after a failed request in `AdaptiveScore` |
+| `error_penalty` | float | optional | 3.0 | Cumulative error-rate penalty since the plugin instance started, used by `AdaptiveScore` |
+| `failure_cooldown_ms` | int | optional | 30000 | Cooldown duration after a failed request in `AdaptiveScore`; omitted or 0 uses the default |
 | `metrics_missing_policy` | string | optional | `least_busy` | Fallback policy when `AdaptiveScore` has no latency samples, defaulting to current in-flight requests |
 | `global_inflight_enabled` | bool | optional | false | Whether `AdaptiveScore` uses Redis to track global in-flight requests across gateway instances |
 | `serviceFQDN` | string | required when `global_inflight_enabled=true` | | Redis service FQDN |
@@ -235,15 +235,17 @@ lb_config:
 | `password` | string | optional | empty | Redis password |
 | `database` | int | optional | 0 | Redis database number |
 | `global_inflight_key_prefix` | string | optional | `higress:adaptive_score_inflight` | Redis key prefix for global in-flight counters. The actual key also includes route and mode |
-| `global_inflight_timeout` | int | optional | 3000 | Redis request timeout in milliseconds |
-| `global_inflight_key_ttl` | int | optional | 1800 | TTL for global in-flight Redis keys in seconds |
+| `global_inflight_timeout` | int | optional | 3000 | Redis request timeout in milliseconds; omitted or 0 uses the default |
+| `global_inflight_key_ttl` | int | optional | 1800 | TTL for global in-flight Redis keys in seconds; omitted or 0 uses the default |
 
 The meanings of the values ​​for `mode` are as follows:
 
 - `LeastBusy`: Routes to the service with the fewest concurrent requests.
 - `LeastTotalLatency`: Routes to the service with the lowest response time (RT).
 - `LeastFirstTokenLatency`: Routes to the service with the lowest RT for the first packet.
-- `AdaptiveScore`: Combines EWMA first-token latency, EWMA total latency, current in-flight requests, and error rate into a score, then routes to the lowest-score service. It is designed for LLM backends whose latency and load fluctuate continuously.
+- `AdaptiveScore`: Combines EWMA first-token latency, EWMA total latency, current in-flight requests, and cumulative error rate into a score, then routes to the lowest-score service. It is designed for LLM backends whose latency and load fluctuate continuously.
+
+`AdaptiveScore` computes its error rate from cumulative success and failure counts over the lifetime of the current plugin instance; it does not currently use a time window or decay.
 
 When `global_inflight_enabled` is enabled, `AdaptiveScore` uses Redis Lua to atomically select the service with the lowest score after applying global in-flight pressure, then increments the selected service counter by 1. The counter is decremented when the request stream completes. If Redis initialization, dispatch, or response handling fails, the plugin falls back to local `AdaptiveScore` without blocking the request.
 

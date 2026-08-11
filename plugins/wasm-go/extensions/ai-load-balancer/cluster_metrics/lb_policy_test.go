@@ -243,6 +243,28 @@ func TestAdaptiveScoreGlobalInflightConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestAdaptiveScoreZeroConfigUsesDefaults(t *testing.T) {
+	lb, err := NewClusterEndpointLoadBalancer(gjson.Parse(`{
+		"mode": "AdaptiveScore",
+		"failure_cooldown_ms": 0,
+		"global_inflight_timeout": 0,
+		"global_inflight_key_ttl": 0,
+		"service_list": ["svc-a", "svc-b"]
+	}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if lb.FailureCooldownMs != DefaultFailureCooldownMs {
+		t.Fatalf("expected zero cooldown to use default %d, got %d", DefaultFailureCooldownMs, lb.FailureCooldownMs)
+	}
+	if lb.GlobalInflightTimeoutMs != DefaultGlobalInflightTimeoutMs {
+		t.Fatalf("expected zero timeout to use default %d, got %d", DefaultGlobalInflightTimeoutMs, lb.GlobalInflightTimeoutMs)
+	}
+	if lb.GlobalInflightKeyTTL != DefaultGlobalInflightKeyTTL {
+		t.Fatalf("expected zero key ttl to use default %d, got %d", DefaultGlobalInflightKeyTTL, lb.GlobalInflightKeyTTL)
+	}
+}
+
 func TestAdaptiveScoreBuildsGlobalInflightLuaKeys(t *testing.T) {
 	lb := newAdaptiveScoreLB(t)
 	lb.GlobalInflightKeyPrefix = "test-prefix"
@@ -403,6 +425,24 @@ func TestAdaptiveScoreStreamingResponseSkipsMissingCandidate(t *testing.T) {
 	}
 }
 
+func TestClusterMetricsStreamingResponseTreatsMissingStatusAsFailure(t *testing.T) {
+	lb := newClusterMetricsLB(t, "LeastFirstTokenLatency")
+	ctx := newFakeHTTPContext()
+	ctx.SetContext(lb.ClusterHeader, "svc-a")
+	ctx.SetContext("request_start", timeNowMinus(10))
+	lb.FirstTokenLatencyRequests["svc-b"].Enqueue(1000000)
+
+	lb.HandleHttpStreamingResponseBody(ctx, []byte("chunk"), false)
+
+	got, err := lb.FirstTokenLatencyRequests["svc-a"].Newest()
+	if err != nil {
+		t.Fatalf("expected TTFT metric to be recorded: %v", err)
+	}
+	if got != 2000000 {
+		t.Fatalf("expected missing status to use failed-request penalty 2000000, got %.0f", got)
+	}
+}
+
 func TestAdaptiveScoreStreamDoneSkipsMissingCandidate(t *testing.T) {
 	lb := newAdaptiveScoreLB(t)
 	ctx := newFakeHTTPContext()
@@ -416,6 +456,41 @@ func TestAdaptiveScoreStreamDoneSkipsMissingCandidate(t *testing.T) {
 	}
 	if got := lb.TotalLatencyRequests["svc-a"].Size(); got != 0 {
 		t.Fatalf("expected no total latency metric to be recorded, got %d", got)
+	}
+}
+
+func TestClusterMetricsStreamDoneTreatsMissingStatusAsFailure(t *testing.T) {
+	modes := []string{"LeastBusy", "LeastTotalLatency", "LeastFirstTokenLatency", ModeAdaptiveScore}
+	for _, mode := range modes {
+		t.Run(mode, func(t *testing.T) {
+			lb := newClusterMetricsLB(t, mode)
+			ctx := newFakeHTTPContext()
+			ctx.SetContext(lb.ClusterHeader, "svc-a")
+			ctx.SetContext("request_start", timeNowMinus(10))
+			lb.ServiceRequestOngoing["svc-a"] = 1
+			lb.TotalLatencyRequests["svc-b"].Enqueue(1000000)
+			nowUnixMs := time.Now().UnixMilli()
+
+			lb.HandleHttpStreamDone(ctx)
+
+			got, err := lb.TotalLatencyRequests["svc-a"].Newest()
+			if err != nil {
+				t.Fatalf("expected total latency metric to be recorded: %v", err)
+			}
+			if got != 2000000 {
+				t.Fatalf("expected missing status to use failed-request penalty 2000000, got %.0f", got)
+			}
+			if mode != ModeAdaptiveScore {
+				return
+			}
+			metrics := lb.ServiceAdaptiveMetrics["svc-a"]
+			if metrics.ErrorCount != 1 || metrics.SuccessCount != 0 || metrics.ConsecutiveErrors != 1 {
+				t.Fatalf("expected missing status to record one error, got success=%d errors=%d consecutive=%d", metrics.SuccessCount, metrics.ErrorCount, metrics.ConsecutiveErrors)
+			}
+			if metrics.CooldownUntilUnixMs < nowUnixMs+DefaultFailureCooldownMs {
+				t.Fatalf("expected failure cooldown at or after %d, got %d", nowUnixMs+DefaultFailureCooldownMs, metrics.CooldownUntilUnixMs)
+			}
+		})
 	}
 }
 
@@ -444,9 +519,13 @@ func TestAdaptiveScoreStreamDoneRecordsMetricsWhenGlobalInflightKeyMissing(t *te
 }
 
 func newAdaptiveScoreLB(t *testing.T) ClusterEndpointLoadBalancer {
+	return newClusterMetricsLB(t, ModeAdaptiveScore)
+}
+
+func newClusterMetricsLB(t *testing.T, mode string) ClusterEndpointLoadBalancer {
 	t.Helper()
 	lb, err := NewClusterEndpointLoadBalancer(gjson.Parse(`{
-		"mode": "AdaptiveScore",
+		"mode": "` + mode + `",
 		"p2c_choices": 2,
 		"service_list": ["svc-a", "svc-b"]
 	}`))

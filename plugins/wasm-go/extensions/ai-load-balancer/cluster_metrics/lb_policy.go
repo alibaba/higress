@@ -611,7 +611,7 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpStreamingResponseBody(ctx wrappe
 		}
 		statusCode, ok := ctx.GetContext("statusCode").(string)
 		if !ok {
-			statusCode = "200"
+			statusCode = ""
 		}
 		duration := float64(time.Now().UnixMilli() - requestStart)
 		// punish failed request
@@ -656,7 +656,7 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpStreamDone(ctx wrapper.HttpConte
 	}
 	statusCode, ok := ctx.GetContext("statusCode").(string)
 	if !ok {
-		statusCode = "200"
+		statusCode = ""
 	}
 	duration := float64(time.Now().UnixMilli() - requestStart)
 	// punish failed request

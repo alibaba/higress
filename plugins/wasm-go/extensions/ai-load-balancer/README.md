@@ -223,8 +223,8 @@ lb_config:
 | `p2c_choices` | int | 选填 | 2 | `AdaptiveScore` 每次随机采样并比较的候选服务数，配置值不小于服务数时比较全部服务 |
 | `ttft_weight` | float | 选填 | 0.7 | `AdaptiveScore` 首包延迟权重 |
 | `total_latency_weight` | float | 选填 | 0.3 | `AdaptiveScore` 总响应延迟权重 |
-| `error_penalty` | float | 选填 | 3.0 | `AdaptiveScore` 对近期错误率的惩罚系数 |
-| `failure_cooldown_ms` | int | 选填 | 30000 | `AdaptiveScore` 请求失败后服务进入冷却的时间 |
+| `error_penalty` | float | 选填 | 3.0 | `AdaptiveScore` 对插件实例启动以来累计错误率的惩罚系数 |
+| `failure_cooldown_ms` | int | 选填 | 30000 | `AdaptiveScore` 请求失败后服务进入冷却的时间；未配置或为 0 时使用默认值 |
 | `metrics_missing_policy` | string | 选填 | `least_busy` | `AdaptiveScore` 缺少延迟指标时的兜底策略，默认按当前并发数选择 |
 | `global_inflight_enabled` | bool | 选填 | false | `AdaptiveScore` 是否使用 Redis 记录跨网关实例的全局 in-flight |
 | `serviceFQDN` | string | `global_inflight_enabled=true` 时必填 | | Redis 服务的 FQDN |
@@ -233,14 +233,16 @@ lb_config:
 | `password` | string | 选填 | 空 | Redis 密码 |
 | `database` | int | 选填 | 0 | Redis 数据库序号 |
 | `global_inflight_key_prefix` | string | 选填 | `higress:adaptive_score_inflight` | 全局 in-flight 计数 Redis key 前缀，实际 key 会追加 route 和 mode |
-| `global_inflight_timeout` | int | 选填 | 3000 | Redis 请求超时时间，单位毫秒 |
-| `global_inflight_key_ttl` | int | 选填 | 1800 | 全局 in-flight Redis key 的 TTL，单位秒 |
+| `global_inflight_timeout` | int | 选填 | 3000 | Redis 请求超时时间，单位毫秒；未配置或为 0 时使用默认值 |
+| `global_inflight_key_ttl` | int | 选填 | 1800 | 全局 in-flight Redis key 的 TTL，单位秒；未配置或为 0 时使用默认值 |
 
 `mode` 各取值含义如下：
 - `LeastBusy`: 路由到当前并发请求数最少的服务
 - `LeastTotalLatency`: 路由到当前RT最低的服务
 - `LeastFirstTokenLatency`: 路由到当前首包RT最低的服务
-- `AdaptiveScore`: 综合 EWMA 首包延迟、EWMA 总延迟、当前并发数和失败率计算分数，选择分数最低的服务；适合 LLM 后端服务延迟和负载持续波动的场景
+- `AdaptiveScore`: 综合 EWMA 首包延迟、EWMA 总延迟、当前并发数和累计失败率计算分数，选择分数最低的服务；适合 LLM 后端服务延迟和负载持续波动的场景
+
+`AdaptiveScore` 的失败率基于当前插件实例生命周期内累计的成功和失败次数计算，目前不使用时间窗口或衰减。
 
 `AdaptiveScore` 开启 `global_inflight_enabled` 后，会使用 Redis Lua 原子完成“按本地分数和全局 in-flight 修正后的分数选择服务，并将选中服务计数 +1”。请求结束时插件会将该服务计数 -1。Redis 初始化、请求或返回异常时会降级到本地 `AdaptiveScore`，不阻断请求。
 
