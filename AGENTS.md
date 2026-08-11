@@ -27,9 +27,10 @@ For every contribution to which that policy applies:
   maintainers to accept verification or review.
 
 Declare agent participation in the PR template. The policy excludes human-only
-work and allows only the declared trivial exception for spelling, punctuation,
-whitespace, or formatting changes with no substantive choice or behavioral
-effect.
+work. Small documentation-only corrections limited to spelling, punctuation,
+whitespace, or formatting (such as typo adjustments) may skip the issue-spec
+workflow when they involve no substantive choice or behavioral effect.
+Agent-assisted bug fixes and material feature work must still follow this gate.
 
 For work subject to this gate, the maintainer-approved issue-spec Design Issue
 is the authoritative design carrier. Do not create or require a plugin-local
