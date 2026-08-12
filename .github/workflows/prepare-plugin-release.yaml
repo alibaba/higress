@@ -1,0 +1,189 @@
+name: Prepare Immutable Plugin Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      gateway_version:
+        description: "Stable Higress version for the reviewed preparation PR"
+        required: true
+        type: string
+      target_ref:
+        description: "Exact Higress commit/ref to prepare"
+        required: true
+        type: string
+      previous_snapshot:
+        description: "Checked-in previous managed snapshot path (empty for first-release bootstrap)"
+        required: false
+        type: string
+      bootstrap_comparison_base:
+        description: "One-time full commit of the last stable Higress release (bootstrap only)"
+        required: false
+        type: string
+      version_overrides:
+        description: "Reviewed logicalId-to-stable-version JSON (proposed VERSION edits)"
+        required: false
+        default: "{}"
+        type: string
+      dry_run:
+        description: "Validate and render only; never upload candidates or create a PR"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-plugin-release-${{ inputs.gateway_version }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    environment: plugin-release-candidate
+    steps:
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        if: ${{ !inputs.dry_run }}
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_PR_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PR_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.target_ref }}
+          fetch-depth: 0
+          token: ${{ inputs.dry_run && github.token || steps.app-token.outputs.token }}
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.24.0"
+      - uses: oras-project/setup-oras@ca28077386065e263c03428f4ae0c09024817c93 # v1.2.0
+        with:
+          version: 1.2.3
+      - name: Validate immutable inputs
+        env:
+          GATEWAY_VERSION: ${{ inputs.gateway_version }}
+          TARGET_REF: ${{ inputs.target_ref }}
+          PREVIOUS: ${{ inputs.previous_snapshot }}
+          BOOTSTRAP_BASE: ${{ inputs.bootstrap_comparison_base }}
+          OVERRIDES: ${{ inputs.version_overrides }}
+        run: |
+          set -euo pipefail
+          [[ "$GATEWAY_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$TARGET_REF" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$TARGET_REF"
+          git fetch --no-tags origin main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$TARGET_REF"
+          if [ -n "$PREVIOUS" ]; then
+            [[ "$PREVIOUS" =~ ^plugins/release/snapshots/[0-9]+\.[0-9]+\.[0-9]+\.json$ ]]
+            test -f "$PREVIOUS"
+            test -z "$BOOTSTRAP_BASE"
+          else
+            [[ "$BOOTSTRAP_BASE" =~ ^[0-9a-f]{40}$ ]]
+            git cat-file -e "$BOOTSTRAP_BASE^{commit}"
+            git merge-base --is-ancestor "$BOOTSTRAP_BASE" "$TARGET_REF"
+            base_version=$(git show "$BOOTSTRAP_BASE:VERSION")
+            [[ "$base_version" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          fi
+          printf '%s' "$OVERRIDES" | jq -e 'type == "object" and all(to_entries[]; (.key | test("^[a-z0-9][a-z0-9._-]*$")) and (.value | test("^[0-9]+\\.[0-9]+\\.[0-9]+$")))' > /tmp/overrides.json
+      - name: Validate catalog and deterministically plan
+        env:
+          GATEWAY_VERSION: ${{ inputs.gateway_version }}
+          TARGET_REF: ${{ inputs.target_ref }}
+          PREVIOUS: ${{ inputs.previous_snapshot }}
+          BOOTSTRAP_BASE: ${{ inputs.bootstrap_comparison_base }}
+        run: |
+          set -euo pipefail
+          (cd tools/plugin-release && go run . validate-catalog --root ../.. --catalog ../../plugins/release/catalog.json)
+          mkdir -p plugins/release/snapshots plugins/release/plans plugins/release/evidence plugins/release/bootstrap-evidence
+          if [ -z "$PREVIOUS" ]; then
+            # This is a public, read-only import. No production registry write
+            # credential is available to the bootstrap capture path.
+            (cd tools/plugin-release && go run . capture-bootstrap-evidence --root ../.. --catalog ../../plugins/release/catalog.json --source "$TARGET_REF" --output /tmp/bootstrap-evidence.json)
+            base_version=$(git show "$BOOTSTRAP_BASE:VERSION"); base_version=${base_version#v}
+            (cd tools/plugin-release && go run . bootstrap-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --gateway-version "$base_version" --source "$TARGET_REF" --existing-evidence /tmp/bootstrap-evidence.json --output /tmp/bootstrap-snapshot.json)
+            args=(plan --root ../.. --catalog ../../plugins/release/catalog.json --gateway-version "$GATEWAY_VERSION" --target "$TARGET_REF" --base "$BOOTSTRAP_BASE" --overrides /tmp/overrides.json --output /tmp/plan.json --previous /tmp/bootstrap-snapshot.json)
+            (cd tools/plugin-release && go run . "${args[@]}")
+            cp /tmp/bootstrap-evidence.json "plugins/release/bootstrap-evidence/$GATEWAY_VERSION.json"
+          else
+            args=(plan --root ../.. --catalog ../../plugins/release/catalog.json --gateway-version "$GATEWAY_VERSION" --target "$TARGET_REF" --overrides /tmp/overrides.json --output /tmp/plan.json --previous "../../$PREVIOUS")
+            (cd tools/plugin-release && go run . "${args[@]}")
+          fi
+          cp /tmp/plan.json "plugins/release/plans/$GATEWAY_VERSION.json"
+          sha256sum /tmp/plan.json | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Confirm dry-run boundary
+        if: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          echo "Dry run: no candidate registry credentials, public tag writes, or PR token are available." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload reviewed dry-run material
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: plugin-release-prepare-${{ inputs.gateway_version }}
+          if-no-files-found: error
+          path: |
+            /tmp/plan.json
+            plugins/release/snapshots/${{ inputs.gateway_version }}.json
+            plugins/release/plans/${{ inputs.gateway_version }}.json
+            plugins/release/bootstrap-evidence/${{ inputs.gateway_version }}.json
+      - name: Apply reviewed VERSION edits
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          (cd tools/plugin-release && go run . apply-plan --root ../.. --plan /tmp/plan.json)
+      - name: Build and publish content-addressed candidates
+        if: ${{ !inputs.dry_run }}
+        env:
+          CANDIDATE_REGISTRY: ${{ vars.PLUGIN_CANDIDATE_REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.CANDIDATE_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.CANDIDATE_REGISTRY_PASSWORD }}
+          GATEWAY_VERSION: ${{ inputs.gateway_version }}
+        run: |
+          set -euo pipefail
+          test -n "$CANDIDATE_REGISTRY"; test -n "$REGISTRY_USERNAME"; test -n "$REGISTRY_PASSWORD"
+          echo "$REGISTRY_PASSWORD" | oras login "$CANDIDATE_REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+          jq -n '{plugins:{}}' >/tmp/candidates.json
+          plan_id=$(jq -r '.planId | sub("sha256:"; "")' /tmp/plan.json)
+          jq -c '.plugins[]' /tmp/plan.json | while read -r entry; do
+            id=$(jq -r .logicalId <<<"$entry"); implementation=$(jq -r .implementation <<<"$entry")
+            source=$(jq -r .sourceDir <<<"$entry"); version=$(jq -r .version <<<"$entry"); input_hash=$(jq -r .inputHash <<<"$entry")
+            build_name=$(basename "$source")
+            [[ "$source" = "plugins/wasm-$implementation/extensions/$build_name" ]]
+            if [ "$implementation" = go ]; then (cd "$source" && go test ./...); make -C plugins/wasm-go PLUGIN_NAME="$build_name" build; else make -C plugins/wasm-rust PLUGIN_NAME="$build_name" test build; fi
+            wasm="$source/plugin.wasm"; test -s "$wasm"
+            candidate="$CANDIDATE_REGISTRY/candidates/$id:$plan_id-${input_hash#sha256:}"
+            digest=$(oras push "$candidate" "$wasm:application/vnd.module.wasm.content.layer.v1+wasm" --annotation "org.opencontainers.image.revision=$(git rev-parse HEAD)" --annotation "org.opencontainers.image.version=$version" --annotation "io.higress.plugin.input-hash=$input_hash" --format json | jq -r .digest)
+            jq --arg id "$id" --arg ref "${candidate%@*}@$digest" --arg digest "$digest" --arg commit "$(git rev-parse HEAD)" --arg hash "$input_hash" '.plugins[$id]={candidateRef:$ref,digest:$digest,sourceCommit:$commit,inputHash:$hash}' /tmp/candidates.json >/tmp/candidates.next && mv /tmp/candidates.next /tmp/candidates.json
+          done
+          cp /tmp/candidates.json "plugins/release/evidence/$GATEWAY_VERSION.json"
+      - name: Render canonical snapshot
+        if: ${{ !inputs.dry_run }}
+        env:
+          GATEWAY_VERSION: ${{ inputs.gateway_version }}
+          PREVIOUS: ${{ inputs.previous_snapshot }}
+        run: |
+          set -euo pipefail
+          mkdir -p plugins/release/snapshots
+          args=(render-snapshot --catalog ../../plugins/release/catalog.json --plan /tmp/plan.json --candidate-evidence /tmp/candidates.json --output "../../plugins/release/snapshots/$GATEWAY_VERSION.json")
+          if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json); fi
+          (cd tools/plugin-release && go run . "${args[@]}")
+          sha256sum "plugins/release/snapshots/$GATEWAY_VERSION.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Create or update deterministic preparation PR
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GATEWAY_VERSION: ${{ inputs.gateway_version }}
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: |
+          set -euo pipefail
+          # The generated PR must fork the exact main/code-freeze commit. If
+          # main moved while candidates built, reprepare from the new freeze.
+          git fetch --no-tags origin main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$TARGET_REF"
+          branch="release/plugin-snapshot-$GATEWAY_VERSION"
+          git config user.name "higress-release-bot"; git config user.email "release-bot@higress.io"
+          git checkout -B "$branch"
+          git add plugins/wasm-go/extensions plugins/wasm-rust/extensions plugins/release/snapshots plugins/release/plans plugins/release/evidence plugins/release/bootstrap-evidence
+          git commit -m "chore: prepare plugin snapshot $GATEWAY_VERSION" || true
+          git push --force-with-lease origin "$branch"
+          gh pr create --base main --head "$branch" --title "chore: prepare plugin snapshot $GATEWAY_VERSION" --body "Immutable candidate snapshot; review VERSION edits and digest provenance." || gh pr edit "$branch" --title "chore: prepare plugin snapshot $GATEWAY_VERSION" --body "Immutable candidate snapshot; review VERSION edits and digest provenance."
