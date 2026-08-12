@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -18,9 +19,12 @@ import (
 )
 
 var (
-	safeIDPattern = regexp.MustCompile(`^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$`)
-	digestPattern = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	commitPattern = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	safeIDPattern             = regexp.MustCompile(`^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$`)
+	digestPattern             = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	commitPattern             = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	credentialURLPattern      = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^/\s@]+@`)
+	sensitiveValuePattern     = regexp.MustCompile(`(?i)(\b(?:password|token|secret|credential|access[_-]?key|api[_-]?key)\b(?:\s*[:=]\s*|\s+))([^\s,;]+)`)
+	authorizationValuePattern = regexp.MustCompile(`(?i)(\bauthorization\b\s*[:=]\s*)([^\s,;]+(?:\s+[^\s,;]+)?)`)
 )
 
 type ociManifest struct {
@@ -32,6 +36,10 @@ type ociManifest struct {
 // resolves the supplied reference itself, rather than trusting a digest copied
 // from workflow input.
 var ociManifestResolver = resolveOCIManifest
+
+// orasRunner keeps the command boundary testable without requiring a registry
+// or an ORAS binary in unit tests.
+var orasRunner = runORAS
 
 func loadCatalog(path string) (Catalog, []byte, error) {
 	var c Catalog
@@ -591,8 +599,7 @@ func verifyOCI(entry SnapshotEntry, provenanceMode, snapshotMode, ociSource stri
 }
 
 func resolveOCIManifest(ref string) (ociManifest, error) {
-	descriptorCmd := exec.Command("oras", "manifest", "fetch", ref, "--descriptor", "--format", "json")
-	descriptorOut, err := descriptorCmd.Output()
+	descriptorOut, err := runORASManifestFetch("oras manifest fetch --descriptor", "manifest", "fetch", ref, "--descriptor")
 	if err != nil {
 		return ociManifest{}, err
 	}
@@ -602,8 +609,7 @@ func resolveOCIManifest(ref string) (ociManifest, error) {
 	if err := json.Unmarshal(descriptorOut, &descriptor); err != nil {
 		return ociManifest{}, err
 	}
-	manifestCmd := exec.Command("oras", "manifest", "fetch", ref)
-	manifestOut, err := manifestCmd.Output()
+	manifestOut, err := runORASManifestFetch("oras manifest fetch", "manifest", "fetch", ref)
 	if err != nil {
 		return ociManifest{}, err
 	}
@@ -614,6 +620,33 @@ func resolveOCIManifest(ref string) (ociManifest, error) {
 		return ociManifest{}, err
 	}
 	return ociManifest{Digest: descriptor.Digest, Annotations: manifest.Annotations}, nil
+}
+
+func runORAS(args ...string) ([]byte, string, error) {
+	cmd := exec.Command("oras", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	return output, stderr.String(), err
+}
+
+func runORASManifestFetch(operation string, args ...string) ([]byte, error) {
+	output, stderr, err := orasRunner(args...)
+	if err == nil {
+		return output, nil
+	}
+	if detail := sanitizeCommandStderr(stderr); detail != "" {
+		return nil, fmt.Errorf("%s failed: %w: %s", operation, err, detail)
+	}
+	return nil, fmt.Errorf("%s failed: %w", operation, err)
+}
+
+func sanitizeCommandStderr(stderr string) string {
+	detail := strings.TrimSpace(stderr)
+	detail = credentialURLPattern.ReplaceAllString(detail, "$1[REDACTED]@")
+	detail = sensitiveValuePattern.ReplaceAllString(detail, "$1[REDACTED]")
+	detail = authorizationValuePattern.ReplaceAllString(detail, "$1[REDACTED]")
+	return detail
 }
 
 func digestReference(ociRef, digest string) (string, error) {

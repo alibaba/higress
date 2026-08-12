@@ -38,7 +38,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.target_ref }}
+          fetch-depth: 1
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.2.3
+      - name: Preflight ORAS public manifest resolution
+        env:
+          TARGET_REF: ${{ inputs.target_ref }}
+        run: |
+          set -euo pipefail
+          [[ "$TARGET_REF" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$TARGET_REF"
+          IFS=$'\t' read -r registry image source_dir < <(
+            jq -er '
+              . as $catalog
+              | ([.plugins[] | select(.releaseEligible)] | sort_by(.logicalId) | .[0]) as $plugin
+              | [$catalog.registry, $plugin.image, $plugin.sourceDir] | @tsv
+            ' plugins/release/catalog.json
+          )
+          [[ "$registry" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
+          [[ "$image" =~ ^plugins/[a-z0-9][a-z0-9._-]*$ ]]
+          [[ "$source_dir" =~ ^plugins/wasm-(go|rust)/extensions/[a-z0-9][a-z0-9._-]*$ ]]
+          version="$(tr -d '\r\n' < "$source_dir/VERSION")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+          public_ref="$registry/$image:$version"
+          oras manifest fetch "$public_ref" --descriptor > /tmp/oras-public-descriptor.json
+          jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")' /tmp/oras-public-descriptor.json >/dev/null
+          echo "Read-only ORAS descriptor preflight succeeded for deterministic catalog public artifact." >> "$GITHUB_STEP_SUMMARY"
   prepare:
+    needs: preflight
     runs-on: ubuntu-latest
     environment: plugin-release-candidate
     steps:
