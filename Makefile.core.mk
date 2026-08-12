@@ -242,8 +242,8 @@ install: pre-install
 	helm install higress helm/higress -n higress-system --create-namespace --set 'global.local=true'
 
 HIGRESS_LATEST_IMAGE_TAG ?= latest
-ENVOY_LATEST_IMAGE_TAG ?= 481184afc44176eb23d64e0011dc3ea1ae6a410c
-ISTIO_LATEST_IMAGE_TAG ?= de2c9628294f51b13c4a70b3a862b4372890797a
+ENVOY_LATEST_IMAGE_TAG ?= ce7bc8626ea4e4b1c6339dfe04bd09f5f923aa1f
+ISTIO_LATEST_IMAGE_TAG ?= ce7bc8626ea4e4b1c6339dfe04bd09f5f923aa1f
 TEST_ISTIO_IMAGE_TAG ?= $(ISTIO_LATEST_IMAGE_TAG)
 
 install-dev: pre-install
