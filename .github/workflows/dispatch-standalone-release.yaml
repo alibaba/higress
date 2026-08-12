@@ -1,0 +1,72 @@
+name: Dispatch Exact Released Higress Inputs to Standalone
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  dispatch:
+    if: ${{ startsWith(github.event.release.tag_name, 'v') }}
+    runs-on: ubuntu-latest
+    environment: standalone-dispatch
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+      - uses: oras-project/setup-oras@ca28077386065e263c03428f4ae0c09024817c93 # v1.2.0
+        with:
+          version: 1.2.3
+      - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        id: app-token
+        with:
+          app-id: ${{ vars.STANDALONE_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.STANDALONE_DISPATCH_APP_PRIVATE_KEY }}
+          owner: higress-group
+          repositories: higress-standalone
+      - name: Resolve canonical immutable release evidence and dispatch
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          CONSOLE_CHART_REGISTRY: ${{ vars.CONSOLE_CHART_REGISTRY }}
+          PLUGIN_SERVER_REGISTRY: ${{ vars.PLUGIN_SERVER_REGISTRY }}
+          GATEWAY_REGISTRY: ${{ vars.GATEWAY_REGISTRY }}
+          STANDALONE_BASE_COMMIT: ${{ vars.STANDALONE_RELEASE_BASE_COMMIT }}
+        run: |
+          set -euo pipefail
+          release=$(gh api "repos/higress-group/higress/releases/$RELEASE_ID")
+          test "$(jq -r .tag_name <<<"$release")" = "$TAG"
+          test "$(jq -r .draft <<<"$release")" = false; test "$(jq -r .prerelease <<<"$release")" = false
+          tag_ref=$(gh api "repos/higress-group/higress/git/ref/tags/$TAG")
+          tag_type=$(jq -er .object.type <<<"$tag_ref"); tag_object=$(jq -er .object.sha <<<"$tag_ref")
+          if [ "$tag_type" = tag ]; then COMMIT=$(gh api "repos/higress-group/higress/git/tags/$tag_object" --jq .object.sha); else test "$tag_type" = commit; COMMIT=$tag_object; fi
+          test "$(git rev-parse "refs/tags/$TAG^{commit}")" = "$COMMIT"
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          snapshot="plugins/release/snapshots/${TAG#v}.json"
+          test -f "$snapshot"
+          sha=$(sha256sum "$snapshot" | awk '{print $1}')
+          plugin_server_ref="$PLUGIN_SERVER_REGISTRY/higress/plugin-server:${TAG#v}"
+          plugin_server=$(oras manifest fetch "$plugin_server_ref" --descriptor --format json | jq -r .digest)
+          [[ "$plugin_server" =~ ^sha256:[0-9a-f]{64}$ ]]
+          console_version=$(awk '/name: higress-console/{f=1} f && /version:/{print $2; exit}' helm/higress/Chart.lock)
+          console_release=$(gh api "repos/higress-group/higress-console/releases/tags/v$console_version")
+          console_release_id=$(jq -r .id <<<"$console_release"); console_tag=$(jq -r .tag_name <<<"$console_release")
+          test "$(jq -r .draft <<<"$console_release")" = false; test "$(jq -r .prerelease <<<"$console_release")" = false
+          console_tag_ref=$(gh api "repos/higress-group/higress-console/git/ref/tags/$console_tag")
+          console_type=$(jq -r .object.type <<<"$console_tag_ref"); console_object=$(jq -r .object.sha <<<"$console_tag_ref")
+          if [ "$console_type" = tag ]; then console_commit=$(gh api "repos/higress-group/higress-console/git/tags/$console_object" --jq .object.sha); else test "$console_type" = commit; console_commit=$console_object; fi
+          chart_ref="$CONSOLE_CHART_REGISTRY/higress-console:$console_version"; chart_digest=$(oras manifest fetch "$chart_ref" --descriptor --format json | jq -r .digest)
+          asset=$(jq -c '.assets[] | select(.name == "plugin-release-provenance.json")' <<<"$console_release"); test -n "$asset"
+          asset_id=$(jq -r .id <<<"$asset"); asset_url=$(jq -r .url <<<"$asset")
+          gh api "$asset_url" -H 'Accept: application/octet-stream' > /tmp/console-provenance.json
+          asset_sha=$(sha256sum /tmp/console-provenance.json | awk '{print $1}')
+          jq -e --arg commit "$console_commit" --arg tag "$console_tag" --arg chartRef "$chart_ref" --arg chart "$chart_digest" '.tag == $tag and .commit == $commit and .chart.ref == $chartRef and .chart.digest == $chart and .pluginLock.snapshotSha256 != null' /tmp/console-provenance.json >/dev/null
+          [[ "$STANDALONE_BASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; test -n "$GATEWAY_REGISTRY"
+          inspect_gateway_image() { ref=$1; digest=$(oras manifest fetch "$ref" --descriptor --format json | jq -r .digest); oras manifest fetch "$ref" --raw >/tmp/index.json; platforms=$(jq -c '[.manifests[] | .platform.os + "/" + .platform.architecture] | sort' /tmp/index.json); test "$platforms" = '["linux/amd64","linux/arm64"]'; jq -e --arg commit "$COMMIT" --arg snapshot "$sha" --arg version "${TAG#v}" 'all(.manifests[]; .annotations["org.opencontainers.image.revision"] == $commit and .annotations["io.higress.higress-source-commit"] == $commit and .annotations["io.higress.plugin-snapshot-sha256"] == $snapshot and .annotations["io.higress.gateway-version"] == $version)' /tmp/index.json >/dev/null; annotations='{}'; while IFS=$'\t' read -r platform annotation; do annotations=$(jq --arg platform "$platform" --argjson annotation "$annotation" '.[$platform]=$annotation' <<<"$annotations"); done < <(jq -r '.manifests[] | [(.platform.os + "/" + .platform.architecture), ((.annotations // {}) | tojson)] | @tsv' /tmp/index.json); jq -cn --arg ref "$ref" --arg digest "$digest" --argjson platforms "$platforms" --argjson annotations "$annotations" '{ref:$ref,digest:$digest,platforms:$platforms,annotationsByPlatform:$annotations}'; }
+          inspect_plugin_server() { ref=$1; digest=$(oras manifest fetch "$ref" --descriptor --format json | jq -r .digest); oras manifest fetch "$ref" --raw >/tmp/index.json; platforms=$(jq -c '[.manifests[] | .platform.os + "/" + .platform.architecture] | sort' /tmp/index.json); test "$platforms" = '["linux/amd64","linux/arm64"]'; labels='{}'; while IFS=$'\t' read -r platform child; do manifest=$(oras manifest fetch "$ref@$child"); config=$(jq -er .config.digest <<<"$manifest"); label=$(oras blob fetch "$ref@$child" "$config" -o - | jq -c '.config.Labels // {}'); jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg source "$COMMIT" --arg snapshot "$sha" --arg version "${TAG#v}" '."org.opencontainers.image.revision" == $plugin and ."io.higress.higress-source-commit" == $source and ."io.higress.plugin-snapshot-sha256" == $snapshot and ."io.higress.gateway-version" == $version' <<<"$label" >/dev/null; labels=$(jq --arg platform "$platform" --argjson label "$label" '.[$platform]=$label' <<<"$labels"); done < <(jq -r '.manifests[] | [(.platform.os + "/" + .platform.architecture), .digest] | @tsv' /tmp/index.json); jq -cn --arg ref "$ref" --arg digest "$digest" --argjson platforms "$platforms" --argjson labels "$labels" '{ref:$ref,digest:$digest,platforms:$platforms,labelsByPlatform:$labels}'; }
+          plugin_json=$(inspect_plugin_server "$plugin_server_ref")
+          controller=$(inspect_gateway_image "$GATEWAY_REGISTRY/higress/higress:${TAG#v}"); pilot=$(inspect_gateway_image "$GATEWAY_REGISTRY/higress/pilot:${TAG#v}"); gateway=$(inspect_gateway_image "$GATEWAY_REGISTRY/higress/gateway:${TAG#v}")
+          jq -n --arg version "${TAG#v}" --arg base "$STANDALONE_BASE_COMMIT" --argjson releaseId "$RELEASE_ID" --arg tag "$TAG" --arg commit "$COMMIT" --arg snapshotPath "$snapshot" --arg snapshotSha "$sha" --argjson consoleReleaseId "$console_release_id" --arg consoleTag "$console_tag" --arg consoleCommit "$console_commit" --arg chartRef "$chart_ref" --arg chartDigest "$chart_digest" --argjson assetId "$asset_id" --arg assetSha "$asset_sha" --argjson plugin "$plugin_json" --argjson controller "$controller" --argjson pilot "$pilot" --argjson gateway "$gateway" '{schemaVersion:1,gatewayVersion:$version,standaloneBaseCommit:$base,higress:{releaseId:$releaseId,tag:$tag,commit:$commit},snapshot:{path:$snapshotPath,sha256:$snapshotSha},console:{releaseId:$consoleReleaseId,tag:$consoleTag,commit:$consoleCommit,chartRef:$chartRef,chartDigest:$chartDigest,provenanceAssetId:$assetId,provenanceAssetName:"plugin-release-provenance.json",provenanceAssetSha256:$assetSha},pluginServer:$plugin,gatewayImages:{controller:$controller,pilot:$pilot,gateway:$gateway}}' | jq -cS . >/tmp/evidence.json
+          evidence_sha=$(sha256sum /tmp/evidence.json | awk '{print $1}'); key=$(cat /tmp/evidence.json | sha256sum | awk '{print $1}')
+          gh api repos/higress-group/higress-standalone/dispatches -f event_type=higress-release-published -f "client_payload[evidence]=$(cat /tmp/evidence.json)" -f "client_payload[evidenceSha256]=$evidence_sha" -f "client_payload[idempotencyKey]=$key"
