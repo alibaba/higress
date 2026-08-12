@@ -41,7 +41,7 @@ func TestReleaseWorkflowsPairORASSetupMetadataWithPinnedCLI(t *testing.T) {
 	const supersededSetup = "oras-project/setup-oras@ca28077386065e263c03428f4ae0c09024817c93"
 
 	expectedCallers := map[string]int{
-		"prepare-plugin-release.yaml":            1,
+		"prepare-plugin-release.yaml":            2,
 		"promote-plugin-release.yaml":            2,
 		"build-plugin-server-from-snapshot.yaml": 1,
 		"authorize-higress-release-tag.yaml":     1,
@@ -174,6 +174,39 @@ func TestPreparationBootstrapPlansFromExactHistoricalBase(t *testing.T) {
 		if strings.Contains(workflow, forbidden) {
 			t.Fatalf("preparation bootstrap retains unsafe/empty-plan contract %q", forbidden)
 		}
+	}
+}
+
+func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	preflightStart := strings.Index(workflow, "  preflight:\n")
+	prepareStart := strings.Index(workflow, "  prepare:\n")
+	bootstrap := strings.Index(workflow, "capture-bootstrap-evidence")
+	if preflightStart < 0 || prepareStart < 0 || bootstrap < 0 || preflightStart > prepareStart || prepareStart > bootstrap {
+		t.Fatal("read-only ORAS preflight job must run before the protected full bootstrap job")
+	}
+	preflight := workflow[preflightStart:prepareStart]
+	if !strings.Contains(workflow[prepareStart:], "needs: preflight") {
+		t.Fatal("protected preparation job must wait for the read-only preflight")
+	}
+	if strings.Contains(preflight, "environment:") || strings.Contains(preflight, "create-github-app-token") || strings.Contains(preflight, "oras login") {
+		t.Fatal("ORAS preflight must remain read-only and outside the protected credential environment")
+	}
+	for _, required := range []string{
+		"sort_by(.logicalId) | .[0]", "select(.releaseEligible)", "[$catalog.registry, $plugin.image, $plugin.sourceDir] | @tsv",
+		`oras manifest fetch "$public_ref" --descriptor > /tmp/oras-public-descriptor.json`, `jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")'`,
+		"Read-only ORAS descriptor preflight succeeded for deterministic catalog public artifact.",
+	} {
+		if !strings.Contains(preflight, required) {
+			t.Fatalf("preflight lacks required read-only contract %q", required)
+		}
+	}
+	if strings.Contains(preflight, "--descriptor --format") {
+		t.Fatal("ORAS 1.2.3 descriptor preflight must not combine --descriptor and --format")
 	}
 }
 
