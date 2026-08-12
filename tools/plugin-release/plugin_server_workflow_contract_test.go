@@ -21,7 +21,7 @@ func TestPluginServerWorkflowFailsClosedBeforeCandidateMutation(t *testing.T) {
 		t.Fatal("public lookup must fail closed before the candidate build/push")
 	}
 	for _, required := range []string{
-		"docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392", "docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435", "oras-project/setup-oras@ca28077386065e263c03428f4ae0c09024817c93",
+		"docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392", "docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435", "oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20",
 		"length == 2", "linux/amd64", "linux/arm64", "org.opencontainers.image.revision",
 		"snapshot-inventory.json", "jsonrpc-converter", "unmanaged-plugins.lock.json",
 	} {
@@ -32,6 +32,36 @@ func TestPluginServerWorkflowFailsClosedBeforeCandidateMutation(t *testing.T) {
 	buildData, err := os.ReadFile("../../.github/workflows/build-plugin-server-from-snapshot.yaml")
 	if err != nil || !strings.Contains(string(buildData), "plugin-release-batches:$SNAPSHOT_SHA256") {
 		t.Fatal("plugin-server build must require the immutable latest-completion marker")
+	}
+}
+
+func TestReleaseWorkflowsPairORASSetupMetadataWithPinnedCLI(t *testing.T) {
+	const orasSetup = "oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3"
+	const orasSetupWithCLI = orasSetup + "\n        with:\n          version: 1.2.3"
+	const supersededSetup = "oras-project/setup-oras@ca28077386065e263c03428f4ae0c09024817c93"
+
+	expectedCallers := map[string]int{
+		"prepare-plugin-release.yaml":            1,
+		"promote-plugin-release.yaml":            2,
+		"build-plugin-server-from-snapshot.yaml": 1,
+		"authorize-higress-release-tag.yaml":     1,
+		"dispatch-standalone-release.yaml":       1,
+	}
+	for name, expected := range expectedCallers {
+		data, err := os.ReadFile("../../.github/workflows/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workflow := string(data)
+		if strings.Contains(workflow, supersededSetup) {
+			t.Fatalf("%s retains the setup-oras v1.2.0 metadata action", name)
+		}
+		if got := strings.Count(workflow, "version: 1.2.3"); got != expected {
+			t.Fatalf("%s has %d ORAS CLI 1.2.3 declarations, want %d", name, got, expected)
+		}
+		if got := strings.Count(workflow, orasSetupWithCLI); got != expected {
+			t.Fatalf("%s has %d setup-oras v1.2.3 action/CLI pairs, want %d", name, got, expected)
+		}
 	}
 }
 
