@@ -5,6 +5,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -179,6 +180,82 @@ func TestPreparationBootstrapPlansFromExactHistoricalBase(t *testing.T) {
 	for _, forbidden := range []string{"inputs.existing_evidence", "PRODUCTION_REGISTRY_PASSWORD", "jq -n --arg gateway"} {
 		if strings.Contains(workflow, forbidden) {
 			t.Fatalf("preparation bootstrap retains unsafe/empty-plan contract %q", forbidden)
+		}
+	}
+}
+
+func TestPreparationVersionOverridesPreserveCanonicalObjectAndRejectMalformedInputs(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	const commandPrefix = `jq `
+	const filterDelimiter = ` '`
+	const suffix = `' > /tmp/overrides.json`
+	var validationCommand string
+	for _, line := range strings.Split(workflow, "\n") {
+		if strings.Contains(line, `$OVERRIDES`) && strings.Contains(line, suffix) {
+			validationCommand = strings.TrimSpace(line)
+			break
+		}
+	}
+	commandStart := strings.Index(validationCommand, commandPrefix)
+	if commandStart < 0 {
+		t.Fatal("preparation workflow lacks canonical validate-and-return version override filter")
+	}
+	commandStart += len(commandPrefix)
+	filterOffset := strings.Index(validationCommand[commandStart:], filterDelimiter)
+	filterEnd := strings.LastIndex(validationCommand, suffix)
+	if filterOffset < 0 || filterEnd < 0 {
+		t.Fatal("preparation workflow does not write validated version overrides to the planner input")
+	}
+	flags := strings.Fields(validationCommand[commandStart : commandStart+filterOffset])
+	filterStart := commandStart + filterOffset + len(filterDelimiter)
+	filter := validationCommand[filterStart:filterEnd]
+	if !strings.Contains(filter, `fromjson`) || strings.Contains(filter, `then true`) || !strings.Contains(filter, `then .`) {
+		t.Fatal("version override validation must parse exactly one JSON input and return the validated object")
+	}
+
+	jq, err := exec.LookPath("jq")
+	if err != nil {
+		t.Fatal("jq is required to execute the preparation workflow contract")
+	}
+	run := func(input string) ([]byte, error) {
+		args := append(append([]string{}, flags...), filter)
+		cmd := exec.Command(jq, args...)
+		cmd.Stdin = strings.NewReader(input)
+		return cmd.CombinedOutput()
+	}
+
+	valid := map[string]string{
+		`{}`: "{}\n",
+		`{"z-plugin":"2.0.0","a_plugin":"1.2.3"}`: `{"a_plugin":"1.2.3","z-plugin":"2.0.0"}` + "\n",
+	}
+	for input, want := range valid {
+		got, err := run(input)
+		if err != nil {
+			t.Fatalf("valid version overrides %s were rejected: %v\n%s", input, err, got)
+		}
+		if string(got) != want {
+			t.Fatalf("valid version overrides %s were not preserved canonically: got %q, want %q", input, got, want)
+		}
+	}
+
+	invalid := []string{
+		``,
+		`   `,
+		`{} {}`,
+		`[]`,
+		`{"Unsafe/Plugin":"1.2.3"}`,
+		`{"safe-plugin":1}`,
+		`{"safe-plugin":"1.2.3-alpha"}`,
+		`{"safe-plugin":"01.2.3"}`,
+		`{"safe-plugin":`,
+	}
+	for _, input := range invalid {
+		if output, err := run(input); err == nil {
+			t.Fatalf("invalid version overrides %s were accepted as %s", input, output)
 		}
 	}
 }
