@@ -35,6 +35,24 @@ jobs:
           STANDALONE_BASE_COMMIT: ${{ vars.STANDALONE_RELEASE_BASE_COMMIT }}
         run: |
           set -euo pipefail
+          # BEGIN plugin-server-index-contract
+          verify_plugin_server_index() {
+            jq -e '
+              def runnable: (.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64"));
+              [.manifests[] | select(runnable)] as $runnable |
+              [.manifests[] | select(runnable | not)] as $extra |
+              (([$runnable[] | .platform.os + "/" + .platform.architecture] | sort) == ["linux/amd64","linux/arm64"]) and
+              (($runnable | length) == 2) and
+              (($extra | length) == 0 or
+                (($extra | length) == 2 and
+                 all($extra[];
+                   .mediaType == "application/vnd.oci.image.manifest.v1+json" and
+                   .platform.os == "unknown" and .platform.architecture == "unknown" and
+                   .annotations["vnd.docker.reference.type"] == "attestation-manifest") and
+                 (([$extra[].annotations["vnd.docker.reference.digest"]] | sort) == ([$runnable[].digest] | sort))))
+            ' "$1" >/dev/null
+          }
+          # END plugin-server-index-contract
           release=$(gh api "repos/higress-group/higress/releases/$RELEASE_ID")
           test "$(jq -r .tag_name <<<"$release")" = "$TAG"
           test "$(jq -r .draft <<<"$release")" = false; test "$(jq -r .prerelease <<<"$release")" = false
@@ -86,8 +104,8 @@ jobs:
             digest=$(oras manifest fetch "$ref" --descriptor | jq -r .digest)
             test "$digest" = "$plugin_server"
             oras manifest fetch "$repo@$digest" --raw >/tmp/index.json
-            platforms=$(jq -c '[.manifests[] | .platform.os + "/" + .platform.architecture] | sort' /tmp/index.json)
-            test "$platforms" = '["linux/amd64","linux/arm64"]'
+            verify_plugin_server_index /tmp/index.json
+            platforms=$(jq -c '[.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) | .platform.os + "/" + .platform.architecture] | sort' /tmp/index.json)
             labels='{}'
             while IFS=$'\t' read -r platform child; do
               manifest=$(oras manifest fetch "$repo@$child")
@@ -95,7 +113,7 @@ jobs:
               label=$(oras blob fetch "$repo@$config" -o - | jq -c '.config.Labels // {}')
               jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg source "$SNAPSHOT_SOURCE_COMMIT" --arg snapshot "$sha" --arg version "${TAG#v}" '."org.opencontainers.image.revision" == $plugin and ."io.higress.higress-source-commit" == $source and ."io.higress.plugin-snapshot-sha256" == $snapshot and ."io.higress.gateway-version" == $version' <<<"$label" >/dev/null
               labels=$(jq --arg platform "$platform" --argjson label "$label" '.[$platform]=$label' <<<"$labels")
-            done < <(jq -r '.manifests[] | [(.platform.os + "/" + .platform.architecture), .digest] | @tsv' /tmp/index.json)
+            done < <(jq -r '.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) | [(.platform.os + "/" + .platform.architecture), .digest] | @tsv' /tmp/index.json)
             jq -cn --arg ref "$ref" --arg digest "$digest" --argjson platforms "$platforms" --argjson labels "$labels" '{ref:$ref,digest:$digest,platforms:$platforms,labelsByPlatform:$labels}'
           }
           plugin_json=$(inspect_plugin_server "$plugin_server_ref")
