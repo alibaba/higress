@@ -1253,6 +1253,20 @@ func TestReleaseAuthorizerBindsConsoleLockToCanonicalPluginServer(t *testing.T) 
 	}
 }
 
+func TestReleaseAuthorizerConfiguresTaggerIdentityBeforeAnnotatedTag(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/authorize-higress-release-tag.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	name := strings.Index(workflow, `git config user.name "higress-release-manager[bot]"`)
+	email := strings.Index(workflow, `git config user.email "higress-release-manager[bot]@users.noreply.github.com"`)
+	tag := strings.Index(workflow, `git tag -a "$tag" "$RELEASE_COMMIT"`)
+	if name < 0 || email < 0 || tag < 0 || name > email || email > tag {
+		t.Fatal("release authorizer must configure a local App tagger identity before creating the annotated tag")
+	}
+}
+
 func TestReleaseWorkflowsUseORAS12ManifestOutput(t *testing.T) {
 	required := map[string][]string{
 		"authorize-higress-release-tag.yaml": {

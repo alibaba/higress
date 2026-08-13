@@ -263,4 +263,6 @@ jobs:
           fi
           [[ -z "$existing" || "$existing" =~ ^[0-9a-f]{40}$ ]]
           if [ -n "$existing" ] && [ "$existing" != "$RELEASE_COMMIT" ]; then echo "immutable tag conflict: $tag" >&2; exit 1; fi
+          git config user.name "higress-release-manager[bot]"
+          git config user.email "higress-release-manager[bot]@users.noreply.github.com"
           if [ -z "$existing" ]; then git tag -a "$tag" "$RELEASE_COMMIT" -m "Higress $tag"; git push origin "refs/tags/$tag"; fi
