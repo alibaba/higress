@@ -128,6 +128,7 @@ jobs:
           ref: ${{ inputs.target_ref }}
           fetch-depth: 0
           token: ${{ inputs.dry_run && github.token || steps.app-token.outputs.token }}
+          persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: "1.24.0"
@@ -349,22 +350,32 @@ jobs:
           if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json --bootstrap-evidence /tmp/bootstrap-evidence.json); fi
           (cd tools/plugin-release && go run . "${args[@]}")
           sha256sum "plugins/release/snapshots/$GATEWAY_VERSION.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Refresh GitHub App token for preparation PR
+        if: ${{ !inputs.dry_run }}
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        id: pr-app-token
+        with:
+          app-id: ${{ vars.RELEASE_PR_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PR_APP_PRIVATE_KEY }}
+          owner: higress-group
+          repositories: higress
       - name: Create or update deterministic preparation PR
         if: ${{ !inputs.dry_run }}
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.pr-app-token.outputs.token }}
           GATEWAY_VERSION: ${{ inputs.gateway_version }}
           TARGET_REF: ${{ inputs.target_ref }}
         run: |
           set -euo pipefail
           # The generated PR must fork the exact main/code-freeze commit. If
           # main moved while candidates built, reprepare from the new freeze.
+          gh auth setup-git
           git fetch --no-tags origin main
           test "$(git rev-parse refs/remotes/origin/main)" = "$TARGET_REF"
           branch="release/plugin-snapshot-$GATEWAY_VERSION"
           git config user.name "higress-release-bot"; git config user.email "release-bot@higress.io"
           git checkout -B "$branch"
           git add plugins/wasm-go/extensions plugins/wasm-rust/extensions plugins/release/snapshots plugins/release/plans plugins/release/evidence plugins/release/bootstrap-evidence
-          git commit -m "chore: prepare plugin snapshot $GATEWAY_VERSION" || true
+          git commit -s -m "chore: prepare plugin snapshot $GATEWAY_VERSION" || true
           git push --force-with-lease origin "$branch"
           gh pr create --base main --head "$branch" --title "chore: prepare plugin snapshot $GATEWAY_VERSION" --body "Immutable candidate snapshot; review VERSION edits and digest provenance." || gh pr edit "$branch" --title "chore: prepare plugin snapshot $GATEWAY_VERSION" --body "Immutable candidate snapshot; review VERSION edits and digest provenance."
