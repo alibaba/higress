@@ -83,7 +83,10 @@ jobs:
             # neither presence nor absence: defer the definitive decision to
             # the protected authenticated bootstrap capture and keep checking
             # every deterministic reference.
-            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$lookup_error"; then
+            auth_error=$(<"$lookup_error")
+            auth_error=${auth_error//"$public_ref"/}
+            if grep -Eiq 'unauthorized|forbidden|denied|authentication required|authorization required' <<<"$auth_error" ||
+               grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+(401|403)([^[:digit:]]|$)|(^|[^[:alpha:]])status( code)?[[:space:]:=]+(401|403)([^[:digit:]]|$)' <<<"$auth_error"; then
               authenticated_capture=$((authenticated_capture + 1))
               rm -f "$lookup_error"
               echo "public registry preflight requires authenticated capture; authorization failure is never absence: $public_ref" >&2
@@ -280,7 +283,10 @@ jobs:
               printf '%s\n' "$resolved_digest"
               return 0
             fi
-            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$lookup_error"; then
+            auth_error=$(<"$lookup_error")
+            auth_error=${auth_error//"$candidate"/}
+            if grep -Eiq 'unauthorized|forbidden|denied|authentication required|authorization required' <<<"$auth_error" ||
+               grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+(401|403)([^[:digit:]]|$)|(^|[^[:alpha:]])status( code)?[[:space:]:=]+(401|403)([^[:digit:]]|$)' <<<"$auth_error"; then
               cat "$lookup_error" >&2; rm -f "$lookup_error"
               echo "candidate lookup authorization failure is never absence: $candidate" >&2
               return 1

@@ -98,8 +98,9 @@ jobs:
             args+=(--previous "../../plugins/release/snapshots/$(jq -r .previousRelease "$SNAPSHOT_PATH").json")
           fi
           (cd tools/plugin-release && go run . "${args[@]}")
+          # BEGIN promotion-descriptor-contract
           descriptor_or_absent() {
-            local ref=$1 out err
+            local ref=$1 out err auth_error
             err=$(mktemp)
             if out=$(oras manifest fetch "$ref" --descriptor 2>"$err"); then
               rm -f "$err"; printf '%s' "$out"; return 0
@@ -108,13 +109,17 @@ jobs:
             # explicit registry 404-class response proves the tag is absent. A
             # missing local executable/file or generic "not found" text fails
             # closed.
-            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$err"; then
+            auth_error=$(<"$err")
+            auth_error=${auth_error//"$ref"/}
+            if grep -Eiq 'unauthorized|forbidden|denied|authentication required|authorization required' <<<"$auth_error" ||
+               grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+(401|403)([^[:digit:]]|$)|(^|[^[:alpha:]])status( code)?[[:space:]:=]+(401|403)([^[:digit:]]|$)' <<<"$auth_error"; then
               cat "$err" >&2; rm -f "$err"; return 2
             fi
             if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
                { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
+          # END promotion-descriptor-contract
           marker="$REGISTRY/candidates/plugin-release-batches:$SNAPSHOT_SHA256"
           # A completion marker makes a retry read-only. Its layer is the
           # authoritative journal, and every mutable latest tag is rechecked
@@ -194,21 +199,26 @@ jobs:
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           test -n "$REGISTRY"; test -n "$REGISTRY_USERNAME"; test -n "$REGISTRY_PASSWORD"
           echo "$REGISTRY_PASSWORD" | oras login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+          # BEGIN promotion-descriptor-contract
           descriptor_or_absent() {
-            local ref=$1 out err
+            local ref=$1 out err auth_error
             err=$(mktemp)
             if out=$(oras manifest fetch "$ref" --descriptor 2>"$err"); then rm -f "$err"; printf '%s' "$out"; return 0; fi
             # Authorization evidence wins and is never absence; only an
             # explicit registry 404-class response proves the alias is absent.
             # A missing local executable/file or generic "not found" text
             # fails closed.
-            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$err"; then
+            auth_error=$(<"$err")
+            auth_error=${auth_error//"$ref"/}
+            if grep -Eiq 'unauthorized|forbidden|denied|authentication required|authorization required' <<<"$auth_error" ||
+               grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+(401|403)([^[:digit:]]|$)|(^|[^[:alpha:]])status( code)?[[:space:]:=]+(401|403)([^[:digit:]]|$)' <<<"$auth_error"; then
               cat "$err" >&2; rm -f "$err"; return 2
             fi
             if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
                { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
+          # END promotion-descriptor-contract
           marker="$REGISTRY/candidates/plugin-release-batches:$SNAPSHOT_SHA256"
           # A previously completed marker is an idempotent terminal state:
           # verify every latest tag again, retain its journal for upload, and

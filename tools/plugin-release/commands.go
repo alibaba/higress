@@ -19,12 +19,15 @@ import (
 )
 
 var (
-	safeIDPattern             = regexp.MustCompile(`^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$`)
-	digestPattern             = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-	commitPattern             = regexp.MustCompile(`^[0-9a-f]{40}$`)
-	credentialURLPattern      = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^/\s@]+@`)
-	sensitiveValuePattern     = regexp.MustCompile(`(?i)(\b(?:password|token|secret|credential|access[_-]?key|api[_-]?key)\b(?:\s*[:=]\s*|\s+))([^\s,;]+)`)
-	authorizationValuePattern = regexp.MustCompile(`(?i)(\bauthorization\b\s*[:=]\s*)([^\s,;]+(?:\s+[^\s,;]+)?)`)
+	safeIDPattern              = regexp.MustCompile(`^[a-z0-9]+(?:[a-z0-9._-]*[a-z0-9])?$`)
+	digestPattern              = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+	commitPattern              = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	credentialURLPattern       = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^/\s@]+@`)
+	sensitiveValuePattern      = regexp.MustCompile(`(?i)(\b(?:password|token|secret|credential|access[_-]?key|api[_-]?key)\b(?:\s*[:=]\s*|\s+))([^\s,;]+)`)
+	authorizationValuePattern  = regexp.MustCompile(`(?i)(\bauthorization\b\s*[:=]\s*)([^\s,;]+(?:\s+[^\s,;]+)?)`)
+	authorizationPhrasePattern = regexp.MustCompile(`(?i)unauthorized|forbidden|denied|authentication required|authorization required`)
+	authorizationStatusPattern = regexp.MustCompile(`(?i)HTTP(?:/[0-9.]+)?\s+(?:401|403)(?:[^0-9]|$)|(?:^|[^a-z])status(?: code)?(?:\s*[:=]\s*|\s+)(?:401|403)(?:[^0-9]|$)`)
+	notFoundStatusPattern      = regexp.MustCompile(`(?i)HTTP(?:/[0-9.]+)?\s+404(?:[^0-9]|$)|response status(?: code)?(?:\s*[:=]\s*|\s+)404(?:[^0-9]|$)|status code(?:\s*[:=]\s*|\s+)404(?:[^0-9]|$)|404\s+not\s+found`)
 	// ACR reports an absent manifest as a provider-structured registry error
 	// ending in a fully qualified OCI reference followed by ": not found".
 	// The explicit registry prefix and qualified reference are both required;
@@ -42,24 +45,31 @@ const (
 
 // classifyOCIFailure reports whether a sanitized registry error means the
 // artifact is genuinely absent or the caller lacks authorization. The
-// authorization markers are checked first: a 401/403 is an
-// authorization/configuration error and is never an absent artifact. Absence
-// requires explicit registry evidence (404-class, manifest/name unknown), or
-// a provider-structured registry error naming the fully qualified reference;
-// a local executable/file failure or generic "not found" text fails closed.
+// authorization markers are checked first after removing the exact expected
+// OCI reference, so digits or words inside a content-addressed reference are
+// never treated as registry status. Numeric 401/403 markers require HTTP/status
+// context; explicit authorization phrases still fail closed. Absence requires
+// explicit registry evidence (404-class, manifest/name unknown), or a
+// provider-structured registry error naming the fully qualified reference; a
+// local executable/file failure or generic "not found" text fails closed.
 func classifyOCIFailure(err error, expectedRef string) ociFailureClass {
 	msg := strings.ToLower(err.Error())
-	for _, marker := range []string{"401", "403", "unauthorized", "forbidden", "denied", "authentication required", "authorization required"} {
-		if strings.Contains(msg, marker) {
-			return ociFailureUnauthorized
-		}
+	expectedRef = strings.ToLower(expectedRef)
+	classificationMsg := msg
+	if expectedRef != "" {
+		classificationMsg = strings.ReplaceAll(classificationMsg, expectedRef, "")
 	}
-	for _, marker := range []string{"404", "manifest unknown", "name unknown", "repository does not exist"} {
-		if strings.Contains(msg, marker) {
+	if authorizationPhrasePattern.MatchString(classificationMsg) || authorizationStatusPattern.MatchString(classificationMsg) {
+		return ociFailureUnauthorized
+	}
+	if notFoundStatusPattern.MatchString(classificationMsg) {
+		return ociFailureNotFound
+	}
+	for _, marker := range []string{"manifest unknown", "name unknown", "repository does not exist"} {
+		if strings.Contains(classificationMsg, marker) {
 			return ociFailureNotFound
 		}
 	}
-	expectedRef = strings.ToLower(expectedRef)
 	if strings.Contains(msg, "error response from registry:") &&
 		registryQualifiedReferencePattern.MatchString(expectedRef) &&
 		strings.Contains(msg, expectedRef+": not found") {

@@ -23,6 +23,8 @@ import (
 )
 
 func TestClassifyOCIFailureDistinguishesUnauthorizedFromAbsent(t *testing.T) {
+	const aiCacheRef = "higress-registry.cn-hangzhou.cr.aliyuncs.com/candidates/ai-cache:5a150abf7a1a76129eef4e2d61927116a59c9141f87cdfb1d4a0b0f58e049a544bf98709658a92d40b7bda75b5f458387526143e09b321a401ff7a258fdea47f"
+	const authWordRef = "registry.example/plugins/unauthorized-401-forbidden-403:1.0.0"
 	cases := []struct {
 		msg         string
 		expectedRef string
@@ -33,12 +35,23 @@ func TestClassifyOCIFailureDistinguishesUnauthorizedFromAbsent(t *testing.T) {
 		{"denied: requested access to the resource is denied", "", ociFailureUnauthorized},
 		{"UNAUTHORIZED: authentication required", "", ociFailureUnauthorized},
 		{"authorization required", "", ociFailureUnauthorized},
+		{"response status code 401", "", ociFailureUnauthorized},
+		{"HTTP/1.1 403", "", ociFailureUnauthorized},
+		{"status: 403", "", ociFailureUnauthorized},
+		{"registry error 401", "", ociFailureOther},
+		{"backend code 403", "", ociFailureOther},
 		{"404 Not Found", "", ociFailureNotFound},
 		{"manifest unknown", "", ociFailureNotFound},
 		{"name unknown", "", ociFailureNotFound},
 		{"repository does not exist", "", ociFailureNotFound},
 		{`Error response from registry: failed to find "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0": higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0: not found`, "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0", ociFailureNotFound},
 		{`Error response from registry: higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/other:1.0.0: not found`, "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0", ociFailureOther},
+		{"Error response from registry: " + aiCacheRef + ": not found", aiCacheRef, ociFailureNotFound},
+		{"transport error while resolving " + aiCacheRef + ": dial tcp: i/o timeout", aiCacheRef, ociFailureOther},
+		{"Error response from registry: " + authWordRef + ": not found", authWordRef, ociFailureNotFound},
+		{"transport error while resolving " + authWordRef, authWordRef, ociFailureOther},
+		{"response status code 403 while resolving " + aiCacheRef, aiCacheRef, ociFailureUnauthorized},
+		{"authentication required while resolving " + authWordRef, authWordRef, ociFailureUnauthorized},
 		{"connection refused", "", ociFailureOther},
 		{"i/o timeout", "", ociFailureOther},
 		// A local executable/file failure or generic "not found" text is never
@@ -49,10 +62,10 @@ func TestClassifyOCIFailureDistinguishesUnauthorizedFromAbsent(t *testing.T) {
 		{"not found", "", ociFailureOther},
 		{"Error response from registry: not found", "", ociFailureOther},
 		{"Error response from registry: /tmp/plugins/missing:1.0.0: not found", "/tmp/plugins/missing:1.0.0", ociFailureOther},
-		// Authorization always wins over absence: a 401/403 is never an
-		// absent artifact, even when the registry also says "unknown".
-		{"403: manifest unknown", "", ociFailureUnauthorized},
-		{"401: not found", "", ociFailureUnauthorized},
+		// Structured authorization always wins over absence, even when the
+		// registry also says "unknown".
+		{"HTTP 403: manifest unknown", "", ociFailureUnauthorized},
+		{"response status code 401: not found", "", ociFailureUnauthorized},
 		{`Error response from registry: 403 Forbidden: higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0: not found`, "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0", ociFailureUnauthorized},
 	}
 	for _, tc := range cases {
