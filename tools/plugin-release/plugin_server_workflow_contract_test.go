@@ -73,6 +73,59 @@ func TestReleaseWorkflowsPairORASSetupMetadataWithPinnedCLI(t *testing.T) {
 	}
 }
 
+func TestReleaseWorkflowsUseSingleReferenceORASBlobFetch(t *testing.T) {
+	required := map[string][]string{
+		"build-plugin-server-from-snapshot.yaml": {
+			`marker_repo=${marker%:*}`,
+			`oras blob fetch "$marker_repo@$marker_layer" -o /tmp/latest-batch-marker.json`,
+			`managed_layer=$(oras manifest fetch "$managed_ref@$managed_digest"`,
+			`oras blob fetch "$managed_ref@$managed_layer" -o /tmp/managed-oci.wasm`,
+		},
+		"promote-plugin-release.yaml": {
+			`oras blob fetch "$marker_repo@$marker_layer" -o /tmp/existing-latest-marker.json`,
+			`oras blob fetch "$marker_repo@$marker_layer" -o "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"`,
+			`oras blob fetch "$marker_repo@$marker_layer" -o /tmp/racing-latest-marker.json`,
+		},
+		"authorize-higress-release-tag.yaml": {
+			`oras blob fetch "$console_chart_repo@$console_chart_layer" -o /tmp/console-chart-oci.tgz`,
+			`oras blob fetch "$plugin_server_repo@$config" -o -`,
+		},
+		"dispatch-standalone-release.yaml": {
+			`oras blob fetch "$repo@$config" -o -`,
+		},
+	}
+	for name, commands := range required {
+		data, err := os.ReadFile("../../.github/workflows/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workflow := string(data)
+		for _, command := range commands {
+			if !strings.Contains(workflow, command) {
+				t.Errorf("%s lacks ORAS single-reference blob fetch contract %q", name, command)
+			}
+		}
+	}
+
+	legacyForms := map[string][]string{
+		"build-plugin-server-from-snapshot.yaml": {`oras blob fetch "$marker" "$marker_layer"`, `oras blob fetch "$managed_ref@$managed_digest"`},
+		"promote-plugin-release.yaml":            {`oras blob fetch "$marker" "$marker_layer"`},
+		"authorize-higress-release-tag.yaml":     {`oras blob fetch "$console_chart_repo@$CONSOLE_CHART_DIGEST"`, `oras blob fetch "$plugin_server_repo@$child"`},
+		"dispatch-standalone-release.yaml":       {`oras blob fetch "$repo@$child"`},
+	}
+	for name, commands := range legacyForms {
+		data, err := os.ReadFile("../../.github/workflows/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, command := range commands {
+			if strings.Contains(string(data), command) {
+				t.Errorf("%s retains ORAS two-reference blob fetch form %q", name, command)
+			}
+		}
+	}
+}
+
 func TestReleaseAuthorizerRequiresCompleteImmutableEvidence(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/authorize-higress-release-tag.yaml")
 	if err != nil {
@@ -148,7 +201,7 @@ func TestReleaseAuthorizerBindsHTTPSChartPackageToOCIContent(t *testing.T) {
 		`helm pull higress-console --repo "$CONSOLE_HELM_REPOSITORY" --version "$CONSOLE_CHART_VERSION"`,
 		`test "$(helm show chart "$CONSOLE_HTTP_CHART"`,
 		`layers | length == 1`, "application/vnd.cncf.helm.chart.content.v1.tar+gzip",
-		`oras blob fetch "$console_chart_repo@$CONSOLE_CHART_DIGEST" "$console_chart_layer"`,
+		`oras blob fetch "$console_chart_repo@$console_chart_layer"`,
 		`test "sha256:$CONSOLE_CHART_PACKAGE_SHA256" = "$console_chart_layer"`,
 	} {
 		if !strings.Contains(workflow, required) {

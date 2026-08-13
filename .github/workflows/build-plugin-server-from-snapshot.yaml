@@ -125,7 +125,8 @@ jobs:
           marker_manifest=$(oras manifest fetch "$marker")
           marker_layer=$(jq -r '.layers[] | select(.mediaType == "application/vnd.higress.plugin-release-batch.v1+json").digest' <<<"$marker_manifest")
           [[ "$marker_layer" =~ ^sha256:[0-9a-f]{64}$ ]]
-          oras blob fetch "$marker" "$marker_layer" -o /tmp/latest-batch-marker.json
+          marker_repo=${marker%:*}
+          oras blob fetch "$marker_repo@$marker_layer" -o /tmp/latest-batch-marker.json
           jq -e --arg sha "$SNAPSHOT_SHA256" '.snapshotSha256 == $sha and .phase == "latest-complete" and (.entries | length > 0)' /tmp/latest-batch-marker.json >/dev/null
           cp "$SNAPSHOT_PATH" plugin-server/snapshot.json
           test "$(sha256sum plugin-server/snapshot.json | awk '{print $1}')" = "$SNAPSHOT_SHA256"
@@ -173,7 +174,8 @@ jobs:
           managed_path=$(jq -r '.consumers.pluginServer.httpPath' <<<"$managed"); managed_version=$(jq -r .version <<<"$managed")
           fetch_wasm "$managed_path" "$managed_version" /tmp/managed.wasm
           managed_ref=$(jq -r '.ociRef | sub(":[^/:]+$"; "")' <<<"$managed"); managed_digest=$(jq -r .digest <<<"$managed")
-          oras blob fetch "$managed_ref@$managed_digest" "$(oras manifest fetch "$managed_ref@$managed_digest" | jq -r '.layers[] | select(.mediaType == "application/vnd.module.wasm.content.layer.v1+wasm").digest')" -o /tmp/managed-oci.wasm
+          managed_layer=$(oras manifest fetch "$managed_ref@$managed_digest" | jq -r '.layers[] | select(.mediaType == "application/vnd.module.wasm.content.layer.v1+wasm").digest')
+          oras blob fetch "$managed_ref@$managed_layer" -o /tmp/managed-oci.wasm
           cmp /tmp/managed.wasm /tmp/managed-oci.wasm
           json_version=$(jq -r '.plugins[] | select(.consumers.pluginServer.inventoryKey == "json-converter") | .version' "$SNAPSHOT_PATH")
           fetch_wasm jsonrpc-converter "$json_version" /tmp/jsonrpc.wasm

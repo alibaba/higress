@@ -92,7 +92,7 @@ jobs:
             while IFS=$'\t' read -r platform child; do
               manifest=$(oras manifest fetch "$repo@$child")
               config=$(jq -er .config.digest <<<"$manifest")
-              label=$(oras blob fetch "$repo@$child" "$config" -o - | jq -c '.config.Labels // {}')
+              label=$(oras blob fetch "$repo@$config" -o - | jq -c '.config.Labels // {}')
               jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg source "$SNAPSHOT_SOURCE_COMMIT" --arg snapshot "$sha" --arg version "${TAG#v}" '."org.opencontainers.image.revision" == $plugin and ."io.higress.higress-source-commit" == $source and ."io.higress.plugin-snapshot-sha256" == $snapshot and ."io.higress.gateway-version" == $version' <<<"$label" >/dev/null
               labels=$(jq --arg platform "$platform" --argjson label "$label" '.[$platform]=$label' <<<"$labels")
             done < <(jq -r '.manifests[] | [(.platform.os + "/" + .platform.architecture), .digest] | @tsv' /tmp/index.json)

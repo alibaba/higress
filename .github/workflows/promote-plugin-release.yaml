@@ -126,7 +126,8 @@ jobs:
           # before accepting that already-complete state.
           if marker_descriptor=$(descriptor_or_absent "$marker"); then
             marker_layer=$(oras manifest fetch "$marker" | jq -er '.layers[] | select(.mediaType == "application/vnd.higress.plugin-release-batch.v1+json") | .digest')
-            oras blob fetch "$marker" "$marker_layer" -o /tmp/existing-latest-marker.json
+            marker_repo=${marker%:*}
+            oras blob fetch "$marker_repo@$marker_layer" -o /tmp/existing-latest-marker.json
             jq -e --arg sha "$SNAPSHOT_SHA256" '.snapshotSha256 == $sha and .phase == "latest-complete" and (.entries | length > 0)' /tmp/existing-latest-marker.json >/dev/null
             jq -c '.entries[]' /tmp/existing-latest-marker.json | while read -r entry; do
               test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
@@ -225,7 +226,8 @@ jobs:
           # make no mutable registry write on this retry.
           if marker_descriptor=$(descriptor_or_absent "$marker"); then
             marker_layer=$(oras manifest fetch "$marker" | jq -er '.layers[] | select(.mediaType == "application/vnd.higress.plugin-release-batch.v1+json") | .digest')
-            oras blob fetch "$marker" "$marker_layer" -o "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
+            marker_repo=${marker%:*}
+            oras blob fetch "$marker_repo@$marker_layer" -o "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
             jq -e --arg sha "$SNAPSHOT_SHA256" '.snapshotSha256 == $sha and .phase == "latest-complete" and (.entries | length > 0)' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" >/dev/null
             jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do
               test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
@@ -321,7 +323,8 @@ jobs:
           # collision never gets overwritten.
           if marker_descriptor=$(descriptor_or_absent "$marker"); then
             marker_layer=$(oras manifest fetch "$marker" | jq -er '.layers[] | select(.mediaType == "application/vnd.higress.plugin-release-batch.v1+json") | .digest')
-            oras blob fetch "$marker" "$marker_layer" -o /tmp/racing-latest-marker.json
+            marker_repo=${marker%:*}
+            oras blob fetch "$marker_repo@$marker_layer" -o /tmp/racing-latest-marker.json
             cmp /tmp/racing-latest-marker.json "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" || { echo "immutable latest marker conflict" >&2; exit 1; }
             marker_digest=$(jq -er .digest <<<"$marker_descriptor")
           else
