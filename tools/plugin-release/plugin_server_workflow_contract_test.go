@@ -1337,6 +1337,31 @@ func TestStandaloneDispatchBindsUniqueConsoleEvidenceToPluginServer(t *testing.T
 	}
 }
 
+func TestStandaloneDispatchSurvivesGitHubTokenReleaseSuppression(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/dispatch-standalone-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`workflow_run:`,
+		`workflows: ["Build Docker Images and Push to Image Registry"]`,
+		`github.event.workflow_run.conclusion == 'success'`,
+		`github.event.workflow_run.head_branch`,
+		`workflow_dispatch:`,
+		`release_tag:`,
+		`release=$(gh api "repos/higress-group/higress/releases/tags/$TAG")`,
+		`RELEASE_ID=$(jq -er .id <<<"$release")`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("standalone dispatch lacks release-event recovery contract %q", required)
+		}
+	}
+	if !strings.Contains(workflow, `(github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))`) {
+		t.Fatal("standalone dispatch must reject failed or non-release image workflow runs")
+	}
+}
+
 func TestPreparationBootstrapReusesProtectedCandidateRegistryCredential(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
 	if err != nil {

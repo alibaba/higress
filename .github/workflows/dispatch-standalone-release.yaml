@@ -2,17 +2,31 @@ name: Dispatch Exact Released Higress Inputs to Standalone
 on:
   release:
     types: [published]
+  workflow_run:
+    workflows: ["Build Docker Images and Push to Image Registry"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Published Higress release tag to recover or replay"
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
   dispatch:
-    if: ${{ startsWith(github.event.release.tag_name, 'v') }}
+    if: >-
+      ${{
+        (github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v')) ||
+        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v')) ||
+        (github.event_name == 'workflow_dispatch' && startsWith(inputs.release_tag, 'v'))
+      }}
     runs-on: ubuntu-latest
     environment: standalone-dispatch
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || inputs.release_tag }}
           fetch-depth: 0
       - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
         with:
@@ -27,8 +41,8 @@ jobs:
       - name: Resolve canonical immutable release evidence and dispatch
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          TAG: ${{ github.event.release.tag_name }}
-          RELEASE_ID: ${{ github.event.release.id }}
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || inputs.release_tag }}
+          EVENT_RELEASE_ID: ${{ github.event_name == 'release' && github.event.release.id || '' }}
           CONSOLE_CHART_REGISTRY: ${{ vars.CONSOLE_CHART_REGISTRY }}
           PLUGIN_SERVER_REGISTRY: ${{ vars.PLUGIN_SERVER_REGISTRY }}
           GATEWAY_REGISTRY: ${{ vars.GATEWAY_REGISTRY }}
@@ -53,7 +67,13 @@ jobs:
             ' "$1" >/dev/null
           }
           # END plugin-server-index-contract
-          release=$(gh api "repos/higress-group/higress/releases/$RELEASE_ID")
+          if [ -n "$EVENT_RELEASE_ID" ]; then
+            RELEASE_ID=$EVENT_RELEASE_ID
+            release=$(gh api "repos/higress-group/higress/releases/$RELEASE_ID")
+          else
+            release=$(gh api "repos/higress-group/higress/releases/tags/$TAG")
+            RELEASE_ID=$(jq -er .id <<<"$release")
+          fi
           test "$(jq -r .tag_name <<<"$release")" = "$TAG"
           test "$(jq -r .draft <<<"$release")" = false; test "$(jq -r .prerelease <<<"$release")" = false
           tag_ref=$(gh api "repos/higress-group/higress/git/ref/tags/$TAG")
