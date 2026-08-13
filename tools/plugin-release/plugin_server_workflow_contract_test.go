@@ -1247,9 +1247,36 @@ func TestReleaseAuthorizerBindsConsoleLockToCanonicalPluginServer(t *testing.T) 
 	workflow := string(data)
 	image := strings.Index(workflow, `PLUGIN_SERVER_IMAGE="$plugin_server_tag@$resolved_plugin_server_digest"`)
 	lock := strings.Index(workflow, `.pluginLock.pluginServerCommit == $plugin and .pluginLock.pluginServerImage == $image`)
-	inspect := strings.Index(workflow, `oras manifest fetch "$PLUGIN_SERVER_IMAGE" --raw`)
+	inspect := strings.Index(workflow, `oras manifest fetch "$PLUGIN_SERVER_IMAGE" >/tmp/plugin-server-index.json`)
 	if image < 0 || lock < 0 || inspect < 0 || image > lock || lock > inspect {
 		t.Fatal("release authorizer must bind the Console lock to the canonical plugin-server image before inspecting it")
+	}
+}
+
+func TestReleaseWorkflowsUseORAS12ManifestOutput(t *testing.T) {
+	required := map[string][]string{
+		"authorize-higress-release-tag.yaml": {
+			`oras manifest fetch "$PLUGIN_SERVER_IMAGE" >/tmp/plugin-server-index.json`,
+		},
+		"dispatch-standalone-release.yaml": {
+			`oras manifest fetch "$ref" >/tmp/index.json`,
+			`oras manifest fetch "$repo@$digest" >/tmp/index.json`,
+		},
+	}
+	for name, commands := range required {
+		data, err := os.ReadFile("../../.github/workflows/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workflow := string(data)
+		for _, command := range commands {
+			if !strings.Contains(workflow, command) {
+				t.Errorf("%s lacks ORAS 1.2 manifest output contract %q", name, command)
+			}
+		}
+		if strings.Contains(workflow, "oras manifest fetch ") && regexp.MustCompile(`oras manifest fetch [^\n;]+ --raw`).MatchString(workflow) {
+			t.Errorf("%s retains unsupported ORAS manifest fetch --raw", name)
+		}
 	}
 }
 

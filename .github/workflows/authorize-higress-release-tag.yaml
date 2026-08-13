@@ -195,7 +195,7 @@ jobs:
           jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg image "$PLUGIN_SERVER_IMAGE" \
             '.pluginLock.pluginServerCommit == $plugin and .pluginLock.pluginServerImage == $image' \
             /tmp/console-provenance.json >/dev/null
-          oras manifest fetch "$PLUGIN_SERVER_IMAGE" --raw >/tmp/plugin-server-index.json
+          oras manifest fetch "$PLUGIN_SERVER_IMAGE" >/tmp/plugin-server-index.json
           verify_plugin_server_index /tmp/plugin-server-index.json
           PLUGIN_SERVER_HIGRESS_COMMIT=""
           while IFS=$'\t' read -r platform child; do
