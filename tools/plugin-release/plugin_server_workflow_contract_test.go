@@ -29,7 +29,7 @@ func TestPluginServerWorkflowFailsClosedBeforeCandidateMutation(t *testing.T) {
 	}
 	for _, required := range []string{
 		"docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392", "docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435", "oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20",
-		"length == 2", "linux/amd64", "linux/arm64", "org.opencontainers.image.revision",
+		"attestation-manifest", "linux/amd64", "linux/arm64", "org.opencontainers.image.revision",
 		"snapshot-inventory.json", "jsonrpc-converter", "unmanaged-plugins.lock.json",
 	} {
 		if !strings.Contains(workflow, required) {
@@ -39,6 +39,75 @@ func TestPluginServerWorkflowFailsClosedBeforeCandidateMutation(t *testing.T) {
 	buildData, err := os.ReadFile("../../.github/workflows/build-plugin-server-from-snapshot.yaml")
 	if err != nil || !strings.Contains(string(buildData), "plugin-release-batches:$SNAPSHOT_SHA256") {
 		t.Fatal("plugin-server build must require the immutable latest-completion marker")
+	}
+}
+
+func TestPluginServerIndexContractAcceptsOnlyTwoRunnablePlatformsAndPairedAttestations(t *testing.T) {
+	workflows := []string{
+		"build-plugin-server-from-snapshot.yaml",
+		"authorize-higress-release-tag.yaml",
+		"dispatch-standalone-release.yaml",
+	}
+	fixtures := map[string]struct {
+		json string
+		want bool
+	}{
+		"two-runnable":         {json: `{"manifests":[{"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}},{"digest":"sha256:arm","platform":{"os":"linux","architecture":"arm64"}}]}`, want: true},
+		"paired-attestations":  {json: `{"manifests":[{"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}},{"digest":"sha256:arm","platform":{"os":"linux","architecture":"arm64"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","platform":{"os":"unknown","architecture":"unknown"},"annotations":{"vnd.docker.reference.type":"attestation-manifest","vnd.docker.reference.digest":"sha256:amd"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","platform":{"os":"unknown","architecture":"unknown"},"annotations":{"vnd.docker.reference.type":"attestation-manifest","vnd.docker.reference.digest":"sha256:arm"}}]}`, want: true},
+		"missing-arm64":        {json: `{"manifests":[{"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}}]}`},
+		"unexpected-platform":  {json: `{"manifests":[{"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}},{"digest":"sha256:arm","platform":{"os":"linux","architecture":"arm64"}},{"digest":"sha256:ppc","platform":{"os":"linux","architecture":"ppc64le"}}]}`},
+		"unpaired-attestation": {json: `{"manifests":[{"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}},{"digest":"sha256:arm","platform":{"os":"linux","architecture":"arm64"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","platform":{"os":"unknown","architecture":"unknown"},"annotations":{"vnd.docker.reference.type":"attestation-manifest","vnd.docker.reference.digest":"sha256:amd"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","platform":{"os":"unknown","architecture":"unknown"},"annotations":{"vnd.docker.reference.type":"attestation-manifest","vnd.docker.reference.digest":"sha256:other"}}]}`},
+		"unexpected-extra":     {json: `{"manifests":[{"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}},{"digest":"sha256:arm","platform":{"os":"linux","architecture":"arm64"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","platform":{"os":"unknown","architecture":"unknown"},"annotations":{"vnd.docker.reference.type":"other","vnd.docker.reference.digest":"sha256:amd"}},{"mediaType":"application/vnd.oci.image.manifest.v1+json","platform":{"os":"unknown","architecture":"unknown"},"annotations":{"vnd.docker.reference.type":"attestation-manifest","vnd.docker.reference.digest":"sha256:arm"}}]}`},
+	}
+
+	var canonical string
+	for _, workflow := range workflows {
+		contract := workflowShellContract(t, workflow, "plugin-server-index-contract")
+		if canonical == "" {
+			canonical = contract
+		} else if contract != canonical {
+			t.Fatalf("%s does not use the canonical plugin-server index contract", workflow)
+		}
+		for name, fixture := range fixtures {
+			t.Run(workflow+"/"+name, func(t *testing.T) {
+				path := filepath.Join(t.TempDir(), "index.json")
+				if err := os.WriteFile(path, []byte(fixture.json), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				cmd := exec.Command("bash", "-c", "set -euo pipefail\n"+contract+fmt.Sprintf("\nverify_plugin_server_index %q", path))
+				output, err := cmd.CombinedOutput()
+				if fixture.want && err != nil {
+					t.Fatalf("valid plugin-server index rejected: %v\n%s", err, output)
+				}
+				if !fixture.want && err == nil {
+					t.Fatalf("invalid plugin-server index accepted: %s", fixture.json)
+				}
+			})
+		}
+	}
+}
+
+func TestPluginServerWorkflowReusesImmutableCandidateBeforeBuild(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/build-plugin-server-from-snapshot.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	lookup := strings.Index(workflow, `if candidate_json=$(oras manifest fetch "$candidate" --descriptor`)
+	build := strings.Index(workflow, `docker buildx build --platform linux/amd64,linux/arm64`)
+	acceptance := strings.Index(workflow, `verify_plugin_server_index /tmp/candidate-index.json`)
+	if lookup < 0 || build < 0 || acceptance < 0 || !(lookup < build && build < acceptance) {
+		t.Fatal("plugin-server workflow must reuse or build its immutable candidate before the same acceptance boundary")
+	}
+	for _, required := range []string{
+		`candidate_digest=$(jq -er .digest <<<"$candidate_json")`,
+		`Reusing immutable plugin-server candidate`,
+		`candidate tag lookup was refused; authorization failure is never absence`,
+		`candidate tag lookup failed; refusing candidate/public mutation`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("immutable candidate retry contract lacks %q", required)
+		}
 	}
 }
 
