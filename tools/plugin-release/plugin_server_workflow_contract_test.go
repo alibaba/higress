@@ -190,20 +190,31 @@ func TestPreparationVersionOverridesPreserveCanonicalObjectAndRejectMalformedInp
 		t.Fatal(err)
 	}
 	workflow := string(data)
-	const prefix = `jq -ceS '`
+	const commandPrefix = `jq `
+	const filterDelimiter = ` '`
 	const suffix = `' > /tmp/overrides.json`
-	start := strings.Index(workflow, prefix)
-	if start < 0 {
+	var validationCommand string
+	for _, line := range strings.Split(workflow, "\n") {
+		if strings.Contains(line, `$OVERRIDES`) && strings.Contains(line, suffix) {
+			validationCommand = strings.TrimSpace(line)
+			break
+		}
+	}
+	commandStart := strings.Index(validationCommand, commandPrefix)
+	if commandStart < 0 {
 		t.Fatal("preparation workflow lacks canonical validate-and-return version override filter")
 	}
-	start += len(prefix)
-	endOffset := strings.Index(workflow[start:], suffix)
-	if endOffset < 0 {
+	commandStart += len(commandPrefix)
+	filterOffset := strings.Index(validationCommand[commandStart:], filterDelimiter)
+	filterEnd := strings.LastIndex(validationCommand, suffix)
+	if filterOffset < 0 || filterEnd < 0 {
 		t.Fatal("preparation workflow does not write validated version overrides to the planner input")
 	}
-	filter := workflow[start : start+endOffset]
-	if strings.Contains(filter, `then true`) || !strings.Contains(filter, `then .`) {
-		t.Fatal("version override validation must return the validated object, not a boolean predicate")
+	flags := strings.Fields(validationCommand[commandStart : commandStart+filterOffset])
+	filterStart := commandStart + filterOffset + len(filterDelimiter)
+	filter := validationCommand[filterStart:filterEnd]
+	if !strings.Contains(filter, `fromjson`) || strings.Contains(filter, `then true`) || !strings.Contains(filter, `then .`) {
+		t.Fatal("version override validation must parse exactly one JSON input and return the validated object")
 	}
 
 	jq, err := exec.LookPath("jq")
@@ -211,7 +222,8 @@ func TestPreparationVersionOverridesPreserveCanonicalObjectAndRejectMalformedInp
 		t.Fatal("jq is required to execute the preparation workflow contract")
 	}
 	run := func(input string) ([]byte, error) {
-		cmd := exec.Command(jq, "-ceS", filter)
+		args := append(append([]string{}, flags...), filter)
+		cmd := exec.Command(jq, args...)
 		cmd.Stdin = strings.NewReader(input)
 		return cmd.CombinedOutput()
 	}
@@ -231,6 +243,9 @@ func TestPreparationVersionOverridesPreserveCanonicalObjectAndRejectMalformedInp
 	}
 
 	invalid := []string{
+		``,
+		`   `,
+		`{} {}`,
 		`[]`,
 		`{"Unsafe/Plugin":"1.2.3"}`,
 		`{"safe-plugin":1}`,
