@@ -624,6 +624,30 @@ func TestPromotionDescriptorClassifiersIgnoreAuthDigitsInsideExpectedReference(t
 	}
 }
 
+func TestPromotionDescriptorClassifiersIgnore404InsideExpectedReferences(t *testing.T) {
+	contracts := workflowShellContracts(t, "promote-plugin-release.yaml", "promotion-descriptor-contract")
+	if len(contracts) != 2 {
+		t.Fatalf("promotion version/latest jobs have %d descriptor contracts, want 2", len(contracts))
+	}
+	refs := map[string]string{
+		"completion-marker":     "registry.example.invalid/candidates/plugin-release-batches:abc404def",
+		"plugin-version-latest": "registry.example.invalid/plugins/plugin-404:hash404value",
+	}
+	for i, contract := range contracts {
+		for name, ref := range refs {
+			t.Run(fmt.Sprintf("classifier-%d/%s", i+1, name), func(t *testing.T) {
+				status, log := runPromotionDescriptorContract(t, contract, "transport-with-ref", ref)
+				if status != 2 {
+					t.Fatalf("transport error echoing 404-containing ref returned %d, want fail-closed status 2\n%s", status, log)
+				}
+				if strings.Contains(log, "push ") || strings.Contains(log, "cp ") {
+					t.Fatalf("transport error echoing 404-containing ref caused registry mutation:\n%s", log)
+				}
+			})
+		}
+	}
+}
+
 func TestPreparationVersionOverridesPreserveCanonicalObjectAndRejectMalformedInputs(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
 	if err != nil {

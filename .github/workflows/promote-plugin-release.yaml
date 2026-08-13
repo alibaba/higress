@@ -115,7 +115,7 @@ jobs:
                grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+(401|403)([^[:digit:]]|$)|(^|[^[:alpha:]])status( code)?[[:space:]:=]+(401|403)([^[:digit:]]|$)' <<<"$auth_error"; then
               cat "$err" >&2; rm -f "$err"; return 2
             fi
-            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
+            if grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+404([^[:digit:]]|$)|response status( code)?[[:space:]:=]+404([^[:digit:]]|$)|status code[[:space:]:=]+404([^[:digit:]]|$)|404[[:space:]]+Not[[:space:]]+Found|manifest unknown|name unknown' <<<"$auth_error" ||
                { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
@@ -214,7 +214,7 @@ jobs:
                grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+(401|403)([^[:digit:]]|$)|(^|[^[:alpha:]])status( code)?[[:space:]:=]+(401|403)([^[:digit:]]|$)' <<<"$auth_error"; then
               cat "$err" >&2; rm -f "$err"; return 2
             fi
-            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
+            if grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+404([^[:digit:]]|$)|response status( code)?[[:space:]:=]+404([^[:digit:]]|$)|status code[[:space:]:=]+404([^[:digit:]]|$)|404[[:space:]]+Not[[:space:]]+Found|manifest unknown|name unknown' <<<"$auth_error" ||
                { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
