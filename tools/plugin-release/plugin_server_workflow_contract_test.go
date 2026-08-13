@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -358,9 +359,10 @@ printf 'build:%s\n' "$*" >> "$BUILD_LOG"
 }
 
 type candidateContractResult struct {
-	output string
-	log    string
-	err    error
+	output      string
+	diagnostics string
+	log         string
+	err         error
 }
 
 func runCandidatePublishContract(t *testing.T, mode string) candidateContractResult {
@@ -375,24 +377,43 @@ func runCandidatePublishContractWithCandidate(t *testing.T, mode, candidate stri
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	log := filepath.Join(tmp, "oras.log")
+	log := filepath.Join(tmp, "operations.log")
+	source := filepath.Join(tmp, "plugin")
 	wasm := filepath.Join(tmp, "plugin.wasm")
 	wasmBytes := []byte("deterministic wasm fixture")
-	if err := os.WriteFile(wasm, wasmBytes, 0o600); err != nil {
+	if err := os.MkdirAll(source, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	wasm = filepath.Join(source, "plugin.wasm")
 	wasmSum := sha256.Sum256(wasmBytes)
+	writeExecutableFixture(t, filepath.Join(source, "prepare.sh"), `#!/bin/sh
+set -eu
+printf 'prepare\n' >> "$OPERATIONS_LOG"
+if [ "$ORAS_MODE" = absent-build-error ]; then exit 23; fi
+`)
+	writeExecutableFixture(t, filepath.Join(bin, "go"), `#!/bin/sh
+set -eu
+printf 'test:%s\n' "$*" >> "$OPERATIONS_LOG"
+printf 'go test fixture output\n'
+`)
+	writeExecutableFixture(t, filepath.Join(bin, "make"), `#!/bin/sh
+set -eu
+printf 'build:%s\n' "$*" >> "$OPERATIONS_LOG"
+printf '%s' 'deterministic wasm fixture' > "$WASM_PATH"
+printf 'make fixture output\n'
+`)
 	writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" >> "$ORAS_LOG"
+printf 'oras:%s\n' "$*" >> "$OPERATIONS_LOG"
 if [ "$1 $2" = "manifest fetch" ]; then
   ref=$3
   if [ "${4:-}" = "--descriptor" ]; then
     case "$ORAS_MODE" in
       absent-404) echo "response status code 404: Not Found" >&2; exit 1 ;;
-      absent-manifest) echo "MANIFEST UNKNOWN" >&2; exit 1 ;;
-      absent-name) echo "name unknown" >&2; exit 1 ;;
-      absent-acr) echo "Error response from registry: $ref: not found" >&2; exit 1 ;;
+	  absent-manifest) echo "MANIFEST UNKNOWN" >&2; exit 1 ;;
+	  absent-name) echo "name unknown" >&2; exit 1 ;;
+	  absent-acr) echo "Error response from registry: $ref: not found" >&2; exit 1 ;;
+	  absent-build-error|absent-push-error|absent-malformed-push) echo "response status code 404: Not Found" >&2; exit 1 ;;
       auth) echo "401 unauthorized" >&2; exit 1 ;;
       auth-401-status) echo "response status code 401" >&2; exit 1 ;;
       auth-403-http) echo "HTTP/1.1 403" >&2; exit 1 ;;
@@ -411,23 +432,32 @@ if [ "$1 $2" = "manifest fetch" ]; then
   case "$ORAS_MODE" in
     manifest-error) echo "registry unavailable" >&2; exit 1 ;;
     malformed-manifest) echo '{'; exit 0 ;;
+		wrong-manifest-media) manifest_media=application/example ;;
   esac
   revision=$SOURCE_COMMIT
   version=$STABLE_VERSION
   input_hash=$INPUT_HASH
   layer_digest=$WASM_DIGEST
-  layer_media=application/vnd.module.wasm.content.layer.v1+wasm
-  layers=''
-  case "$ORAS_MODE" in
-    annotation-mismatch) revision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
-    layer-digest-mismatch) layer_digest=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
+	layer_media=application/vnd.module.wasm.content.layer.v1+wasm
+	manifest_media=${manifest_media:-application/vnd.oci.image.manifest.v1+json}
+	layers=''
+	case "$ORAS_MODE" in
+	  annotation-mismatch) revision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
+		version-mismatch) version=9.9.9 ;;
+		input-hash-mismatch) input_hash=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
+		valid-different-layer) layer_digest=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
+		invalid-layer-digest) layer_digest=sha256:not-a-digest ;;
     layer-media-mismatch) layer_media=application/octet-stream ;;
     layer-count-mismatch) layers=',{"mediaType":"application/vnd.module.wasm.content.layer.v1+wasm","digest":"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}' ;;
   esac
-  printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","annotations":{"org.opencontainers.image.revision":"%s","org.opencontainers.image.version":"%s","io.higress.plugin.input-hash":"%s"},"layers":[{"mediaType":"%s","digest":"%s"}%s]}\n' "$revision" "$version" "$input_hash" "$layer_media" "$layer_digest" "$layers"
+  printf '{"schemaVersion":2,"mediaType":"%s","annotations":{"org.opencontainers.image.revision":"%s","org.opencontainers.image.version":"%s","io.higress.plugin.input-hash":"%s"},"layers":[{"mediaType":"%s","digest":"%s"}%s]}\n' "$manifest_media" "$revision" "$version" "$input_hash" "$layer_media" "$layer_digest" "$layers"
   exit 0
 fi
 if [ "$1" = push ]; then
+	case "$ORAS_MODE" in
+	  absent-push-error) echo "registry rejected candidate push" >&2; exit 1 ;;
+	  absent-malformed-push) echo '{'; exit 0 ;;
+	esac
   printf '{"digest":"%s"}\n' "$ORAS_PUSH_DIGEST"
   exit 0
 fi
@@ -439,12 +469,14 @@ exit 2
 	const inputHash = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	const manifestDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	const pushDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	contract := workflowShellContract(t, "prepare-plugin-release.yaml", "candidate-publish-contract")
-	script := "set -euo pipefail\n" + contract + fmt.Sprintf("\npublish_or_reuse_candidate %q %q %q 1.2.3 %q\n", candidate, wasm, sourceCommit, inputHash)
+	buildContract := workflowShellContract(t, "prepare-plugin-release.yaml", "plugin-build-contract")
+	publishContract := workflowShellContract(t, "prepare-plugin-release.yaml", "candidate-publish-contract")
+	script := "set -euo pipefail\n" + buildContract + publishContract + fmt.Sprintf("\ndigest=$(resolve_or_build_candidate %q go %q demo %q 1.2.3 %q)\nprintf '%%s\\n' \"$digest\"\n", candidate, source, sourceCommit, inputHash)
 	cmd := exec.Command("bash", "-c", script)
 	cmd.Env = append(os.Environ(),
 		"PATH="+bin+":"+os.Getenv("PATH"),
-		"ORAS_LOG="+log,
+		"OPERATIONS_LOG="+log,
+		"WASM_PATH="+wasm,
 		"ORAS_MODE="+mode,
 		"ORAS_MANIFEST_DIGEST="+manifestDigest,
 		"ORAS_PUSH_DIGEST="+pushDigest,
@@ -453,28 +485,37 @@ exit 2
 		"INPUT_HASH="+inputHash,
 		fmt.Sprintf("WASM_DIGEST=sha256:%x", wasmSum),
 	)
-	output, runErr := cmd.CombinedOutput()
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
 	logBytes, readErr := os.ReadFile(log)
 	if readErr != nil && !os.IsNotExist(readErr) {
 		t.Fatal(readErr)
 	}
-	return candidateContractResult{output: string(output), log: string(logBytes), err: runErr}
+	return candidateContractResult{output: stdout.String(), diagnostics: stderr.String(), log: string(logBytes), err: runErr}
 }
 
-func TestPreparationReusesOnlyIdenticalContentAddressedCandidate(t *testing.T) {
-	result := runCandidatePublishContract(t, "identical")
-	if result.err != nil {
-		t.Fatalf("identical candidate was not reused: %v\n%s", result.err, result.output)
-	}
-	want := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n"
-	if result.output != want {
-		t.Fatalf("reused candidate digest = %q, want %q", result.output, want)
-	}
-	if strings.Contains(result.log, "push ") {
-		t.Fatalf("identical candidate was pushed again:\n%s", result.log)
-	}
-	if strings.Count(result.log, "manifest fetch ") != 2 || !strings.Contains(result.log, "@sha256:") {
-		t.Fatalf("reuse did not resolve descriptor then immutable manifest digest:\n%s", result.log)
+func TestPreparationReusesValidExistingCandidateWithoutRebuilding(t *testing.T) {
+	for _, mode := range []string{"identical", "valid-different-layer"} {
+		t.Run(mode, func(t *testing.T) {
+			result := runCandidatePublishContract(t, mode)
+			if result.err != nil {
+				t.Fatalf("valid candidate was not reused: %v\n%s", result.err, result.diagnostics)
+			}
+			want := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n"
+			if result.output != want {
+				t.Fatalf("reused candidate digest = %q, want %q", result.output, want)
+			}
+			for _, forbidden := range []string{"prepare\n", "test:", "build:", "oras:push "} {
+				if strings.Contains(result.log, forbidden) {
+					t.Fatalf("valid candidate performed %q instead of read-only reuse:\n%s", forbidden, result.log)
+				}
+			}
+			if strings.Count(result.log, "oras:manifest fetch ") != 2 || !strings.Contains(result.log, "@sha256:") {
+				t.Fatalf("reuse did not resolve descriptor then immutable manifest digest:\n%s", result.log)
+			}
+		})
 	}
 }
 
@@ -489,8 +530,21 @@ func TestPreparationPushesOnceOnlyForStrictlyProvenCandidateAbsence(t *testing.T
 			if result.output != want {
 				t.Fatalf("new candidate digest = %q, want %q", result.output, want)
 			}
-			if strings.Count(result.log, "push ") != 1 {
+			for _, wantOperation := range []string{"prepare\n", "test:test ./...\n", "build:-C plugins/wasm-go PLUGIN_NAME=demo build\n"} {
+				if strings.Count(result.log, wantOperation) != 1 {
+					t.Fatalf("strict absence did not perform setup/test/build exactly once (%q):\n%s", wantOperation, result.log)
+				}
+			}
+			if strings.Count(result.log, "oras:push ") != 1 {
 				t.Fatalf("strict absence performed other than one push:\n%s", result.log)
+			}
+			previous := -1
+			for _, operation := range []string{"oras:manifest fetch ", "prepare\n", "test:test ./...\n", "build:-C plugins/wasm-go PLUGIN_NAME=demo build\n", "oras:push "} {
+				position := strings.Index(result.log, operation)
+				if position <= previous {
+					t.Fatalf("strict absence operations are not lookup -> setup -> test -> build -> push at %q:\n%s", operation, result.log)
+				}
+				previous = position
 			}
 		})
 	}
@@ -499,8 +553,8 @@ func TestPreparationPushesOnceOnlyForStrictlyProvenCandidateAbsence(t *testing.T
 func TestPreparationCandidateLookupAndManifestMismatchesFailWithoutMutation(t *testing.T) {
 	modes := []string{
 		"auth", "ambiguous", "repository-missing", "wrong-acr-ref", "transport", "malformed-descriptor", "wrong-descriptor-media",
-		"manifest-error", "malformed-manifest", "annotation-mismatch", "layer-count-mismatch",
-		"layer-media-mismatch", "layer-digest-mismatch",
+		"manifest-error", "malformed-manifest", "wrong-manifest-media", "annotation-mismatch", "version-mismatch", "input-hash-mismatch",
+		"layer-count-mismatch", "layer-media-mismatch", "invalid-layer-digest",
 	}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
@@ -508,10 +562,42 @@ func TestPreparationCandidateLookupAndManifestMismatchesFailWithoutMutation(t *t
 			if result.err == nil {
 				t.Fatalf("unsafe candidate state %s was accepted: %s", mode, result.output)
 			}
-			if strings.Contains(result.log, "push ") {
-				t.Fatalf("unsafe candidate state %s caused mutation:\n%s", mode, result.log)
+			for _, forbidden := range []string{"prepare\n", "test:", "build:", "oras:push "} {
+				if strings.Contains(result.log, forbidden) {
+					t.Fatalf("unsafe candidate state %s performed %q:\n%s", mode, forbidden, result.log)
+				}
 			}
 		})
+	}
+}
+
+func TestPreparationCandidatePushFailuresDoNotReturnEvidence(t *testing.T) {
+	for _, mode := range []string{"absent-push-error", "absent-malformed-push"} {
+		t.Run(mode, func(t *testing.T) {
+			result := runCandidatePublishContract(t, mode)
+			if result.err == nil {
+				t.Fatalf("candidate push failure %s was accepted: %s", mode, result.output)
+			}
+			if result.output != "" {
+				t.Fatalf("candidate push failure %s returned evidence %q", mode, result.output)
+			}
+			if strings.Count(result.log, "oras:push ") != 1 {
+				t.Fatalf("candidate push failure %s performed other than one bounded push attempt:\n%s", mode, result.log)
+			}
+		})
+	}
+}
+
+func TestPreparationCandidateBuildFailureDoesNotPush(t *testing.T) {
+	result := runCandidatePublishContract(t, "absent-build-error")
+	if result.err == nil {
+		t.Fatalf("candidate build failure was accepted: %s", result.output)
+	}
+	if result.output != "" || strings.Contains(result.log, "oras:push ") {
+		t.Fatalf("candidate build failure returned evidence or pushed a candidate: output=%q\n%s", result.output, result.log)
+	}
+	if strings.Count(result.log, "prepare\n") != 1 || strings.Contains(result.log, "test:") || strings.Contains(result.log, "build:") {
+		t.Fatalf("candidate setup failure did not stop test/build immediately:\n%s", result.log)
 	}
 }
 
@@ -521,7 +607,7 @@ func TestPreparationDoesNotReadEmbedded404FromRealCandidateTagAsHTTPAbsence(t *t
 	if result.err == nil {
 		t.Fatalf("transport error containing the ai-proxy tag's embedded 404 was accepted: %s", result.output)
 	}
-	if strings.Contains(result.log, "push ") {
+	if strings.Contains(result.log, "oras:push ") {
 		t.Fatalf("transport error containing the ai-proxy tag's embedded 404 caused a push:\n%s", result.log)
 	}
 }
@@ -533,19 +619,19 @@ func TestPreparationClassifiesRealAIHashWithoutReadingEmbedded401AsAuthorization
 	if absent.err != nil {
 		t.Fatalf("exact ACR absence for real ai-cache candidate was not published: %v\n%s", absent.err, absent.output)
 	}
-	if strings.Count(absent.log, "push ") != 1 {
+	if strings.Count(absent.log, "oras:push ") != 1 {
 		t.Fatalf("exact ACR absence must perform one push:\n%s", absent.log)
 	}
 
 	transport := runCandidatePublishContractWithCandidate(t, "transport-with-ref", aiCacheCandidate)
-	if transport.err == nil || strings.Contains(transport.log, "push ") {
+	if transport.err == nil || strings.Contains(transport.log, "oras:push ") {
 		t.Fatalf("transport error echoing real ai-cache candidate must fail without push: err=%v\n%s", transport.err, transport.log)
 	}
 
 	for _, mode := range []string{"auth-401-status", "auth-403-http", "auth", "auth-phrase-denied", "auth-phrase-required"} {
 		t.Run(mode, func(t *testing.T) {
 			result := runCandidatePublishContractWithCandidate(t, mode, aiCacheCandidate)
-			if result.err == nil || strings.Contains(result.log, "push ") {
+			if result.err == nil || strings.Contains(result.log, "oras:push ") {
 				t.Fatalf("authorization evidence %s must fail without push: err=%v\n%s", mode, result.err, result.log)
 			}
 		})
