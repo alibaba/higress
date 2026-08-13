@@ -22,13 +22,17 @@ controls exist.
   credential able to write `higress/plugin-server:<gateway-version>`. The
   plugin-server repository publisher may write only its development/candidate
   namespace.
-- Create a least-privilege read-only registry credential for the protected
-  bootstrap capture path and store it as `PLUGIN_REGISTRY_READER_USERNAME` /
-  `PLUGIN_REGISTRY_READER_PASSWORD` on the `plugin-release-candidate`
-  environment. It may resolve public manifests only; it must not push, retag,
-  or delete. The uncredentialed ORAS preflight stays read-only and outside any
-  protected environment. A 401/403 during capture is an authorization or
-  configuration failure and is never treated as an absent artifact.
+- Configure `PLUGIN_CANDIDATE_REGISTRY` and
+  `CANDIDATE_REGISTRY_USERNAME` / `CANDIDATE_REGISTRY_PASSWORD` on the
+  protected `plugin-release-candidate` environment. Bootstrap capture reuses
+  this existing ACR login, but its command path only resolves public manifests
+  and never pushes, retags, or deletes. The uncredentialed ORAS preflight stays
+  read-only and outside any protected environment. If that preflight receives
+  401/403, it records that authenticated capture is required and continues
+  checking the remaining deterministic references; it does not claim absence
+  or abort. The protected capture then makes the definitive present/missing
+  classification: authorization/configuration failures remain fatal, and only
+  explicit registry absence evidence is treated as missing.
 - Create a scoped GitHub App for each downstream repository dispatch/PR
   receiver. It may update the deterministic dependency PR but may not merge,
   tag, or release.

@@ -206,11 +206,13 @@ func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *test
 		"select(.releaseEligible)", "[$catalog.registry, .image, .sourceDir] | @tsv",
 		`[ "${prerelease%%.*}" = "alpha" ]`, `attempted=$((attempted + 1))`,
 		`descriptor=$(oras manifest fetch "$public_ref" --descriptor`, `jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")'`,
-		`present=$((present + 1))`, `absent=$((absent + 1))`,
+		`present=$((present + 1))`, `absent=$((absent + 1))`, `authenticated_capture=0`,
+		`authenticated_capture=$((authenticated_capture + 1))`,
 		`grep -Fq 'Error response from registry:'`, `grep -Fq "$public_ref: not found"`,
-		"public registry preflight was refused; authorization failure is never absence",
+		"public registry preflight requires authenticated capture; authorization failure is never absence",
 		"public registry preflight failed without explicit absence evidence",
 		"Read-only ORAS preflight classified $attempted deterministic public references",
+		"$authenticated_capture require authenticated capture",
 	} {
 		if !strings.Contains(preflight, required) {
 			t.Fatalf("preflight lacks required read-only contract %q", required)
@@ -221,6 +223,15 @@ func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *test
 	}
 	if strings.Contains(preflight, "--descriptor --format") {
 		t.Fatal("ORAS 1.2.3 descriptor preflight must not combine --descriptor and --format")
+	}
+	authStart := strings.Index(preflight, "if grep -Eiq '401|403|")
+	absenceStart := strings.Index(preflight, "if grep -Eiq '404|manifest unknown|")
+	if authStart < 0 || absenceStart < 0 || authStart > absenceStart {
+		t.Fatal("uncredentialed preflight must classify authorization before explicit absence")
+	}
+	authBranch := preflight[authStart:absenceStart]
+	if !strings.Contains(authBranch, "continue") || strings.Contains(authBranch, "exit 1") {
+		t.Fatal("uncredentialed preflight must defer 401/403 to authenticated capture and continue without claiming absence")
 	}
 }
 
@@ -458,31 +469,34 @@ func TestStandaloneDispatchBindsUniqueConsoleEvidenceToPluginServer(t *testing.T
 	}
 }
 
-func TestPreparationBootstrapCapturesWithLeastPrivilegeReadOnlyCredential(t *testing.T) {
+func TestPreparationBootstrapReusesProtectedCandidateRegistryCredential(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
 	workflow := string(data)
 	for _, required := range []string{
-		`PUBLIC_REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}`,
-		`REGISTRY_READER_USERNAME: ${{ secrets.PLUGIN_REGISTRY_READER_USERNAME }}`,
-		`REGISTRY_READER_PASSWORD: ${{ secrets.PLUGIN_REGISTRY_READER_PASSWORD }}`,
-		`[[ "$PUBLIC_REGISTRY" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]`,
-		`test -n "$REGISTRY_READER_USERNAME"; test -n "$REGISTRY_READER_PASSWORD"`,
+		`CANDIDATE_REGISTRY: ${{ vars.PLUGIN_CANDIDATE_REGISTRY }}`,
+		`REGISTRY_USERNAME: ${{ secrets.CANDIDATE_REGISTRY_USERNAME }}`,
+		`REGISTRY_PASSWORD: ${{ secrets.CANDIDATE_REGISTRY_PASSWORD }}`,
+		`[[ "$CANDIDATE_REGISTRY" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]`,
+		`test "$CANDIDATE_REGISTRY" = "$(jq -er .registry plugins/release/catalog.json)"`,
+		`test -n "$REGISTRY_USERNAME"; test -n "$REGISTRY_PASSWORD"`,
 	} {
 		if !strings.Contains(workflow, required) {
-			t.Fatalf("bootstrap capture lacks the least-privilege reader contract %q", required)
+			t.Fatalf("bootstrap capture does not reuse the protected candidate registry contract %q", required)
 		}
 	}
 	branch := strings.Index(workflow, `if [ -z "$PREVIOUS" ]; then`)
-	login := strings.Index(workflow, `echo "$REGISTRY_READER_PASSWORD" | oras login "$PUBLIC_REGISTRY" -u "$REGISTRY_READER_USERNAME" --password-stdin`)
+	login := strings.Index(workflow, `echo "$REGISTRY_PASSWORD" | oras login "$CANDIDATE_REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin`)
 	capture := strings.Index(workflow, "capture-bootstrap-evidence")
 	if branch < 0 || login < 0 || capture < 0 || branch > login || login > capture {
-		t.Fatal("the read-only reader login must stay inside the bootstrap branch and precede evidence capture")
+		t.Fatal("the existing candidate registry login must stay inside the bootstrap branch and precede read-only evidence capture")
 	}
-	if strings.Contains(workflow, "PRODUCTION_REGISTRY") {
-		t.Fatal("preparation must never hold a production write credential")
+	for _, obsolete := range []string{"PLUGIN_REGISTRY_READER_USERNAME", "PLUGIN_REGISTRY_READER_PASSWORD", "PLUGIN_PUBLIC_REGISTRY"} {
+		if strings.Contains(workflow, obsolete) {
+			t.Fatalf("preparation must not require obsolete registry configuration %q", obsolete)
+		}
 	}
 }
 
