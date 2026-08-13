@@ -61,11 +61,15 @@ func TestGoBatchBuildUsesReleaseEligibleCatalogSelection(t *testing.T) {
 		}
 		t.Fatalf("release-eligible Go plugin %q was not selected", sourceDir)
 	}
-	assertSelected("plugins/wasm-go/extensions/cache-control")     // stable 2.0.0, not alpha
+	assertSelected("plugins/wasm-go/extensions/cache-control")     // stable SemVer, not a prerelease
 	assertSelected("plugins/wasm-go/extensions/replay-protection") // alpha version
 	assertSelected("plugins/wasm-go/extensions/mcp-server")
 	version, err := os.ReadFile(filepath.Join(root, "plugins/wasm-go/extensions/cache-control/VERSION"))
-	if err != nil || strings.TrimSpace(string(version)) != "2.0.0" {
+	if err != nil {
+		t.Fatalf("read stable cache-control VERSION fixture: %v", err)
+	}
+	stableVersion, err := parseSemver(string(version))
+	if err != nil || stableVersion.prerelease != "" {
 		t.Fatalf("fixture must exercise stable cache-control VERSION, got %q (%v)", version, err)
 	}
 	version, err = os.ReadFile(filepath.Join(root, "plugins/wasm-go/extensions/replay-protection/VERSION"))
