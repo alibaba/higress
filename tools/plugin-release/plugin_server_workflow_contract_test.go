@@ -5,6 +5,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -254,6 +255,35 @@ func workflowShellContract(t *testing.T, workflowName, contractName string) stri
 	return string(data)[start:finish]
 }
 
+func workflowShellContracts(t *testing.T, workflowName, contractName string) []string {
+	t.Helper()
+	data, err := os.ReadFile("../../.github/workflows/" + workflowName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	begin := "# BEGIN " + contractName
+	end := "# END " + contractName
+	remainder := string(data)
+	var contracts []string
+	for {
+		start := strings.Index(remainder, begin)
+		if start < 0 {
+			break
+		}
+		start += len(begin)
+		finish := strings.Index(remainder[start:], end)
+		if finish < 0 {
+			t.Fatalf("%s has an unterminated executable shell contract %s", workflowName, contractName)
+		}
+		contracts = append(contracts, remainder[start:start+finish])
+		remainder = remainder[start+finish+len(end):]
+	}
+	if len(contracts) == 0 {
+		t.Fatalf("%s lacks executable shell contract %s", workflowName, contractName)
+	}
+	return contracts
+}
+
 func writeExecutableFixture(t *testing.T, path, contents string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(contents), 0o700); err != nil {
@@ -364,6 +394,10 @@ if [ "$1 $2" = "manifest fetch" ]; then
       absent-name) echo "name unknown" >&2; exit 1 ;;
       absent-acr) echo "Error response from registry: $ref: not found" >&2; exit 1 ;;
       auth) echo "401 unauthorized" >&2; exit 1 ;;
+      auth-401-status) echo "response status code 401" >&2; exit 1 ;;
+      auth-403-http) echo "HTTP/1.1 403" >&2; exit 1 ;;
+      auth-phrase-denied) echo "requested access is denied" >&2; exit 1 ;;
+      auth-phrase-required) echo "authentication required" >&2; exit 1 ;;
       ambiguous) echo "not found" >&2; exit 1 ;;
       repository-missing) echo "repository does not exist" >&2; exit 1 ;;
       wrong-acr-ref) echo "Error response from registry: registry.example.invalid/candidates/other: not found" >&2; exit 1 ;;
@@ -492,6 +526,128 @@ func TestPreparationDoesNotReadEmbedded404FromRealCandidateTagAsHTTPAbsence(t *t
 	}
 }
 
+func TestPreparationClassifiesRealAIHashWithoutReadingEmbedded401AsAuthorization(t *testing.T) {
+	const aiCacheCandidate = "higress-registry.cn-hangzhou.cr.aliyuncs.com/candidates/ai-cache:5a150abf7a1a76129eef4e2d61927116a59c9141f87cdfb1d4a0b0f58e049a544bf98709658a92d40b7bda75b5f458387526143e09b321a401ff7a258fdea47f"
+
+	absent := runCandidatePublishContractWithCandidate(t, "absent-acr", aiCacheCandidate)
+	if absent.err != nil {
+		t.Fatalf("exact ACR absence for real ai-cache candidate was not published: %v\n%s", absent.err, absent.output)
+	}
+	if strings.Count(absent.log, "push ") != 1 {
+		t.Fatalf("exact ACR absence must perform one push:\n%s", absent.log)
+	}
+
+	transport := runCandidatePublishContractWithCandidate(t, "transport-with-ref", aiCacheCandidate)
+	if transport.err == nil || strings.Contains(transport.log, "push ") {
+		t.Fatalf("transport error echoing real ai-cache candidate must fail without push: err=%v\n%s", transport.err, transport.log)
+	}
+
+	for _, mode := range []string{"auth-401-status", "auth-403-http", "auth", "auth-phrase-denied", "auth-phrase-required"} {
+		t.Run(mode, func(t *testing.T) {
+			result := runCandidatePublishContractWithCandidate(t, mode, aiCacheCandidate)
+			if result.err == nil || strings.Contains(result.log, "push ") {
+				t.Fatalf("authorization evidence %s must fail without push: err=%v\n%s", mode, result.err, result.log)
+			}
+		})
+	}
+}
+
+func runPromotionDescriptorContract(t *testing.T, contract, mode, ref string) (int, string) {
+	t.Helper()
+	tmp := t.TempDir()
+	bin := filepath.Join(tmp, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(tmp, "oras.log")
+	writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$ORAS_LOG"
+ref=$3
+case "$ORAS_MODE" in
+  absent-acr) echo "Error response from registry: $ref: not found" >&2; exit 1 ;;
+  transport-with-ref) echo "transport error while resolving $ref: dial tcp: i/o timeout" >&2; exit 1 ;;
+  auth-401-status) echo "response status code 401" >&2; exit 1 ;;
+  auth-403-http) echo "HTTP/1.1 403" >&2; exit 1 ;;
+  auth-phrase) echo "authorization required" >&2; exit 1 ;;
+  *) echo "unsupported fixture mode" >&2; exit 3 ;;
+esac
+`)
+	script := "set -euo pipefail\n" + contract + fmt.Sprintf("\ndescriptor_or_absent %q\n", ref)
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "ORAS_LOG="+log, "ORAS_MODE="+mode)
+	output, err := cmd.CombinedOutput()
+	status := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("promotion descriptor fixture failed to execute: %v\n%s", err, output)
+		}
+		status = exitErr.ExitCode()
+	}
+	logBytes, readErr := os.ReadFile(log)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	return status, string(logBytes)
+}
+
+func TestPromotionDescriptorClassifiersIgnoreAuthDigitsInsideExpectedReference(t *testing.T) {
+	contracts := workflowShellContracts(t, "promote-plugin-release.yaml", "promotion-descriptor-contract")
+	if len(contracts) != 2 {
+		t.Fatalf("promotion version/latest jobs have %d descriptor contracts, want 2", len(contracts))
+	}
+	const ref = "registry.example.invalid/plugins/plugin-401-and-403:hash401value403"
+	for i, contract := range contracts {
+		t.Run(fmt.Sprintf("classifier-%d", i+1), func(t *testing.T) {
+			for _, tc := range []struct {
+				mode string
+				want int
+			}{
+				{mode: "absent-acr", want: 1},
+				{mode: "transport-with-ref", want: 2},
+				{mode: "auth-401-status", want: 2},
+				{mode: "auth-403-http", want: 2},
+				{mode: "auth-phrase", want: 2},
+			} {
+				t.Run(tc.mode, func(t *testing.T) {
+					status, log := runPromotionDescriptorContract(t, contract, tc.mode, ref)
+					if status != tc.want {
+						t.Fatalf("descriptor status for %s = %d, want %d\n%s", tc.mode, status, tc.want, log)
+					}
+					if strings.Contains(log, "push ") || strings.Contains(log, "cp ") {
+						t.Fatalf("descriptor classification mutated the registry:\n%s", log)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestPromotionDescriptorClassifiersIgnore404InsideExpectedReferences(t *testing.T) {
+	contracts := workflowShellContracts(t, "promote-plugin-release.yaml", "promotion-descriptor-contract")
+	if len(contracts) != 2 {
+		t.Fatalf("promotion version/latest jobs have %d descriptor contracts, want 2", len(contracts))
+	}
+	refs := map[string]string{
+		"completion-marker":     "registry.example.invalid/candidates/plugin-release-batches:abc404def",
+		"plugin-version-latest": "registry.example.invalid/plugins/plugin-404:hash404value",
+	}
+	for i, contract := range contracts {
+		for name, ref := range refs {
+			t.Run(fmt.Sprintf("classifier-%d/%s", i+1, name), func(t *testing.T) {
+				status, log := runPromotionDescriptorContract(t, contract, "transport-with-ref", ref)
+				if status != 2 {
+					t.Fatalf("transport error echoing 404-containing ref returned %d, want fail-closed status 2\n%s", status, log)
+				}
+				if strings.Contains(log, "push ") || strings.Contains(log, "cp ") {
+					t.Fatalf("transport error echoing 404-containing ref caused registry mutation:\n%s", log)
+				}
+			})
+		}
+	}
+}
+
 func TestPreparationVersionOverridesPreserveCanonicalObjectAndRejectMalformedInputs(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
 	if err != nil {
@@ -593,6 +749,8 @@ func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *test
 		`descriptor=$(oras manifest fetch "$public_ref" --descriptor`, `jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")'`,
 		`present=$((present + 1))`, `absent=$((absent + 1))`, `authenticated_capture=0`,
 		`authenticated_capture=$((authenticated_capture + 1))`,
+		`auth_error=${auth_error//"$public_ref"/}`,
+		`unauthorized|forbidden|denied|authentication required|authorization required`,
 		`grep -Fq 'Error response from registry:'`, `grep -Fq "$public_ref: not found"`,
 		"public registry preflight requires authenticated capture; authorization failure is never absence",
 		"public registry preflight failed without explicit absence evidence",
@@ -609,7 +767,7 @@ func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *test
 	if strings.Contains(preflight, "--descriptor --format") {
 		t.Fatal("ORAS 1.2.3 descriptor preflight must not combine --descriptor and --format")
 	}
-	authStart := strings.Index(preflight, "if grep -Eiq '401|403|")
+	authStart := strings.Index(preflight, `auth_error=$(<"$lookup_error")`)
 	absenceStart := strings.Index(preflight, "if grep -Eiq '404|manifest unknown|")
 	if authStart < 0 || absenceStart < 0 || authStart > absenceStart {
 		t.Fatal("uncredentialed preflight must classify authorization before explicit absence")
