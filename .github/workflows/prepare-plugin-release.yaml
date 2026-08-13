@@ -285,7 +285,7 @@ jobs:
               echo "candidate lookup authorization failure is never absence: $candidate" >&2
               return 1
             fi
-            if grep -Eiq '(^|[^[:digit:]])404([^[:digit:]]|$)|manifest unknown|name unknown' "$lookup_error" ||
+            if grep -Eiq 'HTTP(/[0-9.]+)?[[:space:]]+404([^[:digit:]]|$)|response status( code)?[[:space:]:=]+404([^[:digit:]]|$)|status code[[:space:]:=]+404([^[:digit:]]|$)|404[[:space:]]+Not[[:space:]]+Found|manifest unknown|name unknown' "$lookup_error" ||
                { grep -Fq 'Error response from registry:' "$lookup_error" && grep -Fq "$candidate: not found" "$lookup_error"; }; then
               rm -f "$lookup_error"
             else

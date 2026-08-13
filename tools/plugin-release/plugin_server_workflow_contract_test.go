@@ -335,6 +335,11 @@ type candidateContractResult struct {
 
 func runCandidatePublishContract(t *testing.T, mode string) candidateContractResult {
 	t.Helper()
+	return runCandidatePublishContractWithCandidate(t, mode, "registry.example.invalid:5000/candidates/demo:plan-and-input-hash")
+}
+
+func runCandidatePublishContractWithCandidate(t *testing.T, mode, candidate string) candidateContractResult {
+	t.Helper()
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "bin")
 	if err := os.MkdirAll(bin, 0o755); err != nil {
@@ -354,7 +359,7 @@ if [ "$1 $2" = "manifest fetch" ]; then
   ref=$3
   if [ "${4:-}" = "--descriptor" ]; then
     case "$ORAS_MODE" in
-      absent-404) echo "404 manifest lookup failed" >&2; exit 1 ;;
+      absent-404) echo "response status code 404: Not Found" >&2; exit 1 ;;
       absent-manifest) echo "MANIFEST UNKNOWN" >&2; exit 1 ;;
       absent-name) echo "name unknown" >&2; exit 1 ;;
       absent-acr) echo "Error response from registry: $ref: not found" >&2; exit 1 ;;
@@ -363,6 +368,7 @@ if [ "$1 $2" = "manifest fetch" ]; then
       repository-missing) echo "repository does not exist" >&2; exit 1 ;;
       wrong-acr-ref) echo "Error response from registry: registry.example.invalid/candidates/other: not found" >&2; exit 1 ;;
       transport) echo "dial tcp: i/o timeout" >&2; exit 1 ;;
+      transport-with-ref) echo "transport error while resolving $ref: dial tcp: i/o timeout" >&2; exit 1 ;;
       malformed-descriptor) echo '{'; exit 0 ;;
       wrong-descriptor-media) printf '{"mediaType":"application/example","digest":"%s"}\n' "$ORAS_MANIFEST_DIGEST"; exit 0 ;;
       *) printf '{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s"}\n' "$ORAS_MANIFEST_DIGEST"; exit 0 ;;
@@ -399,7 +405,6 @@ exit 2
 	const inputHash = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	const manifestDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	const pushDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	const candidate = "registry.example.invalid:5000/candidates/demo:plan-and-input-hash"
 	contract := workflowShellContract(t, "prepare-plugin-release.yaml", "candidate-publish-contract")
 	script := "set -euo pipefail\n" + contract + fmt.Sprintf("\npublish_or_reuse_candidate %q %q %q 1.2.3 %q\n", candidate, wasm, sourceCommit, inputHash)
 	cmd := exec.Command("bash", "-c", script)
@@ -473,6 +478,17 @@ func TestPreparationCandidateLookupAndManifestMismatchesFailWithoutMutation(t *t
 				t.Fatalf("unsafe candidate state %s caused mutation:\n%s", mode, result.log)
 			}
 		})
+	}
+}
+
+func TestPreparationDoesNotReadEmbedded404FromRealCandidateTagAsHTTPAbsence(t *testing.T) {
+	const aiProxyCandidate = "higress-registry.cn-hangzhou.cr.aliyuncs.com/candidates/ai-proxy:b0776c63af093544e840df5c88187a658767e51f7b0b424aca802bbcb531b351fc42f8a92ee198eacb59689be844cbeb00dab79b359b583cb404f4106fef5cee"
+	result := runCandidatePublishContractWithCandidate(t, "transport-with-ref", aiProxyCandidate)
+	if result.err == nil {
+		t.Fatalf("transport error containing the ai-proxy tag's embedded 404 was accepted: %s", result.output)
+	}
+	if strings.Contains(result.log, "push ") {
+		t.Fatalf("transport error containing the ai-proxy tag's embedded 404 caused a push:\n%s", result.log)
 	}
 }
 
