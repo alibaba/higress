@@ -89,7 +89,9 @@ type PlanEntry struct {
 	ChangedPaths    []string `json:"changedPaths"`
 	// Backfill marks a bootstrap release entry whose stable public tag was
 	// absent from the reviewed baseline: promotion creates the tag from this
-	// candidate and never moves latest for it.
+	// candidate. The marker is bootstrap-only provenance and migration state;
+	// after the complete version batch verifies, the entry participates in the
+	// same serialized monotonic latest policy as every selected stable plugin.
 	Backfill bool `json:"backfill,omitempty"`
 }
 
@@ -133,14 +135,28 @@ type BootstrapEvidence struct {
 }
 
 type Snapshot struct {
-	SchemaVersion   int             `json:"schemaVersion"`
-	GatewayVersion  string          `json:"gatewayVersion"`
-	SourceCommit    string          `json:"sourceCommit"`
-	PreviousRelease string          `json:"previousRelease,omitempty"`
-	CatalogSHA256   string          `json:"catalogSha256"`
-	PlanID          string          `json:"planId"`
-	ProvenanceMode  string          `json:"provenanceMode"`
-	Plugins         []SnapshotEntry `json:"plugins"`
+	SchemaVersion   int    `json:"schemaVersion"`
+	GatewayVersion  string `json:"gatewayVersion"`
+	SourceCommit    string `json:"sourceCommit"`
+	PreviousRelease string `json:"previousRelease,omitempty"`
+	CatalogSHA256   string `json:"catalogSha256"`
+	PlanID          string `json:"planId"`
+	ProvenanceMode  string `json:"provenanceMode"`
+	// BootstrapEvidence declares that this snapshot is the first managed
+	// release rendered from the one-time bootstrap baseline and names the
+	// committed bootstrap evidence the preparation PR must carry. Validation
+	// never infers bootstrap mode from a missing previous-snapshot file.
+	BootstrapEvidence *SnapshotBootstrapEvidence `json:"bootstrapEvidence,omitempty"`
+	Plugins           []SnapshotEntry            `json:"plugins"`
+}
+
+// SnapshotBootstrapEvidence binds the first managed release to the exact
+// committed bootstrap evidence file it was reviewed against. Path is the
+// deterministic repository-relative committed location and SHA256 is the
+// lowercase hex SHA-256 of its canonical bytes.
+type SnapshotBootstrapEvidence struct {
+	Path   string `json:"path"`
+	SHA256 string `json:"sha256"`
 }
 
 type SnapshotEntry struct {
@@ -157,7 +173,9 @@ type SnapshotEntry struct {
 	ProvenanceMode string `json:"provenanceMode"`
 	// Backfill marks an entry imported by building a candidate for a stable
 	// VERSION whose public tag was absent at bootstrap. Promotion creates the
-	// version tag from the candidate but never moves latest for the entry.
+	// version tag from the candidate; the marker records bootstrap provenance
+	// and migration state and is not an exclusion from the serialized
+	// monotonic latest policy.
 	Backfill  bool            `json:"backfill,omitempty"`
 	Consumers PluginConsumers `json:"consumers,omitempty"`
 }

@@ -36,9 +36,14 @@ func TestClassifyOCIFailureDistinguishesUnauthorizedFromAbsent(t *testing.T) {
 		{"manifest unknown", ociFailureNotFound},
 		{"name unknown", ociFailureNotFound},
 		{"repository does not exist", ociFailureNotFound},
-		{"Error response from daemon: not found", ociFailureNotFound},
 		{"connection refused", ociFailureOther},
 		{"i/o timeout", ociFailureOther},
+		// A local executable/file failure or generic "not found" text is never
+		// absence evidence: only explicit registry 404-class markers qualify.
+		{"Error response from daemon: not found", ociFailureOther},
+		{`exec: "oras": executable file not found in $PATH`, ociFailureOther},
+		{"open /tmp/descriptor.json: no such file or directory", ociFailureOther},
+		{"not found", ociFailureOther},
 		// Authorization always wins over absence: a 401/403 is never an
 		// absent artifact, even when the registry also says "unknown".
 		{"403: manifest unknown", ociFailureUnauthorized},
@@ -174,7 +179,7 @@ func TestBootstrapBackfillProducesMixedSnapshotVerifiedFromBothSources(t *testin
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	mixed, err := renderSnapshot(catalog, planPath, bootstrapPath, candidatePath)
+	mixed, err := renderSnapshot(catalog, planPath, bootstrapPath, candidatePath, evidencePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,6 +194,17 @@ func TestBootstrapBackfillProducesMixedSnapshotVerifiedFromBothSources(t *testin
 	if carried.LogicalID != "pub" || carried.Backfill || carried.ProvenanceMode != "public" || carried.Digest != pubDigest || carried.CandidateRef != "" {
 		t.Fatalf("unchanged public artifact must carry forward without candidate provenance: %#v", carried)
 	}
+	// The first managed release must name the exact committed bootstrap
+	// evidence the preparation PR carries; validation never infers bootstrap
+	// mode from a missing previous-snapshot file.
+	if mixed.BootstrapEvidence == nil || mixed.BootstrapEvidence.Path != "plugins/release/bootstrap-evidence/2.0.1.json" ||
+		mixed.BootstrapEvidence.SHA256 != sha256Hex(mustRead(t, evidencePath)) {
+		t.Fatalf("first managed release must carry the deterministic committed bootstrap evidence marker: %#v", mixed.BootstrapEvidence)
+	}
+	committedEvidence := filepath.Join(root, "plugins/release/bootstrap-evidence/2.0.1.json")
+	if err := writeCanonical(committedEvidence, evidence); err != nil {
+		t.Fatal(err)
+	}
 	mixedPath := filepath.Join(root, "mixed.json")
 	if err := writeCanonical(mixedPath, mixed); err != nil {
 		t.Fatal(err)
@@ -200,14 +216,16 @@ func TestBootstrapBackfillProducesMixedSnapshotVerifiedFromBothSources(t *testin
 	}
 
 	// PR validation resolves only candidate references; the historical public
-	// entry is deliberately not re-resolved or annotated there.
+	// entry is deliberately not re-resolved or annotated there. The bootstrap
+	// baseline itself is not committed, so the carried public entry is bound by
+	// the committed evidence marker rather than a previous snapshot.
 	withManifestResolver(t, func(ref string) (ociManifest, error) {
 		if ref != candidateRef {
 			t.Fatalf("candidate validation resolved %q, want only the backfill candidate", ref)
 		}
 		return ociManifest{Digest: candidateDigest, Annotations: annotations}, nil
 	})
-	if err := verifySnapshot(root, catalog, mixedPath, target, target, true, "candidate"); err != nil {
+	if err := verifySnapshotBindings(root, catalog, mixedPath, planPath, "", target, target, true, "candidate"); err != nil {
 		t.Fatalf("mixed snapshot must pass candidate PR validation: %v", err)
 	}
 
@@ -224,15 +242,214 @@ func TestBootstrapBackfillProducesMixedSnapshotVerifiedFromBothSources(t *testin
 			return ociManifest{}, nil
 		}
 	})
-	if err := verifySnapshot(root, catalog, mixedPath, target, target, true, "public"); err != nil {
+	if err := verifySnapshotBindings(root, catalog, mixedPath, planPath, "", target, target, true, "public"); err != nil {
 		t.Fatalf("mixed snapshot must pass post-promotion public verification: %v", err)
 	}
 
 	withManifestResolver(t, func(string) (ociManifest, error) {
 		return ociManifest{Digest: "sha256:" + strings.Repeat("d", 64)}, nil
 	})
-	if err := verifySnapshot(root, catalog, mixedPath, target, target, true, "public"); err == nil {
+	if err := verifySnapshotBindings(root, catalog, mixedPath, planPath, "", target, target, true, "public"); err == nil {
 		t.Fatal("a public tag drifting from the reviewed digest must fail closed")
+	}
+}
+
+// mixedBackfillFixture renders the first managed release over a bootstrap
+// baseline with one backfilled ("miss") and one carried public ("pub") plugin
+// and commits the bootstrap evidence at its deterministic marker path.
+func mixedBackfillFixture(t *testing.T) (root, catalog, planPath, snapshotPath string, snapshot Snapshot) {
+	t.Helper()
+	root, catalog, base := backfillRepo(t, map[string]string{"miss": "1.0.0", "pub": "1.0.0"})
+	mustWrite(t, filepath.Join(root, "release-notes", "notes.md"), "notes\n")
+	mustRun(t, root, "git", "add", ".")
+	mustRun(t, root, "git", "commit", "-q", "-m", "unrelated")
+	target, _ := resolveCommit(root, "HEAD")
+	pubDigest := "sha256:" + strings.Repeat("a", 64)
+	candidateDigest := "sha256:" + strings.Repeat("c", 64)
+	candidateRef := "registry.example/candidates/miss@" + candidateDigest
+	withManifestResolver(t, func(ref string) (ociManifest, error) {
+		switch ref {
+		case "registry.example/plugins/pub:1.0.0":
+			return ociManifest{Digest: pubDigest}, nil
+		case "registry.example/plugins/miss:1.0.0":
+			return ociManifest{}, errors.New("404: manifest unknown")
+		default:
+			t.Fatalf("unexpected bootstrap resolve %q", ref)
+			return ociManifest{}, nil
+		}
+	})
+	evidence, err := captureBootstrapEvidence(root, catalog, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidencePath := filepath.Join(root, "bootstrap-evidence.json")
+	if err := writeCanonical(evidencePath, evidence); err != nil {
+		t.Fatal(err)
+	}
+	bootstrapPath := filepath.Join(root, "bootstrap.json")
+	if err := commandBootstrap([]string{"--root", root, "--catalog", catalog, "--gateway-version", "2.0.0", "--source", target, "--existing-evidence", evidencePath, "--output", bootstrapPath}); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := buildPlan(root, catalog, bootstrapPath, base, target, "2.0.1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	planPath = filepath.Join(root, "plan.json")
+	if err := writeCanonical(planPath, plan); err != nil {
+		t.Fatal(err)
+	}
+	candidatePath := filepath.Join(root, "candidates.json")
+	if err := writeCanonical(candidatePath, CandidateEvidenceFile{Plugins: map[string]CandidateEvidence{
+		"miss": {CandidateRef: candidateRef, Digest: candidateDigest, SourceCommit: target, InputHash: plan.Plugins[0].InputHash},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	mixed, err := renderSnapshot(catalog, planPath, bootstrapPath, candidatePath, evidencePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCanonical(filepath.Join(root, mixed.BootstrapEvidence.Path), evidence); err != nil {
+		t.Fatal(err)
+	}
+	snapshotPath = filepath.Join(root, "mixed.json")
+	if err := writeCanonical(snapshotPath, mixed); err != nil {
+		t.Fatal(err)
+	}
+	return root, catalog, planPath, snapshotPath, mixed
+}
+
+func TestVerifySnapshotBindsBackfillExactlyBetweenPlanAndSnapshot(t *testing.T) {
+	root, catalog, planPath, snapshotPath, mixed := mixedBackfillFixture(t)
+	target := mixed.SourceCommit
+
+	// Positive: exact plan binding plus the committed evidence marker verifies.
+	if err := verifySnapshotBindings(root, catalog, snapshotPath, planPath, "", target, target, false, "candidate"); err != nil {
+		t.Fatalf("exact plan/snapshot backfill binding must verify: %v", err)
+	}
+
+	writeSnapshot := func(mutate func(*Snapshot)) string {
+		t.Helper()
+		dup := mixed
+		dup.Plugins = append([]SnapshotEntry(nil), mixed.Plugins...)
+		if mixed.BootstrapEvidence != nil {
+			marker := *mixed.BootstrapEvidence
+			dup.BootstrapEvidence = &marker
+		}
+		mutate(&dup)
+		path := filepath.Join(t.TempDir(), "snapshot.json")
+		if err := writeCanonical(path, dup); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	writePlan := func(mutate func(*Plan)) string {
+		t.Helper()
+		var plan Plan
+		if _, err := readJSON(planPath, &plan); err != nil {
+			t.Fatal(err)
+		}
+		mutate(&plan)
+		path := filepath.Join(t.TempDir(), "plan.json")
+		if err := writeCanonical(path, plan); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	// Snapshot drops the backfill flag the plan recorded.
+	tampered := writeSnapshot(func(s *Snapshot) { s.Plugins[0].Backfill = false })
+	if err := verifySnapshotBindings(root, catalog, tampered, planPath, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "differs from its plan entry") {
+		t.Fatalf("snapshot dropping a planned backfill must fail: %v", err)
+	}
+	// Plan drops the backfill flag the snapshot recorded.
+	tamperedPlan := writePlan(func(p *Plan) { p.Plugins[0].Backfill = false })
+	if err := verifySnapshotBindings(root, catalog, snapshotPath, tamperedPlan, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "differs from its plan entry") {
+		t.Fatalf("plan dropping a snapshotted backfill must fail: %v", err)
+	}
+	// A planned backfill without the committed evidence marker fails closed.
+	unmarked := writeSnapshot(func(s *Snapshot) { s.BootstrapEvidence = nil })
+	if err := verifySnapshotBindings(root, catalog, unmarked, planPath, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "no committed bootstrap evidence marker") {
+		t.Fatalf("planned backfill without the marker must fail: %v", err)
+	}
+	// The marker must name the deterministic committed path.
+	badPath := writeSnapshot(func(s *Snapshot) { s.BootstrapEvidence.Path = "plugins/release/bootstrap-evidence/other.json" })
+	if err := verifySnapshotBindings(root, catalog, badPath, planPath, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "deterministic committed path") {
+		t.Fatalf("a non-deterministic evidence path must fail: %v", err)
+	}
+	// The committed evidence bytes must match the marker digest exactly.
+	badSHA := writeSnapshot(func(s *Snapshot) { s.BootstrapEvidence.SHA256 = "0" + s.BootstrapEvidence.SHA256[1:] })
+	if err := verifySnapshotBindings(root, catalog, badSHA, planPath, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "does not match the snapshot marker sha256") {
+		t.Fatalf("evidence bytes differing from the marker digest must fail: %v", err)
+	}
+	// The bootstrap baseline itself never carries the marker.
+	baseline := writeSnapshot(func(s *Snapshot) { s.ProvenanceMode = "bootstrap-public" })
+	if err := verifySnapshotBindings(root, catalog, baseline, planPath, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "never carries a bootstrap evidence marker") {
+		t.Fatalf("a marked bootstrap-public snapshot must fail: %v", err)
+	}
+	// The marker is allowed only on the first managed release rendered from
+	// the bootstrap baseline, never on a release with a managed predecessor.
+	if err := verifySnapshotBindings(root, catalog, snapshotPath, planPath, snapshotPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "only on the first managed release") {
+		t.Fatalf("marker with a managed previous snapshot must fail: %v", err)
+	}
+}
+
+func TestVerifySnapshotBindsCarriedBackfillToPreviousRelease(t *testing.T) {
+	root, catalog, _, snapshotPath, mixed := mixedBackfillFixture(t)
+	target := mixed.SourceCommit
+
+	// The next managed release plans nothing: both plugins carry forward, and
+	// the historical backfill marker persists as provenance/migration state
+	// without a new bootstrap evidence marker.
+	_, catalogData, err := loadCatalog(catalog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := Plan{SchemaVersion: 1, GatewayVersion: "2.0.2", SourceCommit: target, CatalogSHA256: sha256Hex(catalogData), PlanID: "sha256:" + strings.Repeat("e", 64)}
+	planPath := filepath.Join(root, "plan2.json")
+	if err := writeCanonical(planPath, plan); err != nil {
+		t.Fatal(err)
+	}
+	evidence := filepath.Join(root, "candidates2.json")
+	if err := writeCanonical(evidence, CandidateEvidenceFile{Plugins: map[string]CandidateEvidence{}}); err != nil {
+		t.Fatal(err)
+	}
+	next, err := renderSnapshot(catalog, planPath, snapshotPath, evidence, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next.Plugins) != 2 || !next.Plugins[0].Backfill || next.BootstrapEvidence != nil {
+		t.Fatalf("carried backfill must persist as migration state without a new marker: %#v", next)
+	}
+	nextPath := filepath.Join(root, "next.json")
+	if err := writeCanonical(nextPath, next); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySnapshotBindings(root, catalog, nextPath, planPath, snapshotPath, target, target, false, "candidate"); err != nil {
+		t.Fatalf("carried backfill bound to the previous release must verify: %v", err)
+	}
+
+	// A snapshot-only backfill switch that neither plan nor previous release
+	// recorded is rejected: backfill is not a mutable per-release flag.
+	flipped := next
+	flipped.Plugins = append([]SnapshotEntry(nil), next.Plugins...)
+	flipped.Plugins[1].Backfill = true
+	flippedPath := filepath.Join(root, "flipped.json")
+	if err := writeCanonical(flippedPath, flipped); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySnapshotBindings(root, catalog, flippedPath, planPath, snapshotPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "stable candidate provenance") {
+		t.Fatalf("a snapshot-only backfill injection must fail: %v", err)
+	}
+	// Dropping the historical marker on carry is equally rejected.
+	dropped := next
+	dropped.Plugins = append([]SnapshotEntry(nil), next.Plugins...)
+	dropped.Plugins[0].Backfill = false
+	droppedPath := filepath.Join(root, "dropped.json")
+	if err := writeCanonical(droppedPath, dropped); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySnapshotBindings(root, catalog, droppedPath, planPath, snapshotPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "differs from the previous snapshot") {
+		t.Fatalf("dropping carried backfill state must fail: %v", err)
 	}
 }
 
@@ -281,19 +498,19 @@ func TestRenderSnapshotRejectsDeferredPlanAbuse(t *testing.T) {
 		p.Plugins = []PlanEntry{entry}
 		p.Deferred = []DeferredPlugin{{LogicalID: "demo", Version: "1.0.0", Reason: "alpha-prerelease"}}
 	})
-	if _, err := renderSnapshot(catalog, plan, "", evidence); err == nil || !strings.Contains(err.Error(), "both plans and defers") {
+	if _, err := renderSnapshot(catalog, plan, "", evidence, ""); err == nil || !strings.Contains(err.Error(), "both plans and defers") {
 		t.Fatalf("a plugin must not be both planned and deferred: %v", err)
 	}
 	plan = newPlan(func(p *Plan) {
 		p.Deferred = []DeferredPlugin{{LogicalID: "demo", Version: "1.0.0", Reason: "manual"}}
 	})
-	if _, err := renderSnapshot(catalog, plan, "", evidence); err == nil || !strings.Contains(err.Error(), "unsupported reason") {
+	if _, err := renderSnapshot(catalog, plan, "", evidence, ""); err == nil || !strings.Contains(err.Error(), "unsupported reason") {
 		t.Fatalf("only alpha-prerelease deferral is supported: %v", err)
 	}
 	plan = newPlan(func(p *Plan) {
 		p.Deferred = []DeferredPlugin{{LogicalID: "demo", Version: "1.0.0", Reason: "alpha-prerelease"}, {LogicalID: "ghost", Version: "1.0.0", Reason: "alpha-prerelease"}}
 	})
-	if _, err := renderSnapshot(catalog, plan, "", evidence); err == nil || !strings.Contains(err.Error(), "unknown or release-ineligible") {
+	if _, err := renderSnapshot(catalog, plan, "", evidence, ""); err == nil || !strings.Contains(err.Error(), "unknown or release-ineligible") {
 		t.Fatalf("deferral must reference release-eligible catalog plugins: %v", err)
 	}
 }
@@ -340,7 +557,7 @@ func TestDeferredAlphaCarriesForwardOnlyStablePreviousEntry(t *testing.T) {
 	if err := writeCanonical(evidence, CandidateEvidenceFile{Plugins: map[string]CandidateEvidence{}}); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := renderSnapshot(catalog, planPath, previousPath, evidence)
+	snapshot, err := renderSnapshot(catalog, planPath, previousPath, evidence, "")
 	if err != nil {
 		t.Fatal(err)
 	}

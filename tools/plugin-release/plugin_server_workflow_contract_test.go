@@ -162,6 +162,11 @@ func TestPreparationBootstrapPlansFromExactHistoricalBase(t *testing.T) {
 		"capture-bootstrap-evidence", "--existing-evidence /tmp/bootstrap-evidence.json",
 		"--previous /tmp/bootstrap-snapshot.json", `--base "$BOOTSTRAP_BASE"`,
 		"apply-plan", "Build and publish content-addressed candidates",
+		// The first managed snapshot carries the explicit committed bootstrap
+		// evidence marker: render receives the same evidence bytes that are
+		// committed at the deterministic gateway-versioned path.
+		"--bootstrap-evidence /tmp/bootstrap-evidence.json",
+		`cp /tmp/bootstrap-evidence.json "plugins/release/bootstrap-evidence/$GATEWAY_VERSION.json"`,
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("preparation bootstrap lacks first-release contract %q", required)
@@ -235,7 +240,7 @@ func TestLatestPromotionMarkerSupportsFreshPartialAndCompletedRetries(t *testing
 	}
 }
 
-func TestPromotionBackfillsVersionTagButNeverMovesLatest(t *testing.T) {
+func TestPromotionBackfillsVersionTagAndJoinsMonotonicLatest(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/promote-plugin-release.yaml")
 	if err != nil {
 		t.Fatal(err)
@@ -256,10 +261,28 @@ func TestPromotionBackfillsVersionTagButNeverMovesLatest(t *testing.T) {
 			t.Fatalf("version promotion lacks the backfill/idempotence contract %q", required)
 		}
 	}
-	// The latest phase must skip backfill entries so imported history never
-	// moves latest, while a genuine new stable plugin still advances it.
-	if !strings.Contains(workflow, `done < <(jq -c '.plugins[] | select(.backfill != true)' "$SNAPSHOT_PATH")`) {
-		t.Fatal("latest promotion must exclude backfill entries")
+	// Every selected stable plugin participates in the serialized monotonic
+	// latest policy, including historical bootstrap backfill entries: create
+	// when absent, accept an identical digest without a write, advance an older
+	// reliably annotated stable version, and fail closed on an unclassifiable
+	// alias, a downgrade, or a same-version digest conflict. The final
+	// re-resolve rechecks the complete set, which keeps retries idempotent.
+	for _, required := range []string{
+		`existing latest lacks a stable version annotation`,
+		`semver-compare --current "$old" --candidate "$version"`,
+		`latest alias conflict`,
+		`state=identical`,
+		`select(.preflight != "identical")`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("latest promotion lacks the monotonic complete-set contract %q", required)
+		}
+	}
+	if strings.Count(workflow, `done < <(jq -c '.plugins[]' "$SNAPSHOT_PATH")`) != 2 {
+		t.Fatal("version and latest phases must both iterate the complete selected snapshot set")
+	}
+	if strings.Contains(workflow, `select(.backfill != true)`) {
+		t.Fatal("backfill is provenance/migration state, never a blanket exclusion from latest")
 	}
 }
 
@@ -299,19 +322,33 @@ func TestPreparationPRValidationBindsMixedSnapshotToBootstrapEvidence(t *testing
 	workflow := string(data)
 	for _, required := range []string{
 		"candidate | mixed)",
-		`if [ "$mode" = mixed ]`,
-		`bootstrap="plugins/release/bootstrap-evidence/$gateway.json"`,
-		`$proof.status == "public"`,
-		`$proof.status == "missing"`,
-		"select(.backfill == true)",
-		"any($plan[0].plugins[]; .logicalId == $entry.logicalId and .backfill == true)",
-		"= bootstrap-public ]; then",
+		// The jq gate checks exact backfill equality between plan and snapshot
+		// in both directions before the Go verifier runs.
+		`(($published.backfill // false) == ($entry.backfill // false))`,
+		// Bootstrap mode is explicit committed provenance: the snapshot marker
+		// names the deterministic evidence file the preparation PR carries, and
+		// verify-snapshot recomputes its digest and binds every claim to it.
+		`marker=$(jq -r '.bootstrapEvidence.path // empty' "$snapshot")`,
+		`[[ "$marker" =~ ^plugins/release/bootstrap-evidence/[0-9]+\.[0-9]+\.[0-9]+\.json$ ]]`,
+		`test -f "$marker"`,
+		// The snapshot is always bound to the exact committed plan; a managed
+		// predecessor is bound through --previous only when no marker is
+		// present (the bootstrap baseline itself is never committed).
+		`--plan "../../$plan"`,
+		`previous_path="plugins/release/snapshots/$previous.json"`,
+		`args+=(--previous "../../$previous_path")`,
 		"--oci-source candidate",
 		"--oci-source public",
 	} {
 		if !strings.Contains(workflow, required) {
-			t.Fatalf("preparation PR validation lacks the mixed-provenance contract %q", required)
+			t.Fatalf("preparation PR validation lacks the committed-evidence binding contract %q", required)
 		}
+	}
+	// Bootstrap mode must never be inferred from a previous snapshot file that
+	// the prepare workflow never commits; that inference silently skipped the
+	// evidence cross-check.
+	if strings.Contains(workflow, `provenanceMode // empty`) {
+		t.Fatal("validation must not infer bootstrap mode from a previous snapshot provenanceMode file lookup")
 	}
 	if strings.Count(workflow, "verify-snapshot") != 2 {
 		t.Fatal("candidate/mixed and bootstrap-public snapshots must each keep one verify-snapshot gate")
@@ -328,12 +365,17 @@ func TestGatewayStableAliasesAreStagedAndImmutable(t *testing.T) {
 		`release-build-$GITHUB_SHA`, `release-provenance-$GITHUB_SHA`,
 		`immutable stable image tag conflict`, `:v$version`,
 		`BUILDX_NO_DEFAULT_ATTESTATIONS=1`, `stable image tag lookup failed; refusing mutation`,
-		`manifest unknown|name unknown|not found|repository does not exist`,
+		`authorization failure is never absence`,
+		`401|403|unauthorized|forbidden|denied|authentication required|authorization required`,
+		`404|manifest unknown|name unknown|repository does not exist`,
 		`verify_release_staging "$staging"`,
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("gateway release publication lacks %q", required)
 		}
+	}
+	if strings.Contains(workflow, "not found|repository does not exist") {
+		t.Fatal("generic \"not found\" text is never registry absence evidence; only explicit 404-class markers qualify")
 	}
 	if strings.Count(workflow, "descriptor_or_absent()") != 3 || strings.Count(workflow, "verify_release_staging()") != 3 {
 		t.Fatal("every controller/pilot/gateway publisher must use its own fail-closed lookup and staging acceptance helper")

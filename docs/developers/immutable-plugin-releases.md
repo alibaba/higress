@@ -100,29 +100,44 @@ catalog entry through reviewed bootstrap evidence instead of failing on an
 absent public tag:
 
 - A `VERSION` whose prerelease begins with the `alpha` identifier (for
-  example `1.0.0-alpha` or `1.0.0-alpha.1`) is deferred. It never blocks the
-  bootstrap, produces no candidate, receives no public stable tag, no
-  `latest` movement, and no new snapshot entry. Other prerelease families are
-  not deferred by this rule.
+  example `1.0.0-alpha` or `1.0.0-alpha.1`) is deferred in every release. The
+  alpha build never blocks the bootstrap, produces no candidate, receives no
+  public stable tag, no `latest` movement, and no new snapshot entry; a
+  plugin that already has a stable release simply carries that earlier entry
+  forward. Other prerelease families are not deferred by this rule, and a
+  non-alpha prerelease whose public artifact is absent fails closed.
 - A stable `VERSION` whose public tag already exists is imported
   idempotently: the capture resolves its digest with the read-only credential
   and the snapshot carries the exact historical public reference.
 - A stable `VERSION` whose public tag is genuinely absent becomes a backfill
-  entry. The exact target commit is built once as a content-addressed
-  candidate; the reviewed snapshot binds its digest, source commit, and input
-  hash. Promotion creates the public tag from that candidate when absent,
-  accepts an identical existing digest, fails on any conflict, never
-  rebuilds, and never moves `latest` for a backfill entry.
+  entry. Absence is recognized only on explicit registry 404-class evidence
+  (`404`, `manifest unknown`, `name unknown`); an authorization failure, a
+  local executable or file failure, or generic "not found" text aborts the
+  capture and is never absence evidence, and a stale `missing` claim whose
+  tag resolves at preparation time is rejected. The exact target commit is
+  built once as a content-addressed candidate; the reviewed snapshot binds
+  its digest, source commit, and input hash. Promotion creates the public tag
+  from that candidate when absent, accepts an identical existing digest,
+  fails on any conflict, and never rebuilds. The `backfill` flag is
+  bootstrap-only provenance and migration state: plan and snapshot must
+  record it exactly alike, and after the complete version batch verifies the
+  entry joins the same serialized monotonic `latest` policy as every selected
+  stable plugin (create when absent, accept identical, advance an older
+  reliably annotated stable version, fail closed otherwise).
 
 The first managed snapshot therefore mixes provenance: historical public
-entries plus candidate backfill entries. Preparation PR validation resolves
-the candidate references and cross-checks every imported public digest and
-backfill claim against the reviewed bootstrap evidence; post-promotion
-verification resolves the public tags. Historical public artifacts carry no
-invented provenance annotations. A new catalog plugin in a later managed
-release follows the same build-once/promote-once path, but it is a genuine
-new release rather than imported history, so `latest` advances normally for
-it.
+entries plus candidate backfill entries. It also carries an explicit
+`bootstrapEvidence` marker naming the deterministic committed evidence file
+`plugins/release/bootstrap-evidence/<gateway-version>.json`; validation
+recomputes that committed file's digest against the marker and binds every
+imported public digest, backfill claim, and deferred classification to it,
+never inferring bootstrap mode from a missing previous-snapshot or temporary
+baseline file. Preparation PR validation resolves the candidate references;
+post-promotion verification resolves the public tags. Historical public
+artifacts carry no invented provenance annotations. A new catalog plugin in a
+later managed release follows the same build-once/promote-once path, but it
+is a genuine new release rather than imported history, so it is not marked
+`backfill` and `latest` advances normally for it.
 
 The pre-tag `authorize-higress-release-tag` workflow rechecks the exact merged
 release commit and promoted snapshot. It derives the identical snapshot-source

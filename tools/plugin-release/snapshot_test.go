@@ -33,7 +33,7 @@ func TestRenderSnapshotRejectsCandidateProvenanceMismatch(t *testing.T) {
 	if err := writeCanonical(evidence, e); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := renderSnapshot(catalog, plan, "", evidence); err == nil {
+	if _, err := renderSnapshot(catalog, plan, "", evidence, ""); err == nil {
 		t.Fatal("expected mismatched candidate input hash to fail")
 	}
 }

@@ -218,7 +218,7 @@ jobs:
           set -euo pipefail
           mkdir -p plugins/release/snapshots
           args=(render-snapshot --catalog ../../plugins/release/catalog.json --plan /tmp/plan.json --candidate-evidence /tmp/candidates.json --output "../../plugins/release/snapshots/$GATEWAY_VERSION.json")
-          if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json); fi
+          if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json --bootstrap-evidence /tmp/bootstrap-evidence.json); fi
           (cd tools/plugin-release && go run . "${args[@]}")
           sha256sum "plugins/release/snapshots/$GATEWAY_VERSION.json" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Create or update deterministic preparation PR

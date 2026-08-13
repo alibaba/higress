@@ -117,9 +117,13 @@ jobs:
           candidate="$REGISTRY/candidates/plugin-server:${GATEWAY_VERSION}-${SNAPSHOT_SHA256}"
           echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
           lookup_error=/tmp/public-tag-lookup.err
-          if existing_json=$(oras manifest fetch "$image" --descriptor --format json 2>"$lookup_error"); then
+          if existing_json=$(oras manifest fetch "$image" --descriptor 2>"$lookup_error"); then
             existing=$(jq -er .digest <<<"$existing_json")
-          elif grep -Eqi 'manifest unknown|name unknown|not found' "$lookup_error"; then
+          elif grep -Eqi '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$lookup_error"; then
+            cat "$lookup_error" >&2
+            echo "public tag lookup was refused; authorization failure is never absence" >&2
+            exit 1
+          elif grep -Eqi '404|manifest unknown|name unknown|repository does not exist' "$lookup_error"; then
             existing=""
           else
             cat "$lookup_error" >&2
