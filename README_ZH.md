@@ -263,7 +263,7 @@ Higress 社区遵循 [**CNCF Code of Conduct**](https://github.com/cncf/foundati
 
 ### Star History
 
-[![Star History](https://api.star-history.com/svg?repos=higress-group/higress&type=Date)](https://star-history.com/#higress-group/higress&Date)
+[![Star History](https://star-history.dera.page/svg?repos=higress-group/higress&type=Date)](https://star-history.dera.page/#higress-group/higress&Date)
 
 ---
 
