@@ -233,7 +233,9 @@ jobs:
             [[ "$source" = "plugins/wasm-$implementation/extensions/$build_name" ]]
             if [ "$implementation" = go ]; then (cd "$source" && go test ./...); make -C plugins/wasm-go PLUGIN_NAME="$build_name" build; else make -C plugins/wasm-rust PLUGIN_NAME="$build_name" test build; fi
             wasm="$source/plugin.wasm"; test -s "$wasm"
-            candidate="$CANDIDATE_REGISTRY/candidates/$id:$plan_id-${input_hash#sha256:}"
+            # Both hashes are fixed-width SHA-256 hex strings, so concatenation
+            # retains their complete identities while meeting OCI's 128-byte tag limit.
+            candidate="$CANDIDATE_REGISTRY/candidates/$id:${plan_id}${input_hash#sha256:}"
             digest=$(oras push "$candidate" "$wasm:application/vnd.module.wasm.content.layer.v1+wasm" --annotation "org.opencontainers.image.revision=$(git rev-parse HEAD)" --annotation "org.opencontainers.image.version=$version" --annotation "io.higress.plugin.input-hash=$input_hash" --format json | jq -r .digest)
             jq --arg id "$id" --arg ref "${candidate%@*}@$digest" --arg digest "$digest" --arg commit "$(git rev-parse HEAD)" --arg hash "$input_hash" '.plugins[$id]={candidateRef:$ref,digest:$digest,sourceCommit:$commit,inputHash:$hash}' /tmp/candidates.json >/tmp/candidates.next && mv /tmp/candidates.next /tmp/candidates.json
           done
