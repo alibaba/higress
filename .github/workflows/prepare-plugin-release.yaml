@@ -55,22 +55,60 @@ jobs:
           set -euo pipefail
           [[ "$TARGET_REF" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$TARGET_REF"
-          IFS=$'\t' read -r registry image source_dir < <(
+          attempted=0
+          present=0
+          absent=0
+          authenticated_capture=0
+          while IFS=$'\t' read -r registry image source_dir; do
+            [[ "$registry" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
+            [[ "$image" =~ ^plugins/[a-z0-9][a-z0-9._-]*$ ]]
+            [[ "$source_dir" =~ ^plugins/wasm-(go|rust)/extensions/[a-z0-9][a-z0-9._-]*$ ]]
+            version="$(tr -d '\r\n' < "$source_dir/VERSION")"
+            [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+            prerelease="${version#*-}"
+            if [ "$prerelease" != "$version" ] && [ "${prerelease%%.*}" = "alpha" ]; then
+              # Deferred alpha builds have no public artifact to preflight.
+              continue
+            fi
+            public_ref="$registry/$image:$version"
+            attempted=$((attempted + 1))
+            lookup_error=$(mktemp)
+            if descriptor=$(oras manifest fetch "$public_ref" --descriptor 2>"$lookup_error"); then
+              jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")' <<<"$descriptor" >/dev/null
+              present=$((present + 1))
+              rm -f "$lookup_error"
+              continue
+            fi
+            # This job intentionally has no registry credential. A refusal is
+            # neither presence nor absence: defer the definitive decision to
+            # the protected authenticated bootstrap capture and keep checking
+            # every deterministic reference.
+            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$lookup_error"; then
+              authenticated_capture=$((authenticated_capture + 1))
+              rm -f "$lookup_error"
+              echo "public registry preflight requires authenticated capture; authorization failure is never absence: $public_ref" >&2
+              continue
+            fi
+            # Registry absence is accepted only with an explicit 404-class
+            # marker or ACR's provider-structured registry error naming this
+            # exact fully qualified reference.
+            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$lookup_error" ||
+               { grep -Fq 'Error response from registry:' "$lookup_error" && grep -Fq "$public_ref: not found" "$lookup_error"; }; then
+              absent=$((absent + 1))
+              rm -f "$lookup_error"
+              continue
+            fi
+            cat "$lookup_error" >&2; rm -f "$lookup_error"
+            echo "public registry preflight failed without explicit absence evidence: $public_ref" >&2
+            exit 1
+          done < <(
             jq -er '
               . as $catalog
-              | ([.plugins[] | select(.releaseEligible)] | sort_by(.logicalId) | .[0]) as $plugin
-              | [$catalog.registry, $plugin.image, $plugin.sourceDir] | @tsv
-            ' plugins/release/catalog.json
+              | .plugins[] | select(.releaseEligible)
+              | [$catalog.registry, .image, .sourceDir] | @tsv
+            ' plugins/release/catalog.json | sort
           )
-          [[ "$registry" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
-          [[ "$image" =~ ^plugins/[a-z0-9][a-z0-9._-]*$ ]]
-          [[ "$source_dir" =~ ^plugins/wasm-(go|rust)/extensions/[a-z0-9][a-z0-9._-]*$ ]]
-          version="$(tr -d '\r\n' < "$source_dir/VERSION")"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
-          public_ref="$registry/$image:$version"
-          oras manifest fetch "$public_ref" --descriptor > /tmp/oras-public-descriptor.json
-          jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")' /tmp/oras-public-descriptor.json >/dev/null
-          echo "Read-only ORAS descriptor preflight succeeded for deterministic catalog public artifact." >> "$GITHUB_STEP_SUMMARY"
+          echo "Read-only ORAS preflight classified $attempted deterministic public references: $present present, $absent explicitly absent, $authenticated_capture require authenticated capture; deferred alpha plugins were skipped." >> "$GITHUB_STEP_SUMMARY"
   prepare:
     needs: preflight
     runs-on: ubuntu-latest
@@ -125,13 +163,23 @@ jobs:
           TARGET_REF: ${{ inputs.target_ref }}
           PREVIOUS: ${{ inputs.previous_snapshot }}
           BOOTSTRAP_BASE: ${{ inputs.bootstrap_comparison_base }}
+          CANDIDATE_REGISTRY: ${{ vars.PLUGIN_CANDIDATE_REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.CANDIDATE_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.CANDIDATE_REGISTRY_PASSWORD }}
         run: |
           set -euo pipefail
           (cd tools/plugin-release && go run . validate-catalog --root ../.. --catalog ../../plugins/release/catalog.json)
           mkdir -p plugins/release/snapshots plugins/release/plans plugins/release/evidence plugins/release/bootstrap-evidence
           if [ -z "$PREVIOUS" ]; then
-            # This is a public, read-only import. No production registry write
-            # credential is available to the bootstrap capture path.
+            # The bootstrap capture resolves the complete public catalog
+            # read-only. A 401/403 there is an authorization/configuration
+            # error, never an absent artifact. Reuse the existing protected
+            # candidate ACR configuration for this read-only command path; the
+            # capture itself performs no push, retag, or delete operation.
+            [[ "$CANDIDATE_REGISTRY" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
+            test "$CANDIDATE_REGISTRY" = "$(jq -er .registry plugins/release/catalog.json)"
+            test -n "$REGISTRY_USERNAME"; test -n "$REGISTRY_PASSWORD"
+            echo "$REGISTRY_PASSWORD" | oras login "$CANDIDATE_REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
             (cd tools/plugin-release && go run . capture-bootstrap-evidence --root ../.. --catalog ../../plugins/release/catalog.json --source "$TARGET_REF" --output /tmp/bootstrap-evidence.json)
             base_version=$(git show "$BOOTSTRAP_BASE:VERSION"); base_version=${base_version#v}
             (cd tools/plugin-release && go run . bootstrap-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --gateway-version "$base_version" --source "$TARGET_REF" --existing-evidence /tmp/bootstrap-evidence.json --output /tmp/bootstrap-snapshot.json)
@@ -148,7 +196,7 @@ jobs:
         if: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
-          echo "Dry run: no candidate registry credentials, public tag writes, or PR token are available." >> "$GITHUB_STEP_SUMMARY"
+          echo "Dry run: bootstrap capture may authenticate with the protected candidate ACR credential, but no candidate/public write or PR step runs." >> "$GITHUB_STEP_SUMMARY"
       - name: Upload reviewed dry-run material
         if: ${{ inputs.dry_run }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -199,7 +247,7 @@ jobs:
           set -euo pipefail
           mkdir -p plugins/release/snapshots
           args=(render-snapshot --catalog ../../plugins/release/catalog.json --plan /tmp/plan.json --candidate-evidence /tmp/candidates.json --output "../../plugins/release/snapshots/$GATEWAY_VERSION.json")
-          if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json); fi
+          if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json --bootstrap-evidence /tmp/bootstrap-evidence.json); fi
           (cd tools/plugin-release && go run . "${args[@]}")
           sha256sum "plugins/release/snapshots/$GATEWAY_VERSION.json" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Create or update deterministic preparation PR

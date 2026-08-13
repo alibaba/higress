@@ -55,7 +55,18 @@ jobs:
           [[ "$SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]]
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
           test "$(sha256sum "$SNAPSHOT_PATH" | awk '{print $1}')" = "$SNAPSHOT_SHA256"
-          (cd tools/plugin-release && go run . verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --committed-source "$SOURCE_COMMIT" --oci-source candidate)
+          gateway=$(jq -r .gatewayVersion "$SNAPSHOT_PATH")
+          plan="plugins/release/plans/$gateway.json"
+          test -f "$plan"
+          args=(verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --plan "../../$plan" --committed-source "$SOURCE_COMMIT" --resolve --oci-source candidate)
+          if [ -z "$(jq -r '.bootstrapEvidence.path // empty' "$SNAPSHOT_PATH")" ]; then
+            previous=$(jq -r '.previousRelease // empty' "$SNAPSHOT_PATH")
+            [[ "$previous" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            previous_path="plugins/release/snapshots/$previous.json"
+            test -f "$previous_path"
+            args+=(--previous "../../$previous_path")
+          fi
+          (cd tools/plugin-release && go run . "${args[@]}")
       - name: Confirm dry-run boundary
         if: ${{ inputs.dry_run }}
         run: |
@@ -81,14 +92,27 @@ jobs:
           # Resolve every candidate and inspect every existing public tag before
           # the first write. A transient registry failure is never interpreted
           # as an absent immutable tag.
-          (cd tools/plugin-release && go run . verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --committed-source "$SOURCE_COMMIT" --resolve --oci-source candidate)
+          gateway=$(jq -r .gatewayVersion "$SNAPSHOT_PATH")
+          args=(verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --plan "../../plugins/release/plans/$gateway.json" --committed-source "$SOURCE_COMMIT" --resolve --oci-source candidate)
+          if [ -z "$(jq -r '.bootstrapEvidence.path // empty' "$SNAPSHOT_PATH")" ]; then
+            args+=(--previous "../../plugins/release/snapshots/$(jq -r .previousRelease "$SNAPSHOT_PATH").json")
+          fi
+          (cd tools/plugin-release && go run . "${args[@]}")
           descriptor_or_absent() {
             local ref=$1 out err
             err=$(mktemp)
-            if out=$(oras manifest fetch "$ref" --descriptor --format json 2>"$err"); then
+            if out=$(oras manifest fetch "$ref" --descriptor 2>"$err"); then
               rm -f "$err"; printf '%s' "$out"; return 0
             fi
-            if grep -Eiq 'manifest unknown|name unknown|not found' "$err"; then rm -f "$err"; return 1; fi
+            # Authorization evidence wins and is never absence; only an
+            # explicit registry 404-class response proves the tag is absent. A
+            # missing local executable/file or generic "not found" text fails
+            # closed.
+            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$err"; then
+              cat "$err" >&2; rm -f "$err"; return 2
+            fi
+            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
+               { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
           marker="$REGISTRY/candidates/plugin-release-batches:$SNAPSHOT_SHA256"
@@ -100,7 +124,7 @@ jobs:
             oras blob fetch "$marker" "$marker_layer" -o /tmp/existing-latest-marker.json
             jq -e --arg sha "$SNAPSHOT_SHA256" '.snapshotSha256 == $sha and .phase == "latest-complete" and (.entries | length > 0)' /tmp/existing-latest-marker.json >/dev/null
             jq -c '.entries[]' /tmp/existing-latest-marker.json | while read -r entry; do
-              test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor --format json | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
+              test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
             done
             jq --arg ref "$marker" --arg digest "$(jq -er .digest <<<"$marker_descriptor")" '{snapshotSha256,phase:"version-complete",entries:[.entries[] | {ref,digest,candidateRef:"",provenanceMode:"complete-marker",preflight:"already-present"}],completionMarker:{ref:$ref,digest:$digest}}' /tmp/existing-latest-marker.json > "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json"
             echo "Latest completion marker already verifies this snapshot; no mutable latest tags were written." >> "$GITHUB_STEP_SUMMARY"
@@ -127,7 +151,7 @@ jobs:
           # Only preflight-approved absent tags are copied; every version tag
           # is then re-resolved before this phase is considered complete.
           jq -c '.entries[] | select(.preflight == "absent" and .provenanceMode == "candidate")' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" | while read -r entry; do oras cp "$(jq -r .candidateRef <<<"$entry")" "$(jq -r .ref <<<"$entry")"; done
-          jq -c '.entries[]' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .ref <<<"$entry")" --descriptor --format json | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
+          jq -c '.entries[]' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .ref <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
           jq '.phase="version-complete"' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json"
       - name: Persist complete version batch journal
         if: ${{ !inputs.dry_run }}
@@ -173,8 +197,16 @@ jobs:
           descriptor_or_absent() {
             local ref=$1 out err
             err=$(mktemp)
-            if out=$(oras manifest fetch "$ref" --descriptor --format json 2>"$err"); then rm -f "$err"; printf '%s' "$out"; return 0; fi
-            if grep -Eiq 'manifest unknown|name unknown|not found' "$err"; then rm -f "$err"; return 1; fi
+            if out=$(oras manifest fetch "$ref" --descriptor 2>"$err"); then rm -f "$err"; printf '%s' "$out"; return 0; fi
+            # Authorization evidence wins and is never absence; only an
+            # explicit registry 404-class response proves the alias is absent.
+            # A missing local executable/file or generic "not found" text
+            # fails closed.
+            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$err"; then
+              cat "$err" >&2; rm -f "$err"; return 2
+            fi
+            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
+               { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
           marker="$REGISTRY/candidates/plugin-release-batches:$SNAPSHOT_SHA256"
@@ -186,7 +218,7 @@ jobs:
             oras blob fetch "$marker" "$marker_layer" -o "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
             jq -e --arg sha "$SNAPSHOT_SHA256" '.snapshotSha256 == $sha and .phase == "latest-complete" and (.entries | length > 0)' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" >/dev/null
             jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do
-              test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor --format json | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
+              test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
             done
             echo "Latest completion marker already verifies this snapshot; no mutable latest tags were written." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -196,19 +228,31 @@ jobs:
           fi
           # The latest phase has a separate all-or-nothing preflight: no
           # latest tag is written until every promoted version exists and every
-          # current latest value has passed the monotonicity check.
+          # current latest value has passed the monotonicity check. Every
+          # selected stable plugin participates, including historical bootstrap
+          # backfill entries: backfill is provenance/migration state, not an
+          # exclusion from the serialized monotonic latest policy.
           jq -n --arg sha "$SNAPSHOT_SHA256" '{snapshotSha256:$sha,phase:"latest-preflight",entries:[]}' > "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
           while read -r entry; do
             ref=$(jq -r .ociRef <<<"$entry"); digest=$(jq -r .digest <<<"$entry")
-            test "$(oras manifest fetch "$ref" --descriptor --format json | jq -r .digest)" = "$digest"
+            test "$(oras manifest fetch "$ref" --descriptor | jq -r .digest)" = "$digest"
             version=$(jq -r .version <<<"$entry")
             image=${ref%:*}; latest="$image:latest"
             if latest_json=$(descriptor_or_absent "$latest"); then
               old_digest=$(jq -r .digest <<<"$latest_json")
-              old=$(oras manifest fetch "$latest" --format json | jq -r '.annotations["org.opencontainers.image.version"] // empty')
-              test -n "$old" || { echo "existing latest lacks a stable version annotation: $latest" >&2; exit 1; }
-              (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
-              state=replace
+              if [ "$old_digest" = "$digest" ]; then
+                # Identical content is already the desired alias even when it
+                # predates release annotations. Accept it without a write.
+                old=""; state=identical
+              else
+                old=$(oras manifest fetch "$latest" --format json | jq -r '.annotations["org.opencontainers.image.version"] // empty')
+                test -n "$old" || { echo "existing latest lacks a stable version annotation: $latest" >&2; exit 1; }
+                (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
+                if [ "$old" = "$version" ]; then
+                  echo "latest alias conflict: $latest serves $old at $old_digest, snapshot requires $digest" >&2; exit 1
+                fi
+                state=replace
+              fi
             else
               status=$?
               test "$status" = 1 || exit "$status"
@@ -216,8 +260,11 @@ jobs:
             fi
             jq --arg ref "$ref" --arg latest "$latest" --arg digest "$digest" --arg version "$version" --arg oldDigest "$old_digest" --arg oldVersion "$old" --arg state "$state" '.entries += [{ref:$ref,latest:$latest,digest:$digest,version:$version,oldDigest:$oldDigest,oldVersion:$oldVersion,preflight:$state}]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
           done < <(jq -c '.plugins[]' "$SNAPSHOT_PATH")
-          jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do ref=$(jq -r .ref <<<"$entry"); oras cp "${ref%:*}@$(jq -r .digest <<<"$entry")" "$(jq -r .latest <<<"$entry")"; done
-          jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor --format json | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
+          # Identical aliases are accepted without a mutable write; create and
+          # advance are the only writes, and the complete set is then
+          # re-resolved before the phase is considered complete.
+          jq -c '.entries[] | select(.preflight != "identical")' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do ref=$(jq -r .ref <<<"$entry"); oras cp "${ref%:*}@$(jq -r .digest <<<"$entry")" "$(jq -r .latest <<<"$entry")"; done
+          jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
           jq '.phase="latest-complete"' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
           # The registry marker is the cross-workflow completion gate. Its
           # immutable content is the fully reverified version/latest batch.

@@ -2,6 +2,9 @@ package main
 
 import (
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -74,4 +77,58 @@ func withORASRunner(t *testing.T, runner func(args ...string) ([]byte, string, e
 	previous := orasRunner
 	orasRunner = runner
 	t.Cleanup(func() { orasRunner = previous })
+}
+
+// TestReleaseWorkflowsNeverCombineDescriptorAndFormat statically proves no
+// release-chain workflow invokes oras manifest fetch with the mutually
+// exclusive --descriptor and --format flags on the same command line.
+func TestReleaseWorkflowsNeverCombineDescriptorAndFormat(t *testing.T) {
+	workflows, err := filepath.Glob("../../.github/workflows/*.yaml")
+	if err != nil || len(workflows) == 0 {
+		t.Fatalf("workflow glob failed: %v", err)
+	}
+	for _, path := range workflows {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for line := range strings.Lines(string(data)) {
+			if strings.Contains(line, "--descriptor") && strings.Contains(line, "--format") {
+				t.Fatalf("%s combines mutually exclusive --descriptor and --format: %s", path, strings.TrimSpace(line))
+			}
+		}
+	}
+}
+
+// TestORAS123RejectsDescriptorCombinedWithFormat executes the real pinned
+// ORAS 1.2.3 CLI: the combined --descriptor --format form must fail at flag
+// parsing, while the canonical descriptor-only form every workflow uses must
+// parse cleanly (a later registry/network failure is expected and proves the
+// flags were accepted). Skipped when no oras binary is installed.
+func TestORAS123RejectsDescriptorCombinedWithFormat(t *testing.T) {
+	binary, err := exec.LookPath("oras")
+	if err != nil {
+		t.Skip("oras binary not installed; run with the workflow-pinned ORAS 1.2.3 CLI")
+	}
+	version, err := exec.Command(binary, "version").CombinedOutput()
+	if err != nil {
+		t.Fatalf("oras version failed: %v: %s", err, version)
+	}
+	if !strings.Contains(string(version), "1.2.3") {
+		t.Skipf("executable descriptor contract requires the pinned ORAS 1.2.3, got %s", strings.TrimSpace(string(version)))
+	}
+	ref := "registry.invalid/plugins/demo:1.2.3"
+	combined, combinedErr := exec.Command(binary, "manifest", "fetch", ref, "--descriptor", "--format", "json").CombinedOutput()
+	if combinedErr == nil {
+		t.Fatal("ORAS 1.2.3 must reject the mutually exclusive --descriptor --format combination")
+	}
+	canonical, canonicalErr := exec.Command(binary, "manifest", "fetch", ref, "--descriptor").CombinedOutput()
+	if canonicalErr == nil {
+		t.Fatal("an unresolvable reference must still fail after flag parsing succeeds")
+	}
+	if strings.Contains(string(canonical), "unknown flag") || strings.Contains(string(canonical), "mutually exclusive") {
+		t.Fatalf("canonical descriptor form must parse under ORAS 1.2.3, got %s", canonical)
+	}
+	t.Logf("combined form rejected: %s", strings.TrimSpace(string(combined)))
+	t.Logf("canonical form parsed, registry failure as expected: %s", strings.TrimSpace(string(canonical)))
 }

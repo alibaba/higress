@@ -157,7 +157,7 @@ jobs:
           test "$(helm show chart "$CONSOLE_HTTP_CHART" | awk '$1 == "name:" { print $2; exit }')" = higress-console
           test "$(helm show chart "$CONSOLE_HTTP_CHART" | awk '$1 == "version:" { print $2; exit }')" = "$CONSOLE_CHART_VERSION"
           console_chart_repo=${CONSOLE_CHART_OCI_REF%:*}
-          oras manifest fetch "$console_chart_repo@$CONSOLE_CHART_DIGEST" --descriptor --format json | jq -e --arg digest "$CONSOLE_CHART_DIGEST" '.digest == $digest' >/dev/null
+          oras manifest fetch "$console_chart_repo@$CONSOLE_CHART_DIGEST" --descriptor | jq -e --arg digest "$CONSOLE_CHART_DIGEST" '.digest == $digest' >/dev/null
           oras manifest fetch "$console_chart_repo@$CONSOLE_CHART_DIGEST" > /tmp/console-chart-oci-manifest.json
           jq -e '.layers | length == 1 and .[0].mediaType == "application/vnd.cncf.helm.chart.content.v1.tar+gzip"' /tmp/console-chart-oci-manifest.json >/dev/null
           console_chart_layer=$(jq -er '.layers[0].digest' /tmp/console-chart-oci-manifest.json)
@@ -171,9 +171,12 @@ jobs:
           # to the operator-approved digest before inspecting child manifests.
           plugin_server_repo="$PLUGIN_SERVER_REGISTRY/higress/plugin-server"
           plugin_server_tag="$plugin_server_repo:$GATEWAY_VERSION"
-          resolved_plugin_server_digest=$(oras manifest fetch "$plugin_server_tag" --descriptor --format json | jq -er .digest)
+          resolved_plugin_server_digest=$(oras manifest fetch "$plugin_server_tag" --descriptor | jq -er .digest)
           test "$resolved_plugin_server_digest" = "$PLUGIN_SERVER_DIGEST"
           PLUGIN_SERVER_IMAGE="$plugin_server_tag@$resolved_plugin_server_digest"
+          jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg image "$PLUGIN_SERVER_IMAGE" \
+            '.pluginLock.pluginServerCommit == $plugin and .pluginLock.pluginServerImage == $image' \
+            /tmp/console-provenance.json >/dev/null
           oras manifest fetch "$PLUGIN_SERVER_IMAGE" --raw >/tmp/plugin-server-index.json
           jq -e '.manifests | length == 2 and ([.[] | .platform.os + "/" + .platform.architecture] | sort == ["linux/amd64","linux/arm64"])' /tmp/plugin-server-index.json >/dev/null
           PLUGIN_SERVER_HIGRESS_COMMIT=""
@@ -233,7 +236,7 @@ jobs:
               echo "existing tag has unsupported object type: $object_type" >&2
               exit 1
             fi
-          elif grep -Eqi 'HTTP 404|Not Found' "$ref_error"; then
+          elif grep -Eq 'HTTP 404' "$ref_error"; then
             existing=""
           else
             cat "$ref_error" >&2

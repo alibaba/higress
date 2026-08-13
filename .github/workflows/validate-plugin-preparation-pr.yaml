@@ -14,12 +14,15 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.24.0'
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.2.3
       - name: Validate catalog and changed snapshots only
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -33,7 +36,7 @@ jobs:
             source=$(jq -r .sourceCommit "$snapshot")
             gateway=$(jq -r .gatewayVersion "$snapshot")
             case "$mode" in
-              candidate)
+              candidate | mixed)
                 plan="plugins/release/plans/$gateway.json"
                 evidence="plugins/release/evidence/$gateway.json"
                 test -f "$plan"; test -f "$evidence"
@@ -49,9 +52,26 @@ jobs:
                     $proof.digest == $published.digest and
                     $proof.sourceCommit == $plan[0].sourceCommit and
                     $proof.inputHash == $entry.inputHash and
-                    $published.version == $entry.version
+                    $published.version == $entry.version and
+                    (($published.backfill // false) == ($entry.backfill // false))
                   )' "$snapshot" >/dev/null
-                (cd tools/plugin-release && go run . verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$snapshot" --expected-source "$source" --committed-source "$GITHUB_SHA" --resolve --oci-source candidate)
+                args=(verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$snapshot" --plan "../../$plan" --expected-source "$source" --committed-source "$GITHUB_SHA" --resolve --oci-source candidate)
+                marker=$(jq -r '.bootstrapEvidence.path // empty' "$snapshot")
+                if [ -n "$marker" ]; then
+                  # First managed release: bootstrap mode is explicit snapshot
+                  # provenance, never inferred from a missing previous-snapshot
+                  # file. The release tool recomputes the committed evidence
+                  # digest and binds every public/backfill/deferred claim to it.
+                  [[ "$marker" =~ ^plugins/release/bootstrap-evidence/[0-9]+\.[0-9]+\.[0-9]+\.json$ ]]
+                  test -f "$marker"
+                else
+                  previous=$(jq -r '.previousRelease // empty' "$snapshot")
+                  [[ "$previous" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+                  previous_path="plugins/release/snapshots/$previous.json"
+                  test -f "$previous_path"
+                  args+=(--previous "../../$previous_path")
+                fi
+                (cd tools/plugin-release && go run . "${args[@]}")
                 jq -c '.plugins[]' "$plan" >> /tmp/planned-artifacts
                 ;;
               bootstrap-public)

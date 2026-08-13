@@ -48,33 +48,54 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: "1.24.0"
-      - name: Verify pinned source and snapshot
-        env:
-          HIGRESS_COMMIT: ${{ inputs.higress_commit }}
-          PLUGIN_SERVER_COMMIT: ${{ inputs.plugin_server_commit }}
-          SNAPSHOT_PATH: ${{ inputs.snapshot_path }}
-          SNAPSHOT_SHA256: ${{ inputs.snapshot_sha256 }}
-        run: |
-          set -euo pipefail
-          [[ "$HIGRESS_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]
-          [[ "$PLUGIN_SERVER_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]
-          [[ "$SNAPSHOT_PATH" =~ ^plugins/release/snapshots/[0-9]+\.[0-9]+\.[0-9]+\.json$ ]]
-          [[ "$SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]]
-          test "$(git rev-parse HEAD)" = "$HIGRESS_COMMIT"
-          test "$(sha256sum "$SNAPSHOT_PATH" | awk '{print $1}')" = "$SNAPSHOT_SHA256"
-          (cd tools/plugin-release && go run . verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --committed-source "$HIGRESS_COMMIT" --oci-source candidate)
-      - name: Confirm dry-run boundary
-        if: ${{ inputs.dry_run }}
-        run: |
-          echo "Dry run: no plugin-server image was built or pushed." >> "$GITHUB_STEP_SUMMARY"
+      - name: Set up pinned ORAS
+        uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.2.3
       - name: Checkout exact plugin-server source and build context
-        if: ${{ !inputs.dry_run }}
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: higress-group/plugin-server
           ref: ${{ inputs.plugin_server_commit }}
           path: plugin-server
           fetch-depth: 0
+      - name: Verify pinned source and snapshot
+        env:
+          GATEWAY_VERSION: ${{ inputs.gateway_version }}
+          HIGRESS_COMMIT: ${{ inputs.higress_commit }}
+          PLUGIN_SERVER_COMMIT: ${{ inputs.plugin_server_commit }}
+          SNAPSHOT_PATH: ${{ inputs.snapshot_path }}
+          SNAPSHOT_SHA256: ${{ inputs.snapshot_sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$GATEWAY_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$HIGRESS_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PLUGIN_SERVER_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$SNAPSHOT_PATH" = "plugins/release/snapshots/$GATEWAY_VERSION.json"
+          [[ "$SNAPSHOT_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$HIGRESS_COMMIT"
+          test "$(git -C plugin-server rev-parse HEAD)" = "$PLUGIN_SERVER_COMMIT"
+          test "$(sha256sum "$SNAPSHOT_PATH" | awk '{print $1}')" = "$SNAPSHOT_SHA256"
+          test "$(jq -er .gatewayVersion "$SNAPSHOT_PATH")" = "$GATEWAY_VERSION"
+          test -f plugin-server/Dockerfile
+          test -f plugin-server/pull_plugins.py
+          test -f plugin-server/unmanaged-plugins.lock.json
+          (cd plugin-server && python3 -m unittest test_pull_plugins.py)
+          plan="plugins/release/plans/$GATEWAY_VERSION.json"
+          test -f "$plan"
+          args=(verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --plan "../../$plan" --committed-source "$HIGRESS_COMMIT" --resolve --oci-source candidate)
+          if [ -z "$(jq -r '.bootstrapEvidence.path // empty' "$SNAPSHOT_PATH")" ]; then
+            previous=$(jq -r '.previousRelease // empty' "$SNAPSHOT_PATH")
+            [[ "$previous" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+            previous_path="plugins/release/snapshots/$previous.json"
+            test -f "$previous_path"
+            args+=(--previous "../../$previous_path")
+          fi
+          (cd tools/plugin-release && go run . "${args[@]}")
+      - name: Confirm dry-run boundary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "Dry run: no plugin-server image was built or pushed." >> "$GITHUB_STEP_SUMMARY"
       - name: Set up pinned multi-architecture tooling
         if: ${{ !inputs.dry_run }}
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
@@ -83,11 +104,6 @@ jobs:
       - name: Set up pinned Buildx
         if: ${{ !inputs.dry_run }}
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-      - name: Set up pinned ORAS
-        if: ${{ !inputs.dry_run }}
-        uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
-        with:
-          version: 1.2.3
       - name: Build, verify, and promote immutable plugin-server image
         if: ${{ !inputs.dry_run }}
         env:
@@ -117,9 +133,14 @@ jobs:
           candidate="$REGISTRY/candidates/plugin-server:${GATEWAY_VERSION}-${SNAPSHOT_SHA256}"
           echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
           lookup_error=/tmp/public-tag-lookup.err
-          if existing_json=$(oras manifest fetch "$image" --descriptor --format json 2>"$lookup_error"); then
+          if existing_json=$(oras manifest fetch "$image" --descriptor 2>"$lookup_error"); then
             existing=$(jq -er .digest <<<"$existing_json")
-          elif grep -Eqi 'manifest unknown|name unknown|not found' "$lookup_error"; then
+          elif grep -Eqi '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$lookup_error"; then
+            cat "$lookup_error" >&2
+            echo "public tag lookup was refused; authorization failure is never absence" >&2
+            exit 1
+          elif grep -Eqi '404|manifest unknown|name unknown|repository does not exist' "$lookup_error" ||
+               { grep -Fq 'Error response from registry:' "$lookup_error" && grep -Fq "$image: not found" "$lookup_error"; }; then
             existing=""
           else
             cat "$lookup_error" >&2
