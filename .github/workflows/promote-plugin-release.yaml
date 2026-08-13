@@ -327,7 +327,8 @@ jobs:
           else
             status=$?
             test "$status" = 1 || exit "$status"
-            marker_digest=$(oras push "$marker" "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json:application/vnd.higress.plugin-release-batch.v1+json" --format json | jq -r .digest)
+            marker_journal="plugin-release-latest-$SNAPSHOT_SHA256.json"
+            marker_digest=$(cd /tmp && oras push "$marker" "$marker_journal:application/vnd.higress.plugin-release-batch.v1+json" --format json | jq -r .digest)
           fi
           jq --arg ref "$marker" --arg digest "$marker_digest" '.completionMarker={ref:$ref,digest:$digest}' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
       - name: Persist complete latest batch journal

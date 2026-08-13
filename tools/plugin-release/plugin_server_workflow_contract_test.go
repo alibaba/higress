@@ -987,6 +987,25 @@ func TestLatestPromotionMarkerSupportsFreshPartialAndCompletedRetries(t *testing
 	}
 }
 
+func TestLatestPromotionMarkerPushUsesRelativeLayerPath(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/promote-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`marker_journal="plugin-release-latest-$SNAPSHOT_SHA256.json"`,
+		`marker_digest=$(cd /tmp && oras push "$marker" "$marker_journal:application/vnd.higress.plugin-release-batch.v1+json" --format json | jq -r .digest)`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("latest marker push lacks relative ORAS layer path contract %q", required)
+		}
+	}
+	if strings.Contains(workflow, `oras push "$marker" "/tmp/plugin-release-latest-`) {
+		t.Fatal("latest marker push passes an absolute layer path rejected by ORAS path validation")
+	}
+}
+
 func TestPromotionBackfillsVersionTagAndJoinsMonotonicLatest(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/promote-plugin-release.yaml")
 	if err != nil {
