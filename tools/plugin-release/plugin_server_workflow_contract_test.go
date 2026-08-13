@@ -197,13 +197,17 @@ func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *test
 		t.Fatal("ORAS preflight must remain read-only and outside the protected credential environment")
 	}
 	for _, required := range []string{
-		"sort_by(.logicalId) | .[0]", "select(.releaseEligible)", "[$catalog.registry, $plugin.image, $plugin.sourceDir] | @tsv",
+		"select(.releaseEligible)", "[$catalog.registry, .image, .sourceDir] | @tsv",
+		`[ "${prerelease%%.*}" = "alpha" ]`, `test -n "$public_ref"`,
 		`oras manifest fetch "$public_ref" --descriptor > /tmp/oras-public-descriptor.json`, `jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")'`,
 		"Read-only ORAS descriptor preflight succeeded for deterministic catalog public artifact.",
 	} {
 		if !strings.Contains(preflight, required) {
 			t.Fatalf("preflight lacks required read-only contract %q", required)
 		}
+	}
+	if strings.Contains(preflight, "sort_by(.logicalId) | .[0]") {
+		t.Fatal("preflight must skip deferred alpha plugins, not blindly select the first catalog entry")
 	}
 	if strings.Contains(preflight, "--descriptor --format") {
 		t.Fatal("ORAS 1.2.3 descriptor preflight must not combine --descriptor and --format")
@@ -228,6 +232,89 @@ func TestLatestPromotionMarkerSupportsFreshPartialAndCompletedRetries(t *testing
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("latest marker state machine lacks %q", required)
 		}
+	}
+}
+
+func TestPromotionBackfillsVersionTagButNeverMovesLatest(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/promote-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	// The version phase iterates every snapshot entry; an absent tag is created
+	// only from candidate provenance (which is how a backfill gets its stable
+	// tag), an identical existing digest is accepted, and any conflict or a
+	// missing carried-forward public artifact fails closed.
+	for _, required := range []string{
+		`done < <(jq -c '.plugins[]' "$SNAPSHOT_PATH")`,
+		`select(.preflight == "absent" and .provenanceMode == "candidate")`,
+		`test "$existing" = "$digest" || { echo "immutable tag conflict: $ref" >&2; exit 1; }`,
+		`state=already-present`,
+		`previous public artifact is missing`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("version promotion lacks the backfill/idempotence contract %q", required)
+		}
+	}
+	// The latest phase must skip backfill entries so imported history never
+	// moves latest, while a genuine new stable plugin still advances it.
+	if !strings.Contains(workflow, `done < <(jq -c '.plugins[] | select(.backfill != true)' "$SNAPSHOT_PATH")`) {
+		t.Fatal("latest promotion must exclude backfill entries")
+	}
+}
+
+func TestPreparationBootstrapCapturesWithLeastPrivilegeReadOnlyCredential(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`PUBLIC_REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}`,
+		`REGISTRY_READER_USERNAME: ${{ secrets.PLUGIN_REGISTRY_READER_USERNAME }}`,
+		`REGISTRY_READER_PASSWORD: ${{ secrets.PLUGIN_REGISTRY_READER_PASSWORD }}`,
+		`[[ "$PUBLIC_REGISTRY" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]`,
+		`test -n "$REGISTRY_READER_USERNAME"; test -n "$REGISTRY_READER_PASSWORD"`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("bootstrap capture lacks the least-privilege reader contract %q", required)
+		}
+	}
+	branch := strings.Index(workflow, `if [ -z "$PREVIOUS" ]; then`)
+	login := strings.Index(workflow, `echo "$REGISTRY_READER_PASSWORD" | oras login "$PUBLIC_REGISTRY" -u "$REGISTRY_READER_USERNAME" --password-stdin`)
+	capture := strings.Index(workflow, "capture-bootstrap-evidence")
+	if branch < 0 || login < 0 || capture < 0 || branch > login || login > capture {
+		t.Fatal("the read-only reader login must stay inside the bootstrap branch and precede evidence capture")
+	}
+	if strings.Contains(workflow, "PRODUCTION_REGISTRY") {
+		t.Fatal("preparation must never hold a production write credential")
+	}
+}
+
+func TestPreparationPRValidationBindsMixedSnapshotToBootstrapEvidence(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/validate-plugin-preparation-pr.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		"candidate | mixed)",
+		`if [ "$mode" = mixed ]`,
+		`bootstrap="plugins/release/bootstrap-evidence/$gateway.json"`,
+		`$proof.status == "public"`,
+		`$proof.status == "missing"`,
+		"select(.backfill == true)",
+		"any($plan[0].plugins[]; .logicalId == $entry.logicalId and .backfill == true)",
+		"= bootstrap-public ]; then",
+		"--oci-source candidate",
+		"--oci-source public",
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("preparation PR validation lacks the mixed-provenance contract %q", required)
+		}
+	}
+	if strings.Count(workflow, "verify-snapshot") != 2 {
+		t.Fatal("candidate/mixed and bootstrap-public snapshots must each keep one verify-snapshot gate")
 	}
 }
 

@@ -55,19 +55,28 @@ jobs:
           set -euo pipefail
           [[ "$TARGET_REF" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$TARGET_REF"
-          IFS=$'\t' read -r registry image source_dir < <(
+          public_ref=""
+          while IFS=$'\t' read -r registry image source_dir; do
+            [[ "$registry" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
+            [[ "$image" =~ ^plugins/[a-z0-9][a-z0-9._-]*$ ]]
+            [[ "$source_dir" =~ ^plugins/wasm-(go|rust)/extensions/[a-z0-9][a-z0-9._-]*$ ]]
+            version="$(tr -d '\r\n' < "$source_dir/VERSION")"
+            [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
+            prerelease="${version#*-}"
+            if [ "$prerelease" != "$version" ] && [ "${prerelease%%.*}" = "alpha" ]; then
+              # Deferred alpha builds have no public artifact to preflight.
+              continue
+            fi
+            public_ref="$registry/$image:$version"
+            break
+          done < <(
             jq -er '
               . as $catalog
-              | ([.plugins[] | select(.releaseEligible)] | sort_by(.logicalId) | .[0]) as $plugin
-              | [$catalog.registry, $plugin.image, $plugin.sourceDir] | @tsv
-            ' plugins/release/catalog.json
+              | .plugins[] | select(.releaseEligible)
+              | [$catalog.registry, .image, .sourceDir] | @tsv
+            ' plugins/release/catalog.json | sort
           )
-          [[ "$registry" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
-          [[ "$image" =~ ^plugins/[a-z0-9][a-z0-9._-]*$ ]]
-          [[ "$source_dir" =~ ^plugins/wasm-(go|rust)/extensions/[a-z0-9][a-z0-9._-]*$ ]]
-          version="$(tr -d '\r\n' < "$source_dir/VERSION")"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]
-          public_ref="$registry/$image:$version"
+          test -n "$public_ref"
           oras manifest fetch "$public_ref" --descriptor > /tmp/oras-public-descriptor.json
           jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")' /tmp/oras-public-descriptor.json >/dev/null
           echo "Read-only ORAS descriptor preflight succeeded for deterministic catalog public artifact." >> "$GITHUB_STEP_SUMMARY"
@@ -125,13 +134,23 @@ jobs:
           TARGET_REF: ${{ inputs.target_ref }}
           PREVIOUS: ${{ inputs.previous_snapshot }}
           BOOTSTRAP_BASE: ${{ inputs.bootstrap_comparison_base }}
+          PUBLIC_REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}
+          REGISTRY_READER_USERNAME: ${{ secrets.PLUGIN_REGISTRY_READER_USERNAME }}
+          REGISTRY_READER_PASSWORD: ${{ secrets.PLUGIN_REGISTRY_READER_PASSWORD }}
         run: |
           set -euo pipefail
           (cd tools/plugin-release && go run . validate-catalog --root ../.. --catalog ../../plugins/release/catalog.json)
           mkdir -p plugins/release/snapshots plugins/release/plans plugins/release/evidence plugins/release/bootstrap-evidence
           if [ -z "$PREVIOUS" ]; then
-            # This is a public, read-only import. No production registry write
-            # credential is available to the bootstrap capture path.
+            # The bootstrap capture resolves the complete public catalog
+            # read-only. A 401/403 there is an authorization/configuration
+            # error, never an absent artifact, so the protected environment
+            # supplies the least-privilege read-only credential documented in
+            # docs/developers/immutable-plugin-releases.md. No production
+            # registry write credential is available to this path.
+            [[ "$PUBLIC_REGISTRY" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
+            test -n "$REGISTRY_READER_USERNAME"; test -n "$REGISTRY_READER_PASSWORD"
+            echo "$REGISTRY_READER_PASSWORD" | oras login "$PUBLIC_REGISTRY" -u "$REGISTRY_READER_USERNAME" --password-stdin
             (cd tools/plugin-release && go run . capture-bootstrap-evidence --root ../.. --catalog ../../plugins/release/catalog.json --source "$TARGET_REF" --output /tmp/bootstrap-evidence.json)
             base_version=$(git show "$BOOTSTRAP_BASE:VERSION"); base_version=${base_version#v}
             (cd tools/plugin-release && go run . bootstrap-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --gateway-version "$base_version" --source "$TARGET_REF" --existing-evidence /tmp/bootstrap-evidence.json --output /tmp/bootstrap-snapshot.json)

@@ -33,7 +33,7 @@ jobs:
             source=$(jq -r .sourceCommit "$snapshot")
             gateway=$(jq -r .gatewayVersion "$snapshot")
             case "$mode" in
-              candidate)
+              candidate | mixed)
                 plan="plugins/release/plans/$gateway.json"
                 evidence="plugins/release/evidence/$gateway.json"
                 test -f "$plan"; test -f "$evidence"
@@ -51,6 +51,30 @@ jobs:
                     $proof.inputHash == $entry.inputHash and
                     $published.version == $entry.version
                   )' "$snapshot" >/dev/null
+                previous=$(jq -r '.previousRelease // empty' "$snapshot")
+                if [ "$mode" = mixed ] && [ -n "$previous" ] &&
+                  [ "$(jq -r '.provenanceMode // empty' "plugins/release/snapshots/$previous.json" 2>/dev/null)" = bootstrap-public ]; then
+                  # First managed release: every imported public digest and every
+                  # backfill claim must match the reviewed bootstrap evidence.
+                  bootstrap="plugins/release/bootstrap-evidence/$gateway.json"
+                  test -f "$bootstrap"
+                  jq -e --slurpfile bootstrap "$bootstrap" --slurpfile plan "$plan" '
+                    all(.plugins[] | select(.provenanceMode == "public");
+                      . as $entry |
+                      ($bootstrap[0].plugins[$entry.logicalId]) as $proof |
+                      $proof != null and $proof.status == "public" and
+                      $proof.version == $entry.version and $proof.digest == $entry.digest
+                    ) and
+                    all(.plugins[] | select(.backfill == true);
+                      . as $entry |
+                      any($plan[0].plugins[]; .logicalId == $entry.logicalId and .backfill == true)
+                    ) and
+                    all($plan[0].plugins[] | select(.backfill == true);
+                      . as $entry |
+                      ($bootstrap[0].plugins[$entry.logicalId]) as $proof |
+                      $proof != null and $proof.status == "missing" and $proof.version == $entry.version
+                    )' "$snapshot" >/dev/null
+                fi
                 (cd tools/plugin-release && go run . verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$snapshot" --expected-source "$source" --committed-source "$GITHUB_SHA" --resolve --oci-source candidate)
                 jq -c '.plugins[]' "$plan" >> /tmp/planned-artifacts
                 ;;

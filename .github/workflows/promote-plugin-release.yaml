@@ -196,7 +196,10 @@ jobs:
           fi
           # The latest phase has a separate all-or-nothing preflight: no
           # latest tag is written until every promoted version exists and every
-          # current latest value has passed the monotonicity check.
+          # current latest value has passed the monotonicity check. Bootstrap
+          # backfill entries import missing history: the version phase creates
+          # their stable tag from the reviewed candidate, but latest is never
+          # moved for a backfill.
           jq -n --arg sha "$SNAPSHOT_SHA256" '{snapshotSha256:$sha,phase:"latest-preflight",entries:[]}' > "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
           while read -r entry; do
             ref=$(jq -r .ociRef <<<"$entry"); digest=$(jq -r .digest <<<"$entry")
@@ -215,7 +218,7 @@ jobs:
               old_digest=""; old=""; state=create
             fi
             jq --arg ref "$ref" --arg latest "$latest" --arg digest "$digest" --arg version "$version" --arg oldDigest "$old_digest" --arg oldVersion "$old" --arg state "$state" '.entries += [{ref:$ref,latest:$latest,digest:$digest,version:$version,oldDigest:$oldDigest,oldVersion:$oldVersion,preflight:$state}]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
-          done < <(jq -c '.plugins[]' "$SNAPSHOT_PATH")
+          done < <(jq -c '.plugins[] | select(.backfill != true)' "$SNAPSHOT_PATH")
           jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do ref=$(jq -r .ref <<<"$entry"); oras cp "${ref%:*}@$(jq -r .digest <<<"$entry")" "$(jq -r .latest <<<"$entry")"; done
           jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor --format json | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
           jq '.phase="latest-complete"' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"

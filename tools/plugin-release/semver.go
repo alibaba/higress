@@ -88,6 +88,15 @@ func comparePrerelease(a, b string) int {
 	return compareInt(len(aa), len(bb))
 }
 
+// isAlphaPrerelease reports whether the first dot-separated prerelease
+// identifier is "alpha" (for example 1.0.0-alpha or 1.0.0-alpha.1). Alpha
+// builds are development artifacts deferred from release selection; other
+// prerelease families keep their existing promotion or fail-closed behavior.
+func isAlphaPrerelease(prerelease string) bool {
+	first, _, _ := strings.Cut(prerelease, ".")
+	return first == "alpha"
+}
+
 func nextVersion(previous, current string) (string, error) {
 	prev, err := parseSemver(previous)
 	if err != nil {

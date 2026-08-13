@@ -38,3 +38,16 @@ func TestPrereleaseOrdering(t *testing.T) {
 		t.Fatal("SemVer prerelease ordering is incorrect")
 	}
 }
+
+func TestIsAlphaPrereleaseDefersOnlyTheAlphaFamily(t *testing.T) {
+	for _, prerelease := range []string{"alpha", "alpha.1", "alpha.2.3"} {
+		if !isAlphaPrerelease(prerelease) {
+			t.Fatalf("prerelease %q must be deferred as an alpha build", prerelease)
+		}
+	}
+	for _, prerelease := range []string{"", "beta", "beta.1", "rc.1", "alpha1", "x.alpha"} {
+		if isAlphaPrerelease(prerelease) {
+			t.Fatalf("prerelease %q must not be deferred; only the alpha family is", prerelease)
+		}
+	}
+}

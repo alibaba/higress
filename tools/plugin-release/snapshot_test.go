@@ -44,7 +44,9 @@ func TestVerifySnapshotUsesPreMergeInputsAndMergedVersions(t *testing.T) {
 	mustRun(t, root, "git", "config", "user.name", "test")
 	mustRun(t, root, "git", "config", "user.email", "test@example.com")
 	mustWrite(t, filepath.Join(root, "plugins/wasm-go/extensions/demo/main.go"), "package main\n")
-	mustWrite(t, filepath.Join(root, "plugins/wasm-go/extensions/demo/VERSION"), "1.0.0-alpha\n")
+	// A non-alpha prerelease keeps this plugin in release selection; an alpha
+	// VERSION would now be deferred and skip the committed-source checks below.
+	mustWrite(t, filepath.Join(root, "plugins/wasm-go/extensions/demo/VERSION"), "1.0.0-beta.1\n")
 	mustWrite(t, filepath.Join(root, "plugins/wasm-rust/extensions/.keep"), "")
 	mustRun(t, root, "git", "add", ".")
 	mustRun(t, root, "git", "commit", "-q", "-m", "source")

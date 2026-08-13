@@ -92,7 +92,7 @@ func TestCaptureBootstrapEvidenceIsCanonicalReadOnlyAndNotSelfReferential(t *tes
 		t.Fatalf("bootstrap evidence must not self-reference its target commit or derived input hash:\n%s", data)
 	}
 	entry := first.Plugins["demo"]
-	if entry.PublicRef != publicRef || entry.Digest != digest {
+	if entry.Status != "public" || entry.Version != "1.0.0" || entry.PublicRef != publicRef || entry.Digest != digest {
 		t.Fatalf("capture lost reviewed public provenance: %#v", entry)
 	}
 	if string(mustRead(t, filepath.Join(root, "plugins/wasm-go/extensions/demo/VERSION"))) != string(before) {
@@ -216,7 +216,7 @@ func bootstrapFixture(t *testing.T) (root, catalog, evidence, commit, digest str
 	}
 	digest = "sha256:" + strings.Repeat("a", 64)
 	evidence = filepath.Join(root, "evidence.json")
-	if err := writeCanonical(evidence, BootstrapEvidenceFile{Plugins: map[string]BootstrapEvidence{"demo": {PublicRef: "registry.example/plugins/demo:1.0.0", Digest: digest}}}); err != nil {
+	if err := writeCanonical(evidence, BootstrapEvidenceFile{Plugins: map[string]BootstrapEvidence{"demo": {Status: "public", Version: "1.0.0", PublicRef: "registry.example/plugins/demo:1.0.0", Digest: digest}}}); err != nil {
 		t.Fatal(err)
 	}
 	return root, catalog, evidence, commit, digest

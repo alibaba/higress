@@ -22,6 +22,13 @@ controls exist.
   credential able to write `higress/plugin-server:<gateway-version>`. The
   plugin-server repository publisher may write only its development/candidate
   namespace.
+- Create a least-privilege read-only registry credential for the protected
+  bootstrap capture path and store it as `PLUGIN_REGISTRY_READER_USERNAME` /
+  `PLUGIN_REGISTRY_READER_PASSWORD` on the `plugin-release-candidate`
+  environment. It may resolve public manifests only; it must not push, retag,
+  or delete. The uncredentialed ORAS preflight stays read-only and outside any
+  protected environment. A 401/403 during capture is an authorization or
+  configuration failure and is never treated as an absent artifact.
 - Create a scoped GitHub App for each downstream repository dispatch/PR
   receiver. It may update the deterministic dependency PR but may not merge,
   tag, or release.
@@ -50,7 +57,9 @@ repository source alone.
    commit of the last stable Higress release (`v2.2.3` is
    `39ec41aab6eb1d40499bed2847085696de0ebb96`). The workflow captures current
    public refs/digests read-only, then compares artifact inputs from that
-   ancestor; ordinary snapshots reject this one-time override.
+   ancestor; ordinary snapshots reject this one-time override. The capture
+   classifies every release-eligible entry as public, missing, or deferred;
+   see "Bootstrap deferral and backfill" below.
 3. Build/test every plan entry through the protected candidate publisher. Each
    candidate is keyed by plan ID/input hash and reports its manifest digest,
    source commit, and input hash. Render the snapshot only after every changed
@@ -82,6 +91,38 @@ repository source alone.
    authorization. After the Higress release, dispatch Standalone with
    immutable release/chart/image identities. It derives a deterministic PR key
    and must not read a newer branch head.
+
+## Bootstrap deferral and backfill
+
+The first managed bootstrap compares artifact inputs from the exact
+`bootstrap_comparison_base` commit and classifies every release-eligible
+catalog entry through reviewed bootstrap evidence instead of failing on an
+absent public tag:
+
+- A `VERSION` whose prerelease begins with the `alpha` identifier (for
+  example `1.0.0-alpha` or `1.0.0-alpha.1`) is deferred. It never blocks the
+  bootstrap, produces no candidate, receives no public stable tag, no
+  `latest` movement, and no new snapshot entry. Other prerelease families are
+  not deferred by this rule.
+- A stable `VERSION` whose public tag already exists is imported
+  idempotently: the capture resolves its digest with the read-only credential
+  and the snapshot carries the exact historical public reference.
+- A stable `VERSION` whose public tag is genuinely absent becomes a backfill
+  entry. The exact target commit is built once as a content-addressed
+  candidate; the reviewed snapshot binds its digest, source commit, and input
+  hash. Promotion creates the public tag from that candidate when absent,
+  accepts an identical existing digest, fails on any conflict, never
+  rebuilds, and never moves `latest` for a backfill entry.
+
+The first managed snapshot therefore mixes provenance: historical public
+entries plus candidate backfill entries. Preparation PR validation resolves
+the candidate references and cross-checks every imported public digest and
+backfill claim against the reviewed bootstrap evidence; post-promotion
+verification resolves the public tags. Historical public artifacts carry no
+invented provenance annotations. A new catalog plugin in a later managed
+release follows the same build-once/promote-once path, but it is a genuine
+new release rather than imported history, so `latest` advances normally for
+it.
 
 The pre-tag `authorize-higress-release-tag` workflow rechecks the exact merged
 release commit and promoted snapshot. It derives the identical snapshot-source

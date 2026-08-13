@@ -32,24 +32,35 @@ func TestFirstManagedReleasePlansExactlyFromV223DespiteMissingVersions(t *testin
 	dummyDigest := "sha256:" + strings.Repeat("a", 64)
 	previous := Snapshot{SchemaVersion: 1, GatewayVersion: "2.2.3", SourceCommit: target, CatalogSHA256: sha256Hex(catalogData), ProvenanceMode: "bootstrap-public"}
 	missingHistoricalVersions := 0
+	deferredAlpha := 0
 	eligible := map[string]Plugin{}
 	for _, p := range plugins {
 		if !p.ReleaseEligible {
 			continue
 		}
 		eligible[p.LogicalID] = p
-		if _, err := fileAtCommit(root, v223Commit, p.SourceDir+"/VERSION"); err != nil {
-			missingHistoricalVersions++
-		}
 		versionRaw, err := fileAtCommit(root, target, p.SourceDir+"/VERSION")
 		if err != nil {
 			t.Fatal(err)
 		}
 		version := strings.TrimSpace(versionRaw)
+		parsed, err := parseSemver(version)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A deferred alpha VERSION has no public artifact and no bootstrap
+		// snapshot entry; the plan must defer it instead of importing it.
+		if isAlphaPrerelease(parsed.prerelease) {
+			deferredAlpha++
+			continue
+		}
+		if _, err := fileAtCommit(root, v223Commit, p.SourceDir+"/VERSION"); err != nil {
+			missingHistoricalVersions++
+		}
 		previous.Plugins = append(previous.Plugins, SnapshotEntry{LogicalID: p.LogicalID, Implementation: p.Implementation, SourceDir: p.SourceDir, Image: p.Image, Version: version, OCIRef: c.Registry + "/" + p.Image + ":" + version, Digest: dummyDigest, InputHash: dummyDigest, SourceCommit: target, ProvenanceMode: "public", Consumers: cloneConsumers(p.Consumers)})
 	}
-	if missingHistoricalVersions != 16 || len(previous.Plugins) != 44 {
-		t.Fatalf("v2.2.3 fixture drift: eligible=%d missing VERSION=%d, want 44/16", len(previous.Plugins), missingHistoricalVersions)
+	if missingHistoricalVersions != 16 || len(previous.Plugins) != 43 || deferredAlpha != 1 {
+		t.Fatalf("v2.2.3 fixture drift: eligible=%d missing VERSION=%d deferred=%d, want 43/16/1", len(previous.Plugins), missingHistoricalVersions, deferredAlpha)
 	}
 	previousPath := filepath.Join(t.TempDir(), "bootstrap-v2.2.3.json")
 	if err := writeCanonical(previousPath, previous); err != nil {
@@ -87,6 +98,9 @@ func TestFirstManagedReleasePlansExactlyFromV223DespiteMissingVersions(t *testin
 		if err != nil {
 			t.Fatal(err)
 		}
+		if isAlphaPrerelease(previousVersion.prerelease) {
+			continue
+		}
 		if previousVersion.prerelease != "" {
 			expected[id] = true
 			continue
@@ -97,6 +111,10 @@ func TestFirstManagedReleasePlansExactlyFromV223DespiteMissingVersions(t *testin
 				break
 			}
 		}
+	}
+	if len(first.Deferred) != 1 || first.Deferred[0].LogicalID != "replay-protection" ||
+		first.Deferred[0].Version != "1.0.0-alpha" || first.Deferred[0].Reason != "alpha-prerelease" {
+		t.Fatalf("first plan must defer exactly the alpha prerelease: %#v", first.Deferred)
 	}
 	if len(first.Plugins) != len(expected) {
 		t.Fatalf("first plan has %d entries, exact artifact diff affects %d", len(first.Plugins), len(expected))
@@ -109,6 +127,9 @@ func TestFirstManagedReleasePlansExactlyFromV223DespiteMissingVersions(t *testin
 		previousVersion, _ := parseSemver(entry.PreviousVersion)
 		if entry.Implementation != p.Implementation || entry.SourceDir != p.SourceDir || entry.Image != p.Image || !digestPattern.MatchString(entry.InputHash) || (len(entry.ChangedPaths) == 0 && previousVersion.prerelease == "") {
 			t.Fatalf("affected plugin lacks deterministic build evidence: %#v", entry)
+		}
+		if entry.Backfill {
+			t.Fatalf("plugin %q present in the bootstrap baseline must not be a backfill", entry.LogicalID)
 		}
 	}
 }
