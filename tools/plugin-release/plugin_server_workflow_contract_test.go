@@ -46,6 +46,7 @@ func TestReleaseWorkflowsPairORASSetupMetadataWithPinnedCLI(t *testing.T) {
 		"build-plugin-server-from-snapshot.yaml": 1,
 		"authorize-higress-release-tag.yaml":     1,
 		"dispatch-standalone-release.yaml":       1,
+		"validate-plugin-preparation-pr.yaml":    1,
 	}
 	for name, expected := range expectedCallers {
 		data, err := os.ReadFile("../../.github/workflows/" + name)
@@ -352,6 +353,17 @@ func TestPreparationPRValidationBindsMixedSnapshotToBootstrapEvidence(t *testing
 	}
 	if strings.Count(workflow, "verify-snapshot") != 2 {
 		t.Fatal("candidate/mixed and bootstrap-public snapshots must each keep one verify-snapshot gate")
+	}
+	// verify-snapshot --resolve executes the oras CLI and the workflow runs the
+	// release tool tests, so this required PR gate must install the pinned ORAS
+	// 1.2.3 before either step: without it the resolver fails closed with
+	// executable-not-found and the executable descriptor contract test would
+	// silently skip instead of exercising the pinned CLI.
+	orasSetup := strings.Index(workflow, "oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3")
+	toolTests := strings.Index(workflow, "go test ./...")
+	verify := strings.Index(workflow, "verify-snapshot")
+	if orasSetup < 0 || toolTests < 0 || verify < 0 || orasSetup > toolTests || orasSetup > verify {
+		t.Fatal("validation must install the pinned ORAS 1.2.3 CLI before running the release tool tests and verify-snapshot --resolve")
 	}
 }
 
