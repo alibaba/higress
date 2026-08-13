@@ -70,13 +70,20 @@ repository source alone.
    release-eligible plugins, including unchanged entries carried forward by
    digest. It is the only downstream input.
 5. Run `promote-plugin-release` for that exact merged commit and snapshot
-   hash. A production publisher may create a missing public version tag or
+   hash, first with `dry_run=true`; the dry run resolves the exact committed
+   plan, previous snapshot, and every candidate manifest without logging in or
+   mutating registry state. A production publisher may create a missing public version tag or
    accept an identical existing digest only. It must fail before mutation on a
    conflicting digest. Advance `latest` only after the full batch verifies and
-   only when its stable SemVer cannot move backwards.
+   only when its stable SemVer cannot move backwards. An existing `latest`
+   already serving the desired digest is accepted before reading legacy
+   version annotations and is never rewritten.
 6. Build `higress/plugin-server:<gateway-version>` from the exact approved
-   plugin-server commit and snapshot. Verify image platforms, labels, response
-   content hashes, and the snapshot hash before downstream dispatch.
+   plugin-server commit and snapshot. Its dry run checks out and tests that
+   exact plugin-server source, binds the gateway version/path/plan/previous
+   snapshot, and resolves candidate provenance before any image tooling or
+   registry write is enabled. Verify image platforms, labels, response content
+   hashes, and the snapshot hash before downstream dispatch.
 7. Dispatch Console from the exact snapshot-carrying Higress commit, then merge
    its generated PR and wait for the Console chart containing that lock to be
    released. Only now create or update the normal #4019-style release PR from
@@ -111,10 +118,12 @@ absent public tag:
   and the snapshot carries the exact historical public reference.
 - A stable `VERSION` whose public tag is genuinely absent becomes a backfill
   entry. Absence is recognized only on explicit registry 404-class evidence
-  (`404`, `manifest unknown`, `name unknown`); an authorization failure, a
-  local executable or file failure, or generic "not found" text aborts the
-  capture and is never absence evidence, and a stale `missing` claim whose
-  tag resolves at preparation time is rejected. The exact target commit is
+  (`404`, `manifest unknown`, `name unknown`) or a provider-structured registry
+  error that contains both `Error response from registry:` and the exact fully
+  qualified reference followed by `: not found`; an authorization failure, a
+  local executable or file failure, an unrelated reference, or generic "not
+  found" text aborts the capture and is never absence evidence, and a stale
+  `missing` claim whose tag resolves at preparation time is rejected. The exact target commit is
   built once as a content-addressed candidate; the reviewed snapshot binds
   its digest, source commit, and input hash. Promotion creates the public tag
   from that candidate when absent, accepts an identical existing digest,

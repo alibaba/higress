@@ -24,33 +24,39 @@ import (
 
 func TestClassifyOCIFailureDistinguishesUnauthorizedFromAbsent(t *testing.T) {
 	cases := []struct {
-		msg  string
-		want ociFailureClass
+		msg         string
+		expectedRef string
+		want        ociFailureClass
 	}{
-		{"401 Unauthorized", ociFailureUnauthorized},
-		{"403 Forbidden", ociFailureUnauthorized},
-		{"denied: requested access to the resource is denied", ociFailureUnauthorized},
-		{"UNAUTHORIZED: authentication required", ociFailureUnauthorized},
-		{"authorization required", ociFailureUnauthorized},
-		{"404 Not Found", ociFailureNotFound},
-		{"manifest unknown", ociFailureNotFound},
-		{"name unknown", ociFailureNotFound},
-		{"repository does not exist", ociFailureNotFound},
-		{"connection refused", ociFailureOther},
-		{"i/o timeout", ociFailureOther},
+		{"401 Unauthorized", "", ociFailureUnauthorized},
+		{"403 Forbidden", "", ociFailureUnauthorized},
+		{"denied: requested access to the resource is denied", "", ociFailureUnauthorized},
+		{"UNAUTHORIZED: authentication required", "", ociFailureUnauthorized},
+		{"authorization required", "", ociFailureUnauthorized},
+		{"404 Not Found", "", ociFailureNotFound},
+		{"manifest unknown", "", ociFailureNotFound},
+		{"name unknown", "", ociFailureNotFound},
+		{"repository does not exist", "", ociFailureNotFound},
+		{`Error response from registry: failed to find "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0": higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0: not found`, "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0", ociFailureNotFound},
+		{`Error response from registry: higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/other:1.0.0: not found`, "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0", ociFailureOther},
+		{"connection refused", "", ociFailureOther},
+		{"i/o timeout", "", ociFailureOther},
 		// A local executable/file failure or generic "not found" text is never
 		// absence evidence: only explicit registry 404-class markers qualify.
-		{"Error response from daemon: not found", ociFailureOther},
-		{`exec: "oras": executable file not found in $PATH`, ociFailureOther},
-		{"open /tmp/descriptor.json: no such file or directory", ociFailureOther},
-		{"not found", ociFailureOther},
+		{"Error response from daemon: not found", "", ociFailureOther},
+		{`exec: "oras": executable file not found in $PATH`, "", ociFailureOther},
+		{"open /tmp/descriptor.json: no such file or directory", "", ociFailureOther},
+		{"not found", "", ociFailureOther},
+		{"Error response from registry: not found", "", ociFailureOther},
+		{"Error response from registry: /tmp/plugins/missing:1.0.0: not found", "/tmp/plugins/missing:1.0.0", ociFailureOther},
 		// Authorization always wins over absence: a 401/403 is never an
 		// absent artifact, even when the registry also says "unknown".
-		{"403: manifest unknown", ociFailureUnauthorized},
-		{"401: not found", ociFailureUnauthorized},
+		{"403: manifest unknown", "", ociFailureUnauthorized},
+		{"401: not found", "", ociFailureUnauthorized},
+		{`Error response from registry: 403 Forbidden: higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0: not found`, "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/missing:1.0.0", ociFailureUnauthorized},
 	}
 	for _, tc := range cases {
-		if got := classifyOCIFailure(errors.New(tc.msg)); got != tc.want {
+		if got := classifyOCIFailure(errors.New(tc.msg), tc.expectedRef); got != tc.want {
 			t.Fatalf("classifyOCIFailure(%q) = %d, want %d", tc.msg, got, tc.want)
 		}
 	}
@@ -363,7 +369,7 @@ func TestVerifySnapshotBindsBackfillExactlyBetweenPlanAndSnapshot(t *testing.T) 
 	}
 	// Plan drops the backfill flag the snapshot recorded.
 	tamperedPlan := writePlan(func(p *Plan) { p.Plugins[0].Backfill = false })
-	if err := verifySnapshotBindings(root, catalog, snapshotPath, tamperedPlan, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "differs from its plan entry") {
+	if err := verifySnapshotBindings(root, catalog, snapshotPath, tamperedPlan, "", target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "planId does not match canonical plan content") {
 		t.Fatalf("plan dropping a snapshotted backfill must fail: %v", err)
 	}
 	// A planned backfill without the committed evidence marker fails closed.
@@ -388,7 +394,13 @@ func TestVerifySnapshotBindsBackfillExactlyBetweenPlanAndSnapshot(t *testing.T) 
 	}
 	// The marker is allowed only on the first managed release rendered from
 	// the bootstrap baseline, never on a release with a managed predecessor.
-	if err := verifySnapshotBindings(root, catalog, snapshotPath, planPath, snapshotPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "only on the first managed release") {
+	managedPrevious := writeSnapshot(func(s *Snapshot) {
+		s.GatewayVersion = mixed.PreviousRelease
+		s.PreviousRelease = ""
+		s.BootstrapEvidence = nil
+		s.ProvenanceMode = "mixed"
+	})
+	if err := verifySnapshotBindings(root, catalog, snapshotPath, planPath, managedPrevious, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "only on the first managed release") {
 		t.Fatalf("marker with a managed previous snapshot must fail: %v", err)
 	}
 }
@@ -404,7 +416,8 @@ func TestVerifySnapshotBindsCarriedBackfillToPreviousRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan := Plan{SchemaVersion: 1, GatewayVersion: "2.0.2", SourceCommit: target, CatalogSHA256: sha256Hex(catalogData), PlanID: "sha256:" + strings.Repeat("e", 64)}
+	plan := Plan{SchemaVersion: 1, GatewayVersion: "2.0.2", SourceCommit: target, PreviousRelease: mixed.GatewayVersion, CatalogSHA256: sha256Hex(catalogData)}
+	plan.PlanID = "sha256:" + canonicalObjectHash(plan, true)
 	planPath := filepath.Join(root, "plan2.json")
 	if err := writeCanonical(planPath, plan); err != nil {
 		t.Fatal(err)
@@ -426,6 +439,15 @@ func TestVerifySnapshotBindsCarriedBackfillToPreviousRelease(t *testing.T) {
 	}
 	if err := verifySnapshotBindings(root, catalog, nextPath, planPath, snapshotPath, target, target, false, "candidate"); err != nil {
 		t.Fatalf("carried backfill bound to the previous release must verify: %v", err)
+	}
+	wrongPrevious := mixed
+	wrongPrevious.GatewayVersion = "1.9.9"
+	wrongPreviousPath := filepath.Join(t.TempDir(), "previous.json")
+	if err := writeCanonical(wrongPreviousPath, wrongPrevious); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySnapshotBindings(root, catalog, nextPath, planPath, wrongPreviousPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "exact stable previousRelease") {
+		t.Fatalf("a different previous snapshot must not satisfy exact carry binding: %v", err)
 	}
 
 	// A snapshot-only backfill switch that neither plan nor previous release
@@ -568,9 +590,44 @@ func TestDeferredAlphaCarriesForwardOnlyStablePreviousEntry(t *testing.T) {
 	if err := writeCanonical(snapshotPath, snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if err := verifySnapshot(root, catalog, snapshotPath, target, target, false, "candidate"); err != nil {
+	if err := verifySnapshotBindings(root, catalog, snapshotPath, planPath, previousPath, target, target, false, "candidate"); err != nil {
 		t.Fatalf("stable carry-forward for a deferred plugin must verify: %v", err)
 	}
+
+	omitted := snapshot
+	omitted.Plugins = nil
+	omittedPath := filepath.Join(root, "omitted.json")
+	if err := writeCanonical(omittedPath, omitted); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySnapshotBindings(root, catalog, omittedPath, planPath, previousPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "dropped its previous stable snapshot entry") {
+		t.Fatalf("a deferred alpha plugin must carry its previous stable entry: %v", err)
+	}
+
+	verifyDeferredMutation := func(name string, mutate func(*Plan), want string) {
+		t.Helper()
+		mutatedPlan := plan
+		mutatedPlan.Deferred = append([]DeferredPlugin(nil), plan.Deferred...)
+		mutate(&mutatedPlan)
+		mutatedPlan.PlanID = "sha256:" + canonicalObjectHash(mutatedPlan, true)
+		mutatedPlanPath := filepath.Join(t.TempDir(), "plan.json")
+		if err := writeCanonical(mutatedPlanPath, mutatedPlan); err != nil {
+			t.Fatal(err)
+		}
+		mutatedSnapshot := snapshot
+		mutatedSnapshot.PlanID = mutatedPlan.PlanID
+		mutatedSnapshotPath := filepath.Join(t.TempDir(), "snapshot.json")
+		if err := writeCanonical(mutatedSnapshotPath, mutatedSnapshot); err != nil {
+			t.Fatal(err)
+		}
+		if err := verifySnapshotBindings(root, catalog, mutatedSnapshotPath, mutatedPlanPath, previousPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("%s must fail exact deferred binding: %v", name, err)
+		}
+	}
+	verifyDeferredMutation("missing deferral", func(p *Plan) { p.Deferred = nil }, "omits the exact alpha deferral")
+	verifyDeferredMutation("duplicate deferral", func(p *Plan) { p.Deferred = append(p.Deferred, p.Deferred[0]) }, "more than once")
+	verifyDeferredMutation("wrong deferral version", func(p *Plan) { p.Deferred[0].Version = "1.1.0-alpha.2" }, "does not match the alpha prerelease")
+	verifyDeferredMutation("wrong deferral reason", func(p *Plan) { p.Deferred[0].Reason = "manual" }, "does not match the alpha prerelease")
 
 	tampered := snapshot
 	tampered.Plugins[0].Version = "1.1.0-alpha"
@@ -582,6 +639,95 @@ func TestDeferredAlphaCarriesForwardOnlyStablePreviousEntry(t *testing.T) {
 	if err := verifySnapshot(root, catalog, tamperedPath, target, target, false, "candidate"); err == nil || !strings.Contains(err.Error(), "deferred") {
 		t.Fatalf("an alpha build must never become a snapshot entry: %v", err)
 	}
+}
+
+func TestVerifySnapshotAllowsNewDeferredAlphaWithoutPreviousEntry(t *testing.T) {
+	root, catalog, target := backfillRepo(t, map[string]string{"new-alpha": "1.0.0-alpha.1"})
+	plan := Plan{
+		SchemaVersion:  1,
+		GatewayVersion: "2.0.0",
+		SourceCommit:   target,
+		CatalogSHA256:  sha256Hex(mustRead(t, catalog)),
+		Deferred:       []DeferredPlugin{{LogicalID: "new-alpha", Version: "1.0.0-alpha.1", Reason: "alpha-prerelease"}},
+	}
+	plan.PlanID = "sha256:" + canonicalObjectHash(plan, true)
+	planPath := filepath.Join(root, "plan.json")
+	if err := writeCanonical(planPath, plan); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := Snapshot{SchemaVersion: 1, GatewayVersion: plan.GatewayVersion, SourceCommit: target, CatalogSHA256: plan.CatalogSHA256, PlanID: plan.PlanID, ProvenanceMode: "candidate"}
+	snapshotPath := filepath.Join(root, "snapshot.json")
+	if err := writeCanonical(snapshotPath, snapshot); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifySnapshotBindings(root, catalog, snapshotPath, planPath, "", target, target, false, "candidate"); err != nil {
+		t.Fatalf("a new alpha plugin with no prior stable entry may remain absent: %v", err)
+	}
+}
+
+func TestVerifySnapshotRejectsTamperedPlanAndPlannedEntryIdentity(t *testing.T) {
+	root, catalog, planPath, snapshotPath, snapshot := mixedBackfillFixture(t)
+	var originalPlan Plan
+	if _, err := readJSON(planPath, &originalPlan); err != nil {
+		t.Fatal(err)
+	}
+	writePair := func(mutatePlan func(*Plan), mutateSnapshot func(*Snapshot)) (string, string) {
+		t.Helper()
+		plan := originalPlan
+		plan.Plugins = append([]PlanEntry(nil), originalPlan.Plugins...)
+		plan.Deferred = append([]DeferredPlugin(nil), originalPlan.Deferred...)
+		mutatePlan(&plan)
+		plan.PlanID = "sha256:" + canonicalObjectHash(plan, true)
+		planFile := filepath.Join(t.TempDir(), "plan.json")
+		if err := writeCanonical(planFile, plan); err != nil {
+			t.Fatal(err)
+		}
+		candidate := snapshot
+		candidate.Plugins = append([]SnapshotEntry(nil), snapshot.Plugins...)
+		candidate.PlanID = plan.PlanID
+		mutateSnapshot(&candidate)
+		snapshotFile := filepath.Join(t.TempDir(), "snapshot.json")
+		if err := writeCanonical(snapshotFile, candidate); err != nil {
+			t.Fatal(err)
+		}
+		return planFile, snapshotFile
+	}
+	assertFailure := func(name, planFile, snapshotFile, want string) {
+		t.Helper()
+		if err := verifySnapshotBindings(root, catalog, snapshotFile, planFile, "", snapshot.SourceCommit, snapshot.SourceCommit, false, "candidate"); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("%s must fail: %v", name, err)
+		}
+	}
+
+	// The target differs from its parent only by release notes, so the artifact
+	// hash still recomputes. Exact plan binding must nevertheless reject the
+	// stale per-entry source commit.
+	parent, err := resolveCommit(root, "HEAD^")
+	if err != nil {
+		t.Fatal(err)
+	}
+	planFile, snapshotFile := writePair(func(*Plan) {}, func(s *Snapshot) { s.Plugins[0].SourceCommit = parent })
+	assertFailure("stale planned entry source commit", planFile, snapshotFile, "differs from its plan entry")
+
+	planFile, snapshotFile = writePair(func(p *Plan) { p.Plugins = append(p.Plugins, p.Plugins[0]) }, func(*Snapshot) {})
+	assertFailure("duplicate plan plugin", planFile, snapshotFile, "duplicate plugin")
+
+	planFile, snapshotFile = writePair(func(p *Plan) { p.SchemaVersion = 2 }, func(*Snapshot) {})
+	assertFailure("unsupported plan schema", planFile, snapshotFile, "unsupported schema")
+
+	planFile, snapshotFile = writePair(func(p *Plan) { p.Plugins[0].Image = "plugins/other" }, func(*Snapshot) {})
+	assertFailure("plan identity drift", planFile, snapshotFile, "differs from its plan entry")
+
+	// A content edit without updating planId must be rejected before any weaker
+	// field comparison can accept it.
+	tampered := originalPlan
+	tampered.Plugins = append([]PlanEntry(nil), originalPlan.Plugins...)
+	tampered.Plugins[0].ChangedPaths = []string{"unreviewed/path"}
+	tamperedPlanPath := filepath.Join(t.TempDir(), "plan.json")
+	if err := writeCanonical(tamperedPlanPath, tampered); err != nil {
+		t.Fatal(err)
+	}
+	assertFailure("tampered canonical plan", tamperedPlanPath, snapshotPath, "planId does not match canonical plan content")
 }
 
 func TestManagedReleasePlansNewCatalogPluginWithoutBackfill(t *testing.T) {

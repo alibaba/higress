@@ -58,7 +58,7 @@ jobs:
           gateway=$(jq -r .gatewayVersion "$SNAPSHOT_PATH")
           plan="plugins/release/plans/$gateway.json"
           test -f "$plan"
-          args=(verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --plan "../../$plan" --committed-source "$SOURCE_COMMIT" --oci-source candidate)
+          args=(verify-snapshot --root ../.. --catalog ../../plugins/release/catalog.json --snapshot "../../$SNAPSHOT_PATH" --plan "../../$plan" --committed-source "$SOURCE_COMMIT" --resolve --oci-source candidate)
           if [ -z "$(jq -r '.bootstrapEvidence.path // empty' "$SNAPSHOT_PATH")" ]; then
             previous=$(jq -r '.previousRelease // empty' "$SNAPSHOT_PATH")
             [[ "$previous" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
@@ -111,7 +111,8 @@ jobs:
             if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$err"; then
               cat "$err" >&2; rm -f "$err"; return 2
             fi
-            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err"; then rm -f "$err"; return 1; fi
+            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
+               { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
           marker="$REGISTRY/candidates/plugin-release-batches:$SNAPSHOT_SHA256"
@@ -204,7 +205,8 @@ jobs:
             if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$err"; then
               cat "$err" >&2; rm -f "$err"; return 2
             fi
-            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err"; then rm -f "$err"; return 1; fi
+            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$err" ||
+               { grep -Fq 'Error response from registry:' "$err" && grep -Fq "$ref: not found" "$err"; }; then rm -f "$err"; return 1; fi
             cat "$err" >&2; rm -f "$err"; return 2
           }
           marker="$REGISTRY/candidates/plugin-release-batches:$SNAPSHOT_SHA256"
@@ -238,13 +240,19 @@ jobs:
             image=${ref%:*}; latest="$image:latest"
             if latest_json=$(descriptor_or_absent "$latest"); then
               old_digest=$(jq -r .digest <<<"$latest_json")
-              old=$(oras manifest fetch "$latest" --format json | jq -r '.annotations["org.opencontainers.image.version"] // empty')
-              test -n "$old" || { echo "existing latest lacks a stable version annotation: $latest" >&2; exit 1; }
-              (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
-              if [ "$old" = "$version" ] && [ "$old_digest" != "$digest" ]; then
-                echo "latest alias conflict: $latest serves $old at $old_digest, snapshot requires $digest" >&2; exit 1
+              if [ "$old_digest" = "$digest" ]; then
+                # Identical content is already the desired alias even when it
+                # predates release annotations. Accept it without a write.
+                old=""; state=identical
+              else
+                old=$(oras manifest fetch "$latest" --format json | jq -r '.annotations["org.opencontainers.image.version"] // empty')
+                test -n "$old" || { echo "existing latest lacks a stable version annotation: $latest" >&2; exit 1; }
+                (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
+                if [ "$old" = "$version" ]; then
+                  echo "latest alias conflict: $latest serves $old at $old_digest, snapshot requires $digest" >&2; exit 1
+                fi
+                state=replace
               fi
-              if [ "$old" = "$version" ]; then state=identical; else state=replace; fi
             else
               status=$?
               test "$status" = 1 || exit "$status"

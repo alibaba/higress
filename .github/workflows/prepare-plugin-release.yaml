@@ -55,7 +55,9 @@ jobs:
           set -euo pipefail
           [[ "$TARGET_REF" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$TARGET_REF"
-          public_ref=""
+          attempted=0
+          present=0
+          absent=0
           while IFS=$'\t' read -r registry image source_dir; do
             [[ "$registry" =~ ^[a-z0-9][a-z0-9.-]*(\:[0-9]+)?$ ]]
             [[ "$image" =~ ^plugins/[a-z0-9][a-z0-9._-]*$ ]]
@@ -68,7 +70,31 @@ jobs:
               continue
             fi
             public_ref="$registry/$image:$version"
-            break
+            attempted=$((attempted + 1))
+            lookup_error=$(mktemp)
+            if descriptor=$(oras manifest fetch "$public_ref" --descriptor 2>"$lookup_error"); then
+              jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")' <<<"$descriptor" >/dev/null
+              present=$((present + 1))
+              rm -f "$lookup_error"
+              continue
+            fi
+            # Authorization always wins. Registry absence is accepted only
+            # with an explicit 404-class marker or ACR's provider-structured
+            # registry error naming this exact fully qualified reference.
+            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$lookup_error"; then
+              cat "$lookup_error" >&2; rm -f "$lookup_error"
+              echo "public registry preflight was refused; authorization failure is never absence: $public_ref" >&2
+              exit 1
+            fi
+            if grep -Eiq '404|manifest unknown|name unknown|repository does not exist' "$lookup_error" ||
+               { grep -Fq 'Error response from registry:' "$lookup_error" && grep -Fq "$public_ref: not found" "$lookup_error"; }; then
+              absent=$((absent + 1))
+              rm -f "$lookup_error"
+              continue
+            fi
+            cat "$lookup_error" >&2; rm -f "$lookup_error"
+            echo "public registry preflight failed without explicit absence evidence: $public_ref" >&2
+            exit 1
           done < <(
             jq -er '
               . as $catalog
@@ -76,10 +102,7 @@ jobs:
               | [$catalog.registry, .image, .sourceDir] | @tsv
             ' plugins/release/catalog.json | sort
           )
-          test -n "$public_ref"
-          oras manifest fetch "$public_ref" --descriptor > /tmp/oras-public-descriptor.json
-          jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")' /tmp/oras-public-descriptor.json >/dev/null
-          echo "Read-only ORAS descriptor preflight succeeded for deterministic catalog public artifact." >> "$GITHUB_STEP_SUMMARY"
+          echo "Read-only ORAS preflight classified $attempted deterministic public references: $present present, $absent explicitly absent; deferred alpha plugins were skipped." >> "$GITHUB_STEP_SUMMARY"
   prepare:
     needs: preflight
     runs-on: ubuntu-latest

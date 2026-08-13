@@ -25,6 +25,11 @@ var (
 	credentialURLPattern      = regexp.MustCompile(`(?i)([a-z][a-z0-9+.-]*://)[^/\s@]+@`)
 	sensitiveValuePattern     = regexp.MustCompile(`(?i)(\b(?:password|token|secret|credential|access[_-]?key|api[_-]?key)\b(?:\s*[:=]\s*|\s+))([^\s,;]+)`)
 	authorizationValuePattern = regexp.MustCompile(`(?i)(\bauthorization\b\s*[:=]\s*)([^\s,;]+(?:\s+[^\s,;]+)?)`)
+	// ACR reports an absent manifest as a provider-structured registry error
+	// ending in a fully qualified OCI reference followed by ": not found".
+	// The explicit registry prefix and qualified reference are both required;
+	// a bare or local "not found" remains an unclassified failure.
+	registryQualifiedReferencePattern = regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::[0-9]+)?)/(?:[a-z0-9._-]+/)*[a-z0-9._-]+(?::[a-z0-9_][a-z0-9._-]*|@sha256:[0-9a-f]{64})$`)
 )
 
 type ociFailureClass int
@@ -39,9 +44,10 @@ const (
 // artifact is genuinely absent or the caller lacks authorization. The
 // authorization markers are checked first: a 401/403 is an
 // authorization/configuration error and is never an absent artifact. Absence
-// requires explicit registry evidence (404-class, manifest/name unknown); a
-// local executable/file failure or generic "not found" text fails closed.
-func classifyOCIFailure(err error) ociFailureClass {
+// requires explicit registry evidence (404-class, manifest/name unknown), or
+// a provider-structured registry error naming the fully qualified reference;
+// a local executable/file failure or generic "not found" text fails closed.
+func classifyOCIFailure(err error, expectedRef string) ociFailureClass {
 	msg := strings.ToLower(err.Error())
 	for _, marker := range []string{"401", "403", "unauthorized", "forbidden", "denied", "authentication required", "authorization required"} {
 		if strings.Contains(msg, marker) {
@@ -52,6 +58,12 @@ func classifyOCIFailure(err error) ociFailureClass {
 		if strings.Contains(msg, marker) {
 			return ociFailureNotFound
 		}
+	}
+	expectedRef = strings.ToLower(expectedRef)
+	if strings.Contains(msg, "error response from registry:") &&
+		registryQualifiedReferencePattern.MatchString(expectedRef) &&
+		strings.Contains(msg, expectedRef+": not found") {
+		return ociFailureNotFound
 	}
 	return ociFailureOther
 }
@@ -649,7 +661,7 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 		}
 	}
 	plugins := map[string]Plugin{}
-	deferred := map[string]bool{}
+	deferred := map[string]string{}
 	for _, p := range c.Plugins {
 		plugins[p.LogicalID] = p
 		if !p.ReleaseEligible {
@@ -661,12 +673,13 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 		if err != nil {
 			return fmt.Errorf("%s VERSION at snapshot source commit: %w", p.LogicalID, err)
 		}
-		parsed, err := parseSemver(strings.TrimSpace(raw))
+		version := strings.TrimSpace(raw)
+		parsed, err := parseSemver(version)
 		if err != nil {
 			return fmt.Errorf("%s: %w", p.LogicalID, err)
 		}
 		if isAlphaPrerelease(parsed.prerelease) {
-			deferred[p.LogicalID] = true
+			deferred[p.LogicalID] = version
 		}
 	}
 	seen := map[string]bool{}
@@ -689,7 +702,7 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 		if _, err := parseSemver(entry.Version); err != nil {
 			return fmt.Errorf("%s: %w", entry.LogicalID, err)
 		}
-		if deferred[entry.LogicalID] {
+		if _, isDeferred := deferred[entry.LogicalID]; isDeferred {
 			// A deferred alpha plugin may only carry an earlier stable release
 			// forward; the alpha build itself never becomes a snapshot entry.
 			entryVersion, _ := parseSemver(entry.Version)
@@ -721,7 +734,8 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 		if err != nil || hash != entry.InputHash {
 			return fmt.Errorf("%s input hash does not recompute from sourceCommit and proposed version", entry.LogicalID)
 		}
-		if committed != "" && !deferred[entry.LogicalID] {
+		_, isDeferred := deferred[entry.LogicalID]
+		if committed != "" && !isDeferred {
 			versionAtCommit, err := fileAtCommit(root, committed, p.SourceDir+"/VERSION")
 			if err != nil || strings.TrimSpace(versionAtCommit) != entry.Version {
 				return fmt.Errorf("%s VERSION at committed source does not equal snapshot version", entry.LogicalID)
@@ -741,7 +755,10 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 		}
 	}
 	for _, p := range c.Plugins {
-		if !p.ReleaseEligible || deferred[p.LogicalID] {
+		if !p.ReleaseEligible {
+			continue
+		}
+		if _, isDeferred := deferred[p.LogicalID]; isDeferred {
 			continue
 		}
 		if !seen[p.LogicalID] {
@@ -759,29 +776,63 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 // snapshot (when binding is requested) are all rejected. The marker is never
 // inferred from a missing previous-snapshot file; it is explicit snapshot
 // provenance validated against committed evidence bytes.
-func verifySnapshotProvenanceBindings(root string, snapshot Snapshot, planPath, previousPath string, deferred map[string]bool) error {
+func verifySnapshotProvenanceBindings(root string, snapshot Snapshot, planPath, previousPath string, deferred map[string]string) error {
 	var planEntries map[string]PlanEntry
 	if planPath != "" {
 		var plan Plan
 		if _, err := readJSON(planPath, &plan); err != nil {
 			return err
 		}
+		gatewayVersion, err := parseSemver(plan.GatewayVersion)
+		if err != nil || gatewayVersion.prerelease != "" {
+			return errors.New("plan gatewayVersion must be stable SemVer")
+		}
+		if plan.SchemaVersion != planSchemaVersion || !commitPattern.MatchString(plan.SourceCommit) ||
+			!digestPattern.MatchString(plan.PlanID) || (plan.BaseCommit != "" && !commitPattern.MatchString(plan.BaseCommit)) {
+			return errors.New("plan has an unsupported schema or invalid immutable provenance")
+		}
+		if plan.PreviousRelease != "" {
+			previousVersion, err := parseSemver(plan.PreviousRelease)
+			if err != nil || previousVersion.prerelease != "" {
+				return errors.New("plan previousRelease must be stable SemVer")
+			}
+		}
+		if want := "sha256:" + canonicalObjectHash(plan, true); plan.PlanID != want {
+			return fmt.Errorf("planId does not match canonical plan content: got %s, want %s", plan.PlanID, want)
+		}
 		if plan.GatewayVersion != snapshot.GatewayVersion || plan.SourceCommit != snapshot.SourceCommit ||
-			plan.PlanID != snapshot.PlanID || plan.CatalogSHA256 != snapshot.CatalogSHA256 {
+			plan.PreviousRelease != snapshot.PreviousRelease || plan.PlanID != snapshot.PlanID || plan.CatalogSHA256 != snapshot.CatalogSHA256 {
 			return errors.New("plan and snapshot immutable provenance differ")
 		}
 		planEntries = map[string]PlanEntry{}
 		planBackfill := false
 		for _, entry := range plan.Plugins {
+			if _, exists := planEntries[entry.LogicalID]; exists {
+				return fmt.Errorf("plan contains duplicate plugin %s", entry.LogicalID)
+			}
 			planEntries[entry.LogicalID] = entry
 			planBackfill = planBackfill || entry.Backfill
 		}
 		if planBackfill && snapshot.BootstrapEvidence == nil {
 			return errors.New("plan marks backfill but the snapshot carries no committed bootstrap evidence marker")
 		}
+		planDeferred := map[string]DeferredPlugin{}
 		for _, d := range plan.Deferred {
-			if !deferred[d.LogicalID] {
-				return fmt.Errorf("plan defers %s which is not an alpha prerelease at the snapshot source", d.LogicalID)
+			if _, duplicate := planDeferred[d.LogicalID]; duplicate {
+				return fmt.Errorf("plan defers %s more than once", d.LogicalID)
+			}
+			if _, planned := planEntries[d.LogicalID]; planned {
+				return fmt.Errorf("plan both plans and defers %s", d.LogicalID)
+			}
+			version, isDeferred := deferred[d.LogicalID]
+			if !isDeferred || d.Version != version || d.Reason != "alpha-prerelease" {
+				return fmt.Errorf("plan deferral for %s does not match the alpha prerelease at the snapshot source", d.LogicalID)
+			}
+			planDeferred[d.LogicalID] = d
+		}
+		for id, version := range deferred {
+			if d, ok := planDeferred[id]; !ok || d.Version != version {
+				return fmt.Errorf("plan omits the exact alpha deferral for %s at version %s", id, version)
 			}
 		}
 	}
@@ -791,18 +842,33 @@ func verifySnapshotProvenanceBindings(root string, snapshot Snapshot, planPath, 
 		if _, err := readJSON(previousPath, &previous); err != nil {
 			return err
 		}
+		previousVersion, err := parseSemver(previous.GatewayVersion)
+		if err != nil || previousVersion.prerelease != "" || previous.SchemaVersion != snapshotSchemaVersion ||
+			previous.GatewayVersion != snapshot.PreviousRelease {
+			return errors.New("previous snapshot does not match the exact stable previousRelease")
+		}
 		if snapshot.BootstrapEvidence != nil && previous.ProvenanceMode != "bootstrap-public" {
 			return errors.New("bootstrap evidence marker is allowed only on the first managed release from the bootstrap baseline")
 		}
 		previousEntries = map[string]SnapshotEntry{}
 		for _, entry := range previous.Plugins {
+			if _, duplicate := previousEntries[entry.LogicalID]; duplicate {
+				return fmt.Errorf("previous snapshot contains duplicate plugin %s", entry.LogicalID)
+			}
 			previousEntries[entry.LogicalID] = entry
 		}
+	}
+	snapshotEntries := make(map[string]SnapshotEntry, len(snapshot.Plugins))
+	for _, entry := range snapshot.Plugins {
+		snapshotEntries[entry.LogicalID] = entry
 	}
 	if planEntries != nil || previousEntries != nil {
 		for _, entry := range snapshot.Plugins {
 			if planned, ok := planEntries[entry.LogicalID]; ok {
-				if planned.Version != entry.Version || planned.InputHash != entry.InputHash || planned.Backfill != entry.Backfill {
+				if planned.LogicalID != entry.LogicalID || planned.Implementation != entry.Implementation ||
+					planned.SourceDir != entry.SourceDir || planned.Image != entry.Image || planned.Version != entry.Version ||
+					planned.InputHash != entry.InputHash || planned.Backfill != entry.Backfill ||
+					entry.SourceCommit != snapshot.SourceCommit {
 					return fmt.Errorf("%s snapshot entry differs from its plan entry", entry.LogicalID)
 				}
 				continue
@@ -827,6 +893,21 @@ func verifySnapshotProvenanceBindings(root string, snapshot Snapshot, planPath, 
 			// entries are bound by the committed bootstrap evidence instead.
 			if snapshot.BootstrapEvidence == nil || entryProvenance(entry) != "public" {
 				return fmt.Errorf("%s is bound to neither a plan, a previous snapshot, nor committed bootstrap evidence", entry.LogicalID)
+			}
+		}
+		for id := range planEntries {
+			if _, present := snapshotEntries[id]; !present {
+				return fmt.Errorf("planned plugin %s is missing from the snapshot", id)
+			}
+		}
+		if previousEntries != nil {
+			for id := range deferred {
+				if _, existed := previousEntries[id]; !existed {
+					continue
+				}
+				if _, carried := snapshotEntries[id]; !carried {
+					return fmt.Errorf("deferred alpha plugin %s dropped its previous stable snapshot entry", id)
+				}
 			}
 		}
 	}
@@ -1042,7 +1123,7 @@ func captureBootstrapEvidence(root, catalogPath, source string) (BootstrapEviden
 		publicRef := c.Registry + "/" + p.Image + ":" + version
 		manifest, err := ociManifestResolver(publicRef)
 		if err != nil {
-			switch classifyOCIFailure(err) {
+			switch classifyOCIFailure(err, publicRef) {
 			case ociFailureUnauthorized:
 				return BootstrapEvidenceFile{}, fmt.Errorf("bootstrap public artifact %s: registry authorization failed; configure the documented least-privilege read-only registry credential, because a 401/403 is never an absent artifact: %w", p.LogicalID, err)
 			case ociFailureNotFound:
@@ -1165,7 +1246,7 @@ func commandBootstrap(args []string) error {
 			if err == nil {
 				return fmt.Errorf("bootstrap evidence for %s is stale: %s now resolves to %s; re-capture bootstrap evidence", p.LogicalID, publicRef, resolved.Digest)
 			}
-			if classifyOCIFailure(err) != ociFailureNotFound {
+			if classifyOCIFailure(err, publicRef) != ociFailureNotFound {
 				return fmt.Errorf("bootstrap public artifact %s: %w", p.LogicalID, err)
 			}
 			continue

@@ -204,19 +204,68 @@ func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *test
 	}
 	for _, required := range []string{
 		"select(.releaseEligible)", "[$catalog.registry, .image, .sourceDir] | @tsv",
-		`[ "${prerelease%%.*}" = "alpha" ]`, `test -n "$public_ref"`,
-		`oras manifest fetch "$public_ref" --descriptor > /tmp/oras-public-descriptor.json`, `jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")'`,
-		"Read-only ORAS descriptor preflight succeeded for deterministic catalog public artifact.",
+		`[ "${prerelease%%.*}" = "alpha" ]`, `attempted=$((attempted + 1))`,
+		`descriptor=$(oras manifest fetch "$public_ref" --descriptor`, `jq -er '.digest | strings and test("^sha256:[0-9a-f]{64}$")'`,
+		`present=$((present + 1))`, `absent=$((absent + 1))`,
+		`grep -Fq 'Error response from registry:'`, `grep -Fq "$public_ref: not found"`,
+		"public registry preflight was refused; authorization failure is never absence",
+		"public registry preflight failed without explicit absence evidence",
+		"Read-only ORAS preflight classified $attempted deterministic public references",
 	} {
 		if !strings.Contains(preflight, required) {
 			t.Fatalf("preflight lacks required read-only contract %q", required)
 		}
 	}
-	if strings.Contains(preflight, "sort_by(.logicalId) | .[0]") {
-		t.Fatal("preflight must skip deferred alpha plugins, not blindly select the first catalog entry")
+	if strings.Contains(preflight, "sort_by(.logicalId) | .[0]") || strings.Contains(preflight, "break\n") {
+		t.Fatal("preflight must classify every deterministic non-alpha reference, not select or stop at the first entry")
 	}
 	if strings.Contains(preflight, "--descriptor --format") {
 		t.Fatal("ORAS 1.2.3 descriptor preflight must not combine --descriptor and --format")
+	}
+}
+
+func TestPreparationPRValidatorPinsAllActions(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/validate-plugin-preparation-pr.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, pinned := range []string{
+		"actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4",
+		"actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5",
+		"oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3",
+	} {
+		if !strings.Contains(workflow, pinned) {
+			t.Fatalf("preparation PR validator lacks pinned action %q", pinned)
+		}
+	}
+	for _, floating := range []string{"actions/checkout@v4", "actions/setup-go@v5"} {
+		if strings.Contains(workflow, floating) {
+			t.Fatalf("preparation PR validator retains floating action %q", floating)
+		}
+	}
+}
+
+func TestRegistryAbsenceShellClassifiersRequireStructuredQualifiedEvidence(t *testing.T) {
+	files := map[string][]string{
+		"prepare-plugin-release.yaml":            {`grep -Fq 'Error response from registry:'`, `grep -Fq "$public_ref: not found"`},
+		"promote-plugin-release.yaml":            {`grep -Fq 'Error response from registry:'`, `grep -Fq "$ref: not found"`},
+		"build-plugin-server-from-snapshot.yaml": {`grep -Fq 'Error response from registry:'`, `grep -Fq "$image: not found"`},
+	}
+	for name, required := range files {
+		data, err := os.ReadFile("../../.github/workflows/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workflow := string(data)
+		for _, marker := range required {
+			if !strings.Contains(workflow, marker) {
+				t.Fatalf("%s lacks structured registry absence marker %q", name, marker)
+			}
+		}
+		if strings.Contains(workflow, "not found|repository does not exist") {
+			t.Fatalf("%s accepts generic not-found text", name)
+		}
 	}
 }
 
@@ -284,6 +333,128 @@ func TestPromotionBackfillsVersionTagAndJoinsMonotonicLatest(t *testing.T) {
 	}
 	if strings.Contains(workflow, `select(.backfill != true)`) {
 		t.Fatal("backfill is provenance/migration state, never a blanket exclusion from latest")
+	}
+	latestDigest := strings.Index(workflow, `if [ "$old_digest" = "$digest" ]; then`)
+	latestAnnotation := strings.Index(workflow, `old=$(oras manifest fetch "$latest" --format json`)
+	if latestDigest < 0 || latestAnnotation < 0 || latestDigest > latestAnnotation {
+		t.Fatal("latest promotion must accept an identical digest before requiring a legacy version annotation")
+	}
+}
+
+func TestPromotionDryRunResolvesCandidateProvenanceWithoutMutation(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/promote-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	verifyStart := strings.Index(workflow, "      - name: Verify exact snapshot provenance\n")
+	dryRunBoundary := strings.Index(workflow, "      - name: Confirm dry-run boundary\n")
+	if verifyStart < 0 || dryRunBoundary < 0 || verifyStart > dryRunBoundary {
+		t.Fatal("promotion must verify exact provenance before reaching its dry-run boundary")
+	}
+	verify := workflow[verifyStart:dryRunBoundary]
+	for _, required := range []string{
+		`--plan "../../$plan"`, `--committed-source "$SOURCE_COMMIT"`,
+		`--resolve --oci-source candidate`, `args+=(--previous "../../$previous_path")`,
+	} {
+		if !strings.Contains(verify, required) {
+			t.Fatalf("promotion dry run lacks exact provenance resolution contract %q", required)
+		}
+	}
+	for _, mutation := range []string{"oras login", "oras cp", "oras push"} {
+		if strings.Contains(verify, mutation) {
+			t.Fatalf("promotion dry-run verification contains registry mutation %q", mutation)
+		}
+	}
+}
+
+func TestPluginServerDryRunChecksExactBuildInputsAndCandidateProvenance(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/build-plugin-server-from-snapshot.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	dryRunBoundary := strings.Index(workflow, "      - name: Confirm dry-run boundary\n")
+	if dryRunBoundary < 0 {
+		t.Fatal("plugin-server workflow lacks a dry-run boundary")
+	}
+	verify := workflow[:dryRunBoundary]
+	for _, required := range []string{
+		"oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3",
+		`repository: higress-group/plugin-server`, `ref: ${{ inputs.plugin_server_commit }}`,
+		`[[ "$GATEWAY_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]`,
+		`test "$SNAPSHOT_PATH" = "plugins/release/snapshots/$GATEWAY_VERSION.json"`,
+		`test "$(jq -er .gatewayVersion "$SNAPSHOT_PATH")" = "$GATEWAY_VERSION"`,
+		`test "$(git -C plugin-server rev-parse HEAD)" = "$PLUGIN_SERVER_COMMIT"`,
+		`(cd plugin-server && python3 -m unittest test_pull_plugins.py)`,
+		`--plan "../../$plan"`, `--resolve --oci-source candidate`,
+		`args+=(--previous "../../$previous_path")`,
+	} {
+		if !strings.Contains(verify, required) {
+			t.Fatalf("plugin-server dry run lacks exact input contract %q", required)
+		}
+	}
+	for _, mutation := range []string{"docker login", "docker buildx build", "docker buildx imagetools create", "gh api --method POST"} {
+		if strings.Contains(verify, mutation) {
+			t.Fatalf("plugin-server dry-run verification crosses mutation boundary with %q", mutation)
+		}
+	}
+}
+
+func TestReleaseAuthorizerBindsConsoleLockToCanonicalPluginServer(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/authorize-higress-release-tag.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	image := strings.Index(workflow, `PLUGIN_SERVER_IMAGE="$plugin_server_tag@$resolved_plugin_server_digest"`)
+	lock := strings.Index(workflow, `.pluginLock.pluginServerCommit == $plugin and .pluginLock.pluginServerImage == $image`)
+	inspect := strings.Index(workflow, `oras manifest fetch "$PLUGIN_SERVER_IMAGE" --raw`)
+	if image < 0 || lock < 0 || inspect < 0 || image > lock || lock > inspect {
+		t.Fatal("release authorizer must bind the Console lock to the canonical plugin-server image before inspecting it")
+	}
+}
+
+func TestStandaloneDispatchBindsUniqueConsoleEvidenceToPluginServer(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/dispatch-standalone-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`test "$(jq '[.assets[] | select(.name == "plugin-release-provenance.json")] | length' <<<"$console_release")" = 1`,
+		`test "$(jq -er .gatewayVersion "$snapshot")" = "${TAG#v}"`,
+		`SNAPSHOT_SOURCE_COMMIT=$(jq -er .sourceCommit "$snapshot")`,
+		`git merge-base --is-ancestor "$SNAPSHOT_SOURCE_COMMIT" "$COMMIT"`,
+		`git show "$SNAPSHOT_SOURCE_COMMIT:$snapshot"`,
+		`cmp /tmp/plugin-server-source-snapshot.json "$snapshot"`,
+		`plugin_server_image="$plugin_server_ref@$plugin_server"`,
+		`PLUGIN_SERVER_COMMIT=$(jq -er .pluginLock.pluginServerCommit /tmp/console-provenance.json)`,
+		`.pluginLock.sourceCommit == $sourceCommit and .pluginLock.snapshotSha256 == $snapshot`,
+		`.pluginLock.pluginServerCommit == $pluginCommit and .pluginLock.pluginServerImage == $pluginImage`,
+		`test "$digest" = "$plugin_server"`,
+		`jq -cn --arg ref "$ref" --arg digest "$digest"`,
+		`plugin_json=$(inspect_plugin_server "$plugin_server_ref")`,
+		`io.higress.higress-source-commit`,
+		`org.opencontainers.image.revision`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("standalone dispatch lacks exact Console/plugin-server binding %q", required)
+		}
+	}
+	commit := strings.Index(workflow, `PLUGIN_SERVER_COMMIT=$(jq -er .pluginLock.pluginServerCommit`)
+	inspect := strings.Index(workflow, `inspect_plugin_server() {`)
+	if commit < 0 || inspect < 0 || commit > inspect {
+		t.Fatal("standalone dispatch must derive the plugin-server commit from signed Console provenance before image inspection")
+	}
+	if strings.Contains(workflow, `.pluginLock.snapshotSha256 != null`) {
+		t.Fatal("standalone dispatch must compare the exact snapshot hash, not merely require a non-null lock field")
+	}
+	if strings.Contains(workflow, `jq -cn --arg ref "$plugin_server_image"`) {
+		t.Fatal("standalone evidence must keep pluginServer.ref as the gateway-version tag and carry its digest separately")
+	}
+	if strings.Contains(workflow, `--arg sourceCommit "$COMMIT"`) || strings.Contains(workflow, `--arg source "$COMMIT" --arg snapshot`) {
+		t.Fatal("standalone dispatch must bind plugin-server provenance to the snapshot source ancestor, not the later release commit")
 	}
 }
 
