@@ -864,6 +864,63 @@ func TestPreparationPreflightsReadOnlyDeterministicCatalogPublicManifest(t *test
 	}
 }
 
+func TestPreparationPRUsesAppTokenForGitAndSignsGeneratedCommit(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	renderStart := strings.Index(workflow, "      - name: Render canonical snapshot\n")
+	refreshStart := strings.Index(workflow, "      - name: Refresh GitHub App token for preparation PR\n")
+	stepStart := strings.Index(workflow, "      - name: Create or update deterministic preparation PR\n")
+	if renderStart < 0 || refreshStart < 0 || stepStart < 0 || renderStart >= refreshStart || refreshStart >= stepStart {
+		t.Fatal("preparation workflow must refresh its App token after snapshot rendering and immediately before PR publication")
+	}
+	checkout := workflow[strings.Index(workflow, "  prepare:\n"):renderStart]
+	if !strings.Contains(checkout, "persist-credentials: false") {
+		t.Fatal("preparation checkout must not persist the job-start App token across the long candidate build")
+	}
+	refresh := workflow[refreshStart:stepStart]
+	for _, required := range []string{
+		"if: ${{ !inputs.dry_run }}",
+		"actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1",
+		"id: pr-app-token",
+		"app-id: ${{ vars.RELEASE_PR_APP_ID }}",
+		"private-key: ${{ secrets.RELEASE_PR_APP_PRIVATE_KEY }}",
+		"owner: higress-group",
+		"repositories: higress",
+	} {
+		if !strings.Contains(refresh, required) {
+			t.Fatalf("preparation workflow lacks fresh post-build App-token contract %q", required)
+		}
+	}
+	step := workflow[stepStart:]
+	for _, required := range []string{
+		`GH_TOKEN: ${{ steps.pr-app-token.outputs.token }}`,
+		"gh auth setup-git",
+		"git fetch --no-tags origin main",
+		`test "$(git rev-parse refs/remotes/origin/main)" = "$TARGET_REF"`,
+		`git commit -s -m "chore: prepare plugin snapshot $GATEWAY_VERSION"`,
+		`git push --force-with-lease origin "$branch"`,
+	} {
+		if !strings.Contains(step, required) {
+			t.Fatalf("preparation PR publication lacks App-authenticated/DCO contract %q", required)
+		}
+	}
+	auth := strings.Index(step, "gh auth setup-git")
+	fetch := strings.Index(step, "git fetch --no-tags origin main")
+	push := strings.Index(step, `git push --force-with-lease origin "$branch"`)
+	if auth < 0 || fetch < 0 || push < 0 || auth > fetch || fetch > push {
+		t.Fatal("App-token Git authentication must precede exact-main fetch and deterministic branch push")
+	}
+	if strings.Contains(step, "x-access-token:${GH_TOKEN}") || strings.Contains(step, "x-access-token:$GH_TOKEN") {
+		t.Fatal("preparation PR publication must not embed the App token in a remote URL")
+	}
+	if strings.Contains(step, `GH_TOKEN: ${{ steps.app-token.outputs.token }}`) {
+		t.Fatal("preparation PR publication must not reuse the job-start App token after a long candidate build")
+	}
+}
+
 func TestPreparationPRValidatorPinsAllActions(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/validate-plugin-preparation-pr.yaml")
 	if err != nil {
