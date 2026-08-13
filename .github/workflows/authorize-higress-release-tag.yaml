@@ -162,7 +162,7 @@ jobs:
           jq -e '.layers | length == 1 and .[0].mediaType == "application/vnd.cncf.helm.chart.content.v1.tar+gzip"' /tmp/console-chart-oci-manifest.json >/dev/null
           console_chart_layer=$(jq -er '.layers[0].digest' /tmp/console-chart-oci-manifest.json)
           [[ "$console_chart_layer" =~ ^sha256:[0-9a-f]{64}$ ]]
-          oras blob fetch "$console_chart_repo@$CONSOLE_CHART_DIGEST" "$console_chart_layer" -o /tmp/console-chart-oci.tgz
+          oras blob fetch "$console_chart_repo@$console_chart_layer" -o /tmp/console-chart-oci.tgz
           CONSOLE_CHART_PACKAGE_SHA256=$(sha256sum "$CONSOLE_HTTP_CHART" | awk '{print $1}')
           test "sha256:$CONSOLE_CHART_PACKAGE_SHA256" = "$console_chart_layer"
           test "$(sha256sum /tmp/console-chart-oci.tgz | awk '{print $1}')" = "$CONSOLE_CHART_PACKAGE_SHA256"
@@ -182,7 +182,7 @@ jobs:
           PLUGIN_SERVER_HIGRESS_COMMIT=""
           while IFS=$'\t' read -r platform child; do
             manifest=$(oras manifest fetch "$plugin_server_repo@$child"); config=$(jq -er .config.digest <<<"$manifest")
-            labels=$(oras blob fetch "$plugin_server_repo@$child" "$config" -o - | jq -c '.config.Labels // {}')
+            labels=$(oras blob fetch "$plugin_server_repo@$config" -o - | jq -c '.config.Labels // {}')
             child_higress_commit=$(jq -er '."io.higress.higress-source-commit"' <<<"$labels")
             [[ "$child_higress_commit" =~ ^[0-9a-f]{40}$ ]]
             if [ -z "$PLUGIN_SERVER_HIGRESS_COMMIT" ]; then PLUGIN_SERVER_HIGRESS_COMMIT=$child_higress_commit; else test "$child_higress_commit" = "$PLUGIN_SERVER_HIGRESS_COMMIT"; fi
