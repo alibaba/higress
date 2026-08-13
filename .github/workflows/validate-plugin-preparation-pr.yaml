@@ -86,20 +86,27 @@ jobs:
           set -euo pipefail
           test -s /tmp/changed-snapshots || exit 0
           test -f /tmp/planned-artifacts || exit 0
+          # BEGIN plugin-build-contract
+          prepare_test_and_build_plugin() {
+            local implementation=$1 source=$2 build_name=$3
+            case "$implementation" in
+              go)
+                if [ -f "$source/prepare.sh" ]; then (cd "$source" && sh ./prepare.sh); fi
+                (cd "$source" && go test ./...)
+                make -C plugins/wasm-go PLUGIN_NAME="$build_name" build
+                ;;
+              rust)
+                make -C plugins/wasm-rust PLUGIN_NAME="$build_name" test build
+                ;;
+              *) echo "unsupported planned implementation: $implementation" >&2; return 1 ;;
+            esac
+          }
+          # END plugin-build-contract
           sort -u /tmp/planned-artifacts | while read -r entry; do
             implementation=$(jq -r .implementation <<<"$entry")
             source=$(jq -r .sourceDir <<<"$entry")
             name=$(basename "$source")
             [[ "$source" = "plugins/wasm-$implementation/extensions/$name" ]]
-            case "$implementation" in
-              go)
-                (cd "$source" && go test ./...)
-                make -C plugins/wasm-go PLUGIN_NAME="$name" build
-                ;;
-              rust)
-                make -C plugins/wasm-rust PLUGIN_NAME="$name" test build
-                ;;
-              *) echo "unsupported planned implementation: $implementation" >&2; exit 1 ;;
-            esac
+            prepare_test_and_build_plugin "$implementation" "$source" "$name"
             test -s "$source/plugin.wasm"
           done

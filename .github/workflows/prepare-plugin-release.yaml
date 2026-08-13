@@ -224,20 +224,101 @@ jobs:
           set -euo pipefail
           test -n "$CANDIDATE_REGISTRY"; test -n "$REGISTRY_USERNAME"; test -n "$REGISTRY_PASSWORD"
           echo "$REGISTRY_PASSWORD" | oras login "$CANDIDATE_REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+          # BEGIN plugin-build-contract
+          prepare_test_and_build_plugin() {
+            local implementation=$1 source=$2 build_name=$3
+            case "$implementation" in
+              go)
+                if [ -f "$source/prepare.sh" ]; then (cd "$source" && sh ./prepare.sh); fi
+                (cd "$source" && go test ./...)
+                make -C plugins/wasm-go PLUGIN_NAME="$build_name" build
+                ;;
+              rust)
+                make -C plugins/wasm-rust PLUGIN_NAME="$build_name" test build
+                ;;
+              *) echo "unsupported planned implementation: $implementation" >&2; return 1 ;;
+            esac
+          }
+          # END plugin-build-contract
+          # BEGIN candidate-publish-contract
+          publish_or_reuse_candidate() {
+            local candidate=$1 wasm=$2 source_commit=$3 version=$4 input_hash=$5
+            local candidate_repo descriptor manifest resolved_digest push_result lookup_error wasm_digest
+            [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+            [[ "$input_hash" =~ ^sha256:[0-9a-f]{64}$ ]]
+            test -s "$wasm"
+            wasm_digest="sha256:$(sha256sum "$wasm" | awk '{print $1}')"
+            candidate_repo=${candidate%:*}
+            lookup_error=$(mktemp)
+            if descriptor=$(oras manifest fetch "$candidate" --descriptor 2>"$lookup_error"); then
+              rm -f "$lookup_error"
+              if ! resolved_digest=$(jq -er '
+                select(.mediaType == "application/vnd.oci.image.manifest.v1+json")
+                | .digest | strings | select(test("^sha256:[0-9a-f]{64}$"))
+              ' <<<"$descriptor"); then
+                echo "existing candidate descriptor is malformed: $candidate" >&2
+                return 1
+              fi
+              if ! manifest=$(oras manifest fetch "$candidate_repo@$resolved_digest"); then
+                echo "existing candidate manifest cannot be resolved by digest: $candidate_repo@$resolved_digest" >&2
+                return 1
+              fi
+              if ! jq -e --arg commit "$source_commit" --arg version "$version" --arg input_hash "$input_hash" --arg wasm_digest "$wasm_digest" '
+                .schemaVersion == 2 and
+                .mediaType == "application/vnd.oci.image.manifest.v1+json" and
+                (.annotations["org.opencontainers.image.revision"] == $commit) and
+                (.annotations["org.opencontainers.image.version"] == $version) and
+                (.annotations["io.higress.plugin.input-hash"] == $input_hash) and
+                (.layers | length == 1) and
+                (.layers[0].mediaType == "application/vnd.module.wasm.content.layer.v1+wasm") and
+                (.layers[0].digest == $wasm_digest)
+              ' >/dev/null <<<"$manifest"; then
+                echo "existing candidate does not match the locally rebuilt artifact: $candidate" >&2
+                return 1
+              fi
+              printf '%s\n' "$resolved_digest"
+              return 0
+            fi
+            if grep -Eiq '401|403|unauthorized|forbidden|denied|authentication required|authorization required' "$lookup_error"; then
+              cat "$lookup_error" >&2; rm -f "$lookup_error"
+              echo "candidate lookup authorization failure is never absence: $candidate" >&2
+              return 1
+            fi
+            if grep -Eiq '(^|[^[:digit:]])404([^[:digit:]]|$)|manifest unknown|name unknown' "$lookup_error" ||
+               { grep -Fq 'Error response from registry:' "$lookup_error" && grep -Fq "$candidate: not found" "$lookup_error"; }; then
+              rm -f "$lookup_error"
+            else
+              cat "$lookup_error" >&2; rm -f "$lookup_error"
+              echo "candidate lookup failed without explicit absence evidence: $candidate" >&2
+              return 1
+            fi
+            if ! push_result=$(oras push "$candidate" "$wasm:application/vnd.module.wasm.content.layer.v1+wasm" --annotation "org.opencontainers.image.revision=$source_commit" --annotation "org.opencontainers.image.version=$version" --annotation "io.higress.plugin.input-hash=$input_hash" --format json); then
+              echo "candidate push failed: $candidate" >&2
+              return 1
+            fi
+            if ! resolved_digest=$(jq -er '.digest | strings | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$push_result"); then
+              echo "candidate push returned a malformed descriptor: $candidate" >&2
+              return 1
+            fi
+            printf '%s\n' "$resolved_digest"
+          }
+          # END candidate-publish-contract
           jq -n '{plugins:{}}' >/tmp/candidates.json
           plan_id=$(jq -r '.planId | sub("sha256:"; "")' /tmp/plan.json)
+          source_commit=$(git rev-parse HEAD)
           jq -c '.plugins[]' /tmp/plan.json | while read -r entry; do
             id=$(jq -r .logicalId <<<"$entry"); implementation=$(jq -r .implementation <<<"$entry")
             source=$(jq -r .sourceDir <<<"$entry"); version=$(jq -r .version <<<"$entry"); input_hash=$(jq -r .inputHash <<<"$entry")
             build_name=$(basename "$source")
             [[ "$source" = "plugins/wasm-$implementation/extensions/$build_name" ]]
-            if [ "$implementation" = go ]; then (cd "$source" && go test ./...); make -C plugins/wasm-go PLUGIN_NAME="$build_name" build; else make -C plugins/wasm-rust PLUGIN_NAME="$build_name" test build; fi
+            prepare_test_and_build_plugin "$implementation" "$source" "$build_name"
             wasm="$source/plugin.wasm"; test -s "$wasm"
             # Both hashes are fixed-width SHA-256 hex strings, so concatenation
             # retains their complete identities while meeting OCI's 128-byte tag limit.
             candidate="$CANDIDATE_REGISTRY/candidates/$id:${plan_id}${input_hash#sha256:}"
-            digest=$(oras push "$candidate" "$wasm:application/vnd.module.wasm.content.layer.v1+wasm" --annotation "org.opencontainers.image.revision=$(git rev-parse HEAD)" --annotation "org.opencontainers.image.version=$version" --annotation "io.higress.plugin.input-hash=$input_hash" --format json | jq -r .digest)
-            jq --arg id "$id" --arg ref "${candidate%@*}@$digest" --arg digest "$digest" --arg commit "$(git rev-parse HEAD)" --arg hash "$input_hash" '.plugins[$id]={candidateRef:$ref,digest:$digest,sourceCommit:$commit,inputHash:$hash}' /tmp/candidates.json >/tmp/candidates.next && mv /tmp/candidates.next /tmp/candidates.json
+            digest=$(publish_or_reuse_candidate "$candidate" "$wasm" "$source_commit" "$version" "$input_hash")
+            jq --arg id "$id" --arg ref "${candidate%@*}@$digest" --arg digest "$digest" --arg commit "$source_commit" --arg hash "$input_hash" '.plugins[$id]={candidateRef:$ref,digest:$digest,sourceCommit:$commit,inputHash:$hash}' /tmp/candidates.json >/tmp/candidates.next && mv /tmp/candidates.next /tmp/candidates.json
           done
           cp /tmp/candidates.json "plugins/release/evidence/$GATEWAY_VERSION.json"
       - name: Render canonical snapshot

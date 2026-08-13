@@ -4,8 +4,11 @@
 package main
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -231,6 +234,245 @@ func TestPreparationCandidateTagRetainsFullHashesWithinOCILimit(t *testing.T) {
 	}
 	if !regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`).MatchString(tag) {
 		t.Fatalf("candidate tag %q does not match the OCI tag grammar", tag)
+	}
+}
+
+func workflowShellContract(t *testing.T, workflowName, contractName string) string {
+	t.Helper()
+	data, err := os.ReadFile("../../.github/workflows/" + workflowName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	begin := "# BEGIN " + contractName
+	end := "# END " + contractName
+	start := strings.Index(string(data), begin)
+	finish := strings.Index(string(data), end)
+	if start < 0 || finish < 0 || start >= finish {
+		t.Fatalf("%s lacks executable shell contract %s", workflowName, contractName)
+	}
+	start += len(begin)
+	return string(data)[start:finish]
+}
+
+func writeExecutableFixture(t *testing.T, path, contents string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(contents), 0o700); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPreparationRunsOptionalGoSetupBeforeTestsAndBuild(t *testing.T) {
+	workflows := []string{"prepare-plugin-release.yaml", "validate-plugin-preparation-pr.yaml"}
+	var canonical string
+	for _, workflow := range workflows {
+		t.Run(workflow, func(t *testing.T) {
+			contract := workflowShellContract(t, workflow, "plugin-build-contract")
+			if canonical == "" {
+				canonical = contract
+			} else if contract != canonical {
+				t.Fatal("formal preparation and credential-free PR rebuild must execute the same plugin build contract")
+			}
+
+			tmp := t.TempDir()
+			source := filepath.Join(tmp, "plugin")
+			bin := filepath.Join(tmp, "bin")
+			if err := os.MkdirAll(source, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			log := filepath.Join(tmp, "build.log")
+			writeExecutableFixture(t, filepath.Join(source, "prepare.sh"), `#!/bin/sh
+set -eu
+printf 'prepare\n' >> "$BUILD_LOG"
+`)
+			writeExecutableFixture(t, filepath.Join(bin, "go"), `#!/bin/sh
+set -eu
+printf 'test:%s\n' "$*" >> "$BUILD_LOG"
+`)
+			writeExecutableFixture(t, filepath.Join(bin, "make"), `#!/bin/sh
+set -eu
+printf 'build:%s\n' "$*" >> "$BUILD_LOG"
+`)
+			script := "set -euo pipefail\n" + contract + fmt.Sprintf("\nprepare_test_and_build_plugin go %q demo\n", source)
+			cmd := exec.Command("bash", "-c", script)
+			cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "BUILD_LOG="+log)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("extracted workflow build contract failed: %v\n%s", err, output)
+			}
+			got, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got) != "prepare\ntest:test ./...\nbuild:-C plugins/wasm-go PLUGIN_NAME=demo build\n" {
+				t.Fatalf("optional setup/test/build order = %q", got)
+			}
+
+			if err := os.WriteFile(filepath.Join(source, "prepare.sh"), []byte("#!/bin/sh\nexit 23\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(log, nil, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			cmd = exec.Command("bash", "-c", script)
+			cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "BUILD_LOG="+log)
+			if output, err := cmd.CombinedOutput(); err == nil {
+				t.Fatalf("failed optional setup did not stop the workflow contract: %s", output)
+			}
+			if got, err := os.ReadFile(log); err != nil || len(got) != 0 {
+				t.Fatalf("test/build ran after failed optional setup: %q, %v", got, err)
+			}
+		})
+	}
+}
+
+type candidateContractResult struct {
+	output string
+	log    string
+	err    error
+}
+
+func runCandidatePublishContract(t *testing.T, mode string) candidateContractResult {
+	t.Helper()
+	tmp := t.TempDir()
+	bin := filepath.Join(tmp, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	log := filepath.Join(tmp, "oras.log")
+	wasm := filepath.Join(tmp, "plugin.wasm")
+	wasmBytes := []byte("deterministic wasm fixture")
+	if err := os.WriteFile(wasm, wasmBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	wasmSum := sha256.Sum256(wasmBytes)
+	writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$ORAS_LOG"
+if [ "$1 $2" = "manifest fetch" ]; then
+  ref=$3
+  if [ "${4:-}" = "--descriptor" ]; then
+    case "$ORAS_MODE" in
+      absent-404) echo "404 manifest lookup failed" >&2; exit 1 ;;
+      absent-manifest) echo "MANIFEST UNKNOWN" >&2; exit 1 ;;
+      absent-name) echo "name unknown" >&2; exit 1 ;;
+      absent-acr) echo "Error response from registry: $ref: not found" >&2; exit 1 ;;
+      auth) echo "401 unauthorized" >&2; exit 1 ;;
+      ambiguous) echo "not found" >&2; exit 1 ;;
+      repository-missing) echo "repository does not exist" >&2; exit 1 ;;
+      wrong-acr-ref) echo "Error response from registry: registry.example.invalid/candidates/other: not found" >&2; exit 1 ;;
+      transport) echo "dial tcp: i/o timeout" >&2; exit 1 ;;
+      malformed-descriptor) echo '{'; exit 0 ;;
+      wrong-descriptor-media) printf '{"mediaType":"application/example","digest":"%s"}\n' "$ORAS_MANIFEST_DIGEST"; exit 0 ;;
+      *) printf '{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"%s"}\n' "$ORAS_MANIFEST_DIGEST"; exit 0 ;;
+    esac
+  fi
+  case "$ORAS_MODE" in
+    manifest-error) echo "registry unavailable" >&2; exit 1 ;;
+    malformed-manifest) echo '{'; exit 0 ;;
+  esac
+  revision=$SOURCE_COMMIT
+  version=$STABLE_VERSION
+  input_hash=$INPUT_HASH
+  layer_digest=$WASM_DIGEST
+  layer_media=application/vnd.module.wasm.content.layer.v1+wasm
+  layers=''
+  case "$ORAS_MODE" in
+    annotation-mismatch) revision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
+    layer-digest-mismatch) layer_digest=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
+    layer-media-mismatch) layer_media=application/octet-stream ;;
+    layer-count-mismatch) layers=',{"mediaType":"application/vnd.module.wasm.content.layer.v1+wasm","digest":"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}' ;;
+  esac
+  printf '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","annotations":{"org.opencontainers.image.revision":"%s","org.opencontainers.image.version":"%s","io.higress.plugin.input-hash":"%s"},"layers":[{"mediaType":"%s","digest":"%s"}%s]}\n' "$revision" "$version" "$input_hash" "$layer_media" "$layer_digest" "$layers"
+  exit 0
+fi
+if [ "$1" = push ]; then
+  printf '{"digest":"%s"}\n' "$ORAS_PUSH_DIGEST"
+  exit 0
+fi
+echo "unexpected fake oras invocation: $*" >&2
+exit 2
+`)
+
+	const sourceCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const inputHash = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	const manifestDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	const pushDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+	const candidate = "registry.example.invalid:5000/candidates/demo:plan-and-input-hash"
+	contract := workflowShellContract(t, "prepare-plugin-release.yaml", "candidate-publish-contract")
+	script := "set -euo pipefail\n" + contract + fmt.Sprintf("\npublish_or_reuse_candidate %q %q %q 1.2.3 %q\n", candidate, wasm, sourceCommit, inputHash)
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"ORAS_LOG="+log,
+		"ORAS_MODE="+mode,
+		"ORAS_MANIFEST_DIGEST="+manifestDigest,
+		"ORAS_PUSH_DIGEST="+pushDigest,
+		"SOURCE_COMMIT="+sourceCommit,
+		"STABLE_VERSION=1.2.3",
+		"INPUT_HASH="+inputHash,
+		fmt.Sprintf("WASM_DIGEST=sha256:%x", wasmSum),
+	)
+	output, runErr := cmd.CombinedOutput()
+	logBytes, readErr := os.ReadFile(log)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		t.Fatal(readErr)
+	}
+	return candidateContractResult{output: string(output), log: string(logBytes), err: runErr}
+}
+
+func TestPreparationReusesOnlyIdenticalContentAddressedCandidate(t *testing.T) {
+	result := runCandidatePublishContract(t, "identical")
+	if result.err != nil {
+		t.Fatalf("identical candidate was not reused: %v\n%s", result.err, result.output)
+	}
+	want := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n"
+	if result.output != want {
+		t.Fatalf("reused candidate digest = %q, want %q", result.output, want)
+	}
+	if strings.Contains(result.log, "push ") {
+		t.Fatalf("identical candidate was pushed again:\n%s", result.log)
+	}
+	if strings.Count(result.log, "manifest fetch ") != 2 || !strings.Contains(result.log, "@sha256:") {
+		t.Fatalf("reuse did not resolve descriptor then immutable manifest digest:\n%s", result.log)
+	}
+}
+
+func TestPreparationPushesOnceOnlyForStrictlyProvenCandidateAbsence(t *testing.T) {
+	for _, mode := range []string{"absent-404", "absent-manifest", "absent-name", "absent-acr"} {
+		t.Run(mode, func(t *testing.T) {
+			result := runCandidatePublishContract(t, mode)
+			if result.err != nil {
+				t.Fatalf("strict absence was not published: %v\n%s", result.err, result.output)
+			}
+			want := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n"
+			if result.output != want {
+				t.Fatalf("new candidate digest = %q, want %q", result.output, want)
+			}
+			if strings.Count(result.log, "push ") != 1 {
+				t.Fatalf("strict absence performed other than one push:\n%s", result.log)
+			}
+		})
+	}
+}
+
+func TestPreparationCandidateLookupAndManifestMismatchesFailWithoutMutation(t *testing.T) {
+	modes := []string{
+		"auth", "ambiguous", "repository-missing", "wrong-acr-ref", "transport", "malformed-descriptor", "wrong-descriptor-media",
+		"manifest-error", "malformed-manifest", "annotation-mismatch", "layer-count-mismatch",
+		"layer-media-mismatch", "layer-digest-mismatch",
+	}
+	for _, mode := range modes {
+		t.Run(mode, func(t *testing.T) {
+			result := runCandidatePublishContract(t, mode)
+			if result.err == nil {
+				t.Fatalf("unsafe candidate state %s was accepted: %s", mode, result.output)
+			}
+			if strings.Contains(result.log, "push ") {
+				t.Fatalf("unsafe candidate state %s caused mutation:\n%s", mode, result.log)
+			}
+		})
 	}
 }
 
