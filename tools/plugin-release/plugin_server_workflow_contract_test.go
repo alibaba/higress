@@ -6,6 +6,7 @@ package main
 import (
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -181,6 +182,55 @@ func TestPreparationBootstrapPlansFromExactHistoricalBase(t *testing.T) {
 		if strings.Contains(workflow, forbidden) {
 			t.Fatalf("preparation bootstrap retains unsafe/empty-plan contract %q", forbidden)
 		}
+	}
+}
+
+func TestPreparationCandidateTagRetainsFullHashesWithinOCILimit(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var candidateAssignment string
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.Contains(line, `candidate="$CANDIDATE_REGISTRY/candidates/$id:`) {
+			if candidateAssignment != "" {
+				t.Fatal("preparation workflow constructs the candidate reference more than once")
+			}
+			candidateAssignment = strings.TrimSpace(line)
+		}
+	}
+	if candidateAssignment == "" {
+		t.Fatal("preparation workflow lacks the candidate reference construction")
+	}
+
+	planHash := strings.Repeat("ab", 32)
+	inputHash := strings.Repeat("cd", 32)
+	script := candidateAssignment + `; printf '%s' "${candidate##*:}"`
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Fatal("bash is required to execute the candidate tag construction")
+	}
+	cmd := exec.Command(bash, "-euo", "pipefail", "-c", script)
+	cmd.Env = []string{
+		"CANDIDATE_REGISTRY=registry.example.invalid:5000",
+		"id=example-plugin",
+		"plan_id=" + planHash,
+		"input_hash=sha256:" + inputHash,
+	}
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("candidate tag construction failed: %v\n%s", err, output)
+	}
+	tag := string(output)
+	if want := planHash + inputHash; tag != want {
+		t.Fatalf("candidate tag must retain the complete plan and input hashes: got %q, want %q", tag, want)
+	}
+	if len(tag) > 128 {
+		t.Fatalf("candidate tag is %d bytes, exceeding the OCI 128-byte limit", len(tag))
+	}
+	if !regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`).MatchString(tag) {
+		t.Fatalf("candidate tag %q does not match the OCI tag grammar", tag)
 	}
 }
 
