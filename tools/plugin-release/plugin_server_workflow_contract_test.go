@@ -1475,3 +1475,97 @@ func TestGatewayStableAliasesAreStagedAndImmutable(t *testing.T) {
 		t.Fatal("every controller/pilot/gateway publisher must use its own fail-closed lookup and staging acceptance helper")
 	}
 }
+
+func TestGatewayReleaseAliasRecoveryPromotesOnlyVerifiedStaging(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/recover-gateway-release-images.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`workflow_dispatch:`,
+		`ref: refs/tags/v${{ inputs.gateway_version }}`,
+		`test "$resolved" = "$RELEASE_COMMIT"`,
+		`test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"`,
+		`test "$(sha256sum "$snapshot" | awk '{print $1}')" = "$SNAPSHOT_SHA256"`,
+		`staging="$repo:release-provenance-$RELEASE_COMMIT"`,
+		`docker buildx imagetools inspect "$staging" --raw`,
+		`(.manifests | length == 2)`,
+		`["linux/amd64","linux/arm64"]`,
+		`grep -Fqx "ERROR: $ref: not found" "$err"`,
+		`immutable release alias conflict`,
+		`docker buildx imagetools create --tag "$target" "$staging@$desired"`,
+		`test "$(descriptor_or_absent "$target")" = "$desired"`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("gateway image recovery lacks immutable staging contract %q", required)
+		}
+	}
+	for _, forbidden := range []string{"docker build ", "make docker", "make build-istio", "make build-gateway"} {
+		if strings.Contains(workflow, forbidden) {
+			t.Fatalf("gateway image recovery must never rebuild release images: found %q", forbidden)
+		}
+	}
+	if strings.Index(workflow, `docker buildx imagetools inspect "$staging" --raw`) > strings.Index(workflow, `docker buildx imagetools create --tag "$target"`) {
+		t.Fatal("gateway image recovery must validate staging before any alias mutation")
+	}
+}
+
+func runGatewayRecoveryDescriptorContract(t *testing.T, contract, mode, ref string) int {
+	t.Helper()
+	tmp := t.TempDir()
+	bin := filepath.Join(tmp, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutableFixture(t, filepath.Join(bin, "docker"), `#!/usr/bin/env bash
+set -euo pipefail
+ref=$4
+case "$RECOVERY_MODE" in
+  absent-acr) echo "ERROR: $ref: not found" >&2; exit 1 ;;
+  absent-http-404) echo "response status code 404: Not Found" >&2; exit 1 ;;
+  transport-with-ref) echo "transport error while resolving $ref: dial tcp: i/o timeout" >&2; exit 1 ;;
+  auth-401-status) echo "response status code 401" >&2; exit 1 ;;
+  auth-403-http) echo "HTTP/1.1 403 Forbidden" >&2; exit 1 ;;
+  generic-not-found) echo "lookup failed: artifact not found" >&2; exit 1 ;;
+  *) echo "unsupported fixture mode" >&2; exit 3 ;;
+esac
+`)
+	script := "set -euo pipefail\n" + contract + fmt.Sprintf("\ndescriptor_or_absent %q\n", ref)
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "RECOVERY_MODE="+mode)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return 0
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("gateway recovery descriptor fixture failed to execute: %v\n%s", err, output)
+	}
+	return exitErr.ExitCode()
+}
+
+func TestGatewayReleaseAliasRecoveryDescriptorClassifierFailsClosed(t *testing.T) {
+	contracts := workflowShellContracts(t, "recover-gateway-release-images.yaml", "gateway-recovery-descriptor-contract")
+	if len(contracts) != 1 {
+		t.Fatalf("gateway recovery workflow has %d descriptor contracts, want 1", len(contracts))
+	}
+	const ref = "registry.example.invalid/higress/gateway:sha-401403404"
+	for _, tc := range []struct {
+		mode string
+		want int
+	}{
+		{mode: "absent-acr", want: 1},
+		{mode: "absent-http-404", want: 1},
+		{mode: "transport-with-ref", want: 2},
+		{mode: "auth-401-status", want: 2},
+		{mode: "auth-403-http", want: 2},
+		{mode: "generic-not-found", want: 2},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			if status := runGatewayRecoveryDescriptorContract(t, contracts[0], tc.mode, ref); status != tc.want {
+				t.Fatalf("descriptor status for %s = %d, want %d", tc.mode, status, tc.want)
+			}
+		})
+	}
+}
