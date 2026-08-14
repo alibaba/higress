@@ -60,7 +60,13 @@ jobs:
             if [ "$tag_type" = tag ]; then resolved=$(gh api "repos/higress-group/higress-standalone/git/tags/$tag_object" --jq .object.sha); else test "$tag_type" = commit; resolved=$tag_object; fi
             test "$resolved" = "$COMMIT"
             payload=$(jq -cn --argjson releaseId "$RELEASE_ID" --arg tag "$TAG" --arg commit "$COMMIT" --arg archive "$ARCHIVE_SHA256" --arg installer "$INSTALLER_SHA256" '{releaseId:$releaseId,tag:$tag,commit:$commit,archiveSha256:$archive,installerSha256:$installer,dryRun:false}')
-            test "$(printf '%s' "$payload" | jq -cS . | sha256sum | awk '{print $1}')" = "$EVENT_KEY"
+            # BEGIN standalone-oss-idempotency-canonical-contract
+            canonical_standalone_oss_payload() {
+              jq -cS .
+            }
+            # END standalone-oss-idempotency-canonical-contract
+            canonical=$(printf '%s' "$payload" | canonical_standalone_oss_payload)
+            test "$(printf '%s' "$canonical" | sha256sum | awk '{print $1}')" = "$EVENT_KEY"
           fi
       - id: package
         name: Download one exact Standalone tag
