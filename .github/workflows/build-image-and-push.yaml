@@ -324,3 +324,24 @@ jobs:
             fi
             publish_with_provenance "$BUILT_IMAGE" "$image"
           done
+
+          # Keep the historical numeric proxyv2 tag as a compatibility alias.
+          # The alias is copied from the verified gateway stable index, never
+          # from the unverified build intermediary, and immutable conflicts
+          # fail closed.
+          # BEGIN gateway-proxyv2-compatibility-contract
+          if [ "$release_provenance" = true ]; then
+            gateway_stable="${IMAGES[0]%:*}:$version"
+            proxyv2_stable="${BUILT_IMAGE%:*}:$version"
+            desired=$(descriptor_or_absent "$gateway_stable")
+            [[ "$desired" =~ ^sha256:[0-9a-f]{64}$ ]]
+            if existing=$(descriptor_or_absent "$proxyv2_stable"); then
+              test "$existing" = "$desired" || { echo "immutable proxyv2 compatibility tag conflict: $proxyv2_stable" >&2; exit 1; }
+            else
+              status=$?
+              test "$status" = 1 || exit "$status"
+              docker buildx imagetools create --tag "$proxyv2_stable" "$gateway_stable@$desired"
+              test "$(descriptor_or_absent "$proxyv2_stable")" = "$desired"
+            fi
+          fi
+          # END gateway-proxyv2-compatibility-contract

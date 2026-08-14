@@ -82,12 +82,15 @@ jobs:
           - component: controller
             environment: image-registry-controller
             image_name: higress/higress
+            compat_image_name: ""
           - component: pilot
             environment: image-registry-pilot
             image_name: higress/pilot
+            compat_image_name: ""
           - component: gateway
             environment: image-registry-gateway
             image_name: higress/gateway
+            compat_image_name: higress/proxyv2
     runs-on: ubuntu-latest
     environment:
       name: ${{ matrix.environment }}
@@ -103,6 +106,7 @@ jobs:
         env:
           IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY || 'higress-registry.cn-hangzhou.cr.aliyuncs.com' }}
           IMAGE_NAME: ${{ matrix.image_name }}
+          COMPAT_IMAGE_NAME: ${{ matrix.compat_image_name }}
           GATEWAY_VERSION: ${{ inputs.gateway_version }}
           RELEASE_COMMIT: ${{ inputs.release_commit }}
           SNAPSHOT_SHA256: ${{ inputs.snapshot_sha256 }}
@@ -166,3 +170,23 @@ jobs:
             test "$(descriptor_or_absent "$target")" = "$desired"
             echo "Created $target@$desired" >>"$GITHUB_STEP_SUMMARY"
           done
+
+          # BEGIN gateway-proxyv2-recovery-contract
+          if [ -n "$COMPAT_IMAGE_NAME" ]; then
+            compat_target="$IMAGE_REGISTRY/$COMPAT_IMAGE_NAME:$GATEWAY_VERSION"
+            if existing=$(descriptor_or_absent "$compat_target"); then
+              test "$existing" = "$desired" || { echo "immutable proxyv2 compatibility tag conflict: $compat_target" >&2; exit 1; }
+              echo "Verified existing $compat_target@$existing" >>"$GITHUB_STEP_SUMMARY"
+            else
+              status=$?
+              test "$status" = 1 || exit "$status"
+              if [ "$DRY_RUN" = true ]; then
+                echo "Dry run: would create $compat_target@$desired" >>"$GITHUB_STEP_SUMMARY"
+              else
+                docker buildx imagetools create --tag "$compat_target" "$staging@$desired"
+                test "$(descriptor_or_absent "$compat_target")" = "$desired"
+                echo "Created $compat_target@$desired" >>"$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+          fi
+          # END gateway-proxyv2-recovery-contract
