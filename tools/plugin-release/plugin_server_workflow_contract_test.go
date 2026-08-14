@@ -1557,6 +1557,145 @@ func TestGatewayStableAliasesAreStagedAndImmutable(t *testing.T) {
 	}
 }
 
+func TestGatewayReleasePublishesProxyV2CompatibilityAlias(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/build-image-and-push.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`gateway_stable="${IMAGES[0]%:*}:$version"`,
+		`proxyv2_stable="${BUILT_IMAGE%:*}:$version"`,
+		`immutable proxyv2 compatibility tag conflict`,
+		`docker buildx imagetools create --tag "$proxyv2_stable" "$gateway_stable@$desired"`,
+		`test "$(descriptor_or_absent "$proxyv2_stable")" = "$desired"`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("gateway release publication lacks proxyv2 compatibility contract %q", required)
+		}
+	}
+	if strings.Count(workflow, "# BEGIN gateway-proxyv2-compatibility-contract") != 1 {
+		t.Fatal("gateway release publication must contain exactly one proxyv2 compatibility contract")
+	}
+	buildGateway := strings.Index(workflow, "make build-gateway")
+	compatibility := strings.Index(workflow, "# BEGIN gateway-proxyv2-compatibility-contract")
+	if buildGateway < 0 || compatibility < buildGateway {
+		t.Fatal("proxyv2 compatibility alias must be derived after the gateway image publication")
+	}
+}
+
+func runGatewayProxyV2PublicationContract(t *testing.T, contract, mode string, release bool) (int, string) {
+	t.Helper()
+	tmp := t.TempDir()
+	state := filepath.Join(tmp, "created")
+	log := filepath.Join(tmp, "docker.log")
+	desired := "sha256:" + strings.Repeat("a", 64)
+	conflict := "sha256:" + strings.Repeat("b", 64)
+	script := `set -euo pipefail
+descriptor_or_absent() {
+  local ref=$1
+  if [ "$ref" = "registry.example.invalid/higress/gateway:2.2.4" ]; then
+    printf '%s' "$PUBLICATION_DESIRED"
+    return 0
+  fi
+  case "$PUBLICATION_MODE" in
+    absent)
+      if [ -f "$PUBLICATION_STATE" ]; then printf '%s' "$PUBLICATION_DESIRED"; else return 1; fi
+      ;;
+    identical) printf '%s' "$PUBLICATION_DESIRED" ;;
+    conflict) printf '%s' "$PUBLICATION_CONFLICT" ;;
+    lookup-error) return 2 ;;
+    *) return 3 ;;
+  esac
+}
+docker() {
+  printf '%s\n' "$*" >>"$PUBLICATION_LOG"
+  touch "$PUBLICATION_STATE"
+}
+IMAGES=(registry.example.invalid/higress/gateway:sha-deadbeef)
+BUILT_IMAGE=registry.example.invalid/higress/proxyv2:release-build-deadbeef
+version=2.2.4
+` + fmt.Sprintf("release_provenance=%t\n", release) + contract
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(),
+		"PUBLICATION_MODE="+mode,
+		"PUBLICATION_STATE="+state,
+		"PUBLICATION_LOG="+log,
+		"PUBLICATION_DESIRED="+desired,
+		"PUBLICATION_CONFLICT="+conflict,
+	)
+	output, err := cmd.CombinedOutput()
+	status := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("gateway proxyv2 publication fixture failed to execute: %v\n%s", err, output)
+		}
+		status = exitErr.ExitCode()
+	}
+	logData, readErr := os.ReadFile(log)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		t.Fatal(readErr)
+	}
+	return status, string(logData)
+}
+
+func TestGatewayProxyV2PublicationContractIsIdempotentAndFailsClosed(t *testing.T) {
+	contract := workflowShellContract(t, "build-image-and-push.yaml", "gateway-proxyv2-compatibility-contract")
+	wantCreate := "buildx imagetools create --tag registry.example.invalid/higress/proxyv2:2.2.4 registry.example.invalid/higress/gateway:2.2.4@sha256:" + strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		name       string
+		mode       string
+		release    bool
+		wantStatus int
+		wantLog    string
+	}{
+		{name: "missing creates from gateway stable digest", mode: "absent", release: true, wantLog: wantCreate + "\n"},
+		{name: "existing identical alias is idempotent", mode: "identical", release: true},
+		{name: "existing conflicting alias fails closed", mode: "conflict", release: true, wantStatus: 1},
+		{name: "lookup errors fail closed", mode: "lookup-error", release: true, wantStatus: 2},
+		{name: "non-release build does not create compatibility alias", mode: "absent"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status, log := runGatewayProxyV2PublicationContract(t, contract, tc.mode, tc.release)
+			if status != tc.wantStatus || log != tc.wantLog {
+				t.Fatalf("status/log = %d/%q, want %d/%q", status, log, tc.wantStatus, tc.wantLog)
+			}
+		})
+	}
+}
+
+func TestGatewayHelmDefaultsUsePublishedGatewayImage(t *testing.T) {
+	values, err := os.ReadFile("../../helm/core/values.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(values), "image: proxyv2") {
+		t.Fatal("Helm values must not advertise the legacy proxyv2 repository as a runtime default")
+	}
+	for _, required := range []string{
+		"  proxy:\n    image: gateway\n",
+		"  proxy_init:\n    # -- Base name for the proxy_init container, used to configure iptables.\n    image: gateway\n",
+	} {
+		if !strings.Contains(string(values), required) {
+			t.Fatalf("Helm values lack gateway proxy default %q", required)
+		}
+	}
+
+	readme, err := os.ReadFile("../../helm/higress/README.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{
+		`| global.proxy.image | string | ` + "`\"gateway\"`" + ` |`,
+		`| global.proxy_init.image | string | ` + "`\"gateway\"`" + ` |`,
+	} {
+		if !strings.Contains(string(readme), required) {
+			t.Fatalf("generated Helm documentation lacks gateway default %q", required)
+		}
+	}
+}
+
 func TestGatewayReleaseAliasRecoveryPromotesOnlyVerifiedStaging(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/recover-gateway-release-images.yaml")
 	if err != nil {
@@ -1577,6 +1716,12 @@ func TestGatewayReleaseAliasRecoveryPromotesOnlyVerifiedStaging(t *testing.T) {
 		`immutable release alias conflict`,
 		`docker buildx imagetools create --tag "$target" "$staging@$desired"`,
 		`test "$(descriptor_or_absent "$target")" = "$desired"`,
+		`compat_image_name: higress/proxyv2`,
+		`COMPAT_IMAGE_NAME: ${{ matrix.compat_image_name }}`,
+		`compat_target="$IMAGE_REGISTRY/$COMPAT_IMAGE_NAME:$GATEWAY_VERSION"`,
+		`immutable proxyv2 compatibility tag conflict`,
+		`docker buildx imagetools create --tag "$compat_target" "$staging@$desired"`,
+		`test "$(descriptor_or_absent "$compat_target")" = "$desired"`,
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("gateway image recovery lacks immutable staging contract %q", required)
@@ -1589,6 +1734,88 @@ func TestGatewayReleaseAliasRecoveryPromotesOnlyVerifiedStaging(t *testing.T) {
 	}
 	if strings.Index(workflow, `docker buildx imagetools inspect "$staging" --raw`) > strings.Index(workflow, `docker buildx imagetools create --tag "$target"`) {
 		t.Fatal("gateway image recovery must validate staging before any alias mutation")
+	}
+}
+
+func runGatewayProxyV2RecoveryContract(t *testing.T, contract, mode string, dryRun bool) (int, string) {
+	t.Helper()
+	tmp := t.TempDir()
+	state := filepath.Join(tmp, "created")
+	log := filepath.Join(tmp, "docker.log")
+	summary := filepath.Join(tmp, "summary")
+	desired := "sha256:" + strings.Repeat("a", 64)
+	conflict := "sha256:" + strings.Repeat("b", 64)
+	script := `set -euo pipefail
+descriptor_or_absent() {
+  local ref=$1
+  case "$RECOVERY_MODE" in
+    absent)
+      if [ -f "$RECOVERY_STATE" ]; then printf '%s' "$RECOVERY_DESIRED"; else return 1; fi
+      ;;
+    identical) printf '%s' "$RECOVERY_DESIRED" ;;
+    conflict) printf '%s' "$RECOVERY_CONFLICT" ;;
+    lookup-error) return 2 ;;
+    *) return 3 ;;
+  esac
+}
+docker() {
+  printf '%s\n' "$*" >>"$RECOVERY_LOG"
+  touch "$RECOVERY_STATE"
+}
+` + contract
+	cmd := exec.Command("bash", "-c", script)
+	cmd.Env = append(os.Environ(),
+		"RECOVERY_MODE="+mode,
+		"RECOVERY_STATE="+state,
+		"RECOVERY_LOG="+log,
+		"RECOVERY_DESIRED="+desired,
+		"RECOVERY_CONFLICT="+conflict,
+		"GITHUB_STEP_SUMMARY="+summary,
+		"IMAGE_REGISTRY=registry.example.invalid",
+		"COMPAT_IMAGE_NAME=higress/proxyv2",
+		"GATEWAY_VERSION=2.2.4",
+		"DRY_RUN="+fmt.Sprint(dryRun),
+		"staging=registry.example.invalid/higress/gateway:release-provenance-deadbeef",
+		"desired="+desired,
+	)
+	output, err := cmd.CombinedOutput()
+	status := 0
+	if err != nil {
+		var exitErr *exec.ExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("gateway proxyv2 recovery fixture failed to execute: %v\n%s", err, output)
+		}
+		status = exitErr.ExitCode()
+	}
+	logData, readErr := os.ReadFile(log)
+	if readErr != nil && !os.IsNotExist(readErr) {
+		t.Fatal(readErr)
+	}
+	return status, string(logData)
+}
+
+func TestGatewayProxyV2RecoveryContractIsIdempotentAndFailsClosed(t *testing.T) {
+	contract := workflowShellContract(t, "recover-gateway-release-images.yaml", "gateway-proxyv2-recovery-contract")
+	wantCreate := "buildx imagetools create --tag registry.example.invalid/higress/proxyv2:2.2.4 registry.example.invalid/higress/gateway:release-provenance-deadbeef@sha256:" + strings.Repeat("a", 64)
+	for _, tc := range []struct {
+		name       string
+		mode       string
+		dryRun     bool
+		wantStatus int
+		wantLog    string
+	}{
+		{name: "missing creates from verified staging digest", mode: "absent", wantLog: wantCreate + "\n"},
+		{name: "existing identical alias is idempotent", mode: "identical"},
+		{name: "existing conflicting alias fails closed", mode: "conflict", wantStatus: 1},
+		{name: "lookup errors fail closed", mode: "lookup-error", wantStatus: 2},
+		{name: "dry run does not mutate", mode: "absent", dryRun: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status, log := runGatewayProxyV2RecoveryContract(t, contract, tc.mode, tc.dryRun)
+			if status != tc.wantStatus || log != tc.wantLog {
+				t.Fatalf("status/log = %d/%q, want %d/%q", status, log, tc.wantStatus, tc.wantLog)
+			}
+		})
 	}
 }
 
