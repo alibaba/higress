@@ -1356,6 +1356,11 @@ func TestStandaloneDispatchSurvivesGitHubTokenReleaseSuppression(t *testing.T) {
 		`release_tag:`,
 		`release=$(gh api "repos/higress-group/higress/releases/tags/$TAG")`,
 		`RELEASE_ID=$(jq -er .id <<<"$release")`,
+		`evidence=$(jq -n`,
+		`| canonical_evidence)`,
+		`evidence_sha=$(printf '%s' "$evidence" | sha256sum`,
+		`key=$evidence_sha`,
+		`-f "client_payload[evidence]=$evidence"`,
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("standalone dispatch lacks release-event recovery contract %q", required)
@@ -1363,6 +1368,36 @@ func TestStandaloneDispatchSurvivesGitHubTokenReleaseSuppression(t *testing.T) {
 	}
 	if !strings.Contains(workflow, `(github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))`) {
 		t.Fatal("standalone dispatch must reject failed or non-release image workflow runs")
+	}
+	if strings.Contains(workflow, `/tmp/evidence.json`) {
+		t.Fatal("standalone dispatch must hash the no-newline canonical JSON string, not jq's newline-terminated file output")
+	}
+}
+
+func TestStandaloneDispatchCanonicalEvidenceMatchesPythonReceiverBytes(t *testing.T) {
+	contract := workflowShellContract(t, "dispatch-standalone-release.yaml", "standalone-evidence-canonical-contract")
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "key-order-and-whitespace", input: ` { "z" : 2, "a" : 1 } `, expected: `{"a":1,"z":2}`},
+		{name: "non-ascii", input: `{"z":"雪","a":1}`, expected: `{"a":1,"z":"\u96ea"}`},
+		{name: "embedded-newline", input: "{\"line\":\"a\\nb\"}", expected: `{"line":"a\nb"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := "set -euo pipefail\n" + contract + fmt.Sprintf("\nprintf %%s %q | canonical_evidence", tc.input)
+			output, err := exec.Command("bash", "-c", script).CombinedOutput()
+			if err != nil {
+				t.Fatalf("canonical evidence contract failed: %v\n%s", err, output)
+			}
+			if string(output) != tc.expected {
+				t.Fatalf("canonical evidence = %q, want %q", output, tc.expected)
+			}
+			if strings.HasSuffix(string(output), "\n") {
+				t.Fatal("canonical evidence must not include a terminal newline")
+			}
+		})
 	}
 }
 
