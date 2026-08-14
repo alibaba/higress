@@ -1401,6 +1401,48 @@ func TestStandaloneDispatchCanonicalEvidenceMatchesPythonReceiverBytes(t *testin
 	}
 }
 
+func TestStandaloneOSSReceiverHashesTheExactNoNewlineSenderPayload(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/deploy-standalone-to-oss.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`canonical=$(printf '%s' "$payload" | canonical_standalone_oss_payload)`,
+		`test "$(printf '%s' "$canonical" | sha256sum`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("standalone OSS receiver lacks exact canonical-byte contract %q", required)
+		}
+	}
+	if strings.Contains(workflow, `printf '%s' "$payload" | jq -cS . | sha256sum`) {
+		t.Fatal("standalone OSS receiver must not hash jq's terminal newline")
+	}
+
+	contract := workflowShellContract(t, "deploy-standalone-to-oss.yaml", "standalone-oss-idempotency-canonical-contract")
+	script := "set -euo pipefail\n" + contract + `
+payload=$(jq -cn --argjson releaseId 370295985 --arg tag v2.2.4 --arg commit 9b83988013d80aa82527600841b1ce7c8fdb67b9 --arg archive 92e30705b8479a829b9b82ca95b90e0115b01e00f0ffcc5af30e0623b728d17c --arg installer e648f63ec13f0cbe54eb50e2aadb518df69f5df77e6926e31418d020fa3231fb '{releaseId:$releaseId,tag:$tag,commit:$commit,archiveSha256:$archive,installerSha256:$installer,dryRun:false}')
+canonical=$(printf '%s' "$payload" | canonical_standalone_oss_payload)
+printf '%s\n' "$(printf '%s' "$canonical" | sha256sum | awk '{print $1}')"
+printf '%s\n' "$(printf '%s\n' "$canonical" | sha256sum | awk '{print $1}')"
+`
+	output, err := exec.Command("bash", "-c", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("standalone OSS canonical hash fixture failed: %v\n%s", err, output)
+	}
+	lines := strings.Fields(string(output))
+	if len(lines) != 2 {
+		t.Fatalf("standalone OSS canonical hash fixture returned %q", output)
+	}
+	const eventKey = "90427933289ee0646f707db301328db9d917b1fcb9bc5c293f8d6b718881f755"
+	if lines[0] != eventKey {
+		t.Fatalf("no-newline canonical hash = %s, want dispatched event key %s", lines[0], eventKey)
+	}
+	if lines[1] == eventKey {
+		t.Fatal("newline-terminated jq bytes must not match the dispatched event key")
+	}
+}
+
 func TestPreparationBootstrapReusesProtectedCandidateRegistryCredential(t *testing.T) {
 	data, err := os.ReadFile("../../.github/workflows/prepare-plugin-release.yaml")
 	if err != nil {
