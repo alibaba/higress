@@ -10,12 +10,14 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fatalf("usage: plugin-release <validate-catalog|capture-bootstrap-evidence|bootstrap-snapshot|plan|apply-plan|render-snapshot|verify-snapshot|semver-compare> [flags]")
+		fatalf("usage: plugin-release <validate-catalog|validate-console-recovery|capture-bootstrap-evidence|bootstrap-snapshot|plan|apply-plan|render-snapshot|verify-snapshot|semver-compare> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
 	case "validate-catalog":
 		err = commandValidate(os.Args[2:])
+	case "validate-console-recovery":
+		err = commandValidateConsoleRecovery(os.Args[2:])
 	case "plan":
 		err = commandPlan(os.Args[2:])
 	case "capture-bootstrap-evidence":

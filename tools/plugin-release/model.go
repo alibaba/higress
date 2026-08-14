@@ -25,6 +25,7 @@ const (
 type Catalog struct {
 	SchemaVersion       int                            `json:"schemaVersion"`
 	Registry            string                         `json:"registry"`
+	ConsoleMarketplace  *ConsoleMarketplacePolicy      `json:"consoleMarketplace,omitempty"`
 	SharedInputGroups   map[string][]string            `json:"sharedInputGroups"`
 	ConsumerInventories map[string][]ConsumerInventory `json:"consumerInventories"`
 	Plugins             []Plugin                       `json:"plugins"`
@@ -55,9 +56,33 @@ type PluginConsumers struct {
 }
 
 type ConsoleConsumer struct {
-	PropertyKey string `json:"propertyKey"`
-	ResourceDir string `json:"resourceDir"`
-	URLForm     string `json:"urlForm"`
+	PropertyKey string                    `json:"propertyKey"`
+	ResourceDir string                    `json:"resourceDir"`
+	URLForm     string                    `json:"urlForm"`
+	Marketplace *ConsoleMarketplaceBundle `json:"marketplace,omitempty"`
+}
+
+// ConsoleMarketplacePolicy opts a catalog into the strict marketplace
+// coverage contract without making older schemaVersion=1 fixture catalogs
+// invalid. Production catalogs set RequiredForStable=true.
+type ConsoleMarketplacePolicy struct {
+	RequiredForStable bool                                `json:"requiredForStable"`
+	Bundles           map[string]ConsoleMarketplaceBundle `json:"bundles"`
+}
+
+// ConsoleMarketplaceBundle identifies reviewed Console classpath resources.
+// Higress sources are bound to the exact dispatch commit; other repositories
+// must name an immutable full source commit in the mapping itself.
+type ConsoleMarketplaceBundle struct {
+	Repository   string                         `json:"repository"`
+	SourceCommit string                         `json:"sourceCommit,omitempty"`
+	Files        []ConsoleMarketplaceBundleFile `json:"files"`
+}
+
+type ConsoleMarketplaceBundleFile struct {
+	SourcePath string `json:"sourcePath"`
+	TargetPath string `json:"targetPath"`
+	SHA256     string `json:"sha256"`
 }
 
 type PluginServerConsumer struct {
@@ -185,4 +210,35 @@ func cloneConsumers(in PluginConsumers) PluginConsumers {
 	var out PluginConsumers
 	_ = json.Unmarshal(data, &out)
 	return out
+}
+
+func catalogConsumers(c Catalog, p Plugin) PluginConsumers {
+	out := cloneConsumers(p.Consumers)
+	if out.Console != nil && out.Console.Marketplace == nil && c.ConsoleMarketplace != nil {
+		if bundle, ok := c.ConsoleMarketplace.Bundles[p.LogicalID]; ok {
+			copy := bundle
+			out.Console.Marketplace = &copy
+		}
+	}
+	return out
+}
+
+type ConsoleRecoveryManifest struct {
+	SchemaVersion         int                     `json:"schemaVersion"`
+	GatewayVersion        string                  `json:"gatewayVersion"`
+	SnapshotPath          string                  `json:"snapshotPath"`
+	SnapshotSHA256        string                  `json:"snapshotSha256"`
+	ImageRepository       string                  `json:"imageRepository"`
+	OriginalConsoleCommit string                  `json:"originalConsoleCommit"`
+	OriginalImageDigest   string                  `json:"originalImageDigest"`
+	RequiredSourceBranch  string                  `json:"requiredSourceBranch"`
+	Plugins               []ConsoleRecoveryPlugin `json:"plugins"`
+}
+
+type ConsoleRecoveryPlugin struct {
+	LogicalID string          `json:"logicalId"`
+	Version   string          `json:"version"`
+	OCIRef    string          `json:"ociRef"`
+	Digest    string          `json:"digest"`
+	Console   ConsoleConsumer `json:"console"`
 }

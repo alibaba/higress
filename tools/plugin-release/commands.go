@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -112,6 +113,7 @@ func validateCatalog(root, path string) error {
 	seenLogical, seenSource, seenImage := map[string]bool{}, map[string]bool{}, map[string]bool{}
 	dirClassifications := map[string]bool{}
 	consumerMappings := map[string]map[string]string{"console": {}, "pluginServer": {}}
+	consoleResourceDirs := map[string]string{}
 	aliases := map[string]string{}
 	for _, p := range c.Plugins {
 		if !safeIDPattern.MatchString(p.LogicalID) {
@@ -143,6 +145,7 @@ func validateCatalog(root, path string) error {
 		if !safeIDPattern.MatchString(filepath.Base(p.Image)) || !strings.HasPrefix(p.Image, "plugins/") {
 			return fmt.Errorf("%s: unsafe or non-plugin image %q", p.LogicalID, p.Image)
 		}
+		stableRelease := false
 		if p.ReleaseEligible {
 			if p.UnmanagedReason != "" {
 				return fmt.Errorf("%s: release-eligible plugin cannot have unmanagedReason", p.LogicalID)
@@ -151,9 +154,14 @@ func validateCatalog(root, path string) error {
 			if err != nil {
 				return fmt.Errorf("%s: release-eligible plugin lacks VERSION: %w", p.LogicalID, err)
 			}
-			if _, err := parseSemver(strings.TrimSpace(string(versionData))); err != nil {
+			version, err := parseSemver(strings.TrimSpace(string(versionData)))
+			if err != nil {
 				return fmt.Errorf("%s: %w", p.LogicalID, err)
 			}
+			// Alpha denotes in-flight development and is excluded. A reviewed
+			// non-alpha prerelease remains on the stabilization path, so it must
+			// already have a complete Console marketplace contract.
+			stableRelease = !isAlphaPrerelease(version.prerelease)
 			versionPath := p.SourceDir + "/VERSION"
 			// In a Git worktree, reject ignored/local VERSION files so CI sees the
 			// same release inputs as a clean checkout. A git archive intentionally
@@ -185,6 +193,27 @@ func validateCatalog(root, path string) error {
 				return fmt.Errorf("Console key %q belongs to both %s and %s", cc.PropertyKey, other, p.LogicalID)
 			}
 			consumerMappings["console"][cc.PropertyKey] = p.LogicalID
+			if other := consoleResourceDirs[cc.ResourceDir]; other != "" {
+				return fmt.Errorf("Console resourceDir %q belongs to both %s and %s", cc.ResourceDir, other, p.LogicalID)
+			}
+			consoleResourceDirs[cc.ResourceDir] = p.LogicalID
+			bundle := cc.Marketplace
+			if bundle == nil && c.ConsoleMarketplace != nil {
+				if configured, ok := c.ConsoleMarketplace.Bundles[p.LogicalID]; ok {
+					bundle = &configured
+				}
+			}
+			if bundle != nil {
+				if err := validateConsoleMarketplaceBundle(root, p, *bundle); err != nil {
+					return err
+				}
+			}
+		}
+		if c.ConsoleMarketplace != nil && c.ConsoleMarketplace.RequiredForStable && stableRelease {
+			_, hasBundle := c.ConsoleMarketplace.Bundles[p.LogicalID]
+			if p.Consumers.Console == nil || (p.Consumers.Console.Marketplace == nil && !hasBundle) {
+				return fmt.Errorf("%s: stable release-eligible plugin requires a reviewed Console marketplace mapping", p.LogicalID)
+			}
 		}
 		if p.Consumers.PluginServer != nil {
 			pc := p.Consumers.PluginServer
@@ -248,7 +277,140 @@ func validateCatalog(root, path string) error {
 			}
 		}
 	}
+	if c.ConsoleMarketplace != nil {
+		for id := range c.ConsoleMarketplace.Bundles {
+			if !seenLogical[id] {
+				return fmt.Errorf("Console marketplace bundle names unknown plugin %q", id)
+			}
+		}
+	}
 	return nil
+}
+
+func validateConsoleMarketplaceBundle(root string, p Plugin, bundle ConsoleMarketplaceBundle) error {
+	if bundle.Repository != "higress-group/higress" && bundle.Repository != "higress-group/higress-console" {
+		return fmt.Errorf("%s: unsupported Console marketplace source repository %q", p.LogicalID, bundle.Repository)
+	}
+	if bundle.Repository == "higress-group/higress" {
+		if bundle.SourceCommit != "" {
+			return fmt.Errorf("%s: Higress marketplace bundle must use the exact dispatch commit", p.LogicalID)
+		}
+	} else if !commitPattern.MatchString(bundle.SourceCommit) {
+		return fmt.Errorf("%s: external marketplace bundle requires an immutable full source commit", p.LogicalID)
+	}
+	if len(bundle.Files) == 0 {
+		return fmt.Errorf("%s: Console marketplace bundle has no files", p.LogicalID)
+	}
+	required := map[string]bool{"spec.yaml": false, "README.md": false, "README_EN.md": false}
+	seenTarget := map[string]bool{}
+	for _, file := range bundle.Files {
+		if !safeRepositoryPath(file.SourcePath) {
+			return fmt.Errorf("%s: unsafe Console marketplace source path %q", p.LogicalID, file.SourcePath)
+		}
+		if file.TargetPath != "spec.yaml" && file.TargetPath != "README.md" && file.TargetPath != "README_EN.md" && file.TargetPath != "icon.png" {
+			return fmt.Errorf("%s: unsupported Console marketplace target path %q", p.LogicalID, file.TargetPath)
+		}
+		if seenTarget[file.TargetPath] {
+			return fmt.Errorf("%s: duplicate Console marketplace target path %q", p.LogicalID, file.TargetPath)
+		}
+		seenTarget[file.TargetPath] = true
+		if _, ok := required[file.TargetPath]; ok {
+			required[file.TargetPath] = true
+		}
+		if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(file.SHA256) {
+			return fmt.Errorf("%s: invalid SHA-256 for Console marketplace target %q", p.LogicalID, file.TargetPath)
+		}
+		if bundle.Repository == "higress-group/higress" {
+			data, err := readRepositoryFileWithoutSymlinks(root, file.SourcePath)
+			if err != nil {
+				return fmt.Errorf("%s: read Console marketplace source %q: %w", p.LogicalID, file.SourcePath, err)
+			}
+			if sha256Hex(data) != file.SHA256 {
+				return fmt.Errorf("%s: Console marketplace source hash drift for %q", p.LogicalID, file.SourcePath)
+			}
+			if file.TargetPath == "spec.yaml" {
+				text := string(data)
+				if !regexp.MustCompile(`(?m)^  name:\s*`+regexp.QuoteMeta(p.Consumers.Console.ResourceDir)+`\s*$`).MatchString(text) ||
+					!strings.Contains(text, "openAPIV3Schema:") || !regexp.MustCompile(`(?m)^      type:\s*object\s*$`).MatchString(text) {
+					return fmt.Errorf("%s: reviewed Console spec has identity or schema drift", p.LogicalID)
+				}
+			}
+		}
+	}
+	for target, present := range required {
+		if !present {
+			return fmt.Errorf("%s: Console marketplace bundle lacks required %s", p.LogicalID, target)
+		}
+	}
+	return nil
+}
+
+func readRepositoryFileWithoutSymlinks(root, relative string) ([]byte, error) {
+	if !safeRepositoryPath(relative) {
+		return nil, fmt.Errorf("unsafe repository path %q", relative)
+	}
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
+	checkPath := func() (os.FileInfo, string, error) {
+		rootInfo, err := os.Lstat(absRoot)
+		if err != nil {
+			return nil, "", err
+		}
+		if rootInfo.Mode()&os.ModeSymlink != 0 || !rootInfo.IsDir() {
+			return nil, "", errors.New("repository root must be a real directory")
+		}
+		current := absRoot
+		var info os.FileInfo
+		parts := strings.Split(relative, "/")
+		for i, part := range parts {
+			current = filepath.Join(current, part)
+			info, err = os.Lstat(current)
+			if err != nil {
+				return nil, "", err
+			}
+			if info.Mode()&os.ModeSymlink != 0 {
+				return nil, "", fmt.Errorf("repository path %q contains a symlink", relative)
+			}
+			if i < len(parts)-1 && !info.IsDir() {
+				return nil, "", fmt.Errorf("repository path %q has a non-directory component", relative)
+			}
+		}
+		if info == nil || !info.Mode().IsRegular() {
+			return nil, "", fmt.Errorf("repository path %q is not a regular file", relative)
+		}
+		return info, current, nil
+	}
+	before, path, err := checkPath()
+	if err != nil {
+		return nil, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	after, afterPath, err := checkPath()
+	if err != nil {
+		return nil, err
+	}
+	if path != afterPath || !os.SameFile(before, opened) || !os.SameFile(after, opened) {
+		return nil, fmt.Errorf("repository path %q changed while it was validated", relative)
+	}
+	return io.ReadAll(file)
+}
+
+func safeRepositoryPath(path string) bool {
+	if path == "" || filepath.IsAbs(path) || strings.Contains(path, `\`) {
+		return false
+	}
+	clean := filepath.ToSlash(filepath.Clean(path))
+	return clean == path && clean != "." && !strings.HasPrefix(clean, "../")
 }
 
 func buildPlan(root, catalogPath, previousPath, baseRef, targetRef, gatewayVersion, overridesPath string) (Plan, error) {
@@ -549,7 +711,7 @@ func renderSnapshot(catalogPath, planPath, previousPath, evidencePath, bootstrap
 				SourceDir: p.SourceDir, Image: p.Image, Version: planned.Version,
 				OCIRef: c.Registry + "/" + p.Image + ":" + planned.Version, Digest: e.Digest,
 				InputHash: planned.InputHash, SourceCommit: plan.SourceCommit, CandidateRef: e.CandidateRef,
-				ProvenanceMode: "candidate", Backfill: planned.Backfill, Consumers: cloneConsumers(p.Consumers)})
+				ProvenanceMode: "candidate", Backfill: planned.Backfill, Consumers: catalogConsumers(c, p)})
 			continue
 		}
 		old, ok := previousEntries[p.LogicalID]
@@ -561,7 +723,7 @@ func renderSnapshot(catalogPath, planPath, previousPath, evidencePath, bootstrap
 			}
 			return Snapshot{}, fmt.Errorf("release-eligible plugin %s is neither planned nor present in previous snapshot", p.LogicalID)
 		}
-		old.Consumers = cloneConsumers(p.Consumers)
+		old.Consumers = catalogConsumers(c, p)
 		if old.ProvenanceMode == "" {
 			old.ProvenanceMode = entryProvenance(old)
 		}
@@ -706,7 +868,7 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 		if entry.Image != p.Image || entry.SourceDir != p.SourceDir || entry.Implementation != p.Implementation {
 			return fmt.Errorf("%s snapshot identity differs from catalog", entry.LogicalID)
 		}
-		if !reflect.DeepEqual(entry.Consumers, p.Consumers) {
+		if !reflect.DeepEqual(entry.Consumers, catalogConsumers(c, p)) {
 			return fmt.Errorf("%s snapshot consumer mappings differ from catalog", entry.LogicalID)
 		}
 		if _, err := parseSemver(entry.Version); err != nil {
@@ -1066,6 +1228,80 @@ func commandValidate(args []string) error {
 	return validateCatalog(*root, *catalog)
 }
 
+func commandValidateConsoleRecovery(args []string) error {
+	fs, root, catalog := parseCommon("validate-console-recovery", args)
+	manifest := fs.String("manifest", "plugins/release/console-recovery/2.2.4.json", "one-time Console recovery manifest")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	return validateConsoleRecovery(*root, *catalog, *manifest)
+}
+
+func validateConsoleRecovery(root, catalogPath, manifestPath string) error {
+	if err := validateCatalog(root, catalogPath); err != nil {
+		return err
+	}
+	catalog, _, err := loadCatalog(catalogPath)
+	if err != nil {
+		return err
+	}
+	var manifest ConsoleRecoveryManifest
+	if _, err := readJSON(manifestPath, &manifest); err != nil {
+		return err
+	}
+	if manifest.SchemaVersion != 1 || manifest.GatewayVersion != "2.2.4" ||
+		manifest.SnapshotPath != "plugins/release/snapshots/2.2.4.json" ||
+		manifest.ImageRepository != "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/console" ||
+		manifest.OriginalConsoleCommit != "36aa9c67fb0057164dab9b1fe687b38fe5b8a022" ||
+		manifest.OriginalImageDigest != "sha256:c8cb47ad0a550e58df4cfee57f2f358eb0b1635a0812c77e04388dfb17bbebb6" ||
+		manifest.RequiredSourceBranch != "main" {
+		return errors.New("Console recovery contract is restricted to the not-yet-public higress/console:2.2.4 image from merged main")
+	}
+	snapshotPath := filepath.Join(root, filepath.FromSlash(manifest.SnapshotPath))
+	snapshotData, err := os.ReadFile(snapshotPath)
+	if err != nil {
+		return err
+	}
+	if !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(manifest.SnapshotSHA256) || sha256Hex(snapshotData) != manifest.SnapshotSHA256 {
+		return errors.New("Console recovery manifest does not bind the unchanged 2.2.4 snapshot bytes")
+	}
+	var snapshot Snapshot
+	if err := json.Unmarshal(snapshotData, &snapshot); err != nil {
+		return err
+	}
+	if snapshot.GatewayVersion != "2.2.4" {
+		return errors.New("Console recovery snapshot is not 2.2.4")
+	}
+	expectedIDs := []string{"ai-context-limit", "gw-error-format", "hmac-auth-apisix", "log-request-response", "mcp-router", "nginx-rewrite-compatible", "response-cache", "simple-jwt-auth"}
+	snapshotByID := map[string]SnapshotEntry{}
+	for _, entry := range snapshot.Plugins {
+		snapshotByID[entry.LogicalID] = entry
+	}
+	catalogByID := map[string]Plugin{}
+	for _, plugin := range catalog.Plugins {
+		catalogByID[plugin.LogicalID] = plugin
+	}
+	if len(manifest.Plugins) != len(expectedIDs) {
+		return fmt.Errorf("Console recovery must contain exactly %d reviewed plugins", len(expectedIDs))
+	}
+	for i, id := range expectedIDs {
+		entry := manifest.Plugins[i]
+		if entry.LogicalID != id {
+			return fmt.Errorf("Console recovery plugins must be sorted and exact: expected %s at index %d", id, i)
+		}
+		snapshotEntry, ok := snapshotByID[id]
+		if !ok || entry.Version != snapshotEntry.Version || entry.OCIRef != snapshotEntry.OCIRef || entry.Digest != snapshotEntry.Digest {
+			return fmt.Errorf("%s: recovery artifact identity differs from unchanged 2.2.4 snapshot", id)
+		}
+		plugin, ok := catalogByID[id]
+		expectedConsumers := catalogConsumers(catalog, plugin)
+		if !ok || expectedConsumers.Console == nil || !reflect.DeepEqual(entry.Console, *expectedConsumers.Console) {
+			return fmt.Errorf("%s: recovery Console mapping differs from reviewed catalog", id)
+		}
+	}
+	return nil
+}
+
 func commandPlan(args []string) error {
 	fs, root, catalog := parseCommon("plan", args)
 	previous := fs.String("previous", "", "previous snapshot")
@@ -1267,7 +1503,7 @@ func commandBootstrap(args []string) error {
 		if err != nil {
 			return err
 		}
-		snapshot.Plugins = append(snapshot.Plugins, SnapshotEntry{LogicalID: p.LogicalID, Implementation: p.Implementation, SourceDir: p.SourceDir, Image: p.Image, Version: version, OCIRef: publicRef, Digest: e.Digest, InputHash: hash, SourceCommit: commit, ProvenanceMode: "public", Consumers: cloneConsumers(p.Consumers)})
+		snapshot.Plugins = append(snapshot.Plugins, SnapshotEntry{LogicalID: p.LogicalID, Implementation: p.Implementation, SourceDir: p.SourceDir, Image: p.Image, Version: version, OCIRef: publicRef, Digest: e.Digest, InputHash: hash, SourceCommit: commit, ProvenanceMode: "public", Consumers: catalogConsumers(c, p)})
 	}
 	return writeCanonical(*output, snapshot)
 }
