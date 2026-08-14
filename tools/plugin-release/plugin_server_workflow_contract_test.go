@@ -1458,6 +1458,7 @@ func TestGatewayStableAliasesAreStagedAndImmutable(t *testing.T) {
 		`authorization failure is never absence`,
 		`401|403|unauthorized|forbidden|denied|authentication required|authorization required`,
 		`404|manifest unknown|name unknown|repository does not exist`,
+		`grep -Fqx "ERROR: $ref: not found" "$err"`,
 		`verify_release_staging "$staging"`,
 	} {
 		if !strings.Contains(workflow, required) {
@@ -1466,6 +1467,9 @@ func TestGatewayStableAliasesAreStagedAndImmutable(t *testing.T) {
 	}
 	if strings.Contains(workflow, "not found|repository does not exist") {
 		t.Fatal("generic \"not found\" text is never registry absence evidence; only explicit 404-class markers qualify")
+	}
+	if strings.Count(workflow, `grep -Fqx "ERROR: $ref: not found" "$err"`) != 3 {
+		t.Fatal("every image publisher must recognize only the exact ACR missing-reference diagnostic")
 	}
 	if strings.Count(workflow, "descriptor_or_absent()") != 3 || strings.Count(workflow, "verify_release_staging()") != 3 {
 		t.Fatal("every controller/pilot/gateway publisher must use its own fail-closed lookup and staging acceptance helper")
