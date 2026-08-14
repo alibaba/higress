@@ -242,7 +242,7 @@ WeChat公式アカウント：
 
 ### スターの歴史
 
-[![スターの歴史チャート](https://api.star-history.com/svg?repos=higress-group/higress&type=Date)](https://star-history.com/#higress-group/higress&Date)
+[![スターの歴史チャート](https://star-history.dera.page/svg?repos=higress-group/higress&type=Date)](https://star-history.dera.page/#higress-group/higress&Date)
 
 ---
 

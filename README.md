@@ -235,7 +235,7 @@ Higress would not be possible without the valuable open-source work of projects 
 
 ### Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=higress-group/higress&type=Date)](https://star-history.com/#higress-group/higress&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=higress-group/higress&type=Date)](https://star-history.dera.page/#higress-group/higress&Date)
 
 ---
 
