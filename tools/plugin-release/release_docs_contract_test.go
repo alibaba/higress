@@ -40,3 +40,40 @@ func TestReleaseDocsCreateMetadataPRAfterDependenciesConverge(t *testing.T) {
 		}
 	}
 }
+
+func TestReleaseNotesUseCanonicalGeneratedNotesAPI(t *testing.T) {
+	data, err := os.ReadFile("../../.github/workflows/generate-release-notes.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	workflow := string(data)
+	for _, required := range []string{
+		`GITHUB_REPO_OWNER: higress-group`,
+		`environment: higress-release-manager`,
+		`actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547`,
+		`repositories: higress,higress-console`,
+		`permission-contents: write`,
+		`GITHUB_PERSONAL_ACCESS_TOKEN: ${{ steps.release-reader.outputs.token }}`,
+		`/releases/generate-notes`,
+		`Authorization: Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}`,
+		`jq -er .body generated_release_notes.json`,
+		`No PR numbers found in release notes`,
+		`exit 1`,
+		`never use that mutable body as the source of included PRs`,
+	} {
+		if !strings.Contains(workflow, required) {
+			t.Fatalf("release notes workflow lacks generated-notes contract %q", required)
+		}
+	}
+	for _, forbidden := range []string{
+		`GITHUB_REPO_OWNER: alibaba`,
+		`GITHUB_PERSONAL_ACCESS_TOKEN: ${{ secrets.GITHUB_TOKEN }}`,
+		`https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/tag/`,
+		`release_page.html`,
+		`exit 0`,
+	} {
+		if strings.Contains(workflow, forbidden) {
+			t.Fatalf("release notes workflow retains mutable/legacy source %q", forbidden)
+		}
+	}
+}
