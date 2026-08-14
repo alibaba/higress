@@ -1305,13 +1305,17 @@ func TestStandaloneDispatchBindsUniqueConsoleEvidenceToPluginServer(t *testing.T
 		`test "$(jq -er .gatewayVersion "$snapshot")" = "${TAG#v}"`,
 		`SNAPSHOT_SOURCE_COMMIT=$(jq -er .sourceCommit "$snapshot")`,
 		`git merge-base --is-ancestor "$SNAPSHOT_SOURCE_COMMIT" "$COMMIT"`,
-		`git show "$SNAPSHOT_SOURCE_COMMIT:$snapshot"`,
-		`cmp /tmp/plugin-server-source-snapshot.json "$snapshot"`,
 		`plugin_server_image="$plugin_server_ref@$plugin_server"`,
 		`PLUGIN_SERVER_COMMIT=$(jq -er .pluginLock.pluginServerCommit /tmp/console-provenance.json)`,
 		`.pluginLock.sourceCommit == $sourceCommit and .pluginLock.snapshotSha256 == $snapshot`,
 		`.pluginLock.pluginServerCommit == $pluginCommit and .pluginLock.pluginServerImage == $pluginImage`,
 		`test "$digest" = "$plugin_server"`,
+		`PLUGIN_SERVER_HIGRESS_COMMIT=""`,
+		`child_higress_commit=$(jq -er '."io.higress.higress-source-commit"' <<<"$label")`,
+		`test "$child_higress_commit" = "$PLUGIN_SERVER_HIGRESS_COMMIT"`,
+		`git merge-base --is-ancestor "$PLUGIN_SERVER_HIGRESS_COMMIT" "$COMMIT"`,
+		`git show "$PLUGIN_SERVER_HIGRESS_COMMIT:$snapshot"`,
+		`cmp /tmp/plugin-server-carrier-snapshot.json "$snapshot"`,
 		`jq -cn --arg ref "$ref" --arg digest "$digest"`,
 		`plugin_json=$(inspect_plugin_server "$plugin_server_ref")`,
 		`io.higress.higress-source-commit`,
@@ -1332,8 +1336,8 @@ func TestStandaloneDispatchBindsUniqueConsoleEvidenceToPluginServer(t *testing.T
 	if strings.Contains(workflow, `jq -cn --arg ref "$plugin_server_image"`) {
 		t.Fatal("standalone evidence must keep pluginServer.ref as the gateway-version tag and carry its digest separately")
 	}
-	if strings.Contains(workflow, `--arg sourceCommit "$COMMIT"`) || strings.Contains(workflow, `--arg source "$COMMIT" --arg snapshot`) {
-		t.Fatal("standalone dispatch must bind plugin-server provenance to the snapshot source ancestor, not the later release commit")
+	if strings.Contains(workflow, `git show "$SNAPSHOT_SOURCE_COMMIT:$snapshot"`) || strings.Contains(workflow, `--arg source "$SNAPSHOT_SOURCE_COMMIT" --arg snapshot`) {
+		t.Fatal("standalone dispatch must not confuse the plugin source baseline with the later snapshot carrier commit proven by plugin-server labels")
 	}
 }
 

@@ -88,9 +88,6 @@ jobs:
           SNAPSHOT_SOURCE_COMMIT=$(jq -er .sourceCommit "$snapshot")
           [[ "$SNAPSHOT_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           git merge-base --is-ancestor "$SNAPSHOT_SOURCE_COMMIT" "$COMMIT"
-          git show "$SNAPSHOT_SOURCE_COMMIT:$snapshot" > /tmp/plugin-server-source-snapshot.json
-          test "$(sha256sum /tmp/plugin-server-source-snapshot.json | awk '{print $1}')" = "$sha"
-          cmp /tmp/plugin-server-source-snapshot.json "$snapshot"
           plugin_server_ref="$PLUGIN_SERVER_REGISTRY/higress/plugin-server:${TAG#v}"
           plugin_server=$(oras manifest fetch "$plugin_server_ref" --descriptor | jq -r .digest)
           [[ "$plugin_server" =~ ^sha256:[0-9a-f]{64}$ ]]
@@ -127,13 +124,22 @@ jobs:
             verify_plugin_server_index /tmp/index.json
             platforms=$(jq -c '[.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) | .platform.os + "/" + .platform.architecture] | sort' /tmp/index.json)
             labels='{}'
+            PLUGIN_SERVER_HIGRESS_COMMIT=""
             while IFS=$'\t' read -r platform child; do
               manifest=$(oras manifest fetch "$repo@$child")
               config=$(jq -er .config.digest <<<"$manifest")
               label=$(oras blob fetch "$repo@$config" -o - | jq -c '.config.Labels // {}')
-              jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg source "$SNAPSHOT_SOURCE_COMMIT" --arg snapshot "$sha" --arg version "${TAG#v}" '."org.opencontainers.image.revision" == $plugin and ."io.higress.higress-source-commit" == $source and ."io.higress.plugin-snapshot-sha256" == $snapshot and ."io.higress.gateway-version" == $version' <<<"$label" >/dev/null
+              child_higress_commit=$(jq -er '."io.higress.higress-source-commit"' <<<"$label")
+              [[ "$child_higress_commit" =~ ^[0-9a-f]{40}$ ]]
+              if [ -z "$PLUGIN_SERVER_HIGRESS_COMMIT" ]; then PLUGIN_SERVER_HIGRESS_COMMIT=$child_higress_commit; else test "$child_higress_commit" = "$PLUGIN_SERVER_HIGRESS_COMMIT"; fi
+              jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg snapshot "$sha" --arg version "${TAG#v}" '."org.opencontainers.image.revision" == $plugin and ."io.higress.plugin-snapshot-sha256" == $snapshot and ."io.higress.gateway-version" == $version' <<<"$label" >/dev/null
               labels=$(jq --arg platform "$platform" --argjson label "$label" '.[$platform]=$label' <<<"$labels")
             done < <(jq -r '.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) | [(.platform.os + "/" + .platform.architecture), .digest] | @tsv' /tmp/index.json)
+            [[ "$PLUGIN_SERVER_HIGRESS_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+            git merge-base --is-ancestor "$PLUGIN_SERVER_HIGRESS_COMMIT" "$COMMIT"
+            git show "$PLUGIN_SERVER_HIGRESS_COMMIT:$snapshot" > /tmp/plugin-server-carrier-snapshot.json
+            test "$(sha256sum /tmp/plugin-server-carrier-snapshot.json | awk '{print $1}')" = "$sha"
+            cmp /tmp/plugin-server-carrier-snapshot.json "$snapshot"
             jq -cn --arg ref "$ref" --arg digest "$digest" --argjson platforms "$platforms" --argjson labels "$labels" '{ref:$ref,digest:$digest,platforms:$platforms,labelsByPlatform:$labels}'
           }
           plugin_json=$(inspect_plugin_server "$plugin_server_ref")
