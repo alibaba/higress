@@ -8,7 +8,7 @@ result for the Higress v2.2.4 release.
 - Profile: `GATEWAY-HTTP`
 - Core tests: 37 passed, 0 failed, 0 skipped
 - Report SHA-256:
-  `b58f67814ece37aceaba02d1216ede1cc724197c5b03b3b7369251df47c1c336`
+  `6d342dd57ed470ea6780643cbe01c94a2e685f5cfb63199504dd50d7f4a11755`
 
 ## Tested artifacts
 
@@ -50,7 +50,7 @@ GATEWAY_CONFORMANCE_TEST_DIR=test/gateway/v1.6 \
 GATEWAY_CONFORMANCE_SUPPORTED_FEATURES=Gateway,HTTPRoute,ReferenceGrant \
 GATEWAY_CONFORMANCE_PROFILE=GATEWAY-HTTP \
 GATEWAY_CONFORMANCE_REPORT=out/gateway-api-v1.6.0-report.yaml \
-GATEWAY_CONFORMANCE_CONTACT=https://github.com/alibaba/higress/issues \
+GATEWAY_CONFORMANCE_CONTACT=https://github.com/higress-group/higress/issues \
 HIGRESS_CONFORMANCE_VERSION=v2.2.4 \
 GATEWAY_CONFORMANCE_ALLOW_CRDS_MISMATCH=false \
 GATEWAY_CONFORMANCE_SUPPORTS_TEST_CLEANUP=true \

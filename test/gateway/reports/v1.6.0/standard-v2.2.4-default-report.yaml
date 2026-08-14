@@ -1,13 +1,13 @@
 apiVersion: gateway.networking.k8s.io/v1
-date: "2026-08-14T09:04:07Z"
+date: "2026-08-14T09:31:08Z"
 gatewayAPIChannel: standard
 gatewayAPIVersion: v1.6.0
 implementation:
   contact:
-  - https://github.com/alibaba/higress/issues
-  organization: alibaba
+  - https://github.com/higress-group/higress/issues
+  organization: higress-group
   project: higress
-  url: https://github.com/alibaba/higress
+  url: https://github.com/higress-group/higress
   version: v2.2.4
 kind: ConformanceReport
 mode: default

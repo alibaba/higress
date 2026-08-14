@@ -8,7 +8,7 @@ profile conformance result for the Higress v2.2.4 release.
 - Profile: `Gateway`
 - Core tests: 12 passed, 0 failed, 0 skipped
 - Report SHA-256:
-  `b34ebf7543dbe6a998583554ca1923421ba9a229e9c021530a6d868b68d2499d`
+  `79406981458f4989c8270126bd9b2a526b8e9d63e0c086ea2f5e6be9086216ca`
 
 ## Tested artifacts
 
