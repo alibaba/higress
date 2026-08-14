@@ -85,7 +85,7 @@
             {
               "sourcePath": "plugins/release/console/hmac-auth-apisix/spec.yaml",
               "targetPath": "spec.yaml",
-              "sha256": "0408ca31e394290404ae426f013fc5e4ef19c5d387e078d5e2b7b9c8d3b2dcee"
+              "sha256": "d8ea901848ebe354471297840a4ba8da3f50fff55998e85bd656396b5608815b"
             },
             {
               "sourcePath": "plugins/wasm-go/extensions/hmac-auth-apisix/README.md",

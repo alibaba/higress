@@ -94,6 +94,56 @@ func TestConsoleMarketplaceRejectsDuplicateResourceDirectory(t *testing.T) {
 	}
 }
 
+func TestConsoleMarketplaceBundleRejectsSymlinkSources(t *testing.T) {
+	for _, name := range []string{"file", "directory"} {
+		t.Run(name, func(t *testing.T) {
+			root, catalogPath := marketplaceFixture(t, "1.0.0", true)
+			var catalog Catalog
+			if _, err := readJSON(catalogPath, &catalog); err != nil {
+				t.Fatal(err)
+			}
+			plugin := &catalog.Plugins[0]
+			plugin.Consumers.Console = &ConsoleConsumer{PropertyKey: "demo", ResourceDir: "demo", URLForm: "oci"}
+			bundle := validFixtureBundle(t, root)
+			catalog.ConsoleMarketplace.Bundles["demo"] = bundle
+			if name == "file" {
+				source := filepath.Join(root, "market", "README.md")
+				outside := filepath.Join(root, "outside.md")
+				mustWrite(t, outside, string(mustRead(t, source)))
+				if err := os.Remove(source); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, source); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				market := filepath.Join(root, "market")
+				reviewed := filepath.Join(root, "reviewed")
+				if err := os.Rename(market, reviewed); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(reviewed, market); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := writeCanonical(catalogPath, catalog); err != nil {
+				t.Fatal(err)
+			}
+			if err := validateCatalog(root, catalogPath); err == nil || !strings.Contains(err.Error(), "symlink") {
+				t.Fatalf("Console marketplace %s symlink must fail closed, got %v", name, err)
+			}
+		})
+	}
+}
+
+func TestRealHMACConsoleSpecAllowsDisablingClockSkewValidation(t *testing.T) {
+	data := mustRead(t, filepath.Join("..", "..", "plugins/release/console/hmac-auth-apisix/spec.yaml"))
+	text := string(data)
+	if !strings.Contains(text, "        clock_skew:\n          type: integer\n          minimum: 0\n          default: 300") {
+		t.Fatal("hmac-auth-apisix Console schema must allow clock_skew=0 to disable timestamp validation")
+	}
+}
+
 func TestRealConsoleRecoveryManifestBindsUnchangedSnapshot(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", ".."))
 	manifest := filepath.Join(root, "plugins/release/console-recovery/2.2.4.json")

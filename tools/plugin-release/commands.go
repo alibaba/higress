@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -320,7 +321,7 @@ func validateConsoleMarketplaceBundle(root string, p Plugin, bundle ConsoleMarke
 			return fmt.Errorf("%s: invalid SHA-256 for Console marketplace target %q", p.LogicalID, file.TargetPath)
 		}
 		if bundle.Repository == "higress-group/higress" {
-			data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(file.SourcePath)))
+			data, err := readRepositoryFileWithoutSymlinks(root, file.SourcePath)
 			if err != nil {
 				return fmt.Errorf("%s: read Console marketplace source %q: %w", p.LogicalID, file.SourcePath, err)
 			}
@@ -342,6 +343,66 @@ func validateConsoleMarketplaceBundle(root string, p Plugin, bundle ConsoleMarke
 		}
 	}
 	return nil
+}
+
+func readRepositoryFileWithoutSymlinks(root, relative string) ([]byte, error) {
+	if !safeRepositoryPath(relative) {
+		return nil, fmt.Errorf("unsafe repository path %q", relative)
+	}
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
+	checkPath := func() (os.FileInfo, string, error) {
+		rootInfo, err := os.Lstat(absRoot)
+		if err != nil {
+			return nil, "", err
+		}
+		if rootInfo.Mode()&os.ModeSymlink != 0 || !rootInfo.IsDir() {
+			return nil, "", errors.New("repository root must be a real directory")
+		}
+		current := absRoot
+		var info os.FileInfo
+		parts := strings.Split(relative, "/")
+		for i, part := range parts {
+			current = filepath.Join(current, part)
+			info, err = os.Lstat(current)
+			if err != nil {
+				return nil, "", err
+			}
+			if info.Mode()&os.ModeSymlink != 0 {
+				return nil, "", fmt.Errorf("repository path %q contains a symlink", relative)
+			}
+			if i < len(parts)-1 && !info.IsDir() {
+				return nil, "", fmt.Errorf("repository path %q has a non-directory component", relative)
+			}
+		}
+		if info == nil || !info.Mode().IsRegular() {
+			return nil, "", fmt.Errorf("repository path %q is not a regular file", relative)
+		}
+		return info, current, nil
+	}
+	before, path, err := checkPath()
+	if err != nil {
+		return nil, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	after, afterPath, err := checkPath()
+	if err != nil {
+		return nil, err
+	}
+	if path != afterPath || !os.SameFile(before, opened) || !os.SameFile(after, opened) {
+		return nil, fmt.Errorf("repository path %q changed while it was validated", relative)
+	}
+	return io.ReadAll(file)
 }
 
 func safeRepositoryPath(path string) bool {

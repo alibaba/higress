@@ -52,7 +52,7 @@ spec:
             enum: [hmac-sha1, hmac-sha256, hmac-sha512]
         clock_skew:
           type: integer
-          minimum: 1
+          minimum: 0
           default: 300
         signed_headers:
           type: array
