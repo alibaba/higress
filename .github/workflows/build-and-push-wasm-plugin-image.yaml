@@ -136,7 +136,7 @@ jobs:
           GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -o plugin.wasm .
           tar czvf plugin.tar.gz plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${target_image} ${push_command} || echo "WARN: version tag push failed (immutable tag?), continuing with latest"
+          oras push ${target_image} ${push_command} || echo version-tag-push-failed-continue
           oras push ${target_image_latest} ${push_command}
           "
           elif [ "${PLUGIN_TYPE}" == "rust" ]; then
@@ -152,7 +152,7 @@ jobs:
           cp target/wasm32-wasip1/release/*.wasm plugin.wasm
           tar czvf plugin.tar.gz plugin.wasm
           echo ${{ secrets.REGISTRY_PASSWORD }} | oras login -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin ${{ env.IMAGE_REGISTRY_SERVICE }}
-          oras push ${target_image} ${push_command} || echo "WARN: version tag push failed (immutable tag?), continuing with latest"
+          oras push ${target_image} ${push_command} || echo version-tag-push-failed-continue
           oras push ${target_image_latest} ${push_command}
           "
           else
