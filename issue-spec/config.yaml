@@ -12,6 +12,15 @@ rules:
     implementation starts only after explicit Higress maintainer approval of
     Proposal and Design Issues. The approved Design and authorized
     implementation TASKs provide implementation lineage to applicable SPECs.
+    A canonical-repository maintainer or administrator may use the documented
+    verified exception only after the GitHub.com gh-authenticated identity and
+    collaborator-permission `role_name` is maintain or admin, and the PR
+    author matches that login; the PR records its number or URL, login, returned
+    role_name, PR author, positive token-override attestation, and bypass
+    rationale. Every verification failure, missing result, or mismatch makes the
+    exception unavailable; the accepting or merging maintainer independently
+    validates current live evidence with token overrides unset. This does not
+    waive bug-fix runtime verification.
   verification: >-
     The Design contains a concrete Verification Plan before implementation
     verification begins. Corresponding verification TASKs are completed with
@@ -28,9 +37,9 @@ rules:
   enforcement_boundary: >-
     The CLI validates workflow configuration, canonical artifacts, and declared
     lineage. Maintainers use the pull-request author declaration to enforce
-    applicability, human approval, evidence quality, review priority, review,
-    and merge; this configuration neither infers hidden agent use nor grants
-    approval or merge authority.
+    applicability, human approval, evidence quality, verified-exception
+    appropriateness, review priority, review, and merge; this configuration
+    neither infers hidden agent use nor grants approval or merge authority.
 references:
   - docs/developers/agent-assisted-contributions.md
   - docs/developers/wasm-runtime-verification/README.md

@@ -43,7 +43,16 @@ Disclose the prompts or instructions given to the agent and provide an
 AI-assisted work summary in the pull request template, with secrets and
 sensitive data removed. Human-only work is outside this agent gate. The narrow
 trivial-edit exception is defined in the canonical policy and must be declared
-when used.
+when used. A canonical-repository maintainer or administrator may use the
+verified maintainer/administrator exception only after completing the canonical
+policy's authenticated `gh` identity and collaborator-permission checks and
+recording the login, returned `role_name` of `maintain` or `admin`, and bypass
+rationale in the PR. The current PR author must match the verified login. This
+must include a positive attestation that both `GH_TOKEN` and `GITHUB_TOKEN`
+were unset for every verification command and fail closed on a missing, failed,
+or mismatched check; the accepting or merging maintainer independently validates
+current live evidence with token overrides unset. This does not waive bug-fix
+runtime verification.
 
 ## Optional durable capability specs
 

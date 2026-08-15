@@ -32,6 +32,61 @@ request. Human-only contributions are outside the mandatory planning gate, but
 human-only bug fixes remain subject to the runtime-verification requirements
 below.
 
+### Verified maintainer or administrator exception
+
+A repository maintainer or administrator may elect to bypass the mandatory
+planning and traceability gate for a materially agent-assisted contribution.
+This is a role-based exception, not an exception to disclosure, review, merge,
+or runtime-verification requirements. It does not apply merely because an
+author claims a role or has write access to a fork.
+
+Before relying on this exception, the author must use an authenticated GitHub
+CLI session to verify both identity and permission against the canonical
+repository:
+
+```bash
+set -euo pipefail
+env -u GH_TOKEN -u GITHUB_TOKEN gh auth status --hostname github.com
+LOGIN=$(env -u GH_TOKEN -u GITHUB_TOKEN \
+  gh api --hostname github.com user --jq .login)
+ROLE=$(env -u GH_TOKEN -u GITHUB_TOKEN gh api --hostname github.com \
+  "repos/higress-group/higress/collaborators/${LOGIN}/permission" \
+  --jq .role_name)
+case "$ROLE" in
+  maintain|admin) printf 'login=%s role_name=%s\n' "$LOGIN" "$ROLE" ;;
+  *) printf 'ineligible canonical-repository role_name: %s\n' "$ROLE" >&2; exit 1 ;;
+esac
+# After creating this PR but before requesting review, set its number:
+PR=123
+PR_AUTHOR=$(env -u GH_TOKEN -u GITHUB_TOKEN gh pr view "$PR" \
+  --repo higress-group/higress --json author --jq .author.login)
+test "$PR_AUTHOR" = "$LOGIN" || {
+  printf 'verified login %s does not match PR author %s\n' "$LOGIN" "$PR_AUTHOR" >&2
+  exit 1
+}
+```
+
+The returned `role_name` must be `maintain` or `admin`, and the actual author
+of that PR must match `LOGIN` before review is requested. The explicit
+environment unsets ensure verification uses the GitHub.com account configured by
+`gh auth`, not a transient `GH_TOKEN` or `GITHUB_TOKEN` override. Record the
+current PR number or URL, authenticated login, returned `role_name`, PR author,
+an attestation that both `GH_TOKEN` and `GITHUB_TOKEN` were unset for every
+verification command, and bypass rationale in the pull request without
+credentials or tokens. Select the verified-maintainer/administrator exception
+and the corresponding verified-exception gate status in the PR template. A
+maintainer or administrator may still require the normal workflow for any
+contribution. All bug-fix PRs, including those using this exception, must meet
+the runtime-verification requirements below.
+The PR declaration is evidence, not authority. Before accepting this exception
+or merging the PR, the reviewing or merging maintainer must independently use
+an authenticated GitHub.com `gh` session with `GH_TOKEN` and `GITHUB_TOKEN`
+unset to query the actual PR author and that author's current canonical-
+repository `role_name`. The maintainer must confirm that the result is
+`maintain` or `admin` and that the PR author matches the recorded authenticated
+login. A missing, stale, failed, or mismatched result makes the exception
+unavailable and the normal issue-spec gate applies. This is a review-time
+governance check, not a CI classifier or a grant of merge authority.
 ## Mandatory planning and traceability gate
 
 When material participation applies, the contribution **must enter the Higress
@@ -53,7 +108,10 @@ issue-spec workflow before implementation begins**:
 
 Every PR that used an AI or coding agent must disclose the prompts or
 instructions and provide an AI-assisted work summary covering key decisions,
-major changes, and important limitations.
+major changes, and important limitations. A verified maintainer or administrator
+using the exception above must also record the `gh` identity/`role_name` result,
+actual PR author, token-override attestation, and bypass rationale. The
+accepting or merging maintainer independently validates the live evidence.
 
 Agent-assisted PRs that declare material participation but do not satisfy this
 gate receive low review priority, and timely maintainer review is not
@@ -187,6 +245,7 @@ can only add constraints within those steps.
 
 Maintainers enforce whether this policy applies, whether Proposal and Design
 approval is sufficient, whether TASK authorization and evidence are credible,
+whether the verified maintainer or administrator exception is appropriate,
 review priority, provider-native checks, review, and merge. The CLI does not
 grant maintainer approval, infer undisclosed agent use, judge evidence quality,
 or confer merge authority. `.issue-spec/config.json` remains connection/profile
@@ -249,7 +308,7 @@ must pin the affected or otherwise relevant release.
 
 Concrete plugin-local references remain useful when adapting the generic
 harness, including the
-[Wasm Go custom-response example](../../plugins/wasm-go/extensions/custom-response/docker-compose.yaml)
+[Wasm Go custom-response example](../../plugins/wasm-go/examples/custom-response/docker-compose.yaml)
 and the
 [Wasm Rust SSE timing example](../../plugins/wasm-rust/example/sse-timing/docker-compose.yaml).
 
