@@ -91,6 +91,25 @@ jobs:
 
           echo "PUSH_COMMAND=\"$push_command\"" >> $GITHUB_ENV
 
+      - name: Force-delete existing version tag before recovery push
+        run: |
+          REGISTRY="${{ env.IMAGE_REGISTRY_SERVICE }}"
+          REPO="${{ env.IMAGE_REPOSITORY }}/${{ env.PLUGIN_NAME }}"
+          AUTH=$(curl -s -o /dev/null -D - "https://${REGISTRY}/v2/" | grep -i www-authenticate | tr -d '\r')
+          REALM=$(echo "$AUTH" | sed -E 's/.*realm="([^"]+)".*/\1/')
+          SERVICE=$(echo "$AUTH" | sed -E 's/.*service="([^"]+)".*/\1/')
+          echo "realm=$REALM service=$SERVICE"
+          TOKEN=$(curl -s -u "${{ secrets.REGISTRY_USERNAME }}:${{ secrets.REGISTRY_PASSWORD }}" "${REALM}?service=${SERVICE}&scope=repository:${REPO}:pull,push" | jq -r .token)
+          for TAG in "${{ env.VERSION }}" "latest"; do
+            DIGEST=$(curl -s -H "Authorization: Bearer ${TOKEN}" -H "Accept: application/vnd.oci.image.manifest.v1+json" "https://${REGISTRY}/v2/${REPO}/manifests/${TAG}" -o /dev/null -D - | grep -i docker-content-digest | tr -d '\r' | awk '{print $2}')
+            if [ -n "$DIGEST" ]; then
+              CODE=$(curl -s -X DELETE -H "Authorization: Bearer ${TOKEN}" -H "Accept: application/vnd.oci.image.manifest.v1+json" "https://${REGISTRY}/v2/${REPO}/manifests/${DIGEST}" -o /dev/null -w "%{http_code}")
+              echo "DELETE ${REPO}:${TAG} ${DIGEST} -> HTTP ${CODE}"
+            else
+              echo "no existing manifest for ${REPO}:${TAG}"
+            fi
+          done
+
       - name: Run a wasm-builder
         env:
           PLUGIN_NAME: ${{ env.PLUGIN_NAME }}
