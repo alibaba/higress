@@ -96,6 +96,24 @@ jobs:
           APPROVED_EVIDENCE_SHA256: ${{ inputs.approved_readiness_evidence_sha256 }}
         run: |
           set -euo pipefail
+          # BEGIN plugin-server-index-contract
+          verify_plugin_server_index() {
+            jq -e '
+              def runnable: (.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64"));
+              [.manifests[] | select(runnable)] as $runnable |
+              [.manifests[] | select(runnable | not)] as $extra |
+              (([$runnable[] | .platform.os + "/" + .platform.architecture] | sort) == ["linux/amd64","linux/arm64"]) and
+              (($runnable | length) == 2) and
+              (($extra | length) == 0 or
+                (($extra | length) == 2 and
+                 all($extra[];
+                   .mediaType == "application/vnd.oci.image.manifest.v1+json" and
+                   .platform.os == "unknown" and .platform.architecture == "unknown" and
+                   .annotations["vnd.docker.reference.type"] == "attestation-manifest") and
+                 (([$extra[].annotations["vnd.docker.reference.digest"]] | sort) == ([$runnable[].digest] | sort))))
+            ' "$1" >/dev/null
+          }
+          # END plugin-server-index-contract
           [[ "$GATEWAY_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "$RELEASE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           [[ "$PLUGIN_SERVER_COMMIT" =~ ^[0-9a-f]{40}$ ]]
@@ -162,7 +180,7 @@ jobs:
           jq -e '.layers | length == 1 and .[0].mediaType == "application/vnd.cncf.helm.chart.content.v1.tar+gzip"' /tmp/console-chart-oci-manifest.json >/dev/null
           console_chart_layer=$(jq -er '.layers[0].digest' /tmp/console-chart-oci-manifest.json)
           [[ "$console_chart_layer" =~ ^sha256:[0-9a-f]{64}$ ]]
-          oras blob fetch "$console_chart_repo@$CONSOLE_CHART_DIGEST" "$console_chart_layer" -o /tmp/console-chart-oci.tgz
+          oras blob fetch "$console_chart_repo@$console_chart_layer" -o /tmp/console-chart-oci.tgz
           CONSOLE_CHART_PACKAGE_SHA256=$(sha256sum "$CONSOLE_HTTP_CHART" | awk '{print $1}')
           test "sha256:$CONSOLE_CHART_PACKAGE_SHA256" = "$console_chart_layer"
           test "$(sha256sum /tmp/console-chart-oci.tgz | awk '{print $1}')" = "$CONSOLE_CHART_PACKAGE_SHA256"
@@ -177,17 +195,17 @@ jobs:
           jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg image "$PLUGIN_SERVER_IMAGE" \
             '.pluginLock.pluginServerCommit == $plugin and .pluginLock.pluginServerImage == $image' \
             /tmp/console-provenance.json >/dev/null
-          oras manifest fetch "$PLUGIN_SERVER_IMAGE" --raw >/tmp/plugin-server-index.json
-          jq -e '.manifests | length == 2 and ([.[] | .platform.os + "/" + .platform.architecture] | sort == ["linux/amd64","linux/arm64"])' /tmp/plugin-server-index.json >/dev/null
+          oras manifest fetch "$PLUGIN_SERVER_IMAGE" >/tmp/plugin-server-index.json
+          verify_plugin_server_index /tmp/plugin-server-index.json
           PLUGIN_SERVER_HIGRESS_COMMIT=""
           while IFS=$'\t' read -r platform child; do
             manifest=$(oras manifest fetch "$plugin_server_repo@$child"); config=$(jq -er .config.digest <<<"$manifest")
-            labels=$(oras blob fetch "$plugin_server_repo@$child" "$config" -o - | jq -c '.config.Labels // {}')
+            labels=$(oras blob fetch "$plugin_server_repo@$config" -o - | jq -c '.config.Labels // {}')
             child_higress_commit=$(jq -er '."io.higress.higress-source-commit"' <<<"$labels")
             [[ "$child_higress_commit" =~ ^[0-9a-f]{40}$ ]]
             if [ -z "$PLUGIN_SERVER_HIGRESS_COMMIT" ]; then PLUGIN_SERVER_HIGRESS_COMMIT=$child_higress_commit; else test "$child_higress_commit" = "$PLUGIN_SERVER_HIGRESS_COMMIT"; fi
             jq -e --arg plugin "$PLUGIN_SERVER_COMMIT" --arg snapshot "$SNAPSHOT_SHA256" --arg version "$GATEWAY_VERSION" '."org.opencontainers.image.revision" == $plugin and ."io.higress.plugin-snapshot-sha256" == $snapshot and ."io.higress.gateway-version" == $version' <<<"$labels" >/dev/null
-          done < <(jq -r '.manifests[] | [(.platform.os + "/" + .platform.architecture), .digest] | @tsv' /tmp/plugin-server-index.json)
+          done < <(jq -r '.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) | [(.platform.os + "/" + .platform.architecture), .digest] | @tsv' /tmp/plugin-server-index.json)
           [[ "$PLUGIN_SERVER_HIGRESS_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           git merge-base --is-ancestor "$PLUGIN_SERVER_HIGRESS_COMMIT" "$RELEASE_COMMIT"
           git show "$PLUGIN_SERVER_HIGRESS_COMMIT:$SNAPSHOT_PATH" > /tmp/plugin-server-source-snapshot.json
@@ -245,4 +263,6 @@ jobs:
           fi
           [[ -z "$existing" || "$existing" =~ ^[0-9a-f]{40}$ ]]
           if [ -n "$existing" ] && [ "$existing" != "$RELEASE_COMMIT" ]; then echo "immutable tag conflict: $tag" >&2; exit 1; fi
+          git config user.name "higress-release-manager[bot]"
+          git config user.email "higress-release-manager[bot]@users.noreply.github.com"
           if [ -z "$existing" ]; then git tag -a "$tag" "$RELEASE_COMMIT" -m "Higress $tag"; git push origin "refs/tags/$tag"; fi

@@ -126,7 +126,8 @@ jobs:
           # before accepting that already-complete state.
           if marker_descriptor=$(descriptor_or_absent "$marker"); then
             marker_layer=$(oras manifest fetch "$marker" | jq -er '.layers[] | select(.mediaType == "application/vnd.higress.plugin-release-batch.v1+json") | .digest')
-            oras blob fetch "$marker" "$marker_layer" -o /tmp/existing-latest-marker.json
+            marker_repo=${marker%:*}
+            oras blob fetch "$marker_repo@$marker_layer" -o /tmp/existing-latest-marker.json
             jq -e --arg sha "$SNAPSHOT_SHA256" '.snapshotSha256 == $sha and .phase == "latest-complete" and (.entries | length > 0)' /tmp/existing-latest-marker.json >/dev/null
             jq -c '.entries[]' /tmp/existing-latest-marker.json | while read -r entry; do
               test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
@@ -225,7 +226,8 @@ jobs:
           # make no mutable registry write on this retry.
           if marker_descriptor=$(descriptor_or_absent "$marker"); then
             marker_layer=$(oras manifest fetch "$marker" | jq -er '.layers[] | select(.mediaType == "application/vnd.higress.plugin-release-batch.v1+json") | .digest')
-            oras blob fetch "$marker" "$marker_layer" -o "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
+            marker_repo=${marker%:*}
+            oras blob fetch "$marker_repo@$marker_layer" -o "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
             jq -e --arg sha "$SNAPSHOT_SHA256" '.snapshotSha256 == $sha and .phase == "latest-complete" and (.entries | length > 0)' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" >/dev/null
             jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do
               test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"
@@ -236,15 +238,36 @@ jobs:
             status=$?
             test "$status" = 1 || exit "$status"
           fi
+          # BEGIN promotion-latest-contract
           # The latest phase has a separate all-or-nothing preflight: no
           # latest tag is written until every promoted version exists and every
           # current latest value has passed the monotonicity check. Every
           # selected stable plugin participates, including historical bootstrap
           # backfill entries: backfill is provenance/migration state, not an
           # exclusion from the serialized monotonic latest policy.
+          # A committed bootstrap marker enables one migration-only exception
+          # for legacy latest aliases that predate version annotations. The
+          # exact evidence bytes were already verified by verify-snapshot in
+          # the prerequisite job; rechecking the marker and binding each alias
+          # to its logical ID and expected image keeps this exception
+          # snapshot-local. Legacy latest is mutable and unannotated, so
+          # neither the evidence version nor digest is attributed to that
+          # otherwise unclassified alias.
+          gateway=$(jq -er .gatewayVersion "$SNAPSHOT_PATH")
+          bootstrap_evidence_path=$(jq -r '.bootstrapEvidence.path // empty' "$SNAPSHOT_PATH")
+          bootstrap_latest_migration=false
+          if [ -n "$bootstrap_evidence_path" ]; then
+            test "$bootstrap_evidence_path" = "plugins/release/bootstrap-evidence/$gateway.json"
+            [[ "$bootstrap_evidence_path" =~ ^plugins/release/bootstrap-evidence/[0-9]+\.[0-9]+\.[0-9]+\.json$ ]]
+            test -f "$bootstrap_evidence_path"
+            bootstrap_evidence_sha=$(jq -er '.bootstrapEvidence.sha256' "$SNAPSHOT_PATH")
+            [[ "$bootstrap_evidence_sha" =~ ^[0-9a-f]{64}$ ]]
+            test "$(sha256sum "$bootstrap_evidence_path" | awk '{print $1}')" = "$bootstrap_evidence_sha"
+            bootstrap_latest_migration=true
+          fi
           jq -n --arg sha "$SNAPSHOT_SHA256" '{snapshotSha256:$sha,phase:"latest-preflight",entries:[]}' > "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
           while read -r entry; do
-            ref=$(jq -r .ociRef <<<"$entry"); digest=$(jq -r .digest <<<"$entry")
+            id=$(jq -r .logicalId <<<"$entry"); ref=$(jq -r .ociRef <<<"$entry"); digest=$(jq -r .digest <<<"$entry")
             test "$(oras manifest fetch "$ref" --descriptor | jq -r .digest)" = "$digest"
             version=$(jq -r .version <<<"$entry")
             image=${ref%:*}; latest="$image:latest"
@@ -256,12 +279,28 @@ jobs:
                 old=""; state=identical
               else
                 old=$(oras manifest fetch "$latest" --format json | jq -r '.annotations["org.opencontainers.image.version"] // empty')
-                test -n "$old" || { echo "existing latest lacks a stable version annotation: $latest" >&2; exit 1; }
-                (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
-                if [ "$old" = "$version" ]; then
-                  echo "latest alias conflict: $latest serves $old at $old_digest, snapshot requires $digest" >&2; exit 1
+                if [ -z "$old" ]; then
+                  test "$bootstrap_latest_migration" = true || { echo "existing latest lacks a stable version annotation outside a verified bootstrap snapshot: $latest" >&2; exit 1; }
+                  bootstrap_entry=$(jq -cer --arg id "$id" '.plugins[$id] | select(.status == "public" or .status == "missing")' "$bootstrap_evidence_path") || { echo "bootstrap evidence does not authorize unclassified legacy latest replacement: $id" >&2; exit 1; }
+                  bootstrap_status=$(jq -er .status <<<"$bootstrap_entry")
+                  bootstrap_version=$(jq -er .version <<<"$bootstrap_entry")
+                  test "$(jq -er .publicRef <<<"$bootstrap_entry")" = "$image:$bootstrap_version" || { echo "bootstrap evidence public reference does not match latest image: $id" >&2; exit 1; }
+                  if [ "$bootstrap_status" = public ]; then
+                    [[ "$(jq -er .digest <<<"$bootstrap_entry")" =~ ^sha256:[0-9a-f]{64}$ ]]
+                    (cd tools/plugin-release && go run . semver-compare --current "$bootstrap_version" --candidate "$version")
+                    test "$bootstrap_version" != "$version" || { echo "latest alias conflict: $latest is unannotated and bootstrap does not authorize replacing the same stable version" >&2; exit 1; }
+                  else
+                    test "$bootstrap_version" = "$version" || { echo "missing bootstrap entry version does not match selected plugin version: $id" >&2; exit 1; }
+                    test -z "$(jq -r '.digest // empty' <<<"$bootstrap_entry")" || { echo "missing bootstrap entry unexpectedly carries a digest: $id" >&2; exit 1; }
+                  fi
+                  old=""; state=bootstrap-replace-unclassified
+                else
+                  (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
+                  if [ "$old" = "$version" ]; then
+                    echo "latest alias conflict: $latest serves $old at $old_digest, snapshot requires $digest" >&2; exit 1
+                  fi
+                  state=replace
                 fi
-                state=replace
               fi
             else
               status=$?
@@ -276,6 +315,7 @@ jobs:
           jq -c '.entries[] | select(.preflight != "identical")' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do ref=$(jq -r .ref <<<"$entry"); oras cp "${ref%:*}@$(jq -r .digest <<<"$entry")" "$(jq -r .latest <<<"$entry")"; done
           jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
           jq '.phase="latest-complete"' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
+          # END promotion-latest-contract
           # The registry marker is the cross-workflow completion gate. Its
           # immutable content is the fully reverified version/latest batch.
           # The workflow concurrency key serializes a snapshot promotion. Do
@@ -283,13 +323,15 @@ jobs:
           # collision never gets overwritten.
           if marker_descriptor=$(descriptor_or_absent "$marker"); then
             marker_layer=$(oras manifest fetch "$marker" | jq -er '.layers[] | select(.mediaType == "application/vnd.higress.plugin-release-batch.v1+json") | .digest')
-            oras blob fetch "$marker" "$marker_layer" -o /tmp/racing-latest-marker.json
+            marker_repo=${marker%:*}
+            oras blob fetch "$marker_repo@$marker_layer" -o /tmp/racing-latest-marker.json
             cmp /tmp/racing-latest-marker.json "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" || { echo "immutable latest marker conflict" >&2; exit 1; }
             marker_digest=$(jq -er .digest <<<"$marker_descriptor")
           else
             status=$?
             test "$status" = 1 || exit "$status"
-            marker_digest=$(oras push "$marker" "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json:application/vnd.higress.plugin-release-batch.v1+json" --format json | jq -r .digest)
+            marker_journal="plugin-release-latest-$SNAPSHOT_SHA256.json"
+            marker_digest=$(cd /tmp && oras push "$marker" "$marker_journal:application/vnd.higress.plugin-release-batch.v1+json" --format json | jq -r .digest)
           fi
           jq --arg ref "$marker" --arg digest "$marker_digest" '.completionMarker={ref:$ref,digest:$digest}' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
       - name: Persist complete latest batch journal
