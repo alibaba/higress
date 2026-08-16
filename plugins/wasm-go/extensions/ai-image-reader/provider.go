@@ -40,6 +40,7 @@ type ProviderConfig struct {
 	// @Title zh-CN 文字识别服务使用的模型
 	// @Description zh-CN 用于文字识别的模型名称, 在 DashScope 中默认为 "qwen-vl-ocr"
 	model string
+	apiKey string
 
 	initializer providerInitializer
 }
@@ -56,6 +57,7 @@ func (c *ProviderConfig) FromJson(json gjson.Result) {
 	c.servicePort = json.Get("servicePort").Int()
 	c.timeout = uint32(json.Get("timeout").Int())
 	c.model = json.Get("model").String()
+	c.apiKey = json.Get("apiKey").String()
 	if c.timeout == 0 {
 		c.timeout = 10000
 	}
@@ -74,6 +76,9 @@ func (c *ProviderConfig) Validate() error {
 	if c.initializer == nil {
 		return errors.New("unknown ocr service provider type: " + c.typ)
 	}
+	if c.typ == ProviderTypeDashscope && c.apiKey == "" {
+		return errors.New("[DashScope] apiKey is required")
+	}
 	if err := c.initializer.ValidateConfig(); err != nil {
 		return err
 	}
@@ -85,6 +90,9 @@ func (c *ProviderConfig) GetProviderType() string {
 }
 
 func CreateProvider(pc ProviderConfig) (Provider, error) {
+	if pc.initializer != nil {
+		return pc.initializer.CreateProvider(pc)
+	}
 	initializer, has := providerInitializers[pc.typ]
 	if !has {
 		return nil, errors.New("unknown provider type: " + pc.typ)

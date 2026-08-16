@@ -56,19 +56,15 @@ type content struct {
 	Text      string   `json:"text,omitempty"`
 }
 
-var dashScopeConfig dashScopeProviderConfig
 
 type dashScopeProviderInitializer struct {
 }
 
 func (d *dashScopeProviderInitializer) InitConfig(json gjson.Result) {
-	dashScopeConfig.apiKey = json.Get("apiKey").String()
+	_ = json
 }
 
 func (d *dashScopeProviderInitializer) ValidateConfig() error {
-	if dashScopeConfig.apiKey == "" {
-		return errors.New("[DashScope] apiKey is required")
-	}
 	return nil
 }
 
@@ -81,6 +77,7 @@ func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provide
 	}
 	return &DSProvider{
 		config: c,
+		apiKey: c.apiKey,
 		client: wrapper.NewClusterClient(wrapper.FQDNCluster{
 			FQDN: c.serviceName,
 			Host: c.serviceHost,
@@ -89,14 +86,9 @@ func (d *dashScopeProviderInitializer) CreateProvider(c ProviderConfig) (Provide
 	}, nil
 }
 
-type dashScopeProviderConfig struct {
-	// @Title zh-CN 文字识别服务 API Key
-	// @Description zh-CN 文字识别服务 API Key
-	apiKey string
-}
-
 type DSProvider struct {
 	config ProviderConfig
+	apiKey string
 	client wrapper.HttpClient
 }
 
@@ -133,7 +125,7 @@ func (d *DSProvider) CallArgs(imageUrl string) CallArgs {
 		Url:    DashscopeEndpoint,
 		Headers: [][2]string{
 			{"Content-Type", "application/json"},
-			{"Authorization", fmt.Sprintf("Bearer %s", dashScopeConfig.apiKey)},
+			{"Authorization", fmt.Sprintf("Bearer %s", d.apiKey)},
 		},
 		Body:               body,
 		TimeoutMillisecond: d.config.timeout,
