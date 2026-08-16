@@ -74,12 +74,21 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 	if err != nil {
 		return err
 	}
+	overlayYAML, err := helm.GetProfileOverlay(valuesOverlay, setFlags)
+	if err != nil {
+		return err
+	}
 
 	profileContext := promptProfileContexts(writer, profileContexts)
 
 	_, profile, err := helm.GenProfileFromProfileContent(util.ToYAML(profileContext.Profile), valuesOverlay, setFlags)
 	if err != nil {
 		return err
+	}
+	if profileContext.Profile.Global.Install == helm.InstallLocalDocker {
+		if err := validateLocalDockerUpgradeOverlay(profileContext.Profile, overlayYAML); err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprintf(writer, "\n🧐 Validating Profile: \"%s\" \n", profileContext.PathOrName)
@@ -102,6 +111,17 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 		_ = os.Remove(oldProfileName)
 	}
 
+	return nil
+}
+
+func validateLocalDockerUpgradeOverlay(baseline *helm.Profile, overlayYAML string) error {
+	unsupported, err := helm.UnsupportedLocalDockerUpgradeOverlayPaths(baseline, overlayYAML)
+	if err != nil {
+		return err
+	}
+	if len(unsupported) > 0 {
+		return fmt.Errorf("local-docker upgrade does not support overlay fields: %s", strings.Join(unsupported, ", "))
+	}
 	return nil
 }
 
