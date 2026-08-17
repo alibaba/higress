@@ -15,9 +15,12 @@
 package hgctl
 
 import (
+	"fmt"
+	"io"
 	"testing"
 
 	"github.com/alibaba/higress/hgctl/pkg/helm"
+	"github.com/alibaba/higress/hgctl/pkg/installer"
 )
 
 func TestValidateLocalDockerUpgradeOverlay(t *testing.T) {
@@ -31,5 +34,116 @@ func TestValidateLocalDockerUpgradeOverlay(t *testing.T) {
 	}
 	if err := validateLocalDockerUpgradeOverlay(baseline, "charts:\n  standalone:\n    url: https://example.com/get-higress.sh\n"); err != nil {
 		t.Fatalf("validateLocalDockerUpgradeOverlay() allowed URL error = %v", err)
+	}
+}
+
+type recordingUpgradeInstaller struct {
+	upgraded bool
+}
+
+func (i *recordingUpgradeInstaller) Install() error   { return nil }
+func (i *recordingUpgradeInstaller) UnInstall() error { return nil }
+func (i *recordingUpgradeInstaller) Upgrade() error {
+	i.upgraded = true
+	return nil
+}
+
+func newLocalDockerProfile(installPackagePath string) *helm.Profile {
+	return &helm.Profile{
+		InstallPackagePath: installPackagePath,
+		Global:             helm.ProfileGlobal{Install: helm.InstallLocalDocker},
+		Console:            helm.ProfileConsole{Port: 8001},
+		Gateway: helm.ProfileGateway{
+			HttpPort:    80,
+			HttpsPort:   443,
+			MetricsPort: 15020,
+		},
+		Storage: helm.ProfileStorage{
+			Url: "file:///tmp/higress-storage",
+			Ns:  "higress-system",
+		},
+	}
+}
+
+func TestUpgradeRejectsLocalDockerOverlayBeforeInstallerConstruction(t *testing.T) {
+	originalProfiles := getAllProfilesForUpgrade
+	originalPrompt := promptUpgradeForUpgrade
+	originalNewInstaller := newInstallerForUpgrade
+	t.Cleanup(func() {
+		getAllProfilesForUpgrade = originalProfiles
+		promptUpgradeForUpgrade = originalPrompt
+		newInstallerForUpgrade = originalNewInstaller
+	})
+
+	baseline := newLocalDockerProfile(t.TempDir())
+	getAllProfilesForUpgrade = func() ([]*installer.ProfileContext, error) {
+		return []*installer.ProfileContext{{Profile: baseline}}, nil
+	}
+
+	prompted := false
+	promptUpgradeForUpgrade = func(io.Writer) bool {
+		prompted = true
+		return true
+	}
+	constructed := false
+	newInstallerForUpgrade = func(*helm.Profile, io.Writer, bool, bool, installer.InstallerMode) (installer.Installer, error) {
+		constructed = true
+		return &recordingUpgradeInstaller{}, nil
+	}
+
+	err := upgrade(io.Discard, &InstallArgs{Set: []string{"gateway.httpPort=18080"}})
+	if err == nil {
+		t.Fatal("upgrade() error = nil, want unsupported overlay rejection")
+	}
+	if prompted {
+		t.Fatal("upgrade confirmation was reached after overlay rejection")
+	}
+	if constructed {
+		t.Fatal("installer was constructed after overlay rejection")
+	}
+}
+
+func TestUpgradeAllowsLocalDockerOperationalInputs(t *testing.T) {
+	tests := []struct {
+		name string
+		set  []string
+	}{
+		{name: "no overlay"},
+		{name: "install package path", set: []string{"installPackagePath=%s"}},
+		{name: "standalone URL", set: []string{"charts.standalone.url=https://example.com/get-higress.sh"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalProfiles := getAllProfilesForUpgrade
+			originalPrompt := promptUpgradeForUpgrade
+			originalNewInstaller := newInstallerForUpgrade
+			t.Cleanup(func() {
+				getAllProfilesForUpgrade = originalProfiles
+				promptUpgradeForUpgrade = originalPrompt
+				newInstallerForUpgrade = originalNewInstaller
+			})
+
+			baseline := newLocalDockerProfile(t.TempDir())
+			getAllProfilesForUpgrade = func() ([]*installer.ProfileContext, error) {
+				return []*installer.ProfileContext{{Profile: baseline}}, nil
+			}
+			promptUpgradeForUpgrade = func(io.Writer) bool { return true }
+			fakeInstaller := &recordingUpgradeInstaller{}
+			newInstallerForUpgrade = func(*helm.Profile, io.Writer, bool, bool, installer.InstallerMode) (installer.Installer, error) {
+				return fakeInstaller, nil
+			}
+
+			set := tt.set
+			if tt.name == "install package path" {
+				set = []string{fmt.Sprintf(tt.set[0], t.TempDir())}
+			}
+			if err := upgrade(io.Discard, &InstallArgs{Set: set}); err != nil {
+				t.Fatalf("upgrade() error = %v", err)
+			}
+			if !fakeInstaller.upgraded {
+				t.Fatal("installer Upgrade() was not called for an allowed local-docker input")
+			}
+		})
 	}
 }

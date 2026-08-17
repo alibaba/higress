@@ -33,6 +33,12 @@ type upgradeArgs struct {
 	*InstallArgs
 }
 
+var (
+	getAllProfilesForUpgrade = getAllProfiles
+	promptUpgradeForUpgrade  = promptUpgrade
+	newInstallerForUpgrade   = installer.NewInstaller
+)
+
 func addUpgradeFlags(cmd *cobra.Command, args *upgradeArgs) {
 	cmd.PersistentFlags().StringSliceVarP(&args.InFilenames, "filename", "f", nil, filenameFlagHelpStr)
 	cmd.PersistentFlags().StringArrayVarP(&args.Set, "set", "s", nil, setFlagHelpStr)
@@ -64,7 +70,7 @@ func newUpgradeCmd() *cobra.Command {
 func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 	setFlags := applyFlagAliases(iArgs.Set, iArgs.ManifestsPath)
 	fmt.Fprintf(writer, "⌛️ Checking higress installed profiles...\n")
-	profileContexts, _ := getAllProfiles()
+	profileContexts, _ := getAllProfilesForUpgrade()
 	if len(profileContexts) == 0 {
 		fmt.Fprintf(writer, "\nHigress hasn't been installed yet!\n")
 		return nil
@@ -97,7 +103,7 @@ func upgrade(writer io.Writer, iArgs *InstallArgs) error {
 		return err
 	}
 
-	if !promptUpgrade(writer) {
+	if !promptUpgradeForUpgrade(writer) {
 		return nil
 	}
 
@@ -142,7 +148,7 @@ func promptUpgrade(writer io.Writer) bool {
 }
 
 func upgradeManifests(profile *helm.Profile, writer io.Writer, devel bool) error {
-	installer, err := installer.NewInstaller(profile, writer, false, devel, installer.UpgradeInstallerMode)
+	installer, err := newInstallerForUpgrade(profile, writer, false, devel, installer.UpgradeInstallerMode)
 	if err != nil {
 		return err
 	}
