@@ -33,6 +33,7 @@ dependencies = [
 name = "ai-data-masking"
 version = "0.1.0"
 dependencies = [
+ "aho-corasick",
  "fancy-regex",
  "grok",
  "higress-wasm-rust",

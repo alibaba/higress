@@ -14,6 +14,7 @@
 
 use crate::deny_word::DenyWord;
 use crate::msg_win_openai::MsgWindow;
+use aho_corasick::{AhoCorasick, AhoCorasickBuilder, AhoCorasickKind, MatchKind};
 use fancy_regex::Regex;
 use grok::patterns;
 use higress_wasm_rust::log::Log;
@@ -61,6 +62,7 @@ struct AiDataMasking {
     weak: Weak<RefCell<Box<dyn HttpContextWrapper<AiDataMaskingConfig>>>>,
     config: Option<Rc<AiDataMaskingConfig>>,
     mask_map: HashMap<String, Option<String>>,
+    mask_restore: Option<MaskRestore>,
     is_openai: bool,
     is_openai_stream: Option<bool>,
     stream: bool,
@@ -148,6 +150,131 @@ struct Rule {
     restore: bool,
     #[serde(default)]
     value: String,
+}
+
+struct MaskRestore {
+    matcher: AhoCorasick,
+    replacements: Vec<String>,
+}
+
+impl MaskRestore {
+    fn from_map(
+        mask_map: &HashMap<String, Option<String>>,
+    ) -> Result<Option<Self>, aho_corasick::BuildError> {
+        let mut pairs: Vec<(String, String)> = mask_map
+            .iter()
+            .filter_map(|(masked, original)| {
+                original
+                    .as_ref()
+                    .map(|original| (masked.clone(), original.clone()))
+            })
+            .collect();
+        if pairs.is_empty() {
+            return Ok(None);
+        }
+        pairs.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+
+        let matcher = AhoCorasickBuilder::new()
+            .match_kind(MatchKind::LeftmostLongest)
+            .kind(Some(AhoCorasickKind::ContiguousNFA))
+            .build(pairs.iter().map(|(masked, _)| masked))?;
+        let replacements = pairs.into_iter().map(|(_, original)| original).collect();
+        Ok(Some(Self {
+            matcher,
+            replacements,
+        }))
+    }
+
+    fn restore(&self, message: &str) -> String {
+        let mut restored = String::with_capacity(message.len());
+        let mut last_end = 0;
+        for matched in self.matcher.find_iter(message) {
+            restored.push_str(&message[last_end..matched.start()]);
+            restored.push_str(&self.replacements[matched.pattern().as_usize()]);
+            last_end = matched.end();
+        }
+        if last_end == 0 {
+            return message.to_string();
+        }
+        restored.push_str(&message[last_end..]);
+        restored
+    }
+}
+
+fn record_restore_mapping(
+    mask_map: &mut HashMap<String, Option<String>>,
+    masked: String,
+    original: &str,
+) {
+    use std::collections::hash_map::Entry;
+
+    match mask_map.entry(masked) {
+        Entry::Vacant(entry) => {
+            entry.insert(Some(original.to_string()));
+        }
+        Entry::Occupied(mut entry) => match entry.get() {
+            Some(existing) if existing == original => {}
+            Some(_) => {
+                entry.insert(None);
+            }
+            None => {}
+        },
+    }
+}
+
+fn replace_rule_message(
+    rule: &Rule,
+    message: &str,
+    mask_map: &mut HashMap<String, Option<String>>,
+    byte_window_size: &mut usize,
+    char_window_size: &mut usize,
+) -> (String, usize) {
+    let mut replaced = String::with_capacity(message.len());
+    let mut last_end = 0;
+    let mut match_count = 0;
+
+    for captures in rule.regex.captures_iter(message) {
+        let captures = match captures {
+            Ok(captures) => captures,
+            Err(_) => continue,
+        };
+        let matched = captures.get(0).unwrap();
+        replaced.push_str(&message[last_end..matched.start()]);
+
+        let original = matched.as_str();
+        let masked = match rule.type_ {
+            Type::Hash => {
+                let digest = hmac_sha256::Hash::hash(original.as_bytes());
+                digest.iter().fold(String::new(), |mut output, byte| {
+                    let _ = write!(output, "{byte:02x}");
+                    output
+                })
+            }
+            Type::Replace => {
+                let mut expanded = String::new();
+                captures.expand(&rule.value, &mut expanded);
+                expanded
+            }
+        };
+
+        if rule.type_ == Type::Hash || rule.restore {
+            *byte_window_size = (*byte_window_size).max(masked.len());
+            *char_window_size = (*char_window_size).max(masked.chars().count());
+        }
+        if rule.restore && !masked.is_empty() {
+            record_restore_mapping(mask_map, masked.clone(), original);
+        }
+
+        replaced.push_str(&masked);
+        last_end = matched.end();
+        match_count += 1;
+    }
+
+    if match_count == 0 {
+        return (message.to_string(), 0);
+    }
+    replaced.push_str(&message[last_end..]);
+    (replaced, match_count)
 }
 fn default_deny_openai() -> bool {
     true
@@ -354,6 +481,7 @@ impl RootContextWrapper<AiDataMaskingConfig> for AiDataMaskingRoot {
         Some(Box::new(AiDataMasking {
             weak: Weak::default(),
             mask_map: HashMap::new(),
+            mask_restore: None,
             config: None,
             is_openai: false,
             is_openai_stream: None,
@@ -431,58 +559,42 @@ impl AiDataMasking {
     fn replace_request_msg(&mut self, message: &str) -> String {
         let config = self.config.as_ref().unwrap();
         let mut msg = message.to_string();
+        let mut match_count = 0;
         for rule in &config.replace_roles {
-            let mut replace_pair = Vec::new();
-            if rule.type_ == Type::Replace && !rule.restore {
-                msg = rule.regex.replace_all(&msg, &rule.value).to_string();
-            } else {
-                for mc in rule.regex.find_iter(&msg) {
-                    if mc.is_err() {
-                        continue;
-                    }
-                    let m = mc.unwrap();
-                    let from_word = m.as_str();
-
-                    let to_word = match rule.type_ {
-                        Type::Hash => {
-                            let digest = hmac_sha256::Hash::hash(from_word.as_bytes());
-                            digest.iter().fold(String::new(), |mut output, b| {
-                                let _ = write!(output, "{b:02x}");
-                                output
-                            })
-                        }
-                        Type::Replace => rule.regex.replace(from_word, &rule.value).to_string(),
-                    };
-                    if to_word.len() > self.byte_window_size {
-                        self.byte_window_size = to_word.len();
-                    }
-                    if to_word.chars().count() > self.char_window_size {
-                        self.char_window_size = to_word.chars().count();
-                    }
-
-                    replace_pair.push((from_word.to_string(), to_word.clone()));
-
-                    if rule.restore && !to_word.is_empty() {
-                        match self.mask_map.entry(to_word) {
-                            std::collections::hash_map::Entry::Occupied(mut e) => {
-                                e.insert(None);
-                            }
-                            std::collections::hash_map::Entry::Vacant(e) => {
-                                e.insert(Some(from_word.to_string()));
-                            }
-                        }
-                    }
-                }
-                for (from_word, to_word) in replace_pair {
-                    msg = msg.replace(&from_word, &to_word);
-                }
-            }
+            let (new_msg, rule_match_count) = replace_rule_message(
+                rule,
+                &msg,
+                &mut self.mask_map,
+                &mut self.byte_window_size,
+                &mut self.char_window_size,
+            );
+            msg = new_msg;
+            match_count += rule_match_count;
         }
         if msg != message {
-            self.log()
-                .debug(&format!("replace_request_msg from {} to {}", message, msg));
+            self.log().debug(&format!(
+                "replace_request_msg completed: input_bytes={}, output_bytes={}, matches={}",
+                message.len(),
+                msg.len(),
+                match_count
+            ));
         }
         msg
+    }
+
+    fn forward_request_body(&mut self, body: &str) -> DataAction {
+        match MaskRestore::from_map(&self.mask_map) {
+            Ok(mask_restore) => self.mask_restore = mask_restore,
+            Err(error) => {
+                self.log().error(&format!(
+                    "failed to build response restore matcher: {}",
+                    error
+                ));
+                return self.deny(false);
+            }
+        }
+        self.replace_http_request_body(body.as_bytes());
+        DataAction::Continue
     }
 }
 
@@ -523,6 +635,7 @@ impl HttpContext for AiDataMasking {
                     .push(&body, self.is_openai_stream.unwrap_or_default());
                 let mut deny = false;
                 let log = Log::new(PLUGIN_NAME.to_string());
+                let mask_restore = self.mask_restore.as_ref();
                 for message in self.msg_window.messages_iter_mut() {
                     if let Ok(mut msg) = String::from_utf8(message.clone()) {
                         if let Some(config) = &self.config {
@@ -531,12 +644,8 @@ impl HttpContext for AiDataMasking {
                                 break;
                             }
                         }
-                        if !self.mask_map.is_empty() {
-                            for (from_word, to_word) in self.mask_map.iter() {
-                                if let Some(to) = to_word {
-                                    msg = msg.replace(from_word, to);
-                                }
-                            }
+                        if let Some(mask_restore) = mask_restore {
+                            msg = mask_restore.restore(&msg);
                         }
                         message.clear();
                         message.extend_from_slice(msg.as_bytes());
@@ -620,8 +729,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                         );
                     }
                 }
-                self.replace_http_request_body(req_body.as_bytes());
-                return DataAction::Continue;
+                return self.forward_request_body(&req_body);
             }
         }
         if !config.deny_jsonpath.is_empty() {
@@ -645,8 +753,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                         }
                     }
                 }
-                self.replace_http_request_body(req_body.as_bytes());
-                return DataAction::Continue;
+                return self.forward_request_body(&req_body);
             }
         }
         if config.deny_raw {
@@ -655,7 +762,7 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             }
             let new_body = self.replace_request_msg(&req_body);
             if new_body != req_body {
-                self.replace_http_request_body(new_body.as_bytes())
+                return self.forward_request_body(&new_body);
             }
             return DataAction::Continue;
         }
@@ -686,18 +793,12 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
                             return self.deny(true);
                         }
 
-                        if self.mask_map.is_empty() {
+                        let Some(mask_restore) = &self.mask_restore else {
                             continue;
-                        }
-                        let mut new_content = message.content.clone();
-                        let mut new_reasoning_content = message.reasoning_content.clone();
-                        for (from_word, to_word) in self.mask_map.iter() {
-                            if let Some(to) = to_word {
-                                new_content = new_content.replace(from_word, to);
-                                new_reasoning_content =
-                                    new_reasoning_content.replace(from_word, to);
-                            }
-                        }
+                        };
+                        let new_content = mask_restore.restore(&message.content);
+                        let new_reasoning_content =
+                            mask_restore.restore(&message.reasoning_content);
                         if new_content != message.content {
                             res_body = res_body.replace(
                                 &Value::String(message.content).to_string(),
@@ -721,16 +822,124 @@ impl HttpContextWrapper<AiDataMaskingConfig> for AiDataMasking {
             if self.check_message(&res_body) {
                 return self.deny(true);
             }
-            if !self.mask_map.is_empty() {
-                for (from_word, to_word) in self.mask_map.iter() {
-                    if let Some(to) = to_word {
-                        res_body = res_body.replace(from_word, to);
-                    }
-                }
+            if let Some(mask_restore) = &self.mask_restore {
+                res_body = mask_restore.restore(&res_body);
             }
             self.replace_http_response_body(res_body.as_bytes());
             return DataAction::Continue;
         }
         DataAction::Continue
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    fn rule(regex: &str, type_: Type, restore: bool, value: &str) -> Rule {
+        Rule {
+            regex: Regex::new(regex).unwrap(),
+            type_,
+            restore,
+            value: value.to_string(),
+        }
+    }
+
+    fn replace(rule: &Rule, message: &str) -> (String, HashMap<String, Option<String>>, usize) {
+        let mut mask_map = HashMap::new();
+        let mut byte_window_size = 0;
+        let mut char_window_size = 0;
+        let (replaced, match_count) = replace_rule_message(
+            rule,
+            message,
+            &mut mask_map,
+            &mut byte_window_size,
+            &mut char_window_size,
+        );
+        (replaced, mask_map, match_count)
+    }
+
+    #[test]
+    fn replacement_expands_captures_for_each_match_context() {
+        let rule = rule(
+            r"(?<=(?<context>[ab]))x",
+            Type::Replace,
+            false,
+            "${context}-x",
+        );
+
+        let (replaced, _, match_count) = replace(&rule, "ax bx");
+
+        assert_eq!(replaced, "aa-x bb-x");
+        assert_eq!(match_count, 2);
+    }
+
+    #[test]
+    fn repeated_hash_keeps_restore_mapping() {
+        let rule = rule(r"\d{8}", Type::Hash, true, "");
+        let original = "12345678 12345678";
+
+        let (masked, mut mask_map, match_count) = replace(&rule, original);
+        let mask_restore = MaskRestore::from_map(&mask_map).unwrap().unwrap();
+
+        assert_eq!(match_count, 2);
+        assert_eq!(mask_map.len(), 1);
+        assert_eq!(
+            mask_map.values().next().unwrap().as_deref(),
+            Some("12345678")
+        );
+        assert_eq!(mask_restore.restore(&masked), original);
+
+        let masked_value = mask_map.keys().next().unwrap().clone();
+        record_restore_mapping(&mut mask_map, masked_value, "87654321");
+        assert_eq!(mask_map.values().next().unwrap(), &None);
+    }
+
+    #[test]
+    fn restores_more_than_five_thousand_unique_values() {
+        let mask_map: HashMap<_, _> = (0..6_001)
+            .map(|index| {
+                (
+                    format!("__mask_{index:06}__"),
+                    Some(format!("secret-{index:06}")),
+                )
+            })
+            .collect();
+        let masked = (0..6_001)
+            .map(|index| format!("__mask_{index:06}__"))
+            .collect::<Vec<_>>()
+            .join("|");
+        let expected = (0..6_001)
+            .map(|index| format!("secret-{index:06}"))
+            .collect::<Vec<_>>()
+            .join("|");
+
+        let mask_restore = MaskRestore::from_map(&mask_map).unwrap().unwrap();
+
+        assert_eq!(mask_restore.restore(&masked), expected);
+    }
+
+    #[test]
+    fn masks_forty_five_thousand_unique_values_without_per_word_replacement() {
+        let rule = rule(r"\d{11}", Type::Hash, true, "");
+        let message = (0..45_000)
+            .map(|index| format!("{index:011}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let started = Instant::now();
+
+        let (masked, mask_map, match_count) = replace(&rule, &message);
+        let mask_restore = MaskRestore::from_map(&mask_map).unwrap().unwrap();
+        let restored = mask_restore.restore(&masked);
+
+        assert_eq!(match_count, 45_000);
+        assert_eq!(mask_map.len(), 45_000);
+        assert_eq!(masked.len(), 45_000 * 64 + 44_999);
+        assert_eq!(restored, message);
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "45,000-value regression guard exceeded its intentionally broad limit"
+        );
     }
 }
