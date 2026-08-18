@@ -17,6 +17,7 @@ package hgctl
 import (
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/alibaba/higress/hgctl/pkg/helm"
@@ -66,40 +67,53 @@ func newLocalDockerProfile(installPackagePath string) *helm.Profile {
 }
 
 func TestUpgradeRejectsLocalDockerOverlayBeforeInstallerConstruction(t *testing.T) {
-	originalProfiles := getAllProfilesForUpgrade
-	originalPrompt := promptUpgradeForUpgrade
-	originalNewInstaller := newInstallerForUpgrade
-	t.Cleanup(func() {
-		getAllProfilesForUpgrade = originalProfiles
-		promptUpgradeForUpgrade = originalPrompt
-		newInstallerForUpgrade = originalNewInstaller
-	})
-
-	baseline := newLocalDockerProfile(t.TempDir())
-	getAllProfilesForUpgrade = func() ([]*installer.ProfileContext, error) {
-		return []*installer.ProfileContext{{Profile: baseline}}, nil
+	tests := []struct {
+		name      string
+		set       string
+		wantField string
+	}{
+		{name: "gateway setting", set: "gateway.httpPort=18080", wantField: "gateway.httpPort"},
+		{name: "higress version", set: "higressVersion=2.2.5", wantField: "higressVersion"},
 	}
 
-	prompted := false
-	promptUpgradeForUpgrade = func(io.Writer) bool {
-		prompted = true
-		return true
-	}
-	constructed := false
-	newInstallerForUpgrade = func(*helm.Profile, io.Writer, bool, bool, installer.InstallerMode) (installer.Installer, error) {
-		constructed = true
-		return &recordingUpgradeInstaller{}, nil
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalProfiles := getAllProfilesForUpgrade
+			originalPrompt := promptUpgradeForUpgrade
+			originalNewInstaller := newInstallerForUpgrade
+			t.Cleanup(func() {
+				getAllProfilesForUpgrade = originalProfiles
+				promptUpgradeForUpgrade = originalPrompt
+				newInstallerForUpgrade = originalNewInstaller
+			})
 
-	err := upgrade(io.Discard, &InstallArgs{Set: []string{"gateway.httpPort=18080"}})
-	if err == nil {
-		t.Fatal("upgrade() error = nil, want unsupported overlay rejection")
-	}
-	if prompted {
-		t.Fatal("upgrade confirmation was reached after overlay rejection")
-	}
-	if constructed {
-		t.Fatal("installer was constructed after overlay rejection")
+			baseline := newLocalDockerProfile(t.TempDir())
+			getAllProfilesForUpgrade = func() ([]*installer.ProfileContext, error) {
+				return []*installer.ProfileContext{{Profile: baseline}}, nil
+			}
+
+			prompted := false
+			promptUpgradeForUpgrade = func(io.Writer) bool {
+				prompted = true
+				return true
+			}
+			constructed := false
+			newInstallerForUpgrade = func(*helm.Profile, io.Writer, bool, bool, installer.InstallerMode) (installer.Installer, error) {
+				constructed = true
+				return &recordingUpgradeInstaller{}, nil
+			}
+
+			err := upgrade(io.Discard, &InstallArgs{Set: []string{tt.set}})
+			if err == nil || !strings.Contains(err.Error(), tt.wantField) {
+				t.Fatalf("upgrade() error = %v, want unsupported field %q", err, tt.wantField)
+			}
+			if prompted {
+				t.Fatal("upgrade confirmation was reached after overlay rejection")
+			}
+			if constructed {
+				t.Fatal("installer was constructed after overlay rejection")
+			}
+		})
 	}
 }
 
