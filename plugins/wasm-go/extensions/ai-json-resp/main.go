@@ -18,9 +18,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -109,6 +109,10 @@ type PluginConfig struct {
 	rejectStruct               RejectStruct
 	jsonSchemaMaxDepth         int
 	enableJsonSchemaValidation bool
+	// recursionToken is a per-config random token used to identify recursive
+	// sub-requests originated by this plugin. It is never read from the user
+	// config, so external clients cannot spoof it to bypass validation.
+	recursionToken string
 }
 
 func main() {}
@@ -145,6 +149,8 @@ func parseUrl(url string) (string, string) {
 }
 
 func parseConfig(result gjson.Result, config *PluginConfig, log log.Log) error {
+	// generate a per-config random token to identify recursive requests from this plugin
+	config.recursionToken = uuid.New().String()
 	config.serviceName = result.Get("serviceName").String()
 	config.serviceUrl = result.Get("serviceUrl").String()
 	config.serviceDomain = result.Get("serviceDomain").String()
@@ -456,20 +462,19 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig, log log.
 	}
 
 	// verify if the request is from this plugin
+	// only a request carrying the per-config random token is treated as
+	// internal; any client-supplied marker is stripped so that it can never
+	// be forwarded upstream or disable validation
 	extendHeaderValue, err := proxywasm.GetHttpRequestHeader(EXTEND_HEADER_KEY)
 	if err == nil {
-		fromThisPlugin, convErr := strconv.ParseBool(extendHeaderValue)
-		if convErr != nil {
-			log.Debugf("failed to parse header value as bool: %v", convErr)
-			ctx.SetContext(FROM_THIS_PLUGIN_KEY, false)
-		}
-		if fromThisPlugin {
+		if extendHeaderValue == config.recursionToken {
 			ctx.SetContext(FROM_THIS_PLUGIN_KEY, true)
 			return types.ActionContinue
 		}
-	} else {
-		ctx.SetContext(FROM_THIS_PLUGIN_KEY, false)
+		proxywasm.RemoveHttpRequestHeader(EXTEND_HEADER_KEY)
+		log.Debugf("stripped client-supplied recursion marker header: %s", EXTEND_HEADER_KEY)
 	}
+	ctx.SetContext(FROM_THIS_PLUGIN_KEY, false)
 
 	path, err := proxywasm.GetHttpRequestHeader(":path")
 	if err != nil {
@@ -519,12 +524,12 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 
 	var headers [][2]string
 	if h, ok := ctx.GetContext("headers").([][2]string); ok {
-		headers = append(h, [2]string{EXTEND_HEADER_KEY, "true"})
+		headers = append(h, [2]string{EXTEND_HEADER_KEY, config.recursionToken})
 	} else {
 		log.Debugf("cannot get headers from context, use default headers")
 		headers = [][2]string{
 			{"Content-Type", "application/json"},
-			{EXTEND_HEADER_KEY, "true"},
+			{EXTEND_HEADER_KEY, config.recursionToken},
 		}
 	}
 

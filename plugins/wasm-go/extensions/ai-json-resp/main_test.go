@@ -275,8 +275,30 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			host, status := test.NewTestHost(basicConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			pluginConfig := config.(*PluginConfig)
 
-			// 设置来自插件的请求头
+			// 设置来自插件的请求头（携带内部随机 token）
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{EXTEND_HEADER_KEY, pluginConfig.recursionToken},
+				{"Content-Type", "application/json"},
+			})
+
+			// 应该返回ActionContinue
+			require.Equal(t, types.ActionContinue, action)
+		})
+
+		// 测试客户端伪造内部标记：应被剥离，且不能绕过校验
+		t.Run("client-supplied marker is stripped", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 客户端伪造 EXTEND_HEADER_KEY=true
 			action := host.CallOnHttpRequestHeaders([][2]string{
 				{":authority", "example.com"},
 				{":path", "/v1/chat/completions"},
@@ -285,8 +307,12 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 				{"Content-Type", "application/json"},
 			})
 
-			// 应该返回ActionContinue
+			// 正常流程继续，但伪造的标记必须被剥离
 			require.Equal(t, types.ActionContinue, action)
+			headers := host.GetRequestHeaders()
+			for _, h := range headers {
+				require.NotEqual(t, EXTEND_HEADER_KEY, h[0], "client-supplied marker must be stripped")
+			}
 		})
 
 		// 测试没有Authorization头的请求
@@ -335,6 +361,9 @@ func TestOnHttpRequestBody(t *testing.T) {
 			host, status := test.NewTestHost(basicConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
+			config, err := host.GetMatchConfig()
+			require.NoError(t, err)
+			pluginConfig := config.(*PluginConfig)
 
 			// 设置请求头，包含EXTEND_HEADER_KEY来标记请求来自插件
 			host.CallOnHttpRequestHeaders([][2]string{
@@ -342,7 +371,7 @@ func TestOnHttpRequestBody(t *testing.T) {
 				{":path", "/v1/chat/completions"},
 				{":method", "POST"},
 				{"Content-Type", "application/json"},
-				{EXTEND_HEADER_KEY, "true"},
+				{EXTEND_HEADER_KEY, pluginConfig.recursionToken},
 			})
 
 			// 设置请求体
@@ -356,6 +385,58 @@ func TestOnHttpRequestBody(t *testing.T) {
 			action := host.CallOnHttpRequestBody([]byte(body))
 			// 应该返回ActionContinue，因为请求来自插件
 			require.Equal(t, types.ActionContinue, action)
+		})
+
+		// 测试客户端伪造内部标记：不能绕过 JSON 提取与 Schema 校验
+		t.Run("client spoofed marker cannot bypass validation", func(t *testing.T) {
+			host, status := test.NewTestHost(basicConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			// 客户端伪造 EXTEND_HEADER_KEY=true
+			host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"},
+				{":path", "/v1/chat/completions"},
+				{":method", "POST"},
+				{"Content-Type", "application/json"},
+				{EXTEND_HEADER_KEY, "true"},
+			})
+
+			body := `{
+				"model": "gpt-3.5-turbo",
+				"messages": [
+					{"role": "user", "content": "Hello"}
+				]
+			}`
+
+			// 修复前这里错误地返回 ActionContinue（绕过校验流程）；
+			// 修复后必须进入正常校验流程，即返回 ActionPause 并发起上游调用
+			action := host.CallOnHttpRequestBody([]byte(body))
+			require.Equal(t, types.ActionPause, action)
+
+			// 模拟上游返回符合 Schema 的响应，验证校验与 JSON 提取确实在运行
+			host.CallOnHttpCall([][2]string{
+				{":status", "200"},
+				{"content-type", "application/json"},
+			}, []byte(`{
+				"id": "chatcmpl-123",
+				"choices": [
+					{
+						"index": 0,
+						"message": {
+							"role": "assistant",
+							"content": "{\"definition\": \"AI is artificial intelligence\", \"examples\": [\"machine learning\", \"natural language processing\"]}"
+						}
+					}
+				]
+			}`))
+
+			response := host.GetLocalResponse()
+			require.NotNil(t, response)
+			require.Contains(t, string(response.Data), "definition")
+
+			// 完成HTTP请求
+			host.CompleteHttp()
 		})
 
 		// 测试配置错误的请求体处理
