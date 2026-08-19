@@ -54,6 +54,18 @@ jobs:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
       - uses: oras-project/setup-oras@v1
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.0"
+      - name: Build release tool and switch tree to the source commit
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          git cat-file -e "$SOURCE_COMMIT^{commit}"
+          git merge-base --is-ancestor "$SOURCE_COMMIT" origin/main
+          (cd tools/plugin-release && go build -o /usr/local/bin/plugin-release .)
+          git checkout -q "$SOURCE_COMMIT"
       - name: Resolve catalog entry and validate inputs
         env:
           LOGICAL_ID: ${{ inputs.logical_id }}
@@ -75,7 +87,7 @@ jobs:
           committed=$(tr -d '[:space:]' < "$source_dir/VERSION")
           test "$committed" = "$VERSION" || { echo "VERSION file says $committed, refusing to overwrite $VERSION" >&2; exit 1; }
           # Compute the deterministic input hash exactly like the release tool (artifact inputs + shared groups at this commit).
-          (cd tools/plugin-release && go run . validate-catalog --root ../.. --catalog ../../plugins/release/catalog.json)
+          plugin-release validate-catalog --root . --catalog plugins/release/catalog.json
           echo "implementation=$implementation" >> "$GITHUB_ENV"
           echo "source_dir=$source_dir" >> "$GITHUB_ENV"
           echo "image=$image" >> "$GITHUB_ENV"
@@ -89,8 +101,7 @@ jobs:
           set -euo pipefail
           # inputHash selects catalog artifact inputs + shared input groups at SOURCE_COMMIT and hashes
           # the file bytes plus the version string, mirroring tools/plugin-release inputHash().
-          cd tools/plugin-release
-          go run . emergency-input-hash --root ../.. --catalog ../../plugins/release/catalog.json \
+          plugin-release emergency-input-hash --root . --catalog plugins/release/catalog.json \
             --id "$LOGICAL_ID" --commit "$SOURCE_COMMIT" --version "$VERSION" > /tmp/input-hash.txt
           grep -Eq '^sha256:[0-9a-f]{64}$' /tmp/input-hash.txt
           echo "input_hash=$(cat /tmp/input-hash.txt)" >> "$GITHUB_ENV"
