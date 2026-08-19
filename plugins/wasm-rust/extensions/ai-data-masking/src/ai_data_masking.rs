@@ -1134,8 +1134,8 @@ mod tests {
 
     #[test]
     fn regex_runtime_error_is_returned_without_retrying() {
-        let regex = fancy_regex::RegexBuilder::new("(?i)(a|b|ab)*(?=c)")
-            .backtrack_limit(100)
+        let regex = fancy_regex::RegexBuilder::new("(x+x+)+(?>y)")
+            .backtrack_limit(1)
             .build()
             .unwrap();
         let rule = Rule {
@@ -1151,7 +1151,7 @@ mod tests {
 
         let result = replace_rule_message(
             &rule,
-            "abababababababababababababababababababababababababababab",
+            "xxxxxxxxxxy",
             &mut mask_map,
             &mut byte_window_size,
             &mut char_window_size,
