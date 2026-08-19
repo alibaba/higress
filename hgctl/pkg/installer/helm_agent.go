@@ -42,13 +42,27 @@ type HelmAgent struct {
 	quiet          bool
 }
 
-func NewHelmAgent(profile *helm.Profile, writer io.Writer, quiet bool) *HelmAgent {
-	return &HelmAgent{
+// HelmAgentOption configures a HelmAgent.
+type HelmAgentOption func(*HelmAgent)
+
+// WithHelmBinaryName overrides the Helm executable used by the agent.
+func WithHelmBinaryName(name string) HelmAgentOption {
+	return func(agent *HelmAgent) {
+		agent.helmBinaryName = name
+	}
+}
+
+func NewHelmAgent(profile *helm.Profile, writer io.Writer, quiet bool, opts ...HelmAgentOption) *HelmAgent {
+	agent := &HelmAgent{
 		profile:        profile,
 		writer:         writer,
 		helmBinaryName: "helm",
 		quiet:          quiet,
 	}
+	for _, opt := range opts {
+		opt(agent)
+	}
+	return agent
 }
 
 func (h *HelmAgent) IsHigressInstalled() (bool, error) {
@@ -69,25 +83,21 @@ func (h *HelmAgent) IsHigressInstalled() (bool, error) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Start(); err != nil {
-		return false, nil
+		return false, fmt.Errorf("start helm ownership check: %w", err)
 	}
 
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	select {
-	case err := <-done:
-		if err == nil {
-			content := out.String()
-			if !h.quiet {
-				fmt.Fprintf(h.writer, "\n%s\n", content)
-			}
-			if strings.Contains(content, "deployed") {
-				return true, nil
-			}
+	if err := cmd.Wait(); err != nil {
+		if message := strings.TrimSpace(stderr.String()); message != "" {
+			return false, fmt.Errorf("helm ownership check failed: %w: %s", err, message)
 		}
+		return false, fmt.Errorf("helm ownership check failed: %w", err)
+	}
+	content := out.String()
+	if !h.quiet {
+		fmt.Fprintf(h.writer, "\n%s\n", content)
+	}
+	if strings.Contains(content, "deployed") {
+		return true, nil
 	}
 	return false, nil
 }
