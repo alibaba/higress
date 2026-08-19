@@ -139,9 +139,11 @@ jobs:
     if: ${{ !inputs.dry_run }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Any registry write waits here for a review from the @maintainers team.
-    # prevent_self_review is enabled: the dispatching actor cannot approve it.
-    environment: higress-release-manager
+    # Any registry write waits here for a review from the @maintainers team
+    # (same reviewer group as higress-release-manager). This environment also
+    # holds the production registry credentials the promote pipeline uses —
+    # registry vars/secrets are environment-scoped in this repository.
+    environment: plugin-release-production
     steps:
       - uses: actions/checkout@v4
         with:
