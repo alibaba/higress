@@ -62,7 +62,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.24.0"
-      - uses: oras-project/setup-oras@v1
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.2.3
       - name: Build release tool and switch tree to the source commit
         env:
           SOURCE_COMMIT: ${{ inputs.source_commit }}
@@ -153,7 +155,9 @@ jobs:
         with:
           name: emergency-overwrite-artifact
           path: emergency-artifact
-      - uses: oras-project/setup-oras@v1
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.2.3
       - name: Publish 2-layer OCI variant over the existing tag
         env:
           # Match the promote pipeline exactly: public pushes use the
@@ -176,10 +180,10 @@ jobs:
           ref="$REGISTRY/$IMAGE_REF:$VERSION"
           echo "::warning::Emergency overwrite: this replaces the manifest behind $ref. Registry tag-immutability must have been lifted by an admin for this repo."
           before=$(oras manifest fetch "$ref" --descriptor | jq -r .digest || true)
-          config=$(mktemp); printf '%s' '{}' > "$config"
-          push_result=$(oras push "$ref" \
-            "$config:application/vnd.module.wasm.config.v1+json" \
-            "emergency-artifact/plugin.wasm:application/vnd.module.wasm.content.layer.v1+wasm" \
+          stage=$(mktemp -d); printf '%s' '{}' > "$stage/config.json"; cp emergency-artifact/plugin.wasm "$stage/plugin.wasm"
+          push_result=$(cd "$stage" && oras push "$ref" \
+            "config.json:application/vnd.module.wasm.config.v1+json" \
+            "plugin.wasm:application/vnd.module.wasm.content.layer.v1+wasm" \
             --annotation "org.opencontainers.image.revision=$SOURCE_COMMIT" \
             --annotation "org.opencontainers.image.version=$VERSION" \
             --annotation "io.higress.plugin.input-hash=$INPUT_HASH" \
