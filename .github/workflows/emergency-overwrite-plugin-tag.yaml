@@ -154,9 +154,13 @@ jobs:
       - uses: oras-project/setup-oras@v1
       - name: Publish 2-layer OCI variant over the existing tag
         env:
-          REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}
-          REGISTRY_USERNAME: ${{ secrets.CANDIDATE_REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.CANDIDATE_REGISTRY_PASSWORD }}
+          # Match the promote pipeline exactly: public pushes use the
+          # PRODUCTION registry credentials, and the registry host resolves
+          # from the same variable promote reads (candidate host is an
+          # identical fallback observed in successful promote runs).
+          REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY || vars.PLUGIN_CANDIDATE_REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.PRODUCTION_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.PRODUCTION_REGISTRY_PASSWORD }}
           LOGICAL_ID: ${{ inputs.logical_id }}
           VERSION: ${{ inputs.version }}
           SOURCE_COMMIT: ${{ inputs.source_commit }}
