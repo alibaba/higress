@@ -41,7 +41,8 @@ permissions:
 run-name: emergency-overwrite ${{ inputs.logical_id }}:${{ inputs.version }} @ ${{ inputs.source_commit }}
 
 jobs:
-  overwrite:
+  validate:
+    name: Validate + build (no registry writes)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -102,9 +103,34 @@ jobs:
           make -C plugins/wasm-go PLUGIN_NAME="$build_name" build
           test -s "$source/plugin.wasm"
           sha256sum "$source/plugin.wasm" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload built artifact for the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: emergency-overwrite-artifact
+          path: ${{ env.SOURCE_DIR }}/plugin.wasm
+          if-no-files-found: error
+          retention-days: 3
 
+  publish:
+    name: Overwrite tag (waits for maintainer approval)
+    needs: validate
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Any registry write waits here for a review from the @maintainers team.
+    # prevent_self_review is enabled: the dispatching actor cannot approve it.
+    environment: higress-release-manager
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: emergency-overwrite-artifact
+          path: emergency-artifact
+      - uses: oras-project/setup-oras@v1
       - name: Publish 2-layer OCI variant over the existing tag
-        if: ${{ !inputs.dry_run }}
         env:
           REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}
           REGISTRY_USERNAME: ${{ secrets.CANDIDATE_REGISTRY_USERNAME }}
@@ -113,24 +139,26 @@ jobs:
           VERSION: ${{ inputs.version }}
           SOURCE_COMMIT: ${{ inputs.source_commit }}
           MOVE_LATEST: ${{ inputs.move_latest }}
+          IMAGE_REF: ${{ needs.validate.outputs.image }}
+          INPUT_HASH: ${{ needs.validate.outputs.input_hash }}
         run: |
           set -euo pipefail
           test -n "$REGISTRY"; test -n "$REGISTRY_USERNAME"; test -n "$REGISTRY_PASSWORD"
           echo "$REGISTRY_PASSWORD" | oras login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
-          ref="$REGISTRY/$IMAGE:$VERSION"
+          ref="$REGISTRY/$IMAGE_REF:$VERSION"
           echo "::warning::Emergency overwrite: this replaces the manifest behind $ref. Registry tag-immutability must have been lifted by an admin for this repo."
           before=$(oras manifest fetch "$ref" --descriptor | jq -r .digest || true)
           config=$(mktemp); printf '%s' '{}' > "$config"
           push_result=$(oras push "$ref" \
             "$config:application/vnd.module.wasm.config.v1+json" \
-            "$SOURCE_DIR/plugin.wasm:application/vnd.module.wasm.content.layer.v1+wasm" \
+            "emergency-artifact/plugin.wasm:application/vnd.module.wasm.content.layer.v1+wasm" \
             --annotation "org.opencontainers.image.revision=$SOURCE_COMMIT" \
             --annotation "org.opencontainers.image.version=$VERSION" \
             --annotation "io.higress.plugin.input-hash=$INPUT_HASH" \
             --format json)
           digest=$(jq -ser '.[0].digest | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$push_result")
           # Verify the published manifest is the Envoy-loadable 2-layer variant.
-          manifest=$(oras manifest fetch "$REGISTRY/$IMAGE@$digest")
+          manifest=$(oras manifest fetch "$REGISTRY/$IMAGE_REF@$digest")
           jq -e '
             (.layers | length == 2) and
             (.layers[0].mediaType == "application/vnd.module.wasm.config.v1+json") and
@@ -142,8 +170,8 @@ jobs:
           after=$(oras manifest fetch "$ref" --descriptor | jq -r .digest)
           test "$after" = "$digest"
           if [ "$MOVE_LATEST" = "true" ]; then
-            oras cp "$REGISTRY/$IMAGE@$digest" "$REGISTRY/$IMAGE:latest"
-            latest_digest=$(oras manifest fetch "$REGISTRY/$IMAGE:latest" --descriptor | jq -r .digest)
+            oras cp "$REGISTRY/$IMAGE_REF@$digest" "$REGISTRY/$IMAGE_REF:latest"
+            latest_digest=$(oras manifest fetch "$REGISTRY/$IMAGE_REF:latest" --descriptor | jq -r .digest)
             test "$latest_digest" = "$digest"
           fi
           {
