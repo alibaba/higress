@@ -32,6 +32,8 @@ func main() {
 		err = commandVerify(os.Args[2:])
 	case "semver-compare":
 		err = commandCompare(os.Args[2:])
+	case "emergency-input-hash":
+		err = commandEmergencyInputHash(os.Args[2:])
 	default:
 		err = fmt.Errorf("unknown command %q", os.Args[1])
 	}
