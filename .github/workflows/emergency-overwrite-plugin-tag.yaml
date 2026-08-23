@@ -1,0 +1,219 @@
+name: Emergency Overwrite Plugin Tag
+
+# One-off, maintainer-only workflow for emergency same-version overwrites of a
+# public plugin tag (e.g. mcp-server:2.0.1). The immutable-release pipeline
+# (prepare/promote) intentionally cannot re-push an existing version tag; this
+# workflow exists OUTSIDE that pipeline for urgent fixes when the registry-side
+# tag-immutability rule has been deliberately and temporarily lifted by an
+# admin. It publishes the Envoy-loadable 2-layer OCI variant with full
+# provenance annotations and reports the new digest for the recovery PR that
+# must follow (snapshots/evidence digest refresh).
+
+on:
+  workflow_dispatch:
+    inputs:
+      logical_id:
+        description: "Plugin logical ID in the release catalog (e.g. mcp-server)"
+        required: true
+        type: string
+      version:
+        description: "Existing stable version tag to overwrite (e.g. 2.0.1)"
+        required: true
+        type: string
+      source_commit:
+        description: "Exact 40-char merged commit containing the fix"
+        required: true
+        type: string
+      move_latest:
+        description: "Also move the latest tag to the overwritten digest"
+        required: true
+        default: true
+        type: boolean
+      dry_run:
+        description: "Build and validate only; never push"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+run-name: emergency-overwrite ${{ inputs.logical_id }}:${{ inputs.version }} @ ${{ inputs.source_commit }}
+
+jobs:
+  validate:
+    name: Validate + build (no registry writes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      image: ${{ steps.resolve.outputs.image }}
+      input_hash: ${{ steps.hash.outputs.input_hash }}
+    steps:
+      - name: Harden runner
+        run: |
+          sudo rm -rf /usr/local/bin/gsutil /usr/local/bin/gh /usr/local/bin/docker-credential-* || true
+      - uses: actions/checkout@v4
+        with:
+          # Check out main: the emergency-input-hash subcommand ships with this
+          # workflow, which may postdate inputs.source_commit. The plugin tree
+          # is switched to source_commit below, after the tool is built.
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.0"
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.2.3
+      - name: Build release tool and switch tree to the source commit
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          git cat-file -e "$SOURCE_COMMIT^{commit}"
+          git merge-base --is-ancestor "$SOURCE_COMMIT" origin/main
+          (cd tools/plugin-release && go build -o /usr/local/bin/plugin-release .)
+          git checkout -q "$SOURCE_COMMIT"
+      - name: Resolve catalog entry and validate inputs
+        id: resolve
+        env:
+          LOGICAL_ID: ${{ inputs.logical_id }}
+          VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          entry=$(jq -er --arg id "$LOGICAL_ID" '.plugins[] | select(.logicalId==$id and .releaseEligible!=false)' plugins/release/catalog.json)
+          implementation=$(jq -r .implementation <<<"$entry")
+          source_dir=$(jq -r .sourceDir <<<"$entry")
+          image=$(jq -r .image <<<"$entry")
+          [[ "$implementation" = "go" ]] || { echo "emergency overwrite currently supports go plugins only" >&2; exit 1; }
+          # The overwritten tag must be exactly the version currently recorded in the snapshot of its gateway release.
+          [[ "$source_dir" = plugins/wasm-go/extensions/* ]]
+          # Committed VERSION must match the requested tag: the overwrite must not smuggle in a different number.
+          committed=$(tr -d '[:space:]' < "$source_dir/VERSION")
+          test "$committed" = "$VERSION" || { echo "VERSION file says $committed, refusing to overwrite $VERSION" >&2; exit 1; }
+          # Compute the deterministic input hash exactly like the release tool (artifact inputs + shared groups at this commit).
+          plugin-release validate-catalog --root . --catalog plugins/release/catalog.json
+          echo "IMPLEMENTATION=$implementation" >> "$GITHUB_ENV"
+          echo "SOURCE_DIR=$source_dir" >> "$GITHUB_ENV"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+          echo "BUILD_NAME=$(basename "$source_dir")" >> "$GITHUB_ENV"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+      - name: Compute input hash (release-tool compatible)
+        id: hash
+        env:
+          LOGICAL_ID: ${{ inputs.logical_id }}
+          VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          # inputHash selects catalog artifact inputs + shared input groups at SOURCE_COMMIT and hashes
+          # the file bytes plus the version string, mirroring tools/plugin-release inputHash().
+          # Run the binary built from main above: the checked-out source_commit tree may predate
+          # the emergency-input-hash subcommand, so go run here could compile a tool without it.
+          plugin-release emergency-input-hash --root . --catalog plugins/release/catalog.json \
+            --id "$LOGICAL_ID" --commit "$SOURCE_COMMIT" --version "$VERSION" > /tmp/input-hash.txt
+          grep -Eq '^sha256:[0-9a-f]{64}$' /tmp/input-hash.txt
+          echo "input_hash=$(cat /tmp/input-hash.txt)" >> "$GITHUB_OUTPUT"
+      - name: Test and build plugin (pipeline build contract)
+        run: |
+          set -euo pipefail
+          source="$SOURCE_DIR"; build_name="$BUILD_NAME"
+          if [ -f "$source/prepare.sh" ]; then (cd "$source" && sh ./prepare.sh); fi
+          (cd "$source" && go test ./...)
+          make -C plugins/wasm-go PLUGIN_NAME="$build_name" build
+          test -s "$source/plugin.wasm"
+          sha256sum "$source/plugin.wasm" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Upload built artifact for the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: emergency-overwrite-artifact
+          path: ${{ env.SOURCE_DIR }}/plugin.wasm
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    name: Overwrite tag (waits for maintainer approval)
+    needs: validate
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Any registry write waits here for a review from the @maintainers team
+    # (same reviewer group as higress-release-manager). This environment also
+    # holds the production registry credentials the promote pipeline uses —
+    # registry vars/secrets are environment-scoped in this repository.
+    environment: plugin-release-production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 1
+      - uses: actions/download-artifact@v4
+        with:
+          name: emergency-overwrite-artifact
+          path: emergency-artifact
+      - uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20 # v1.2.3
+        with:
+          version: 1.2.3
+      - name: Publish 2-layer OCI variant over the existing tag
+        env:
+          # Match the promote pipeline exactly: public pushes use the
+          # PRODUCTION registry credentials, and the registry host resolves
+          # from the same variable promote reads (candidate host is an
+          # identical fallback observed in successful promote runs).
+          REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY || vars.PLUGIN_CANDIDATE_REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.PRODUCTION_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.PRODUCTION_REGISTRY_PASSWORD }}
+          LOGICAL_ID: ${{ inputs.logical_id }}
+          VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          MOVE_LATEST: ${{ inputs.move_latest }}
+          IMAGE_REF: ${{ needs.validate.outputs.image }}
+          INPUT_HASH: ${{ needs.validate.outputs.input_hash }}
+        run: |
+          set -euo pipefail
+          test -n "$REGISTRY"; test -n "$REGISTRY_USERNAME"; test -n "$REGISTRY_PASSWORD"
+          echo "$REGISTRY_PASSWORD" | oras login "$REGISTRY" -u "$REGISTRY_USERNAME" --password-stdin
+          ref="$REGISTRY/$IMAGE_REF:$VERSION"
+          echo "::warning::Emergency overwrite: this replaces the manifest behind $ref. Registry tag-immutability must have been lifted by an admin for this repo."
+          before=$(oras manifest fetch "$ref" --descriptor | jq -r .digest || true)
+          stage=$(mktemp -d); printf '%s' '{}' > "$stage/config.json"; cp emergency-artifact/plugin.wasm "$stage/plugin.wasm"
+          push_result=$(cd "$stage" && oras push "$ref" \
+            "config.json:application/vnd.module.wasm.config.v1+json" \
+            "plugin.wasm:application/vnd.module.wasm.content.layer.v1+wasm" \
+            --annotation "org.opencontainers.image.revision=$SOURCE_COMMIT" \
+            --annotation "org.opencontainers.image.version=$VERSION" \
+            --annotation "io.higress.plugin.input-hash=$INPUT_HASH" \
+            --format json)
+          digest=$(jq -ser '.[0].digest | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$push_result")
+          # Verify the published manifest is the Envoy-loadable 2-layer variant.
+          manifest=$(oras manifest fetch "$REGISTRY/$IMAGE_REF@$digest")
+          jq -e '
+            (.layers | length == 2) and
+            (.layers[0].mediaType == "application/vnd.module.wasm.config.v1+json") and
+            (.layers[1].mediaType == "application/vnd.module.wasm.content.layer.v1+wasm") and
+            (.annotations["org.opencontainers.image.revision"] == env.SOURCE_COMMIT) and
+            (.annotations["org.opencontainers.image.version"] == env.VERSION) and
+            (.annotations["io.higress.plugin.input-hash"] == env.INPUT_HASH)
+          ' >/dev/null <<<"$manifest"
+          after=$(oras manifest fetch "$ref" --descriptor | jq -r .digest)
+          test "$after" = "$digest"
+          if [ "$MOVE_LATEST" = "true" ]; then
+            oras cp "$REGISTRY/$IMAGE_REF@$digest" "$REGISTRY/$IMAGE_REF:latest"
+            latest_digest=$(oras manifest fetch "$REGISTRY/$IMAGE_REF:latest" --descriptor | jq -r .digest)
+            test "$latest_digest" = "$digest"
+          fi
+          {
+            echo "## Emergency overwrite report"
+            echo "- ref: \`$ref\`"
+            echo "- previous digest: \`$before\`"
+            echo "- new digest: \`$digest\`"
+            echo "- input hash: \`$INPUT_HASH\`"
+            echo "- source commit: \`$SOURCE_COMMIT\`"
+            echo "- latest moved: $MOVE_LATEST"
+            echo ""
+            echo "Follow-up REQUIRED: update plugins/release/snapshots + evidence digests for this plugin in a recovery PR."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
