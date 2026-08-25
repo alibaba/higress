@@ -81,6 +81,14 @@ func TestParseConfig(t *testing.T) {
 			require.Equal(t, "x-mod", cfg.modelToHeader)
 			require.Equal(t, []string{"/foo", "/bar"}, cfg.enableOnPathSuffix)
 		})
+
+		t.Run("strict-only carrier is marked as no-op outside a strict rule", func(t *testing.T) {
+			var cfg ModelRouterConfig
+			err := parseConfig(gjson.Parse(`{"strictRuntimeIdentityOnly":true}`), &cfg)
+			require.NoError(t, err)
+			require.True(t, cfg.strictRuntimeIdentityOnly)
+			require.Nil(t, cfg.runtimeIdentity)
+		})
 	})
 }
 
@@ -144,6 +152,19 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 			newHeaders := host.GetRequestHeaders()
 			_, found := getHeader(newHeaders, "content-length")
 			require.False(t, found, "content-length should not be removed for unsupported content-type")
+		})
+
+		t.Run("strict-only global carrier does not activate legacy suffix handling", func(t *testing.T) {
+			host, status := test.NewTestHost([]byte(`{"strictRuntimeIdentityOnly":true}`))
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"}, {":path", "/v1/chat/completions"}, {":method", "POST"}, {"content-type", "application/json"}, {"content-length", "123"},
+			})
+			require.Equal(t, types.ActionContinue, action)
+			_, found := getHeader(host.GetRequestHeaders(), "content-length")
+			require.True(t, found, "strict-only global config must not buffer a legacy request body")
 		})
 	})
 }

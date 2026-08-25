@@ -29,6 +29,7 @@ func main() {}
 func init() {
 	wrapper.SetCtx(
 		"model-router",
+		wrapper.PrePluginStartOrReload[ModelRouterConfig](ensureRuntimeIdentityRequestProperty),
 		wrapper.ParseConfig(parseConfig),
 		wrapper.ProcessRequestHeaders(onHttpRequestHeaders),
 		wrapper.ProcessRequestBody(onHttpRequestBody),
@@ -48,14 +49,30 @@ type ModelRouterConfig struct {
 	modelToHeader         string
 	enableOnPathSuffix    []string
 	keepOriginalModelName bool
+	// strictRuntimeIdentityOnly 标识该 WasmPlugin 是 C1 为单个 API 独立下发的 strict carrier。
+	// 未命中 strict route 时必须 no-op，不能回落为全局 legacy model-router 并影响其他 API。
+	strictRuntimeIdentityOnly bool
 	// Auto routing configuration
 	enableAutoRouting bool
 	autoRoutingRules  []AutoRoutingRule
 	defaultModel      string
+	// runtimeIdentity 仅由 APIG C1 严格规则下发；nil 代表完整保留 legacy model-router 行为。
+	runtimeIdentity *runtimeIdentityRule
 }
 
 func parseConfig(json gjson.Result, config *ModelRouterConfig) error {
+	runtimeIdentity, err := parseRuntimeIdentityRule(json.Get("modelRuntimeIdentity"))
+	if err != nil {
+		return err
+	}
+	config.runtimeIdentity = runtimeIdentity
+	config.strictRuntimeIdentityOnly = json.Get("strictRuntimeIdentityOnly").Bool()
 	config.modelKey = json.Get("modelKey").String()
+	if config.runtimeIdentity != nil {
+		// APIGO-CONTRACT: modelcard-runtime-identity
+		// strict parser 的 modelKey 只能从已发布 rule 获得，不能被共享 legacy 配置或客户请求覆盖。
+		config.modelKey = config.runtimeIdentity.Parser.ModelKey
+	}
 	if config.modelKey == "" {
 		config.modelKey = "model"
 	}
@@ -118,6 +135,16 @@ func parseConfig(json gjson.Result, config *ModelRouterConfig) error {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config ModelRouterConfig) types.Action {
+	if config.runtimeIdentity != nil {
+		return onRuntimeIdentityRequestHeaders(ctx, config)
+	}
+	if config.strictRuntimeIdentityOnly {
+		// APIGO-CONTRACT: modelcard-runtime-identity
+		// 独立 strict carrier 只能处理自身 `_match_route_` 命中的规则；未命中时不读取 Body，
+		// 让原 model-router 和其它 legacy 插件保持原有全局语义。
+		ctx.DontReadRequestBody()
+		return types.ActionContinue
+	}
 	path, err := proxywasm.GetHttpRequestHeader(":path")
 	if err != nil {
 		return types.ActionContinue
@@ -150,6 +177,12 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config ModelRouterConfig) typ
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config ModelRouterConfig, body []byte) types.Action {
+	if config.runtimeIdentity != nil {
+		return handleRuntimeIdentityJSONBody(ctx, config, body)
+	}
+	if config.strictRuntimeIdentityOnly {
+		return types.ActionContinue
+	}
 	contentType, err := proxywasm.GetHttpRequestHeader("content-type")
 	if err != nil {
 		return types.ActionContinue
@@ -161,6 +194,97 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config ModelRouterConfig, body [
 		return handleMultipartBody(ctx, config, body, contentType)
 	}
 
+	return types.ActionContinue
+}
+
+// onRuntimeIdentityRequestHeaders 为 strict Body parser 开启缓冲，并在无 Body/非 JSON 时在任何上游前拒绝。
+// 输入约束：config.runtimeIdentity 已通过控制面配置校验；该分支不使用 path suffix 或 Header 选择模型。
+// 输出语义：合法 JSON Body 返回 HeaderStopIteration，非法请求立即本地拒绝，legacy 分支保持原行为。
+// 边界场景：C1 不支持 multipart、WebSocket 或无 Body，不能因路径恰好命中旧 suffix 而回落到 legacy parser。
+func onRuntimeIdentityRequestHeaders(ctx wrapper.HttpContext, config ModelRouterConfig) types.Action {
+	if !ctx.HasRequestBody() {
+		return rejectRuntimeIdentityRequest(ctx, "body_required")
+	}
+	contentType, err := proxywasm.GetHttpRequestHeader("content-type")
+	if err != nil || !strings.Contains(strings.ToLower(contentType), "application/json") {
+		return rejectRuntimeIdentityRequest(ctx, "json_body_required")
+	}
+	if err := proxywasm.RemoveHttpRequestHeader("content-length"); err != nil {
+		return rejectRuntimeIdentityRequest(ctx, "request_prepare_failed")
+	}
+	ctx.SetRequestBodyBufferLimit(DefaultMaxBodyBytes)
+	return types.HeaderStopIteration
+}
+
+// handleRuntimeIdentityJSONBody 以精确 selector map 建立 Direct context，或把保留 Auto selector 交给最终候选 writer。
+// 输入约束：body 来自 strict header 分支缓冲，model 字段只能是 parser.modelKey 对应的非空 JSON string。
+// 输出语义：Direct 成功后改写为 target 上游模型并写 seq=1 property；已有合法 context 再入时保持不变；Auto 不在此处伪造身份。
+// 边界场景：任何 selector/context/property 失败都在上游前 local reject，客户端字段不会覆盖已有可信 context。
+func handleRuntimeIdentityJSONBody(ctx wrapper.HttpContext, config ModelRouterConfig, body []byte) types.Action {
+	rule := config.runtimeIdentity
+	if rule == nil || !json.Valid(body) {
+		return rejectRuntimeIdentityRequest(ctx, "invalid_json_body")
+	}
+	selectorValue := gjson.GetBytes(body, rule.Parser.ModelKey)
+	if !selectorValue.Exists() || selectorValue.Type != gjson.String || strings.TrimSpace(selectorValue.String()) == "" {
+		return rejectRuntimeIdentityRequest(ctx, "model_selector_required")
+	}
+	selector := selectorValue.String()
+	existing, err := loadResolvedModelContext()
+	if err != nil {
+		return rejectRuntimeIdentityRequest(ctx, "context_read_failed")
+	}
+	if existing != nil {
+		if reason := validateResolvedModelContextForRule(existing, rule); reason != "" {
+			return rejectRuntimeIdentityRequest(ctx, reason)
+		}
+		return types.ActionContinue
+	}
+	if isReservedAutoSelector(rule, selector) {
+		return types.ActionContinue
+	}
+	target, exists := rule.SelectorTargets[selector]
+	if !exists {
+		return rejectRuntimeIdentityRequest(ctx, "unknown_model_selector")
+	}
+	updatedBody, err := sjson.SetBytes(body, rule.Parser.ModelKey, target.UpstreamModelName)
+	if err != nil {
+		return rejectRuntimeIdentityRequest(ctx, "model_rewrite_failed")
+	}
+	// APIGO-CONTRACT: modelcard-runtime-identity
+	// Direct selector 通常比实际 upstream model 更长；改写 Body 后必须移除旧 Content-Length，
+	// 由 Envoy 按新 body 重新计算，避免下游等待过长请求体并返回 400。
+	if selector != target.UpstreamModelName {
+		if err = proxywasm.RemoveHttpRequestHeader("content-length"); err != nil {
+			return rejectRuntimeIdentityRequest(ctx, "request_prepare_failed")
+		}
+	}
+	if err = proxywasm.ReplaceHttpRequestBody(updatedBody); err != nil {
+		return rejectRuntimeIdentityRequest(ctx, "model_rewrite_failed")
+	}
+	if config.modelToHeader != "" {
+		if err = proxywasm.ReplaceHttpRequestHeader(config.modelToHeader, target.UpstreamModelName); err != nil {
+			return rejectRuntimeIdentityRequest(ctx, "model_rewrite_failed")
+		}
+	}
+	if config.addProviderHeader != "" {
+		// APIGO-CONTRACT: modelcard-runtime-identity
+		// strict Direct 的 Provider 必须直接取自已冻结 target，不能从可能包含多个斜杠的 selector 或 modelName 反推。
+		// 该服务端重写头只承载目标 Provider 的协议/插件投影；strict 主 Route 已由 Path 唯一命中，
+		// 实际上游由同一冻结 target 的 x-envoy-target-cluster 决定，不能再借 Header 选择后端。
+		if err = proxywasm.ReplaceHttpRequestHeader(config.addProviderHeader, target.Provider); err != nil {
+			return rejectRuntimeIdentityRequest(ctx, "model_rewrite_failed")
+		}
+	}
+	// APIGO-CONTRACT: modelcard-runtime-identity
+	// strict Direct 必须用同一冻结 target 覆盖 DynamicClusterHeader 的执行 cluster；即使客户端
+	// 已携带同名 Header 也不能保留，避免命中 Path 后绕开当前 ModelCard 的 Service 授权边界。
+	if err = proxywasm.ReplaceHttpRequestHeader(runtimeIdentityTargetClusterHeader, target.TargetCluster); err != nil {
+		return rejectRuntimeIdentityRequest(ctx, "target_cluster_rewrite_failed")
+	}
+	if err = writeResolvedModelContext(rule, target, 1, "direct"); err != nil {
+		return rejectRuntimeIdentityRequest(ctx, "context_write_failed")
+	}
 	return types.ActionContinue
 }
 

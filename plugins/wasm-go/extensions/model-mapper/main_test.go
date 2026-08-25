@@ -490,3 +490,240 @@ func TestOnHttpRequestBody_ModelMapping(t *testing.T) {
 		})
 	})
 }
+
+// strictRuntimeIdentityTarget 构造含完整唯一 Service/Cluster 闭包的测试 ModelCard target。
+// 输入约束：参数均为控制面冻结字段，函数只供本文件的 strict fixture 使用。
+// 输出语义：返回与 C1 下发 JSON 形状一致的完整 target，确保测试不会退化为仅 Provider/model 校验。
+// 边界场景：Service/Cluster 从 ModelCardID 派生仅是测试数据，生产选择始终来自 APIGO projection。
+func strictRuntimeIdentityTarget(modelCardID, provider, upstreamModelName string) runtimeIdentityTarget {
+	return runtimeIdentityTarget{
+		ModelCardID:       modelCardID,
+		Provider:          provider,
+		UpstreamModelName: upstreamModelName,
+		ServiceID:         "service-" + modelCardID,
+		TargetCluster:     "outbound|443||" + modelCardID + ".internal",
+	}
+}
+
+// strictRuntimeIdentityMapperConfig 构造一条由控制面冻结的 mapper/fallback 严格规则。
+// 该 fixture 同时保留源卡和目标卡于 closure，确保测试覆盖跨卡与同卡两种 transition 语义。
+func strictRuntimeIdentityMapperConfig(t *testing.T, targetKey string, target runtimeIdentityTarget, mappingTarget string) []byte {
+	t.Helper()
+	return strictRuntimeIdentityMapperConfigWithClosure(
+		t,
+		targetKey,
+		target,
+		map[string]string{"source-model": mappingTarget},
+		map[string]runtimeIdentityTarget{
+			"card-a":           strictRuntimeIdentityTarget("card-a", "provider-a", "source-model"),
+			target.ModelCardID: target,
+		},
+	)
+}
+
+// strictRuntimeIdentityMapperConfigWithClosure 构造可指定映射和完整冻结闭包的 strict mapper 配置。
+// 输入约束：mappings 的每个最终模型必须与 target.UpstreamModelName 一致；closure 要覆盖当前与目标卡。
+// 输出语义：返回可直接用于 Proxy-Wasm component host 的同一 revision 配置。
+// 边界情况：该 helper 只服务组件级序列断言，真实 Envoy redirect 重入仍由独立集成验证承担。
+func strictRuntimeIdentityMapperConfigWithClosure(
+	t *testing.T,
+	targetKey string,
+	target runtimeIdentityTarget,
+	mappings map[string]string,
+	closure map[string]runtimeIdentityTarget,
+) []byte {
+	t.Helper()
+	raw, err := json.Marshal(map[string]any{
+		"modelKey":      "model",
+		"modelToHeader": "x-higress-llm-model-final",
+		"modelMapping":  mappings,
+		"modelRuntimeIdentity": map[string]any{
+			"mode":           runtimeIdentityMode,
+			"configRevision": "revision-1",
+			"scope": map[string]any{
+				"gatewayId": "gw-1", "apiId": "api-1", "routeId": "route-1", "dataPlaneRouteName": "route-name-1",
+			},
+			"parser":                map[string]any{"source": runtimeIdentityJSONBody, "modelKey": "model"},
+			"reservedAutoSelectors": []string{"auto", "auto/*"},
+			"targetClosure":         closure,
+		},
+		"modelRuntimeIdentityTarget":    target,
+		"modelRuntimeIdentityTargetKey": targetKey,
+	})
+	require.NoError(t, err)
+	return raw
+}
+
+// TestRuntimeIdentityMapperDefersReservedAuto 验证 attached ModelMapper 在 Auto 最终候选 writer 之前保持完全无副作用。
+func TestRuntimeIdentityMapperDefersReservedAuto(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		target := strictRuntimeIdentityTarget("card-b", "provider-b", "target-model")
+		host, status := test.NewTestHost(strictRuntimeIdentityMapperConfigWithClosure(
+			t,
+			"mapper:policy-1:0",
+			target,
+			map[string]string{"*": "target-model", "auto": "", "auto/*": ""},
+			map[string]runtimeIdentityTarget{
+				"card-a": strictRuntimeIdentityTarget("card-a", "provider-a", "source-model"),
+				"card-b": target,
+			},
+		))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		headers := [][2]string{
+			{":authority", "example.com"}, {":path", "/v1/chat/completions"}, {":method", "POST"},
+			{"content-type", "application/json"}, {"content-length", "42"}, {"x-higress-llm-model-final", "unchanged"},
+		}
+		require.Equal(t, types.HeaderStopIteration, host.CallOnHttpRequestHeaders(headers))
+		body := []byte(`{"model":"auto/provider-a"}`)
+		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
+		require.JSONEq(t, string(body), string(host.GetRequestBody()))
+		value, found := getHeader(host.GetRequestHeaders(), "x-higress-llm-model-final")
+		require.True(t, found)
+		require.Equal(t, "unchanged", value)
+		_, found = getHeader(host.GetRequestHeaders(), "content-length")
+		require.True(t, found)
+		_, err := host.GetProperty([]string{resolvedModelContextProperty})
+		require.Error(t, err)
+	})
+}
+
+// setStrictMapperContext 写入仅能由上游 Direct/Auto writer 建立的 request-lifespan 身份。
+func setStrictMapperContext(t *testing.T, host test.TestHost, modelCardID, provider, upstreamModel string, sequence int64, revision string) {
+	t.Helper()
+	raw, err := json.Marshal(resolvedModelContext{
+		SchemaVersion:       resolvedModelContextSchemaVersion,
+		GatewayID:           "gw-1",
+		APIID:               "api-1",
+		RouteID:             "route-1",
+		ConfigRevision:      revision,
+		ResolvedModelCardID: modelCardID,
+		TransitionSeq:       sequence,
+		Source:              "direct",
+	})
+	require.NoError(t, err)
+	require.NoError(t, host.SetProperty([]string{resolvedModelContextProperty}, raw))
+}
+
+// TestRuntimeIdentityMapperTransition 验证 mapper/fallback 只在完整改写成功后以目标卡提交下一代 context。
+func TestRuntimeIdentityMapperTransition(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		for _, testCase := range []struct {
+			name      string
+			targetKey string
+			source    string
+		}{
+			{name: "mapper cross card", targetKey: "mapper:policy-1:0", source: "mapper"},
+			{name: "fallback cross card", targetKey: "fallback:route-1:0", source: "fallback"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				target := strictRuntimeIdentityTarget("card-b", "provider-b", "target-model")
+				host, status := test.NewTestHost(strictRuntimeIdentityMapperConfig(t, testCase.targetKey, target, target.UpstreamModelName))
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+				setStrictMapperContext(t, host, "card-a", "provider-a", "source-model", 1, "revision-1")
+
+				require.Equal(t, types.HeaderStopIteration, host.CallOnHttpRequestHeaders([][2]string{
+					{":authority", "example.com"}, {":path", "/v1/chat/completions"}, {":method", "POST"}, {"content-type", "application/json"}, {"content-length", "99"}, {runtimeIdentityTargetClusterHeader, "client-spoofed-cluster"},
+				}))
+				require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"model":"source-model"}`)))
+				require.Equal(t, "target-model", gjson.GetBytes(host.GetRequestBody(), "model").String())
+				raw, err := host.GetProperty([]string{resolvedModelContextProperty})
+				require.NoError(t, err)
+				var context resolvedModelContext
+				require.NoError(t, json.Unmarshal(raw, &context))
+				require.Equal(t, resolvedModelContextSchemaVersion, int(gjson.GetBytes(raw, "schemaVersion").Int()))
+				require.Equal(t, "route-1", gjson.GetBytes(raw, "routeId").String())
+				require.False(t, gjson.GetBytes(raw, "scope").Exists())
+				require.Equal(t, "card-b", context.ResolvedModelCardID)
+				require.Equal(t, int64(2), context.TransitionSeq)
+				require.Equal(t, testCase.source, context.Source)
+				clusterHeader, found := getHeader(host.GetRequestHeaders(), runtimeIdentityTargetClusterHeader)
+				require.True(t, found)
+				require.Equal(t, target.TargetCluster, clusterHeader)
+			})
+		}
+	})
+}
+
+// TestRuntimeIdentityMapperSameCardAndConflict 验证同卡表示改写不伪造 generation，缺失或混 revision context 一律拒绝。
+func TestRuntimeIdentityMapperSameCardAndConflict(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("same card keeps generation", func(t *testing.T) {
+			target := strictRuntimeIdentityTarget("card-a", "provider-a", "source-model")
+			host, status := test.NewTestHost(strictRuntimeIdentityMapperConfig(t, "mapper:policy-1:0", target, target.UpstreamModelName))
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			setStrictMapperContext(t, host, "card-a", "provider-a", "source-model", 4, "revision-1")
+			host.CallOnHttpRequestHeaders([][2]string{{":authority", "example.com"}, {":path", "/v1/chat/completions"}, {":method", "POST"}, {"content-type", "application/json"}, {"content-length", "99"}})
+			require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody([]byte(`{"model":"source-model"}`)))
+			raw, err := host.GetProperty([]string{resolvedModelContextProperty})
+			require.NoError(t, err)
+			var context resolvedModelContext
+			require.NoError(t, json.Unmarshal(raw, &context))
+			require.Equal(t, int64(4), context.TransitionSeq)
+			require.Equal(t, "direct", context.Source)
+		})
+
+		for _, testCase := range []struct {
+			name        string
+			withContext bool
+			revision    string
+		}{
+			{name: "missing context"},
+			{name: "mixed revision", withContext: true, revision: "revision-old"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				target := strictRuntimeIdentityTarget("card-b", "provider-b", "target-model")
+				host, status := test.NewTestHost(strictRuntimeIdentityMapperConfig(t, "mapper:policy-1:0", target, target.UpstreamModelName))
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+				if testCase.withContext {
+					setStrictMapperContext(t, host, "card-a", "provider-a", "source-model", 1, testCase.revision)
+				}
+				host.CallOnHttpRequestHeaders([][2]string{{":authority", "example.com"}, {":path", "/v1/chat/completions"}, {":method", "POST"}, {"content-type", "application/json"}, {"content-length", "99"}})
+				require.Equal(t, types.ActionPause, host.CallOnHttpRequestBody([]byte(`{"model":"source-model"}`)))
+			})
+		}
+	})
+}
+
+// TestRuntimeIdentityMapperSequenceABA 验证跨卡回切会继续递增 generation，不能把第一次 A 的身份当作当前 A 复用。
+func TestRuntimeIdentityMapperSequenceABA(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		cardA := strictRuntimeIdentityTarget("card-a", "provider-a", "source-model")
+		cardB := strictRuntimeIdentityTarget("card-b", "provider-b", "target-model")
+		closure := map[string]runtimeIdentityTarget{"card-a": cardA, "card-b": cardB}
+		headers := [][2]string{{":authority", "example.com"}, {":path", "/v1/chat/completions"}, {":method", "POST"}, {"content-type", "application/json"}}
+
+		// 第一段模拟 Direct 后的 mapper A -> B；property 字节会作为 redirect 重新进入下一段的唯一上下文输入。
+		first, status := test.NewTestHost(strictRuntimeIdentityMapperConfigWithClosure(
+			t, "mapper:policy-1:0", cardB, map[string]string{"source-model": "target-model"}, closure,
+		))
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		setStrictMapperContext(t, first, "card-a", "provider-a", "source-model", 1, "revision-1")
+		require.Equal(t, types.HeaderStopIteration, first.CallOnHttpRequestHeaders(headers))
+		require.Equal(t, types.ActionContinue, first.CallOnHttpRequestBody([]byte(`{"model":"source-model"}`)))
+		raw, err := first.GetProperty([]string{resolvedModelContextProperty})
+		require.NoError(t, err)
+		require.Equal(t, "card-b", gjson.GetBytes(raw, "resolvedModelCardId").String())
+		require.Equal(t, int64(2), gjson.GetBytes(raw, "transitionSeq").Int())
+		first.Reset()
+
+		// 第二段模拟同一请求在 shadow route 上回切 B -> A；这里不声称模拟真实 Envoy stream，只验证序列化 property 合同。
+		second, status := test.NewTestHost(strictRuntimeIdentityMapperConfigWithClosure(
+			t, "mapper:policy-1:1", cardA, map[string]string{"target-model": "source-model"}, closure,
+		))
+		defer second.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, second.SetProperty([]string{resolvedModelContextProperty}, raw))
+		require.Equal(t, types.HeaderStopIteration, second.CallOnHttpRequestHeaders(headers))
+		require.Equal(t, types.ActionContinue, second.CallOnHttpRequestBody([]byte(`{"model":"target-model"}`)))
+		raw, err = second.GetProperty([]string{resolvedModelContextProperty})
+		require.NoError(t, err)
+		require.Equal(t, "card-a", gjson.GetBytes(raw, "resolvedModelCardId").String())
+		require.Equal(t, int64(3), gjson.GetBytes(raw, "transitionSeq").Int())
+		require.Equal(t, "mapper", gjson.GetBytes(raw, "source").String())
+	})
+}
