@@ -25,9 +25,9 @@ on:
         required: true
         type: string
       move_latest:
-        description: "Also move the latest tag to the overwritten digest"
+        description: "Also move the latest tag to the overwritten digest (opt-in: moving latest for an older version can regress it below a newer release)"
         required: true
-        default: true
+        default: false
         type: boolean
       dry_run:
         description: "Build and validate only; never push"
@@ -215,5 +215,5 @@ jobs:
             echo "- source commit: \`$SOURCE_COMMIT\`"
             echo "- latest moved: $MOVE_LATEST"
             echo ""
-            echo "Follow-up REQUIRED: update plugins/release/snapshots + evidence digests for this plugin in a recovery PR."
+            echo "Follow-up: no snapshot edit is needed — the fix commit is on main; the next gateway release auto-bumps this plugin and re-releases it through the verified pipeline. (Trigger it with trigger-plugin-release.yaml.)"
           } | tee -a "$GITHUB_STEP_SUMMARY"
