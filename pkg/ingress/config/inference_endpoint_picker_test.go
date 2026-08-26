@@ -47,7 +47,13 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected one internal WasmPlugin, got %d", len(got))
 	}
+	if got[0].Name != builtinInferenceEndpointPickerPluginName || got[0].Namespace != ingressConfig.namespace {
+		t.Fatalf("unexpected internal plugin identity: %s/%s", got[0].Namespace, got[0].Name)
+	}
 	plugin := got[0].Spec.(*extensions.WasmPlugin)
+	if plugin.Selector.MatchLabels["app"] != "higress-gateway" {
+		t.Fatalf("expected plugin to select the configured gateway, got %v", plugin.Selector.MatchLabels)
+	}
 	if plugin.PluginName != "ai-endpoint-picker" || plugin.FailStrategy != extensions.FailStrategy_FAIL_OPEN {
 		t.Fatalf("unexpected internal plugin contract: %+v", plugin)
 	}
