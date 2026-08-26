@@ -172,3 +172,35 @@ func TestMergeHTTPRoutesMergesInferencePoolExtra(t *testing.T) {
 		t.Fatalf("expected base InferencePool config map not to be mutated by merge")
 	}
 }
+
+func TestMixedEndpointPickerModesUseUniqueHTTPRouteNames(t *testing.T) {
+	routes := []*istio.HTTPRoute{
+		{Name: "default/mixed-picker-route"},
+		{Name: "default/mixed-picker-route"},
+	}
+	configs := []kube.InferencePoolRouteRuleConfig{
+		{Mode: kube.InferencePoolEndpointPickerModeExternal},
+		{Mode: kube.InferencePoolEndpointPickerModeBuiltin},
+	}
+
+	got := make(map[string]kube.InferencePoolRouteRuleConfig, len(routes))
+	for ruleIndex, route := range routes {
+		disambiguateHTTPRouteName(route, ruleIndex, 0, len(routes))
+		got[route.Name] = configs[ruleIndex]
+	}
+
+	if routes[0].Name == routes[1].Name {
+		t.Fatalf("expected unique names for final routes from different rules, both were %q", routes[0].Name)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected both per-rule picker configs to be preserved, got %v", got)
+	}
+	modeCounts := map[kube.InferencePoolEndpointPickerMode]int{}
+	for _, cfg := range got {
+		modeCounts[cfg.Mode]++
+	}
+	if modeCounts[kube.InferencePoolEndpointPickerModeExternal] != 1 ||
+		modeCounts[kube.InferencePoolEndpointPickerModeBuiltin] != 1 {
+		t.Fatalf("expected one External and one BuiltIn config, got %v", modeCounts)
+	}
+}

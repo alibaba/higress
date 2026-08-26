@@ -20,10 +20,12 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	inferencev1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
 
 	"istio.io/istio/pilot/pkg/features"
 	"istio.io/istio/pkg/config/constants"
+	"istio.io/istio/pkg/config/gateway/kube"
 	"istio.io/istio/pkg/kube/krt"
 	"istio.io/istio/pkg/test"
 	"istio.io/istio/pkg/test/util/assert"
@@ -53,7 +55,7 @@ func TestReconcileInferencePool(t *testing.T) {
 					"app": "test",
 				},
 			},
-			EndpointPickerRef: inferencev1.EndpointPickerRef{
+			EndpointPickerRef: &inferencev1.EndpointPickerRef{
 				Name: "dummy",
 				Port: &inferencev1.Port{
 					Number: inferencev1.PortNumber(5421),
@@ -95,4 +97,38 @@ func TestReconcileInferencePool(t *testing.T) {
 		assert.Equal(t, servicePort.Port, int32(54321+i))
 		assert.Equal(t, servicePort.TargetPort.IntVal, int32(8080+i))
 	}
+}
+
+func TestInferencePoolEndpointPickerMode(t *testing.T) {
+	externalRef := &inferencev1.EndpointPickerRef{Name: "epp", Port: &inferencev1.Port{Number: 9002}}
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		ref         *inferencev1.EndpointPickerRef
+		wantMode    kube.InferencePoolEndpointPickerMode
+		wantError   bool
+	}{
+		{name: "external is the default", ref: externalRef, wantMode: kube.InferencePoolEndpointPickerModeExternal},
+		{name: "builtin requires explicit annotation", annotations: map[string]string{InferencePoolEndpointPickerModeAnnotation: "builtin"}, wantMode: kube.InferencePoolEndpointPickerModeBuiltin},
+		{name: "missing external ref", wantMode: kube.InferencePoolEndpointPickerModeExternal, wantError: true},
+		{name: "builtin conflicts with ref", annotations: map[string]string{InferencePoolEndpointPickerModeAnnotation: "builtin"}, ref: externalRef, wantMode: kube.InferencePoolEndpointPickerModeExternal, wantError: true},
+		{name: "annotation is case sensitive", annotations: map[string]string{InferencePoolEndpointPickerModeAnnotation: "BuiltIn"}, wantMode: kube.InferencePoolEndpointPickerModeExternal, wantError: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool := &inferencev1.InferencePool{ObjectMeta: metav1.ObjectMeta{Annotations: tt.annotations}, Spec: inferencev1.InferencePoolSpec{EndpointPickerRef: tt.ref}}
+			mode, message := inferencePoolEndpointPickerMode(pool)
+			assert.Equal(t, mode, tt.wantMode)
+			assert.Equal(t, message != "", tt.wantError)
+		})
+	}
+}
+
+func TestShadowServiceModeSwitchOverwritesManagedLabel(t *testing.T) {
+	service := translateShadowServiceToService(
+		map[string]string{constants.InferencePoolEndpointPickerModeLabel: string(kube.InferencePoolEndpointPickerModeBuiltin)},
+		shadowServiceInfo{key: types.NamespacedName{Name: "pool-ip", Namespace: "default"}, poolName: "pool"},
+		extRefInfo{mode: kube.InferencePoolEndpointPickerModeExternal, name: "epp", port: 9002, failureMode: string(inferencev1.EndpointPickerFailClose)},
+	)
+	assert.Equal(t, service.Labels[constants.InferencePoolEndpointPickerModeLabel], string(kube.InferencePoolEndpointPickerModeExternal))
 }

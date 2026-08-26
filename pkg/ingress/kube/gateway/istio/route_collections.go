@@ -74,6 +74,10 @@ func HTTPRouteCollection(
 		}{}
 		status := obj.Status.DeepCopy()
 		route := obj.Spec
+		routeVariantCount := 0
+		for _, rule := range route.Rules {
+			routeVariantCount += max(1, len(rule.Matches))
+		}
 		parentStatus, parentRefs, meshResult, gwResult := computeRoute(ctx, obj, func(mesh bool, obj *gateway.HTTPRoute) iter.Seq2[*istio.HTTPRoute, *ConfigError] {
 			return func(yield func(*istio.HTTPRoute, *ConfigError) bool) {
 				for n, r := range route.Rules {
@@ -82,12 +86,15 @@ func HTTPRouteCollection(
 					if len(matches) == 0 {
 						matches = append(matches, nil)
 					}
-					for _, m := range matches {
+					for matchIndex, m := range matches {
 						if m != nil {
 							r.Matches = []gateway.HTTPRouteMatch{*m}
 						}
 						istioRoute, ipCfg, configErr := convertHTTPRoute(ctx, r, obj, n, !mesh)
-						if istioRoute != nil && ipCfg != nil && ipCfg.enableExtProc {
+						if ipCfg != nil {
+							disambiguateHTTPRouteName(istioRoute, n, matchIndex, routeVariantCount)
+						}
+						if istioRoute != nil && ipCfg != nil {
 							inferencePoolCfgPairs = append(inferencePoolCfgPairs, struct {
 								name string
 								cfg  *inferencePoolConfig
@@ -165,6 +172,7 @@ func HTTPRouteCollection(
 				for _, httpRule := range routes { // These are []*istio.HTTPRoute
 					if ipCfg, found := routeRuleToInferencePoolCfg[httpRule.Name]; found {
 						currentRouteInferenceConfigs[httpRule.Name] = kube.InferencePoolRouteRuleConfig{
+							Mode:             ipCfg.mode,
 							FQDN:             ipCfg.endpointPickerDst,
 							Port:             ipCfg.endpointPickerPort,
 							FailureModeAllow: ipCfg.endpointPickerFailureMode == string(inferencev1.EndpointPickerFailOpen),
@@ -208,6 +216,13 @@ func HTTPRouteCollection(
 		Status:           status,
 		Ancestors:        ancestorBackends,
 	}
+}
+
+func disambiguateHTTPRouteName(route *istio.HTTPRoute, ruleIndex, matchIndex, routeVariantCount int) {
+	if route == nil || routeVariantCount <= 1 {
+		return
+	}
+	route.Name = fmt.Sprintf("%s.%d.%d", route.Name, ruleIndex, matchIndex)
 }
 
 func extractAncestorBackends[RT, BT any](ns string, prefs []gateway.ParentReference, rules []RT, extract func(RT) []BT) []AncestorBackend {
@@ -363,6 +378,7 @@ func GRPCRouteCollection(
 				for _, httpRule := range routes {
 					if ipCfg, found := routeRuleToInferencePoolCfg[httpRule.Name]; found { // This map will be empty for GRPCRoute for now
 						currentRouteInferenceConfigs[httpRule.Name] = kube.InferencePoolRouteRuleConfig{
+							Mode:             ipCfg.mode,
 							FQDN:             ipCfg.endpointPickerDst,
 							Port:             ipCfg.endpointPickerPort,
 							FailureModeAllow: ipCfg.endpointPickerFailureMode == string(inferencev1.EndpointPickerFailOpen),
