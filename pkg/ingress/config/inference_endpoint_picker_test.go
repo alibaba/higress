@@ -23,6 +23,7 @@ import (
 	"istio.io/istio/pkg/config/gateway/kube"
 	"istio.io/istio/pkg/config/schema/gvk"
 
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
 )
 
@@ -49,6 +50,9 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	plugin := got[0].Spec.(*extensions.WasmPlugin)
 	if plugin.PluginName != "ai-endpoint-picker" || plugin.FailStrategy != extensions.FailStrategy_FAIL_OPEN {
 		t.Fatalf("unexpected internal plugin contract: %+v", plugin)
+	}
+	if plugin.Url != higressconfig.AiEndpointPickerWasmImageUrl {
+		t.Fatalf("expected configured plugin URL %q, got %q", higressconfig.AiEndpointPickerWasmImageUrl, plugin.Url)
 	}
 	rules := plugin.PluginConfig.Fields["_rules_"].GetListValue().Values
 	if len(rules) != 1 {
