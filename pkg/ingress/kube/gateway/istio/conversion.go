@@ -1150,7 +1150,7 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 			return &istio.Destination{}, nil, invalidBackendErr
 		}
 
-		ipCfg := &inferencePoolConfig{mode: gatewaykube.InferencePoolEndpointPickerModeExternal}
+		ipCfg := &inferencePoolConfig{}
 		if mode := svc.Attributes.Labels[constants.InferencePoolEndpointPickerModeLabel]; mode == string(gatewaykube.InferencePoolEndpointPickerModeBuiltin) {
 			ipCfg.mode = gatewaykube.InferencePoolEndpointPickerModeBuiltin
 		} else {

@@ -547,20 +547,28 @@ func translateShadowServiceToService(existingLabels map[string]string, shadow sh
 		})
 	}
 
-	labels := maps.Clone(existingLabels)
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	delete(labels, InferencePoolExtensionRefSvc)
-	delete(labels, InferencePoolExtensionRefPort)
-	delete(labels, InferencePoolExtensionRefFailureMode)
-	labels[InferencePoolRefLabel] = shadow.poolName
-	labels[constants.InternalServiceSemantics] = constants.ServiceSemanticsInferencePool
-	labels[constants.InferencePoolEndpointPickerModeLabel] = string(extRef.mode)
-	if extRef.mode == kube.InferencePoolEndpointPickerModeExternal {
-		labels[InferencePoolExtensionRefSvc] = extRef.name
-		labels[InferencePoolExtensionRefPort] = strconv.Itoa(int(extRef.port))
-		labels[InferencePoolExtensionRefFailureMode] = extRef.failureMode
+	labels := maps.MergeCopy(map[string]string{
+		InferencePoolRefLabel:                shadow.poolName,
+		InferencePoolExtensionRefSvc:         extRef.name,
+		InferencePoolExtensionRefPort:        strconv.Itoa(int(extRef.port)),
+		InferencePoolExtensionRefFailureMode: extRef.failureMode,
+		constants.InternalServiceSemantics:   constants.ServiceSemanticsInferencePool,
+	}, existingLabels)
+	if extRef.mode == kube.InferencePoolEndpointPickerModeBuiltin {
+		delete(labels, InferencePoolExtensionRefSvc)
+		delete(labels, InferencePoolExtensionRefPort)
+		delete(labels, InferencePoolExtensionRefFailureMode)
+		labels[constants.InferencePoolEndpointPickerModeLabel] = string(kube.InferencePoolEndpointPickerModeBuiltin)
+	} else {
+		wasBuiltin := labels[constants.InferencePoolEndpointPickerModeLabel] == string(kube.InferencePoolEndpointPickerModeBuiltin)
+		delete(labels, constants.InferencePoolEndpointPickerModeLabel)
+		if wasBuiltin {
+			// Existing labels override generated labels in the upstream path. Rebuild
+			// the EPP labels only when switching from BuiltIn back to External.
+			labels[InferencePoolExtensionRefSvc] = extRef.name
+			labels[InferencePoolExtensionRefPort] = strconv.Itoa(int(extRef.port))
+			labels[InferencePoolExtensionRefFailureMode] = extRef.failureMode
+		}
 	}
 
 	// Create a new service object based on the shadow service info

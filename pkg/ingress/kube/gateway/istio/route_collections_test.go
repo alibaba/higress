@@ -173,6 +173,21 @@ func TestMergeHTTPRoutesMergesInferencePoolExtra(t *testing.T) {
 	}
 }
 
+func TestExternalInferencePoolRouteConfigUsesZeroMode(t *testing.T) {
+	got := toInferencePoolRouteRuleConfig(&inferencePoolConfig{
+		enableExtProc:             true,
+		endpointPickerDst:         "epp.default.svc.cluster.local",
+		endpointPickerPort:        "9002",
+		endpointPickerFailureMode: "FailOpen",
+	})
+	if got.Mode != "" {
+		t.Fatalf("expected External route mode to use the legacy zero value, got %q", got.Mode)
+	}
+	if got.FQDN != "epp.default.svc.cluster.local" || got.Port != "9002" || !got.FailureModeAllow {
+		t.Fatalf("unexpected External route config: %+v", got)
+	}
+}
+
 func TestMixedEndpointPickerModesUseUniqueHTTPRouteNames(t *testing.T) {
 	first := &istio.HTTPRoute{Name: "default/mixed-picker-route"}
 	second := &istio.HTTPRoute{Name: first.Name}
