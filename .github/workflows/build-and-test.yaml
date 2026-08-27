@@ -30,6 +30,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -70,6 +71,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -153,6 +155,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ matrix.test-directory }}/go.mod
+          cache: false
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -253,6 +256,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache: false
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
@@ -333,6 +337,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false
 
       - name: Setup Golang Caches
         uses: actions/cache@v4
