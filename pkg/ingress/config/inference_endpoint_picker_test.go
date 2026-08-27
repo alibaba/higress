@@ -60,13 +60,32 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	if plugin.Url != higressconfig.AiEndpointPickerWasmImageUrl {
 		t.Fatalf("expected configured plugin URL %q, got %q", higressconfig.AiEndpointPickerWasmImageUrl, plugin.Url)
 	}
-	rules := plugin.PluginConfig.Fields["_rules_"].GetListValue().Values
+	pluginFields := plugin.PluginConfig.Fields
+	if len(pluginFields) != 1 {
+		t.Fatalf("expected PluginConfig to contain only _rules_, got %v", pluginFields)
+	}
+	rulesValue, found := pluginFields["_rules_"]
+	if !found {
+		t.Fatalf("expected PluginConfig _rules_, got %v", pluginFields)
+	}
+	rules := rulesValue.GetListValue().Values
 	if len(rules) != 1 {
 		t.Fatalf("expected one route match rule, got %d", len(rules))
 	}
-	matches := rules[0].GetStructValue().Fields["_match_route_"].GetListValue().Values
+	ruleFields := rules[0].GetStructValue().Fields
+	if len(ruleFields) != 1 {
+		t.Fatalf("expected an empty BuiltIn rule config apart from route matching, got %v", ruleFields)
+	}
+	matches := ruleFields["_match_route_"].GetListValue().Values
 	if len(matches) != 1 || matches[0].GetStringValue() != "builtin-route" {
 		t.Fatalf("expected only builtin-route to be bound, got %v", matches)
+	}
+
+	virtualService.Extra = map[string]any{constants.ConfigExtraPerRouteRuleInferencePoolConfigs: map[string]kube.InferencePoolRouteRuleConfig{
+		"external-route": {Mode: kube.InferencePoolEndpointPickerModeExternal, FQDN: "epp.default.svc.cluster.local", Port: "9002"},
+	}}
+	if got := ingressConfig.convertBuiltinInferenceEndpointPicker([]config.Config{virtualService}); len(got) != 0 {
+		t.Fatalf("expected ExternalEPP routes not to bind the internal plugin, got %d configs", len(got))
 	}
 
 	virtualService.Extra = nil
