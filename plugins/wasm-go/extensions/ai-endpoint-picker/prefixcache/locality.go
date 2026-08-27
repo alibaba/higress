@@ -17,12 +17,24 @@ import (
 const (
 	MaxSegmentTokens = 1024
 	MaxPrefixTokens  = 131072
-	DefaultCapacity  = 31250
-	DefaultBlockSize = 16
-	maxSegmentBytes  = MaxSegmentTokens * 4
+	MaxTools         = 64
+	// MaxToolIdentityBytes bounds the total type/name data hashed in identity mode.
+	MaxToolIdentityBytes = 8192
+	DefaultCapacity      = 31250
+	DefaultBlockSize     = 16
+	maxSegmentBytes      = MaxSegmentTokens * 4
 	// Over-budget tool schemas fall back to non-prefix scheduling.
 	maxCanonicalNodes = 16384
 	maxJSONDepth      = 64
+)
+
+type ToolMode string
+
+const (
+	ToolModeNone     ToolMode = "none"
+	ToolModeIdentity ToolMode = "identity"
+	ToolModeFull     ToolMode = "full"
+	DefaultToolMode           = ToolModeIdentity
 )
 
 type segmentKind byte
@@ -66,10 +78,22 @@ func Extract(body []byte) (*Locality, bool, error) {
 	return locality, supported, err
 }
 
+// ExtractWithToolMode derives locality using the requested tools precision.
+func ExtractWithToolMode(body []byte, toolMode ToolMode) (*Locality, bool, error) {
+	_, locality, supported, err := InspectRequestWithToolMode(body, toolMode)
+	return locality, supported, err
+}
+
 // InspectRequest validates the bounded request envelope, extracts the model,
 // and derives approximate prefix locality. Requests beyond the canonical depth
 // limit retain a safely extracted top-level model but disable prefix locality.
 func InspectRequest(body []byte) (string, *Locality, bool, error) {
+	return InspectRequestWithToolMode(body, DefaultToolMode)
+}
+
+// InspectRequestWithToolMode validates the request and controls how top-level
+// tools contribute to the approximate prefix. Callers must validate toolMode.
+func InspectRequestWithToolMode(body []byte, toolMode ToolMode) (string, *Locality, bool, error) {
 	start := skipWhitespace(body, 0)
 	if start >= len(body) || body[start] != '{' {
 		return "", nil, false, fmt.Errorf("expected JSON object")
@@ -85,10 +109,10 @@ func InspectRequest(body []byte) (string, *Locality, bool, error) {
 	if err != nil || skipWhitespace(body, end) != len(body) || !json.Valid(body) {
 		return "", nil, false, fmt.Errorf("invalid JSON request")
 	}
-	return inspectValidatedRequest(body)
+	return inspectValidatedRequest(body, toolMode)
 }
 
-func inspectValidatedRequest(body []byte) (string, *Locality, bool, error) {
+func inspectValidatedRequest(body []byte, toolMode ToolMode) (string, *Locality, bool, error) {
 	fields, err := parseObjectFields(body)
 	if err != nil {
 		return "", nil, false, err
@@ -108,7 +132,7 @@ func inspectValidatedRequest(body []byte) (string, *Locality, bool, error) {
 		return "", nil, false, err
 	}
 	if messages := fieldValue(fields, "messages"); messages != nil {
-		chains, supported, err := extractChat(messages, fieldValue(fields, "tools"), seed)
+		chains, supported, err := extractChat(messages, fieldValue(fields, "tools"), seed, toolMode)
 		if errors.Is(err, errCanonicalComplexity) || errors.Is(err, errJSONDepthLimit) {
 			return model, nil, false, nil
 		}
@@ -130,21 +154,30 @@ func inspectValidatedRequest(body []byte) (string, *Locality, bool, error) {
 	return model, nil, false, nil
 }
 
-func extractChat(rawMessages, rawTools []byte, seed uint64) ([][]Block, bool, error) {
+func extractChat(rawMessages, rawTools []byte, seed uint64, toolMode ToolMode) ([][]Block, bool, error) {
 	chain := make([]Block, 0)
 	previous, totalTokens := seed, 0
-	if len(rawTools) > 0 && !bytes.Equal(bytes.TrimSpace(rawTools), []byte("null")) {
+	if toolMode != ToolModeNone && len(rawTools) > 0 && !bytes.Equal(bytes.TrimSpace(rawTools), []byte("null")) {
 		hasValues, err := arrayHasValues(rawTools)
 		if err != nil {
 			return nil, false, err
 		}
 		if hasValues {
 			builder := newSegmentBuilder(&chain, segmentTools, 0, &previous, &totalTokens)
-			writer := &canonicalBudgetWriter{target: builder, remaining: maxCanonicalNodes}
-			if err := writeCanonicalJSON(rawTools, writer); errors.Is(err, errCanonicalComplexity) || errors.Is(err, errJSONDepthLimit) {
-				return nil, false, nil
-			} else if err != nil && !errors.Is(err, errSemanticCap) {
-				return nil, false, err
+			switch toolMode {
+			case ToolModeIdentity:
+				if err := writeToolIdentities(rawTools, builder); err != nil {
+					return nil, false, err
+				}
+			case ToolModeFull:
+				writer := &canonicalBudgetWriter{target: builder, remaining: maxCanonicalNodes}
+				if err := writeCanonicalJSON(rawTools, writer); errors.Is(err, errCanonicalComplexity) || errors.Is(err, errJSONDepthLimit) {
+					return nil, false, nil
+				} else if err != nil && !errors.Is(err, errSemanticCap) {
+					return nil, false, err
+				}
+			default:
+				return nil, false, fmt.Errorf("unsupported tool mode %q", toolMode)
 			}
 			builder.finish()
 		}
@@ -198,10 +231,139 @@ func extractChat(rawMessages, rawTools []byte, seed uint64) ([][]Block, bool, er
 	return [][]Block{chain}, true, nil
 }
 
+func writeToolIdentities(rawTools []byte, writer io.Writer) error {
+	tools, identityBytes := 0, 0
+	err := forEachArrayValue(rawTools, func(rawTool []byte) error {
+		if tools >= MaxTools || MaxToolIdentityBytes-identityBytes < 9 {
+			return errToolIdentityCap
+		}
+		typeRaw, functionRaw, err := toolIdentityFields(rawTool)
+		if err != nil {
+			return err
+		}
+		nameRaw, err := functionNameField(functionRaw)
+		if err != nil {
+			return err
+		}
+		remaining := MaxToolIdentityBytes - identityBytes - 9
+		typeLength, err := optionalDecodedStringLength(typeRaw, remaining)
+		if err != nil {
+			if errors.Is(err, errToolIdentityCap) {
+				return errToolIdentityCap
+			}
+			return err
+		}
+		nameLength, err := optionalDecodedStringLength(nameRaw, remaining-typeLength)
+		if err != nil {
+			if errors.Is(err, errToolIdentityCap) {
+				return errToolIdentityCap
+			}
+			return err
+		}
+		encodedLength := 9 + typeLength + nameLength
+		if encodedLength > MaxToolIdentityBytes-identityBytes {
+			return errToolIdentityCap
+		}
+		var framing [9]byte
+		if len(typeRaw) > 0 {
+			framing[0] |= 1
+		}
+		if len(nameRaw) > 0 {
+			framing[0] |= 2
+		}
+		binary.LittleEndian.PutUint32(framing[1:5], uint32(typeLength))
+		binary.LittleEndian.PutUint32(framing[5:9], uint32(nameLength))
+		if _, err := writer.Write(framing[:]); err != nil {
+			return err
+		}
+		if len(typeRaw) > 0 {
+			if err := writeDecodedJSONString(typeRaw, writer); err != nil {
+				return err
+			}
+		}
+		if len(nameRaw) > 0 {
+			if err := writeDecodedJSONString(nameRaw, writer); err != nil {
+				return err
+			}
+		}
+		tools++
+		identityBytes += encodedLength
+		return nil
+	})
+	if errors.Is(err, errToolIdentityCap) {
+		return nil
+	}
+	return err
+}
+
+func toolIdentityFields(rawTool []byte) ([]byte, []byte, error) {
+	typeRaw, err := findObjectField(rawTool, "type")
+	if err != nil {
+		return nil, nil, err
+	}
+	functionRaw, err := findObjectField(rawTool, "function")
+	if err != nil {
+		return nil, nil, err
+	}
+	return normalizeOptionalString(typeRaw), bytes.TrimSpace(functionRaw), nil
+}
+
+func functionNameField(rawFunction []byte) ([]byte, error) {
+	if len(rawFunction) == 0 || bytes.Equal(rawFunction, []byte("null")) {
+		return nil, nil
+	}
+	nameRaw, err := findObjectField(rawFunction, "name")
+	if err != nil {
+		return nil, err
+	}
+	return normalizeOptionalString(nameRaw), nil
+}
+
+func normalizeOptionalString(raw []byte) []byte {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
+	}
+	return raw
+}
+
+func optionalDecodedStringLength(raw []byte, limit int) (int, error) {
+	if len(raw) == 0 {
+		return 0, nil
+	}
+	if !isJSONString(raw) {
+		return 0, fmt.Errorf("tool identity field must be a string")
+	}
+	counter := &identityLengthWriter{remaining: limit}
+	if err := writeDecodedJSONString(raw, counter); err != nil {
+		return 0, err
+	}
+	return counter.written, nil
+}
+
+type identityLengthWriter struct {
+	remaining int
+	written   int
+}
+
+func (writer *identityLengthWriter) Write(data []byte) (int, error) {
+	if len(data) > writer.remaining {
+		return 0, errToolIdentityCap
+	}
+	writer.remaining -= len(data)
+	writer.written += len(data)
+	return len(data), nil
+}
+
+// One extra byte lets writeDecodedJSONString detect rather than silently stop
+// at the identity budget.
+func (writer *identityLengthWriter) inputLimit() int { return writer.remaining + 1 }
+
 var errUnsupportedContent = errors.New("unsupported non-text content")
 var errSemanticCap = errors.New("semantic prefix cap reached")
 var errCanonicalComplexity = errors.New("canonical JSON complexity limit exceeded")
 var errJSONDepthLimit = errors.New("JSON nesting depth limit exceeded")
+var errToolIdentityCap = errors.New("tool identity cap reached")
 
 func hasTopLevelMultimodal(fields []jsonField) bool {
 	for _, name := range []string{"audio", "input_audio", "image", "image_url", "video", "video_url"} {
@@ -850,6 +1012,55 @@ func parseHex4(data []byte) (uint16, bool) {
 
 func parseObjectFields(raw []byte) ([]jsonField, error) {
 	return parseObjectFieldsLimited(raw, -1)
+}
+
+// findObjectField scans only as far as the requested field and returns a span
+// into raw. In particular, identity-mode tool parsing does not materialize or
+// canonicalize description and schema subtrees that follow type/name.
+func findObjectField(raw []byte, name string) ([]byte, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) < 2 || raw[0] != '{' {
+		return nil, fmt.Errorf("expected JSON object")
+	}
+	position := 1
+	for {
+		position = skipWhitespace(raw, position)
+		if position >= len(raw) {
+			return nil, fmt.Errorf("unterminated JSON object")
+		}
+		if raw[position] == '}' {
+			return nil, nil
+		}
+		keyEnd, err := scanJSONString(raw, position)
+		if err != nil {
+			return nil, err
+		}
+		key, err := decodeSmallString(raw[position:keyEnd])
+		if err != nil {
+			return nil, err
+		}
+		position = skipWhitespace(raw, keyEnd)
+		if position >= len(raw) || raw[position] != ':' {
+			return nil, fmt.Errorf("missing JSON object colon")
+		}
+		position = skipWhitespace(raw, position+1)
+		valueEnd, err := scanJSONValue(raw, position)
+		if err != nil {
+			return nil, err
+		}
+		if key == name {
+			return raw[position:valueEnd], nil
+		}
+		position = skipWhitespace(raw, valueEnd)
+		if position < len(raw) && raw[position] == ',' {
+			position++
+			continue
+		}
+		if position < len(raw) && raw[position] == '}' {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("invalid JSON object separator")
+	}
 }
 
 func parseObjectFieldsLimited(raw []byte, maxFields int) ([]jsonField, error) {

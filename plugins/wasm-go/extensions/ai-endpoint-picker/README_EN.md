@@ -16,7 +16,7 @@ The plugin runs `Filter → Normalize → Score → Pick → Feedback`:
 
 The KV cache signal prefers `vllm:kv_cache_usage_perc` and supports the legacy `vllm:gpu_cache_usage_perc`. The `vllm:lora_requests_info` family is optional.
 
-Prefix locality supports text inputs for OpenAI Chat Completions and Completions while excluding output parameters such as temperature and max tokens. Canonical tools and each canonical Chat message—including role, content, name, tool calls, and other complete prompt-relevant fields—form ordered semantic segments. Completions text and flat token-ID prompts form independent chains. A valid batched token-ID prompt such as `[[1,2],[3,4]]` currently makes only the prefix scorer unavailable, so queue/KV scheduling continues; mixed or invalid prompt shapes remain invalid input. Canonical JSON nesting is capped at 64, and exceeding that depth or the node budget also disables only the prefix scorer. Every four UTF-8 bytes estimate one pseudo-token; segments longer than 1024 pseudo-tokens are split into bounded slices, and each prompt processes at most 131072 pseudo-tokens. Hashes include `model`, `cache_salt`, segment kind and length, content hash, and the preceding hash, so a changed middle segment prevents later segments from matching. Non-text multimodal input makes only the prefix scorer unavailable, so queue and KV scorers continue to work.
+Prefix locality supports text inputs for OpenAI Chat Completions and Completions while excluding output parameters such as temperature and max tokens. `prefix.toolMode` controls tool-prefix precision; every canonical Chat message—including role, content, name, tool calls, and other complete prompt-relevant fields—still forms an ordered semantic segment. Completions text and flat token-ID prompts form independent chains. A valid batched token-ID prompt such as `[[1,2],[3,4]]` currently makes only the prefix scorer unavailable, so queue/KV scheduling continues; mixed or invalid prompt shapes remain invalid input. Canonical JSON nesting is capped at 64, and exceeding that depth or the node budget also disables only the prefix scorer. Every four UTF-8 bytes estimate one pseudo-token; segments longer than 1024 pseudo-tokens are split into bounded slices, and each prompt processes at most 131072 pseudo-tokens. Hashes include `model`, `cache_salt`, segment kind and length, content hash, and the preceding hash, so a changed middle segment prevents later segments from matching. Non-text multimodal input makes only the prefix scorer unavailable, so queue and KV scorers continue to work.
 
 Each endpoint has a thread-safe weighted LRU whose capacity is measured in approximate backend KV blocks. The default is 31250 and a valid `vllm:cache_config_info{num_gpu_blocks=...}` overrides it. Each semantic entry costs `ceil(segmentTokens/actualBlockSize)` incrementally; the selected endpoint's valid `block_size` is used, with a fallback of 16. Scoring does not refresh the LRU.
 
@@ -30,6 +30,8 @@ The queue, KV, and LoRA scorers require a Prometheus snapshot from each actual i
 
 ```yaml
 profile: default
+prefix:
+  toolMode: identity
 weights:
   queue: 2
   kvCache: 2
@@ -46,6 +48,14 @@ debug:
 ```
 
 The plugin supports the `default` profile, the equivalent `balanced` alias, and the `max-score` picker. The zero-configuration weights above match the llm-d router defaults, with flow control disabled. LoRA, inflight, and failure remain explicitly configurable but default to weight 0. Weights must be finite non-negative numbers with at least one value greater than zero. `ewmaAlpha` must be in `(0,1]`, and `sampleRate` must be in `[0,1]`.
+
+`prefix.toolMode` offers three explicit trade-offs between gateway work and approximate-prefix precision. Unknown values reject the plugin configuration:
+
+- `identity` (default) hashes only ordered `type` and `function.name` values for at most 64 tools and an 8192-byte total identity budget. It never recursively canonicalizes descriptions, parameters, or complete schemas. This is suitable for most agents with stable tool names; a schema-only change under the same name can produce an approximate scheduling false hit.
+- `none` ignores top-level `tools` completely and has the lowest tool-processing cost. Use it when a route's tool set is fixed or gateway cost matters most. Requests with the same messages but different tools then share an approximate fingerprint, so dynamic-tool workloads can more often select a node without the real KV prefix.
+- `full` canonically hashes complete tools JSON under the existing depth, node, and token limits. Use it when tool definitions change dynamically and closer chat-template simulation is worth additional CPU and temporary allocation.
+
+When `identity` reaches either budget it preserves the prefix already produced and ignores remaining tools. All three modes affect only the gateway scheduling hint. The inference engine still verifies real token/KV Cache matches, so an approximate false hit cannot change model-output correctness.
 
 ## Feedback and observability
 

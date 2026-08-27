@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-endpoint-picker/prefixcache"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-endpoint-picker/scheduling"
 	"github.com/tidwall/gjson"
 )
@@ -12,7 +13,7 @@ func TestParseConfigDefaults(t *testing.T) {
 	if err := parseConfig(gjson.Parse(`{}`), &config); err != nil {
 		t.Fatalf("parseConfig() error = %v", err)
 	}
-	if config.profile != defaultProfile || config.ewmaAlpha != 0.2 || config.sampleRate != 0 {
+	if config.profile != defaultProfile || config.ewmaAlpha != 0.2 || config.sampleRate != 0 || config.toolMode != prefixcache.ToolModeIdentity {
 		t.Fatalf("unexpected defaults: %+v", config)
 	}
 	want := scheduling.Weights{
@@ -24,6 +25,24 @@ func TestParseConfigDefaults(t *testing.T) {
 		if config.weights[signal] != weight {
 			t.Errorf("weight %s = %v, want %v", signal, config.weights[signal], weight)
 		}
+	}
+}
+
+func TestParseConfigToolModes(t *testing.T) {
+	for _, mode := range []prefixcache.ToolMode{
+		prefixcache.ToolModeNone,
+		prefixcache.ToolModeIdentity,
+		prefixcache.ToolModeFull,
+	} {
+		t.Run(string(mode), func(t *testing.T) {
+			var config Config
+			if err := parseConfig(gjson.Parse(`{"prefix":{"toolMode":"`+string(mode)+`"}}`), &config); err != nil {
+				t.Fatalf("parseConfig() error = %v", err)
+			}
+			if config.toolMode != mode {
+				t.Fatalf("toolMode=%q want %q", config.toolMode, mode)
+			}
+		})
 	}
 }
 
@@ -76,6 +95,10 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 		`{"debug":"invalid"}`,
 		`{"debug":{"sampleRate":-0.1}}`,
 		`{"debug":{"sampleRate":1.1}}`,
+		`{"prefix":"invalid"}`,
+		`{"prefix":{"toolMode":"approximate"}}`,
+		`{"prefix":{"toolMode":1}}`,
+		`{"prefix":{"toolMode":null}}`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {

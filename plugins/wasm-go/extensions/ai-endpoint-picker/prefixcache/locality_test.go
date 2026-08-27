@@ -9,8 +9,12 @@ import (
 )
 
 func extractForTest(t *testing.T, body string) *Locality {
+	return extractForTestWithToolMode(t, body, DefaultToolMode)
+}
+
+func extractForTestWithToolMode(t *testing.T, body string, toolMode ToolMode) *Locality {
 	t.Helper()
-	locality, supported, err := Extract([]byte(body))
+	locality, supported, err := ExtractWithToolMode([]byte(body), toolMode)
 	if err != nil || !supported {
 		t.Fatalf("extract failed: supported=%v err=%v", supported, err)
 	}
@@ -42,6 +46,93 @@ func TestChatToolsAreSeparateOrderedCanonicalSegment(t *testing.T) {
 		if first.Chains[0][index].Hash != second.Chains[0][index].Hash {
 			t.Fatalf("canonical block %d differs after field reorder", index)
 		}
+	}
+}
+
+func TestToolModesControlPrefixPrecision(t *testing.T) {
+	base := `{"model":"m","tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"string"}}}],"messages":[{"role":"user","content":"hello"}]}`
+	differentIdentity := `{"model":"m","tools":[{"type":"function","function":{"name":"search","parameters":{"type":"string"}}}],"messages":[{"role":"user","content":"hello"}]}`
+	differentType := `{"model":"m","tools":[{"type":"custom","function":{"name":"lookup","parameters":{"type":"string"}}}],"messages":[{"role":"user","content":"hello"}]}`
+	differentSchema := `{"model":"m","tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"number"}}}],"messages":[{"role":"user","content":"hello"}]}`
+	reordered := `{"messages":[{"content":"hello","role":"user"}],"tools":[{"function":{"parameters":{"type":"string"},"name":"lookup"},"type":"function"}],"model":"m"}`
+
+	noneBase := extractForTestWithToolMode(t, base, ToolModeNone)
+	noneDifferent := extractForTestWithToolMode(t, differentIdentity, ToolModeNone)
+	if noneBase.Chains[0][0].Hash != noneDifferent.Chains[0][0].Hash {
+		t.Fatal("none mode included tools in the prefix")
+	}
+
+	identityBase := extractForTestWithToolMode(t, base, ToolModeIdentity)
+	identityChanged := extractForTestWithToolMode(t, differentIdentity, ToolModeIdentity)
+	identityType := extractForTestWithToolMode(t, differentType, ToolModeIdentity)
+	identitySchema := extractForTestWithToolMode(t, differentSchema, ToolModeIdentity)
+	identityReordered := extractForTestWithToolMode(t, reordered, ToolModeIdentity)
+	if identityBase.Chains[0][0].Hash == identityChanged.Chains[0][0].Hash || identityBase.Chains[0][0].Hash == identityType.Chains[0][0].Hash {
+		t.Fatal("identity mode did not distinguish tool type/name")
+	}
+	if identityBase.Chains[0][0].Hash != identitySchema.Chains[0][0].Hash || identityBase.Chains[0][0].Hash != identityReordered.Chains[0][0].Hash {
+		t.Fatal("identity mode included schema details or depended on JSON field order")
+	}
+
+	fullBase := extractForTestWithToolMode(t, base, ToolModeFull)
+	fullSchema := extractForTestWithToolMode(t, differentSchema, ToolModeFull)
+	fullReordered := extractForTestWithToolMode(t, reordered, ToolModeFull)
+	if fullBase.Chains[0][0].Hash == fullSchema.Chains[0][0].Hash {
+		t.Fatal("full mode did not distinguish schema semantics")
+	}
+	if fullBase.Chains[0][0].Hash != fullReordered.Chains[0][0].Hash {
+		t.Fatal("full mode depended on JSON field order")
+	}
+}
+
+func TestToolIdentityBudgetsPreserveBoundedPrefix(t *testing.T) {
+	tool := func(name string) string {
+		return `{"type":"function","function":{"name":"` + name + `","description":"` + strings.Repeat("x", 1<<16) + `"}}`
+	}
+	var capped strings.Builder
+	capped.WriteString(`{"model":"m","tools":[`)
+	for index := 0; index < MaxTools; index++ {
+		if index > 0 {
+			capped.WriteByte(',')
+		}
+		capped.WriteString(tool("stable"))
+	}
+	capped.WriteString(`],"messages":[]}`)
+	extended := strings.TrimSuffix(capped.String(), `],"messages":[]}`) + `,` + tool("ignored") + `],"messages":[]}`
+	limited := extractForTestWithToolMode(t, capped.String(), ToolModeIdentity)
+	ignoredSuffix := extractForTestWithToolMode(t, extended, ToolModeIdentity)
+	if len(limited.Chains[0]) == 0 || limited.Chains[0][len(limited.Chains[0])-1].Hash != ignoredSuffix.Chains[0][len(ignoredSuffix.Chains[0])-1].Hash {
+		t.Fatal("MaxTools suffix changed the retained identity prefix")
+	}
+
+	first := `{"type":"function","function":{"name":"retained"}}`
+	oversized := tool(strings.Repeat("n", MaxToolIdentityBytes))
+	left := `{"model":"m","tools":[` + first + `,` + oversized + `,{"type":"function","function":{"name":"left"}}],"messages":[]}`
+	right := `{"model":"m","tools":[` + first + `,` + oversized + `,{"type":"function","function":{"name":"right"}}],"messages":[]}`
+	leftLocality := extractForTestWithToolMode(t, left, ToolModeIdentity)
+	rightLocality := extractForTestWithToolMode(t, right, ToolModeIdentity)
+	if len(leftLocality.Chains[0]) == 0 || leftLocality.Chains[0][0].Hash != rightLocality.Chains[0][0].Hash {
+		t.Fatal("identity byte cap did not preserve the already produced prefix")
+	}
+}
+
+func TestToolIdentitySkipsHugeSchemaCanonicalization(t *testing.T) {
+	small := `{"model":"m","tools":[{"type":"function","function":{"name":"lookup","parameters":{}}}],"messages":[]}`
+	huge := toolSchemaBody(maxCanonicalNodes + 1)
+	extended := toolSchemaBody(maxCanonicalNodes + 100_000)
+	smallIdentity := extractForTestWithToolMode(t, small, ToolModeIdentity)
+	hugeIdentity := extractForTestWithToolMode(t, string(huge), ToolModeIdentity)
+	extendedIdentity := extractForTestWithToolMode(t, string(extended), ToolModeIdentity)
+	if smallIdentity.Chains[0][0].Hash != hugeIdentity.Chains[0][0].Hash || smallIdentity.Chains[0][0].Hash != extendedIdentity.Chains[0][0].Hash {
+		t.Fatal("identity mode included the huge schema")
+	}
+	hugeAllocs := testing.AllocsPerRun(10, func() { _, _, _ = ExtractWithToolMode(huge, ToolModeIdentity) })
+	extendedAllocs := testing.AllocsPerRun(10, func() { _, _, _ = ExtractWithToolMode(extended, ToolModeIdentity) })
+	if extendedAllocs > hugeAllocs+8 {
+		t.Fatalf("identity allocations scaled with schema nodes: huge=%v extended=%v", hugeAllocs, extendedAllocs)
+	}
+	if locality, supported, err := ExtractWithToolMode(huge, ToolModeFull); err != nil || supported || locality != nil {
+		t.Fatalf("full mode should enforce canonical node budget: locality=%+v supported=%v err=%v", locality, supported, err)
 	}
 }
 
@@ -186,7 +277,7 @@ func TestCanonicalJSONDepthLimit(t *testing.T) {
 		if got := errors.Is(err, errJSONDepthLimit); got != test.wantErr {
 			t.Fatalf("depth %d error=%v, depth-limit=%v want %v", test.depth, err, got, test.wantErr)
 		}
-		locality, supported, err := Extract(deepToolsBody(test.depth - 1))
+		locality, supported, err := ExtractWithToolMode(deepToolsBody(test.depth-1), ToolModeFull)
 		if test.wantErr {
 			if err != nil || supported || locality != nil {
 				t.Fatalf("depth %d extraction must be prefix-unsupported: locality=%+v supported=%v err=%v", test.depth, locality, supported, err)
@@ -201,13 +292,13 @@ func TestDeepCanonicalInputHasBoundedTraversal(t *testing.T) {
 	depth65 := deepToolsBody(65)
 	depth5000 := deepToolsBody(5000)
 	for _, body := range [][]byte{depth65, depth5000} {
-		locality, supported, err := Extract(body)
+		locality, supported, err := ExtractWithToolMode(body, ToolModeFull)
 		if err != nil || supported || locality != nil {
 			t.Fatalf("deep tools must be prefix-unsupported: locality=%+v supported=%v err=%v", locality, supported, err)
 		}
 	}
-	baselineAllocs := testing.AllocsPerRun(10, func() { _, _, _ = Extract(depth65) })
-	deepAllocs := testing.AllocsPerRun(10, func() { _, _, _ = Extract(depth5000) })
+	baselineAllocs := testing.AllocsPerRun(10, func() { _, _, _ = ExtractWithToolMode(depth65, ToolModeFull) })
+	deepAllocs := testing.AllocsPerRun(10, func() { _, _, _ = ExtractWithToolMode(depth5000, ToolModeFull) })
 	if deepAllocs > baselineAllocs+4 {
 		t.Fatalf("deep traversal allocations grew with depth: depth65=%v depth5000=%v", baselineAllocs, deepAllocs)
 	}
@@ -414,6 +505,7 @@ func TestCappedSemanticSuffixesDoNotScaleAllocations(t *testing.T) {
 		capped          []byte
 		extended        []byte
 		maxCappedAllocs float64
+		toolMode        ToolMode
 	}{
 		{
 			name:            "token IDs",
@@ -431,6 +523,7 @@ func TestCappedSemanticSuffixesDoNotScaleAllocations(t *testing.T) {
 			capped:          repeatedToolsBody(140, 0),
 			extended:        repeatedToolsBody(140, 100_000),
 			maxCappedAllocs: 10_000,
+			toolMode:        ToolModeFull,
 		},
 		{
 			name:     "structured content",
@@ -440,8 +533,12 @@ func TestCappedSemanticSuffixesDoNotScaleAllocations(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			toolMode := test.toolMode
+			if toolMode == "" {
+				toolMode = DefaultToolMode
+			}
 			for _, body := range [][]byte{test.capped, test.extended} {
-				locality, supported, err := Extract(body)
+				locality, supported, err := ExtractWithToolMode(body, toolMode)
 				if err != nil || !supported {
 					t.Fatalf("extract: supported=%v err=%v", supported, err)
 				}
@@ -449,8 +546,8 @@ func TestCappedSemanticSuffixesDoNotScaleAllocations(t *testing.T) {
 					t.Fatalf("token count=%d want capped %d", got, MaxPrefixTokens)
 				}
 			}
-			cappedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = Extract(test.capped) })
-			extendedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = Extract(test.extended) })
+			cappedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = ExtractWithToolMode(test.capped, toolMode) })
+			extendedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = ExtractWithToolMode(test.extended, toolMode) })
 			t.Logf("allocations capped=%v extended=%v", cappedAllocs, extendedAllocs)
 			if test.maxCappedAllocs > 0 && cappedAllocs > test.maxCappedAllocs {
 				t.Fatalf("capped allocations=%v want <=%v", cappedAllocs, test.maxCappedAllocs)
@@ -466,13 +563,13 @@ func TestToolsCanonicalComplexityIsBounded(t *testing.T) {
 	capped := toolsObjectBody(maxCanonicalNodes + 1)
 	extended := toolsObjectBody(maxCanonicalNodes + 100_000)
 	for _, raw := range [][]byte{capped, extended} {
-		_, supported, err := Extract(raw)
+		_, supported, err := ExtractWithToolMode(raw, ToolModeFull)
 		if err != nil || supported {
 			t.Fatalf("complex tools should make prefix unavailable: supported=%v err=%v", supported, err)
 		}
 	}
-	cappedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = Extract(capped) })
-	extendedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = Extract(extended) })
+	cappedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = ExtractWithToolMode(capped, ToolModeFull) })
+	extendedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = ExtractWithToolMode(extended, ToolModeFull) })
 	if cappedAllocs > 70_000 || extendedAllocs > cappedAllocs+8 {
 		t.Fatalf("complexity allocations not bounded: capped=%v extended=%v", cappedAllocs, extendedAllocs)
 	}
@@ -489,6 +586,22 @@ func toolsObjectBody(count int) []byte {
 		body.WriteString(`{}`)
 	}
 	body.WriteString(`],"messages":[]}`)
+	return []byte(body.String())
+}
+
+func toolSchemaBody(fields int) []byte {
+	var body strings.Builder
+	body.Grow(fields*12 + 100)
+	body.WriteString(`{"model":"m","tools":[{"type":"function","function":{"name":"lookup","parameters":{`)
+	for index := 0; index < fields; index++ {
+		if index > 0 {
+			body.WriteByte(',')
+		}
+		body.WriteString(`"k`)
+		body.WriteString(strconv.Itoa(index))
+		body.WriteString(`":0`)
+	}
+	body.WriteString(`}}}],"messages":[]}`)
 	return []byte(body.String())
 }
 

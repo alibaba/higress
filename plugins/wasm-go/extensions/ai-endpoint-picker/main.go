@@ -114,7 +114,7 @@ func hasHeaderToken(value, token string) bool {
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
-	model, locality, prefixAvailable, err := inspectRequestBody(body)
+	model, locality, prefixAvailable, err := inspectRequestBody(body, config.toolMode)
 	if err != nil {
 		log.Debugf("ai-endpoint-picker fail-open: reason=invalid_request")
 		config.metrics.fallback()
@@ -204,8 +204,8 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 	return types.ActionContinue
 }
 
-func inspectRequestBody(body []byte) (string, *prefixcache.Locality, bool, error) {
-	return prefixcache.InspectRequest(body)
+func inspectRequestBody(body []byte, toolMode prefixcache.ToolMode) (string, *prefixcache.Locality, bool, error) {
+	return prefixcache.InspectRequestWithToolMode(body, toolMode)
 }
 
 func syncPrefixCapacity(index *prefixcache.Index, address string, healthy bool, capacity int) {

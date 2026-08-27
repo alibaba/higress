@@ -22,6 +22,7 @@ type Config struct {
 	weights    scheduling.Weights
 	ewmaAlpha  float64
 	sampleRate float64
+	toolMode   prefixcache.ToolMode
 	store      *scheduling.FeedbackStore
 	pipeline   *scheduling.Pipeline
 	prefix     *prefixcache.Index
@@ -109,12 +110,27 @@ func parseConfig(json gjson.Result, config *Config) error {
 		}
 		sampleRate = value.Float()
 	}
+	prefixJSON := json.Get("prefix")
+	if prefixJSON.Exists() && !prefixJSON.IsObject() {
+		return fmt.Errorf("prefix must be an object")
+	}
+	toolMode := prefixcache.DefaultToolMode
+	if value := json.Get("prefix.toolMode"); value.Exists() {
+		if value.Type != gjson.String {
+			return fmt.Errorf("prefix.toolMode must be one of none, identity, full")
+		}
+		toolMode = prefixcache.ToolMode(value.String())
+	}
+	if toolMode != prefixcache.ToolModeNone && toolMode != prefixcache.ToolModeIdentity && toolMode != prefixcache.ToolModeFull {
+		return fmt.Errorf("unsupported prefix.toolMode %q", toolMode)
+	}
 
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	config.profile = profile
 	config.weights = weights
 	config.ewmaAlpha = ewmaAlpha
 	config.sampleRate = sampleRate
+	config.toolMode = toolMode
 	config.store = scheduling.NewFeedbackStore(ewmaAlpha)
 	config.pipeline = scheduling.NewPipeline(weights, random)
 	config.prefix = prefixcache.NewIndex(prefixcache.DefaultCapacity)
