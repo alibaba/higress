@@ -16,7 +16,7 @@ The plugin runs `Filter → Normalize → Score → Pick → Feedback`:
 
 The KV cache signal prefers `vllm:kv_cache_usage_perc` and supports the legacy `vllm:gpu_cache_usage_perc`. The `vllm:lora_requests_info` family is optional.
 
-Prefix locality supports text inputs for OpenAI Chat Completions and Completions while excluding output parameters such as temperature and max tokens. `prefix.toolMode` controls tool-prefix precision; every canonical Chat message—including role, content, name, tool calls, and other complete prompt-relevant fields—still forms an ordered semantic segment. Completions text and flat token-ID prompts form independent chains. A valid batched token-ID prompt such as `[[1,2],[3,4]]` currently makes only the prefix scorer unavailable, so queue/KV scheduling continues; mixed or invalid prompt shapes remain invalid input. Canonical JSON nesting is capped at 64, and exceeding that depth or the node budget also disables only the prefix scorer. Every four UTF-8 bytes estimate one pseudo-token; segments longer than 1024 pseudo-tokens are split into bounded slices, and each prompt processes at most 131072 pseudo-tokens. Hashes include `model`, `cache_salt`, segment kind and length, content hash, and the preceding hash, so a changed middle segment prevents later segments from matching. Non-text multimodal input makes only the prefix scorer unavailable, so queue and KV scorers continue to work.
+Prefix locality supports text inputs for OpenAI Chat Completions and Completions while excluding output parameters such as temperature and max tokens. `prefix.toolMode` controls tool-prefix precision; every canonical Chat message—including role, content, name, tool calls, and other complete prompt-relevant fields—still forms an ordered semantic segment. Completions text and flat token-ID prompts form independent chains. A valid batched token-ID prompt such as `[[1,2],[3,4]]` currently makes only the prefix scorer unavailable, so queue/KV scheduling continues; mixed or invalid prompt shapes remain invalid input. Canonical JSON nesting is capped at 64, and exceeding that depth or the node budget also disables only the prefix scorer. Every four UTF-8 bytes estimate one pseudo-token; segments longer than 1024 pseudo-tokens are split into bounded slices under the existing 131072-pseudo-token hard cap. `prefix.maxBlocks` additionally caps blocks across the entire request—including tools, messages, Completion string arrays, and flat token IDs. Once exhausted, extraction preserves the approximate prefix already emitted and stops later semantic work. Hashes include `model`, `cache_salt`, segment kind and length, content hash, and the preceding hash, so a changed middle segment prevents later segments from matching. Non-text multimodal input makes only the prefix scorer unavailable, so queue and KV scorers continue to work.
 
 Each endpoint has a thread-safe weighted LRU whose capacity is measured in approximate backend KV blocks. The default is 31250 and a valid `vllm:cache_config_info{num_gpu_blocks=...}` overrides it. Each semantic entry costs `ceil(segmentTokens/actualBlockSize)` incrementally; the selected endpoint's valid `block_size` is used, with a fallback of 16. Scoring does not refresh the LRU.
 
@@ -24,7 +24,9 @@ This approximate index is local to the current WASM runtime/config instance and 
 
 ## Upstream metrics contract
 
-The queue, KV, and LoRA scorers require a Prometheus snapshot from each actual inference endpoint. Configure an explicit HTTP health check for every upstream host (normally the vLLM `/metrics` endpoint) and enable `store_metrics: true`, so the health-check response body is returned as that host's `metrics` by `GetUpstreamHosts()`. Do not substitute metrics aggregated behind a shared load-balancer address for per-host snapshots. The body must be valid Prometheus exposition; malformed data isolates only that host. If this contract is not met, external signals are unavailable and the plugin uses other available signals or fails open.
+The queue, KV, and LoRA scorers require a Prometheus snapshot from each actual inference endpoint. Configure an explicit HTTP health check for every upstream host (normally the vLLM `/metrics` endpoint) and enable `store_metrics: true`, so the health-check response body is returned as that host's `metrics` by `GetUpstreamHosts()`. Do not substitute metrics aggregated behind a shared load-balancer address for per-host snapshots. The plugin caches compact host snapshots for 250ms, avoiding repeated host reads within that window and allowing signals to be up to 250ms stale. A failed refresh never serves an expired snapshot and instead fails open. On refresh, unchanged metric fingerprints reuse the prior compact parse. Changed metrics are filtered to the five queue, current/legacy KV, LoRA, and cache-config families before the standard Prometheus parser runs; the relevant subset is capped at 64KiB. Malformed or over-limit relevant data isolates only that host, and unrelated families never build DTOs.
+
+The plugin cache retains neither raw metadata nor the metrics response body. However, `store_metrics: true` still makes Envoy retain and expose the complete raw health-check response; a plugin-only change cannot remove that upstream storage and hostcall-copy cost.
 
 ## Configuration
 
@@ -32,6 +34,7 @@ The queue, KV, and LoRA scorers require a Prometheus snapshot from each actual i
 profile: default
 prefix:
   toolMode: identity
+  maxBlocks: 32
 weights:
   queue: 2
   kvCache: 2
@@ -56,6 +59,8 @@ The plugin supports the `default` profile, the equivalent `balanced` alias, and 
 - `full` canonically hashes complete tools JSON under the existing depth, node, and token limits. Use it when tool definitions change dynamically and closer chat-template simulation is worth additional CPU and temporary allocation.
 
 When `identity` reaches either budget it preserves the prefix already produced and ignores remaining tools. All three modes affect only the gateway scheduling hint. The inference engine still verifies real token/KV Cache matches, so an approximate false hit cannot change model-output correctness.
+
+`prefix.maxBlocks` defaults to 32 and accepts 1..128. Smaller values stop tools/messages or Completion prompt extraction sooner, reducing gateway CPU and temporary memory at the cost of a shorter locality hint. Larger values improve approximation for long contexts with more hashing work. This is a request-wide operating budget and does not replace the existing token, JSON-depth, or canonical-node hard limits.
 
 ## Feedback and observability
 

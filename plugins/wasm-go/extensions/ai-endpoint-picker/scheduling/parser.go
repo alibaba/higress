@@ -1,6 +1,8 @@
 package scheduling
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -11,13 +13,17 @@ import (
 )
 
 const (
-	queueMetric       = "vllm:num_requests_waiting"
-	currentKVMetric   = "vllm:kv_cache_usage_perc"
-	legacyKVMetric    = "vllm:gpu_cache_usage_perc"
-	loraMetric        = "vllm:lora_requests_info"
-	cacheConfigMetric = "vllm:cache_config_info"
-	loraAdaptersLabel = "running_lora_adapters"
+	queueMetric             = "vllm:num_requests_waiting"
+	currentKVMetric         = "vllm:kv_cache_usage_perc"
+	legacyKVMetric          = "vllm:gpu_cache_usage_perc"
+	loraMetric              = "vllm:lora_requests_info"
+	cacheConfigMetric       = "vllm:cache_config_info"
+	loraAdaptersLabel       = "running_lora_adapters"
+	MaxRelevantMetricsBytes = 64 << 10
+	initialRelevantCapacity = 256
 )
+
+var ErrRelevantMetricsTooLarge = errors.New("relevant metrics subset exceeds 64 KiB")
 
 type CacheConfig struct {
 	BlockSize    int
@@ -25,47 +31,139 @@ type CacheConfig struct {
 }
 
 type VLLMMetrics struct {
-	Signals     map[SignalName]SignalValue
-	CacheConfig CacheConfig
+	BaseSignals   map[SignalName]SignalValue
+	CacheConfig   CacheConfig
+	LoRAAdapters  []string
+	LoRAAvailable bool
 }
 
 // ParseVLLMSignals parses one endpoint's Prometheus snapshot. A missing metric
 // family is a valid partial snapshot; malformed exposition is not.
 func ParseVLLMSignals(metrics, model string) (map[SignalName]SignalValue, error) {
-	parsed, err := ParseVLLMMetrics(metrics, model)
+	parsed, err := ParseVLLMMetrics(metrics)
 	if err != nil {
 		return nil, err
 	}
-	return parsed.Signals, nil
+	return parsed.SignalsForModel(model), nil
 }
 
-func ParseVLLMMetrics(metrics, model string) (VLLMMetrics, error) {
-	result := VLLMMetrics{Signals: map[SignalName]SignalValue{}}
+func ParseVLLMMetrics(metrics string) (VLLMMetrics, error) {
+	result := VLLMMetrics{BaseSignals: map[SignalName]SignalValue{}}
 	if strings.TrimSpace(metrics) == "" {
+		return result, nil
+	}
+	relevant, err := relevantMetricsSubset(metrics)
+	if err != nil {
+		return VLLMMetrics{}, err
+	}
+	if len(relevant) == 0 {
 		return result, nil
 	}
 
 	var parser expfmt.TextParser
-	families, err := parser.TextToMetricFamilies(strings.NewReader(metrics))
+	families, err := parser.TextToMetricFamilies(bytes.NewReader(relevant))
 	if err != nil {
 		return VLLMMetrics{}, fmt.Errorf("parse prometheus metrics: %w", err)
 	}
 
 	if value, ok := latestFiniteValue(families[queueMetric]); ok && value >= 0 {
-		result.Signals[SignalQueue] = available(value, queueMetric)
+		result.BaseSignals[SignalQueue] = available(value, queueMetric)
 	}
 	if value, ok := latestFiniteValue(families[currentKVMetric]); ok {
-		result.Signals[SignalKVCache] = available(value, currentKVMetric)
+		result.BaseSignals[SignalKVCache] = available(value, currentKVMetric)
 	} else if value, ok := latestFiniteValue(families[legacyKVMetric]); ok {
-		result.Signals[SignalKVCache] = available(value, legacyKVMetric)
+		result.BaseSignals[SignalKVCache] = available(value, legacyKVMetric)
 	}
 	if family := families[loraMetric]; family != nil {
-		if value, ok := loraAffinity(family, model); ok {
-			result.Signals[SignalLoRAAffinity] = available(value, loraMetric)
-		}
+		result.LoRAAdapters, result.LoRAAvailable = runningLoRAAdapters(family)
 	}
 	result.CacheConfig = cacheConfig(families[cacheConfigMetric])
 	return result, nil
+}
+
+func (metrics VLLMMetrics) SignalsForModel(model string) map[SignalName]SignalValue {
+	signals := make(map[SignalName]SignalValue, len(metrics.BaseSignals)+1)
+	for name, value := range metrics.BaseSignals {
+		signals[name] = value
+	}
+	if metrics.LoRAAvailable {
+		affinity := 0.0
+		for _, adapter := range metrics.LoRAAdapters {
+			if adapter == model {
+				affinity = 1
+				break
+			}
+		}
+		signals[SignalLoRAAffinity] = available(affinity, loraMetric)
+	}
+	return signals
+}
+
+func relevantMetricsSubset(metrics string) ([]byte, error) {
+	capacity := len(metrics)
+	if capacity > initialRelevantCapacity {
+		capacity = initialRelevantCapacity
+	}
+	result := make([]byte, 0, capacity)
+	for start := 0; start < len(metrics); {
+		end := strings.IndexByte(metrics[start:], '\n')
+		if end < 0 {
+			end = len(metrics)
+		} else {
+			end += start
+		}
+		line := metrics[start:end]
+		if isRelevantMetricLine(line) {
+			if len(result)+len(line)+1 > MaxRelevantMetricsBytes {
+				return nil, ErrRelevantMetricsTooLarge
+			}
+			result = append(result, line...)
+			result = append(result, '\n')
+		}
+		if end == len(metrics) {
+			break
+		}
+		start = end + 1
+	}
+	return result, nil
+}
+
+func isRelevantMetricLine(line string) bool {
+	line = strings.TrimLeft(line, " \t\r")
+	if line == "" {
+		return false
+	}
+	if line[0] == '#' {
+		for _, directive := range []string{"# HELP ", "# TYPE ", "# UNIT "} {
+			if strings.HasPrefix(line, directive) {
+				return isRelevantMetricName(metricToken(line[len(directive):]))
+			}
+		}
+		return false
+	}
+	return isRelevantMetricName(metricToken(line))
+}
+
+func metricToken(line string) string {
+	end := 0
+	for end < len(line) {
+		switch line[end] {
+		case '{', ' ', '\t', '\r':
+			return line[:end]
+		default:
+			end++
+		}
+	}
+	return line
+}
+
+func isRelevantMetricName(name string) bool {
+	switch name {
+	case queueMetric, currentKVMetric, legacyKVMetric, loraMetric, cacheConfigMetric:
+		return true
+	default:
+		return false
+	}
 }
 
 func cacheConfig(family *dto.MetricFamily) CacheConfig {
@@ -128,7 +226,7 @@ func metricValue(metric *dto.Metric) (float64, bool) {
 	}
 }
 
-func loraAffinity(family *dto.MetricFamily, model string) (float64, bool) {
+func runningLoRAAdapters(family *dto.MetricFamily) ([]string, bool) {
 	var selected *dto.Metric
 	var selectedValue float64
 	for _, metric := range family.Metric {
@@ -141,18 +239,20 @@ func loraAffinity(family *dto.MetricFamily, model string) (float64, bool) {
 		}
 	}
 	if selected == nil {
-		return 0, false
+		return nil, false
 	}
 	for _, label := range selected.Label {
 		if label.GetName() != loraAdaptersLabel {
 			continue
 		}
+		adapters := make([]string, 0)
 		for _, adapter := range strings.Split(label.GetValue(), ",") {
-			if strings.TrimSpace(adapter) == model {
-				return 1, true
+			adapter = strings.TrimSpace(adapter)
+			if adapter != "" {
+				adapters = append(adapters, adapter)
 			}
 		}
-		return 0, true
+		return adapters, true
 	}
-	return 0, true
+	return nil, true
 }

@@ -17,6 +17,8 @@ import (
 const (
 	MaxSegmentTokens = 1024
 	MaxPrefixTokens  = 131072
+	DefaultMaxBlocks = 32
+	MaxBlocksLimit   = 128
 	MaxTools         = 64
 	// MaxToolIdentityBytes bounds the total type/name data hashed in identity mode.
 	MaxToolIdentityBytes = 8192
@@ -36,6 +38,11 @@ const (
 	ToolModeFull     ToolMode = "full"
 	DefaultToolMode           = ToolModeIdentity
 )
+
+type Options struct {
+	ToolMode  ToolMode
+	MaxBlocks int
+}
 
 type segmentKind byte
 
@@ -84,16 +91,40 @@ func ExtractWithToolMode(body []byte, toolMode ToolMode) (*Locality, bool, error
 	return locality, supported, err
 }
 
+// ExtractWithOptions derives locality using explicit bounded extraction options.
+func ExtractWithOptions(body []byte, options Options) (*Locality, bool, error) {
+	_, locality, supported, err := InspectRequestWithOptions(body, options)
+	return locality, supported, err
+}
+
 // InspectRequest validates the bounded request envelope, extracts the model,
 // and derives approximate prefix locality. Requests beyond the canonical depth
 // limit retain a safely extracted top-level model but disable prefix locality.
 func InspectRequest(body []byte) (string, *Locality, bool, error) {
-	return InspectRequestWithToolMode(body, DefaultToolMode)
+	return InspectRequestWithOptions(body, Options{})
 }
 
 // InspectRequestWithToolMode validates the request and controls how top-level
 // tools contribute to the approximate prefix. Callers must validate toolMode.
 func InspectRequestWithToolMode(body []byte, toolMode ToolMode) (string, *Locality, bool, error) {
+	return InspectRequestWithOptions(body, Options{ToolMode: toolMode})
+}
+
+// InspectRequestWithOptions validates the request and applies a request-wide
+// block budget across tools, messages, and every Completion prompt chain.
+func InspectRequestWithOptions(body []byte, options Options) (string, *Locality, bool, error) {
+	if options.ToolMode == "" {
+		options.ToolMode = DefaultToolMode
+	}
+	if options.MaxBlocks == 0 {
+		options.MaxBlocks = DefaultMaxBlocks
+	}
+	if options.ToolMode != ToolModeNone && options.ToolMode != ToolModeIdentity && options.ToolMode != ToolModeFull {
+		return "", nil, false, fmt.Errorf("unsupported tool mode %q", options.ToolMode)
+	}
+	if options.MaxBlocks < 1 || options.MaxBlocks > MaxBlocksLimit {
+		return "", nil, false, fmt.Errorf("max blocks must be in [1,%d]", MaxBlocksLimit)
+	}
 	start := skipWhitespace(body, 0)
 	if start >= len(body) || body[start] != '{' {
 		return "", nil, false, fmt.Errorf("expected JSON object")
@@ -109,10 +140,10 @@ func InspectRequestWithToolMode(body []byte, toolMode ToolMode) (string, *Locali
 	if err != nil || skipWhitespace(body, end) != len(body) || !json.Valid(body) {
 		return "", nil, false, fmt.Errorf("invalid JSON request")
 	}
-	return inspectValidatedRequest(body, toolMode)
+	return inspectValidatedRequest(body, options)
 }
 
-func inspectValidatedRequest(body []byte, toolMode ToolMode) (string, *Locality, bool, error) {
+func inspectValidatedRequest(body []byte, options Options) (string, *Locality, bool, error) {
 	fields, err := parseObjectFields(body)
 	if err != nil {
 		return "", nil, false, err
@@ -131,8 +162,9 @@ func inspectValidatedRequest(body []byte, toolMode ToolMode) (string, *Locality,
 	if err != nil {
 		return "", nil, false, err
 	}
+	budget := &blockBudget{remaining: options.MaxBlocks}
 	if messages := fieldValue(fields, "messages"); messages != nil {
-		chains, supported, err := extractChat(messages, fieldValue(fields, "tools"), seed, toolMode)
+		chains, supported, err := extractChat(messages, fieldValue(fields, "tools"), seed, options.ToolMode, budget)
 		if errors.Is(err, errCanonicalComplexity) || errors.Is(err, errJSONDepthLimit) {
 			return model, nil, false, nil
 		}
@@ -142,7 +174,7 @@ func inspectValidatedRequest(body []byte, toolMode ToolMode) (string, *Locality,
 		return model, &Locality{Chains: chains}, true, nil
 	}
 	if prompt := fieldValue(fields, "prompt"); prompt != nil {
-		chains, supported, err := extractCompletion(prompt, seed)
+		chains, supported, err := extractCompletion(prompt, seed, budget)
 		if errors.Is(err, errCanonicalComplexity) || errors.Is(err, errJSONDepthLimit) {
 			return model, nil, false, nil
 		}
@@ -154,19 +186,20 @@ func inspectValidatedRequest(body []byte, toolMode ToolMode) (string, *Locality,
 	return model, nil, false, nil
 }
 
-func extractChat(rawMessages, rawTools []byte, seed uint64, toolMode ToolMode) ([][]Block, bool, error) {
+func extractChat(rawMessages, rawTools []byte, seed uint64, toolMode ToolMode, budget *blockBudget) ([][]Block, bool, error) {
 	chain := make([]Block, 0)
 	previous, totalTokens := seed, 0
+	messageCanonicalNodes := maxCanonicalNodes
 	if toolMode != ToolModeNone && len(rawTools) > 0 && !bytes.Equal(bytes.TrimSpace(rawTools), []byte("null")) {
 		hasValues, err := arrayHasValues(rawTools)
 		if err != nil {
 			return nil, false, err
 		}
 		if hasValues {
-			builder := newSegmentBuilder(&chain, segmentTools, 0, &previous, &totalTokens)
+			builder := newSegmentBuilder(&chain, segmentTools, 0, &previous, &totalTokens, budget)
 			switch toolMode {
 			case ToolModeIdentity:
-				if err := writeToolIdentities(rawTools, builder); err != nil {
+				if err := writeToolIdentities(rawTools, builder); err != nil && !errors.Is(err, errSemanticCap) {
 					return nil, false, err
 				}
 			case ToolModeFull:
@@ -182,14 +215,17 @@ func extractChat(rawMessages, rawTools []byte, seed uint64, toolMode ToolMode) (
 			builder.finish()
 		}
 	}
-	err := forEachArrayValue(rawMessages, func(rawMessage []byte) error {
-		if totalTokens >= MaxPrefixTokens {
-			return errSemanticCap
+	err := forEachArrayValueWhile(rawMessages, func() bool {
+		return totalTokens < MaxPrefixTokens && !budget.exhausted()
+	}, func(rawMessage []byte) error {
+		if messageCanonicalNodes <= 1 {
+			return errCanonicalComplexity
 		}
-		fields, err := parseObjectFields(rawMessage)
+		fields, err := parseObjectFieldsLimited(rawMessage, messageCanonicalNodes-1)
 		if err != nil {
 			return err
 		}
+		messageCanonicalNodes -= len(fields) + 1
 		if hasTopLevelMultimodal(fields) {
 			return errUnsupportedContent
 		}
@@ -198,27 +234,33 @@ func extractChat(rawMessages, rawTools []byte, seed uint64, toolMode ToolMode) (
 			return errUnsupportedContent
 		}
 		metadata := fieldsWithout(fields, "content")
-		metadataLimit := (MaxPrefixTokens - totalTokens) * 4
+		metadataLimit := min((MaxPrefixTokens-totalTokens)*4, budget.remainingBytes(0))
 		domainHasher := xxhash.New()
 		_, _ = domainHasher.Write([]byte{byte(contentKind)})
 		domainWriter := &boundedWriter{target: domainHasher, remaining: metadataLimit}
-		if err := writeCanonicalObject(metadata, domainWriter); err != nil && !errors.Is(err, errSemanticCap) {
+		domainCanonical := &canonicalBudgetWriter{target: domainWriter, remaining: messageCanonicalNodes}
+		if err := writeCanonicalObject(metadata, domainCanonical); err != nil && !errors.Is(err, errSemanticCap) {
 			return err
 		}
-		builder := newSegmentBuilder(&chain, segmentMessage, domainHasher.Sum64(), &previous, &totalTokens)
+		metadataNodes := messageCanonicalNodes - domainCanonical.remaining
+		messageCanonicalNodes = domainCanonical.remaining
+		builder := newSegmentBuilder(&chain, segmentMessage, domainHasher.Sum64(), &previous, &totalTokens, budget)
 		metadataWriter := &boundedWriter{target: builder, remaining: domainWriter.written}
-		if err := writeCanonicalObject(metadata, metadataWriter); err != nil {
+		metadataCanonical := &canonicalBudgetWriter{target: metadataWriter, remaining: metadataNodes}
+		if err := writeCanonicalObject(metadata, metadataCanonical); err != nil {
 			if errors.Is(err, errSemanticCap) {
 				builder.finish()
 			}
 			return err
 		}
-		if err := writeMessageContent(content, contentKind, builder); err != nil {
+		contentCanonical := &canonicalBudgetWriter{target: builder, remaining: messageCanonicalNodes}
+		if err := writeMessageContent(content, contentKind, contentCanonical); err != nil {
 			if errors.Is(err, errSemanticCap) {
 				builder.finish()
 			}
 			return err
 		}
+		messageCanonicalNodes = contentCanonical.remaining
 		builder.finish()
 		return nil
 	})
@@ -233,7 +275,9 @@ func extractChat(rawMessages, rawTools []byte, seed uint64, toolMode ToolMode) (
 
 func writeToolIdentities(rawTools []byte, writer io.Writer) error {
 	tools, identityBytes := 0, 0
-	err := forEachArrayValue(rawTools, func(rawTool []byte) error {
+	err := forEachArrayValueWhile(rawTools, func() bool {
+		return !semanticCapReached(writer)
+	}, func(rawTool []byte) error {
 		if tools >= MaxTools || MaxToolIdentityBytes-identityBytes < 9 {
 			return errToolIdentityCap
 		}
@@ -409,14 +453,16 @@ func writeMessageContent(content []byte, kind messageContentKind, writer io.Writ
 }
 
 func writeStructuredTextContent(raw []byte, writer io.Writer) error {
+	if !consumeCanonicalNodes(writer, 1) {
+		return errCanonicalComplexity
+	}
 	if _, err := writer.Write([]byte{'['}); err != nil {
 		return err
 	}
 	first := true
-	err := forEachArrayValue(raw, func(rawPart []byte) error {
-		if semanticCapReached(writer) {
-			return errSemanticCap
-		}
+	err := forEachArrayValueWhile(raw, func() bool {
+		return !semanticCapReached(writer)
+	}, func(rawPart []byte) error {
 		if !first {
 			if _, err := writer.Write([]byte{','}); err != nil {
 				return err
@@ -426,9 +472,20 @@ func writeStructuredTextContent(raw []byte, writer io.Writer) error {
 			}
 		}
 		first = false
-		fields, err := parseObjectFields(rawPart)
+		remaining := canonicalNodesRemaining(writer)
+		if remaining == 0 {
+			return errCanonicalComplexity
+		}
+		maxFields := remaining - 1
+		if remaining < 0 {
+			maxFields = -1
+		}
+		fields, err := parseObjectFieldsLimited(rawPart, maxFields)
 		if err != nil {
 			return err
+		}
+		if !consumeCanonicalNodes(writer, len(fields)+1) {
+			return errCanonicalComplexity
 		}
 		partType, err := decodeSmallString(fieldValue(fields, "type"))
 		if err != nil || partType != "text" || !isJSONString(fieldValue(fields, "text")) {
@@ -443,12 +500,12 @@ func writeStructuredTextContent(raw []byte, writer io.Writer) error {
 	return err
 }
 
-func extractCompletion(raw []byte, seed uint64) ([][]Block, bool, error) {
+func extractCompletion(raw []byte, seed uint64, budget *blockBudget) ([][]Block, bool, error) {
 	trimmed := bytes.TrimSpace(raw)
 	if isJSONString(trimmed) {
 		chain := make([]Block, 0)
 		previous, totalTokens := seed, 0
-		builder := newSegmentBuilder(&chain, segmentCompletionText, 0, &previous, &totalTokens)
+		builder := newSegmentBuilder(&chain, segmentCompletionText, 0, &previous, &totalTokens, budget)
 		if err := writeDecodedJSONString(trimmed, builder); err != nil {
 			return nil, false, err
 		}
@@ -461,7 +518,9 @@ func extractCompletion(raw []byte, seed uint64) ([][]Block, bool, error) {
 	chains := make([][]Block, 0)
 	var tokenBuilder *tokenChainBuilder
 	mode := byte(0)
-	err := forEachArrayValue(trimmed, func(item []byte) error {
+	err := forEachArrayValueWhile(trimmed, func() bool {
+		return !budget.exhausted()
+	}, func(item []byte) error {
 		item = bytes.TrimSpace(item)
 		if mode == 0 {
 			switch {
@@ -471,7 +530,7 @@ func extractCompletion(raw []byte, seed uint64) ([][]Block, bool, error) {
 				mode = 'b'
 			default:
 				mode = 'n'
-				tokenBuilder = newTokenChainBuilder(seed)
+				tokenBuilder = newTokenChainBuilder(seed, budget)
 			}
 		}
 		if mode == 's' {
@@ -480,7 +539,7 @@ func extractCompletion(raw []byte, seed uint64) ([][]Block, bool, error) {
 			}
 			chain := make([]Block, 0)
 			previous, totalTokens := seed, 0
-			builder := newSegmentBuilder(&chain, segmentCompletionText, 0, &previous, &totalTokens)
+			builder := newSegmentBuilder(&chain, segmentCompletionText, 0, &previous, &totalTokens, budget)
 			if err := writeDecodedJSONString(item, builder); err != nil {
 				return err
 			}
@@ -497,7 +556,7 @@ func extractCompletion(raw []byte, seed uint64) ([][]Block, bool, error) {
 		if isJSONString(item) || (len(item) > 0 && item[0] == '[') {
 			return fmt.Errorf("prompt contains mixed types")
 		}
-		if tokenBuilder.total >= MaxPrefixTokens {
+		if tokenBuilder.total >= MaxPrefixTokens || budget.exhausted() {
 			return errSemanticCap
 		}
 		return tokenBuilder.appendNumberBytes(item)
@@ -529,24 +588,26 @@ type segmentBuilder struct {
 	domain      uint64
 	previous    *uint64
 	totalTokens *int
+	budget      *blockBudget
 	remaining   int
 	buffer      [maxSegmentBytes]byte
 	buffered    int
 }
 
-func newSegmentBuilder(chain *[]Block, kind segmentKind, domain uint64, previous *uint64, totalTokens *int) *segmentBuilder {
+func newSegmentBuilder(chain *[]Block, kind segmentKind, domain uint64, previous *uint64, totalTokens *int, budget *blockBudget) *segmentBuilder {
 	return &segmentBuilder{
 		chain: chain, kind: kind, domain: domain, previous: previous, totalTokens: totalTokens,
-		remaining: (MaxPrefixTokens - *totalTokens) * 4,
+		budget: budget, remaining: (MaxPrefixTokens - *totalTokens) * 4,
 	}
 }
 
 func (builder *segmentBuilder) Write(data []byte) (int, error) {
 	original := len(data)
-	if builder.remaining <= 0 {
+	limit := builder.inputLimit()
+	if limit <= 0 {
 		return original, nil
 	}
-	data = data[:min(len(data), builder.remaining)]
+	data = data[:min(len(data), limit)]
 	builder.remaining -= len(data)
 	for len(data) > 0 {
 		copied := copy(builder.buffer[builder.buffered:], data)
@@ -554,25 +615,34 @@ func (builder *segmentBuilder) Write(data []byte) (int, error) {
 		data = data[copied:]
 		if builder.buffered == len(builder.buffer) {
 			builder.flush()
+			if builder.budget.exhausted() {
+				break
+			}
 		}
 	}
 	return original, nil
 }
 
-func (builder *segmentBuilder) inputLimit() int { return builder.remaining }
+func (builder *segmentBuilder) inputLimit() int {
+	return min(builder.remaining, builder.budget.remainingBytes(builder.buffered))
+}
 
-func (builder *segmentBuilder) semanticCapReached() bool { return builder.remaining <= 0 }
+func (builder *segmentBuilder) semanticCapReached() bool {
+	return builder.remaining <= 0 || builder.budget.exhausted()
+}
 
 func (builder *segmentBuilder) finish() { builder.flush() }
 
 func (builder *segmentBuilder) flush() {
-	if builder.buffered == 0 {
+	if builder.buffered == 0 || builder.budget.exhausted() {
+		builder.buffered = 0
 		return
 	}
 	tokens := (builder.buffered + 3) / 4
 	*builder.previous = chainedHash(builder.kind, tokens, xxhash.Sum64(builder.buffer[:builder.buffered]), builder.domain, *builder.previous)
 	*builder.chain = append(*builder.chain, Block{Hash: *builder.previous, EstimatedTokens: tokens})
 	*builder.totalTokens += tokens
+	builder.budget.consume()
 	builder.buffered = 0
 }
 
@@ -582,14 +652,15 @@ type tokenChainBuilder struct {
 	buffered int
 	total    int
 	previous uint64
+	budget   *blockBudget
 }
 
-func newTokenChainBuilder(seed uint64) *tokenChainBuilder {
-	return &tokenChainBuilder{previous: seed}
+func newTokenChainBuilder(seed uint64, budget *blockBudget) *tokenChainBuilder {
+	return &tokenChainBuilder{previous: seed, budget: budget}
 }
 
 func (builder *tokenChainBuilder) appendNumberBytes(raw []byte) error {
-	if builder.total >= MaxPrefixTokens {
+	if builder.total >= MaxPrefixTokens || builder.budget.exhausted() {
 		return errSemanticCap
 	}
 	value, ok := parseUint32(raw)
@@ -630,7 +701,8 @@ func (builder *tokenChainBuilder) finish() []Block {
 }
 
 func (builder *tokenChainBuilder) flush() {
-	if builder.buffered == 0 {
+	if builder.buffered == 0 || builder.budget.exhausted() {
+		builder.buffered = 0
 		return
 	}
 	var encoded [MaxSegmentTokens * 4]byte
@@ -640,7 +712,25 @@ func (builder *tokenChainBuilder) flush() {
 	contentHash := xxhash.Sum64(encoded[:builder.buffered*4])
 	builder.previous = chainedHash(segmentCompletionTokens, builder.buffered, contentHash, 0, builder.previous)
 	builder.chain = append(builder.chain, Block{Hash: builder.previous, EstimatedTokens: builder.buffered})
+	builder.budget.consume()
 	builder.buffered = 0
+}
+
+type blockBudget struct{ remaining int }
+
+func (budget *blockBudget) exhausted() bool { return budget == nil || budget.remaining <= 0 }
+
+func (budget *blockBudget) consume() {
+	if budget.remaining > 0 {
+		budget.remaining--
+	}
+}
+
+func (budget *blockBudget) remainingBytes(buffered int) int {
+	if budget.exhausted() {
+		return 0
+	}
+	return budget.remaining*maxSegmentBytes - buffered
 }
 
 type boundedWriter struct {
@@ -736,10 +826,9 @@ func writeCanonicalJSONAtDepth(raw []byte, writer io.Writer, depth int) error {
 			return err
 		}
 		first := true
-		err := forEachArrayValue(raw, func(value []byte) error {
-			if semanticCapReached(writer) {
-				return errSemanticCap
-			}
+		err := forEachArrayValueWhile(raw, func() bool {
+			return !semanticCapReached(writer)
+		}, func(value []byte) error {
 			if !first {
 				if _, err := writer.Write([]byte{','}); err != nil {
 					return err
@@ -1113,6 +1202,10 @@ func parseObjectFieldsLimited(raw []byte, maxFields int) ([]jsonField, error) {
 }
 
 func forEachArrayValue(raw []byte, visit func([]byte) error) error {
+	return forEachArrayValueWhile(raw, nil, visit)
+}
+
+func forEachArrayValueWhile(raw []byte, shouldContinue func() bool, visit func([]byte) error) error {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) < 2 || raw[0] != '[' {
 		return fmt.Errorf("expected JSON array")
@@ -1125,6 +1218,9 @@ func forEachArrayValue(raw []byte, visit func([]byte) error) error {
 		}
 		if raw[position] == ']' {
 			return nil
+		}
+		if shouldContinue != nil && !shouldContinue() {
+			return errSemanticCap
 		}
 		end, err := scanJSONValue(raw, position)
 		if err != nil {

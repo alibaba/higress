@@ -16,7 +16,7 @@
 
 KV cache 优先读取 `vllm:kv_cache_usage_perc`，并兼容旧名称 `vllm:gpu_cache_usage_perc`。LoRA 指标 `vllm:lora_requests_info` 可以缺失。
 
-prefix locality 支持 OpenAI Chat Completions 和 Completions 的文本输入，不包含 temperature、max tokens 等输出参数。Chat 的工具前缀精度由 `prefix.toolMode` 控制；每条包含 role、content、name、tool calls 等完整字段的 canonical message 仍分别形成有序语义 segment。Completions 文本或平坦 token ID prompt 独立建链。合法 batched token ID prompt（如 `[[1,2],[3,4]]`）当前只把 prefix scorer 标为 unavailable，不影响 queue/KV 调度；混合或无效 prompt 仍按无效输入处理。canonical JSON 最大嵌套深度为 64，超深或超出 node budget 时同样只禁用 prefix scorer。每 4 个 UTF-8 bytes 估算一个 pseudo-token，超过 1024 pseudo-tokens 的 segment 有界切片，单 prompt 最多处理 131072 pseudo-tokens。hash 包含 `model`、`cache_salt`、segment 类型/长度、内容 hash 和前一个 hash，因此中间 segment 变化后不会命中后续 segment。非文本 multimodal 输入只让 prefix scorer unavailable，queue/KV 等 scorer 继续工作。
+prefix locality 支持 OpenAI Chat Completions 和 Completions 的文本输入，不包含 temperature、max tokens 等输出参数。Chat 的工具前缀精度由 `prefix.toolMode` 控制；每条包含 role、content、name、tool calls 等完整字段的 canonical message 仍分别形成有序语义 segment。Completions 文本或平坦 token ID prompt 独立建链。合法 batched token ID prompt（如 `[[1,2],[3,4]]`）当前只把 prefix scorer 标为 unavailable，不影响 queue/KV 调度；混合或无效 prompt 仍按无效输入处理。canonical JSON 最大嵌套深度为 64，超深或超出 node budget 时同样只禁用 prefix scorer。每 4 个 UTF-8 bytes 估算一个 pseudo-token，超过 1024 pseudo-tokens 的 segment 有界切片，并保留 131072 pseudo-token 硬上限。`prefix.maxBlocks` 进一步限制整个请求（tools、messages、Completion 字符串数组或平坦 token IDs 合计）的 block 数；预算耗尽时保留已生成的近似前缀并停止后续语义提取。hash 包含 `model`、`cache_salt`、segment 类型/长度、内容 hash 和前一个 hash，因此中间 segment 变化后不会命中后续 segment。非文本 multimodal 输入只让 prefix scorer unavailable，queue/KV 等 scorer 继续工作。
 
 每 endpoint 的 thread-safe weighted LRU 容量单位是近似后端 KV block，默认 31250，合法 `vllm:cache_config_info{num_gpu_blocks=...}` 可覆盖容量。每个语义 entry 的增量成本为 `ceil(segmentTokens/actualBlockSize)`；actual block size 读取所选 endpoint 的合法 `block_size`，否则使用 16。Score 不刷新 LRU。
 
@@ -24,7 +24,9 @@ prefix locality 支持 OpenAI Chat Completions 和 Completions 的文本输入�
 
 ## Upstream metrics 契约
 
-queue、KV 和 LoRA scorer 依赖每个实际 inference endpoint 自己的 Prometheus snapshot。upstream cluster 必须对各 endpoint 配置显式 HTTP health check（通常访问 vLLM `/metrics`），并启用 `store_metrics: true`，使 health-check 响应体作为对应 host 的 `metrics` 由 `GetUpstreamHosts()` 返回。不要使用经共享负载均衡地址聚合的 metrics 代替逐 host snapshot。响应体必须是合法 Prometheus exposition；单个 host 数据损坏只会隔离该 host。未满足该契约时，外部 signals unavailable，插件仍可使用其他可用 signal 或 fail-open。
+queue、KV 和 LoRA scorer 依赖每个实际 inference endpoint 自己的 Prometheus snapshot。upstream cluster 必须对各 endpoint 配置显式 HTTP health check（通常访问 vLLM `/metrics`），并启用 `store_metrics: true`，使 health-check 响应体作为对应 host 的 `metrics` 由 `GetUpstreamHosts()` 返回。不要使用经共享负载均衡地址聚合的 metrics 代替逐 host snapshot。插件将 host snapshot 缓存 250ms：窗口内不重复读取 host，因而调度信号最多滞后 250ms；过期刷新失败时不使用旧 snapshot，而是 fail-open。刷新时 metrics 指纹未变化的 endpoint 复用上次紧凑解析结果；变化时只筛选 queue、当前/旧 KV、LoRA 和 cache config 五类指标，再交给标准 Prometheus parser，相关子集上限为 64KiB。相关数据损坏或超限只隔离该 host，大量无关指标不会构建 DTO。
+
+插件缓存不保存原始 metadata 或 metrics body，但 `store_metrics: true` 意味着 Envoy 仍会在 health-check 层保存并通过 hostcall 提供完整原始响应；仅修改 WASM 插件无法消除这部分原始存储和复制开销。
 
 ## 配置
 
@@ -32,6 +34,7 @@ queue、KV 和 LoRA scorer 依赖每个实际 inference endpoint 自己的 Prome
 profile: default
 prefix:
   toolMode: identity
+  maxBlocks: 32
 weights:
   queue: 2
   kvCache: 2
@@ -56,6 +59,8 @@ debug:
 - `full`：对完整 tools JSON 做有深度、节点数和 token 上限的 canonical 计算。适合工具定义经常动态变化、需要尽量贴近 chat template 的场景，但会增加 CPU 和临时内存开销。
 
 `identity` 达到工具数量或身份字节预算后会保留已经生成的近似前缀并停止处理后续工具。三种模式都只影响网关调度提示；推理引擎仍基于真实 token/KV Cache 判断命中，因此近似假命中不会改变模型输出正确性。
+
+`prefix.maxBlocks` 默认为 32，合法范围为 1..128。较小值会更早停止 tools/messages 或 Completion prompt 的语义扫描，从而压低网关 CPU 和临时内存开销，但可能减少 locality 命中长度；较大值可提高长上下文的近似精度，代价是更多哈希工作。它是 request-wide 运行预算，不会改变原有 token、JSON depth 和 canonical node 硬上限。
 
 ## Feedback 与可观测性
 

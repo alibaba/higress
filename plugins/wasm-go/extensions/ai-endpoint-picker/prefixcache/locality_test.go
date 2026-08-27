@@ -13,8 +13,12 @@ func extractForTest(t *testing.T, body string) *Locality {
 }
 
 func extractForTestWithToolMode(t *testing.T, body string, toolMode ToolMode) *Locality {
+	return extractForTestWithOptions(t, body, Options{ToolMode: toolMode})
+}
+
+func extractForTestWithOptions(t *testing.T, body string, options Options) *Locality {
 	t.Helper()
-	locality, supported, err := ExtractWithToolMode([]byte(body), toolMode)
+	locality, supported, err := ExtractWithOptions([]byte(body), options)
 	if err != nil || !supported {
 		t.Fatalf("extract failed: supported=%v err=%v", supported, err)
 	}
@@ -142,7 +146,7 @@ func TestLongMessageSplitsAtBoundedSemanticSize(t *testing.T) {
 		"model":    "m",
 		"messages": []any{map[string]any{"role": "user", "content": content}},
 	})
-	locality := extractForTest(t, string(body))
+	locality := extractForTestWithOptions(t, string(body), Options{MaxBlocks: MaxBlocksLimit})
 	if got := len(locality.Chains[0]); got != 3 {
 		t.Fatalf("long canonical message produced %d blocks, want 3", got)
 	}
@@ -238,6 +242,132 @@ func TestCompletionsTextTokenIDsAndMultiplePrompts(t *testing.T) {
 	multiple := extractForTest(t, `{"model":"m","prompt":["first","second"]}`)
 	if len(multiple.Chains) != 2 || len(multiple.Chains[0]) != 1 || len(multiple.Chains[1]) != 1 {
 		t.Fatalf("multiple prompts did not create independent chains: %+v", multiple.Chains)
+	}
+}
+
+func TestMaxBlocksIsRequestWideAcrossChatToolsAndMessages(t *testing.T) {
+	body := `{"model":"m","tools":[{"type":"function","function":{"name":"lookup"}}],"messages":[` +
+		`{"role":"user","content":"first"},{"role":"user","content":"second"},` +
+		`{"role":"user","content":[{"type":"image_url"}]}]}`
+	locality := extractForTestWithOptions(t, body, Options{MaxBlocks: 2})
+	if len(locality.Chains) != 1 || len(locality.Chains[0]) != 2 {
+		t.Fatalf("request-wide blocks=%+v want tool plus first message", locality.Chains)
+	}
+	retained := extractForTestWithOptions(t, `{"model":"m","tools":[{"type":"function","function":{"name":"lookup"}}],"messages":[{"role":"user","content":"first"}]}`, Options{MaxBlocks: 2})
+	for index := range retained.Chains[0] {
+		if locality.Chains[0][index].Hash != retained.Chains[0][index].Hash {
+			t.Fatalf("retained block %d changed after capped suffix", index)
+		}
+	}
+}
+
+func TestMaxBlocksCapsCompletionStringAndStringArray(t *testing.T) {
+	longPrompt := strings.Repeat("a", maxSegmentBytes*4)
+	stringBody, _ := json.Marshal(map[string]any{"model": "m", "prompt": longPrompt})
+	locality := extractForTestWithOptions(t, string(stringBody), Options{MaxBlocks: 2})
+	if len(locality.Chains) != 1 || len(locality.Chains[0]) != 2 {
+		t.Fatalf("completion string blocks=%+v want 2", locality.Chains)
+	}
+
+	array := extractForTestWithOptions(t, `{"model":"m","prompt":["first","second",3]}`, Options{MaxBlocks: 2})
+	if len(array.Chains) != 2 || len(array.Chains[0]) != 1 || len(array.Chains[1]) != 1 {
+		t.Fatalf("completion array blocks=%+v want two retained chains", array.Chains)
+	}
+}
+
+func TestMaxBlocksCapsFlatTokenIDs(t *testing.T) {
+	locality := extractForTestWithOptions(t, string(tokenIDBody(MaxSegmentTokens*4)), Options{MaxBlocks: 2})
+	if len(locality.Chains) != 1 || len(locality.Chains[0]) != 2 || totalTokens(locality.Chains) != 2*MaxSegmentTokens {
+		t.Fatalf("flat token-ID blocks=%+v tokens=%d", locality.Chains, totalTokens(locality.Chains))
+	}
+}
+
+func TestDefaultMaxBlocksIs32(t *testing.T) {
+	body, _ := json.Marshal(map[string]any{"model": "m", "prompt": strings.Repeat("a", maxSegmentBytes*(DefaultMaxBlocks+1))})
+	locality := extractForTest(t, string(body))
+	if got := len(locality.Chains[0]); got != DefaultMaxBlocks {
+		t.Fatalf("default block count=%d want %d", got, DefaultMaxBlocks)
+	}
+}
+
+func TestMaxBlocksOneBoundsStringSemanticAccess(t *testing.T) {
+	chain := make([]Block, 0, 1)
+	previous, totalTokens := uint64(0), 0
+	builder := newSegmentBuilder(&chain, segmentCompletionText, 0, &previous, &totalTokens, &blockBudget{remaining: 1})
+	// The invalid escape is deliberately beyond the only block's byte budget.
+	// Reaching it would prove that semantic string decoding ignored maxBlocks.
+	raw := []byte(`"` + strings.Repeat("a", maxSegmentBytes) + `\q"`)
+	if err := writeDecodedJSONString(raw, builder); err != nil {
+		t.Fatalf("bounded semantic decoder accessed capped suffix: %v", err)
+	}
+	builder.finish()
+	if len(chain) != 1 || totalTokens != MaxSegmentTokens {
+		t.Fatalf("bounded string chain=%+v tokens=%d", chain, totalTokens)
+	}
+}
+
+func TestBlockBudgetRemainingBytesAccountsForPartialBuffer(t *testing.T) {
+	chain := make([]Block, 0, 1)
+	previous, totalTokens := uint64(0), 0
+	builder := newSegmentBuilder(&chain, segmentMessage, 0, &previous, &totalTokens, &blockBudget{remaining: 1})
+	if _, err := builder.Write([]byte("prefix")); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := builder.inputLimit(), maxSegmentBytes-len("prefix"); got != want {
+		t.Fatalf("partial-buffer input limit=%d want %d", got, want)
+	}
+}
+
+func TestMaxBlocksOneStopsBeforeNextArrayElementScan(t *testing.T) {
+	// extractCompletion is intentionally called below the outer JSON validation
+	// boundary. The malformed second value must remain untouched once the first
+	// value consumes the only block.
+	raw := []byte(`["` + strings.Repeat("a", maxSegmentBytes) + `",[[unterminated]`)
+	chains, supported, err := extractCompletion(raw, 0, &blockBudget{remaining: 1})
+	if err != nil || !supported || totalBlocks(chains) != 1 {
+		t.Fatalf("capped completion scanned the next element: chains=%+v supported=%v err=%v", chains, supported, err)
+	}
+}
+
+func TestMaxBlocksOneKeepsLargeMessageSemanticAllocationsBounded(t *testing.T) {
+	request := func(metadata, content string) []byte {
+		return mustJSON(t, map[string]any{
+			"model": "m",
+			"messages": []any{map[string]any{
+				"role": "user", "metadata": metadata, "content": content,
+			}},
+		})
+	}
+	baseline := request("small", "small")
+	huge := request(strings.Repeat("m", 4<<20), strings.Repeat("c", 4<<20))
+	baselineAllocs := testing.AllocsPerRun(5, func() {
+		_, _, _ = ExtractWithOptions(baseline, Options{MaxBlocks: 1})
+	})
+	hugeAllocs := testing.AllocsPerRun(5, func() {
+		_, _, _ = ExtractWithOptions(huge, Options{MaxBlocks: 1})
+	})
+	if hugeAllocs > baselineAllocs+4 {
+		t.Fatalf("maxBlocks=1 semantic allocations scaled with metadata/content: baseline=%v huge=%v", baselineAllocs, hugeAllocs)
+	}
+}
+
+func TestMaxBlocksOneRejectsUltraWideMessageMetadataAsPrefixUnavailable(t *testing.T) {
+	capped := wideMessageMetadataBody(maxCanonicalNodes + 1)
+	extended := wideMessageMetadataBody(maxCanonicalNodes + 100_000)
+	for _, body := range [][]byte{capped, extended} {
+		locality, supported, err := ExtractWithOptions(body, Options{MaxBlocks: 1})
+		if err != nil || supported || locality != nil {
+			t.Fatalf("wide metadata must only disable prefix: locality=%+v supported=%v err=%v", locality, supported, err)
+		}
+	}
+	cappedAllocs := testing.AllocsPerRun(3, func() {
+		_, _, _ = ExtractWithOptions(capped, Options{MaxBlocks: 1})
+	})
+	extendedAllocs := testing.AllocsPerRun(3, func() {
+		_, _, _ = ExtractWithOptions(extended, Options{MaxBlocks: 1})
+	})
+	if extendedAllocs > cappedAllocs+8 {
+		t.Fatalf("wide metadata allocations grew beyond node cap: capped=%v extended=%v", cappedAllocs, extendedAllocs)
 	}
 }
 
@@ -394,7 +524,7 @@ func TestPrefixTokenCapDoesNotCreateTinyBlocks(t *testing.T) {
 		"model":  "m",
 		"prompt": strings.Repeat("a", (MaxPrefixTokens+MaxSegmentTokens)*4),
 	})
-	locality := extractForTest(t, string(body))
+	locality := extractForTestWithOptions(t, string(body), Options{MaxBlocks: MaxBlocksLimit})
 	if got, want := len(locality.Chains[0]), MaxPrefixTokens/MaxSegmentTokens; got != want {
 		t.Fatalf("block count=%d want %d", got, want)
 	}
@@ -417,7 +547,7 @@ func TestTokenIDPromptIsStreamedAndCapped(t *testing.T) {
 		body.WriteString(strconv.Itoa(token))
 	}
 	body.WriteString(`]}`)
-	locality := extractForTest(t, body.String())
+	locality := extractForTestWithOptions(t, body.String(), Options{MaxBlocks: MaxBlocksLimit})
 	if got, want := len(locality.Chains[0]), MaxPrefixTokens/MaxSegmentTokens; got != want {
 		t.Fatalf("token-ID block count=%d want %d", got, want)
 	}
@@ -454,16 +584,23 @@ func TestTokenIDParserIsStrictAndAllocationFree(t *testing.T) {
 
 func TestStructuredContentCapFinishesPartialBlock(t *testing.T) {
 	body := repeatedStructuredBody(140, 0, false, true)
-	locality, supported, err := Extract(body)
+	locality, supported, err := ExtractWithOptions(body, Options{MaxBlocks: MaxBlocksLimit})
 	if err != nil || !supported {
 		t.Fatalf("extract: supported=%v err=%v", supported, err)
 	}
-	if got := totalTokens(locality.Chains); got != MaxPrefixTokens {
-		t.Fatalf("token count=%d want %d", got, MaxPrefixTokens)
+	if got := totalBlocks(locality.Chains); got != MaxBlocksLimit {
+		t.Fatalf("block count=%d want %d", got, MaxBlocksLimit)
 	}
 	chain := locality.Chains[0]
-	if got := chain[len(chain)-1].EstimatedTokens; got <= 0 || got >= MaxSegmentTokens {
-		t.Fatalf("last partial block tokens=%d want between 1 and %d", got, MaxSegmentTokens-1)
+	partial := false
+	for _, block := range chain {
+		if block.EstimatedTokens > 0 && block.EstimatedTokens < MaxSegmentTokens {
+			partial = true
+			break
+		}
+	}
+	if !partial {
+		t.Fatalf("blocks=%+v contain no finished partial block", chain)
 	}
 }
 
@@ -480,7 +617,7 @@ func TestMultiMegabyteTextPromptsRemainAllocationBounded(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			locality, supported, err := Extract(test.body)
+			locality, supported, err := ExtractWithOptions(test.body, Options{MaxBlocks: MaxBlocksLimit})
 			if err != nil || !supported {
 				t.Fatalf("extract: supported=%v err=%v", supported, err)
 			}
@@ -491,7 +628,7 @@ func TestMultiMegabyteTextPromptsRemainAllocationBounded(t *testing.T) {
 				t.Fatalf("token count=%d want %d", got, MaxPrefixTokens)
 			}
 			if allocations := testing.AllocsPerRun(3, func() {
-				_, _, _ = Extract(test.body)
+				_, _, _ = ExtractWithOptions(test.body, Options{MaxBlocks: MaxBlocksLimit})
 			}); allocations > 100 {
 				t.Fatalf("allocations=%v want bounded <=100", allocations)
 			}
@@ -538,16 +675,20 @@ func TestCappedSemanticSuffixesDoNotScaleAllocations(t *testing.T) {
 				toolMode = DefaultToolMode
 			}
 			for _, body := range [][]byte{test.capped, test.extended} {
-				locality, supported, err := ExtractWithToolMode(body, toolMode)
+				locality, supported, err := ExtractWithOptions(body, Options{ToolMode: toolMode, MaxBlocks: MaxBlocksLimit})
 				if err != nil || !supported {
 					t.Fatalf("extract: supported=%v err=%v", supported, err)
 				}
-				if got := totalTokens(locality.Chains); got != MaxPrefixTokens {
-					t.Fatalf("token count=%d want capped %d", got, MaxPrefixTokens)
+				if got := totalBlocks(locality.Chains); got != MaxBlocksLimit {
+					t.Fatalf("block count=%d want capped %d", got, MaxBlocksLimit)
 				}
 			}
-			cappedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = ExtractWithToolMode(test.capped, toolMode) })
-			extendedAllocs := testing.AllocsPerRun(3, func() { _, _, _ = ExtractWithToolMode(test.extended, toolMode) })
+			cappedAllocs := testing.AllocsPerRun(3, func() {
+				_, _, _ = ExtractWithOptions(test.capped, Options{ToolMode: toolMode, MaxBlocks: MaxBlocksLimit})
+			})
+			extendedAllocs := testing.AllocsPerRun(3, func() {
+				_, _, _ = ExtractWithOptions(test.extended, Options{ToolMode: toolMode, MaxBlocks: MaxBlocksLimit})
+			})
 			t.Logf("allocations capped=%v extended=%v", cappedAllocs, extendedAllocs)
 			if test.maxCappedAllocs > 0 && cappedAllocs > test.maxCappedAllocs {
 				t.Fatalf("capped allocations=%v want <=%v", cappedAllocs, test.maxCappedAllocs)
@@ -589,6 +730,22 @@ func toolsObjectBody(count int) []byte {
 	return []byte(body.String())
 }
 
+func wideMessageMetadataBody(fields int) []byte {
+	var body strings.Builder
+	body.Grow(fields*12 + 100)
+	body.WriteString(`{"model":"m","messages":[{"role":"user","content":"hello","metadata":{`)
+	for index := 0; index < fields; index++ {
+		if index > 0 {
+			body.WriteByte(',')
+		}
+		body.WriteString(`"k`)
+		body.WriteString(strconv.Itoa(index))
+		body.WriteString(`":0`)
+	}
+	body.WriteString(`}}]}`)
+	return []byte(body.String())
+}
+
 func toolSchemaBody(fields int) []byte {
 	var body strings.Builder
 	body.Grow(fields*12 + 100)
@@ -617,6 +774,14 @@ func tokenIDBody(count int) []byte {
 	}
 	body.WriteString(`]}`)
 	return []byte(body.String())
+}
+
+func totalBlocks(chains [][]Block) int {
+	total := 0
+	for _, chain := range chains {
+		total += len(chain)
+	}
+	return total
 }
 
 func repeatedChatBody(prefixMessages, suffixMessages int) []byte {

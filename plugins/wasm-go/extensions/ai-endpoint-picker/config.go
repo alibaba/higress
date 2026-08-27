@@ -8,6 +8,7 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-endpoint-picker/prefixcache"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-endpoint-picker/scheduling"
+	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/tidwall/gjson"
 )
 
@@ -23,10 +24,12 @@ type Config struct {
 	ewmaAlpha  float64
 	sampleRate float64
 	toolMode   prefixcache.ToolMode
+	maxBlocks  int
 	store      *scheduling.FeedbackStore
 	pipeline   *scheduling.Pipeline
 	prefix     *prefixcache.Index
 	metrics    *pluginMetrics
+	hostCache  *endpointSnapshotCache
 	random     *rand.Rand
 }
 
@@ -124,6 +127,13 @@ func parseConfig(json gjson.Result, config *Config) error {
 	if toolMode != prefixcache.ToolModeNone && toolMode != prefixcache.ToolModeIdentity && toolMode != prefixcache.ToolModeFull {
 		return fmt.Errorf("unsupported prefix.toolMode %q", toolMode)
 	}
+	maxBlocks := prefixcache.DefaultMaxBlocks
+	if value := json.Get("prefix.maxBlocks"); value.Exists() {
+		if value.Type != gjson.Number || value.Float() != math.Trunc(value.Float()) || value.Int() < 1 || value.Int() > prefixcache.MaxBlocksLimit {
+			return fmt.Errorf("prefix.maxBlocks must be an integer in [1,%d]", prefixcache.MaxBlocksLimit)
+		}
+		maxBlocks = int(value.Int())
+	}
 
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	config.profile = profile
@@ -131,10 +141,12 @@ func parseConfig(json gjson.Result, config *Config) error {
 	config.ewmaAlpha = ewmaAlpha
 	config.sampleRate = sampleRate
 	config.toolMode = toolMode
+	config.maxBlocks = maxBlocks
 	config.store = scheduling.NewFeedbackStore(ewmaAlpha)
 	config.pipeline = scheduling.NewPipeline(weights, random)
 	config.prefix = prefixcache.NewIndex(prefixcache.DefaultCapacity)
 	config.metrics = &pluginMetrics{}
+	config.hostCache = newEndpointSnapshotCache(proxywasm.GetUpstreamHosts, scheduling.ParseVLLMMetrics, time.Now)
 	config.random = random
 	return nil
 }

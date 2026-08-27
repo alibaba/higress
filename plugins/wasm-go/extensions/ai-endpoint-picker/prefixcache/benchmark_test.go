@@ -36,7 +36,7 @@ func BenchmarkCappedStructuredContentSemanticVisit(b *testing.B) {
 			for b.Loop() {
 				chain := make([]Block, 0)
 				previous, totalTokens := uint64(0), 0
-				builder := newSegmentBuilder(&chain, segmentMessage, 0, &previous, &totalTokens)
+				builder := newSegmentBuilder(&chain, segmentMessage, 0, &previous, &totalTokens, &blockBudget{remaining: MaxBlocksLimit})
 				if err := writeStructuredTextContent(content, builder); !errors.Is(err, errSemanticCap) {
 					b.Fatalf("semantic visit err=%v", err)
 				}

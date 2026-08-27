@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-endpoint-picker/prefixcache"
@@ -13,7 +14,7 @@ func TestParseConfigDefaults(t *testing.T) {
 	if err := parseConfig(gjson.Parse(`{}`), &config); err != nil {
 		t.Fatalf("parseConfig() error = %v", err)
 	}
-	if config.profile != defaultProfile || config.ewmaAlpha != 0.2 || config.sampleRate != 0 || config.toolMode != prefixcache.ToolModeIdentity {
+	if config.profile != defaultProfile || config.ewmaAlpha != 0.2 || config.sampleRate != 0 || config.toolMode != prefixcache.ToolModeIdentity || config.maxBlocks != prefixcache.DefaultMaxBlocks {
 		t.Fatalf("unexpected defaults: %+v", config)
 	}
 	want := scheduling.Weights{
@@ -25,6 +26,20 @@ func TestParseConfigDefaults(t *testing.T) {
 		if config.weights[signal] != weight {
 			t.Errorf("weight %s = %v, want %v", signal, config.weights[signal], weight)
 		}
+	}
+}
+
+func TestParseConfigMaxBlocks(t *testing.T) {
+	for _, maxBlocks := range []int{1, 64, prefixcache.MaxBlocksLimit} {
+		t.Run(fmt.Sprint(maxBlocks), func(t *testing.T) {
+			var config Config
+			if err := parseConfig(gjson.Parse(`{"prefix":{"maxBlocks":`+fmt.Sprint(maxBlocks)+`}}`), &config); err != nil {
+				t.Fatalf("parseConfig() error = %v", err)
+			}
+			if config.maxBlocks != maxBlocks {
+				t.Fatalf("maxBlocks=%d want %d", config.maxBlocks, maxBlocks)
+			}
+		})
 	}
 }
 
@@ -99,6 +114,10 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 		`{"prefix":{"toolMode":"approximate"}}`,
 		`{"prefix":{"toolMode":1}}`,
 		`{"prefix":{"toolMode":null}}`,
+		`{"prefix":{"maxBlocks":0}}`,
+		`{"prefix":{"maxBlocks":129}}`,
+		`{"prefix":{"maxBlocks":1.5}}`,
+		`{"prefix":{"maxBlocks":"32"}}`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {

@@ -42,34 +42,38 @@ func TestParseHostCandidateIsolatesMalformedHosts(t *testing.T) {
 	validMetadata := `{"health_status":"Healthy","metrics":` + strconv.Quote(validMetrics) + `}`
 	tests := []struct {
 		name       string
-		host       []string
+		host       [2]string
 		wantReason candidateSkipReason
 	}{
-		{name: "short host tuple", host: []string{"only-address"}, wantReason: candidateSkipAddress},
-		{name: "empty address", host: []string{"", validMetadata}, wantReason: candidateSkipAddress},
-		{name: "invalid metadata", host: []string{"bad", `{"health_status":`}, wantReason: candidateSkipMetadata},
-		{name: "non-object metadata", host: []string{"bad", `[]`}, wantReason: candidateSkipMetadata},
-		{name: "missing health", host: []string{"bad", `{}`}, wantReason: candidateSkipHealth},
-		{name: "invalid metrics type", host: []string{"bad", `{"health_status":"Healthy","metrics":3}`}, wantReason: candidateSkipMetrics},
-		{name: "malformed prometheus", host: []string{"bad", `{"health_status":"Healthy","metrics":"metric nope\\n"}`}, wantReason: candidateSkipMetrics},
+		{name: "empty address", host: [2]string{"", validMetadata}, wantReason: candidateSkipAddress},
+		{name: "invalid metadata", host: [2]string{"bad", `{"health_status":`}, wantReason: candidateSkipMetadata},
+		{name: "non-object metadata", host: [2]string{"bad", `[]`}, wantReason: candidateSkipMetadata},
+		{name: "missing health", host: [2]string{"bad", `{}`}, wantReason: candidateSkipHealth},
+		{name: "invalid metrics type", host: [2]string{"bad", `{"health_status":"Healthy","metrics":3}`}, wantReason: candidateSkipMetrics},
+		{name: "malformed prometheus", host: [2]string{"bad", `{"health_status":"Healthy","metrics":"vllm:num_requests_waiting nope\\n"}`}, wantReason: candidateSkipMetrics},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, got := parseHostCandidate(test.host, "m"); got != test.wantReason {
+			cache := newEndpointSnapshotCache(nil, scheduling.ParseVLLMMetrics, nil)
+			if _, got := cache.parseHost(test.host, compactHostSnapshot{}); got != test.wantReason {
 				t.Fatalf("skip reason=%d want %d", got, test.wantReason)
 			}
 		})
 	}
 
-	good, reason := parseHostCandidate([]string{"good", validMetadata}, "m")
+	cache := newEndpointSnapshotCache(nil, scheduling.ParseVLLMMetrics, nil)
+	goodSnapshot, reason := cache.parseHost([2]string{"good", validMetadata}, compactHostSnapshot{})
+	good := goodSnapshot.candidate("m")
 	if reason != 0 || good.endpoint.Address != "good" || !good.endpoint.Healthy || !good.endpoint.Signals[scheduling.SignalQueue].Available {
 		t.Fatalf("valid candidate=%+v reason=%d", good, reason)
 	}
-	missingCapacity, reason := parseHostCandidate([]string{"default-capacity", `{"health_status":"Healthy","metrics":""}`}, "m")
+	missingCapacitySnapshot, reason := cache.parseHost([2]string{"default-capacity", `{"health_status":"Healthy","metrics":""}`}, compactHostSnapshot{})
+	missingCapacity := missingCapacitySnapshot.candidate("m")
 	if reason != 0 || missingCapacity.cacheConfig.NumGPUBlocks != 0 {
 		t.Fatalf("missing capacity candidate=%+v reason=%d", missingCapacity, reason)
 	}
-	unhealthy, reason := parseHostCandidate([]string{"unhealthy", `{"health_status":"Unhealthy","metrics":"malformed ignored"}`}, "m")
+	unhealthySnapshot, reason := cache.parseHost([2]string{"unhealthy", `{"health_status":"Unhealthy","metrics":"malformed ignored"}`}, compactHostSnapshot{})
+	unhealthy := unhealthySnapshot.candidate("m")
 	if reason != 0 || unhealthy.endpoint.Healthy {
 		t.Fatalf("unhealthy candidate=%+v reason=%d", unhealthy, reason)
 	}
@@ -79,14 +83,15 @@ func TestMalformedHostDoesNotPreventHealthyCandidateScheduling(t *testing.T) {
 	validMetrics := "# TYPE vllm:num_requests_waiting gauge\nvllm:num_requests_waiting 1\n"
 	validMetadata := `{"health_status":"Healthy","metrics":` + strconv.Quote(validMetrics) + `}`
 	hosts := [][]string{
-		{"bad", `{"health_status":"Healthy","metrics":"metric nope\\n"}`},
+		{"bad", `{"health_status":"Healthy","metrics":"vllm:num_requests_waiting nope\\n"}`},
 		{"good", validMetadata},
 	}
 	endpoints := make([]scheduling.EndpointSnapshot, 0, len(hosts))
+	cache := newEndpointSnapshotCache(nil, scheduling.ParseVLLMMetrics, nil)
 	for _, host := range hosts {
-		candidate, reason := parseHostCandidate(host, "m")
+		snapshot, reason := cache.parseHost([2]string{host[0], host[1]}, compactHostSnapshot{})
 		if reason == 0 {
-			endpoints = append(endpoints, candidate.endpoint)
+			endpoints = append(endpoints, snapshot.candidate("m").endpoint)
 		}
 	}
 	decision := scheduling.NewPipeline(scheduling.Weights{scheduling.SignalQueue: 1}, nil).Schedule(endpoints)
@@ -118,7 +123,7 @@ func TestDeepRequestPreflightRunsBeforeRecursiveJSONAccess(t *testing.T) {
 	depth65 := deepChatMetadataRequest(65)
 	depth20000 := deepChatMetadataRequest(20_000)
 	for _, body := range [][]byte{depth65, depth20000} {
-		model, locality, prefixAvailable, err := inspectRequestBody(body, prefixcache.DefaultToolMode)
+		model, locality, prefixAvailable, err := inspectRequestBody(body, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks)
 		if err != nil || model != "m" || prefixAvailable || locality != nil {
 			t.Fatalf("deep request inspection model=%q locality=%+v available=%v err=%v", model, locality, prefixAvailable, err)
 		}
@@ -135,8 +140,12 @@ func TestDeepRequestPreflightRunsBeforeRecursiveJSONAccess(t *testing.T) {
 			t.Fatalf("queue scheduling failed for deep prefix-unsupported request: %+v", decision)
 		}
 	}
-	baselineAllocs := testing.AllocsPerRun(10, func() { _, _, _, _ = inspectRequestBody(depth65, prefixcache.DefaultToolMode) })
-	deepAllocs := testing.AllocsPerRun(10, func() { _, _, _, _ = inspectRequestBody(depth20000, prefixcache.DefaultToolMode) })
+	baselineAllocs := testing.AllocsPerRun(10, func() {
+		_, _, _, _ = inspectRequestBody(depth65, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks)
+	})
+	deepAllocs := testing.AllocsPerRun(10, func() {
+		_, _, _, _ = inspectRequestBody(depth20000, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks)
+	})
 	if deepAllocs > baselineAllocs+4 {
 		t.Fatalf("main request inspection allocations grew with depth: depth65=%v depth20000=%v", baselineAllocs, deepAllocs)
 	}
@@ -148,7 +157,7 @@ func TestRequestInspectionRejectsInvalidJSONAndModel(t *testing.T) {
 		`{"messages":[]}`,
 		`{"model":3,"messages":[]}`,
 	} {
-		if _, _, _, err := inspectRequestBody([]byte(body), prefixcache.DefaultToolMode); err == nil {
+		if _, _, _, err := inspectRequestBody([]byte(body), prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks); err == nil {
 			t.Fatalf("invalid request succeeded: %s", body)
 		}
 	}
