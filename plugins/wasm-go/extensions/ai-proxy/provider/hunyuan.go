@@ -351,15 +351,24 @@ func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 
 		// 查找事件结束的位置（即下一个事件的开始）
 		newEventPivot = bytes.Index(newBufferedBody, []byte("\n\n"))
-		if newEventPivot == -1 && !isLastChunk {
-			// 未找到事件结束标识，跳出循环等待更多数据，若是最后一个chunk，不一定有2个换行符
-			break
+		if newEventPivot == -1 {
+			if !isLastChunk {
+				// 未找到事件结束标识，跳出循环等待更多数据
+				break
+			}
+			// 若是最后一个chunk，不一定有2个换行符，将剩余内容整体作为一个事件处理
+			newEventPivot = len(newBufferedBody)
 		}
 
 		// 提取并处理一个完整的事件
 		eventData := newBufferedBody[:newEventPivot]
 		// log.Debugf("@@@ <<< ori chun is: %s", string(newBufferedBody[:newEventPivot]))
-		newBufferedBody = newBufferedBody[newEventPivot+2:] // 跳过结束标识
+		if newEventPivot == len(newBufferedBody) {
+			// 剩余内容已全部作为最后一个事件消费，无需再跳过结束标识
+			newBufferedBody = nil
+		} else {
+			newBufferedBody = newBufferedBody[newEventPivot+2:] // 跳过结束标识
+		}
 
 		// 转换并追加到输出缓冲区
 		convertedData, _ := m.convertChunkFromHunyuanToOpenAI(ctx, eventData)
