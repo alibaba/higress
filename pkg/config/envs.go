@@ -22,11 +22,6 @@ var (
 	GatewayName  = env.RegisterStringVar("GATEWAY_NAME", "higress-gateway", "").Get()
 	// Revision is the value of the Istio control plane revision, e.g. "canary",
 	// and is the value used by the "istio.io/rev" label.
-	Revision                     = env.Register("REVISION", "", "").Get()
-	McpServerWasmImageUrl        = env.RegisterStringVar("MCP_SERVER_WASM_IMAGE_URL", "oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/mcp-server/all-in-one:1.0.0", "").Get()
-	AiEndpointPickerWasmImageUrl = env.RegisterStringVar(
-		"AI_ENDPOINT_PICKER_WASM_IMAGE_URL",
-		"oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-endpoint-picker:1.0.0-alpha",
-		"Wasm URL for the built-in GIE endpoint picker; may be file:// in test environments.",
-	).Get()
+	Revision              = env.Register("REVISION", "", "").Get()
+	McpServerWasmImageUrl = env.RegisterStringVar("MCP_SERVER_WASM_IMAGE_URL", "oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/mcp-server/all-in-one:1.0.0", "").Get()
 )

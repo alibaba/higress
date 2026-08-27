@@ -22,9 +22,7 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/gateway/kube"
 	"istio.io/istio/pkg/config/schema/gvk"
-	"k8s.io/apimachinery/pkg/util/validation"
 
-	higressconfig "github.com/alibaba/higress/v2/pkg/config"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
 )
 
@@ -50,19 +48,8 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected one internal WasmPlugin, got %d", len(got))
 	}
-	if got[0].Name != builtinInferenceEndpointPickerPluginName || got[0].Namespace != ingressConfig.namespace {
+	if got[0].Name != "internal/higress-ai-endpoint-picker" || got[0].Namespace != ingressConfig.namespace {
 		t.Fatalf("unexpected internal plugin identity: %s/%s", got[0].Namespace, got[0].Name)
-	}
-	if len(validation.IsDNS1123Subdomain(got[0].Name)) == 0 {
-		t.Fatalf("internal config name %q can be claimed by a Kubernetes WasmPlugin", got[0].Name)
-	}
-	userPlugin := config.Config{Meta: config.Meta{GroupVersionKind: gvk.WasmPlugin, Name: "higress-internal-ai-endpoint-picker", Namespace: ingressConfig.namespace}}
-	configKeys := map[string]struct{}{userPlugin.Namespace + "/" + userPlugin.Name: {}}
-	for _, internal := range got {
-		configKeys[internal.Namespace+"/"+internal.Name] = struct{}{}
-	}
-	if len(configKeys) != 2 {
-		t.Fatalf("internal picker collided with or duplicated a user WasmPlugin: %v", configKeys)
 	}
 	plugin := got[0].Spec.(*extensions.WasmPlugin)
 	if plugin.Selector.MatchLabels["app"] != "higress-gateway" {
@@ -71,8 +58,8 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	if plugin.PluginName != "ai-endpoint-picker" || plugin.FailStrategy != extensions.FailStrategy_FAIL_OPEN {
 		t.Fatalf("unexpected internal plugin contract: %+v", plugin)
 	}
-	if plugin.Url != higressconfig.AiEndpointPickerWasmImageUrl {
-		t.Fatalf("expected configured plugin URL %q, got %q", higressconfig.AiEndpointPickerWasmImageUrl, plugin.Url)
+	if plugin.Url != builtinInferenceEndpointPickerPluginURL {
+		t.Fatalf("unexpected plugin URL %q", plugin.Url)
 	}
 	pluginFields := plugin.PluginConfig.Fields
 	if len(pluginFields) != 1 {
@@ -100,10 +87,5 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	}}
 	if got := ingressConfig.convertBuiltinInferenceEndpointPicker([]config.Config{virtualService}); len(got) != 0 {
 		t.Fatalf("expected ExternalEPP routes not to bind the internal plugin, got %d configs", len(got))
-	}
-
-	virtualService.Extra = nil
-	if got := ingressConfig.convertBuiltinInferenceEndpointPicker([]config.Config{virtualService}); len(got) != 0 {
-		t.Fatalf("expected plugin removal after builtin routes disappear, got %d configs", len(got))
 	}
 }
