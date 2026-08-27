@@ -708,7 +708,7 @@ func WithExtensionRef(kind, name string) Option {
 		ip, ok := obj.(*inferencev1.InferencePool)
 		if ok {
 			typedKind := inferencev1.Kind(kind)
-			ip.Spec.EndpointPickerRef = &inferencev1.EndpointPickerRef{
+			ip.Spec.EndpointPickerRef = inferencev1.EndpointPickerRef{
 				Name: inferencev1.ObjectName(name),
 				Kind: typedKind,
 			}
@@ -759,7 +759,7 @@ func NewInferencePool(name string, opts ...Option) *inferencev1.InferencePool {
 					"app": "test",
 				},
 			},
-			EndpointPickerRef: &inferencev1.EndpointPickerRef{
+			EndpointPickerRef: inferencev1.EndpointPickerRef{
 				Name: "endpoint-picker",
 			},
 		},

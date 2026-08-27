@@ -22,6 +22,7 @@ import (
 	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/gateway/kube"
 	"istio.io/istio/pkg/config/schema/gvk"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	higressconfig "github.com/alibaba/higress/v2/pkg/config"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
@@ -38,8 +39,10 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	virtualService := config.Config{
 		Meta: config.Meta{GroupVersionKind: gvk.VirtualService, Name: "mixed"},
 		Extra: map[string]any{constants.ConfigExtraPerRouteRuleInferencePoolConfigs: map[string]kube.InferencePoolRouteRuleConfig{
-			"builtin-route":  {Mode: kube.InferencePoolEndpointPickerModeBuiltin},
-			"external-route": {Mode: kube.InferencePoolEndpointPickerModeExternal, FQDN: "epp.default.svc.cluster.local", Port: "9002"},
+			"builtin-route":   {Mode: kube.InferencePoolEndpointPickerModeBuiltin},
+			"default/foo/0/0": {Mode: kube.InferencePoolEndpointPickerModeBuiltin},
+			"default/foo.0.0": {Mode: kube.InferencePoolEndpointPickerModeExternal, FQDN: "epp.default.svc.cluster.local", Port: "9002"},
+			"external-route":  {Mode: kube.InferencePoolEndpointPickerModeExternal, FQDN: "epp.default.svc.cluster.local", Port: "9002"},
 		}},
 	}
 
@@ -49,6 +52,17 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	}
 	if got[0].Name != builtinInferenceEndpointPickerPluginName || got[0].Namespace != ingressConfig.namespace {
 		t.Fatalf("unexpected internal plugin identity: %s/%s", got[0].Namespace, got[0].Name)
+	}
+	if len(validation.IsDNS1123Subdomain(got[0].Name)) == 0 {
+		t.Fatalf("internal config name %q can be claimed by a Kubernetes WasmPlugin", got[0].Name)
+	}
+	userPlugin := config.Config{Meta: config.Meta{GroupVersionKind: gvk.WasmPlugin, Name: "higress-internal-ai-endpoint-picker", Namespace: ingressConfig.namespace}}
+	configKeys := map[string]struct{}{userPlugin.Namespace + "/" + userPlugin.Name: {}}
+	for _, internal := range got {
+		configKeys[internal.Namespace+"/"+internal.Name] = struct{}{}
+	}
+	if len(configKeys) != 2 {
+		t.Fatalf("internal picker collided with or duplicated a user WasmPlugin: %v", configKeys)
 	}
 	plugin := got[0].Spec.(*extensions.WasmPlugin)
 	if plugin.Selector.MatchLabels["app"] != "higress-gateway" {
@@ -77,8 +91,8 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 		t.Fatalf("expected an empty BuiltIn rule config apart from route matching, got %v", ruleFields)
 	}
 	matches := ruleFields["_match_route_"].GetListValue().Values
-	if len(matches) != 1 || matches[0].GetStringValue() != "builtin-route" {
-		t.Fatalf("expected only builtin-route to be bound, got %v", matches)
+	if len(matches) != 2 || matches[0].GetStringValue() != "builtin-route" || matches[1].GetStringValue() != "default/foo/0/0" {
+		t.Fatalf("expected only BuiltIn route names to be bound, got %v", matches)
 	}
 
 	virtualService.Extra = map[string]any{constants.ConfigExtraPerRouteRuleInferencePoolConfigs: map[string]kube.InferencePoolRouteRuleConfig{

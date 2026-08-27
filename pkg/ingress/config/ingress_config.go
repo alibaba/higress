@@ -393,7 +393,9 @@ func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, 
 	return configs
 }
 
-const builtinInferenceEndpointPickerPluginName = "higress-internal-ai-endpoint-picker"
+// The slash makes this internal config key impossible to claim with a
+// Kubernetes metadata.name while remaining stable inside the config/xDS view.
+const builtinInferenceEndpointPickerPluginName = "internal/higress-ai-endpoint-picker"
 
 func (m *IngressConfig) convertBuiltinInferenceEndpointPicker(virtualServices []config.Config) []config.Config {
 	routeSet := sets.New[string]()

@@ -203,4 +203,21 @@ func TestMixedEndpointPickerModesUseUniqueHTTPRouteNames(t *testing.T) {
 		modeCounts[kube.InferencePoolEndpointPickerModeBuiltin] != 1 {
 		t.Fatalf("expected one External and one BuiltIn config, got %v", modeCounts)
 	}
+
+	// "foo.0.0" is a legal Kubernetes resource name. A dot-delimited suffix
+	// would make this route collide with the first variant derived from "foo".
+	variant := &istio.HTTPRoute{Name: "default/foo"}
+	disambiguateHTTPRouteName(variant, 0, 0, 2)
+	legalResourceName := &istio.HTTPRoute{Name: "default/foo.0.0"}
+	collisionConfigs := map[string]kube.InferencePoolRouteRuleConfig{
+		variant.Name:           {Mode: kube.InferencePoolEndpointPickerModeBuiltin},
+		legalResourceName.Name: {Mode: kube.InferencePoolEndpointPickerModeExternal},
+	}
+	if variant.Name == legalResourceName.Name || len(collisionConfigs) != 2 {
+		t.Fatalf("route-name encoding collided: variant=%q resource=%q configs=%v", variant.Name, legalResourceName.Name, collisionConfigs)
+	}
+	if collisionConfigs[variant.Name].Mode != kube.InferencePoolEndpointPickerModeBuiltin ||
+		collisionConfigs[legalResourceName.Name].Mode != kube.InferencePoolEndpointPickerModeExternal {
+		t.Fatalf("picker modes crossed route-name boundaries: %v", collisionConfigs)
+	}
 }

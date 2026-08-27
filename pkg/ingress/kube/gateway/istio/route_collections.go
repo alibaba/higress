@@ -222,7 +222,9 @@ func disambiguateHTTPRouteName(route *istio.HTTPRoute, ruleIndex, matchIndex, ro
 	if route == nil || routeVariantCount <= 1 {
 		return
 	}
-	route.Name = fmt.Sprintf("%s.%d.%d", route.Name, ruleIndex, matchIndex)
+	// Kubernetes resource names cannot contain '/', so the suffix cannot collide
+	// with the undisambiguated name of another HTTPRoute resource.
+	route.Name = fmt.Sprintf("%s/%d/%d", route.Name, ruleIndex, matchIndex)
 }
 
 func extractAncestorBackends[RT, BT any](ns string, prefs []gateway.ParentReference, rules []RT, extract func(RT) []BT) []AncestorBackend {
