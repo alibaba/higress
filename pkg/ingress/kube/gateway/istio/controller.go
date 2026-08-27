@@ -33,6 +33,7 @@ import (
 	"istio.io/istio/pilot/pkg/status"
 	"istio.io/istio/pkg/cluster"
 	"istio.io/istio/pkg/config"
+	"istio.io/istio/pkg/config/constants"
 	"istio.io/istio/pkg/config/schema/collection"
 	"istio.io/istio/pkg/config/schema/collections"
 	"istio.io/istio/pkg/config/schema/gvk"
@@ -431,30 +432,36 @@ func NewControllerWithDefaultGatewaySelector(
 		}),
 		// Reconcile shadow services if users break them.
 		inputs.Services.Register(func(o krt.Event[*corev1.Service]) {
-			if o.Event != controllers.EventAdd && o.Event != controllers.EventDelete && o.Event != controllers.EventUpdate {
-				return
-			}
 			obj := o.Latest()
-			poolName, ok := obj.Labels[InferencePoolRefLabel]
-			if (!ok || !isManagedShadowServiceForPool(obj, poolName)) && o.Event == controllers.EventUpdate && o.Old != nil {
-				// An update may remove the controller labels, so fall back to the old managed identity.
-				old := ptr.Flatten(o.Old)
-				obj = old
-				poolName, ok = old.Labels[InferencePoolRefLabel]
-			}
-			if !ok || !isManagedShadowServiceForPool(obj, poolName) {
+			// We only care about services that are tagged with the internal service semantics label.
+			if obj.GetLabels()[constants.InternalServiceSemantics] != constants.ServiceSemanticsInferencePool {
 				return
 			}
-			if o.Event == controllers.EventAdd && InferencePools.GetKey(obj.Namespace+"/"+poolName) != nil {
+			// We only care about delete events
+			if o.Event != controllers.EventDelete && o.Event != controllers.EventUpdate {
 				return
 			}
 
-			// Add and update events also close the race where an invalidated Pool's queued
-			// create finishes after its derived InferencePool has disappeared.
+			poolName, ok := obj.Labels[InferencePoolRefLabel]
+			if !ok && o.Event == controllers.EventUpdate && o.Old != nil {
+				// Try and find the label from the old object
+				old := ptr.Flatten(o.Old)
+				poolName, ok = old.Labels[InferencePoolRefLabel]
+			}
+
+			if !ok {
+				log.Errorf("service %s/%s is missing the %s label, cannot reconcile shadow service",
+					obj.Namespace, obj.Name, InferencePoolRefLabel)
+				return
+			}
+
+			// Add it back
 			c.shadowServiceReconciler.Add(types.NamespacedName{
 				Namespace: obj.Namespace,
 				Name:      poolName,
 			})
+			log.Infof("Re-adding shadow service for deleted inference pool service %s/%s",
+				obj.Namespace, obj.Name)
 		}),
 	)
 	c.handlers = handlers

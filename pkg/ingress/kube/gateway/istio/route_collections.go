@@ -69,15 +69,14 @@ func HTTPRouteCollection(
 	) {
 		ctx := inputs.WithCtx(krtctx)
 		inferencePoolCfgPairs := []struct {
-			name string
-			cfg  *inferencePoolConfig
+			name       string
+			route      *istio.HTTPRoute
+			cfg        *inferencePoolConfig
+			ruleIndex  int
+			matchIndex int
 		}{}
 		status := obj.Status.DeepCopy()
 		route := obj.Spec
-		routeVariantCount := 0
-		for _, rule := range route.Rules {
-			routeVariantCount += max(1, len(rule.Matches))
-		}
 		parentStatus, parentRefs, meshResult, gwResult := computeRoute(ctx, obj, func(mesh bool, obj *gateway.HTTPRoute) iter.Seq2[*istio.HTTPRoute, *ConfigError] {
 			return func(yield func(*istio.HTTPRoute, *ConfigError) bool) {
 				for n, r := range route.Rules {
@@ -91,14 +90,14 @@ func HTTPRouteCollection(
 							r.Matches = []gateway.HTTPRouteMatch{*m}
 						}
 						istioRoute, ipCfg, configErr := convertHTTPRoute(ctx, r, obj, n, !mesh)
-						if ipCfg != nil {
-							disambiguateHTTPRouteName(istioRoute, n, matchIndex, routeVariantCount)
-						}
 						if istioRoute != nil && ipCfg != nil {
 							inferencePoolCfgPairs = append(inferencePoolCfgPairs, struct {
-								name string
-								cfg  *inferencePoolConfig
-							}{name: istioRoute.Name, cfg: ipCfg})
+								name       string
+								route      *istio.HTTPRoute
+								cfg        *inferencePoolConfig
+								ruleIndex  int
+								matchIndex int
+							}{name: istioRoute.Name, route: istioRoute, cfg: ipCfg, ruleIndex: n, matchIndex: matchIndex})
 						}
 						if !yield(istioRoute, configErr) {
 							return
@@ -107,6 +106,23 @@ func HTTPRouteCollection(
 				}
 			}
 		})
+
+		// Upstream route names are preserved unless duplicate names would make
+		// BuiltIn and External picker rules target the same final Envoy routes.
+		modesByRouteName := map[string]sets.Set[kube.InferencePoolEndpointPickerMode]{}
+		for _, pair := range inferencePoolCfgPairs {
+			if modesByRouteName[pair.name] == nil {
+				modesByRouteName[pair.name] = sets.New[kube.InferencePoolEndpointPickerMode]()
+			}
+			modesByRouteName[pair.name].Insert(pair.cfg.mode)
+		}
+		for i := range inferencePoolCfgPairs {
+			pair := &inferencePoolCfgPairs[i]
+			if modesByRouteName[pair.name].Len() > 1 {
+				disambiguateHTTPRouteName(pair.route, pair.ruleIndex, pair.matchIndex)
+				pair.name = pair.route.Name
+			}
+		}
 
 		// routeRuleToInferencePoolCfg stores inference pool configs discovered during route rule conversion,
 		// keyed by the istio.HTTPRoute.Name.
@@ -218,8 +234,8 @@ func HTTPRouteCollection(
 	}
 }
 
-func disambiguateHTTPRouteName(route *istio.HTTPRoute, ruleIndex, matchIndex, routeVariantCount int) {
-	if route == nil || routeVariantCount <= 1 {
+func disambiguateHTTPRouteName(route *istio.HTTPRoute, ruleIndex, matchIndex int) {
+	if route == nil {
 		return
 	}
 	// Kubernetes resource names cannot contain '/', so the suffix cannot collide

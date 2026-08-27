@@ -185,7 +185,7 @@ func TestMixedEndpointPickerModesUseUniqueHTTPRouteNames(t *testing.T) {
 
 	got := make(map[string]kube.InferencePoolRouteRuleConfig, len(routes))
 	for ruleIndex, route := range routes {
-		disambiguateHTTPRouteName(route, ruleIndex, 0, len(routes))
+		disambiguateHTTPRouteName(route, ruleIndex, 0)
 		got[route.Name] = configs[ruleIndex]
 	}
 
@@ -207,7 +207,7 @@ func TestMixedEndpointPickerModesUseUniqueHTTPRouteNames(t *testing.T) {
 	// "foo.0.0" is a legal Kubernetes resource name. A dot-delimited suffix
 	// would make this route collide with the first variant derived from "foo".
 	variant := &istio.HTTPRoute{Name: "default/foo"}
-	disambiguateHTTPRouteName(variant, 0, 0, 2)
+	disambiguateHTTPRouteName(variant, 0, 0)
 	legalResourceName := &istio.HTTPRoute{Name: "default/foo.0.0"}
 	collisionConfigs := map[string]kube.InferencePoolRouteRuleConfig{
 		variant.Name:           {Mode: kube.InferencePoolEndpointPickerModeBuiltin},

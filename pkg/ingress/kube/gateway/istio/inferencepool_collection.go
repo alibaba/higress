@@ -599,15 +599,9 @@ func (c *Controller) reconcileShadowService(
 		// Find the InferencePool that matches the key
 		pool := inferencePools.GetKey(key.String())
 		if pool == nil {
-			serviceName, err := InferencePoolServiceName(key.Name)
-			if err != nil {
-				return nil
-			}
-			existingService := ptr.Flatten(servicesCollection.GetKey(key.Namespace + "/" + serviceName))
-			if existingService == nil || !isManagedShadowServiceForPool(existingService, key.Name) {
-				return nil
-			}
-			return svcClient.Delete(serviceName, key.Namespace)
+			// we'll generally ignore these scenarios, since the InferencePool may have been deleted
+			log.Debugf("inferencepool no longer exists", key.String())
+			return nil
 		}
 
 		// We found the InferencePool, now we need to translate it to a shadow Service
@@ -641,19 +635,6 @@ func (c *Controller) reconcileShadowService(
 	}
 }
 
-func isManagedShadowServiceForPool(service *corev1.Service, poolName string) bool {
-	if service == nil || service.Labels[InferencePoolRefLabel] != poolName ||
-		service.Labels[constants.InternalServiceSemantics] != constants.ServiceSemanticsInferencePool {
-		return false
-	}
-	for _, owner := range service.OwnerReferences {
-		if owner.APIVersion == gvk.InferencePool.GroupVersion() && owner.Kind == gvk.InferencePool.Kind && owner.Name == poolName {
-			return true
-		}
-	}
-	return false
-}
-
 // canManage checks if a service should be managed by this controller
 func (c *Controller) canManageShadowServiceForInference(obj *corev1.Service) (bool, string) {
 	if obj == nil {
@@ -661,9 +642,9 @@ func (c *Controller) canManageShadowServiceForInference(obj *corev1.Service) (bo
 		return true, ""
 	}
 
-	poolName, inferencePoolManaged := obj.GetLabels()[InferencePoolRefLabel]
-	// Only update Services carrying the complete identity written by this controller.
-	return inferencePoolManaged && isManagedShadowServiceForPool(obj, poolName), obj.GetResourceVersion()
+	_, inferencePoolManaged := obj.GetLabels()[InferencePoolRefLabel]
+	// We can manage if it has no manager or if we are the manager
+	return inferencePoolManaged, obj.GetResourceVersion()
 }
 
 func indexHTTPRouteByInferencePool(o *gateway.HTTPRoute) []string {
