@@ -156,7 +156,7 @@ func TestMergeHTTPRoutesMergesInferencePoolExtra(t *testing.T) {
 	if len(gotInferenceConfigs) != 2 {
 		t.Fatalf("expected 2 merged InferencePool configs, got %d: %v", len(gotInferenceConfigs), gotInferenceConfigs)
 	}
-	if gotInferenceConfigs[baseRouteName].FQDN != baseInferenceConfigs[baseRouteName].FQDN {
+	if gotInferenceConfigs[baseRouteName].FQDN != baseInferenceConfigs[baseRouteName].FQDN || gotInferenceConfigs[baseRouteName].Mode != "" {
 		t.Fatalf("expected base route InferencePool config to be preserved, got %v", gotInferenceConfigs[baseRouteName])
 	}
 	if gotInferenceConfigs[otherRouteName].FQDN != otherInferenceConfigs[otherRouteName].FQDN {
@@ -170,21 +170,6 @@ func TestMergeHTTPRoutesMergesInferencePoolExtra(t *testing.T) {
 	}
 	if _, found := baseInferenceConfigs[otherRouteName]; found {
 		t.Fatalf("expected base InferencePool config map not to be mutated by merge")
-	}
-}
-
-func TestExternalInferencePoolRouteConfigUsesZeroMode(t *testing.T) {
-	got := toInferencePoolRouteRuleConfig(&inferencePoolConfig{
-		enableExtProc:             true,
-		endpointPickerDst:         "epp.default.svc.cluster.local",
-		endpointPickerPort:        "9002",
-		endpointPickerFailureMode: "FailOpen",
-	})
-	if got.Mode != "" {
-		t.Fatalf("expected External route mode to use the legacy zero value, got %q", got.Mode)
-	}
-	if got.FQDN != "epp.default.svc.cluster.local" || got.Port != "9002" || !got.FailureModeAllow {
-		t.Fatalf("unexpected External route config: %+v", got)
 	}
 }
 

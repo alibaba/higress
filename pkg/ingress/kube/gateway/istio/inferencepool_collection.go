@@ -547,36 +547,18 @@ func translateShadowServiceToService(existingLabels map[string]string, shadow sh
 		})
 	}
 
-	labels := maps.MergeCopy(map[string]string{
-		InferencePoolRefLabel:                shadow.poolName,
-		InferencePoolExtensionRefSvc:         extRef.name,
-		InferencePoolExtensionRefPort:        strconv.Itoa(int(extRef.port)),
-		InferencePoolExtensionRefFailureMode: extRef.failureMode,
-		constants.InternalServiceSemantics:   constants.ServiceSemanticsInferencePool,
-	}, existingLabels)
-	if extRef.mode == kube.InferencePoolEndpointPickerModeBuiltin {
-		delete(labels, InferencePoolExtensionRefSvc)
-		delete(labels, InferencePoolExtensionRefPort)
-		delete(labels, InferencePoolExtensionRefFailureMode)
-		labels[constants.InferencePoolEndpointPickerModeLabel] = string(kube.InferencePoolEndpointPickerModeBuiltin)
-	} else {
-		wasBuiltin := labels[constants.InferencePoolEndpointPickerModeLabel] == string(kube.InferencePoolEndpointPickerModeBuiltin)
-		delete(labels, constants.InferencePoolEndpointPickerModeLabel)
-		if wasBuiltin {
-			// Existing labels override generated labels in the upstream path. Rebuild
-			// the EPP labels only when switching from BuiltIn back to External.
-			labels[InferencePoolExtensionRefSvc] = extRef.name
-			labels[InferencePoolExtensionRefPort] = strconv.Itoa(int(extRef.port))
-			labels[InferencePoolExtensionRefFailureMode] = extRef.failureMode
-		}
-	}
-
 	// Create a new service object based on the shadow service info
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      shadow.key.Name,
 			Namespace: shadow.key.Namespace,
-			Labels:    labels,
+			Labels: maps.MergeCopy(map[string]string{
+				InferencePoolRefLabel:                shadow.poolName,
+				InferencePoolExtensionRefSvc:         extRef.name,
+				InferencePoolExtensionRefPort:        strconv.Itoa(int(extRef.port)),
+				InferencePoolExtensionRefFailureMode: extRef.failureMode,
+				constants.InternalServiceSemantics:   constants.ServiceSemanticsInferencePool,
+			}, existingLabels),
 		},
 		Spec: corev1.ServiceSpec{
 			Selector:  shadow.selector,
@@ -584,6 +566,17 @@ func translateShadowServiceToService(existingLabels map[string]string, shadow sh
 			ClusterIP: corev1.ClusterIPNone, // Headless service
 			Ports:     ports,
 		},
+	}
+	if extRef.mode == kube.InferencePoolEndpointPickerModeBuiltin {
+		delete(svc.Labels, InferencePoolExtensionRefSvc)
+		delete(svc.Labels, InferencePoolExtensionRefPort)
+		delete(svc.Labels, InferencePoolExtensionRefFailureMode)
+		svc.Labels[constants.InferencePoolEndpointPickerModeLabel] = string(kube.InferencePoolEndpointPickerModeBuiltin)
+	} else if svc.Labels[constants.InferencePoolEndpointPickerModeLabel] == string(kube.InferencePoolEndpointPickerModeBuiltin) {
+		delete(svc.Labels, constants.InferencePoolEndpointPickerModeLabel)
+		svc.Labels[InferencePoolExtensionRefSvc] = extRef.name
+		svc.Labels[InferencePoolExtensionRefPort] = strconv.Itoa(int(extRef.port))
+		svc.Labels[InferencePoolExtensionRefFailureMode] = extRef.failureMode
 	}
 
 	svc.SetOwnerReferences([]metav1.OwnerReference{

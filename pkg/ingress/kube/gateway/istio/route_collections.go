@@ -187,7 +187,12 @@ func HTTPRouteCollection(
 				currentRouteInferenceConfigs := make(map[string]kube.InferencePoolRouteRuleConfig)
 				for _, httpRule := range routes { // These are []*istio.HTTPRoute
 					if ipCfg, found := routeRuleToInferencePoolCfg[httpRule.Name]; found {
-						currentRouteInferenceConfigs[httpRule.Name] = toInferencePoolRouteRuleConfig(ipCfg)
+						currentRouteInferenceConfigs[httpRule.Name] = kube.InferencePoolRouteRuleConfig{
+							Mode:             ipCfg.mode,
+							FQDN:             ipCfg.endpointPickerDst,
+							Port:             ipCfg.endpointPickerPort,
+							FailureModeAllow: ipCfg.endpointPickerFailureMode == string(inferencev1.EndpointPickerFailOpen),
+						}
 					}
 				}
 				if len(currentRouteInferenceConfigs) > 0 {
@@ -236,15 +241,6 @@ func disambiguateHTTPRouteName(route *istio.HTTPRoute, ruleIndex, matchIndex int
 	// Kubernetes resource names cannot contain '/', so the suffix cannot collide
 	// with the undisambiguated name of another HTTPRoute resource.
 	route.Name = fmt.Sprintf("%s/%d/%d", route.Name, ruleIndex, matchIndex)
-}
-
-func toInferencePoolRouteRuleConfig(cfg *inferencePoolConfig) kube.InferencePoolRouteRuleConfig {
-	return kube.InferencePoolRouteRuleConfig{
-		Mode:             cfg.mode,
-		FQDN:             cfg.endpointPickerDst,
-		Port:             cfg.endpointPickerPort,
-		FailureModeAllow: cfg.endpointPickerFailureMode == string(inferencev1.EndpointPickerFailOpen),
-	}
 }
 
 func extractAncestorBackends[RT, BT any](ns string, prefs []gateway.ParentReference, rules []RT, extract func(RT) []BT) []AncestorBackend {
@@ -399,7 +395,12 @@ func GRPCRouteCollection(
 				currentRouteInferenceConfigs := make(map[string]kube.InferencePoolRouteRuleConfig)
 				for _, httpRule := range routes {
 					if ipCfg, found := routeRuleToInferencePoolCfg[httpRule.Name]; found { // This map will be empty for GRPCRoute for now
-						currentRouteInferenceConfigs[httpRule.Name] = toInferencePoolRouteRuleConfig(ipCfg)
+						currentRouteInferenceConfigs[httpRule.Name] = kube.InferencePoolRouteRuleConfig{
+							Mode:             ipCfg.mode,
+							FQDN:             ipCfg.endpointPickerDst,
+							Port:             ipCfg.endpointPickerPort,
+							FailureModeAllow: ipCfg.endpointPickerFailureMode == string(inferencev1.EndpointPickerFailOpen),
+						}
 					}
 				}
 				if len(currentRouteInferenceConfigs) > 0 {

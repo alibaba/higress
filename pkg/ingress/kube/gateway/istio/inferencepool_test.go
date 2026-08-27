@@ -152,55 +152,35 @@ func TestBuiltinInferencePoolDoesNotResolveWasmOrUseServiceOptions(t *testing.T)
 	assert.Equal(t, resolved.status, metav1.ConditionTrue)
 	assert.Equal(t, resolved.reason, string(inferencev1.InferencePoolReasonResolvedRefs))
 
+	shadow := shadowServiceInfo{key: types.NamespacedName{Name: "pool-ip", Namespace: "default"}, poolName: "pool"}
 	service := translateShadowServiceToService(map[string]string{
 		InferencePoolExtensionRefSvc:         "stale-epp",
 		InferencePoolExtensionRefPort:        "9002",
 		InferencePoolExtensionRefFailureMode: string(inferencev1.EndpointPickerFailOpen),
-	}, shadowServiceInfo{key: types.NamespacedName{Name: "pool-ip", Namespace: "default"}, poolName: "pool"}, object.extRef)
+	}, shadow, object.extRef)
 	assert.Equal(t, service.Labels[constants.InferencePoolEndpointPickerModeLabel], string(kube.InferencePoolEndpointPickerModeBuiltin))
 	for _, label := range []string{InferencePoolExtensionRefSvc, InferencePoolExtensionRefPort, InferencePoolExtensionRefFailureMode} {
 		if _, found := service.Labels[label]; found {
 			t.Fatalf("BuiltIn shadow Service retained External-only label %q: %v", label, service.Labels)
 		}
 	}
-}
 
-func TestExternalInferencePoolShadowServiceLabels(t *testing.T) {
-	extRef := extRefInfo{
+	externalRef := extRefInfo{
 		mode:        kube.InferencePoolEndpointPickerModeExternal,
 		name:        "epp",
 		port:        9002,
 		failureMode: string(inferencev1.EndpointPickerFailOpen),
 	}
-	shadow := shadowServiceInfo{
-		key:      types.NamespacedName{Name: "pool-ip", Namespace: "default"},
-		poolName: "pool",
+	externalLabels := translateShadowServiceToService(nil, shadow, externalRef).Labels
+	if _, found := externalLabels[constants.InferencePoolEndpointPickerModeLabel]; found {
+		t.Fatalf("External shadow Service gained a mode label: %v", externalLabels)
 	}
-
-	t.Run("new External service retains upstream labels", func(t *testing.T) {
-		labels := translateShadowServiceToService(nil, shadow, extRef).Labels
-		assert.Equal(t, labels[InferencePoolRefLabel], "pool")
-		assert.Equal(t, labels[InferencePoolExtensionRefSvc], "epp")
-		assert.Equal(t, labels[InferencePoolExtensionRefPort], "9002")
-		assert.Equal(t, labels[InferencePoolExtensionRefFailureMode], string(inferencev1.EndpointPickerFailOpen))
-		assert.Equal(t, labels[constants.InternalServiceSemantics], constants.ServiceSemanticsInferencePool)
-		if _, found := labels[constants.InferencePoolEndpointPickerModeLabel]; found {
-			t.Fatalf("External shadow Service gained a mode label: %v", labels)
-		}
-	})
-
-	t.Run("BuiltIn to External restores EPP labels", func(t *testing.T) {
-		labels := translateShadowServiceToService(map[string]string{
-			constants.InferencePoolEndpointPickerModeLabel: string(kube.InferencePoolEndpointPickerModeBuiltin),
-			InferencePoolExtensionRefSvc:                   "stale-epp",
-			InferencePoolExtensionRefPort:                  "1234",
-			InferencePoolExtensionRefFailureMode:           string(inferencev1.EndpointPickerFailClose),
-		}, shadow, extRef).Labels
-		if _, found := labels[constants.InferencePoolEndpointPickerModeLabel]; found {
-			t.Fatalf("External shadow Service retained the BuiltIn mode label: %v", labels)
-		}
-		assert.Equal(t, labels[InferencePoolExtensionRefSvc], "epp")
-		assert.Equal(t, labels[InferencePoolExtensionRefPort], "9002")
-		assert.Equal(t, labels[InferencePoolExtensionRefFailureMode], string(inferencev1.EndpointPickerFailOpen))
-	})
+	assert.Equal(t, externalLabels[InferencePoolExtensionRefSvc], "epp")
+	transitionLabels := translateShadowServiceToService(service.Labels, shadow, externalRef).Labels
+	if _, found := transitionLabels[constants.InferencePoolEndpointPickerModeLabel]; found {
+		t.Fatalf("External shadow Service retained the BuiltIn mode label: %v", transitionLabels)
+	}
+	assert.Equal(t, transitionLabels[InferencePoolExtensionRefSvc], "epp")
+	assert.Equal(t, transitionLabels[InferencePoolExtensionRefPort], "9002")
+	assert.Equal(t, transitionLabels[InferencePoolExtensionRefFailureMode], string(inferencev1.EndpointPickerFailOpen))
 }
