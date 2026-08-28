@@ -71,16 +71,18 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 		t.Fatalf("expected PluginConfig _rules_, got %v", pluginFields)
 	}
 	rules := rulesValue.GetListValue().Values
-	if len(rules) != 1 {
-		t.Fatalf("expected one route match rule, got %d", len(rules))
+	if len(rules) != 2 {
+		t.Fatalf("expected one isolated rule per BuiltIn route, got %d", len(rules))
 	}
-	ruleFields := rules[0].GetStructValue().Fields
-	if len(ruleFields) != 1 {
-		t.Fatalf("expected an empty BuiltIn rule config apart from route matching, got %v", ruleFields)
-	}
-	matches := ruleFields["_match_route_"].GetListValue().Values
-	if len(matches) != 2 || matches[0].GetStringValue() != "builtin-route" || matches[1].GetStringValue() != "default/foo/0/0" {
-		t.Fatalf("expected only BuiltIn route names to be bound, got %v", matches)
+	for i, routeName := range []string{"builtin-route", "default/foo/0/0"} {
+		ruleFields := rules[i].GetStructValue().Fields
+		if len(ruleFields) != 1 {
+			t.Fatalf("expected an empty BuiltIn rule config apart from route matching, got %v", ruleFields)
+		}
+		matches := ruleFields["_match_route_"].GetListValue().Values
+		if len(matches) != 1 || matches[0].GetStringValue() != routeName {
+			t.Fatalf("expected rule %d to bind only route %q, got %v", i, routeName, matches)
+		}
 	}
 
 	virtualService.Extra = map[string]any{constants.ConfigExtraPerRouteRuleInferencePoolConfigs: map[string]kube.InferencePoolRouteRuleConfig{

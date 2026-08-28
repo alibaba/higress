@@ -414,16 +414,16 @@ func (m *IngressConfig) convertBuiltinInferenceEndpointPicker(virtualServices []
 		return nil
 	}
 	routeNames := sets.SortedList(routeSet)
-	matchRoutes := make([]*_struct.Value, 0, len(routeNames))
+	rules := make([]*_struct.Value, 0, len(routeNames))
 	for _, routeName := range routeNames {
-		matchRoutes = append(matchRoutes, &_struct.Value{Kind: &_struct.Value_StringValue{StringValue: routeName}})
+		rules = append(rules, &_struct.Value{Kind: &_struct.Value_StructValue{StructValue: &_struct.Struct{Fields: map[string]*_struct.Value{
+			"_match_route_": {Kind: &_struct.Value_ListValue{ListValue: &_struct.ListValue{Values: []*_struct.Value{
+				{Kind: &_struct.Value_StringValue{StringValue: routeName}},
+			}}}},
+		}}}})
 	}
 	pluginConfig := &_struct.Struct{Fields: map[string]*_struct.Value{
-		"_rules_": {Kind: &_struct.Value_ListValue{ListValue: &_struct.ListValue{Values: []*_struct.Value{
-			{Kind: &_struct.Value_StructValue{StructValue: &_struct.Struct{Fields: map[string]*_struct.Value{
-				"_match_route_": {Kind: &_struct.Value_ListValue{ListValue: &_struct.ListValue{Values: matchRoutes}}},
-			}}}},
-		}}}},
+		"_rules_": {Kind: &_struct.Value_ListValue{ListValue: &_struct.ListValue{Values: rules}}},
 	}}
 	return []config.Config{{
 		Meta: config.Meta{GroupVersionKind: gvk.WasmPlugin, Name: builtinInferenceEndpointPickerPluginName, Namespace: m.namespace},
