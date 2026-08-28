@@ -99,4 +99,4 @@ endpointPickerRef:
   name: ai-endpoint-picker
 ```
 
-The controller generates only route matching and the plugin reference, so omitted tuning fields inherit the defaults above. The plugin does not create a `/metrics` health check. Deployments that need queue/KV/LoRA signals configure the health check and `store_metrics: true` independently, as they do for ai-load-balancer.
+The controller generates route matching and the plugin reference, so omitted tuning fields inherit the defaults above. When GIE BuiltIn mode binds the plugin, the controller also configures the final inference cluster with exactly one `/metrics` health check and `store_metrics: true`; this replaces other health checks on that cluster. Standalone WasmPlugin deployments must still configure these upstream metrics capabilities explicitly.

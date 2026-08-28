@@ -99,4 +99,4 @@ endpointPickerRef:
   name: ai-endpoint-picker
 ```
 
-控制面只生成路由匹配和插件引用，省略上述可选调优字段，因此自动继承本节默认值。插件不会自动创建 `/metrics` health check；需要 queue/KV/LoRA 信号时，由部署侧像 ai-load-balancer 一样独立配置 health check 与 `store_metrics: true`。
+控制面生成路由匹配和插件引用，省略上述可选调优字段，因此自动继承本节默认值。通过 GIE BuiltIn 模式绑定插件时，控制面还会在最终 inference cluster 上配置唯一的 `/metrics` health check 和 `store_metrics: true`；该配置会替换同一 cluster 上的其他 health check。独立创建 WasmPlugin 时，仍需由部署侧显式配置这些 upstream metrics 能力。
