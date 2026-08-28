@@ -23,6 +23,7 @@ import (
 	"istio.io/istio/pkg/config/gateway/kube"
 	"istio.io/istio/pkg/config/schema/gvk"
 
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
 )
 
@@ -58,7 +59,7 @@ func TestConvertBuiltinInferenceEndpointPicker(t *testing.T) {
 	if plugin.PluginName != "ai-endpoint-picker" || plugin.FailStrategy != extensions.FailStrategy_FAIL_OPEN {
 		t.Fatalf("unexpected internal plugin contract: %+v", plugin)
 	}
-	if plugin.Url != builtinInferenceEndpointPickerPluginURL {
+	if plugin.Url != higressconfig.AIEndpointPickerPluginURL {
 		t.Fatalf("unexpected plugin URL %q", plugin.Url)
 	}
 	pluginFields := plugin.PluginConfig.Fields

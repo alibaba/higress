@@ -57,6 +57,7 @@ import (
 	extlisterv1 "github.com/alibaba/higress/v2/client/pkg/listers/extensions/v1alpha1"
 	netlisterv1 "github.com/alibaba/higress/v2/client/pkg/listers/networking/v1"
 	"github.com/alibaba/higress/v2/pkg/cert"
+	higressconfig "github.com/alibaba/higress/v2/pkg/config"
 	higressconst "github.com/alibaba/higress/v2/pkg/config/constants"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/annotations"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/common"
@@ -394,10 +395,7 @@ func (m *IngressConfig) listFromGatewayControllers(typ config.GroupVersionKind, 
 
 // The slash makes this internal config key impossible to claim with a
 // Kubernetes metadata.name while remaining stable inside the config/xDS view.
-const (
-	builtinInferenceEndpointPickerPluginName = "internal/higress-ai-endpoint-picker"
-	builtinInferenceEndpointPickerPluginURL  = "oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-endpoint-picker:1.0.0-alpha"
-)
+const builtinInferenceEndpointPickerPluginName = "internal/higress-ai-endpoint-picker"
 
 func (m *IngressConfig) convertBuiltinInferenceEndpointPicker(virtualServices []config.Config) []config.Config {
 	routeSet := sets.New[string]()
@@ -433,7 +431,7 @@ func (m *IngressConfig) convertBuiltinInferenceEndpointPicker(virtualServices []
 			Selector: &istiotype.WorkloadSelector{MatchLabels: map[string]string{
 				m.commonOptions.GatewaySelectorKey: m.commonOptions.GatewaySelectorValue,
 			}},
-			Url:          builtinInferenceEndpointPickerPluginURL,
+			Url:          higressconfig.AIEndpointPickerPluginURL,
 			PluginName:   "ai-endpoint-picker",
 			PluginConfig: pluginConfig,
 			FailStrategy: extensions.FailStrategy_FAIL_OPEN,

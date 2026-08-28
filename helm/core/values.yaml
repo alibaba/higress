@@ -476,7 +476,8 @@ gateway:
     # If not set, the release name is used
     name: ""
 
-  # -- Pod environment variables
+  # -- Pod environment variables. Set AI_ENDPOINT_PICKER_PLUGIN_URL here to
+  # override the OCI URL used by built-in Gateway API inference routing.
   env: {}
   httpPort: 80
   httpsPort: 443
