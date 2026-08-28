@@ -24,7 +24,7 @@ This approximate index is local to the current WASM runtime/config instance and 
 
 ## Upstream metrics contract
 
-The queue, KV, and LoRA scorers require a Prometheus snapshot from each actual inference endpoint. Configure an explicit HTTP health check for every upstream host (normally the vLLM `/metrics` endpoint) and enable `store_metrics: true`, so the health-check response body is returned as that host's `metrics` by `GetUpstreamHosts()`. Do not substitute metrics aggregated behind a shared load-balancer address for per-host snapshots. The plugin caches compact host snapshots for 250ms, avoiding repeated host reads within that window and allowing signals to be up to 250ms stale. A failed refresh never serves an expired snapshot and instead fails open. On refresh, unchanged metric fingerprints reuse the prior compact parse. Changed metrics are filtered to the five queue, current/legacy KV, LoRA, and cache-config families before the standard Prometheus parser runs; the relevant subset is capped at 64KiB. Malformed or over-limit relevant data isolates only that host, and unrelated families never build DTOs.
+The queue, KV, and LoRA scorers require a Prometheus snapshot from each actual inference endpoint. Configure an explicit HTTP health check for every upstream host (normally the vLLM `/metrics` endpoint) and enable `store_metrics: true`, so the health-check response body is returned as that host's `metrics` by `GetUpstreamHosts()`. Do not substitute metrics aggregated behind a shared load-balancer address for per-host snapshots. The plugin caches compact host snapshots for 250ms, avoiding repeated host reads within that window and allowing signals to be up to 250ms stale. A failed refresh never serves an expired snapshot and instead fails open. On refresh, it first filters the five queue, current/legacy KV, LoRA, and cache-config families and fingerprints only that relevant subset. Unrelated metric churn therefore does not trigger another Prometheus parse. The relevant subset is capped at 64KiB; malformed or over-limit relevant data isolates only that host, and unrelated families never build DTOs.
 
 The plugin cache retains neither raw metadata nor the metrics response body. However, `store_metrics: true` still makes Envoy retain and expose the complete raw health-check response; a plugin-only change cannot remove that upstream storage and hostcall-copy cost.
 
@@ -35,6 +35,10 @@ profile: default
 prefix:
   toolMode: identity
   maxBlocks: 32
+  maxCacheBlocksPerEndpoint: 31250
+limits:
+  maxRequestBodyBytes: 4194304
+  vmRebuildThresholdBytes: 209715200
 weights:
   queue: 2
   kvCache: 2
@@ -62,6 +66,12 @@ When `identity` reaches either budget it preserves the prefix already produced a
 
 `prefix.maxBlocks` defaults to 32 and accepts 1..128. Smaller values stop tools/messages or Completion prompt extraction sooner, reducing gateway CPU and temporary memory at the cost of a shorter locality hint. Larger values improve approximation for long contexts with more hashing work. This is a request-wide operating budget and does not replace the existing token, JSON-depth, or canonical-node hard limits.
 
+`prefix.maxCacheBlocksPerEndpoint` defaults to 31250 and accepts 1..1048576. It is both the fallback capacity when `num_gpu_blocks` is absent and the upper bound applied to reported capacity, preventing abnormal or very large metrics from growing the gateway-local weighted LRU without limit. Capacity is measured in approximate backend KV blocks; total resident memory also depends on endpoint count.
+
+`limits.maxRequestBodyBytes` defaults to 4 MiB and accepts 1 byte..100 MiB. The plugin buffers only requests with a trustworthy positive `Content-Length` at or below this value. Oversized requests and unknown-length chunked requests skip endpoint picking and continue unchanged instead of receiving a 413 response. This bounds the optional picker's body buffering without affecting model availability.
+
+`limits.vmRebuildThresholdBytes` defaults to 200 MiB and accepts 0..4 GiB; zero disables it. At the threshold the plugin asks Higress to rebuild the current WASM VM, matching ai-proxy's 200 MiB policy. This is a soft rebuild threshold for leak/fragmentation recovery, not a hard memory quota; hard limits remain the responsibility of the gateway container and WASM runtime.
+
 ## Feedback and observability
 
 After an override succeeds, the plugin maintains gateway-local inflight state for the selected endpoint. At stream completion it records TTFT, total latency, and failure EWMA. Each request owns an isolated lease, so repeated completion callbacks cannot decrement inflight or update EWMA twice. State for endpoints absent from the current upstream host set is removed once its inflight count reaches zero.
@@ -80,4 +90,13 @@ Sampled debug logs contain only a fixed decision reason (`max_score`/`random_tie
 
 Gateway API Inference Extension v1.4 ExternalEPP support was merged in [#4318](https://github.com/higress-group/higress/pull/4318). When `endpointPickerRef` names an external EPP, that path continues to use ext_proc and is not replaced by this plugin.
 
-This plugin PR provides only the data-plane endpoint picker; it does not add GIE control-plane generation or automatic `WasmPlugin` binding. Interpreting an omitted `endpointPickerRef` as a BuiltIn picker requires a later control-plane integration on the optional `endpointPickerRef` API in GIE v1.5+. Until that integration lands, users must deploy and bind this plugin explicitly.
+Control-plane integration is provided by [#4608](https://github.com/higress-group/higress/pull/4608) and [higress-group/istio#69](https://github.com/higress-group/istio/pull/69). With GIE v1.4, a normal core `Service` reference continues to use external EPP/ext_proc. Only the following Higress well-known reference generates and binds the built-in plugin for the corresponding InferencePool routes, with route rules kept isolated:
+
+```yaml
+endpointPickerRef:
+  group: extensions.higress.io
+  kind: WasmPlugin
+  name: ai-endpoint-picker
+```
+
+The controller generates only route matching and the plugin reference, so omitted tuning fields inherit the defaults above. The plugin does not create a `/metrics` health check. Deployments that need queue/KV/LoRA signals configure the health check and `store_metrics: true` independently, as they do for ai-load-balancer.

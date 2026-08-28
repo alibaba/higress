@@ -14,7 +14,9 @@ func TestParseConfigDefaults(t *testing.T) {
 	if err := parseConfig(gjson.Parse(`{}`), &config); err != nil {
 		t.Fatalf("parseConfig() error = %v", err)
 	}
-	if config.profile != defaultProfile || config.ewmaAlpha != 0.2 || config.sampleRate != 0 || config.toolMode != prefixcache.ToolModeIdentity || config.maxBlocks != prefixcache.DefaultMaxBlocks {
+	if config.profile != defaultProfile || config.ewmaAlpha != 0.2 || config.sampleRate != 0 || config.toolMode != prefixcache.ToolModeIdentity ||
+		config.maxBlocks != prefixcache.DefaultMaxBlocks || config.maxCacheBlocksPerEndpoint != prefixcache.DefaultCapacity ||
+		config.maxRequestBodyBytes != defaultMaxRequestBodyBytes || config.vmRebuildThresholdBytes != defaultVMRebuildThresholdBytes {
 		t.Fatalf("unexpected defaults: %+v", config)
 	}
 	want := scheduling.Weights{
@@ -83,6 +85,8 @@ func TestParseConfigOverrides(t *testing.T) {
         "weights":{"queue":0,"kvCache":3,"prefixCache":0,"loraAffinity":0,"inflight":2,"failure":0},
         "feedback":{"ewmaAlpha":0.5},
         "picker":{"mode":"max-score"},
+		"prefix":{"maxCacheBlocksPerEndpoint":4096},
+		"limits":{"maxRequestBodyBytes":1048576,"vmRebuildThresholdBytes":0},
         "debug":{"sampleRate":1}
     }`), &config)
 	if err != nil {
@@ -91,7 +95,8 @@ func TestParseConfigOverrides(t *testing.T) {
 	if config.weights[scheduling.SignalKVCache] != 3 || config.weights[scheduling.SignalInflight] != 2 {
 		t.Fatalf("weights not applied: %+v", config.weights)
 	}
-	if config.ewmaAlpha != 0.5 || config.sampleRate != 1 {
+	if config.ewmaAlpha != 0.5 || config.sampleRate != 1 || config.maxCacheBlocksPerEndpoint != 4096 ||
+		config.maxRequestBodyBytes != 1048576 || config.vmRebuildThresholdBytes != 0 {
 		t.Fatalf("scalar overrides not applied: %+v", config)
 	}
 }
@@ -118,6 +123,13 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 		`{"prefix":{"maxBlocks":129}}`,
 		`{"prefix":{"maxBlocks":1.5}}`,
 		`{"prefix":{"maxBlocks":"32"}}`,
+		`{"prefix":{"maxCacheBlocksPerEndpoint":0}}`,
+		`{"prefix":{"maxCacheBlocksPerEndpoint":1048577}}`,
+		`{"limits":"invalid"}`,
+		`{"limits":{"maxRequestBodyBytes":0}}`,
+		`{"limits":{"maxRequestBodyBytes":104857601}}`,
+		`{"limits":{"vmRebuildThresholdBytes":-1}}`,
+		`{"limits":{"vmRebuildThresholdBytes":4294967297}}`,
 	}
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {

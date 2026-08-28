@@ -13,24 +13,32 @@ import (
 )
 
 const (
-	defaultProfile  = "default"
-	balancedProfile = "balanced"
-	maxScorePicker  = "max-score"
+	defaultProfile                 = "default"
+	balancedProfile                = "balanced"
+	maxScorePicker                 = "max-score"
+	defaultMaxRequestBodyBytes     = 4 << 20
+	maxRequestBodyBytesLimit       = 100 << 20
+	defaultVMRebuildThresholdBytes = 200 << 20
+	maxVMRebuildThresholdBytes     = 4 << 30
+	maxCacheBlocksPerEndpointLimit = 1 << 20
 )
 
 type Config struct {
-	profile    string
-	weights    scheduling.Weights
-	ewmaAlpha  float64
-	sampleRate float64
-	toolMode   prefixcache.ToolMode
-	maxBlocks  int
-	store      *scheduling.FeedbackStore
-	pipeline   *scheduling.Pipeline
-	prefix     *prefixcache.Index
-	metrics    *pluginMetrics
-	hostCache  *endpointSnapshotCache
-	random     *rand.Rand
+	profile                   string
+	weights                   scheduling.Weights
+	ewmaAlpha                 float64
+	sampleRate                float64
+	toolMode                  prefixcache.ToolMode
+	maxBlocks                 int
+	maxCacheBlocksPerEndpoint int
+	maxRequestBodyBytes       uint32
+	vmRebuildThresholdBytes   uint64
+	store                     *scheduling.FeedbackStore
+	pipeline                  *scheduling.Pipeline
+	prefix                    *prefixcache.Index
+	metrics                   *pluginMetrics
+	hostCache                 *endpointSnapshotCache
+	random                    *rand.Rand
 }
 
 func parseConfig(json gjson.Result, config *Config) error {
@@ -134,6 +142,31 @@ func parseConfig(json gjson.Result, config *Config) error {
 		}
 		maxBlocks = int(value.Int())
 	}
+	maxCacheBlocksPerEndpoint := prefixcache.DefaultCapacity
+	if value := json.Get("prefix.maxCacheBlocksPerEndpoint"); value.Exists() {
+		if value.Type != gjson.Number || value.Float() != math.Trunc(value.Float()) || value.Int() < 1 || value.Int() > maxCacheBlocksPerEndpointLimit {
+			return fmt.Errorf("prefix.maxCacheBlocksPerEndpoint must be an integer in [1,%d]", maxCacheBlocksPerEndpointLimit)
+		}
+		maxCacheBlocksPerEndpoint = int(value.Int())
+	}
+	limitsJSON := json.Get("limits")
+	if limitsJSON.Exists() && !limitsJSON.IsObject() {
+		return fmt.Errorf("limits must be an object")
+	}
+	maxRequestBodyBytes := uint32(defaultMaxRequestBodyBytes)
+	if value := json.Get("limits.maxRequestBodyBytes"); value.Exists() {
+		if value.Type != gjson.Number || value.Float() != math.Trunc(value.Float()) || value.Int() < 1 || value.Int() > maxRequestBodyBytesLimit {
+			return fmt.Errorf("limits.maxRequestBodyBytes must be an integer in [1,%d]", maxRequestBodyBytesLimit)
+		}
+		maxRequestBodyBytes = uint32(value.Int())
+	}
+	vmRebuildThresholdBytes := uint64(defaultVMRebuildThresholdBytes)
+	if value := json.Get("limits.vmRebuildThresholdBytes"); value.Exists() {
+		if value.Type != gjson.Number || value.Float() != math.Trunc(value.Float()) || value.Int() < 0 || value.Uint() > maxVMRebuildThresholdBytes {
+			return fmt.Errorf("limits.vmRebuildThresholdBytes must be zero or an integer in [1,%d]", uint64(maxVMRebuildThresholdBytes))
+		}
+		vmRebuildThresholdBytes = value.Uint()
+	}
 
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	config.profile = profile
@@ -142,11 +175,14 @@ func parseConfig(json gjson.Result, config *Config) error {
 	config.sampleRate = sampleRate
 	config.toolMode = toolMode
 	config.maxBlocks = maxBlocks
+	config.maxCacheBlocksPerEndpoint = maxCacheBlocksPerEndpoint
+	config.maxRequestBodyBytes = maxRequestBodyBytes
+	config.vmRebuildThresholdBytes = vmRebuildThresholdBytes
 	config.store = scheduling.NewFeedbackStore(ewmaAlpha)
 	config.pipeline = scheduling.NewPipeline(weights, random)
-	config.prefix = prefixcache.NewIndex(prefixcache.DefaultCapacity)
+	config.prefix = prefixcache.NewIndex(maxCacheBlocksPerEndpoint)
 	config.metrics = &pluginMetrics{}
-	config.hostCache = newEndpointSnapshotCache(proxywasm.GetUpstreamHosts, scheduling.ParseVLLMMetrics, time.Now)
+	config.hostCache = newEndpointSnapshotCache(proxywasm.GetUpstreamHosts, scheduling.ParseCompactVLLMMetrics, time.Now)
 	config.random = random
 	return nil
 }

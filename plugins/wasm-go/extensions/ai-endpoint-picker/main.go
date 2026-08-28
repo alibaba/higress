@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +47,7 @@ type requestBodyFraming struct {
 
 type requestBodyControl interface {
 	DontReadRequestBody()
+	SetRequestBodyBufferLimit(uint32)
 }
 
 func main() {}
@@ -64,6 +66,7 @@ func init() {
 }
 
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
+	maybeRequestVMRebuild(config.vmRebuildThresholdBytes)
 	framing := requestBodyFraming{}
 	framing.contentLength, _ = proxywasm.GetHttpRequestHeader("content-length")
 	framing.transferEncoding, _ = proxywasm.GetHttpRequestHeader("transfer-encoding")
@@ -71,18 +74,24 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config Config) types.Action {
 	framing.contentEncoding, _ = proxywasm.GetHttpRequestHeader("content-encoding")
 	framing.connection, _ = proxywasm.GetHttpRequestHeader("connection")
 	framing.upgrade, _ = proxywasm.GetHttpRequestHeader("upgrade")
-	action := requestHeadersAction(ctx, framing)
+	action := requestHeadersAction(ctx, framing, config.maxRequestBodyBytes)
 	if action == types.HeaderContinue {
 		config.metrics.fallback()
 	}
 	return action
 }
 
-func requestHeadersAction(ctx requestBodyControl, framing requestBodyFraming) types.Action {
+func requestHeadersAction(ctx requestBodyControl, framing requestBodyFraming, maxRequestBodyBytes uint32) types.Action {
 	if !hasReadableRequestBody(framing) {
 		ctx.DontReadRequestBody()
 		return types.HeaderContinue
 	}
+	contentLength, err := strconv.ParseUint(strings.TrimSpace(framing.contentLength), 10, 64)
+	if err != nil || contentLength == 0 || contentLength > uint64(maxRequestBodyBytes) || hasHeaderToken(framing.transferEncoding, "chunked") {
+		ctx.DontReadRequestBody()
+		return types.HeaderContinue
+	}
+	ctx.SetRequestBodyBufferLimit(maxRequestBodyBytes)
 	return types.HeaderStopIteration
 }
 
@@ -113,6 +122,11 @@ func hasHeaderToken(value, token string) bool {
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) types.Action {
+	if uint64(len(body)) > uint64(config.maxRequestBodyBytes) {
+		log.Debugf("ai-endpoint-picker fail-open: reason=request_body_over_limit")
+		config.metrics.fallback()
+		return types.ActionContinue
+	}
 	model, locality, prefixAvailable, err := inspectRequestBody(body, config.toolMode, config.maxBlocks)
 	if err != nil {
 		log.Debugf("ai-endpoint-picker fail-open: reason=invalid_request")
@@ -133,7 +147,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 		candidate := snapshot.candidate(model)
 		address := candidate.endpoint.Address
 		active[address] = struct{}{}
-		syncPrefixCapacity(config.prefix, address, candidate.endpoint.Healthy, candidate.cacheConfig.NumGPUBlocks)
+		syncPrefixCapacity(config.prefix, address, candidate.endpoint.Healthy, candidate.cacheConfig.NumGPUBlocks, config.maxCacheBlocksPerEndpoint)
 		if candidate.endpoint.Healthy {
 			actualBlockSizes[address] = candidate.cacheConfig.BlockSize
 			for name, value := range config.store.Signals(address) {
@@ -200,12 +214,30 @@ func inspectRequestBody(body []byte, toolMode prefixcache.ToolMode, maxBlocks in
 	return prefixcache.InspectRequestWithOptions(body, prefixcache.Options{ToolMode: toolMode, MaxBlocks: maxBlocks})
 }
 
-func syncPrefixCapacity(index *prefixcache.Index, address string, healthy bool, capacity int) {
+func syncPrefixCapacity(index *prefixcache.Index, address string, healthy bool, capacity, maxCapacity int) {
 	if !healthy {
 		index.Delete(address)
 		return
 	}
+	if capacity <= 0 || capacity > maxCapacity {
+		capacity = maxCapacity
+	}
 	index.SetCapacity(address, capacity)
+}
+
+func maybeRequestVMRebuild(threshold uint64) {
+	if threshold == 0 {
+		return
+	}
+	memory, err := proxywasm.GetProperty([]string{"plugin_vm_memory"})
+	if err != nil || !vmMemoryAtOrAboveThreshold(memory, threshold) {
+		return
+	}
+	_ = proxywasm.SetProperty([]string{"wasm_need_rebuild"}, []byte("true"))
+}
+
+func vmMemoryAtOrAboveThreshold(memory []byte, threshold uint64) bool {
+	return threshold > 0 && len(memory) == 8 && binary.LittleEndian.Uint64(memory) >= threshold
 }
 
 func blockCount(chains [][]prefixcache.Block) int {

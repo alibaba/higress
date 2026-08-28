@@ -17,9 +17,9 @@ func TestEndpointSnapshotCacheTTLAndFingerprintReuse(t *testing.T) {
 	cache := newEndpointSnapshotCache(func() ([][2]string, error) {
 		getCalls++
 		return hosts, nil
-	}, func(metrics string) (scheduling.VLLMMetrics, error) {
+	}, func(metrics []byte) (scheduling.VLLMMetrics, error) {
 		parseCalls++
-		return scheduling.ParseVLLMMetrics(metrics)
+		return scheduling.ParseCompactVLLMMetrics(metrics)
 	}, func() time.Time { return now })
 
 	first, err := cache.get()
@@ -35,11 +35,22 @@ func TestEndpointSnapshotCacheTTLAndFingerprintReuse(t *testing.T) {
 		t.Fatalf("same fingerprint refresh get=%d parse=%d err=%v", getCalls, parseCalls, err)
 	}
 
+	metrics += "unrelated_metric 1\n"
+	hosts = [][2]string{{"host", healthyMetadata(metrics)}}
+	now = now.Add(endpointSnapshotTTL)
+	unchanged, err := cache.get()
+	if err != nil || getCalls != 3 || parseCalls != 1 {
+		t.Fatalf("unrelated metric churn reparsed snapshot: get=%d parse=%d err=%v", getCalls, parseCalls, err)
+	}
+	if got := unchanged.hosts[0].candidate("model").endpoint.Signals[scheduling.SignalQueue].Value; got != 1 {
+		t.Fatalf("unchanged queue=%v want 1", got)
+	}
+
 	metrics = "# TYPE vllm:num_requests_waiting gauge\nvllm:num_requests_waiting 2\n"
 	hosts = [][2]string{{"host", healthyMetadata(metrics)}}
 	now = now.Add(endpointSnapshotTTL)
 	changed, err := cache.get()
-	if err != nil || getCalls != 3 || parseCalls != 2 {
+	if err != nil || getCalls != 4 || parseCalls != 2 {
 		t.Fatalf("changed refresh get=%d parse=%d err=%v", getCalls, parseCalls, err)
 	}
 	if got := changed.hosts[0].candidate("model").endpoint.Signals[scheduling.SignalQueue].Value; got != 2 {
@@ -53,7 +64,7 @@ func TestEndpointSnapshotCacheDerivesLoRAAffinityPerRequest(t *testing.T) {
 		`vllm:lora_requests_info{running_lora_adapters="adapter-a"} 1` + "\n"
 	cache := newEndpointSnapshotCache(func() ([][2]string, error) {
 		return [][2]string{{"host", healthyMetadata(metrics)}}, nil
-	}, scheduling.ParseVLLMMetrics, func() time.Time { return now })
+	}, scheduling.ParseCompactVLLMMetrics, func() time.Time { return now })
 	result, err := cache.get()
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +91,7 @@ func TestEndpointSnapshotCacheDoesNotServeExpiredOnRefreshFailure(t *testing.T) 
 			return nil, errors.New("discovery failed")
 		}
 		return [][2]string{{"host", healthyMetadata("")}}, nil
-	}, scheduling.ParseVLLMMetrics, func() time.Time { return now })
+	}, scheduling.ParseCompactVLLMMetrics, func() time.Time { return now })
 	if result, err := cache.get(); err != nil || len(result.hosts) != 1 {
 		t.Fatalf("initial result=%+v err=%v", result, err)
 	}
@@ -100,7 +111,7 @@ func TestEndpointSnapshotCacheDropsRemovedHostsAndIsolatesBadMetrics(t *testing.
 		{"removed", healthyMetadata("")},
 		{"kept", healthyMetadata("# TYPE vllm:num_requests_waiting gauge\nvllm:num_requests_waiting 1\n")},
 	}
-	cache := newEndpointSnapshotCache(func() ([][2]string, error) { return hosts, nil }, scheduling.ParseVLLMMetrics, func() time.Time { return now })
+	cache := newEndpointSnapshotCache(func() ([][2]string, error) { return hosts, nil }, scheduling.ParseCompactVLLMMetrics, func() time.Time { return now })
 	if result, err := cache.get(); err != nil || len(result.hosts) != 2 {
 		t.Fatalf("initial result=%+v err=%v", result, err)
 	}
@@ -131,7 +142,7 @@ func TestEndpointSnapshotCacheRetainsCompactCacheConfig(t *testing.T) {
 		`vllm:cache_config_info{block_size="128",num_gpu_blocks="4096"} 1` + "\n"
 	cache := newEndpointSnapshotCache(func() ([][2]string, error) {
 		return [][2]string{{"host", healthyMetadata(metrics)}}, nil
-	}, scheduling.ParseVLLMMetrics, func() time.Time { return now })
+	}, scheduling.ParseCompactVLLMMetrics, func() time.Time { return now })
 	result, err := cache.get()
 	if err != nil {
 		t.Fatal(err)

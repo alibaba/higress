@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-endpoint-picker/scheduling"
-	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 )
 
@@ -16,7 +15,7 @@ const endpointSnapshotTTL = 250 * time.Millisecond
 var errUpstreamHostsUnavailable = errors.New("upstream hosts unavailable")
 
 type upstreamHostsGetter func() ([][2]string, error)
-type vllmMetricsParser func(string) (scheduling.VLLMMetrics, error)
+type vllmMetricsParser func([]byte) (scheduling.VLLMMetrics, error)
 
 type compactHostSnapshot struct {
 	address     string
@@ -115,13 +114,17 @@ func (cache *endpointSnapshotCache) parseHost(host [2]string, previous compactHo
 		return compactHostSnapshot{}, candidateSkipMetrics
 	}
 	metricsText := metrics.String()
-	snapshot.fingerprint = xxhash.Sum64String(metricsText)
+	compactMetrics, fingerprint, err := scheduling.CompactVLLMMetrics(metricsText)
+	if err != nil {
+		return compactHostSnapshot{}, candidateSkipMetrics
+	}
+	snapshot.fingerprint = fingerprint
 	if previous.address == address && previous.healthy && previous.fingerprint == snapshot.fingerprint {
 		snapshot.metrics = previous.metrics
 		snapshot.cacheConfig = previous.cacheConfig
 		return snapshot, 0
 	}
-	parsed, err := cache.parse(metricsText)
+	parsed, err := cache.parse(compactMetrics)
 	if err != nil {
 		return compactHostSnapshot{}, candidateSkipMetrics
 	}

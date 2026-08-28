@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cespare/xxhash/v2"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
@@ -48,14 +49,30 @@ func ParseVLLMSignals(metrics, model string) (map[SignalName]SignalValue, error)
 }
 
 func ParseVLLMMetrics(metrics string) (VLLMMetrics, error) {
-	result := VLLMMetrics{BaseSignals: map[SignalName]SignalValue{}}
 	if strings.TrimSpace(metrics) == "" {
-		return result, nil
+		return emptyVLLMMetrics(), nil
 	}
-	relevant, err := relevantMetricsSubset(metrics)
+	relevant, _, err := CompactVLLMMetrics(metrics)
 	if err != nil {
 		return VLLMMetrics{}, err
 	}
+	return ParseCompactVLLMMetrics(relevant)
+}
+
+// CompactVLLMMetrics retains only metric families consumed by the picker and
+// fingerprints that compact subset. Unrelated metric churn therefore does not
+// force another Prometheus parse.
+func CompactVLLMMetrics(metrics string) ([]byte, uint64, error) {
+	relevant, err := relevantMetricsSubset(metrics)
+	if err != nil {
+		return nil, 0, err
+	}
+	return relevant, xxhash.Sum64(relevant), nil
+}
+
+// ParseCompactVLLMMetrics parses output returned by CompactVLLMMetrics.
+func ParseCompactVLLMMetrics(relevant []byte) (VLLMMetrics, error) {
+	result := emptyVLLMMetrics()
 	if len(relevant) == 0 {
 		return result, nil
 	}
@@ -79,6 +96,10 @@ func ParseVLLMMetrics(metrics string) (VLLMMetrics, error) {
 	}
 	result.CacheConfig = cacheConfig(families[cacheConfigMetric])
 	return result, nil
+}
+
+func emptyVLLMMetrics() VLLMMetrics {
+	return VLLMMetrics{BaseSignals: map[SignalName]SignalValue{}}
 }
 
 func (metrics VLLMMetrics) SignalsForModel(model string) map[SignalName]SignalValue {

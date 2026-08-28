@@ -24,7 +24,7 @@ prefix locality 支持 OpenAI Chat Completions 和 Completions 的文本输入�
 
 ## Upstream metrics 契约
 
-queue、KV 和 LoRA scorer 依赖每个实际 inference endpoint 自己的 Prometheus snapshot。upstream cluster 必须对各 endpoint 配置显式 HTTP health check（通常访问 vLLM `/metrics`），并启用 `store_metrics: true`，使 health-check 响应体作为对应 host 的 `metrics` 由 `GetUpstreamHosts()` 返回。不要使用经共享负载均衡地址聚合的 metrics 代替逐 host snapshot。插件将 host snapshot 缓存 250ms：窗口内不重复读取 host，因而调度信号最多滞后 250ms；过期刷新失败时不使用旧 snapshot，而是 fail-open。刷新时 metrics 指纹未变化的 endpoint 复用上次紧凑解析结果；变化时只筛选 queue、当前/旧 KV、LoRA 和 cache config 五类指标，再交给标准 Prometheus parser，相关子集上限为 64KiB。相关数据损坏或超限只隔离该 host，大量无关指标不会构建 DTO。
+queue、KV 和 LoRA scorer 依赖每个实际 inference endpoint 自己的 Prometheus snapshot。upstream cluster 必须对各 endpoint 配置显式 HTTP health check（通常访问 vLLM `/metrics`），并启用 `store_metrics: true`，使 health-check 响应体作为对应 host 的 `metrics` 由 `GetUpstreamHosts()` 返回。不要使用经共享负载均衡地址聚合的 metrics 代替逐 host snapshot。插件将 host snapshot 缓存 250ms：窗口内不重复读取 host，因而调度信号最多滞后 250ms；过期刷新失败时不使用旧 snapshot，而是 fail-open。刷新时先筛选 queue、当前/旧 KV、LoRA 和 cache config 五类指标，并只对这个相关子集生成指纹；非相关指标变化不会触发 Prometheus 重解析。相关子集上限为 64KiB，相关数据损坏或超限只隔离该 host，大量无关指标不会构建 DTO。
 
 插件缓存不保存原始 metadata 或 metrics body，但 `store_metrics: true` 意味着 Envoy 仍会在 health-check 层保存并通过 hostcall 提供完整原始响应；仅修改 WASM 插件无法消除这部分原始存储和复制开销。
 
@@ -35,6 +35,10 @@ profile: default
 prefix:
   toolMode: identity
   maxBlocks: 32
+  maxCacheBlocksPerEndpoint: 31250
+limits:
+  maxRequestBodyBytes: 4194304
+  vmRebuildThresholdBytes: 209715200
 weights:
   queue: 2
   kvCache: 2
@@ -62,6 +66,12 @@ debug:
 
 `prefix.maxBlocks` 默认为 32，合法范围为 1..128。较小值会更早停止 tools/messages 或 Completion prompt 的语义扫描，从而压低网关 CPU 和临时内存开销，但可能减少 locality 命中长度；较大值可提高长上下文的近似精度，代价是更多哈希工作。它是 request-wide 运行预算，不会改变原有 token、JSON depth 和 canonical node 硬上限。
 
+`prefix.maxCacheBlocksPerEndpoint` 默认为 31250，合法范围为 1..1048576。它同时作为缺少 `num_gpu_blocks` 时的默认容量，以及指标上报容量的上限，防止异常或超大指标无限扩大 gateway-local weighted LRU。容量按近似 backend KV block 计量，实际常驻内存还会随 endpoint 数量变化。
+
+`limits.maxRequestBodyBytes` 默认为 4 MiB，合法范围为 1 byte..100 MiB。插件只缓冲具有可信、正数 `Content-Length` 且不超过该值的请求；超限请求和长度未知的 chunked 请求跳过 endpoint picker 并原样转发，而不是返回 413。这样可保证 picker 的可选调度收益不会以无界请求体缓冲为代价。
+
+`limits.vmRebuildThresholdBytes` 默认为 200 MiB，合法值为 0..4 GiB；0 表示关闭。达到阈值时插件请求 Higress 重建当前 WASM VM，与 ai-proxy 的 200 MiB 策略一致。该参数是泄漏/碎片化保护用的软重建阈值，不是强制内存配额；真正的硬上限仍由网关容器和 WASM runtime 管理。
+
 ## Feedback 与可观测性
 
 override 成功后，插件按 endpoint 维护 gateway-local inflight；stream 完成时记录 TTFT、总时延与 failure EWMA。每个请求使用独立 lease，重复的完成回调不会重复扣减 inflight 或更新 EWMA。已不在当前 upstream host 集合且 inflight 为 0 的状态会被清理。
@@ -80,4 +90,13 @@ override 成功后，插件按 endpoint 维护 gateway-local inflight；stream �
 
 Gateway API Inference Extension v1.4 ExternalEPP 支持已由 [#4318](https://github.com/higress-group/higress/pull/4318) 合并。该路径在 `endpointPickerRef` 指向外部 EPP 时继续使用 ext_proc，与本插件互不替代。
 
-本插件 PR 只提供数据面的 endpoint picker，不包含 GIE 控制面自动生成或绑定 `WasmPlugin` 的逻辑。把“未配置 `endpointPickerRef`”解释为 BuiltIn picker 需要后续升级到 GIE v1.5+ 的 optional `endpointPickerRef` API；在该控制面集成完成前，用户必须显式部署并绑定本插件。
+控制面集成由 [#4608](https://github.com/higress-group/higress/pull/4608) 和 [higress-group/istio#69](https://github.com/higress-group/istio/pull/69) 提供。GIE v1.4 中，普通 core `Service` reference 继续走外部 EPP/ext_proc；只有以下 Higress 约定 reference 才为对应 InferencePool 路由生成并绑定内置插件，各路由规则相互隔离：
+
+```yaml
+endpointPickerRef:
+  group: extensions.higress.io
+  kind: WasmPlugin
+  name: ai-endpoint-picker
+```
+
+控制面只生成路由匹配和插件引用，省略上述可选调优字段，因此自动继承本节默认值。插件不会自动创建 `/metrics` health check；需要 queue/KV/LoRA 信号时，由部署侧像 ai-load-balancer 一样独立配置 health check 与 `store_metrics: true`。

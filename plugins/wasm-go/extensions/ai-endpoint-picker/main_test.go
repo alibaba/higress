@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"errors"
 	"strconv"
 	"strings"
@@ -11,8 +12,20 @@ import (
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 )
 
+func TestVMMemoryThreshold(t *testing.T) {
+	memory := make([]byte, 8)
+	binary.LittleEndian.PutUint64(memory, 200)
+	if !vmMemoryAtOrAboveThreshold(memory, 200) || !vmMemoryAtOrAboveThreshold(memory, 199) {
+		t.Fatal("memory at or above threshold was not detected")
+	}
+	if vmMemoryAtOrAboveThreshold(memory, 201) || vmMemoryAtOrAboveThreshold(memory[:7], 1) || vmMemoryAtOrAboveThreshold(memory, 0) {
+		t.Fatal("memory below threshold or malformed memory was accepted")
+	}
+}
+
 type requestBodyControlStub struct {
-	dontRead bool
+	dontRead    bool
+	bufferLimit uint32
 }
 
 func TestOverrideAndRecordOnlyLearnsAfterSuccess(t *testing.T) {
@@ -54,14 +67,14 @@ func TestParseHostCandidateIsolatesMalformedHosts(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cache := newEndpointSnapshotCache(nil, scheduling.ParseVLLMMetrics, nil)
+			cache := newEndpointSnapshotCache(nil, scheduling.ParseCompactVLLMMetrics, nil)
 			if _, got := cache.parseHost(test.host, compactHostSnapshot{}); got != test.wantReason {
 				t.Fatalf("skip reason=%d want %d", got, test.wantReason)
 			}
 		})
 	}
 
-	cache := newEndpointSnapshotCache(nil, scheduling.ParseVLLMMetrics, nil)
+	cache := newEndpointSnapshotCache(nil, scheduling.ParseCompactVLLMMetrics, nil)
 	goodSnapshot, reason := cache.parseHost([2]string{"good", validMetadata}, compactHostSnapshot{})
 	good := goodSnapshot.candidate("m")
 	if reason != 0 || good.endpoint.Address != "good" || !good.endpoint.Healthy || !good.endpoint.Signals[scheduling.SignalQueue].Available {
@@ -87,7 +100,7 @@ func TestMalformedHostDoesNotPreventHealthyCandidateScheduling(t *testing.T) {
 		{"good", validMetadata},
 	}
 	endpoints := make([]scheduling.EndpointSnapshot, 0, len(hosts))
-	cache := newEndpointSnapshotCache(nil, scheduling.ParseVLLMMetrics, nil)
+	cache := newEndpointSnapshotCache(nil, scheduling.ParseCompactVLLMMetrics, nil)
 	for _, host := range hosts {
 		snapshot, reason := cache.parseHost([2]string{host[0], host[1]}, compactHostSnapshot{})
 		if reason == 0 {
@@ -181,15 +194,28 @@ func TestSyncPrefixCapacityDeletesUnhealthyAndKeepsHealthyDefault(t *testing.T) 
 		{Hash: 2, EstimatedTokens: 1},
 	}}
 	index.Record("host", chain, 16)
-	syncPrefixCapacity(index, "host", false, 0)
+	syncPrefixCapacity(index, "host", false, 0, 2)
 	if index.Len("host") != 0 || index.EndpointCount() != 0 {
 		t.Fatalf("unhealthy prefix state remains: len=%d endpoints=%d", index.Len("host"), index.EndpointCount())
 	}
 
-	syncPrefixCapacity(index, "host", true, 0)
+	syncPrefixCapacity(index, "host", true, 0, 2)
 	index.Record("host", chain, 16)
 	if index.Len("host") != 2 {
 		t.Fatalf("healthy host without num_gpu_blocks did not use default capacity: len=%d", index.Len("host"))
+	}
+}
+
+func TestSyncPrefixCapacityClampsReportedCapacity(t *testing.T) {
+	index := prefixcache.NewIndex(2)
+	syncPrefixCapacity(index, "host", true, 1000, 2)
+	index.Record("host", [][]prefixcache.Block{{
+		{Hash: 1, EstimatedTokens: 1},
+		{Hash: 2, EstimatedTokens: 1},
+		{Hash: 3, EstimatedTokens: 1},
+	}}, 16)
+	if index.Len("host") != 2 {
+		t.Fatalf("reported capacity bypassed configured cap: len=%d", index.Len("host"))
 	}
 }
 
@@ -197,11 +223,16 @@ func (s *requestBodyControlStub) DontReadRequestBody() {
 	s.dontRead = true
 }
 
+func (s *requestBodyControlStub) SetRequestBodyBufferLimit(limit uint32) {
+	s.bufferLimit = limit
+}
+
 func TestRequestHeadersAction(t *testing.T) {
 	tests := []struct {
-		name    string
-		framing requestBodyFraming
-		want    types.Action
+		name            string
+		framing         requestBodyFraming
+		want            types.Action
+		wantBufferLimit uint32
 	}{
 		{
 			name:    "header-only POST with no framing",
@@ -246,26 +277,44 @@ func TestRequestHeadersAction(t *testing.T) {
 			framing: requestBodyFraming{
 				contentLength: "128", contentType: "application/json",
 			},
-			want: types.HeaderStopIteration,
+			want:            types.HeaderStopIteration,
+			wantBufferLimit: 1024,
 		},
 		{
-			name: "chunked JSON",
+			name: "oversized content length fails open",
+			framing: requestBodyFraming{
+				contentLength: "1025", contentType: "application/json",
+			},
+			want: types.HeaderContinue,
+		},
+		{
+			name: "chunked JSON fails open without buffering",
 			framing: requestBodyFraming{
 				transferEncoding: "gzip, chunked", contentType: "application/json",
 			},
-			want: types.HeaderStopIteration,
+			want: types.HeaderContinue,
+		},
+		{
+			name: "content length with chunked transfer encoding fails open",
+			framing: requestBodyFraming{
+				contentLength: "128", transferEncoding: "chunked", contentType: "application/json",
+			},
+			want: types.HeaderContinue,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			control := &requestBodyControlStub{}
-			if got := requestHeadersAction(control, test.framing); got != test.want {
+			if got := requestHeadersAction(control, test.framing, 1024); got != test.want {
 				t.Fatalf("requestHeadersAction() = %v, want %v", got, test.want)
 			}
 			wantDontRead := test.want == types.HeaderContinue
 			if control.dontRead != wantDontRead {
 				t.Fatalf("DontReadRequestBody called = %v, want %v", control.dontRead, wantDontRead)
+			}
+			if control.bufferLimit != test.wantBufferLimit {
+				t.Fatalf("buffer limit = %d, want %d", control.bufferLimit, test.wantBufferLimit)
 			}
 		})
 	}
