@@ -153,6 +153,6 @@ Do not commit generated Wasm modules, response bodies, logs, credentials, or
 other runtime artifacts.
 
 For concrete configurations, see the existing
-[Wasm Go custom-response example](../../../plugins/wasm-go/extensions/custom-response/docker-compose.yaml)
+[Wasm Go custom-response example](../../../plugins/wasm-go/examples/custom-response/docker-compose.yaml)
 and
 [Wasm Rust SSE timing example](../../../plugins/wasm-rust/example/sse-timing/docker-compose.yaml).

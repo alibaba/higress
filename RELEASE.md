@@ -50,10 +50,27 @@ disclosure is safe.
 
 ## 2. Prepare the release pull request
 
-Create a release pull request against `main` that keeps the version in
-`VERSION`, `helm/core/Chart.yaml`, `helm/higress/Chart.yaml`, dependency
-metadata, and release notes consistent. Update documentation, migration or
-deprecation guidance, and supported-version information when they change.
+For a release carrying managed Go/Rust plugin defaults, complete the code
+freeze, plugin snapshot/plugin-server, and Console release prerequisites below
+before creating the release pull request. Then create that pull request against
+`main`, keeping the version in `VERSION`, `helm/core/Chart.yaml`,
+`helm/higress/Chart.yaml`, dependency metadata, and release notes consistent.
+Update documentation, migration or deprecation guidance, and
+supported-version information when they change.
+
+First freeze an exact main/code-freeze commit at the current `main` head and use it to
+prepare and merge the generated plugin snapshot PR. Promote that snapshot,
+build plugin-server, then merge/release the generated Console dependency. Only
+after those inputs converge should the release manager create or update a
+#4019-style release PR on `main`. Limit it to release metadata, Helm dependency,
+release notes, and intended submodule pins. Do not manually edit managed plugin
+`VERSION` files in this PR. Update the Console dependency and run `helm
+dependency update helm/higress` to regenerate `Chart.lock`; review the resulting
+`Chart.yaml` and `Chart.lock`. If the release PR changes a catalog-declared
+plugin artifact input, stop and reprepare the snapshot/plugin-server/Console
+chain from the new exact main commit. Merge the release PR only immediately
+before dispatching exact tag authorization with the approved dry-run evidence
+SHA-256.
 
 The pull request must pass the repository's required build, unit, race,
 conformance, plugin, license, and other configured checks relevant to its
@@ -70,7 +87,13 @@ release notes accurately describe user-visible changes.
 
 After the release pull request is merged, the release manager creates the
 corresponding immutable `vMAJOR.MINOR.PATCH` or release-candidate tag from the
-reviewed commit. Published tags are not moved or reused.
+reviewed commit. Published tags are not moved or reused. For releases carrying
+managed Go/Rust Wasm defaults, the manager must first complete the exact-commit
+readiness gate described in
+[`docs/developers/immutable-plugin-releases.md`](docs/developers/immutable-plugin-releases.md):
+the committed snapshot, promoted plugin digests, pinned plugin-server image,
+and released Console chart dependency must all verify before the protected
+release-manager App creates the tag.
 
 The tag triggers GitHub Actions that publish, as applicable:
 

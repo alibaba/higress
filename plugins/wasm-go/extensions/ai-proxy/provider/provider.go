@@ -161,6 +161,7 @@ const (
 	providerTypeOpenRouter = "openrouter"
 	providerTypeLongcat    = "longcat"
 	providerTypeFireworks  = "fireworks"
+	providerTypeGaladriel  = "galadriel"
 	providerTypeVllm       = "vllm"
 	providerTypeGeneric    = "generic"
 	providerTypeKling      = "kling"
@@ -256,6 +257,7 @@ var (
 		providerTypeOpenRouter: &openrouterProviderInitializer{},
 		providerTypeLongcat:    &longcatProviderInitializer{},
 		providerTypeFireworks:  &fireworksProviderInitializer{},
+		providerTypeGaladriel:  &galadrielProviderInitializer{},
 		providerTypeVllm:       &vllmProviderInitializer{},
 		providerTypeGeneric:    &genericProviderInitializer{},
 		providerTypeKling:      &klingProviderInitializer{},
@@ -1033,7 +1035,7 @@ func doGetMappedModel(model string, modelMapping map[string]string) string {
 	}
 
 	if v, ok := modelMapping[model]; ok {
-		log.Debugf("model [%s] is mapped to [%s] explictly", model, v)
+		log.Debugf("model [%s] is mapped to [%s] explicitly", model, v)
 		return v
 	}
 

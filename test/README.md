@@ -21,10 +21,10 @@ Higress provides make target to run ingress api conformance tests and wasmplugin
 + Gateway API Tests: `make gateway-conformance-test`
 + WasmPlugin Tests: `make higress-wasmplugin-test`
     + Build all Go WasmPlugins for testing: `make higress-wasmplugin-test`
-    + Build tests for a specific Go WasmPlugin only: `PLUGIN_NAME=request-block make higress-wasmplugin-test`
+    + Build tests for a specific Go WasmPlugin only: `PLUGIN_NAME=ip-restriction make higress-wasmplugin-test`
     + Build tests for a specific C++ WasmPlugin only: `PLUGIN_TYPE=CPP PLUGIN_NAME=key_auth make higress-wasmplugin-test`
     + Build all Rust WasmPlugins for testing: `PLUGIN_TYPE=RUST make higress-wasmplugin-test`
-    + Build tests for a specific Rust WasmPlugin only: `PLUGIN_TYPE=RUST PLUGIN_NAME=request-block make higress-wasmplugin-test`
+    + Build tests for a specific Rust WasmPlugin only: `PLUGIN_TYPE=RUST PLUGIN_NAME=ai-data-masking make higress-wasmplugin-test`
     + Run specific tests only (separated by commas): `TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test`
     + Build a specific Go WasmPlugin and run selected tests only: `PLUGIN_NAME=ip-restriction TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test`
     + Skip building the higress dev image, build only a specific Go WasmPlugin and run selected tests: `PLUGIN_NAME=ip-restriction TEST_SHORTNAME=WasmPluginsIPRestrictionAllow,WasmPluginsIPRestrictionDeny make higress-wasmplugin-test-skip-docker-build`
