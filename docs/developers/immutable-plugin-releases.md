@@ -196,6 +196,20 @@ earlier verified digest set. If `latest` needs repair, use the serialized
 promotion flow with an audited recovery approval; released Console, gateway,
 and Standalone defaults remain pinned and do not depend on `latest`.
 
+### Emergency same-version overwrite
+
+- An ACR admin temporarily lifts the tag-immutability rule for the plugin
+  repo; a maintainer then runs `emergency-overwrite-plugin-tag` (first
+  `dry_run=true`, then the real run, which waits for the
+  `plugin-release-production` approval), and the admin re-arms the rule
+  immediately after the run reports the new digest.
+- A plugin whose tag was overwritten must receive a version bump at the next
+  gateway release. This happens automatically: the fix commit changes the
+  input hash, so plan re-plans it.
+- Bundled plugin-server/Console images embed snapshot bytes and are healed
+  only by the next gateway release; the overwrite heals tag-pulling
+  (Envoy-direct) consumers immediately.
+
 ## Exact Standalone packaging
 
 `deploy-standalone-to-oss` is manual and requires one verified Standalone

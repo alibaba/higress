@@ -106,6 +106,8 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
   Higress 能够用统一的协议对接国内外所有 LLM 模型厂商，同时具备丰富的 AI 可观测、多模型负载均衡/fallback、AI token 流控、AI 缓存等能力：
 
+  Higress 同时也是 [Gateway API Inference Extension 一致性实现](https://gateway-api-inference-extension.sigs.k8s.io/implementations/gateways/#higress)，支持在 Kubernetes 上进行推理感知路由。
+
   ![](https://img.alicdn.com/imgextra/i1/O1CN01fNnhCp1cV8mYPRFeS_!!6000000003605-0-tps-1080-608.jpg)
 
 - **MCP Server 托管**:
@@ -124,9 +126,9 @@ K8s 下使用 Helm 部署等其他安装方式可以参考官网 [Quick Start �
 
 - **Kubernetes Ingress 网关**:
 
-  Higress 可以作为 K8s 集群的 Ingress 入口网关, 并且兼容了大量 K8s Nginx Ingress 的注解，可以从 K8s Nginx Ingress 快速平滑迁移到 Higress。
+  Higress 已被 [Kubernetes Ingress Controllers 官方文档](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/)收录，可作为 K8s 集群的 Ingress 入口网关，并且兼容大量 K8s Nginx Ingress 注解，可以从 K8s Nginx Ingress 快速平滑迁移到 Higress。
   
-  支持 [Gateway API](https://gateway-api.sigs.k8s.io/) 标准，支持用户从 Ingress API 平滑迁移到 Gateway API。
+  Higress 支持 [Gateway API](https://gateway-api.sigs.k8s.io/) 标准，并被列为 [Gateway API 一致性实现](https://gateway-api.sigs.k8s.io/implementations/#higress)，支持用户从 Ingress API 平滑迁移到 Gateway API。
 
   相比 ingress-nginx，资源开销大幅下降，路由变更生效速度有十倍提升：
 

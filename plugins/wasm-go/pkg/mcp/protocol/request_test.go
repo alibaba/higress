@@ -375,9 +375,9 @@ func TestModernMetadataSchemaAndExtensions(t *testing.T) {
 	body := strings.Replace(modernListRequest,
 		`"io.modelcontextprotocol/clientCapabilities":{}`,
 		`"io.modelcontextprotocol/clientCapabilities":{
-			"roots":{},
-			"sampling":{"context":{},"tools":{}},
-			"elicitation":{"form":{},"url":{}},
+			"roots":{"listChanged":true},
+			"sampling":{"context":{},"tools":{},"futureMode":{}},
+			"elicitation":{"form":{},"url":{},"voice":{}},
 			"experimental":{"vendor.feature":{"level":1}},
 			"extensions":{"com.example/ui":{"mimeTypes":["text/html"]}},
 			"vendorCapability":{"nested":true}
@@ -401,10 +401,8 @@ func TestModernMetadataSchemaAndExtensions(t *testing.T) {
 
 	invalidMembers := []string{
 		`"io.modelcontextprotocol/clientCapabilities":{"roots":true}`,
-		`"io.modelcontextprotocol/clientCapabilities":{"roots":{"listChanged":true}}`,
 		`"io.modelcontextprotocol/clientCapabilities":{"sampling":{"tools":true}}`,
 		`"io.modelcontextprotocol/clientCapabilities":{"sampling":{"tools":null}}`,
-		`"io.modelcontextprotocol/clientCapabilities":{"sampling":{"unknown":{}}}`,
 		`"io.modelcontextprotocol/clientCapabilities":{"elicitation":{"form":null}}`,
 		`"io.modelcontextprotocol/clientCapabilities":{"experimental":{"vendor":null}}`,
 		`"io.modelcontextprotocol/clientCapabilities":{"extensions":{"not-prefixed":{}}}`,
