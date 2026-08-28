@@ -22,6 +22,9 @@ readonly REPORT="${INFERENCE_EXTENSION_REPORT:?INFERENCE_EXTENSION_REPORT must b
 readonly EXPECTED_PASSED="${INFERENCE_EXTENSION_EXPECTED_PASSED:?INFERENCE_EXTENSION_EXPECTED_PASSED must be set}"
 readonly CONTACT="${INFERENCE_EXTENSION_CONTACT:-@higress-group/maintainers}"
 readonly IMPLEMENTATION_VERSION="${HIGRESS_CONFORMANCE_VERSION:-$(git rev-parse HEAD)}"
+readonly ORGANIZATION="${HIGRESS_CONFORMANCE_ORGANIZATION:-higress-group}"
+readonly PROJECT="${HIGRESS_CONFORMANCE_PROJECT:-higress}"
+readonly URL="${HIGRESS_CONFORMANCE_URL:-https://github.com/higress-group/higress}"
 
 if [[ "$(<"${SOURCE_DIR}/.higress-conformance-version")" != "${VERSION}" ]]; then
   echo "Conformance source in ${SOURCE_DIR} does not match ${VERSION}" >&2
@@ -33,9 +36,9 @@ args=(
   -gateway-class=higress
   -cleanup-base-resources=false
   "-report-output=${REPORT}"
-  -organization=Higress
-  -project=Higress
-  -url=https://github.com/alibaba/higress
+  "-organization=${ORGANIZATION}"
+  "-project=${PROJECT}"
+  "-url=${URL}"
   "-contact=${CONTACT}"
   "-version=${IMPLEMENTATION_VERSION}"
   -mode=default
