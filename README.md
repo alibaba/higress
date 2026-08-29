@@ -124,13 +124,15 @@ For other installation methods such as Helm deployment under K8s, please refer t
 
   Higress connects to all LLM model providers using a unified protocol, with AI observability, multi-model load balancing, token rate limiting, and caching capabilities:
 
+  Higress is also listed as a conformant [Gateway API Inference Extension implementation](https://gateway-api-inference-extension.sigs.k8s.io/implementations/gateways/#higress), supporting inference-aware routing on Kubernetes.
+
   ![](https://img.alicdn.com/imgextra/i2/O1CN01izmBNX1jbHT7lP3Yr_!!6000000004566-0-tps-1920-1080.jpg)
 
 - **Kubernetes ingress controller**:
 
-  Higress can function as a feature-rich ingress controller, which is compatible with many annotations of K8s' nginx ingress controller.
+  Higress can function as a feature-rich ingress controller and is listed in the official [Kubernetes Ingress Controllers documentation](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/). It is compatible with many annotations of the Kubernetes NGINX Ingress Controller.
 
-  [Gateway API](https://gateway-api.sigs.k8s.io/) is already supported, and it supports a smooth migration from Ingress API to Gateway API.
+  Higress supports the [Gateway API](https://gateway-api.sigs.k8s.io/) standard and is listed as a [conformant Gateway API implementation](https://gateway-api.sigs.k8s.io/implementations/#higress), enabling smooth migration from the Ingress API to the Gateway API.
 
   Compared to ingress-nginx, the resource overhead has significantly decreased, and the speed at which route changes take effect has improved by ten times.
 
