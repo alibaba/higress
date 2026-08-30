@@ -328,7 +328,7 @@ func (m *hunyuanProvider) OnStreamingResponseBody(ctx wrapper.HttpContext, name 
 	// log.Debugf("#debug nash5# [OnStreamingResponseBody] chunk is: %s", string(chunk))
 
 	// 从缓冲区取出若干完整的SSE事件（跨chunk重组），将其转为openAI格式后返回
-	var outputBuffer []byte
+	outputBuffer := []byte{}
 	for _, event := range frameSSEEvents(ctx, ctxKeyHunyuanSSEFraming, chunk, isLastChunk) {
 		for _, data := range strings.Split(event, "\n") {
 			if !strings.HasPrefix(data, ssePrefix) {

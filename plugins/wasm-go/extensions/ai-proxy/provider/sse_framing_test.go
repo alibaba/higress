@@ -143,6 +143,31 @@ func TestFrameSSEEvents(t *testing.T) {
 		require.Equal(t, []string{"data: {\"truncat"}, events,
 			"flush delivers the raw tail once; the provider's strict unmarshal rejects it")
 	})
+
+	t.Run("flush_while_resyncing_emits_nothing", func(t *testing.T) {
+		ctx := newMapCtx()
+		big := strings.Repeat("x", maxIncompleteSSEEventBytes+1)
+		events := frameSSEEvents(ctx, ctxKeyClaudeSSEFraming, []byte("data: "+big), false)
+		require.Empty(t, events)
+		framer, _ := ctx.GetContext(ctxKeyClaudeSSEFraming).(*sseFramer)
+		require.NotNil(t, framer)
+		require.True(t, framer.resyncing, "oversized tail must enter RESYNC")
+		// End-of-stream while resyncing: the dropped suffix is never emitted.
+		events = frameSSEEvents(ctx, ctxKeyClaudeSSEFraming, []byte("tail-bytes-without-delimiter"), true)
+		assert.Empty(t, events)
+		assert.False(t, framer.resyncing, "flush must reset RESYNC state")
+	})
+
+	t.Run("resync_recovers_complete_event_in_same_callback", func(t *testing.T) {
+		ctx := newMapCtx()
+		big := strings.Repeat("x", maxIncompleteSSEEventBytes+1)
+		events := frameSSEEvents(ctx, ctxKeyClaudeSSEFraming, []byte("data: "+big), false)
+		require.Empty(t, events)
+		// The next callback carries the delimiter ending the dropped event,
+		// followed by a valid event that must still be delivered.
+		events = frameSSEEvents(ctx, ctxKeyClaudeSSEFraming, []byte("tail\n\ndata: {\"ok\":1}\n\n"), false)
+		require.Equal(t, []string{`data: {"ok":1}`}, events)
+	})
 }
 
 func TestFrameSSEEventsClaudeUsageSurvivesSplitMessageStart(t *testing.T) {
