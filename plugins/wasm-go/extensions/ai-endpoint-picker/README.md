@@ -44,7 +44,7 @@ weights:
   kvCache: 2
   prefixCache: 3
   loraAffinity: 0
-  inflight: 0
+  inflight: 1
   failure: 0
 feedback:
   ewmaAlpha: 0.2
@@ -54,7 +54,7 @@ debug:
   sampleRate: 0
 ```
 
-当前支持 `default` profile、同义的 `balanced` profile 和 `max-score` picker。上述无配置权重与 llm-d router 默认值一致，flow control 关闭。LoRA、inflight 与 failure scorer 保留显式配置能力，但默认权重为 0。权重必须是非负有限数且至少一项大于 0；`ewmaAlpha` 范围为 `(0,1]`；`sampleRate` 范围为 `[0,1]`。
+当前支持 `default` profile、同义的 `balanced` profile 和 `max-score` picker。queue、KV cache 与 prefix cache 权重沿用 llm-d router 默认值；Higress 额外以权重 1 默认启用 gateway-local inflight，用于在两次 `/metrics` 更新之间避开已被当前网关压入更多未完成请求的 endpoint。该权重低于 queue、KV 和 prefix，主要作为实时纠偏信号；显式配置 `inflight: 0` 可关闭。LoRA 与 failure scorer 默认权重为 0，flow control 关闭。权重必须是非负有限数且至少一项大于 0；`ewmaAlpha` 范围为 `(0,1]`；`sampleRate` 范围为 `[0,1]`。
 
 `prefix.toolMode` 在网关开销与近似前缀精度之间提供三档选择，未知值会使插件配置失败：
 

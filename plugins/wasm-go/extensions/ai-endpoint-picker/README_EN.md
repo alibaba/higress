@@ -44,7 +44,7 @@ weights:
   kvCache: 2
   prefixCache: 3
   loraAffinity: 0
-  inflight: 0
+  inflight: 1
   failure: 0
 feedback:
   ewmaAlpha: 0.2
@@ -54,7 +54,7 @@ debug:
   sampleRate: 0
 ```
 
-The plugin supports the `default` profile, the equivalent `balanced` alias, and the `max-score` picker. The zero-configuration weights above match the llm-d router defaults, with flow control disabled. LoRA, inflight, and failure remain explicitly configurable but default to weight 0. Weights must be finite non-negative numbers with at least one value greater than zero. `ewmaAlpha` must be in `(0,1]`, and `sampleRate` must be in `[0,1]`.
+The plugin supports the `default` profile, the equivalent `balanced` alias, and the `max-score` picker. Queue, KV-cache, and prefix-cache weights retain the llm-d router defaults. Higress additionally enables gateway-local inflight with weight 1 by default, steering requests away from endpoints that this gateway has already assigned more unfinished work between `/metrics` updates. Its lower weight makes it a real-time correction rather than a replacement for queue, KV, or prefix signals; set `inflight: 0` explicitly to disable it. LoRA and failure default to weight 0, and flow control remains disabled. Weights must be finite non-negative numbers with at least one value greater than zero. `ewmaAlpha` must be in `(0,1]`, and `sampleRate` must be in `[0,1]`.
 
 `prefix.toolMode` offers three explicit trade-offs between gateway work and approximate-prefix precision. Unknown values reject the plugin configuration:
 

@@ -55,7 +55,7 @@ func parseConfig(json gjson.Result, config *Config) error {
 		scheduling.SignalKVCache:      2,
 		scheduling.SignalPrefixCache:  3,
 		scheduling.SignalLoRAAffinity: 0,
-		scheduling.SignalInflight:     0,
+		scheduling.SignalInflight:     1,
 		scheduling.SignalFailure:      0,
 	}
 	weightsJSON := json.Get("weights")

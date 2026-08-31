@@ -22,12 +22,38 @@ func TestParseConfigDefaults(t *testing.T) {
 	want := scheduling.Weights{
 		scheduling.SignalQueue: 2, scheduling.SignalKVCache: 2,
 		scheduling.SignalPrefixCache: 3, scheduling.SignalLoRAAffinity: 0,
-		scheduling.SignalInflight: 0, scheduling.SignalFailure: 0,
+		scheduling.SignalInflight: 1, scheduling.SignalFailure: 0,
 	}
 	for signal, weight := range want {
 		if config.weights[signal] != weight {
 			t.Errorf("weight %s = %v, want %v", signal, config.weights[signal], weight)
 		}
+	}
+}
+
+func TestDefaultInflightWeightSelectsLessBusyEndpoint(t *testing.T) {
+	var config Config
+	if err := parseConfig(gjson.Parse(`{}`), &config); err != nil {
+		t.Fatalf("parseConfig() error = %v", err)
+	}
+	decision := config.pipeline.Schedule([]scheduling.EndpointSnapshot{
+		{
+			Address: "busy",
+			Healthy: true,
+			Signals: map[scheduling.SignalName]scheduling.SignalValue{
+				scheduling.SignalInflight: {Value: 2, Available: true, Confidence: 1},
+			},
+		},
+		{
+			Address: "idle",
+			Healthy: true,
+			Signals: map[scheduling.SignalName]scheduling.SignalValue{
+				scheduling.SignalInflight: {Value: 0, Available: true, Confidence: 1},
+			},
+		},
+	})
+	if decision.Address != "idle" {
+		t.Fatalf("selected %q, want idle with the default inflight weight", decision.Address)
 	}
 }
 
