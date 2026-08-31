@@ -16,7 +16,7 @@
 
 KV cache 优先读取 `vllm:kv_cache_usage_perc`，并兼容旧名称 `vllm:gpu_cache_usage_perc`。LoRA 指标 `vllm:lora_requests_info` 可以缺失。
 
-prefix locality 支持 OpenAI Chat Completions 和 Completions 的文本输入，不包含 temperature、max tokens 等输出参数。Chat 的工具前缀精度由 `prefix.toolMode` 控制；每条包含 role、content、name、tool calls 等完整字段的 canonical message 仍分别形成有序语义 segment。Completions 文本或平坦 token ID prompt 独立建链。合法 batched token ID prompt（如 `[[1,2],[3,4]]`）当前只把 prefix scorer 标为 unavailable，不影响 queue/KV 调度；混合或无效 prompt 仍按无效输入处理。canonical JSON 最大嵌套深度为 64，超深或超出 node budget 时同样只禁用 prefix scorer。每 4 个 UTF-8 bytes 估算一个 pseudo-token，超过 1024 pseudo-tokens 的 segment 有界切片，并保留 131072 pseudo-token 硬上限。`prefix.maxBlocks` 进一步限制整个请求（tools、messages、Completion 字符串数组或平坦 token IDs 合计）的 block 数；预算耗尽时保留已生成的近似前缀并停止后续语义提取。hash 包含 `model`、`cache_salt`、segment 类型/长度、内容 hash 和前一个 hash，因此中间 segment 变化后不会命中后续 segment。非文本 multimodal 输入只让 prefix scorer unavailable，queue/KV 等 scorer 继续工作。
+prefix locality 支持 OpenAI Chat Completions 和 Completions 的文本输入，不包含 temperature、max tokens 等输出参数。Chat 的工具前缀精度由 `prefix.toolMode` 控制；每条包含 role、content、name、tool calls 等完整字段的 canonical message 仍分别形成有序语义 segment。Completions 文本或平坦 token ID prompt 独立建链。合法 batched token ID prompt（如 `[[1,2],[3,4]]`）当前只把 prefix scorer 标为 unavailable，不影响 queue/KV 调度；混合或无效 prompt 仍按无效输入处理。canonical JSON 最大嵌套深度为 64，超深或超出 node budget 时同样只禁用 prefix scorer。每 4 个 UTF-8 bytes 估算一个 pseudo-token，segment 按 `prefix.blockSizeTokens` 有界切片（默认 1024），并保留 131072 pseudo-token 硬上限。`prefix.maxBlocks` 进一步限制整个请求（tools、messages、Completion 字符串数组或平坦 token IDs 合计）的 block 数；预算耗尽时保留已生成的近似前缀并停止后续语义提取。hash 包含 `model`、`cache_salt`、segment 类型/长度、内容 hash 和前一个 hash，因此中间 segment 变化后不会命中后续 segment。非文本 multimodal 输入只让 prefix scorer unavailable，queue/KV 等 scorer 继续工作。
 
 每 endpoint 的 thread-safe weighted LRU 容量单位是近似后端 KV block，默认 31250，合法 `vllm:cache_config_info{num_gpu_blocks=...}` 可覆盖容量。每个语义 entry 的增量成本为 `ceil(segmentTokens/actualBlockSize)`；actual block size 读取所选 endpoint 的合法 `block_size`，否则使用 16。Score 不刷新 LRU。
 
@@ -35,6 +35,7 @@ profile: default
 prefix:
   toolMode: identity
   maxBlocks: 32
+  blockSizeTokens: 1024
   maxCacheBlocksPerEndpoint: 31250
 limits:
   maxRequestBodyBytes: 4194304
@@ -65,6 +66,8 @@ debug:
 `identity` 达到工具数量或身份字节预算后会保留已经生成的近似前缀并停止处理后续工具。三种模式都只影响网关调度提示；推理引擎仍基于真实 token/KV Cache 判断命中，因此近似假命中不会改变模型输出正确性。
 
 `prefix.maxBlocks` 默认为 32，合法范围为 1..128。较小值会更早停止 tools/messages 或 Completion prompt 的语义扫描，从而压低网关 CPU 和临时内存开销，但可能减少 locality 命中长度；较大值可提高长上下文的近似精度，代价是更多哈希工作。它是 request-wide 运行预算，不会改变原有 token、JSON depth 和 canonical node 硬上限。
+
+`prefix.blockSizeTokens` 默认为 1024，合法范围为 1..1024，控制长文本和 token-ID prompt 的单个近似哈希块最多包含多少个 pseudo-token。较小值提高前缀匹配粒度，但在 `maxBlocks` 不变时会缩短可观察的最长前缀。例如保持 32 块时，64 和 128 分别最多覆盖约 2048 和 4096 个 pseudo-token。该配置不改变 vLLM `/metrics` 中的真实 KV `block_size`。
 
 `prefix.maxCacheBlocksPerEndpoint` 默认为 31250，合法范围为 1..1048576。它同时作为缺少 `num_gpu_blocks` 时的默认容量，以及指标上报容量的上限，防止异常或超大指标无限扩大 gateway-local weighted LRU。容量按近似 backend KV block 计量，实际常驻内存还会随 endpoint 数量变化。
 

@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	MaxSegmentTokens = 1024
-	MaxPrefixTokens  = 131072
-	DefaultMaxBlocks = 32
-	MaxBlocksLimit   = 128
-	MaxTools         = 64
+	MaxSegmentTokens       = 1024
+	MaxPrefixTokens        = 131072
+	DefaultMaxBlocks       = 32
+	MaxBlocksLimit         = 128
+	DefaultBlockSizeTokens = MaxSegmentTokens
+	MaxTools               = 64
 	// MaxToolIdentityBytes bounds the total type/name data hashed in identity mode.
 	MaxToolIdentityBytes = 8192
 	DefaultCapacity      = 31250
@@ -40,8 +41,9 @@ const (
 )
 
 type Options struct {
-	ToolMode  ToolMode
-	MaxBlocks int
+	ToolMode        ToolMode
+	MaxBlocks       int
+	BlockSizeTokens int
 }
 
 type segmentKind byte
@@ -119,11 +121,17 @@ func InspectRequestWithOptions(body []byte, options Options) (string, *Locality,
 	if options.MaxBlocks == 0 {
 		options.MaxBlocks = DefaultMaxBlocks
 	}
+	if options.BlockSizeTokens == 0 {
+		options.BlockSizeTokens = DefaultBlockSizeTokens
+	}
 	if options.ToolMode != ToolModeNone && options.ToolMode != ToolModeIdentity && options.ToolMode != ToolModeFull {
 		return "", nil, false, fmt.Errorf("unsupported tool mode %q", options.ToolMode)
 	}
 	if options.MaxBlocks < 1 || options.MaxBlocks > MaxBlocksLimit {
 		return "", nil, false, fmt.Errorf("max blocks must be in [1,%d]", MaxBlocksLimit)
+	}
+	if options.BlockSizeTokens < 1 || options.BlockSizeTokens > MaxSegmentTokens {
+		return "", nil, false, fmt.Errorf("block size tokens must be in [1,%d]", MaxSegmentTokens)
 	}
 	start := skipWhitespace(body, 0)
 	if start >= len(body) || body[start] != '{' {
@@ -162,7 +170,7 @@ func inspectValidatedRequest(body []byte, options Options) (string, *Locality, b
 	if err != nil {
 		return "", nil, false, err
 	}
-	budget := &blockBudget{remaining: options.MaxBlocks}
+	budget := &blockBudget{remaining: options.MaxBlocks, blockSizeTokens: options.BlockSizeTokens}
 	if messages := fieldValue(fields, "messages"); messages != nil {
 		chains, supported, err := extractChat(messages, fieldValue(fields, "tools"), seed, options.ToolMode, budget)
 		if errors.Is(err, errCanonicalComplexity) || errors.Is(err, errJSONDepthLimit) {
@@ -610,10 +618,11 @@ func (builder *segmentBuilder) Write(data []byte) (int, error) {
 	data = data[:min(len(data), limit)]
 	builder.remaining -= len(data)
 	for len(data) > 0 {
-		copied := copy(builder.buffer[builder.buffered:], data)
+		blockSizeBytes := builder.budget.blockSizeBytes()
+		copied := copy(builder.buffer[builder.buffered:blockSizeBytes], data)
 		builder.buffered += copied
 		data = data[copied:]
-		if builder.buffered == len(builder.buffer) {
+		if builder.buffered == blockSizeBytes {
 			builder.flush()
 			if builder.budget.exhausted() {
 				break
@@ -670,7 +679,7 @@ func (builder *tokenChainBuilder) appendNumberBytes(raw []byte) error {
 	builder.buffer[builder.buffered] = value
 	builder.buffered++
 	builder.total++
-	if builder.buffered == len(builder.buffer) {
+	if builder.buffered == builder.budget.blockTokens() {
 		builder.flush()
 	}
 	return nil
@@ -716,7 +725,10 @@ func (builder *tokenChainBuilder) flush() {
 	builder.buffered = 0
 }
 
-type blockBudget struct{ remaining int }
+type blockBudget struct {
+	remaining       int
+	blockSizeTokens int
+}
 
 func (budget *blockBudget) exhausted() bool { return budget == nil || budget.remaining <= 0 }
 
@@ -730,8 +742,17 @@ func (budget *blockBudget) remainingBytes(buffered int) int {
 	if budget.exhausted() {
 		return 0
 	}
-	return budget.remaining*maxSegmentBytes - buffered
+	return budget.remaining*budget.blockSizeBytes() - buffered
 }
+
+func (budget *blockBudget) blockTokens() int {
+	if budget == nil || budget.blockSizeTokens <= 0 {
+		return DefaultBlockSizeTokens
+	}
+	return budget.blockSizeTokens
+}
+
+func (budget *blockBudget) blockSizeBytes() int { return budget.blockTokens() * 4 }
 
 type boundedWriter struct {
 	target    io.Writer

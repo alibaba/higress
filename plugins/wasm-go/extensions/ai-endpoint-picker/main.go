@@ -127,7 +127,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 		config.metrics.fallback()
 		return types.ActionContinue
 	}
-	model, locality, prefixAvailable, err := inspectRequestBody(body, config.toolMode, config.maxBlocks)
+	model, locality, prefixAvailable, err := inspectRequestBody(body, config.toolMode, config.maxBlocks, config.blockSizeTokens)
 	if err != nil {
 		log.Debugf("ai-endpoint-picker fail-open: reason=invalid_request")
 		config.metrics.fallback()
@@ -210,8 +210,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config Config, body []byte) type
 	return types.ActionContinue
 }
 
-func inspectRequestBody(body []byte, toolMode prefixcache.ToolMode, maxBlocks int) (string, *prefixcache.Locality, bool, error) {
-	return prefixcache.InspectRequestWithOptions(body, prefixcache.Options{ToolMode: toolMode, MaxBlocks: maxBlocks})
+func inspectRequestBody(body []byte, toolMode prefixcache.ToolMode, maxBlocks, blockSizeTokens int) (string, *prefixcache.Locality, bool, error) {
+	return prefixcache.InspectRequestWithOptions(body, prefixcache.Options{
+		ToolMode: toolMode, MaxBlocks: maxBlocks, BlockSizeTokens: blockSizeTokens,
+	})
 }
 
 func syncPrefixCapacity(index *prefixcache.Index, address string, healthy bool, capacity, maxCapacity int) {

@@ -282,6 +282,46 @@ func TestMaxBlocksCapsFlatTokenIDs(t *testing.T) {
 	}
 }
 
+func TestBlockSizeTokensControlsTextAndTokenIDChunks(t *testing.T) {
+	const blockSizeTokens = 128
+	textBody, _ := json.Marshal(map[string]any{
+		"model": "m", "prompt": strings.Repeat("a", blockSizeTokens*4*3),
+	})
+	text := extractForTestWithOptions(t, string(textBody), Options{
+		MaxBlocks: 32, BlockSizeTokens: blockSizeTokens,
+	})
+	if len(text.Chains) != 1 || len(text.Chains[0]) != 3 {
+		t.Fatalf("text blocks=%+v want 3", text.Chains)
+	}
+	for _, block := range text.Chains[0] {
+		if block.EstimatedTokens != blockSizeTokens {
+			t.Fatalf("text block tokens=%d want %d", block.EstimatedTokens, blockSizeTokens)
+		}
+	}
+
+	tokens := extractForTestWithOptions(t, string(tokenIDBody(blockSizeTokens*3)), Options{
+		MaxBlocks: 32, BlockSizeTokens: blockSizeTokens,
+	})
+	if len(tokens.Chains) != 1 || len(tokens.Chains[0]) != 3 {
+		t.Fatalf("token-ID blocks=%+v want 3", tokens.Chains)
+	}
+	for _, block := range tokens.Chains[0] {
+		if block.EstimatedTokens != blockSizeTokens {
+			t.Fatalf("token-ID block tokens=%d want %d", block.EstimatedTokens, blockSizeTokens)
+		}
+	}
+}
+
+func TestBlockSizeTokensRejectsValuesAboveBound(t *testing.T) {
+	for _, blockSizeTokens := range []int{-1, MaxSegmentTokens + 1} {
+		if _, _, _, err := InspectRequestWithOptions([]byte(`{"model":"m","prompt":"x"}`), Options{
+			MaxBlocks: 32, BlockSizeTokens: blockSizeTokens,
+		}); err == nil {
+			t.Fatalf("blockSizeTokens=%d was accepted", blockSizeTokens)
+		}
+	}
+}
+
 func TestDefaultMaxBlocksIs32(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{"model": "m", "prompt": strings.Repeat("a", maxSegmentBytes*(DefaultMaxBlocks+1))})
 	locality := extractForTest(t, string(body))

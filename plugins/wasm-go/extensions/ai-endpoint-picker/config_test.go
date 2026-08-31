@@ -15,7 +15,7 @@ func TestParseConfigDefaults(t *testing.T) {
 		t.Fatalf("parseConfig() error = %v", err)
 	}
 	if config.profile != defaultProfile || config.ewmaAlpha != 0.2 || config.sampleRate != 0 || config.toolMode != prefixcache.ToolModeIdentity ||
-		config.maxBlocks != prefixcache.DefaultMaxBlocks || config.maxCacheBlocksPerEndpoint != prefixcache.DefaultCapacity ||
+		config.maxBlocks != prefixcache.DefaultMaxBlocks || config.blockSizeTokens != prefixcache.DefaultBlockSizeTokens || config.maxCacheBlocksPerEndpoint != prefixcache.DefaultCapacity ||
 		config.maxRequestBodyBytes != defaultMaxRequestBodyBytes || config.vmRebuildThresholdBytes != defaultVMRebuildThresholdBytes {
 		t.Fatalf("unexpected defaults: %+v", config)
 	}
@@ -28,6 +28,20 @@ func TestParseConfigDefaults(t *testing.T) {
 		if config.weights[signal] != weight {
 			t.Errorf("weight %s = %v, want %v", signal, config.weights[signal], weight)
 		}
+	}
+}
+
+func TestParseConfigBlockSizeTokens(t *testing.T) {
+	for _, blockSizeTokens := range []int{64, 128, prefixcache.DefaultBlockSizeTokens} {
+		t.Run(fmt.Sprint(blockSizeTokens), func(t *testing.T) {
+			var config Config
+			if err := parseConfig(gjson.Parse(`{"prefix":{"blockSizeTokens":`+fmt.Sprint(blockSizeTokens)+`}}`), &config); err != nil {
+				t.Fatalf("parseConfig() error = %v", err)
+			}
+			if config.blockSizeTokens != blockSizeTokens {
+				t.Fatalf("blockSizeTokens=%d want %d", config.blockSizeTokens, blockSizeTokens)
+			}
+		})
 	}
 }
 
@@ -149,6 +163,10 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 		`{"prefix":{"maxBlocks":129}}`,
 		`{"prefix":{"maxBlocks":1.5}}`,
 		`{"prefix":{"maxBlocks":"32"}}`,
+		`{"prefix":{"blockSizeTokens":0}}`,
+		`{"prefix":{"blockSizeTokens":1025}}`,
+		`{"prefix":{"blockSizeTokens":1.5}}`,
+		`{"prefix":{"blockSizeTokens":"128"}}`,
 		`{"prefix":{"maxCacheBlocksPerEndpoint":0}}`,
 		`{"prefix":{"maxCacheBlocksPerEndpoint":1048577}}`,
 		`{"limits":"invalid"}`,

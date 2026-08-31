@@ -136,7 +136,7 @@ func TestDeepRequestPreflightRunsBeforeRecursiveJSONAccess(t *testing.T) {
 	depth65 := deepChatMetadataRequest(65)
 	depth20000 := deepChatMetadataRequest(20_000)
 	for _, body := range [][]byte{depth65, depth20000} {
-		model, locality, prefixAvailable, err := inspectRequestBody(body, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks)
+		model, locality, prefixAvailable, err := inspectRequestBody(body, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks, prefixcache.DefaultBlockSizeTokens)
 		if err != nil || model != "m" || prefixAvailable || locality != nil {
 			t.Fatalf("deep request inspection model=%q locality=%+v available=%v err=%v", model, locality, prefixAvailable, err)
 		}
@@ -154,10 +154,10 @@ func TestDeepRequestPreflightRunsBeforeRecursiveJSONAccess(t *testing.T) {
 		}
 	}
 	baselineAllocs := testing.AllocsPerRun(10, func() {
-		_, _, _, _ = inspectRequestBody(depth65, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks)
+		_, _, _, _ = inspectRequestBody(depth65, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks, prefixcache.DefaultBlockSizeTokens)
 	})
 	deepAllocs := testing.AllocsPerRun(10, func() {
-		_, _, _, _ = inspectRequestBody(depth20000, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks)
+		_, _, _, _ = inspectRequestBody(depth20000, prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks, prefixcache.DefaultBlockSizeTokens)
 	})
 	if deepAllocs > baselineAllocs+4 {
 		t.Fatalf("main request inspection allocations grew with depth: depth65=%v depth20000=%v", baselineAllocs, deepAllocs)
@@ -170,7 +170,7 @@ func TestRequestInspectionRejectsInvalidJSONAndModel(t *testing.T) {
 		`{"messages":[]}`,
 		`{"model":3,"messages":[]}`,
 	} {
-		if _, _, _, err := inspectRequestBody([]byte(body), prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks); err == nil {
+		if _, _, _, err := inspectRequestBody([]byte(body), prefixcache.DefaultToolMode, prefixcache.DefaultMaxBlocks, prefixcache.DefaultBlockSizeTokens); err == nil {
 			t.Fatalf("invalid request succeeded: %s", body)
 		}
 	}

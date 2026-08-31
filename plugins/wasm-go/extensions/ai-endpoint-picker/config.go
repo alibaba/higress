@@ -30,6 +30,7 @@ type Config struct {
 	sampleRate                float64
 	toolMode                  prefixcache.ToolMode
 	maxBlocks                 int
+	blockSizeTokens           int
 	maxCacheBlocksPerEndpoint int
 	maxRequestBodyBytes       uint32
 	vmRebuildThresholdBytes   uint64
@@ -142,6 +143,13 @@ func parseConfig(json gjson.Result, config *Config) error {
 		}
 		maxBlocks = int(value.Int())
 	}
+	blockSizeTokens := prefixcache.DefaultBlockSizeTokens
+	if value := json.Get("prefix.blockSizeTokens"); value.Exists() {
+		if value.Type != gjson.Number || value.Float() != math.Trunc(value.Float()) || value.Int() < 1 || value.Int() > prefixcache.MaxSegmentTokens {
+			return fmt.Errorf("prefix.blockSizeTokens must be an integer in [1,%d]", prefixcache.MaxSegmentTokens)
+		}
+		blockSizeTokens = int(value.Int())
+	}
 	maxCacheBlocksPerEndpoint := prefixcache.DefaultCapacity
 	if value := json.Get("prefix.maxCacheBlocksPerEndpoint"); value.Exists() {
 		if value.Type != gjson.Number || value.Float() != math.Trunc(value.Float()) || value.Int() < 1 || value.Int() > maxCacheBlocksPerEndpointLimit {
@@ -175,6 +183,7 @@ func parseConfig(json gjson.Result, config *Config) error {
 	config.sampleRate = sampleRate
 	config.toolMode = toolMode
 	config.maxBlocks = maxBlocks
+	config.blockSizeTokens = blockSizeTokens
 	config.maxCacheBlocksPerEndpoint = maxCacheBlocksPerEndpoint
 	config.maxRequestBodyBytes = maxRequestBodyBytes
 	config.vmRebuildThresholdBytes = vmRebuildThresholdBytes
