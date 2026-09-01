@@ -16,6 +16,34 @@ TOOLS = [{
 }]
 
 
+SCHEMA_COMPATIBILITY = {
+    "server": {"name": "schema-compatibility", "type": "rest"},
+    "tools": [
+        {
+            "name": "getTransactionRecordListV2",
+            "description": "Pinned schema compatibility fixture",
+            "args": [
+                {"name": "transactionId", "description": "Transaction identifier", "type": "string", "required": True, "position": "path"},
+                {"name": "page", "description": "Page number", "type": "integer", "default": 10, "position": "query"},
+                {"name": "X-Compat-Flag", "description": "Compatibility flag", "type": "boolean", "default": False, "position": "header"},
+                {"name": "businessType", "description": "Business types", "type": "array", "enum": ["SALE", "REFUND"], "items": {"type": "string"}, "position": "body"},
+                {"name": "payload", "description": "Deterministic payload", "type": "object", "properties": {"amount": {"type": "integer"}}, "position": "body"},
+            ],
+            "requestTemplate": {
+                "url": "http://backend-primary:8080/compat/{transactionId}?fixed=yes",
+                "method": "POST",
+                "argsToJsonBody": True,
+            },
+        },
+        {
+            "name": "compat_health",
+            "description": "Unrelated valid compatibility tool",
+            "requestTemplate": {"url": "http://backend-primary:8080/compat/health", "method": "GET"},
+        },
+    ],
+}
+
+
 def proxy(name, strategy=None, target="backend-primary", auth=False):
     server = {
         "name": name,
@@ -56,6 +84,7 @@ LISTENERS = [
     (10005, "proxy-default-legacy", "backend-primary", proxy("proxy-default-legacy")),
     (10006, "proxy-auth-modern", "backend-primary", proxy("proxy-auth-modern", "modern", auth=True)),
     (10007, "proxy-secondary-modern", "backend-secondary", proxy("proxy-secondary-modern", "modern", target="backend-secondary")),
+    (10008, "schema-compatibility", "backend-primary", SCHEMA_COMPATIBILITY),
 ]
 
 

@@ -7,7 +7,7 @@ checked-out source, loads it into Envoy from the fixed
 listeners, and records sanitized, machine-readable evidence. The full registry
 name and resolved digest are retained in the evidence manifest.
 
-The current clean exact-head baseline is **11 PASS / 0 FAIL**.
+The expected clean exact-head result is **12 PASS / 0 FAIL**.
 
 ## Purpose and validation boundary
 
@@ -45,7 +45,7 @@ flowchart LR
     R --> G["Generated static Envoy configs"]
     W --> E["Higress gateway image / Envoy / proxy-Wasm"]
     G --> E
-    V["Python verifier"] -->|"45 client exchanges"| E
+    V["Python verifier"] -->|"55 client exchanges"| E
     E --> P["Deterministic primary backend"]
     E --> S["Deterministic secondary backend"]
     P --> V
@@ -68,7 +68,7 @@ The run proceeds as follows:
    configuration plus an isolated configuration that must reject
    `protocolStrategy: auto`.
 4. Podman Compose starts two deterministic Python backends, the auto-rejection
-   gateway, the main gateway, and a verifier container. Eight main listeners
+   gateway, the main gateway, and a verifier container. Nine main listeners
    select registered, REST, composed, and proxy configurations.
 5. [`verify.py`](./verify.py) sends all matrix traffic through the main Envoy
    listeners. The backends record safe event fields so upstream routing,
@@ -91,9 +91,9 @@ The run proceeds as follows:
   legacy MCP responses and exposes safe observable event state.
 - [`generate_envoy.py`](./generate_envoy.py) generates listeners, routes,
   clusters, plugin configuration, and the invalid-auto configuration.
-- [`verify.py`](./verify.py) executes the ten traffic-driven cases and writes
+- [`verify.py`](./verify.py) executes the eleven traffic-driven cases and writes
   the client ledger, case matrix, and final backend snapshots.
-- [`finalize_evidence.py`](./finalize_evidence.py) adds the eleventh
+- [`finalize_evidence.py`](./finalize_evidence.py) adds the twelfth
   configuration-rejection case, verifies access coverage, and writes the
   manifest and SHA256 inventory.
 - [`.gitignore`](./.gitignore) excludes local runtime-evidence and Python cache
@@ -148,14 +148,14 @@ git rev-parse HEAD
 ```
 
 `git status --short` must print nothing. The final JSON line should report
-`"pass": 11`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
+`"pass": 12`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
 should exit with status 0. The verifier prints an intermediate
-`SUMMARY pass=10 fail=0` before the finalizer adds the auto-configuration
+`SUMMARY pass=11 fail=0` before the finalizer adds the auto-configuration
 rejection case.
 
-The finalizer also prints the absolute evidence path. The current expected
-ledger contains 45 recorded client exchanges and 45 Envoy access records. The
-matrix contains 35 backend events across its per-case snapshots.
+The finalizer also prints the absolute evidence path. The expected ledger
+contains 55 recorded client exchanges and 55 Envoy access records. The matrix
+contains 40 backend events across its per-case snapshots.
 
 ### Choose the evidence directory
 
@@ -186,7 +186,7 @@ review, release, or regression baseline.
 
 ## Runtime matrix
 
-The final matrix contains these eleven cases:
+The final matrix contains these twelve cases:
 
 1. **Registered modern discover/list/call** verifies a compiled-in Amap tool,
    its tools-only discovery contract, and exactly one real backend call.
@@ -199,21 +199,27 @@ The final matrix contains these eleven cases:
 5. **Three legacy REST versions** runs initialize, initialized, list, and call
    for `2024-11-05`, `2025-03-26`, and `2025-06-18`, while checking that modern
    result fields do not leak into legacy responses.
-6. **Modern-to-modern proxy** verifies one stateless upstream RPC per downstream
+6. **REST schema compatibility** publishes the pinned array/string-enum
+   descriptor to modern and legacy discovery, blocks modern invocation with
+   the exact `schema_validation_unavailable` JSON-RPC error and zero affected
+   upstream calls, keeps an unrelated valid tool callable before and after the
+   blocked call, and preserves the legacy method, path, query, header,
+   conversion, and JSON-body mapping for all three retained legacy versions.
+7. **Modern-to-modern proxy** verifies one stateless upstream RPC per downstream
    RPC, modern metadata, scoped `Mcp-Param-*` forwarding, and credential/session
    header isolation.
-7. **Modern-to-legacy proxy** verifies an isolated
+8. **Modern-to-legacy proxy** verifies an isolated
    initialize -> initialized -> target-RPC handshake for each list or call and
    exactly six backend events in total.
-8. **Default proxy strategy is legacy** verifies all three legacy downstream
+9. **Default proxy strategy is legacy** verifies all three legacy downstream
    versions, request-scoped upstream handshakes, `/legacy` routing, and exactly
    18 backend events.
-9. **Legacy-to-modern remains unsupported** verifies the deferred bridge is
+10. **Legacy-to-modern remains unsupported** verifies the deferred bridge is
    rejected without upstream probing, fallback, or retry.
-10. **Authentication, error, and cross-origin isolation** verifies explicit
+11. **Authentication, error, and cross-origin isolation** verifies explicit
     bearer policy, preservation of 401/403 and `WWW-Authenticate`, and no state
     or header leakage from the primary backend to the secondary backend.
-11. **Auto strategy rejection** verifies that the deferred
+12. **Auto strategy rejection** verifies that the deferred
     `protocolStrategy: auto` configuration is rejected before any upstream
     request.
 
@@ -229,7 +235,7 @@ events instead of six, while the default-legacy flows emitted 24 instead of 18;
 the extra requests forwarded the original downstream RPC after the completed
 legacy proxy callout.
 
-The fixed clean exact-head baseline is now **11 PASS / 0 FAIL**. The strict
+The pre-compatibility clean exact-head baseline was **11 PASS / 0 FAIL**. The strict
 six-event and 18-event assertions remain intentionally in place as regression
 guards. Duplicate RPCs, extra `/mcp` requests, or cross-era
 `Mcp-Param-Future` forwarding must not be accepted as a new baseline.
@@ -242,7 +248,7 @@ A completed evidence directory contains:
   sanitization, and cleanup identity.
 - `matrix.json`: all case statuses and details, including sanitized per-case
   backend event snapshots and client exchanges.
-- `client-exchanges.json`: the 45-exchange ledger with stable request IDs,
+- `client-exchanges.json`: the 55-exchange ledger with stable request IDs,
   selected request metadata, selected response headers, response bodies, and a
   canonical response-body SHA256.
 - `access-coverage.json`: the recorded-exchange and Envoy-access counts plus any
@@ -299,7 +305,7 @@ else
 fi
 ```
 
-Then verify source identity, the 11/0 matrix, the 45/45 access ledger, backend
+Then verify source identity, the 12/0 matrix, the 55/55 access ledger, backend
 event count, plugin/image identities, and cleanup proof:
 
 ```bash
@@ -324,14 +330,14 @@ backend_events = sum(
 
 assert manifest["source_sha"] == expected_source
 assert manifest["source_tree_clean"] is True
-assert matrix["summary"] == {"pass": 11, "fail": 0}
+assert matrix["summary"] == {"pass": 12, "fail": 0}
 assert coverage["status"] == "PASS"
-assert coverage["recordedClientExchangeCount"] == 45
-assert coverage["accessRecordCount"] == 45
+assert coverage["recordedClientExchangeCount"] == 55
+assert coverage["accessRecordCount"] == 55
 assert not coverage["missingRequestIds"]
 assert not coverage["duplicateRequestIds"]
 assert not coverage["unexpectedRequestIds"]
-assert backend_events == 35
+assert backend_events == 40
 assert len(manifest["plugin_sha256"]) == 64
 assert manifest["gateway_resolved_digests"]
 assert manifest["backend_resolved_digests"]

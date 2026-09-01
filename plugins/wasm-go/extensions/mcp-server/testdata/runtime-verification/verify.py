@@ -253,6 +253,82 @@ def legacy_direct_versions():
     return {"versions": list(LEGACY), "flow": "initialize/initialized/list/call", "backendCalls": 3, "backendEvents": {"backend-primary": events}}
 
 
+def schema_compatibility():
+    backend_reset()
+    affected = "getTransactionRecordListV2"
+    valid = "compat_health"
+
+    status, _, listed = modern_rpc(10008, "tools/list", "compat-modern-list")
+    check(status == 200, f"modern compatibility list failed: {status} {listed}")
+    tools = result_contract(listed, ttl=True).get("tools") or []
+    by_name = {tool.get("name"): tool for tool in tools}
+    check(set(by_name) == {affected, valid}, f"compatibility tools are not exact: {tools}")
+    business = by_name[affected]["inputSchema"]["properties"]["businessType"]
+    check(business == {"description": "Business types", "enum": ["SALE", "REFUND"], "items": {"type": "string"}, "type": "array"},
+          f"affected descriptor changed: {business}")
+
+    def call_valid(rpc_id):
+        status, _, response = modern_rpc(10008, "tools/call", rpc_id, valid, {})
+        check(status == 200, f"valid compatibility tool failed: {status} {response}")
+        result_contract(response)
+
+    call_valid("compat-valid-before")
+    status, _, blocked = modern_rpc(10008, "tools/call", "compat-blocked", affected, {"businessType": ["SALE"]})
+    check(status == 200, f"degraded modern call status is not 200: {status} {blocked}")
+    check(blocked == {
+        "jsonrpc": "2.0", "id": "compat-blocked",
+        "error": {"code": -32603, "message": "tool input schema validation is unavailable",
+                  "data": {"reason": "schema_validation_unavailable"}},
+    }, f"degraded modern error envelope changed: {blocked}")
+    events_after_block = backend_state()["events"]
+    check(len(events_after_block) == 1 and events_after_block[0]["path"] == "/compat/health",
+          f"degraded modern call reached backend: {events_after_block}")
+    call_valid("compat-valid-after")
+
+    expected_arguments = {
+        "transactionId": "tx-42", "page": "7", "X-Compat-Flag": "true",
+        "businessType": ["SALE", "REFUND"], "payload": {"amount": 12},
+    }
+    for index, version in enumerate(LEGACY):
+        status, _, legacy_list = legacy_rpc(
+            10008, {"jsonrpc": "2.0", "id": f"compat-list-{index}", "method": "tools/list", "params": {}},
+            version=version,
+        )
+        check(status == 200, f"legacy compatibility list failed for {version}: {status} {legacy_list}")
+        legacy_tools = {tool.get("name"): tool for tool in legacy_list.get("result", {}).get("tools", [])}
+        check(set(legacy_tools) == {affected, valid}, f"legacy compatibility descriptors absent for {version}: {legacy_tools}")
+        check(legacy_tools[affected]["inputSchema"]["properties"]["businessType"]["enum"] == ["SALE", "REFUND"],
+              f"legacy compatibility enum changed for {version}: {legacy_tools[affected]}")
+        status, _, called = legacy_rpc(
+            10008,
+            {"jsonrpc": "2.0", "id": f"compat-call-{index}", "method": "tools/call",
+             "params": {"name": affected, "arguments": expected_arguments}},
+            version=version,
+        )
+        check(status == 200 and "result" in called, f"legacy compatibility call failed for {version}: {status} {called}")
+
+    events = backend_state()["events"]
+    valid_events = [event for event in events if event["path"] == "/compat/health"]
+    legacy_events = [event for event in events if event["path"] == "/compat/tx-42"]
+    check(len(valid_events) == 2 and len(legacy_events) == len(LEGACY), f"compatibility backend counts changed: {events}")
+    for event in legacy_events:
+        observed = event.get("compatibilityRequest") or {}
+        check(event["httpMethod"] == "POST", f"legacy method changed: {event}")
+        check(observed.get("query") == {"fixed": ["yes"], "page": ["7"]}, f"legacy query changed: {event}")
+        check(observed.get("flag") == "true", f"legacy header conversion changed: {event}")
+        check(observed.get("jsonBody") == {"businessType": ["SALE", "REFUND"], "payload": {"amount": 12}},
+              f"legacy JSON body changed: {event}")
+    return {
+        "modernDescriptorPreserved": True,
+        "modernBlockedError": "schema_validation_unavailable",
+        "modernBlockedBackendCalls": 0,
+        "validCallsBeforeAndAfter": 2,
+        "legacyVersions": list(LEGACY),
+        "legacyBackendCalls": len(legacy_events),
+        "backendEvents": {"backend-primary": events},
+    }
+
+
 def modern_proxy():
     backend_reset()
     sensitive = {
@@ -363,6 +439,7 @@ def main():
         ("rest-invalid-args-and-hostile-origin", rest_rejections),
         ("composed-list-and-router-call-boundary", composed_boundary),
         ("rest-three-legacy-versions", legacy_direct_versions),
+        ("rest-schema-compatibility-modern-block-and-legacy-pass-through", schema_compatibility),
         ("proxy-modern-stateless-and-header-isolation", modern_proxy),
         ("proxy-modern-to-legacy-isolated-handshakes", modern_to_legacy),
         ("proxy-default-is-legacy-for-three-versions", default_legacy_proxy),

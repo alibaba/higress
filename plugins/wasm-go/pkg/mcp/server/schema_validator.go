@@ -71,6 +71,40 @@ type schemaCompileState struct {
 	nodes int
 }
 
+type schemaDiagnosticReason uint8
+
+const (
+	schemaDiagnosticNone schemaDiagnosticReason = iota
+	schemaDiagnosticUnsupportedKeyword
+	schemaDiagnosticUnsupportedForm
+	schemaDiagnosticContradictoryConstraint
+)
+
+func (r schemaDiagnosticReason) String() string {
+	switch r {
+	case schemaDiagnosticUnsupportedKeyword:
+		return "unsupported_keyword"
+	case schemaDiagnosticUnsupportedForm:
+		return "unsupported_form"
+	case schemaDiagnosticContradictoryConstraint:
+		return "contradictory_constraint"
+	default:
+		return "none"
+	}
+}
+
+type schemaCompilationError struct {
+	reason schemaDiagnosticReason
+	err    error
+}
+
+func (e *schemaCompilationError) Error() string { return e.err.Error() }
+func (e *schemaCompilationError) Unwrap() error { return e.err }
+
+func schemaCompileError(reason schemaDiagnosticReason, format string, args ...any) error {
+	return &schemaCompilationError{reason: reason, err: fmt.Errorf(format, args...)}
+}
+
 type argumentValidationState struct {
 	nodes int
 }
@@ -88,10 +122,10 @@ var supportedInputSchemaKeywords = map[string]struct{}{
 	"examples":    {},
 }
 
-// compileToolInputSchema accepts only the bounded schema vocabulary that the
-// direct-tool runtime validates. Normalization both copies the public
-// descriptor and removes Go-specific numeric/container representations.
-func compileToolInputSchema(schema map[string]any) (*compiledInputSchema, error) {
+// normalizeToolInputSchema establishes whether a descriptor can be published
+// safely. It deliberately ignores schema keyword semantics while retaining the
+// resource and root-object bounds enforced by the direct-tool runtime.
+func normalizeToolInputSchema(schema map[string]any) (map[string]any, error) {
 	if schema == nil {
 		return nil, errors.New("input schema must be an object")
 	}
@@ -106,6 +140,88 @@ func compileToolInputSchema(schema map[string]any) (*compiledInputSchema, error)
 	if err != nil {
 		return nil, fmt.Errorf("input schema is malformed: %w", err)
 	}
+	if normalized["type"] != "object" {
+		return nil, errors.New("input schema root must declare type \"object\"")
+	}
+	if err := validateSchemaDescriptorBounds(normalized, "$", 0, &schemaCompileState{}); err != nil {
+		return nil, err
+	}
+	return normalized, nil
+}
+
+func validateSchemaDescriptorBounds(value any, path string, depth int, state *schemaCompileState) error {
+	switch typed := value.(type) {
+	case map[string]any:
+		if depth > maxSchemaDepth {
+			return fmt.Errorf("%s: schema nesting exceeds %d", path, maxSchemaDepth)
+		}
+		// The properties container is structural; its values, not the container
+		// itself, are schema nodes in the compiler's retained accounting model.
+		if !strings.HasSuffix(path, ".properties") {
+			state.nodes++
+			if state.nodes > maxSchemaNodes {
+				return fmt.Errorf("input schema exceeds %d schema nodes", maxSchemaNodes)
+			}
+		}
+		if len(typed) > maxSchemaCollectionSize {
+			return fmt.Errorf("%s: exceeds %d entries", path, maxSchemaCollectionSize)
+		}
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			nextDepth := depth + 1
+			if key == "properties" {
+				nextDepth = depth
+			}
+			if err := validateSchemaDescriptorBounds(typed[key], path+"."+key, nextDepth, state); err != nil {
+				return err
+			}
+		}
+	case []any:
+		if depth > maxSchemaDepth {
+			return fmt.Errorf("%s: schema nesting exceeds %d", path, maxSchemaDepth)
+		}
+		state.nodes++
+		if state.nodes > maxSchemaNodes {
+			return fmt.Errorf("input schema exceeds %d schema nodes", maxSchemaNodes)
+		}
+		limit := maxSchemaCollectionSize
+		if strings.HasSuffix(path, ".enum") {
+			limit = maxSchemaEnumSize
+		}
+		if len(typed) > limit {
+			return fmt.Errorf("%s: exceeds %d values", path, limit)
+		}
+		for i, item := range typed {
+			if number, ok := item.(json.Number); ok && strings.HasSuffix(path, ".enum") {
+				if _, comparable := comparableJSONNumber(number); !comparable {
+					return fmt.Errorf("%s[%d]: numeric value exceeds comparison bounds", path, i)
+				}
+			}
+			if err := validateSchemaDescriptorBounds(item, fmt.Sprintf("%s[%d]", path, i), depth+1, state); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// compileToolInputSchema accepts only the bounded schema vocabulary that the
+// direct-tool runtime validates. Descriptor admissibility is intentionally a
+// separate stage so callers can retain safe descriptors when compilation is
+// unavailable.
+func compileToolInputSchema(schema map[string]any) (*compiledInputSchema, error) {
+	normalized, err := normalizeToolInputSchema(schema)
+	if err != nil {
+		return nil, err
+	}
+	return compileNormalizedToolInputSchema(normalized)
+}
+
+func compileNormalizedToolInputSchema(normalized map[string]any) (*compiledInputSchema, error) {
 	root, err := compileInputSchemaNode(normalized, "$", 0, &schemaCompileState{})
 	if err != nil {
 		return nil, err
@@ -132,7 +248,7 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 	sort.Strings(keys)
 	for _, keyword := range keys {
 		if _, supported := supportedInputSchemaKeywords[keyword]; !supported {
-			return nil, fmt.Errorf("%s: unsupported schema keyword %q", path, keyword)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedKeyword, "%s: unsupported schema keyword %q", path, keyword)
 		}
 	}
 
@@ -140,24 +256,24 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 	if rawType, present := schema["type"]; present {
 		typeName, ok := rawType.(string)
 		if !ok {
-			return nil, fmt.Errorf("%s.type: must be a string", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.type: must be a string", path)
 		}
 		kind, ok := parseSchemaValueKind(typeName)
 		if !ok {
-			return nil, fmt.Errorf("%s.type: unsupported type %q", path, typeName)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.type: unsupported type %q", path, typeName)
 		}
 		node.kind = kind
 	}
 
 	if description, present := schema["description"]; present {
 		if _, ok := description.(string); !ok {
-			return nil, fmt.Errorf("%s.description: must be a string", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.description: must be a string", path)
 		}
 	}
 	if examples, present := schema["examples"]; present {
 		values, ok := examples.([]any)
 		if !ok {
-			return nil, fmt.Errorf("%s.examples: must be an array", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.examples: must be an array", path)
 		}
 		if len(values) > maxSchemaCollectionSize {
 			return nil, fmt.Errorf("%s.examples: exceeds %d values", path, maxSchemaCollectionSize)
@@ -167,26 +283,26 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 	if rawEnum, present := schema["enum"]; present {
 		values, ok := rawEnum.([]any)
 		if !ok || len(values) == 0 {
-			return nil, fmt.Errorf("%s.enum: must be a non-empty array", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.enum: must be a non-empty array", path)
 		}
 		if len(values) > maxSchemaEnumSize {
 			return nil, fmt.Errorf("%s.enum: exceeds %d values", path, maxSchemaEnumSize)
 		}
 		if node.kind == schemaAny || node.kind == schemaObject || node.kind == schemaArray {
-			return nil, fmt.Errorf("%s.enum: requires a primitive type", path)
+			return nil, schemaCompileError(schemaDiagnosticContradictoryConstraint, "%s.enum: requires a primitive type", path)
 		}
 		for i, value := range values {
 			if !valueMatchesSchemaKind(value, node.kind) {
-				return nil, fmt.Errorf("%s.enum[%d]: does not match declared type", path, i)
+				return nil, schemaCompileError(schemaDiagnosticContradictoryConstraint, "%s.enum[%d]: does not match declared type", path, i)
 			}
 			if number, ok := value.(json.Number); ok {
 				if _, comparable := comparableJSONNumber(number); !comparable {
-					return nil, fmt.Errorf("%s.enum[%d]: numeric value exceeds comparison bounds", path, i)
+					return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.enum[%d]: numeric value exceeds comparison bounds", path, i)
 				}
 			}
 			for j := 0; j < i; j++ {
 				if equalJSONValue(value, values[j]) {
-					return nil, fmt.Errorf("%s.enum: duplicate value at index %d", path, i)
+					return nil, schemaCompileError(schemaDiagnosticContradictoryConstraint, "%s.enum: duplicate value at index %d", path, i)
 				}
 			}
 		}
@@ -198,7 +314,7 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 		objectKeyword = true
 		properties, ok := rawProperties.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("%s.properties: must be an object", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.properties: must be an object", path)
 		}
 		if len(properties) > maxSchemaCollectionSize {
 			return nil, fmt.Errorf("%s.properties: exceeds %d entries", path, maxSchemaCollectionSize)
@@ -212,7 +328,7 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 		for _, name := range node.propertyNames {
 			propertySchema, ok := properties[name].(map[string]any)
 			if !ok {
-				return nil, fmt.Errorf("%s.properties[%q]: must be an object schema", path, name)
+				return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.properties[%q]: must be an object schema", path, name)
 			}
 			compiled, err := compileInputSchemaNode(propertySchema, schemaPropertyPath(path, name), depth+1, state)
 			if err != nil {
@@ -226,7 +342,7 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 		objectKeyword = true
 		required, ok := rawRequired.([]any)
 		if !ok {
-			return nil, fmt.Errorf("%s.required: must be an array of strings", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.required: must be an array of strings", path)
 		}
 		if len(required) > maxSchemaCollectionSize {
 			return nil, fmt.Errorf("%s.required: exceeds %d entries", path, maxSchemaCollectionSize)
@@ -235,10 +351,10 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 		for i, rawName := range required {
 			name, ok := rawName.(string)
 			if !ok || name == "" {
-				return nil, fmt.Errorf("%s.required[%d]: must be a non-empty string", path, i)
+				return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.required[%d]: must be a non-empty string", path, i)
 			}
 			if _, duplicate := seen[name]; duplicate {
-				return nil, fmt.Errorf("%s.required: duplicate property %q", path, name)
+				return nil, schemaCompileError(schemaDiagnosticContradictoryConstraint, "%s.required: duplicate property %q", path, name)
 			}
 			seen[name] = struct{}{}
 			node.required = append(node.required, name)
@@ -259,20 +375,20 @@ func compileInputSchemaNode(schema map[string]any, path string, depth int, state
 			node.allowAdditional = true
 			node.additionalProperty = compiled
 		default:
-			return nil, fmt.Errorf("%s.additionalProperties: must be a boolean or object schema", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.additionalProperties: must be a boolean or object schema", path)
 		}
 	}
 	if objectKeyword && node.kind != schemaObject {
-		return nil, fmt.Errorf("%s: object keywords require type \"object\"", path)
+		return nil, schemaCompileError(schemaDiagnosticContradictoryConstraint, "%s: object keywords require type \"object\"", path)
 	}
 
 	if rawItems, present := schema["items"]; present {
 		if node.kind != schemaArray {
-			return nil, fmt.Errorf("%s.items: requires type \"array\"", path)
+			return nil, schemaCompileError(schemaDiagnosticContradictoryConstraint, "%s.items: requires type \"array\"", path)
 		}
 		items, ok := rawItems.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("%s.items: must be an object schema", path)
+			return nil, schemaCompileError(schemaDiagnosticUnsupportedForm, "%s.items: must be an object schema", path)
 		}
 		compiled, err := compileInputSchemaNode(items, path+".items", depth+1, state)
 		if err != nil {

@@ -35,6 +35,7 @@ type ErrorData struct {
 	Supported            []Version           `json:"supported,omitempty"`
 	Requested            Version             `json:"requested,omitempty"`
 	RequiredCapabilities *ClientCapabilities `json:"requiredCapabilities,omitempty"`
+	Reason               string              `json:"reason,omitempty"`
 }
 
 // Error is a transport-aware JSON-RPC error. Messages are deliberately fixed
@@ -95,6 +96,15 @@ func MethodNotFound() *Error {
 
 func MethodNotAllowed() *Error {
 	return newError(405, CodeInvalidRequest, "modern MCP requires HTTP POST")
+}
+
+// SchemaValidationUnavailable reports that a safely published tool descriptor
+// cannot be compiled by the server's bounded validator. Tool execution has not
+// started, so this is a handled JSON-RPC server error rather than a tool result.
+func SchemaValidationUnavailable() *Error {
+	protocolError := newError(200, CodeInternalError, "tool input schema validation is unavailable")
+	protocolError.Data = &ErrorData{Reason: "schema_validation_unavailable"}
+	return protocolError
 }
 
 func UnsupportedMediaType() *Error {

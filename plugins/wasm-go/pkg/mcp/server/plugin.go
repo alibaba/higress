@@ -35,10 +35,16 @@ import (
 )
 
 const (
-	DefaultMaxBodyBytes   = protocol.LegacyMaxBodyBytes
-	GlobalToolRegistryKey = "GlobalToolRegistry"
-	DefaultServerVersion  = "1.0.0"
+	DefaultMaxBodyBytes        = protocol.LegacyMaxBodyBytes
+	GlobalToolRegistryKey      = "GlobalToolRegistry"
+	schemaValidationMetricsKey = "SchemaValidationMetrics"
+	DefaultServerVersion       = "1.0.0"
 )
+
+type schemaValidationMetrics struct {
+	degradedPublished proxywasm.MetricCounter
+	modernCallBlocked proxywasm.MetricCounter
+}
 
 // SupportedMCPVersions contains all supported MCP protocol versions
 var SupportedMCPVersions = []string{"2024-11-05", "2025-03-26", "2025-06-18"}
@@ -227,6 +233,10 @@ func onPluginStartOrReload(context wrapper.PluginContext) error {
 	toolRegistry := &GlobalToolRegistry{}
 	toolRegistry.Initialize()
 	context.SetContext(GlobalToolRegistryKey, toolRegistry)
+	context.SetContext(schemaValidationMetricsKey, &schemaValidationMetrics{
+		degradedPublished: proxywasm.DefineCounterMetric("mcp_server_schema_validation_unavailable_published_total"),
+		modernCallBlocked: proxywasm.DefineCounterMetric("mcp_server_schema_validation_unavailable_call_blocked_total"),
+	})
 	context.EnableRuleLevelConfigIsolation()
 	return nil
 }
@@ -298,6 +308,7 @@ type McpServerConfig struct {
 	toolSet        *ToolSetConfig // Parsed toolset configuration
 	isComposed     bool
 	directTools    directToolSnapshot
+	schemaMetrics  *schemaValidationMetrics
 }
 
 // GetServerName returns the server name for external access
@@ -522,8 +533,6 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				if err := restServer.AddRestTool(restTool); err != nil {
 					return fmt.Errorf("failed to add tool %s: %v", restTool.Name, err)
 				}
-				// Register tool to registry
-				opts.ToolRegistry.RegisterTool(config.serverName, restTool.Name, restServer.GetMCPTools()[restTool.Name])
 			}
 			config.server = restServer
 		} else {
@@ -542,10 +551,6 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 					}
 					config.server = clonedServer
 					config.directTools = directTools
-					// Register tools from this server to registry
-					for toolName, toolInstance := range clonedServer.GetMCPTools() {
-						opts.ToolRegistry.RegisterTool(config.serverName, toolName, toolInstance)
-					}
 				} else {
 					return fmt.Errorf("mcp server type '%s' not registered", config.serverName)
 				}
@@ -556,8 +561,9 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 	}
 
 	// Proxy descriptors remain upstream-owned and transparent. Direct tools use
-	// one compiled snapshot for modern discovery and invocation so unsupported
-	// schema semantics fail before the configuration can serve requests.
+	// one analyzed snapshot for modern discovery and invocation; descriptor
+	// integrity failures reject publication, while unsupported semantics retain
+	// an explicit validation-unavailable state.
 	if config.server != nil {
 		if _, isProxy := config.server.(*McpProxyServer); !isProxy && config.directTools.byName == nil {
 			directTools, err := compileDirectToolSnapshot(config.server)
@@ -565,6 +571,13 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				return err
 			}
 			config.directTools = directTools
+		}
+		if _, isProxy := config.server.(*McpProxyServer); !isProxy && !config.isComposed {
+			// Publish direct tools to the shared registry only after the complete
+			// generation snapshot has passed descriptor admissibility.
+			for toolName, toolInstance := range config.server.GetMCPTools() {
+				opts.ToolRegistry.RegisterTool(config.serverName, toolName, toolInstance)
+			}
 		}
 	}
 
@@ -662,7 +675,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 			request, modern := ModernRequestContext(ctx)
 			var tools []map[string]any
 			if modern {
-				// The modern descriptor comes from the same validated snapshot used by
+				// The modern descriptor comes from the same analyzed snapshot used by
 				// tools/call and deliberately omits unvalidated outputSchema.
 				tools = config.directTools.buildModernToolList(effectiveAllowTools)
 			} else {
@@ -713,8 +726,26 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 			if _, modern := ModernRequestContext(ctx); modern {
 				validatedTool, exists := config.directTools.byName[toolName]
 				if exists {
-					toolToCall = validatedTool.tool
-					ok = true
+					if validatedTool.schemaState == directToolSchemaExplicitLegacyOnly {
+						reason := config.directTools.legacyOnly[toolName]
+						sendToolExecutionError(
+							ctx,
+							fmt.Errorf("tool %q is unavailable in the modern profile because its input schema cannot be validated: %s", toolName, reason),
+							fmt.Sprintf("mcp:%s:tools/call:legacy_only_schema", currentServerNameForHandlers),
+						)
+						return nil
+					}
+					if validatedTool.schemaState == directToolSchemaValidationUnavailable {
+						if config.schemaMetrics != nil {
+							config.schemaMetrics.modernCallBlocked.Increment(1)
+						}
+						sendSchemaValidationUnavailable(ctx)
+						return nil
+					}
+					if validatedTool.schemaState != directToolSchemaValidated || validatedTool.validator == nil {
+						utils.OnMCPResponseError(ctx, errors.New("tool validation state is invalid"), utils.ErrInternalError, fmt.Sprintf("mcp:%s:tools/call:invalid_validation_state", currentServerNameForHandlers))
+						return nil
+					}
 					if err := validatedTool.validator.validateArguments(args.Raw); err != nil {
 						sendToolExecutionError(
 							ctx,
@@ -723,14 +754,8 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 						)
 						return nil
 					}
-				}
-				if reason, legacyOnly := config.directTools.legacyOnly[toolName]; legacyOnly {
-					sendToolExecutionError(
-						ctx,
-						fmt.Errorf("tool %q is unavailable in the modern profile because its input schema cannot be validated: %s", toolName, reason),
-						fmt.Sprintf("mcp:%s:tools/call:legacy_only_schema", currentServerNameForHandlers),
-					)
-					return nil
+					toolToCall = validatedTool.tool
+					ok = true
 				}
 			} else {
 				toolToCall, ok = config.server.GetMCPTools()[toolName]
@@ -786,8 +811,20 @@ func parseConfig(context wrapper.PluginContext, configJson gjson.Result, config 
 		ToolRegistry: registry,
 	}
 
-	// Call the core parsing logic
-	return parseConfigCore(configJson, config, opts)
+	// Publish diagnostics only after the complete generation has compiled.
+	if err := parseConfigCore(configJson, config, opts); err != nil {
+		return err
+	}
+	if metrics, ok := context.GetContext(schemaValidationMetricsKey).(*schemaValidationMetrics); ok {
+		config.schemaMetrics = metrics
+		if count := len(config.directTools.degraded); count > 0 {
+			metrics.degradedPublished.Increment(uint64(count))
+		}
+	}
+	if summary := config.directTools.degradedSummary(); summary != "" {
+		log.Warnf("Direct tools published without local schema validation: %s", summary)
+	}
+	return nil
 }
 
 func Load(options ...CtxOption) {

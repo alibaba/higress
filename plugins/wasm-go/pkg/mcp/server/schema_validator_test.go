@@ -125,8 +125,8 @@ func TestCompileToolInputSchemaRejectsUnsupportedOrMalformedSemantics(t *testing
 		{name: "root primitive", schema: map[string]any{"type": "string"}, want: "root must declare"},
 		{name: "unknown keyword", schema: map[string]any{"type": "object", "oneOf": []any{}}, want: `unsupported schema keyword "oneOf"`},
 		{name: "reference", schema: map[string]any{"type": "object", "$ref": "#/$defs/input"}, want: `unsupported schema keyword "$ref"`},
-		{name: "type array", schema: map[string]any{"type": []any{"object", "null"}}, want: "type: must be a string"},
-		{name: "unknown type", schema: map[string]any{"type": "decimal"}, want: "unsupported type"},
+		{name: "type array", schema: map[string]any{"type": []any{"object", "null"}}, want: "root must declare"},
+		{name: "unknown type", schema: map[string]any{"type": "decimal"}, want: "root must declare"},
 		{name: "properties array", schema: map[string]any{"type": "object", "properties": []any{}}, want: "properties: must be an object"},
 		{name: "property boolean schema", schema: map[string]any{"type": "object", "properties": map[string]any{"x": true}}, want: "must be an object schema"},
 		{name: "required non string", schema: map[string]any{"type": "object", "required": []any{1}}, want: "non-empty string"},
@@ -139,7 +139,7 @@ func TestCompileToolInputSchemaRejectsUnsupportedOrMalformedSemantics(t *testing
 			},
 		}, want: "duplicate value"},
 		{name: "items on object", schema: map[string]any{"type": "object", "items": map[string]any{}}, want: `requires type "array"`},
-		{name: "object keyword without object type", schema: map[string]any{"properties": map[string]any{}}, want: `require type "object"`},
+		{name: "object keyword without object type", schema: map[string]any{"properties": map[string]any{}}, want: `root must declare type "object"`},
 		{name: "bad additional properties", schema: map[string]any{"type": "object", "additionalProperties": "yes"}, want: "must be a boolean or object schema"},
 		{name: "bad description", schema: map[string]any{"type": "object", "description": 1}, want: "must be a string"},
 		{name: "bad examples", schema: map[string]any{"type": "object", "examples": "one"}, want: "must be an array"},
@@ -152,6 +152,40 @@ func TestCompileToolInputSchemaRejectsUnsupportedOrMalformedSemantics(t *testing
 			assert.Contains(t, err.Error(), test.want)
 		})
 	}
+}
+
+func TestNormalizeToolInputSchemaSeparatesAdmissibilityFromCompilation(t *testing.T) {
+	reproduced := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"businessType": map[string]any{
+				"type": "array",
+				"enum": []any{"A", "B"},
+			},
+		},
+	}
+
+	descriptor, err := normalizeToolInputSchema(reproduced)
+	require.NoError(t, err)
+	assert.Equal(t, reproduced, descriptor)
+
+	_, err = compileNormalizedToolInputSchema(descriptor)
+	var compilationError *schemaCompilationError
+	require.ErrorAs(t, err, &compilationError)
+	assert.Equal(t, schemaDiagnosticContradictoryConstraint, compilationError.reason)
+}
+
+func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testing.T) {
+	_, err := normalizeToolInputSchema(map[string]any{"type": "string", "oneOf": []any{}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "root must declare")
+
+	_, err = normalizeToolInputSchema(map[string]any{
+		"type": "object",
+		"enum": append(make([]any, maxSchemaEnumSize), "overflow"),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds 256 values")
 }
 
 func TestCompileToolInputSchemaBoundsNestingAndArgumentSize(t *testing.T) {

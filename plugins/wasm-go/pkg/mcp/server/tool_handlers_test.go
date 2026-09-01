@@ -16,7 +16,9 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/consts"
@@ -99,6 +101,18 @@ func modernToolHeaders(name string) [][2]string {
 	}
 }
 
+func modernToolListHeaders() [][2]string {
+	return [][2]string{
+		{":authority", "mcp.example.com"},
+		{":method", "POST"},
+		{":path", "/mcp"},
+		{"content-type", "application/json"},
+		{"accept", "application/json, text/event-stream"},
+		{protocol.HeaderProtocolVersion, string(protocol.Version20260728)},
+		{protocol.HeaderMethod, "tools/list"},
+	}
+}
+
 func legacyToolHeaders() [][2]string {
 	return [][2]string{
 		{":authority", "mcp.example.com"},
@@ -176,6 +190,104 @@ func TestModernRegisteredToolInvokesAfterValidation(t *testing.T) {
 	assert.Equal(t, "registered", gjson.GetBytes(response.Data, "result._meta.io\\.modelcontextprotocol/serverInfo.name").String())
 	assert.Equal(t, 1, counters.create)
 	assert.Equal(t, 1, counters.call)
+}
+
+func TestModernDegradedToolListsButReturnsExactServerErrorWithoutInvocation(t *testing.T) {
+	savedGlobalContext := globalContext
+	globalContext = Context{servers: make(map[string]Server)}
+	counters := &validationToolCounters{}
+	registered := newValidationTestServer()
+	reproduced := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"businessType": map[string]any{"type": "array", "enum": []any{"A", "B"}},
+		},
+	}
+	registered.AddMCPTool("degraded", &validationTestTool{counters: counters, schema: reproduced})
+	registered.AddMCPTool("valid", &validationTestTool{counters: counters, schema: map[string]any{"type": "object"}})
+	Load(AddMCPServer("registered", registered))
+	Initialize()
+	t.Cleanup(func() { globalContext = savedGlobalContext })
+
+	t.Run("list preserves descriptor", func(t *testing.T) {
+		listHost := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"}}`))
+		require.Equal(t, types.ActionPause, listHost.CallOnHttpRequestHeaders(modernToolListHeaders()))
+		listBody := []byte(`{"jsonrpc":"2.0","id":"list-1","method":"tools/list","params":{"_meta":{"` +
+			protocol.MetaProtocolVersion + `":"2026-07-28","` + protocol.MetaClientCapabilities + `":{}}}}`)
+		require.Equal(t, types.ActionContinue, listHost.CallOnHttpRequestBody(listBody))
+		listResponse := listHost.GetLocalResponse()
+		require.NotNil(t, listResponse)
+		assert.Equal(t, "degraded", gjson.GetBytes(listResponse.Data, "result.tools.0.name").String())
+		assert.Equal(t, "array", gjson.GetBytes(listResponse.Data, "result.tools.0.inputSchema.properties.businessType.type").String())
+		assert.Equal(t, "A", gjson.GetBytes(listResponse.Data, "result.tools.0.inputSchema.properties.businessType.enum.0").String())
+		assert.Equal(t, "valid", gjson.GetBytes(listResponse.Data, "result.tools.1.name").String())
+	})
+
+	t.Run("call is blocked", func(t *testing.T) {
+		callHost := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"}}`))
+		require.Equal(t, types.ActionPause, callHost.CallOnHttpRequestHeaders(modernToolHeaders("degraded")))
+		require.Equal(t, types.ActionContinue, callHost.CallOnHttpRequestBody(modernToolCallBody("degraded", `{"businessType":["A"]}`)))
+		response := callHost.GetLocalResponse()
+		require.NotNil(t, response)
+		assert.Equal(t, uint32(200), response.StatusCode)
+		assert.Equal(t, int64(protocol.CodeInternalError), gjson.GetBytes(response.Data, "error.code").Int())
+		assert.Equal(t, "tool input schema validation is unavailable", gjson.GetBytes(response.Data, "error.message").String())
+		assert.Equal(t, "schema_validation_unavailable", gjson.GetBytes(response.Data, "error.data.reason").String())
+		assert.Equal(t, int64(1), gjson.GetBytes(response.Data, "id").Int())
+		assert.False(t, gjson.GetBytes(response.Data, "result").Exists())
+		assert.Empty(t, callHost.GetHttpCalloutAttributes())
+	})
+	assert.Zero(t, counters.create)
+	assert.Zero(t, counters.call)
+}
+
+func TestLegacyDegradedToolRetainsInvocationBehavior(t *testing.T) {
+	savedGlobalContext := globalContext
+	globalContext = Context{servers: make(map[string]Server)}
+	counters := &validationToolCounters{}
+	registered := newValidationTestServer()
+	registered.AddMCPTool("degraded", &validationTestTool{counters: counters, schema: map[string]any{
+		"type":  "object",
+		"oneOf": []any{map[string]any{"type": "object"}},
+	}})
+	Load(AddMCPServer("registered", registered))
+	Initialize()
+	t.Cleanup(func() { globalContext = savedGlobalContext })
+	host := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"}}`))
+
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(legacyToolHeaders()))
+	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"degraded","arguments":{"legacy":true}}}`)
+	require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
+	response := host.GetLocalResponse()
+	require.NotNil(t, response)
+	assert.False(t, gjson.GetBytes(response.Data, "result.isError").Bool())
+	assert.Equal(t, 1, counters.create)
+	assert.Equal(t, 1, counters.call)
+}
+
+func TestModernDegradedToolDoesNotBypassAllowToolsPrecedence(t *testing.T) {
+	savedGlobalContext := globalContext
+	globalContext = Context{servers: make(map[string]Server)}
+	registered := newValidationTestServer()
+	registered.AddMCPTool("degraded", &validationTestTool{counters: &validationToolCounters{}, schema: map[string]any{
+		"type":  "object",
+		"oneOf": []any{map[string]any{"type": "object"}},
+	}})
+	registered.AddMCPTool("valid", &validationTestTool{counters: &validationToolCounters{}, schema: map[string]any{"type": "object"}})
+	Load(AddMCPServer("registered", registered))
+	Initialize()
+	t.Cleanup(func() { globalContext = savedGlobalContext })
+	host := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"},"allowTools":["valid"]}`))
+
+	require.Equal(t, types.ActionPause, host.CallOnHttpRequestHeaders(modernToolHeaders("degraded")))
+	require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(modernToolCallBody("degraded", `{}`)))
+	response := host.GetLocalResponse()
+	require.NotNil(t, response)
+	assert.Equal(t, int64(protocol.CodeInvalidParams), gjson.GetBytes(response.Data, "error.code").Int())
+	assert.Contains(t, gjson.GetBytes(response.Data, "error.message").String(), "Tool not allowed")
+	assert.False(t, gjson.GetBytes(response.Data, "error.data.reason").Exists())
+	assert.NotContains(t, string(response.Data), "schema_validation_unavailable")
+	assert.Empty(t, host.GetHttpCalloutAttributes())
 }
 
 func TestModernRegisteredToolFailureIsToolExecutionError(t *testing.T) {
@@ -402,6 +514,7 @@ func TestComposedSnapshotPreservesLegacyOnlyRESTCompatibility(t *testing.T) {
 	assert.True(t, config.isComposed)
 	assert.Empty(t, config.directTools.buildModernToolList(nil))
 	assert.Contains(t, config.directTools.legacyOnly["rest___legacy"], `unsupported schema keyword "oneOf"`)
+	assert.Equal(t, directToolSchemaExplicitLegacyOnly, config.directTools.byName["rest___legacy"].schemaState)
 	assert.False(t, modernMethodPolicy(*config, "tools/call").Available)
 
 	legacy := buildToolList(config.server, nil, true)
@@ -417,7 +530,7 @@ func TestComposedSnapshotPreservesLegacyOnlyRESTCompatibility(t *testing.T) {
 	assert.Contains(t, clonedSnapshot.legacyOnly, "rest___legacy")
 }
 
-func TestDirectToolSchemasAreRejectedBeforeServing(t *testing.T) {
+func TestAdmissibleUnsupportedDirectToolSchemasDegradePerTool(t *testing.T) {
 	unsupported := map[string]any{
 		"type":  "object",
 		"oneOf": []any{map[string]any{"type": "object"}},
@@ -432,9 +545,11 @@ func TestDirectToolSchemasAreRejectedBeforeServing(t *testing.T) {
 			ToolRegistry: &GlobalToolRegistry{},
 		}
 		opts.ToolRegistry.Initialize()
-		err := ParseConfigCore(gjson.Parse(`{"server":{"name":"registered"}}`), config, opts)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `unsupported schema keyword "oneOf"`)
+		require.NoError(t, ParseConfigCore(gjson.Parse(`{"server":{"name":"registered"}}`), config, opts))
+		entry := config.directTools.byName["bad"]
+		assert.Equal(t, directToolSchemaValidationUnavailable, entry.schemaState)
+		assert.Nil(t, entry.validator)
+		assert.Equal(t, unsupported, entry.inputSchema)
 	})
 
 	t.Run("rest", func(t *testing.T) {
@@ -450,10 +565,11 @@ func TestDirectToolSchemasAreRejectedBeforeServing(t *testing.T) {
 			}},
 			RequestTemplate: RestToolRequestTemplate{URL: "/items", Method: "POST"},
 		})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `unsupported schema keyword "oneOf"`)
-		assert.Contains(t, err.Error(), "legacyOnly: true")
-		assert.Empty(t, rest.GetMCPTools())
+		require.NoError(t, err)
+		snapshot, err := compileDirectToolSnapshot(rest)
+		require.NoError(t, err)
+		assert.Equal(t, directToolSchemaValidationUnavailable, snapshot.byName["bad"].schemaState)
+		assert.Len(t, snapshot.buildModernToolList(nil), 1)
 	})
 
 	t.Run("composed", func(t *testing.T) {
@@ -465,9 +581,79 @@ func TestDirectToolSchemasAreRejectedBeforeServing(t *testing.T) {
 		err := ParseConfigCore(gjson.Parse(`{
 			"toolSet":{"name":"composed","serverTools":[{"serverName":"registered","tools":["bad"]}]}
 		}`), config, opts)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `unsupported schema keyword "oneOf"`)
+		require.NoError(t, err)
+		entry := config.directTools.byName["registered___bad"]
+		assert.Equal(t, directToolSchemaValidationUnavailable, entry.schemaState)
+		assert.Equal(t, unsupported, entry.inputSchema)
 	})
+}
+
+func TestDescriptorFatalSchemaStillRejectsConfiguration(t *testing.T) {
+	registered := newValidationTestServer()
+	registered.AddMCPTool("bad-root", &validationTestTool{
+		counters: &validationToolCounters{},
+		schema:   map[string]any{"type": "string", "oneOf": []any{}},
+	})
+	config := &McpServerConfig{}
+	opts := &ConfigOptions{Servers: map[string]Server{"registered": registered}, ToolRegistry: &GlobalToolRegistry{}}
+	opts.ToolRegistry.Initialize()
+	err := ParseConfigCore(gjson.Parse(`{"server":{"name":"registered"}}`), config, opts)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `root must declare type "object"`)
+	_, published := opts.ToolRegistry.GetToolInfo("registered", "bad-root")
+	assert.False(t, published, "a rejected generation must not publish tools to the shared registry")
+}
+
+func TestDirectToolSnapshotReloadsDoNotRetainStaleValidatorState(t *testing.T) {
+	serverFor := func(schema map[string]any) Server {
+		registered := newValidationTestServer()
+		registered.AddMCPTool("tool", &validationTestTool{counters: &validationToolCounters{}, schema: schema})
+		return registered
+	}
+	valid := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"value": map[string]any{"type": "string"}},
+	}
+	unvalidated := map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"value": map[string]any{"type": "array", "enum": []any{"A"}}},
+	}
+
+	first, err := compileDirectToolSnapshot(serverFor(valid))
+	require.NoError(t, err)
+	require.Equal(t, directToolSchemaValidated, first.byName["tool"].schemaState)
+	require.NotNil(t, first.byName["tool"].validator)
+
+	second, err := compileDirectToolSnapshot(serverFor(unvalidated))
+	require.NoError(t, err)
+	require.Equal(t, directToolSchemaValidationUnavailable, second.byName["tool"].schemaState)
+	require.Nil(t, second.byName["tool"].validator)
+	require.Equal(t, "array", second.byName["tool"].inputSchema["properties"].(map[string]any)["value"].(map[string]any)["type"])
+
+	third, err := compileDirectToolSnapshot(serverFor(valid))
+	require.NoError(t, err)
+	require.Equal(t, directToolSchemaValidated, third.byName["tool"].schemaState)
+	require.NotNil(t, third.byName["tool"].validator)
+	assert.NotSame(t, first.byName["tool"].validator, third.byName["tool"].validator)
+}
+
+func TestDirectToolDegradedSummaryIsBounded(t *testing.T) {
+	registered := newValidationTestServer()
+	for i := 0; i < maxSchemaDiagnosticToolNames+3; i++ {
+		name := fmt.Sprintf("tool-%02d", i)
+		registered.AddMCPTool(name, &validationTestTool{counters: &validationToolCounters{}, schema: map[string]any{
+			"type":  "object",
+			"oneOf": []any{map[string]any{"type": "object"}},
+		}})
+	}
+	snapshot, err := compileDirectToolSnapshot(registered)
+	require.NoError(t, err)
+	summary := snapshot.degradedSummary()
+	assert.Contains(t, summary, "11 tool(s)")
+	assert.Contains(t, summary, "reasons=unsupported_keyword")
+	assert.Contains(t, summary, "(+3 omitted)")
+	assert.NotContains(t, summary, "tool-08")
+	assert.Len(t, []rune(boundedSchemaDiagnosticToolName(strings.Repeat("工", maxSchemaDiagnosticToolNameRunes+10))), maxSchemaDiagnosticToolNameRunes+3)
 }
 
 func checkedInRESTConfig(t *testing.T, name string) json.RawMessage {

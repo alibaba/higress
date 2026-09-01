@@ -83,6 +83,38 @@ var restMCPServerWithVersionConfig = func() json.RawMessage {
 	return data
 }()
 
+var schemaCompatibilityConfig = func() json.RawMessage {
+	data, _ := json.Marshal(map[string]interface{}{
+		"server": map[string]interface{}{"name": "schema-compat", "type": "rest"},
+		"tools": []map[string]interface{}{
+			{
+				"name": "getTransactionRecordListV2", "description": "Compatibility fixture",
+				"args": []map[string]interface{}{{
+					"name": "businessType", "description": "Business types", "type": "array",
+					"enum": []interface{}{"SALE", "REFUND"}, "items": map[string]interface{}{"type": "string"},
+				}},
+				"requestTemplate": map[string]interface{}{"url": "http://backend.example/compat", "method": "POST", "argsToJsonBody": true},
+			},
+			{
+				"name": "health", "description": "Unrelated valid tool",
+				"requestTemplate": map[string]interface{}{"url": "http://backend.example/health", "method": "GET"},
+			},
+		},
+	})
+	return data
+}()
+
+var ruleLevelSchemaCompatibilityConfig = func() json.RawMessage {
+	var rule map[string]interface{}
+	_ = json.Unmarshal(schemaCompatibilityConfig, &rule)
+	data, _ := json.Marshal(map[string]interface{}{
+		"server":  map[string]interface{}{"name": "global-valid", "type": "rest"},
+		"tools":   []map[string]interface{}{{"name": "global_health", "description": "Global health", "requestTemplate": map[string]interface{}{"url": "http://backend.example/global", "method": "GET"}}},
+		"_rules_": []map[string]interface{}{{"_match_domain_": []string{"compat.example.com"}, "server": rule["server"], "tools": rule["tools"]}},
+	})
+	return data
+}()
+
 // MCP代理服务器配置
 var mcpProxyServerConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -192,6 +224,103 @@ func TestRestMCPServerConfig(t *testing.T) {
 
 			// 对于配置解析测试，主要验证插件启动状态
 			// GetMatchConfig在WASM模式下可能有限制，我们主要关注启动成功
+		})
+	})
+}
+
+func TestSchemaCompatibilityConfigurationLoadsGloballyAndAtRuleLevel(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		for _, fixture := range []struct {
+			name   string
+			config json.RawMessage
+		}{
+			{name: "global", config: schemaCompatibilityConfig},
+			{name: "rule-level", config: ruleLevelSchemaCompatibilityConfig},
+		} {
+			t.Run(fixture.name, func(t *testing.T) {
+				host, status := test.NewTestHost(fixture.config)
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+			})
+		}
+	})
+}
+
+func TestSchemaCompatibilityModernListAndCallBehavior(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		t.Run("modern list preserves degraded and valid descriptors", func(t *testing.T) {
+			host, status := test.NewTestHost(schemaCompatibilityConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			host.InitHttp()
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "compat.example.com"}, {":method", "POST"}, {":path", "/mcp"},
+				{"content-type", "application/json"}, {"accept", "application/json, text/event-stream"},
+				{"origin", "http://compat.example.com"}, {"MCP-Protocol-Version", "2026-07-28"}, {"Mcp-Method", "tools/list"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+			body := []byte(`{"jsonrpc":"2.0","id":"list","method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}`)
+			require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
+			response := host.GetLocalResponse()
+			require.NotNil(t, response)
+			var envelope map[string]interface{}
+			require.NoError(t, json.Unmarshal(response.Data, &envelope))
+			tools := envelope["result"].(map[string]interface{})["tools"].([]interface{})
+			require.Len(t, tools, 2)
+			degraded := tools[0].(map[string]interface{})
+			require.Equal(t, "getTransactionRecordListV2", degraded["name"])
+			properties := degraded["inputSchema"].(map[string]interface{})["properties"].(map[string]interface{})
+			businessType := properties["businessType"].(map[string]interface{})
+			require.Equal(t, "array", businessType["type"])
+			require.Equal(t, []interface{}{"SALE", "REFUND"}, businessType["enum"])
+			require.Equal(t, "health", tools[1].(map[string]interface{})["name"])
+			host.CompleteHttp()
+		})
+
+		t.Run("modern degraded call returns exact server error without routing", func(t *testing.T) {
+			host, status := test.NewTestHost(schemaCompatibilityConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			host.InitHttp()
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "compat.example.com"}, {":method", "POST"}, {":path", "/mcp"},
+				{"content-type", "application/json"}, {"accept", "application/json, text/event-stream"},
+				{"origin", "http://compat.example.com"}, {"MCP-Protocol-Version", "2026-07-28"},
+				{"Mcp-Method", "tools/call"}, {"Mcp-Name", "getTransactionRecordListV2"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+			body := []byte(`{"jsonrpc":"2.0","id":"blocked","method":"tools/call","params":{"name":"getTransactionRecordListV2","arguments":{"businessType":["SALE"]},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}`)
+			require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
+			response := host.GetLocalResponse()
+			require.NotNil(t, response)
+			require.Equal(t, uint32(200), response.StatusCode)
+			var envelope map[string]interface{}
+			require.NoError(t, json.Unmarshal(response.Data, &envelope))
+			require.Equal(t, "blocked", envelope["id"])
+			errorObject := envelope["error"].(map[string]interface{})
+			require.Equal(t, float64(-32603), errorObject["code"])
+			require.Equal(t, "tool input schema validation is unavailable", errorObject["message"])
+			require.Equal(t, "schema_validation_unavailable", errorObject["data"].(map[string]interface{})["reason"])
+			require.Empty(t, host.GetHttpCalloutAttributes())
+			host.CompleteHttp()
+		})
+
+		t.Run("unrelated valid modern tool reaches routing path", func(t *testing.T) {
+			host, status := test.NewTestHost(schemaCompatibilityConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+			host.InitHttp()
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "compat.example.com"}, {":method", "POST"}, {":path", "/mcp"},
+				{"content-type", "application/json"}, {"accept", "application/json, text/event-stream"},
+				{"origin", "http://compat.example.com"}, {"MCP-Protocol-Version", "2026-07-28"},
+				{"Mcp-Method", "tools/call"}, {"Mcp-Name", "health"},
+			})
+			require.Equal(t, types.HeaderStopIteration, action)
+			body := []byte(`{"jsonrpc":"2.0","id":"valid","method":"tools/call","params":{"name":"health","arguments":{},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}`)
+			require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
+			require.Nil(t, host.GetLocalResponse(), "valid tool must not be rejected before routing")
+			host.CompleteHttp()
 		})
 	})
 }
