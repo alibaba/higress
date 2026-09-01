@@ -19,6 +19,8 @@ EXCHANGES = []
 CURRENT_CASE = None
 MODERN = "2026-07-28"
 LEGACY = ("2024-11-05", "2025-03-26", "2025-06-18")
+GATEWAY_HOST = os.environ.get("RUNTIME_GATEWAY_HOST", "gateway")
+GENERATION_TRANSITION = os.environ.get("RUNTIME_GENERATION_TRANSITION", "") == "1"
 
 
 def check(condition, message):
@@ -121,7 +123,7 @@ def modern_rpc(port, rpc_method, rpc_id, name=None, arguments=None, extra_header
     if name is not None:
         headers["Mcp-Name"] = name
     headers.update(extra_headers or {})
-    return exchange(f"http://gateway:{port}/mcp", body, headers)
+    return exchange(f"http://{GATEWAY_HOST}:{port}/mcp", body, headers)
 
 
 def legacy_rpc(port, body, session=None, version=None, request_id=None):
@@ -132,7 +134,80 @@ def legacy_rpc(port, body, session=None, version=None, request_id=None):
         headers["Mcp-Session-Id"] = session
     if version:
         headers["MCP-Protocol-Version"] = version
-    return exchange(f"http://gateway:{port}/mcp", body, headers)
+    return exchange(f"http://{GATEWAY_HOST}:{port}/mcp", body, headers)
+
+
+def wait_lds_version(phase):
+    deadline = time.time() + 45
+    expected = f'"version_info":"{phase}"'
+    while time.time() < deadline:
+        try:
+            status, _, dump = exchange(f"http://{GATEWAY_HOST}:9921/config_dump", method="GET")
+            if status == 200 and expected in json.dumps(dump, separators=(",", ":")):
+                return
+        except (OSError, urllib.error.URLError, socket.timeout):
+            pass
+        time.sleep(0.25)
+    raise RuntimeError(f"Envoy did not publish LDS generation {phase}")
+
+
+def apply_lds_generation(phase):
+    source = EVIDENCE / f"lds-generation-{phase}.yaml"
+    current = EVIDENCE / "lds-generation-current.yaml"
+    temporary = EVIDENCE / f".lds-generation-{phase}.tmp"
+    temporary.write_bytes(source.read_bytes())
+    os.replace(temporary, current)
+    wait_lds_version(phase)
+
+
+def generation_transition():
+    wait_http("http://backend-primary:8080/healthz")
+    wait_http(f"http://{GATEWAY_HOST}:9921/ready")
+    affected = "getTransactionRecordListV2"
+    records = []
+    for phase in ("valid-before", "validation-unavailable", "valid-after"):
+        if phase == "valid-before":
+            wait_lds_version(phase)
+        else:
+            apply_lds_generation(phase)
+        backend_reset()
+        exchange_start = len(EXCHANGES)
+        status, _, listed = modern_rpc(12008, "tools/list", f"generation-list-{phase}")
+        check(status == 200, f"generation list failed: {status} {listed}")
+        tools = result_contract(listed, ttl=True).get("tools") or []
+        by_name = {tool.get("name"): tool for tool in tools}
+        check(set(by_name) == {affected, "compat_health"}, f"generation tools changed: {tools}")
+        business = by_name[affected]["inputSchema"]["properties"]["businessType"]
+        arguments = {"transactionId": "transition", "businessType": ["SALE"]}
+        status, _, called = modern_rpc(12008, "tools/call", f"generation-call-{phase}", affected, arguments)
+        check(status == 200, f"generation call failed: {status} {called}")
+        events = backend_state()["events"]
+        if phase == "validation-unavailable":
+            check(business.get("enum") == ["SALE", "REFUND"], f"degraded descriptor changed: {business}")
+            check(called == {
+                "jsonrpc": "2.0", "id": f"generation-call-{phase}",
+                "error": {"code": -32603, "message": "tool input schema validation is unavailable",
+                          "data": {"reason": "schema_validation_unavailable"}},
+            }, f"degraded generation did not block exactly: {called}")
+            check(events == [], f"degraded generation reached backend: {events}")
+            state = "validation-unavailable"
+        else:
+            check("enum" not in business, f"valid descriptor unexpectedly degraded: {business}")
+            result_contract(called)
+            check(len(events) == 1 and events[0]["path"] == "/compat/transition", f"valid generation did not invoke exactly once: {events}")
+            state = "validated"
+        records.append({
+            "phase": phase,
+            "schemaState": state,
+            "descriptor": by_name[affected],
+            "response": called,
+            "backendEvents": {"backend-primary": events},
+            "clientExchanges": EXCHANGES[exchange_start:],
+        })
+        print(f"PASS generation-{phase} state={state} backend_calls={len(events)}", flush=True)
+    detail = {"ldsVersions": [record["phase"] for record in records], "generations": records}
+    (EVIDENCE / "generation-transition.json").write_text(json.dumps(detail, indent=2, sort_keys=True) + "\n")
+    return 0
 
 
 def result_contract(response, ttl=False):
@@ -431,8 +506,10 @@ def auth_and_isolation():
 
 
 def main():
+    if GENERATION_TRANSITION:
+        return generation_transition()
     wait_http("http://backend-primary:8080/healthz")
-    wait_http("http://gateway:9901/ready")
+    wait_http(f"http://{GATEWAY_HOST}:9901/ready")
     cases = [
         ("registered-modern-discover-list-call", direct_mode(10000, "maps_weather", {"city": "Hangzhou"}, "/v3/weather/weatherInfo")),
         ("rest-modern-discover-list-call", direct_mode(10001, "get_weather", {"city": "Hangzhou"}, "/rest/weather")),

@@ -71,6 +71,13 @@ type schemaCompileState struct {
 	nodes int
 }
 
+// descriptorResourceState is intentionally separate from schemaCompileState.
+// Admissibility bounds the normalized JSON tree uniformly, while compilation
+// counts only semantic schema nodes understood by the bounded validator.
+type descriptorResourceState struct {
+	nodes int
+}
+
 type schemaDiagnosticReason uint8
 
 const (
@@ -143,25 +150,21 @@ func normalizeToolInputSchema(schema map[string]any) (map[string]any, error) {
 	if normalized["type"] != "object" {
 		return nil, errors.New("input schema root must declare type \"object\"")
 	}
-	if err := validateSchemaDescriptorBounds(normalized, "$", 0, &schemaCompileState{}); err != nil {
+	if err := validateJSONDescriptorResourceBounds(normalized, "$", 0, false, &descriptorResourceState{}); err != nil {
 		return nil, err
 	}
 	return normalized, nil
 }
 
-func validateSchemaDescriptorBounds(value any, path string, depth int, state *schemaCompileState) error {
+func validateJSONDescriptorResourceBounds(value any, path string, depth int, enumValues bool, state *descriptorResourceState) error {
 	switch typed := value.(type) {
 	case map[string]any:
 		if depth > maxSchemaDepth {
 			return fmt.Errorf("%s: schema nesting exceeds %d", path, maxSchemaDepth)
 		}
-		// The properties container is structural; its values, not the container
-		// itself, are schema nodes in the compiler's retained accounting model.
-		if !strings.HasSuffix(path, ".properties") {
-			state.nodes++
-			if state.nodes > maxSchemaNodes {
-				return fmt.Errorf("input schema exceeds %d schema nodes", maxSchemaNodes)
-			}
+		state.nodes++
+		if state.nodes > maxSchemaNodes {
+			return fmt.Errorf("input schema exceeds %d JSON container nodes", maxSchemaNodes)
 		}
 		if len(typed) > maxSchemaCollectionSize {
 			return fmt.Errorf("%s: exceeds %d entries", path, maxSchemaCollectionSize)
@@ -172,11 +175,7 @@ func validateSchemaDescriptorBounds(value any, path string, depth int, state *sc
 		}
 		sort.Strings(keys)
 		for _, key := range keys {
-			nextDepth := depth + 1
-			if key == "properties" {
-				nextDepth = depth
-			}
-			if err := validateSchemaDescriptorBounds(typed[key], path+"."+key, nextDepth, state); err != nil {
+			if err := validateJSONDescriptorResourceBounds(typed[key], path+"."+key, depth+1, key == "enum", state); err != nil {
 				return err
 			}
 		}
@@ -186,22 +185,22 @@ func validateSchemaDescriptorBounds(value any, path string, depth int, state *sc
 		}
 		state.nodes++
 		if state.nodes > maxSchemaNodes {
-			return fmt.Errorf("input schema exceeds %d schema nodes", maxSchemaNodes)
+			return fmt.Errorf("input schema exceeds %d JSON container nodes", maxSchemaNodes)
 		}
 		limit := maxSchemaCollectionSize
-		if strings.HasSuffix(path, ".enum") {
+		if enumValues {
 			limit = maxSchemaEnumSize
 		}
 		if len(typed) > limit {
 			return fmt.Errorf("%s: exceeds %d values", path, limit)
 		}
 		for i, item := range typed {
-			if number, ok := item.(json.Number); ok && strings.HasSuffix(path, ".enum") {
+			if number, ok := item.(json.Number); ok && enumValues {
 				if _, comparable := comparableJSONNumber(number); !comparable {
 					return fmt.Errorf("%s[%d]: numeric value exceeds comparison bounds", path, i)
 				}
 			}
-			if err := validateSchemaDescriptorBounds(item, fmt.Sprintf("%s[%d]", path, i), depth+1, state); err != nil {
+			if err := validateJSONDescriptorResourceBounds(item, fmt.Sprintf("%s[%d]", path, i), depth+1, false, state); err != nil {
 				return err
 			}
 		}

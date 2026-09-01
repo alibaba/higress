@@ -12,6 +12,53 @@ from pathlib import Path
 root = Path(os.environ["RUNTIME_EVIDENCE"])
 matrix_path = root / "matrix.json"
 matrix = json.loads(matrix_path.read_text()) if matrix_path.exists() else {"cases": []}
+
+baseline_log = (root / "gateway-baseline.log").read_text(errors="replace") if (root / "gateway-baseline.log").exists() else ""
+baseline_state = json.loads((root / "backend-baseline-state.json").read_text()) if (root / "backend-baseline-state.json").exists() else {"events": ["missing"]}
+baseline_ok = (
+    "requires a primitive type" in baseline_log
+    and "plugin start failed" in baseline_log
+    and baseline_state.get("events") == []
+)
+matrix["cases"].append({
+    "case": "schema-compatibility-pinned-baseline-is-rejected",
+    "status": "PASS" if baseline_ok else "FAIL",
+    "detail": {
+        "sourceSha": os.environ["BASELINE_SHA"],
+        "pluginSha256": os.environ["BASELINE_PLUGIN_SHA256"],
+        "configurationAccepted": False,
+        "compilerRejection": "enum requires a primitive type",
+        "upstreamCalls": 0,
+        "backendEvents": {"backend-primary": []},
+    } if baseline_ok else {"error": "expected pinned baseline compiler rejection or zero-upstream proof is absent"},
+})
+
+generation_phases = ("valid-before", "validation-unavailable", "valid-after")
+generation_path = root / "generation-transition.json"
+generation_transition = json.loads(generation_path.read_text()) if generation_path.exists() else {"generations": []}
+generation_records = generation_transition.get("generations", [])
+process_before = (root / "generation-process-before.txt").read_text().strip() if (root / "generation-process-before.txt").exists() else "missing-before"
+process_after = (root / "generation-process-after.txt").read_text().strip() if (root / "generation-process-after.txt").exists() else "missing-after"
+generation_ok = (
+    [record.get("phase") for record in generation_records] == list(generation_phases)
+    and [record.get("schemaState") for record in generation_records] == ["validated", "validation-unavailable", "validated"]
+    and [len(record.get("backendEvents", {}).get("backend-primary", [])) for record in generation_records] == [1, 0, 1]
+    and generation_transition.get("ldsVersions") == list(generation_phases)
+    and process_before == process_after
+    and not process_before.startswith("missing")
+)
+matrix["cases"].append({
+    "case": "schema-compatibility-same-process-dynamic-generation-transition",
+    "status": "PASS" if generation_ok else "FAIL",
+    "detail": {
+        "sequence": [record.get("schemaState") for record in generation_records],
+        "backendCallsByGeneration": [len(record["backendEvents"]["backend-primary"]) for record in generation_records],
+        "runtimeBoundary": "same Envoy process and Wasm, file-backed LDS config generations",
+        "processIdentity": process_before,
+        "generationEvidence": "generation-transition.json",
+    } if generation_ok else {"error": "same-process valid -> validation-unavailable -> valid LDS evidence is incomplete"},
+})
+
 auto_log = (root / "gateway-auto.log").read_text(errors="replace") if (root / "gateway-auto.log").exists() else ""
 auto_state = json.loads((root / "backend-auto-state.json").read_text()) if (root / "backend-auto-state.json").exists() else {"events": ["missing"]}
 auto_ok = "invalid protocolStrategy value: auto" in auto_log and auto_state.get("events") == []
@@ -63,6 +110,8 @@ manifest = {
     "source_sha": os.environ["SOURCE_SHA"],
     "source_tree_clean": os.environ.get("SOURCE_TREE_CLEAN") == "true",
     "plugin_sha256": os.environ["PLUGIN_SHA256"],
+    "baseline_source_sha": os.environ["BASELINE_SHA"],
+    "baseline_plugin_sha256": os.environ["BASELINE_PLUGIN_SHA256"],
     "gateway_image": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3",
     "gateway_resolved_digests": lines("gateway-image-digests.txt"),
     "backend_image": "docker.io/library/python:3.12-alpine",
@@ -74,7 +123,12 @@ manifest = {
     "access_coverage": access_coverage,
     "evidence_index": [
         "manifest.json", "matrix.json", "client-exchanges.json", "access-coverage.json", "compose-config.yaml", "envoy.yaml", "envoy-auto.yaml",
-        "gateway.log", "gateway-auto.log", "backend-auto-state.json", "backend-primary-final.json", "backend-secondary-final.json",
+        "envoy-baseline.yaml", "envoy-generation.yaml", "lds-generation-valid-before.yaml",
+        "lds-generation-validation-unavailable.yaml", "lds-generation-valid-after.yaml", "lds-generation-current.yaml",
+        "gateway.log", "gateway-auto.log", "gateway-baseline.log", "gateway-generation.log",
+        "backend-auto-state.json", "backend-baseline-state.json", "generation-transition.json",
+        "generation-process-before.txt", "generation-process-after.txt",
+        "backend-primary-final.json", "backend-secondary-final.json",
         "cleanup-proof.txt", "SHA256SUMS",
     ],
     "sanitization": "fake credentials are redacted from textual logs; backend evidence stores only presence/match booleans and never raw credentials or session IDs",
@@ -84,7 +138,7 @@ manifest = {
 
 checksums = []
 for path in sorted(root.iterdir()):
-    if path.is_file() and path.name not in ("plugin.wasm", "SHA256SUMS"):
+    if path.is_file() and path.name not in ("plugin.wasm", "baseline-plugin.wasm", "SHA256SUMS"):
         checksums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
 (root / "SHA256SUMS").write_text("\n".join(checksums) + "\n")
 

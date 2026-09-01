@@ -3,6 +3,7 @@
 
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 
 
@@ -42,6 +43,9 @@ SCHEMA_COMPATIBILITY = {
         },
     ],
 }
+
+VALID_SCHEMA_COMPATIBILITY = deepcopy(SCHEMA_COMPATIBILITY)
+del VALID_SCHEMA_COMPATIBILITY["tools"][0]["args"][3]["enum"]
 
 
 def proxy(name, strategy=None, target="backend-primary", auth=False):
@@ -93,7 +97,7 @@ def block(text, spaces):
     return "\n".join(prefix + line for line in text.splitlines())
 
 
-def listener_yaml(port, name, cluster, config):
+def listener_yaml(port, name, cluster, config, wasm_file="plugin.wasm"):
     config_json = json.dumps(config, sort_keys=True, separators=(",", ":"))
     return f'''  - name: {name}
     address:
@@ -130,7 +134,7 @@ def listener_yaml(port, name, cluster, config):
                         vm_id: {name}
                         runtime: envoy.wasm.runtime.v8
                         code:
-                          local: {{filename: /runtime/plugin.wasm}}
+                          local: {{filename: /runtime/{wasm_file}}}
                       configuration:
                         "@type": type.googleapis.com/google.protobuf.StringValue
                         value: '{config_json}'
@@ -156,6 +160,32 @@ def cluster_yaml(name):
 '''
 
 
+def single_listener_config(admin_port, listener_port, name, config, wasm_file="plugin.wasm"):
+    rendered = f'''admin:
+  address:
+    socket_address: {{address: 0.0.0.0, port_value: {admin_port}}}
+static_resources:
+  listeners:
+'''
+    rendered += listener_yaml(listener_port, name, "backend-primary", config, wasm_file)
+    rendered += "  clusters:\n" + cluster_yaml("backend-primary")
+    return rendered
+
+
+def lds_discovery_response(version, config):
+    listener = listener_yaml(12008, "schema-compatibility-generation", "backend-primary", config)
+    listener = listener.replace(
+        "  - name:",
+        '  - "@type": type.googleapis.com/envoy.config.listener.v3.Listener\n    name:',
+        1,
+    )
+    return f'''version_info: "{version}"
+resources:
+{listener}
+type_url: type.googleapis.com/envoy.config.listener.v3.Listener
+'''
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     main_config = '''admin:
@@ -178,6 +208,34 @@ static_resources:
     auto_config += listener_yaml(11000, "proxy-auto-rejected", "backend-primary", auto)
     auto_config += "  clusters:\n" + cluster_yaml("backend-primary")
     (OUT / "envoy-auto.yaml").write_text(auto_config)
+
+    (OUT / "envoy-baseline.yaml").write_text(single_listener_config(
+        9931, 13008, "schema-compatibility-baseline", SCHEMA_COMPATIBILITY, "baseline-plugin.wasm",
+    ))
+    generation_configs = (
+        ("valid-before", VALID_SCHEMA_COMPATIBILITY),
+        ("validation-unavailable", SCHEMA_COMPATIBILITY),
+        ("valid-after", VALID_SCHEMA_COMPATIBILITY),
+    )
+    for phase, config in generation_configs:
+        (OUT / f"lds-generation-{phase}.yaml").write_text(lds_discovery_response(phase, config))
+    (OUT / "lds-generation-current.yaml").write_text(lds_discovery_response(*generation_configs[0]))
+    generation_bootstrap = '''admin:
+  address:
+    socket_address: {address: 0.0.0.0, port_value: 9921}
+node:
+  id: schema-compatibility-generation
+  cluster: runtime-verification
+dynamic_resources:
+  lds_config:
+    path_config_source:
+      path: /evidence/lds-generation-current.yaml
+    resource_api_version: V3
+static_resources:
+  clusters:
+'''
+    generation_bootstrap += cluster_yaml("backend-primary")
+    (OUT / "envoy-generation.yaml").write_text(generation_bootstrap)
 
 
 if __name__ == "__main__":

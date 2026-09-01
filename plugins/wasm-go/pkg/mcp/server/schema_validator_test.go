@@ -186,6 +186,32 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exceeds 256 values")
+
+	t.Run("ordinary properties keys cannot bypass descriptor depth", func(t *testing.T) {
+		adversarial := map[string]any{"leaf": true}
+		for i := 0; i < maxSchemaDepth+2; i++ {
+			adversarial = map[string]any{"properties": adversarial}
+		}
+		_, err := normalizeToolInputSchema(map[string]any{
+			"type":    "object",
+			"unknown": adversarial,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "schema nesting exceeds")
+	})
+
+	t.Run("every JSON container contributes to the descriptor node bound", func(t *testing.T) {
+		containers := make([]any, maxSchemaNodes)
+		for i := range containers {
+			containers[i] = map[string]any{}
+		}
+		_, err := normalizeToolInputSchema(map[string]any{
+			"type":    "object",
+			"unknown": containers,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "JSON container nodes")
+	})
 }
 
 func TestCompileToolInputSchemaBoundsNestingAndArgumentSize(t *testing.T) {

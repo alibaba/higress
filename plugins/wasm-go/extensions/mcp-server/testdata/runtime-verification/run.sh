@@ -26,24 +26,50 @@ fi
 export RUNTIME_EVIDENCE SOURCE_SHA SOURCE_TREE_CLEAN
 COMPOSE_PROJECT_NAME="mcp-runtime-$$"
 export COMPOSE_PROJECT_NAME
+BASELINE_REVISION=c55d9825c90868f50edbff9764a6b3cf2eb13162
+BASELINE_SHA=$(git -C "$REPO_ROOT" rev-parse "$BASELINE_REVISION^{commit}")
+BASELINE_SOURCE_DIR=""
+export BASELINE_SHA
 
 cleanup() {
   podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify down --volumes --remove-orphans >/dev/null 2>&1 || true
+  if test -n "$BASELINE_SOURCE_DIR" && test -d "$BASELINE_SOURCE_DIR"; then
+    rm -rf -- "$BASELINE_SOURCE_DIR"
+  fi
 }
 trap cleanup EXIT INT TERM
 
 echo "building exact-head mcp-server WASM from $SOURCE_SHA"
 (cd "$EXTENSION_DIR" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/plugin.wasm" .) || exit 3
-if command -v sha256sum >/dev/null 2>&1; then
-  PLUGIN_SHA256=$(sha256sum "$RUNTIME_EVIDENCE/plugin.wasm" | awk '{print $1}')
-else
-  PLUGIN_SHA256=$(shasum -a 256 "$RUNTIME_EVIDENCE/plugin.wasm" | awk '{print $1}')
-fi
-export PLUGIN_SHA256
+
+file_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  else
+    shasum -a 256 "$1" | awk '{print $1}'
+  fi
+}
+
+PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/plugin.wasm")
+echo "building pinned baseline mcp-server WASM from $BASELINE_SHA"
+BASELINE_SOURCE_DIR=$(mktemp -d "$RUNTIME_EVIDENCE/baseline-source.XXXXXX") || exit 3
+git -C "$REPO_ROOT" archive "$BASELINE_SHA" | tar -x -C "$BASELINE_SOURCE_DIR" || exit 3
+(cd "$BASELINE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/baseline-plugin.wasm" .) || exit 3
+BASELINE_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/baseline-plugin.wasm")
+rm -rf -- "$BASELINE_SOURCE_DIR"
+BASELINE_SOURCE_DIR=""
+export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256
 
 RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
-podman pull --quiet higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3 >/dev/null || exit 3
-podman pull --quiet docker.io/library/python:3.12-alpine >/dev/null || exit 3
+if test "${RUNTIME_SKIP_PULL:-0}" = 1; then
+  if test "${RUNTIME_ALLOW_DIRTY:-0}" != 1; then
+    echo "RUNTIME_SKIP_PULL=1 is allowed only for dirty development runs" >&2
+    exit 2
+  fi
+else
+  podman pull --quiet higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3 >/dev/null || exit 3
+  podman pull --quiet docker.io/library/python:3.12-alpine >/dev/null || exit 3
+fi
 podman version --format '{{.Client.Version}}' >"$RUNTIME_EVIDENCE/podman-version.txt"
 podman compose version >"$RUNTIME_EVIDENCE/compose-version.txt" 2>&1
 podman image inspect higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3 --format '{{range .RepoDigests}}{{println .}}{{end}}' >"$RUNTIME_EVIDENCE/gateway-image-digests.txt"
@@ -51,15 +77,46 @@ podman image inspect docker.io/library/python:3.12-alpine --format '{{range .Rep
 podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify config \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/compose-config.yaml"
 
-podman compose -f "$HARNESS_DIR/compose.yaml" up -d backend-primary backend-secondary gateway-auto || exit 4
+podman compose -f "$HARNESS_DIR/compose.yaml" up -d backend-primary backend-secondary gateway-auto gateway-baseline || exit 4
 sleep 2
 podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-auto-state.json" || exit 4
+podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-baseline-state.json" || exit 4
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-baseline >/dev/null 2>&1 || true
+podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-baseline \
+  | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-baseline.log"
+
+VERIFY_STATUS=0
+capture_generation_process() {
+  output=$1
+  container_id=$(podman compose -f "$HARNESS_DIR/compose.yaml" ps -q gateway-generation) || return 1
+  test -n "$container_id" || return 1
+  podman inspect "$container_id" --format '{{.Id}}|{{.State.Pid}}|{{.State.StartedAt}}' >"$output"
+}
+
+podman compose -f "$HARNESS_DIR/compose.yaml" up -d gateway-generation || exit 4
+capture_generation_process "$RUNTIME_EVIDENCE/generation-process-before.txt" || exit 4
+set +e
+podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify run --rm --no-deps \
+  -e RUNTIME_GATEWAY_HOST=gateway-generation -e RUNTIME_GENERATION_TRANSITION=1 verifier
+GENERATION_VERIFY_STATUS=$?
+set -e
+capture_generation_process "$RUNTIME_EVIDENCE/generation-process-after.txt" || exit 4
+if test "$GENERATION_VERIFY_STATUS" -ne 0; then
+  VERIFY_STATUS=1
+fi
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-generation >/dev/null 2>&1 || true
+podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-generation \
+  | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-generation.log"
+
 podman compose -f "$HARNESS_DIR/compose.yaml" up -d gateway || exit 4
 set +e
 podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify run --rm verifier
-VERIFY_STATUS=$?
+MAIN_VERIFY_STATUS=$?
 set -e
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway gateway-auto || exit 4
+if test "$MAIN_VERIFY_STATUS" -ne 0; then
+  VERIFY_STATUS=1
+fi
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway gateway-auto gateway-generation || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' -e 's/downstream-[A-Za-z0-9_-]*/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway.log"
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-auto \
@@ -78,6 +135,7 @@ python3 "$HARNESS_DIR/finalize_evidence.py"
 FINALIZE_STATUS=$?
 set -e
 unlink "$RUNTIME_EVIDENCE/plugin.wasm"
+unlink "$RUNTIME_EVIDENCE/baseline-plugin.wasm"
 if test "$VERIFY_STATUS" -ne 0 || test "$FINALIZE_STATUS" -ne 0; then
   exit 1
 fi

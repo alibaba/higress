@@ -16,6 +16,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -322,6 +323,56 @@ func TestSchemaCompatibilityModernListAndCallBehavior(t *testing.T) {
 			require.Nil(t, host.GetLocalResponse(), "valid tool must not be rejected before routing")
 			host.CompleteHttp()
 		})
+	})
+}
+
+func TestSchemaCompatibilityMetricsGlobalAndRuleLevel(t *testing.T) {
+	const (
+		publishedMetric = "mcp_server_schema_validation_unavailable_published_total"
+		blockedMetric   = "mcp_server_schema_validation_unavailable_call_blocked_total"
+	)
+	test.RunTest(t, func(t *testing.T) {
+		for _, fixture := range []struct {
+			name   string
+			config json.RawMessage
+		}{
+			{name: "global", config: schemaCompatibilityConfig},
+			{name: "rule-level", config: ruleLevelSchemaCompatibilityConfig},
+		} {
+			t.Run(fixture.name, func(t *testing.T) {
+				host, status := test.NewTestHost(fixture.config)
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+				published, err := host.GetCounterMetric(publishedMetric)
+				require.NoError(t, err)
+				require.Equal(t, uint64(1), published, "one degraded tool must be counted once for its published generation")
+				blocked, err := host.GetCounterMetric(blockedMetric)
+				require.NoError(t, err)
+				require.Zero(t, blocked)
+
+				for call := 1; call <= 2; call++ {
+					host.InitHttp()
+					action := host.CallOnHttpRequestHeaders([][2]string{
+						{":authority", "compat.example.com"}, {":method", "POST"}, {":path", "/mcp"},
+						{"content-type", "application/json"}, {"accept", "application/json, text/event-stream"},
+						{"origin", "http://compat.example.com"}, {"MCP-Protocol-Version", "2026-07-28"},
+						{"Mcp-Method", "tools/call"}, {"Mcp-Name", "getTransactionRecordListV2"},
+					})
+					require.Equal(t, types.HeaderStopIteration, action)
+					body := []byte(fmt.Sprintf(`{"jsonrpc":"2.0","id":"blocked-%d","method":"tools/call","params":{"name":"getTransactionRecordListV2","arguments":{"businessType":["SALE"]},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}`, call))
+					require.Equal(t, types.ActionContinue, host.CallOnHttpRequestBody(body))
+					require.NotNil(t, host.GetLocalResponse())
+					require.Empty(t, host.GetHttpCalloutAttributes())
+					host.CompleteHttp()
+					blocked, err = host.GetCounterMetric(blockedMetric)
+					require.NoError(t, err)
+					require.Equal(t, uint64(call), blocked, "each blocked modern call must increment exactly once")
+				}
+				published, err = host.GetCounterMetric(publishedMetric)
+				require.NoError(t, err)
+				require.Equal(t, uint64(1), published, "calls must not recount generation publication")
+			})
+		}
 	})
 }
 

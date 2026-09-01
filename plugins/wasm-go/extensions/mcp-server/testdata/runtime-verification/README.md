@@ -7,7 +7,7 @@ checked-out source, loads it into Envoy from the fixed
 listeners, and records sanitized, machine-readable evidence. The full registry
 name and resolved digest are retained in the evidence manifest.
 
-The expected clean exact-head result is **12 PASS / 0 FAIL**.
+The expected clean exact-head result is **14 PASS / 0 FAIL**.
 
 ## Purpose and validation boundary
 
@@ -19,9 +19,14 @@ boundary:
   the expected registered, REST, composed, and proxy paths;
 - modern response contracts, legacy compatibility, proxy handshakes, error
   behavior, and header isolation hold at runtime;
-- each client exchange has exactly one flushed Envoy access record; and
+- each main-matrix client exchange has exactly one flushed Envoy access record;
 - evidence records the source, plugin, container-image, tool, result, and
-  cleanup identities needed to reproduce and compare a run.
+  cleanup identities needed to reproduce and compare a run;
+- pinned baseline `c55d9825c90868f50edbff9764a6b3cf2eb13162` is built
+  separately and rejects the same compatibility descriptor; and
+- one candidate Wasm is exercised against successive valid,
+  validation-unavailable, and valid file-backed LDS generations in one Envoy
+  process.
 
 The environment is intentionally narrower than a complete Higress deployment.
 It uses static Envoy configuration, deterministic Python fixtures, and direct
@@ -30,6 +35,15 @@ production services, persistent sessions, or deferred MCP capabilities. The
 standalone composed endpoint verifies `tools/list` but rejects `tools/call`:
 successful composed calls require the separate `mcp-router` routing layer. That
 is an architecture boundary, not an `mcp-server` runtime defect.
+
+The generation-transition gateway uses file-backed LDS in one Envoy process.
+The verifier atomically replaces the watched DiscoveryResponse with valid,
+validation-unavailable, and valid versions, waits for each version in Envoy's
+config dump, then sends discovery and invocation traffic through the updated
+listener. The harness records the gateway container ID, PID, and start time
+before and after the sequence and requires them to remain identical. This is a
+real same-process Envoy/proxy-Wasm configuration transition; it does not claim
+to exercise the Higress control plane or Kubernetes delivery path.
 
 GitHub Actions currently runs Go tests, official SDK interoperability tests,
 and an explicit WASM build, but it does **not** run this real Envoy environment
@@ -41,11 +55,11 @@ this harness.
 
 ```mermaid
 flowchart LR
-    R["run.sh on the host"] --> W["Exact-head plugin.wasm build"]
-    R --> G["Generated static Envoy configs"]
+    R["run.sh on the host"] --> W["Candidate and pinned-baseline Wasm builds"]
+    R --> G["Generated static and file-backed LDS configs"]
     W --> E["Higress gateway image / Envoy / proxy-Wasm"]
     G --> E
-    V["Python verifier"] -->|"55 client exchanges"| E
+    V["Python verifier"] -->|"55 main plus 6 generation exchanges"| E
     E --> P["Deterministic primary backend"]
     E --> S["Deterministic secondary backend"]
     P --> V
@@ -62,39 +76,44 @@ The run proceeds as follows:
 1. [`run.sh`](./run.sh) resolves the repository root and source SHA, requires a
    clean tree by default, and creates or accepts an evidence directory outside
    the worktree.
-2. Go builds the checked-out `mcp-server` module for `wasip1/wasm` with
-   `-trimpath`. The script records the module's SHA256 before startup.
+2. Go builds the checked-out `mcp-server` module and an archive of pinned
+   baseline `c55d9825c90868f50edbff9764a6b3cf2eb13162` for `wasip1/wasm` with
+   `-trimpath`. The script records both SHA256 values and removes the temporary
+   archived source tree before startup.
 3. [`generate_envoy.py`](./generate_envoy.py) writes the main static Envoy
    configuration plus an isolated configuration that must reject
    `protocolStrategy: auto`.
-4. Podman Compose starts two deterministic Python backends, the auto-rejection
-   gateway, the main gateway, and a verifier container. Nine main listeners
-   select registered, REST, composed, and proxy configurations.
-5. [`verify.py`](./verify.py) sends all matrix traffic through the main Envoy
-   listeners. The backends record safe event fields so upstream routing,
+4. Podman Compose starts two deterministic Python backends and isolated
+   baseline, generation-transition, auto-rejection, and main gateways. Nine
+   main listeners select registered, REST, composed, and proxy configurations.
+5. [`verify.py`](./verify.py) first drives the candidate Wasm through valid ->
+   validation-unavailable -> valid file-backed LDS generations in one Envoy
+   process, then sends the main matrix traffic. The backends record safe event
+   fields so upstream routing,
    protocol metadata, authentication policy, and isolation can be asserted.
 6. The gateways are stopped before their logs are collected, ensuring buffered
    access records are flushed. Compose resources are then removed.
-7. [`finalize_evidence.py`](./finalize_evidence.py) adds the auto-rejection
-   result, checks access-log coverage, writes the manifest and checksums, and
-   returns non-zero for any failed matrix or coverage assertion.
-8. A completed run deletes the temporary `plugin.wasm`. The build artifact must
+7. [`finalize_evidence.py`](./finalize_evidence.py) adds the baseline,
+   generation-transition, and auto-rejection results, checks access-log
+   coverage, writes the manifest and checksums, and returns non-zero for any
+   failed matrix or coverage assertion.
+8. A completed run deletes both temporary Wasm files. Build artifacts must
    never be committed.
 
 ## Directory components
 
 - [`run.sh`](./run.sh) orchestrates source checks, compilation, image pulls,
   Compose lifecycle, log sanitization, evidence finalization, and cleanup.
-- [`compose.yaml`](./compose.yaml) defines the two backends, two gateway
-  processes, and verifier container.
+- [`compose.yaml`](./compose.yaml) defines the two backends, isolated gateway
+  services, and verifier container.
 - [`backend.py`](./backend.py) implements deterministic REST, modern MCP, and
   legacy MCP responses and exposes safe observable event state.
 - [`generate_envoy.py`](./generate_envoy.py) generates listeners, routes,
   clusters, plugin configuration, and the invalid-auto configuration.
 - [`verify.py`](./verify.py) executes the eleven traffic-driven cases and writes
   the client ledger, case matrix, and final backend snapshots.
-- [`finalize_evidence.py`](./finalize_evidence.py) adds the twelfth
-  configuration-rejection case, verifies access coverage, and writes the
+- [`finalize_evidence.py`](./finalize_evidence.py) adds the three isolated
+  configuration/generation cases, verifies access coverage, and writes the
   manifest and SHA256 inventory.
 - [`.gitignore`](./.gitignore) excludes local runtime-evidence and Python cache
   artifacts if they are accidentally created in this directory.
@@ -148,10 +167,10 @@ git rev-parse HEAD
 ```
 
 `git status --short` must print nothing. The final JSON line should report
-`"pass": 12`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
+`"pass": 14`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
 should exit with status 0. The verifier prints an intermediate
-`SUMMARY pass=11 fail=0` before the finalizer adds the auto-configuration
-rejection case.
+`SUMMARY pass=11 fail=0` before the finalizer adds the baseline,
+dynamic-generation, and auto-configuration cases.
 
 The finalizer also prints the absolute evidence path. The expected ledger
 contains 55 recorded client exchanges and 55 Envoy access records. The matrix
@@ -184,9 +203,15 @@ Such a manifest records `source_tree_clean: false`. A dirty-tree run is useful
 for debugging but is not final exact-head evidence and should not be used as a
 review, release, or regression baseline.
 
+If a registry is temporarily rate-limited and both fixed images already exist
+locally, a dirty development run may also set `RUNTIME_SKIP_PULL=1`. The harness
+still records the cached resolved digests. This flag is rejected unless
+`RUNTIME_ALLOW_DIRTY=1`; clean exact-head evidence always refreshes both tags.
+
 ## Runtime matrix
 
-The final matrix contains these twelve cases:
+The final matrix contains these fourteen cases. The first eleven are driven
+through the main gateway:
 
 1. **Registered modern discover/list/call** verifies a compiled-in Amap tool,
    its tools-only discovery contract, and exactly one real backend call.
@@ -219,7 +244,14 @@ The final matrix contains these twelve cases:
 11. **Authentication, error, and cross-origin isolation** verifies explicit
     bearer policy, preservation of 401/403 and `WWW-Authenticate`, and no state
     or header leakage from the primary backend to the secondary backend.
-12. **Auto strategy rejection** verifies that the deferred
+12. **Pinned baseline rejection** builds baseline `c55d9825...`, loads the same
+    affected descriptor, records the baseline Wasm hash and compiler rejection,
+    and proves zero upstream activity.
+13. **Same-process dynamic generation transition** atomically updates a
+    file-backed LDS source in one Envoy process and proves validated ->
+    validation-unavailable -> validated descriptors, call behavior, and backend
+    counts of 1 -> 0 -> 1. Container ID, PID, and start time must remain stable.
+14. **Auto strategy rejection** verifies that the deferred
     `protocolStrategy: auto` configuration is rejected before any upstream
     request.
 
@@ -257,8 +289,14 @@ A completed evidence directory contains:
   event state for each deterministic backend.
 - `backend-auto-state.json`: proof that the rejected auto configuration made no
   upstream request.
-- `envoy.yaml` and `envoy-auto.yaml`: the exact generated static Envoy
-  configurations used by the run.
+- `backend-baseline-state.json` and `gateway-baseline.log`: pinned-baseline
+  zero-upstream and compiler-rejection proof.
+- `generation-transition.json`, `generation-process-*.txt`, and
+  `gateway-generation.log`: per-generation descriptors, responses, backend
+  events, exchanges, runtime log, and stable process identity.
+- `envoy.yaml`, `envoy-auto.yaml`, `envoy-baseline.yaml`,
+  `envoy-generation.yaml`, and `lds-generation-*.yaml`: the exact static and
+  dynamic Envoy configurations.
 - `compose-config.yaml`: the resolved Compose configuration with fixture
   credentials redacted.
 - `gateway.log` and `gateway-auto.log`: sanitized Envoy runtime and access logs,
@@ -273,6 +311,8 @@ The main `manifest.json` fields have these meanings:
 
 - `source_sha` and `source_tree_clean` identify the committed code under test.
 - `plugin_sha256` identifies the exact temporary WASM bytes loaded by Envoy.
+- `baseline_source_sha` and `baseline_plugin_sha256` identify the independently
+  built pinned rejection baseline.
 - `gateway_image`, `backend_image`, and their resolved digest arrays identify
   the container inputs; compare digests because tags can move.
 - `podman_version` and `compose_version` identify the local orchestration tools.
@@ -281,11 +321,11 @@ The main `manifest.json` fields have these meanings:
 - `sanitization` records the evidence redaction policy.
 - `cleanup` embeds the cleanup-proof result.
 
-`plugin.wasm` is temporary. Its SHA256 is calculated before the containers
-start, then recorded in `manifest.json`; the completed run deletes the file and
-does not include it in `SHA256SUMS`. If the script exits before finalization, a
-partial evidence directory may still contain `plugin.wasm`. Delete that partial
-artifact after diagnosis, and never add it to Git.
+`plugin.wasm` and `baseline-plugin.wasm` are temporary. Their SHA256 values are
+calculated before containers start and recorded in `manifest.json`; the
+completed run deletes both and excludes them from `SHA256SUMS`. If the script
+exits before finalization, delete either partial artifact after diagnosis and
+never add it to Git.
 
 ## Verify a completed evidence set
 
@@ -305,7 +345,7 @@ else
 fi
 ```
 
-Then verify source identity, the 12/0 matrix, the 55/55 access ledger, backend
+Then verify source identity, the 14/0 matrix, the 55/55 main access ledger, backend
 event count, plugin/image identities, and cleanup proof:
 
 ```bash
@@ -330,7 +370,8 @@ backend_events = sum(
 
 assert manifest["source_sha"] == expected_source
 assert manifest["source_tree_clean"] is True
-assert matrix["summary"] == {"pass": 12, "fail": 0}
+assert manifest["baseline_source_sha"] == "c55d9825c90868f50edbff9764a6b3cf2eb13162"
+assert matrix["summary"] == {"pass": 14, "fail": 0}
 assert coverage["status"] == "PASS"
 assert coverage["recordedClientExchangeCount"] == 55
 assert coverage["accessRecordCount"] == 55
@@ -339,6 +380,7 @@ assert not coverage["duplicateRequestIds"]
 assert not coverage["unexpectedRequestIds"]
 assert backend_events == 40
 assert len(manifest["plugin_sha256"]) == 64
+assert len(manifest["baseline_plugin_sha256"]) == 64
 assert manifest["gateway_resolved_digests"]
 assert manifest["backend_resolved_digests"]
 assert cleanup.startswith("PASS no containers remain")
@@ -346,6 +388,7 @@ assert cleanup.startswith("PASS no containers remain")
 print(json.dumps({
     "source_sha": manifest["source_sha"],
     "plugin_sha256": manifest["plugin_sha256"],
+    "baseline_plugin_sha256": manifest["baseline_plugin_sha256"],
     "gateway_digests": manifest["gateway_resolved_digests"],
     "backend_digests": manifest["backend_resolved_digests"],
     "matrix": matrix["summary"],
@@ -417,7 +460,8 @@ For startup and runtime failures:
 - confirm the evidence path is absolute, shared with the Podman machine, and
   writable by the host;
 - check image-pull and Go-module network access;
-- inspect `gateway.log`, `gateway-auto.log`, `matrix.json`, and the case's
+- inspect `gateway.log`, `gateway-auto.log`, `gateway-baseline.log`,
+  `gateway-generation.log`, `matrix.json`, and the case's
   `backendEvents` / `clientExchanges` before rerunning;
 - treat missing or duplicate access IDs as an incomplete or duplicated Envoy
   exchange, not merely a logging cosmetic; and
