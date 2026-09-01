@@ -26,7 +26,7 @@ var (
 	McpServerWasmImageUrl     = env.RegisterStringVar("MCP_SERVER_WASM_IMAGE_URL", "oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/mcp-server/all-in-one:1.0.0", "").Get()
 	AIEndpointPickerPluginURL = env.RegisterStringVar(
 		"AI_ENDPOINT_PICKER_PLUGIN_URL",
-		"oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-endpoint-picker:1.0.0-alpha",
+		"oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-endpoint-picker:2.0.0",
 		"OCI URL of the ai-endpoint-picker plugin injected for built-in Gateway API inference routing",
 	).Get()
 )
