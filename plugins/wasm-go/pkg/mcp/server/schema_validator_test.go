@@ -15,6 +15,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -197,7 +198,7 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 			"unknown": adversarial,
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "schema nesting exceeds")
+		assert.Contains(t, err.Error(), "JSON container nesting exceeds")
 	})
 
 	t.Run("every JSON container contributes to the descriptor node bound", func(t *testing.T) {
@@ -211,6 +212,49 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "JSON container nodes")
+	})
+
+	t.Run("old maximum nested object depth remains admissible and compilable", func(t *testing.T) {
+		nested := map[string]any{"type": "string"}
+		for i := 0; i < maxSchemaDepth; i++ {
+			nested = map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"child": nested},
+			}
+		}
+		descriptor, err := normalizeToolInputSchema(nested)
+		require.NoError(t, err)
+		_, err = compileNormalizedToolInputSchema(descriptor)
+		require.NoError(t, err)
+	})
+
+	t.Run("one semantic schema level beyond the old depth limit remains fatal", func(t *testing.T) {
+		nested := map[string]any{"type": "string"}
+		for i := 0; i < maxSchemaDepth+1; i++ {
+			nested = map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"child": nested},
+			}
+		}
+		_, err := normalizeToolInputSchema(nested)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "schema nesting exceeds")
+	})
+
+	t.Run("old near-node-limit properties do not consume a second structural budget", func(t *testing.T) {
+		properties := make(map[string]any, maxSchemaNodes-1)
+		for i := 0; i < maxSchemaNodes-1; i++ {
+			properties[fmt.Sprintf("property-%04d", i)] = map[string]any{
+				"type":     "object",
+				"required": []any{},
+				"examples": []any{},
+			}
+		}
+		schema := map[string]any{"type": "object", "properties": properties}
+		descriptor, err := normalizeToolInputSchema(schema)
+		require.NoError(t, err)
+		_, err = compileNormalizedToolInputSchema(descriptor)
+		require.NoError(t, err)
 	})
 }
 

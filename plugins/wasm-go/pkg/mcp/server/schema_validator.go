@@ -71,11 +71,21 @@ type schemaCompileState struct {
 	nodes int
 }
 
+type descriptorTraversalRole uint8
+
+const (
+	descriptorRoleSchemaNode descriptorTraversalRole = iota
+	descriptorRolePropertiesContainer
+	descriptorRoleKeywordCollection
+	descriptorRoleGenericContainer
+)
+
 // descriptorResourceState is intentionally separate from schemaCompileState.
-// Admissibility bounds the normalized JSON tree uniformly, while compilation
-// counts only semantic schema nodes understood by the bounded validator.
+// Schema nodes retain the compiler's historical capacity, while unknown and
+// annotation JSON containers have their own independent resource budget.
 type descriptorResourceState struct {
-	nodes int
+	schemaNodes  int
+	genericNodes int
 }
 
 type schemaDiagnosticReason uint8
@@ -150,42 +160,33 @@ func normalizeToolInputSchema(schema map[string]any) (map[string]any, error) {
 	if normalized["type"] != "object" {
 		return nil, errors.New("input schema root must declare type \"object\"")
 	}
-	if err := validateJSONDescriptorResourceBounds(normalized, "$", 0, false, &descriptorResourceState{}); err != nil {
+	if err := validateJSONDescriptorResourceBounds(normalized, "$", descriptorRoleSchemaNode, 0, 0, false, &descriptorResourceState{}); err != nil {
 		return nil, err
 	}
 	return normalized, nil
 }
 
-func validateJSONDescriptorResourceBounds(value any, path string, depth int, enumValues bool, state *descriptorResourceState) error {
+func validateJSONDescriptorResourceBounds(
+	value any,
+	path string,
+	role descriptorTraversalRole,
+	schemaDepth int,
+	genericDepth int,
+	enumValues bool,
+	state *descriptorResourceState,
+) error {
 	switch typed := value.(type) {
 	case map[string]any:
-		if depth > maxSchemaDepth {
-			return fmt.Errorf("%s: schema nesting exceeds %d", path, maxSchemaDepth)
-		}
-		state.nodes++
-		if state.nodes > maxSchemaNodes {
-			return fmt.Errorf("input schema exceeds %d JSON container nodes", maxSchemaNodes)
-		}
-		if len(typed) > maxSchemaCollectionSize {
-			return fmt.Errorf("%s: exceeds %d entries", path, maxSchemaCollectionSize)
-		}
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			if err := validateJSONDescriptorResourceBounds(typed[key], path+"."+key, depth+1, key == "enum", state); err != nil {
-				return err
-			}
-		}
+		return validateJSONDescriptorMapBounds(typed, path, role, schemaDepth, genericDepth, state)
 	case []any:
-		if depth > maxSchemaDepth {
-			return fmt.Errorf("%s: schema nesting exceeds %d", path, maxSchemaDepth)
-		}
-		state.nodes++
-		if state.nodes > maxSchemaNodes {
-			return fmt.Errorf("input schema exceeds %d JSON container nodes", maxSchemaNodes)
+		if role != descriptorRoleKeywordCollection {
+			if genericDepth > maxSchemaDepth {
+				return fmt.Errorf("%s: JSON container nesting exceeds %d", path, maxSchemaDepth)
+			}
+			state.genericNodes++
+			if state.genericNodes > maxSchemaNodes {
+				return fmt.Errorf("input schema exceeds %d generic JSON container nodes", maxSchemaNodes)
+			}
 		}
 		limit := maxSchemaCollectionSize
 		if enumValues {
@@ -200,7 +201,93 @@ func validateJSONDescriptorResourceBounds(value any, path string, depth int, enu
 					return fmt.Errorf("%s[%d]: numeric value exceeds comparison bounds", path, i)
 				}
 			}
-			if err := validateJSONDescriptorResourceBounds(item, fmt.Sprintf("%s[%d]", path, i), depth+1, false, state); err != nil {
+			childGenericDepth := genericDepth + 1
+			if role == descriptorRoleKeywordCollection {
+				childGenericDepth = 0
+			}
+			if err := validateJSONDescriptorResourceBounds(item, fmt.Sprintf("%s[%d]", path, i), descriptorRoleGenericContainer, schemaDepth, childGenericDepth, false, state); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateJSONDescriptorMapBounds(
+	value map[string]any,
+	path string,
+	role descriptorTraversalRole,
+	schemaDepth int,
+	genericDepth int,
+	state *descriptorResourceState,
+) error {
+	if len(value) > maxSchemaCollectionSize {
+		return fmt.Errorf("%s: exceeds %d entries", path, maxSchemaCollectionSize)
+	}
+	keys := make([]string, 0, len(value))
+	for key := range value {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	switch role {
+	case descriptorRoleSchemaNode:
+		if schemaDepth > maxSchemaDepth {
+			return fmt.Errorf("%s: schema nesting exceeds %d", path, maxSchemaDepth)
+		}
+		state.schemaNodes++
+		if state.schemaNodes > maxSchemaNodes {
+			return fmt.Errorf("input schema exceeds %d schema nodes", maxSchemaNodes)
+		}
+		for _, key := range keys {
+			child := value[key]
+			childRole := descriptorRoleGenericContainer
+			childSchemaDepth := schemaDepth
+			if _, isMap := child.(map[string]any); isMap {
+				switch key {
+				case "properties":
+					childRole = descriptorRolePropertiesContainer
+				case "items", "additionalProperties":
+					childRole = descriptorRoleSchemaNode
+					childSchemaDepth++
+				}
+			}
+			if _, isArray := child.([]any); isArray {
+				switch key {
+				case "enum", "required", "examples":
+					childRole = descriptorRoleKeywordCollection
+				}
+			}
+			if err := validateJSONDescriptorResourceBounds(child, path+"."+key, childRole, childSchemaDepth, 0, key == "enum", state); err != nil {
+				return err
+			}
+		}
+	case descriptorRolePropertiesContainer:
+		// This role is reachable only from a schema node's map-valued
+		// "properties" member. The container is structural; each map-valued
+		// property is the next semantic schema node.
+		for _, key := range keys {
+			child := value[key]
+			childRole := descriptorRoleGenericContainer
+			childSchemaDepth := schemaDepth
+			if _, isMap := child.(map[string]any); isMap {
+				childRole = descriptorRoleSchemaNode
+				childSchemaDepth++
+			}
+			if err := validateJSONDescriptorResourceBounds(child, path+"."+key, childRole, childSchemaDepth, 0, false, state); err != nil {
+				return err
+			}
+		}
+	case descriptorRoleGenericContainer, descriptorRoleKeywordCollection:
+		if genericDepth > maxSchemaDepth {
+			return fmt.Errorf("%s: JSON container nesting exceeds %d", path, maxSchemaDepth)
+		}
+		state.genericNodes++
+		if state.genericNodes > maxSchemaNodes {
+			return fmt.Errorf("input schema exceeds %d generic JSON container nodes", maxSchemaNodes)
+		}
+		for _, key := range keys {
+			if err := validateJSONDescriptorResourceBounds(value[key], path+"."+key, descriptorRoleGenericContainer, schemaDepth, genericDepth+1, false, state); err != nil {
 				return err
 			}
 		}
