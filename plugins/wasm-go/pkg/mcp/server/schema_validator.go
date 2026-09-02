@@ -52,8 +52,7 @@ const (
 )
 
 type compiledInputSchema struct {
-	descriptor map[string]any
-	root       *inputSchemaNode
+	root *inputSchemaNode
 }
 
 type inputSchemaNode struct {
@@ -91,7 +90,7 @@ type descriptorResourceState struct {
 type schemaDiagnosticReason uint8
 
 const (
-	schemaDiagnosticNone schemaDiagnosticReason = iota
+	_ schemaDiagnosticReason = iota
 	schemaDiagnosticUnsupportedKeyword
 	schemaDiagnosticUnsupportedForm
 	schemaDiagnosticContradictoryConstraint
@@ -295,18 +294,6 @@ func validateJSONDescriptorMapBounds(
 	return nil
 }
 
-// compileToolInputSchema accepts only the bounded schema vocabulary that the
-// direct-tool runtime validates. Descriptor admissibility is intentionally a
-// separate stage so callers can retain safe descriptors when compilation is
-// unavailable.
-func compileToolInputSchema(schema map[string]any) (*compiledInputSchema, error) {
-	normalized, err := normalizeToolInputSchema(schema)
-	if err != nil {
-		return nil, err
-	}
-	return compileNormalizedToolInputSchema(normalized)
-}
-
 func compileNormalizedToolInputSchema(normalized map[string]any) (*compiledInputSchema, error) {
 	root, err := compileInputSchemaNode(normalized, "$", 0, &schemaCompileState{})
 	if err != nil {
@@ -315,7 +302,7 @@ func compileNormalizedToolInputSchema(normalized map[string]any) (*compiledInput
 	if root.kind != schemaObject {
 		return nil, errors.New("input schema root must declare type \"object\"")
 	}
-	return &compiledInputSchema{descriptor: normalized, root: root}, nil
+	return &compiledInputSchema{root: root}, nil
 }
 
 func compileInputSchemaNode(schema map[string]any, path string, depth int, state *schemaCompileState) (*inputSchemaNode, error) {

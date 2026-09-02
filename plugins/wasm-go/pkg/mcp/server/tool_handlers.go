@@ -33,13 +33,12 @@ const (
 )
 
 type directToolEntry struct {
-	name             string
-	description      string
-	inputSchema      map[string]any
-	validator        *compiledInputSchema
-	schemaState      directToolSchemaState
-	diagnosticReason schemaDiagnosticReason
-	tool             Tool
+	name        string
+	description string
+	inputSchema map[string]any
+	validator   *compiledInputSchema
+	schemaState directToolSchemaState
+	tool        Tool
 }
 
 // directToolSnapshot binds discovery and invocation to one analyzed tool
@@ -88,7 +87,7 @@ func compileDirectToolSnapshot(server Server) (directToolSnapshot, error) {
 			continue
 		}
 		state := directToolSchemaValidated
-		reason := schemaDiagnosticNone
+		var reason schemaDiagnosticReason
 		if compileErr != nil {
 			var typed *schemaCompilationError
 			if !errors.As(compileErr, &typed) {
@@ -98,13 +97,12 @@ func compileDirectToolSnapshot(server Server) (directToolSnapshot, error) {
 			reason = typed.reason
 		}
 		validated := directToolEntry{
-			name:             entry.name,
-			description:      entry.tool.Description(),
-			inputSchema:      descriptor,
-			validator:        validator,
-			schemaState:      state,
-			diagnosticReason: reason,
-			tool:             entry.tool,
+			name:        entry.name,
+			description: entry.tool.Description(),
+			inputSchema: descriptor,
+			validator:   validator,
+			schemaState: state,
+			tool:        entry.tool,
 		}
 		snapshot.ordered = append(snapshot.ordered, validated)
 		snapshot.byName[entry.name] = validated

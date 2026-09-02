@@ -63,6 +63,18 @@ type reflectedInputSchemaFixture struct {
 	Mode  string `json:"mode,omitempty" jsonschema:"enum=fast,enum=slow,default=fast"`
 }
 
+// compileToolInputSchema keeps the combined admissibility-and-compilation
+// convenience local to tests. Production callers deliberately run the two
+// stages separately so an admissible descriptor can remain publishable when
+// bounded validator compilation is unavailable.
+func compileToolInputSchema(schema map[string]any) (*compiledInputSchema, error) {
+	normalized, err := normalizeToolInputSchema(schema)
+	if err != nil {
+		return nil, err
+	}
+	return compileNormalizedToolInputSchema(normalized)
+}
+
 func TestCompileToolInputSchemaAcceptsCurrentReflectedSchema(t *testing.T) {
 	compiled, err := compileToolInputSchema(ToInputSchema(reflectedInputSchemaFixture{}))
 	require.NoError(t, err)
