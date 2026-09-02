@@ -50,6 +50,7 @@ import (
 	"istio.io/istio/pilot/pkg/serviceregistry/kube"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/constants"
+	gatewaykube "istio.io/istio/pkg/config/gateway/kube"
 	"istio.io/istio/pkg/config/host"
 	"istio.io/istio/pkg/config/protocol"
 	"istio.io/istio/pkg/config/schema/collections"
@@ -1053,6 +1054,7 @@ func buildGRPCDestination(
 
 type inferencePoolConfig struct {
 	enableExtProc             bool
+	mode                      gatewaykube.InferencePoolEndpointPickerMode
 	endpointPickerDst         string
 	endpointPickerPort        string
 	endpointPickerFailureMode string
@@ -1148,8 +1150,11 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 			return &istio.Destination{}, nil, invalidBackendErr
 		}
 
-		ipCfg := &inferencePoolConfig{
-			enableExtProc: true,
+		ipCfg := &inferencePoolConfig{}
+		if mode := svc.Attributes.Labels[constants.InferencePoolEndpointPickerModeLabel]; mode == string(gatewaykube.InferencePoolEndpointPickerModeBuiltin) {
+			ipCfg.mode = gatewaykube.InferencePoolEndpointPickerModeBuiltin
+		} else {
+			ipCfg.enableExtProc = true
 		}
 		if dst, ok := svc.Attributes.Labels[InferencePoolExtensionRefSvc]; ok {
 			ipCfg.endpointPickerDst = fmt.Sprintf("%s.%s.svc.%s", dst, infPool.Namespace, ctx.DomainSuffix)
@@ -1160,7 +1165,7 @@ func buildDestination(ctx RouteContext, to k8s.BackendRef, ns string,
 		if fm, ok := svc.Attributes.Labels[InferencePoolExtensionRefFailureMode]; ok {
 			ipCfg.endpointPickerFailureMode = fm
 		}
-		if ipCfg.endpointPickerDst == "" || ipCfg.endpointPickerPort == "" || ipCfg.endpointPickerFailureMode == "" {
+		if ipCfg.enableExtProc && (ipCfg.endpointPickerDst == "" || ipCfg.endpointPickerPort == "" || ipCfg.endpointPickerFailureMode == "") {
 			invalidBackendErr = &ConfigError{Reason: InvalidDestination, Message: "InferencePool service invalid, extensionRef labels not found"}
 		}
 

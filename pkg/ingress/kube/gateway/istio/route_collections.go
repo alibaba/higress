@@ -69,8 +69,11 @@ func HTTPRouteCollection(
 	) {
 		ctx := inputs.WithCtx(krtctx)
 		inferencePoolCfgPairs := []struct {
-			name string
-			cfg  *inferencePoolConfig
+			name       string
+			route      *istio.HTTPRoute
+			cfg        *inferencePoolConfig
+			ruleIndex  int
+			matchIndex int
 		}{}
 		status := obj.Status.DeepCopy()
 		route := obj.Spec
@@ -82,16 +85,19 @@ func HTTPRouteCollection(
 					if len(matches) == 0 {
 						matches = append(matches, nil)
 					}
-					for _, m := range matches {
+					for matchIndex, m := range matches {
 						if m != nil {
 							r.Matches = []gateway.HTTPRouteMatch{*m}
 						}
 						istioRoute, ipCfg, configErr := convertHTTPRoute(ctx, r, obj, n, !mesh)
-						if istioRoute != nil && ipCfg != nil && ipCfg.enableExtProc {
+						if istioRoute != nil && ipCfg != nil {
 							inferencePoolCfgPairs = append(inferencePoolCfgPairs, struct {
-								name string
-								cfg  *inferencePoolConfig
-							}{name: istioRoute.Name, cfg: ipCfg})
+								name       string
+								route      *istio.HTTPRoute
+								cfg        *inferencePoolConfig
+								ruleIndex  int
+								matchIndex int
+							}{name: istioRoute.Name, route: istioRoute, cfg: ipCfg, ruleIndex: n, matchIndex: matchIndex})
 						}
 						if !yield(istioRoute, configErr) {
 							return
@@ -100,6 +106,23 @@ func HTTPRouteCollection(
 				}
 			}
 		})
+
+		// Upstream route names are preserved unless duplicate names would make
+		// BuiltIn and External picker rules target the same final Envoy routes.
+		modesByRouteName := map[string]sets.Set[kube.InferencePoolEndpointPickerMode]{}
+		for _, pair := range inferencePoolCfgPairs {
+			if modesByRouteName[pair.name] == nil {
+				modesByRouteName[pair.name] = sets.New[kube.InferencePoolEndpointPickerMode]()
+			}
+			modesByRouteName[pair.name].Insert(pair.cfg.mode)
+		}
+		for i := range inferencePoolCfgPairs {
+			pair := &inferencePoolCfgPairs[i]
+			if modesByRouteName[pair.name].Len() > 1 {
+				disambiguateHTTPRouteName(pair.route, pair.ruleIndex, pair.matchIndex)
+				pair.name = pair.route.Name
+			}
+		}
 
 		// routeRuleToInferencePoolCfg stores inference pool configs discovered during route rule conversion,
 		// keyed by the istio.HTTPRoute.Name.
@@ -165,6 +188,7 @@ func HTTPRouteCollection(
 				for _, httpRule := range routes { // These are []*istio.HTTPRoute
 					if ipCfg, found := routeRuleToInferencePoolCfg[httpRule.Name]; found {
 						currentRouteInferenceConfigs[httpRule.Name] = kube.InferencePoolRouteRuleConfig{
+							Mode:             ipCfg.mode,
 							FQDN:             ipCfg.endpointPickerDst,
 							Port:             ipCfg.endpointPickerPort,
 							FailureModeAllow: ipCfg.endpointPickerFailureMode == string(inferencev1.EndpointPickerFailOpen),
@@ -208,6 +232,15 @@ func HTTPRouteCollection(
 		Status:           status,
 		Ancestors:        ancestorBackends,
 	}
+}
+
+func disambiguateHTTPRouteName(route *istio.HTTPRoute, ruleIndex, matchIndex int) {
+	if route == nil {
+		return
+	}
+	// Kubernetes resource names cannot contain '/', so the suffix cannot collide
+	// with the undisambiguated name of another HTTPRoute resource.
+	route.Name = fmt.Sprintf("%s/%d/%d", route.Name, ruleIndex, matchIndex)
 }
 
 func extractAncestorBackends[RT, BT any](ns string, prefs []gateway.ParentReference, rules []RT, extract func(RT) []BT) []AncestorBackend {
@@ -363,6 +396,7 @@ func GRPCRouteCollection(
 				for _, httpRule := range routes {
 					if ipCfg, found := routeRuleToInferencePoolCfg[httpRule.Name]; found { // This map will be empty for GRPCRoute for now
 						currentRouteInferenceConfigs[httpRule.Name] = kube.InferencePoolRouteRuleConfig{
+							Mode:             ipCfg.mode,
 							FQDN:             ipCfg.endpointPickerDst,
 							Port:             ipCfg.endpointPickerPort,
 							FailureModeAllow: ipCfg.endpointPickerFailureMode == string(inferencev1.EndpointPickerFailOpen),
