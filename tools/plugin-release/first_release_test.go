@@ -59,8 +59,8 @@ func TestFirstManagedReleasePlansExactlyFromV223DespiteMissingVersions(t *testin
 		}
 		previous.Plugins = append(previous.Plugins, SnapshotEntry{LogicalID: p.LogicalID, Implementation: p.Implementation, SourceDir: p.SourceDir, Image: p.Image, Version: version, OCIRef: c.Registry + "/" + p.Image + ":" + version, Digest: dummyDigest, InputHash: dummyDigest, SourceCommit: target, ProvenanceMode: "public", Consumers: cloneConsumers(p.Consumers)})
 	}
-	if missingHistoricalVersions != 16 || len(previous.Plugins) != 43 || deferredAlpha != 1 {
-		t.Fatalf("v2.2.3 fixture drift: eligible=%d missing VERSION=%d deferred=%d, want 43/16/1", len(previous.Plugins), missingHistoricalVersions, deferredAlpha)
+	if missingHistoricalVersions != 17 || len(previous.Plugins) != 44 || deferredAlpha != 1 {
+		t.Fatalf("v2.2.3 fixture drift: eligible=%d missing VERSION=%d deferred=%d, want 44/17/1", len(previous.Plugins), missingHistoricalVersions, deferredAlpha)
 	}
 	previousPath := filepath.Join(t.TempDir(), "bootstrap-v2.2.3.json")
 	if err := writeCanonical(previousPath, previous); err != nil {
@@ -114,7 +114,7 @@ func TestFirstManagedReleasePlansExactlyFromV223DespiteMissingVersions(t *testin
 	}
 	if len(first.Deferred) != 1 || first.Deferred[0].LogicalID != "replay-protection" ||
 		first.Deferred[0].Version != "1.0.0-alpha" || first.Deferred[0].Reason != "alpha-prerelease" {
-		t.Fatalf("first plan must defer exactly the alpha prerelease: %#v", first.Deferred)
+		t.Fatalf("first plan must defer exactly the alpha prereleases: %#v", first.Deferred)
 	}
 	if len(first.Plugins) != len(expected) {
 		t.Fatalf("first plan has %d entries, exact artifact diff affects %d", len(first.Plugins), len(expected))
