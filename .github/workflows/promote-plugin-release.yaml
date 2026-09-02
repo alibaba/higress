@@ -20,6 +20,11 @@ on:
         required: true
         default: true
         type: boolean
+      adopt_unannotated_latest:
+        description: "Adopt unannotated legacy latest tags: replace them with the snapshot-verified digest (journaled as adopt-legacy). Bridge for pre-pipeline manual latests."
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -189,6 +194,7 @@ jobs:
       - name: Promote latest only after complete verified batch
         env:
           REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}
+          ADOPT_UNANNOTATED_LATEST: ${{ inputs.adopt_unannotated_latest }}
           REGISTRY_USERNAME: ${{ secrets.PRODUCTION_REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.PRODUCTION_REGISTRY_PASSWORD }}
           SNAPSHOT_PATH: ${{ inputs.snapshot_path }}
@@ -280,20 +286,27 @@ jobs:
               else
                 old=$(oras manifest fetch "$latest" --format json | jq -r '.annotations["org.opencontainers.image.version"] // empty')
                 if [ -z "$old" ]; then
-                  test "$bootstrap_latest_migration" = true || { echo "existing latest lacks a stable version annotation outside a verified bootstrap snapshot: $latest" >&2; exit 1; }
-                  bootstrap_entry=$(jq -cer --arg id "$id" '.plugins[$id] | select(.status == "public" or .status == "missing")' "$bootstrap_evidence_path") || { echo "bootstrap evidence does not authorize unclassified legacy latest replacement: $id" >&2; exit 1; }
-                  bootstrap_status=$(jq -er .status <<<"$bootstrap_entry")
-                  bootstrap_version=$(jq -er .version <<<"$bootstrap_entry")
-                  test "$(jq -er .publicRef <<<"$bootstrap_entry")" = "$image:$bootstrap_version" || { echo "bootstrap evidence public reference does not match latest image: $id" >&2; exit 1; }
-                  if [ "$bootstrap_status" = public ]; then
-                    [[ "$(jq -er .digest <<<"$bootstrap_entry")" =~ ^sha256:[0-9a-f]{64}$ ]]
-                    (cd tools/plugin-release && go run . semver-compare --current "$bootstrap_version" --candidate "$version")
-                    test "$bootstrap_version" != "$version" || { echo "latest alias conflict: $latest is unannotated and bootstrap does not authorize replacing the same stable version" >&2; exit 1; }
+                  if [ "${ADOPT_UNANNOTATED_LATEST:-false}" = "true" ]; then
+                    # Bridge for pre-pipeline manual latest tags: adopt the
+                    # snapshot-verified digest; journal the displaced one.
+                    old=""; state=adopt-legacy
+                  elif test "$bootstrap_latest_migration" = true; then
+                    bootstrap_entry=$(jq -cer --arg id "$id" '.plugins[$id] | select(.status == "public" or .status == "missing")' "$bootstrap_evidence_path") || { echo "bootstrap evidence does not authorize unclassified legacy latest replacement: $id" >&2; exit 1; }
+                    bootstrap_status=$(jq -er .status <<<"$bootstrap_entry")
+                    bootstrap_version=$(jq -er .version <<<"$bootstrap_entry")
+                    test "$(jq -er .publicRef <<<"$bootstrap_entry")" = "$image:$bootstrap_version" || { echo "bootstrap evidence public reference does not match latest image: $id" >&2; exit 1; }
+                    if [ "$bootstrap_status" = public ]; then
+                      [[ "$(jq -er .digest <<<"$bootstrap_entry")" =~ ^sha256:[0-9a-f]{64}$ ]]
+                      (cd tools/plugin-release && go run . semver-compare --current "$bootstrap_version" --candidate "$version")
+                      test "$bootstrap_version" != "$version" || { echo "latest alias conflict: $latest is unannotated and bootstrap does not authorize replacing the same stable version" >&2; exit 1; }
+                    else
+                      test "$bootstrap_version" = "$version" || { echo "missing bootstrap entry version does not match selected plugin version: $id" >&2; exit 1; }
+                      test -z "$(jq -r '.digest // empty' <<<"$bootstrap_entry")" || { echo "missing bootstrap entry unexpectedly carries a digest: $id" >&2; exit 1; }
+                    fi
+                    old=""; state=bootstrap-replace-unclassified
                   else
-                    test "$bootstrap_version" = "$version" || { echo "missing bootstrap entry version does not match selected plugin version: $id" >&2; exit 1; }
-                    test -z "$(jq -r '.digest // empty' <<<"$bootstrap_entry")" || { echo "missing bootstrap entry unexpectedly carries a digest: $id" >&2; exit 1; }
+                    echo "existing latest lacks a stable version annotation outside a verified bootstrap snapshot: $latest" >&2; exit 1
                   fi
-                  old=""; state=bootstrap-replace-unclassified
                 else
                   (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
                   if [ "$old" = "$version" ]; then
