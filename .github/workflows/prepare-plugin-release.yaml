@@ -115,7 +115,12 @@ jobs:
   prepare:
     needs: preflight
     runs-on: ubuntu-latest
-    environment: plugin-release-candidate
+    # No environment gate: candidate builds publish only into the
+    # content-addressed candidates/ namespace, which nothing public resolves.
+    # The human gate for a release is the preparation PR review plus the
+    # latest-move environment approval in promote. Consequently the candidate
+    # registry credentials and the release App secrets this job reads must be
+    # repository- or organization-scoped, not environment-scoped.
     steps:
       - uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
         if: ${{ !inputs.dry_run }}
@@ -338,6 +343,50 @@ jobs:
             jq --arg id "$id" --arg ref "${candidate%@*}@$digest" --arg digest "$digest" --arg commit "$source_commit" --arg hash "$input_hash" '.plugins[$id]={candidateRef:$ref,digest:$digest,sourceCommit:$commit,inputHash:$hash}' /tmp/candidates.json >/tmp/candidates.next && mv /tmp/candidates.next /tmp/candidates.json
           done
           cp /tmp/candidates.json "plugins/release/evidence/$GATEWAY_VERSION.json"
+      - name: Sweep public registry for planned tag conflicts
+        env:
+          GATEWAY_VERSION: ${{ inputs.gateway_version }}
+          PREVIOUS: ${{ inputs.previous_snapshot }}
+        run: |
+          set -euo pipefail
+          # BEGIN migration-preflight-contract
+          # Onboarding migration preflight: classify every planned public
+          # version tag before the preparation PR is opened, so a legacy
+          # pre-pipeline artifact surfaces here as a reviewed exclusion instead
+          # of hard-failing the promote batch with an immutable tag conflict.
+          # The tool calibrates its probe against a known-good control tag from
+          # the reviewed previous snapshot and fails closed when the control
+          # does not reproduce its recorded digest, when authorization fails, or
+          # when a lookup cannot be classified as explicit absence.
+          args=(migration-preflight --root ../.. --catalog ../../plugins/release/catalog.json --plan /tmp/plan.json --output /tmp/migration-report.json --markdown /tmp/migration-report.md)
+          if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json); fi
+          # A dry run builds no candidates, so it has no planned digest to
+          # compare: it reports occupied planned tags without excluding them.
+          if [ -f /tmp/candidates.json ]; then args+=(--candidate-evidence /tmp/candidates.json); fi
+          (cd tools/plugin-release && go run . "${args[@]}")
+          # END migration-preflight-contract
+          blocked=$(jq -er '[.entries[] | select(.state == "blocked")] | length' /tmp/migration-report.json)
+          suspected=$(jq -er '[.entries[] | select(.state == "suspected")] | length' /tmp/migration-report.json)
+          probe_mode=$(jq -er .probeMode /tmp/migration-report.json)
+          if [ "$blocked" -gt 0 ]; then
+            {
+              echo "Migration preflight excluded $blocked planned plugin(s) from the promote batch:"
+              echo
+              jq -er '[.entries[] | select(.state == "blocked") | {logicalId, ociRef, existingDigest, plannedDigest, recommendation}]' /tmp/migration-report.json
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$suspected" -gt 0 ]; then
+            echo "Dry-run migration preflight ($probe_mode): $suspected planned tag(s) already exist publicly and are classified by the non-dry-run sweep." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Migration preflight ($probe_mode): no planned version tag is occupied by a different artifact." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload migration preflight report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: plugin-release-migration-report-${{ inputs.gateway_version }}
+          if-no-files-found: error
+          path: |
+            /tmp/migration-report.json
+            /tmp/migration-report.md
       - name: Render canonical snapshot
         if: ${{ !inputs.dry_run }}
         env:
@@ -346,7 +395,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p plugins/release/snapshots
-          args=(render-snapshot --catalog ../../plugins/release/catalog.json --plan /tmp/plan.json --candidate-evidence /tmp/candidates.json --output "../../plugins/release/snapshots/$GATEWAY_VERSION.json")
+          args=(render-snapshot --catalog ../../plugins/release/catalog.json --plan /tmp/plan.json --candidate-evidence /tmp/candidates.json --migration-report /tmp/migration-report.json --output "../../plugins/release/snapshots/$GATEWAY_VERSION.json")
           if [ -n "$PREVIOUS" ]; then args+=(--previous "../../$PREVIOUS"); else args+=(--previous /tmp/bootstrap-snapshot.json --bootstrap-evidence /tmp/bootstrap-evidence.json); fi
           (cd tools/plugin-release && go run . "${args[@]}")
           sha256sum "plugins/release/snapshots/$GATEWAY_VERSION.json" | tee -a "$GITHUB_STEP_SUMMARY"
@@ -378,4 +427,24 @@ jobs:
           git add plugins/wasm-go/extensions plugins/wasm-rust/extensions plugins/release/snapshots plugins/release/plans plugins/release/evidence plugins/release/bootstrap-evidence
           git commit -s -m "chore: prepare plugin snapshot $GATEWAY_VERSION" || true
           git push --force-with-lease origin "$branch"
-          gh pr create --base main --head "$branch" --title "chore: prepare plugin snapshot $GATEWAY_VERSION" --body "Immutable candidate snapshot; review VERSION edits and digest provenance." || gh pr edit "$branch" --title "chore: prepare plugin snapshot $GATEWAY_VERSION" --body "Immutable candidate snapshot; review VERSION edits and digest provenance."
+          # BEGIN preparation-pr-contract
+          title="chore: prepare plugin snapshot $GATEWAY_VERSION"
+          body="Immutable candidate snapshot; review VERSION edits and digest provenance."
+          # The merged, labeled preparation PR is the human approval that
+          # authorizes promote, so the report a reviewer must act on belongs in
+          # that PR body. An all-green sweep leaves the body byte-identical.
+          if [ "$(jq -er '[.entries[] | select(.state == "blocked")] | length' /tmp/migration-report.json)" -gt 0 ]; then
+            body="$body"$'\n\n'"$(cat /tmp/migration-report.md)"
+          fi
+          label="release/$GATEWAY_VERSION"
+          # promote verifies this exact label on the merged PR and fails closed
+          # without it, so the label must exist before the PR is opened. Label
+          # management requires the release App installation to hold label write
+          # permission alongside its contents/pull-requests permissions.
+          label_ref=$(jq -rn --arg label "$label" '$label | @uri')
+          if ! gh api "repos/$GITHUB_REPOSITORY/labels/$label_ref" >/dev/null 2>&1; then
+            gh label create "$label" --color "0969da" --description "Authorizes promote-plugin-release for plugin snapshot $GATEWAY_VERSION"
+          fi
+          test "$(gh api "repos/$GITHUB_REPOSITORY/labels/$label_ref" --jq .name)" = "$label"
+          gh pr create --base main --head "$branch" --title "$title" --body "$body" --label "$label" || gh pr edit "$branch" --title "$title" --body "$body" --add-label "$label"
+          # END preparation-pr-contract
