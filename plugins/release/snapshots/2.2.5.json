@@ -1947,5 +1947,8 @@
         }
       }
     }
-  ]
+  ],
+  "bootstrapEvidence": {
+    "path": "plugins/release/bootstrap-evidence/2.2.5.json"
+  }
 }

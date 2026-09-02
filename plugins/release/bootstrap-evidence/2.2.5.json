@@ -1,0 +1,261 @@
+{
+  "plugins": {
+    "ai-agent": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-agent:2.0.1",
+      "digest": "sha256:a49452b72937dedfb8bbf8cc096edcde6f576494d698fb30df3cf26eac9eb154"
+    },
+    "ai-cache": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-cache:2.0.1",
+      "digest": "sha256:6c2c3c2c039cf05dcfe6ae7bbbfbdf02a5575eb06ce73d566258ffb55dc40e8c"
+    },
+    "ai-context-limit": {
+      "status": "public",
+      "version": "1.0.0",
+      "publicRef": "plugins/ai-context-limit:1.0.0",
+      "digest": "sha256:3a96814d5a0e532dbba870748efc306dd63328f8b703227aec6275e2cf08e2c4"
+    },
+    "ai-data-masking": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-data-masking:2.0.1",
+      "digest": "sha256:90d48534f7115f6035b576be28af931af70d53b48042029f278878854c94cba3"
+    },
+    "ai-history": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-history:2.0.1",
+      "digest": "sha256:5bf732e1581163a05f2eb356e543859c6f63c7494ce60fa721f576d3b1dcb9a5"
+    },
+    "ai-intent": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-intent:2.0.1",
+      "digest": "sha256:31e45717d2d204604964de52f16e24730c41930212b0222cf0e1ed598fb63135"
+    },
+    "ai-json-resp": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-json-resp:2.0.1",
+      "digest": "sha256:b001a125bea8798ccce861ddbcf5c8aaa8eca2cd1794fe64e83346372c1f511a"
+    },
+    "ai-load-balancer": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-load-balancer:2.0.1",
+      "digest": "sha256:1016c5175dc3acf86440354e167770c6f8c09d4be0a89ad4c7faef0e9e070895"
+    },
+    "ai-prompt-decorator": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-prompt-decorator:2.0.1",
+      "digest": "sha256:c42a6e1e74eaa15e8102157b502c47a66470812be9e4b50c7fbcdbc5a73049b7"
+    },
+    "ai-prompt-template": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-prompt-template:2.0.1",
+      "digest": "sha256:7bd53d9479d628324434d60028abd1252ea60f45ad396457b915b5828bc7aef5"
+    },
+    "ai-proxy": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-proxy:2.0.1",
+      "digest": "sha256:241661b072cce98ee0a1f52d64bc1eed170dc6f89ab4a8e4e204e0bb62216d1f"
+    },
+    "ai-quota": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-quota:2.0.1",
+      "digest": "sha256:18040eee97717e0f3d3785ac9eeb3fc555285ba8968a5227512fd3c6fe372009"
+    },
+    "ai-rag": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-rag:2.0.1",
+      "digest": "sha256:4b84b1053650ccb4cb1f2f247b754a406ed51700aae05cd73bd6686b6d6c07e4"
+    },
+    "ai-search": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-search:2.0.1",
+      "digest": "sha256:609cbc3a52f7011f560707fda29abc3bf77bd45b092e34a49198b814c9b4c598"
+    },
+    "ai-security-guard": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-security-guard:2.0.1",
+      "digest": "sha256:42c2bffb83db107fb4bd37d942bb0b486d094d45c3828897613fc0d35817c867"
+    },
+    "ai-statistics": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-statistics:2.0.1",
+      "digest": "sha256:dd0c927e7effb3a255219c33351ee4e2333e904810cf27ad1574761900a75e86"
+    },
+    "ai-token-ratelimit": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-token-ratelimit:2.0.1",
+      "digest": "sha256:63c51c850d9aeb5f4e0c587b3d039232d296e4764845f6627522c18c6752f47a"
+    },
+    "ai-transformer": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ai-transformer:2.0.1",
+      "digest": "sha256:a1c39ed6f0605f2fda1c6f9945e7b4aee6e522ed94d5234ef015dabfa9555f48"
+    },
+    "cache-control": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/cache-control:2.0.1",
+      "digest": "sha256:6d4f9e56324251162f9b815ffeb7c7f2e4940c1b60642d450010233a2af20fe0"
+    },
+    "cluster-key-rate-limit": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/cluster-key-rate-limit:2.0.1",
+      "digest": "sha256:8bb313a0dfaf56a59f966ac0bef5b499441effdd5b20507ac77283897ff5c697"
+    },
+    "cors": {
+      "status": "public",
+      "version": "2.0.2",
+      "publicRef": "plugins/cors:2.0.2",
+      "digest": "sha256:fc1ffa924d3b97a7286b530d22af56230aa60bb91d5e0fcb1f540220d84c9dea"
+    },
+    "de-graphql": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/de-graphql:2.0.1",
+      "digest": "sha256:f97e42c3c664a44996ffc546e9109b063a1ceac9042b92c6d86db69f230aeed3"
+    },
+    "ext-auth": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ext-auth:2.0.1",
+      "digest": "sha256:45c3aa095f3249e0dccc7d5d6a54769dfe8f29b328ee3d5a434c3c578852845a"
+    },
+    "frontend-gray": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/frontend-gray:2.0.1",
+      "digest": "sha256:f5ec74c58432295c6ee289b49934b1c265aec06f7d8520582b7e53d565badee1"
+    },
+    "geo-ip": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/geo-ip:2.0.1",
+      "digest": "sha256:386bdb95caf74b1a2fb3dae0a2140c45e2ce13a5a8b61bf407891bdb2bcd25ba"
+    },
+    "gw-error-format": {
+      "status": "public",
+      "version": "1.0.0",
+      "publicRef": "plugins/gw-error-format:1.0.0",
+      "digest": "sha256:c12b46bf76d9cfbd6c7bb3a35072cd60516a01661537829b220564bdfbf6639f"
+    },
+    "hmac-auth-apisix": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/hmac-auth-apisix:2.0.1",
+      "digest": "sha256:8c8823716cd82ea04774df928dad2cfbff28724d3c84fa4f64a1a563dd24950f"
+    },
+    "ip-restriction": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/ip-restriction:2.0.1",
+      "digest": "sha256:2c37253514a59370d7494c8e3b11ed20107b80073dedc899f2890fd46aea07d5"
+    },
+    "json-converter": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/jsonrpc-converter:2.0.1",
+      "digest": "sha256:4cede3f6f44bdf0cccd2f5c6f30337755c8737422518a6bd7ac829f3864edcc7"
+    },
+    "log-request-response": {
+      "status": "public",
+      "version": "1.0.0",
+      "publicRef": "plugins/log-request-response:1.0.0",
+      "digest": "sha256:9d88c4aa98948c8878fc3ca314ae36954c9fb2b4f0338c6df2c3317c8c988b03"
+    },
+    "mcp-router": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/mcp-router:2.0.1",
+      "digest": "sha256:13c9561d23a8bc7c08ebf6e14844798efe019ada80410a6ff86c559740f52de4"
+    },
+    "model-mapper": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/model-mapper:2.0.1",
+      "digest": "sha256:a77d4bc134a12441d6d084eb2a4bd08c850d061d7812251fbfe0aac42ca6607b"
+    },
+    "model-router": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/model-router:2.0.1",
+      "digest": "sha256:70800325414b4d64e0de0bcafb6d34393b4d85d327b6e453ff1b86e0f07da73a"
+    },
+    "nginx-rewrite-compatible": {
+      "status": "public",
+      "version": "1.0.0",
+      "publicRef": "plugins/nginx-rewrite-compatible:1.0.0",
+      "digest": "sha256:3cbac4a68a58b9f195d92592f8db6302d8abd94a3aa04882c2f1843552cd6cd3"
+    },
+    "oidc": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/oidc:2.0.1",
+      "digest": "sha256:ce9722fc629e22f93976b57a7c20a7c4b9c042ce3dc0b9acfa8c4fbd0c40f0ce"
+    },
+    "opa": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/opa:2.0.1",
+      "digest": "sha256:4fd12bdb046595862935fba36b2c4b27dcb8d43b12d35efdc3725c49e9b7a2a7"
+    },
+    "request-validation": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/request-validation:2.0.1",
+      "digest": "sha256:a1c72e4438f7831497e15b1fd4004ea856550e0f6315c1c2f91857823658d8d0"
+    },
+    "response-cache": {
+      "status": "public",
+      "version": "1.0.1",
+      "publicRef": "plugins/response-cache:1.0.1",
+      "digest": "sha256:26e8ca22321ee7a159718f34a1b8e6fb1f84364dd47e9a69e14ed4d6acdaeb48"
+    },
+    "simple-jwt-auth": {
+      "status": "public",
+      "version": "1.0.1",
+      "publicRef": "plugins/simple-jwt-auth:1.0.1",
+      "digest": "sha256:312f38f413d02dc897147957e402b8099d58dc83aa38ae0e21ff6929b440fdfb"
+    },
+    "traffic-tag": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/traffic-tag:2.0.1",
+      "digest": "sha256:0b2ddd0c371289306aac3c1795372479876d35576406543487db3b94aca0fd9a"
+    },
+    "transformer": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/transformer:2.0.1",
+      "digest": "sha256:50b2cc1d84bad70cbad37214e84b3184f07567605fc4c7d4910dc93275ab9020"
+    },
+    "waf": {
+      "status": "public",
+      "version": "2.0.1",
+      "publicRef": "plugins/waf:2.0.1",
+      "digest": "sha256:92ff0eae29f6393e3cc93a9569586839243e97417133f701e49324c1797ac245"
+    },
+    "ai-endpoint-picker": {
+      "status": "missing",
+      "version": "2.0.1",
+      "publicRef": "higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-endpoint-picker:2.0.1"
+    }
+  }
+}
