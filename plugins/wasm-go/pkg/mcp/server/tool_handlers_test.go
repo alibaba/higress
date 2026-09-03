@@ -68,6 +68,30 @@ type validationOutputTool struct {
 	*validationTestTool
 }
 
+type changingDescriptorTool struct {
+	descriptionReads int
+	schemaReads      int
+	firstSchema      map[string]any
+	secondSchema     map[string]any
+}
+
+func (t *changingDescriptorTool) Create(_ []byte) Tool               { return t }
+func (t *changingDescriptorTool) Call(_ HttpContext, _ Server) error { return nil }
+func (t *changingDescriptorTool) Description() string {
+	t.descriptionReads++
+	if t.descriptionReads == 1 {
+		return "captured description"
+	}
+	return "drifted description"
+}
+func (t *changingDescriptorTool) InputSchema() map[string]any {
+	t.schemaReads++
+	if t.schemaReads == 1 {
+		return t.firstSchema
+	}
+	return t.secondSchema
+}
+
 func (t *validationOutputTool) OutputSchema() map[string]any {
 	return map[string]any{"type": "object"}
 }
@@ -613,6 +637,51 @@ func TestDirectToolSnapshotOwnsSerializableDescriptorAndPreparesOnce(t *testing.
 	property := listed[0]["inputSchema"].(map[string]any)["properties"].(map[string]any)["value"].(map[string]any)
 	assert.Equal(t, "string", property["type"], "published generation must retain its JSON-cloned descriptor")
 	assert.Equal(t, 1, tool.schemaReads, "listing and invocation reuse the prepared generation")
+}
+
+func TestParseConfigRegistryPublicationReusesCapturedGenerationDescriptor(t *testing.T) {
+	firstSchema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"value": map[string]any{"type": "string"},
+		},
+	}
+	tool := &changingDescriptorTool{
+		firstSchema: firstSchema,
+		secondSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"value": map[string]any{"type": "number"},
+			},
+		},
+	}
+	registered := newValidationTestServer()
+	registered.AddMCPTool("changing", tool)
+	registry := &GlobalToolRegistry{}
+	registry.Initialize()
+	opts := &ConfigOptions{Servers: map[string]Server{"registered": registered}, ToolRegistry: registry}
+
+	direct := &McpServerConfig{}
+	require.NoError(t, ParseConfigCore(gjson.Parse(`{"server":{"name":"registered"}}`), direct, opts))
+	require.Equal(t, 1, tool.descriptionReads)
+	require.Equal(t, 1, tool.schemaReads)
+
+	firstSchema["properties"].(map[string]any)["value"].(map[string]any)["type"] = "integer"
+	composed := &McpServerConfig{}
+	require.NoError(t, ParseConfigCore(gjson.Parse(`{
+		"toolSet":{"name":"composed","serverTools":[{"serverName":"registered","tools":["changing"]}]}
+	}`), composed, opts))
+
+	require.Equal(t, 1, tool.descriptionReads, "registry publication must not reread Description")
+	require.Equal(t, 1, tool.schemaReads, "registry publication and composed parsing must not reread InputSchema")
+	directEntry := direct.directTools.byName["changing"]
+	composedEntry := composed.directTools.byName["registered___changing"]
+	assert.Equal(t, "captured description", directEntry.description)
+	assert.Equal(t, directEntry.description, composedEntry.description)
+	assert.Equal(t, directEntry.inputSchema, composedEntry.inputSchema)
+	property := composedEntry.inputSchema["properties"].(map[string]any)["value"].(map[string]any)
+	assert.Equal(t, "string", property["type"], "registry must retain the generation-owned clone after caller mutation")
+	assert.Equal(t, directToolSchemaValidated, composedEntry.schemaState)
 }
 
 func TestComposedSnapshotPreservesLegacyOnlyRESTCompatibility(t *testing.T) {

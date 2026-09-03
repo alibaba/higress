@@ -33,6 +33,59 @@ matrix["cases"].append({
     } if baseline_ok else {"error": "expected pinned baseline compiler rejection or zero-upstream proof is absent"},
 })
 
+oracle_path = root / "oracle-verification.json"
+oracle = json.loads(oracle_path.read_text()) if oracle_path.exists() else {}
+oracle_log = (root / "gateway-oracle.log").read_text(errors="replace") if (root / "gateway-oracle.log").exists() else ""
+oracle_events = oracle.get("backendEvents", {}).get("backend-primary", [])
+oracle_ok = (
+    oracle.get("configurationAccepted") is True
+    and oracle.get("descriptorPreserved") is True
+    and oracle.get("legacyRESTMapping") is True
+    and len(oracle_events) == 1
+    and "plugin start failed" not in oracle_log
+)
+matrix["cases"].append({
+    "case": "schema-compatibility-v2.0.0-oracle-accepts-and-invokes",
+    "status": "PASS" if oracle_ok else "FAIL",
+    "detail": {
+        "sourceSha": os.environ["ORACLE_SHA"],
+        "pluginSha256": os.environ["ORACLE_PLUGIN_SHA256"],
+        "configurationAccepted": True,
+        "descriptorPreserved": True,
+        "legacyRESTMapping": True,
+        "upstreamCalls": len(oracle_events),
+        "backendEvents": {"backend-primary": oracle_events},
+        "oracleEvidence": "oracle-verification.json",
+    } if oracle_ok else {"error": "v2.0.0 compatibility oracle acceptance, descriptor, or REST mapping proof is absent"},
+})
+
+control_state = json.loads((root / "backend-control-state.json").read_text()) if (root / "backend-control-state.json").exists() else {"events": ["missing"]}
+control_logs = {
+    variant: (root / f"gateway-control-{variant}.log").read_text(errors="replace")
+    if (root / f"gateway-control-{variant}.log").exists() else ""
+    for variant in ("oracle", "affected", "candidate")
+}
+control_rejections = {
+    variant: "error parsing URL template" in log and "plugin start failed" in log
+    for variant, log in control_logs.items()
+}
+control_ok = all(control_rejections.values()) and control_state.get("events") == []
+matrix["cases"].append({
+    "case": "malformed-non-schema-control-is-rejected-by-all-revisions",
+    "status": "PASS" if control_ok else "FAIL",
+    "detail": {
+        "revisions": {
+            "oracle": os.environ["ORACLE_SHA"],
+            "affected": os.environ["BASELINE_SHA"],
+            "candidate": os.environ["SOURCE_SHA"],
+        },
+        "configurationAccepted": {variant: False for variant in control_rejections},
+        "rejection": "error parsing URL template",
+        "upstreamCalls": 0,
+        "backendEvents": {"backend-primary": []},
+    } if control_ok else {"error": f"non-schema rejection proof is incomplete: {control_rejections}"},
+})
+
 generation_phases = ("valid-before", "validation-unavailable", "valid-after")
 generation_path = root / "generation-transition.json"
 generation_transition = json.loads(generation_path.read_text()) if generation_path.exists() else {"generations": []}
@@ -112,6 +165,8 @@ manifest = {
     "plugin_sha256": os.environ["PLUGIN_SHA256"],
     "baseline_source_sha": os.environ["BASELINE_SHA"],
     "baseline_plugin_sha256": os.environ["BASELINE_PLUGIN_SHA256"],
+    "oracle_source_sha": os.environ["ORACLE_SHA"],
+    "oracle_plugin_sha256": os.environ["ORACLE_PLUGIN_SHA256"],
     "gateway_image": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3",
     "gateway_resolved_digests": lines("gateway-image-digests.txt"),
     "backend_image": "docker.io/library/python:3.12-alpine",
@@ -123,10 +178,13 @@ manifest = {
     "access_coverage": access_coverage,
     "evidence_index": [
         "manifest.json", "matrix.json", "client-exchanges.json", "access-coverage.json", "compose-config.yaml", "envoy.yaml", "envoy-auto.yaml",
-        "envoy-baseline.yaml", "envoy-generation.yaml", "lds-generation-valid-before.yaml",
+        "envoy-baseline.yaml", "envoy-oracle.yaml", "envoy-control-candidate.yaml",
+        "envoy-control-affected.yaml", "envoy-control-oracle.yaml", "envoy-generation.yaml", "lds-generation-valid-before.yaml",
         "lds-generation-validation-unavailable.yaml", "lds-generation-valid-after.yaml", "lds-generation-current.yaml",
-        "gateway.log", "gateway-auto.log", "gateway-baseline.log", "gateway-generation.log",
-        "backend-auto-state.json", "backend-baseline-state.json", "generation-transition.json",
+        "gateway.log", "gateway-auto.log", "gateway-baseline.log", "gateway-oracle.log",
+        "gateway-control-candidate.log", "gateway-control-affected.log", "gateway-control-oracle.log", "gateway-generation.log",
+        "backend-auto-state.json", "backend-baseline-state.json", "backend-oracle-state.json", "backend-control-state.json",
+        "oracle-verification.json", "generation-transition.json",
         "generation-process-before.txt", "generation-process-after.txt",
         "backend-primary-final.json", "backend-secondary-final.json",
         "cleanup-proof.txt", "SHA256SUMS",
@@ -138,7 +196,7 @@ manifest = {
 
 checksums = []
 for path in sorted(root.iterdir()):
-    if path.is_file() and path.name not in ("plugin.wasm", "baseline-plugin.wasm", "SHA256SUMS"):
+    if path.is_file() and path.name not in ("plugin.wasm", "baseline-plugin.wasm", "oracle-plugin.wasm", "SHA256SUMS"):
         checksums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
 (root / "SHA256SUMS").write_text("\n".join(checksums) + "\n")
 

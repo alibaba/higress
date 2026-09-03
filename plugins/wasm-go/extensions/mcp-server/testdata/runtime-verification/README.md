@@ -7,7 +7,7 @@ checked-out source, loads it into Envoy from the fixed
 listeners, and records sanitized, machine-readable evidence. The full registry
 name and resolved digest are retained in the evidence manifest.
 
-The expected clean exact-head result is **14 PASS / 0 FAIL**.
+The expected clean exact-head result is **16 PASS / 0 FAIL**.
 
 ## Purpose and validation boundary
 
@@ -22,8 +22,12 @@ boundary:
 - each main-matrix client exchange has exactly one flushed Envoy access record;
 - evidence records the source, plugin, container-image, tool, result, and
   cleanup identities needed to reproduce and compare a run;
-- pinned baseline `c55d9825c90868f50edbff9764a6b3cf2eb13162` is built
-  separately and rejects the same compatibility descriptor; and
+- the v2.0.0 oracle `39ec41aab6eb1d40499bed2847085696de0ebb96` accepts
+  the compatibility descriptor and constructs the historical REST request,
+  while affected revision `c55d9825c90868f50edbff9764a6b3cf2eb13162`
+  rejects it;
+- an independent malformed URL-template control is rejected by the oracle,
+  affected, and candidate revisions; and
 - one candidate Wasm is exercised against successive valid,
   validation-unavailable, and valid file-backed LDS generations in one Envoy
   process.
@@ -55,7 +59,7 @@ this harness.
 
 ```mermaid
 flowchart LR
-    R["run.sh on the host"] --> W["Candidate and pinned-baseline Wasm builds"]
+    R["run.sh on the host"] --> W["Candidate, affected, and v2.0.0 oracle Wasm builds"]
     R --> G["Generated static and file-backed LDS configs"]
     W --> E["Higress gateway image / Envoy / proxy-Wasm"]
     G --> E
@@ -76,16 +80,18 @@ The run proceeds as follows:
 1. [`run.sh`](./run.sh) resolves the repository root and source SHA, requires a
    clean tree by default, and creates or accepts an evidence directory outside
    the worktree.
-2. Go builds the checked-out `mcp-server` module and an archive of pinned
-   baseline `c55d9825c90868f50edbff9764a6b3cf2eb13162` for `wasip1/wasm` with
-   `-trimpath`. The script records both SHA256 values and removes the temporary
-   archived source tree before startup.
+2. Go builds the checked-out `mcp-server` module plus archives of affected
+   revision `c55d9825c90868f50edbff9764a6b3cf2eb13162` and v2.0.0 oracle
+   `39ec41aab6eb1d40499bed2847085696de0ebb96` for `wasip1/wasm` with
+   `-trimpath`. The script records all three SHA256 values and removes the
+   temporary archived source trees before startup.
 3. [`generate_envoy.py`](./generate_envoy.py) writes the main static Envoy
    configuration plus an isolated configuration that must reject
    `protocolStrategy: auto`.
 4. Podman Compose starts two deterministic Python backends and isolated
-   baseline, generation-transition, auto-rejection, and main gateways. Nine
-   main listeners select registered, REST, composed, and proxy configurations.
+   affected, oracle, malformed-control, generation-transition, auto-rejection,
+   and main gateways. Nine main listeners select registered, REST, composed,
+   and proxy configurations.
 5. [`verify.py`](./verify.py) first drives the candidate Wasm through valid ->
    validation-unavailable -> valid file-backed LDS generations in one Envoy
    process, then sends the main matrix traffic. The backends record safe event
@@ -93,11 +99,11 @@ The run proceeds as follows:
    protocol metadata, authentication policy, and isolation can be asserted.
 6. The gateways are stopped before their logs are collected, ensuring buffered
    access records are flushed. Compose resources are then removed.
-7. [`finalize_evidence.py`](./finalize_evidence.py) adds the baseline,
-   generation-transition, and auto-rejection results, checks access-log
-   coverage, writes the manifest and checksums, and returns non-zero for any
-   failed matrix or coverage assertion.
-8. A completed run deletes both temporary Wasm files. Build artifacts must
+7. [`finalize_evidence.py`](./finalize_evidence.py) adds the affected rejection,
+   v2.0.0 oracle, malformed-control, generation-transition, and auto-rejection
+   results, checks access-log coverage, writes the manifest and checksums, and
+   returns non-zero for any failed matrix or coverage assertion.
+8. A completed run deletes all three temporary Wasm files. Build artifacts must
    never be committed.
 
 ## Directory components
@@ -112,7 +118,7 @@ The run proceeds as follows:
   clusters, plugin configuration, and the invalid-auto configuration.
 - [`verify.py`](./verify.py) executes the eleven traffic-driven cases and writes
   the client ledger, case matrix, and final backend snapshots.
-- [`finalize_evidence.py`](./finalize_evidence.py) adds the three isolated
+- [`finalize_evidence.py`](./finalize_evidence.py) adds the five isolated
   configuration/generation cases, verifies access coverage, and writes the
   manifest and SHA256 inventory.
 - [`.gitignore`](./.gitignore) excludes local runtime-evidence and Python cache
@@ -167,7 +173,7 @@ git rev-parse HEAD
 ```
 
 `git status --short` must print nothing. The final JSON line should report
-`"pass": 14`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
+`"pass": 16`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
 should exit with status 0. The verifier prints an intermediate
 `SUMMARY pass=11 fail=0` before the finalizer adds the baseline,
 dynamic-generation, and auto-configuration cases.
@@ -210,7 +216,7 @@ still records the cached resolved digests. This flag is rejected unless
 
 ## Runtime matrix
 
-The final matrix contains these fourteen cases. The first eleven are driven
+The final matrix contains these sixteen cases. The first eleven are driven
 through the main gateway:
 
 1. **Registered modern discover/list/call** verifies a compiled-in Amap tool,
@@ -244,14 +250,20 @@ through the main gateway:
 11. **Authentication, error, and cross-origin isolation** verifies explicit
     bearer policy, preservation of 401/403 and `WWW-Authenticate`, and no state
     or header leakage from the primary backend to the secondary backend.
-12. **Pinned baseline rejection** builds baseline `c55d9825...`, loads the same
+12. **Affected revision rejection** builds revision `c55d9825...`, loads the same
     affected descriptor, records the baseline Wasm hash and compiler rejection,
     and proves zero upstream activity.
-13. **Same-process dynamic generation transition** atomically updates a
+13. **v2.0.0 compatibility oracle** builds `39ec41aa...`, loads the identical
+    descriptor, lists it, invokes it, and asserts the historical method, path,
+    query, header conversion, JSON body, and one upstream call.
+14. **Malformed non-Schema control** loads an invalid URL template with all
+    three revisions and requires each plugin configuration to be rejected with
+    zero upstream activity.
+15. **Same-process dynamic generation transition** atomically updates a
     file-backed LDS source in one Envoy process and proves validated ->
     validation-unavailable -> validated descriptors, call behavior, and backend
     counts of 1 -> 0 -> 1. Container ID, PID, and start time must remain stable.
-14. **Auto strategy rejection** verifies that the deferred
+16. **Auto strategy rejection** verifies that the deferred
     `protocolStrategy: auto` configuration is rejected before any upstream
     request.
 
@@ -289,14 +301,19 @@ A completed evidence directory contains:
   event state for each deterministic backend.
 - `backend-auto-state.json`: proof that the rejected auto configuration made no
   upstream request.
-- `backend-baseline-state.json` and `gateway-baseline.log`: pinned-baseline
+- `backend-baseline-state.json` and `gateway-baseline.log`: affected-revision
   zero-upstream and compiler-rejection proof.
+- `oracle-verification.json`, `backend-oracle-state.json`, and
+  `gateway-oracle.log`: v2.0.0 list, descriptor, REST mapping, backend, and
+  plugin-start proof.
+- `backend-control-state.json` and `gateway-control-*.log`: common historical
+  malformed URL-template rejection and zero-upstream proof.
 - `generation-transition.json`, `generation-process-*.txt`, and
   `gateway-generation.log`: per-generation descriptors, responses, backend
   events, exchanges, runtime log, and stable process identity.
-- `envoy.yaml`, `envoy-auto.yaml`, `envoy-baseline.yaml`,
-  `envoy-generation.yaml`, and `lds-generation-*.yaml`: the exact static and
-  dynamic Envoy configurations.
+- `envoy.yaml`, `envoy-auto.yaml`, `envoy-baseline.yaml`, `envoy-oracle.yaml`,
+  `envoy-control-*.yaml`, `envoy-generation.yaml`, and
+  `lds-generation-*.yaml`: the exact static and dynamic Envoy configurations.
 - `compose-config.yaml`: the resolved Compose configuration with fixture
   credentials redacted.
 - `gateway.log` and `gateway-auto.log`: sanitized Envoy runtime and access logs,
@@ -313,6 +330,8 @@ The main `manifest.json` fields have these meanings:
 - `plugin_sha256` identifies the exact temporary WASM bytes loaded by Envoy.
 - `baseline_source_sha` and `baseline_plugin_sha256` identify the independently
   built pinned rejection baseline.
+- `oracle_source_sha` and `oracle_plugin_sha256` identify the independently
+  built v2.0.0 acceptance oracle.
 - `gateway_image`, `backend_image`, and their resolved digest arrays identify
   the container inputs; compare digests because tags can move.
 - `podman_version` and `compose_version` identify the local orchestration tools.
@@ -321,11 +340,11 @@ The main `manifest.json` fields have these meanings:
 - `sanitization` records the evidence redaction policy.
 - `cleanup` embeds the cleanup-proof result.
 
-`plugin.wasm` and `baseline-plugin.wasm` are temporary. Their SHA256 values are
-calculated before containers start and recorded in `manifest.json`; the
-completed run deletes both and excludes them from `SHA256SUMS`. If the script
-exits before finalization, delete either partial artifact after diagnosis and
-never add it to Git.
+`plugin.wasm`, `baseline-plugin.wasm`, and `oracle-plugin.wasm` are temporary.
+Their SHA256 values are calculated before containers start and recorded in
+`manifest.json`; the completed run deletes all three and excludes them from
+`SHA256SUMS`. If the script exits before finalization, delete any partial
+artifact after diagnosis and never add it to Git.
 
 ## Verify a completed evidence set
 
@@ -345,7 +364,7 @@ else
 fi
 ```
 
-Then verify source identity, the 14/0 matrix, the 55/55 main access ledger, backend
+Then verify source identity, the 16/0 matrix, the 55/55 main access ledger, backend
 event count, plugin/image identities, and cleanup proof:
 
 ```bash
@@ -371,16 +390,18 @@ backend_events = sum(
 assert manifest["source_sha"] == expected_source
 assert manifest["source_tree_clean"] is True
 assert manifest["baseline_source_sha"] == "c55d9825c90868f50edbff9764a6b3cf2eb13162"
-assert matrix["summary"] == {"pass": 14, "fail": 0}
+assert manifest["oracle_source_sha"] == "39ec41aab6eb1d40499bed2847085696de0ebb96"
+assert matrix["summary"] == {"pass": 16, "fail": 0}
 assert coverage["status"] == "PASS"
 assert coverage["recordedClientExchangeCount"] == 55
 assert coverage["accessRecordCount"] == 55
 assert not coverage["missingRequestIds"]
 assert not coverage["duplicateRequestIds"]
 assert not coverage["unexpectedRequestIds"]
-assert backend_events == 40
+assert backend_events == 41
 assert len(manifest["plugin_sha256"]) == 64
 assert len(manifest["baseline_plugin_sha256"]) == 64
+assert len(manifest["oracle_plugin_sha256"]) == 64
 assert manifest["gateway_resolved_digests"]
 assert manifest["backend_resolved_digests"]
 assert cleanup.startswith("PASS no containers remain")
@@ -389,6 +410,7 @@ print(json.dumps({
     "source_sha": manifest["source_sha"],
     "plugin_sha256": manifest["plugin_sha256"],
     "baseline_plugin_sha256": manifest["baseline_plugin_sha256"],
+    "oracle_plugin_sha256": manifest["oracle_plugin_sha256"],
     "gateway_digests": manifest["gateway_resolved_digests"],
     "backend_digests": manifest["backend_resolved_digests"],
     "matrix": matrix["summary"],

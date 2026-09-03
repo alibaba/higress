@@ -21,6 +21,7 @@ MODERN = "2026-07-28"
 LEGACY = ("2024-11-05", "2025-03-26", "2025-06-18")
 GATEWAY_HOST = os.environ.get("RUNTIME_GATEWAY_HOST", "gateway")
 GENERATION_TRANSITION = os.environ.get("RUNTIME_GENERATION_TRANSITION", "") == "1"
+COMPATIBILITY_ORACLE = os.environ.get("RUNTIME_ORACLE", "") == "1"
 
 
 def check(condition, message):
@@ -404,6 +405,54 @@ def schema_compatibility():
     }
 
 
+def compatibility_oracle():
+    wait_http("http://backend-primary:8080/healthz")
+    wait_http(f"http://{GATEWAY_HOST}:9941/ready")
+    backend_reset()
+    affected = "getTransactionRecordListV2"
+    version = LEGACY[-1]
+    status, _, listed = legacy_rpc(
+        13018,
+        {"jsonrpc": "2.0", "id": "oracle-list", "method": "tools/list", "params": {}},
+        version=version,
+    )
+    check(status == 200, f"v2.0.0 oracle list failed: {status} {listed}")
+    tools = {tool.get("name"): tool for tool in listed.get("result", {}).get("tools", [])}
+    check(set(tools) == {affected, "compat_health"}, f"v2.0.0 oracle tools changed: {tools}")
+    check(tools[affected]["inputSchema"]["properties"]["businessType"]["enum"] == ["SALE", "REFUND"],
+          f"v2.0.0 oracle descriptor changed: {tools[affected]}")
+    arguments = {
+        "transactionId": "tx-42", "page": "7", "X-Compat-Flag": "true",
+        "businessType": ["SALE", "REFUND"], "payload": {"amount": 12},
+    }
+    status, _, called = legacy_rpc(
+        13018,
+        {"jsonrpc": "2.0", "id": "oracle-call", "method": "tools/call",
+         "params": {"name": affected, "arguments": arguments}},
+        version=version,
+    )
+    check(status == 200 and "result" in called, f"v2.0.0 oracle call failed: {status} {called}")
+    events = backend_state()["events"]
+    check(len(events) == 1 and events[0]["path"] == "/compat/tx-42", f"v2.0.0 oracle backend count changed: {events}")
+    observed = events[0].get("compatibilityRequest") or {}
+    check(events[0]["httpMethod"] == "POST", f"v2.0.0 oracle method changed: {events[0]}")
+    check(observed.get("query") == {"fixed": ["yes"], "page": ["7"]}, f"v2.0.0 oracle query changed: {events[0]}")
+    check(observed.get("flag") == "true", f"v2.0.0 oracle header conversion changed: {events[0]}")
+    check(observed.get("jsonBody") == {"businessType": ["SALE", "REFUND"], "payload": {"amount": 12}},
+          f"v2.0.0 oracle JSON body changed: {events[0]}")
+    result = {
+        "configurationAccepted": True,
+        "descriptorPreserved": True,
+        "legacyVersion": version,
+        "legacyRESTMapping": True,
+        "backendEvents": {"backend-primary": events},
+        "clientExchanges": EXCHANGES,
+    }
+    (EVIDENCE / "oracle-verification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    (EVIDENCE / "backend-oracle-state.json").write_text(json.dumps({"events": events}, indent=2, sort_keys=True) + "\n")
+    return 0
+
+
 def modern_proxy():
     backend_reset()
     sensitive = {
@@ -508,6 +557,8 @@ def auth_and_isolation():
 def main():
     if GENERATION_TRANSITION:
         return generation_transition()
+    if COMPATIBILITY_ORACLE:
+        return compatibility_oracle()
     wait_http("http://backend-primary:8080/healthz")
     wait_http(f"http://{GATEWAY_HOST}:9901/ready")
     cases = [

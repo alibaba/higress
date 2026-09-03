@@ -47,6 +47,16 @@ SCHEMA_COMPATIBILITY = {
 VALID_SCHEMA_COMPATIBILITY = deepcopy(SCHEMA_COMPATIBILITY)
 del VALID_SCHEMA_COMPATIBILITY["tools"][0]["args"][3]["enum"]
 
+MALFORMED_NON_SCHEMA = {
+    "server": {"name": "malformed-non-schema", "type": "rest"},
+    "tools": [{
+        "name": "malformed_template",
+        "description": "Independent historical configuration error control",
+        "args": [{"name": "value", "type": "string"}],
+        "requestTemplate": {"url": "{{", "method": "GET"},
+    }],
+}
+
 
 def proxy(name, strategy=None, target="backend-primary", auth=False):
     server = {
@@ -212,6 +222,17 @@ static_resources:
     (OUT / "envoy-baseline.yaml").write_text(single_listener_config(
         9931, 13008, "schema-compatibility-baseline", SCHEMA_COMPATIBILITY, "baseline-plugin.wasm",
     ))
+    (OUT / "envoy-oracle.yaml").write_text(single_listener_config(
+        9941, 13018, "schema-compatibility-oracle", SCHEMA_COMPATIBILITY, "oracle-plugin.wasm",
+    ))
+    for suffix, wasm_file, admin_port, listener_port in (
+        ("candidate", "plugin.wasm", 9951, 13108),
+        ("affected", "baseline-plugin.wasm", 9961, 13118),
+        ("oracle", "oracle-plugin.wasm", 9971, 13128),
+    ):
+        (OUT / f"envoy-control-{suffix}.yaml").write_text(single_listener_config(
+            admin_port, listener_port, f"malformed-control-{suffix}", MALFORMED_NON_SCHEMA, wasm_file,
+        ))
     generation_configs = (
         ("valid-before", VALID_SCHEMA_COMPATIBILITY),
         ("validation-unavailable", SCHEMA_COMPATIBILITY),

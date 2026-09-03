@@ -177,13 +177,14 @@ var globalContext Context
 
 // ToolInfo stores information about a tool for the global registry.
 type ToolInfo struct {
-	Name         string
-	Description  string
-	InputSchema  map[string]any
-	OutputSchema map[string]any // New field for MCP Protocol Version 2025-06-18
-	LegacyOnly   bool           // Explicitly unavailable to modern direct-tool profiles
-	ServerName   string         // Original server name
-	Tool         Tool           // The actual tool instance for cloning
+	Name                    string
+	Description             string
+	InputSchema             map[string]any
+	inputSchemaSerializable bool
+	OutputSchema            map[string]any // New field for MCP Protocol Version 2025-06-18
+	LegacyOnly              bool           // Explicitly unavailable to modern direct-tool profiles
+	ServerName              string         // Original server name
+	Tool                    Tool           // The actual tool instance for cloning
 }
 
 // GlobalToolRegistry holds all tools from all servers.
@@ -199,15 +200,14 @@ func (r *GlobalToolRegistry) Initialize() {
 
 // RegisterTool registers a tool into the global registry.
 func (r *GlobalToolRegistry) RegisterTool(serverName string, toolName string, tool Tool) {
-	if _, ok := r.serverTools[serverName]; !ok {
-		r.serverTools[serverName] = make(map[string]ToolInfo)
-	}
+	inputSchema, _, schemaErr := cloneToolInputSchema(tool.InputSchema())
 	toolInfo := ToolInfo{
-		Name:        toolName,
-		Description: tool.Description(),
-		InputSchema: tool.InputSchema(),
-		ServerName:  serverName,
-		Tool:        tool,
+		Name:                    toolName,
+		Description:             tool.Description(),
+		InputSchema:             inputSchema,
+		inputSchemaSerializable: schemaErr == nil,
+		ServerName:              serverName,
+		Tool:                    tool,
 	}
 	// Check if tool implements OutputSchema (MCP Protocol Version 2025-06-18)
 	if toolWithSchema, ok := tool.(ToolWithOutputSchema); ok {
@@ -216,8 +216,34 @@ func (r *GlobalToolRegistry) RegisterTool(serverName string, toolName string, to
 	if compatibility, ok := tool.(legacySchemaCompatibleTool); ok {
 		toolInfo.LegacyOnly = compatibility.legacyOnlyInputSchema()
 	}
-	r.serverTools[serverName][toolName] = toolInfo
-	log.Debugf("Registered tool %s/%s", serverName, toolName)
+	r.registerToolInfo(toolInfo)
+}
+
+// registerPreparedTool publishes the descriptor already captured for the
+// direct generation. It must not call Description or InputSchema again: those
+// getters may be stateful and their returned maps remain caller-owned.
+func (r *GlobalToolRegistry) registerPreparedTool(serverName string, entry directToolEntry) {
+	toolInfo := ToolInfo{
+		Name:                    entry.name,
+		Description:             entry.description,
+		InputSchema:             entry.inputSchema,
+		inputSchemaSerializable: entry.serializable,
+		LegacyOnly:              entry.schemaState == directToolSchemaExplicitLegacyOnly,
+		ServerName:              serverName,
+		Tool:                    entry.tool,
+	}
+	if toolWithSchema, ok := entry.tool.(ToolWithOutputSchema); ok {
+		toolInfo.OutputSchema = toolWithSchema.OutputSchema()
+	}
+	r.registerToolInfo(toolInfo)
+}
+
+func (r *GlobalToolRegistry) registerToolInfo(toolInfo ToolInfo) {
+	if _, ok := r.serverTools[toolInfo.ServerName]; !ok {
+		r.serverTools[toolInfo.ServerName] = make(map[string]ToolInfo)
+	}
+	r.serverTools[toolInfo.ServerName][toolInfo.Name] = toolInfo
+	log.Debugf("Registered tool %s/%s", toolInfo.ServerName, toolInfo.Name)
 }
 
 // GetToolInfo retrieves tool information from the global registry.
@@ -568,8 +594,8 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 		if _, isProxy := config.server.(*McpProxyServer); !isProxy && !config.isComposed {
 			// Publish direct tools to the shared registry only after the complete
 			// generation snapshot has captured each tool's validation state.
-			for toolName, toolInstance := range config.server.GetMCPTools() {
-				opts.ToolRegistry.RegisterTool(config.serverName, toolName, toolInstance)
+			for _, entry := range config.directTools.ordered {
+				opts.ToolRegistry.registerPreparedTool(config.serverName, entry)
 			}
 		}
 	}

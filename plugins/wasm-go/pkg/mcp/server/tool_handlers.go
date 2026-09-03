@@ -56,6 +56,10 @@ type directToolDiagnostic struct {
 	reason schemaDiagnosticReason
 }
 
+type capturedInputSchemaTool interface {
+	capturedInputSchema() (map[string]any, bool)
+}
+
 func compileDirectToolSnapshot(server Server) directToolSnapshot {
 	entries := snapshotTools(server)
 	snapshot := directToolSnapshot{
@@ -64,7 +68,20 @@ func compileDirectToolSnapshot(server Server) directToolSnapshot {
 		legacyOnly: make(map[string]string),
 	}
 	for _, entry := range entries {
-		descriptor, serializable, validator, preparationErr := prepareToolInputSchema(entry.tool.InputSchema())
+		var descriptor map[string]any
+		var serializable bool
+		var validator *compiledInputSchema
+		var preparationErr error
+		if captured, ok := entry.tool.(capturedInputSchemaTool); ok {
+			descriptor, serializable = captured.capturedInputSchema()
+			if serializable {
+				descriptor, serializable, validator, preparationErr = prepareToolInputSchema(descriptor)
+			} else {
+				preparationErr = schemaCompileError(schemaDiagnosticSerializationFailure, "input schema is not JSON-compatible")
+			}
+		} else {
+			descriptor, serializable, validator, preparationErr = prepareToolInputSchema(entry.tool.InputSchema())
+		}
 		if compatibility, ok := entry.tool.(legacySchemaCompatibleTool); ok && compatibility.legacyOnlyInputSchema() {
 			reason := "configured as legacy-only"
 			if preparationErr != nil {

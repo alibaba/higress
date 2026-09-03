@@ -29,12 +29,18 @@ export COMPOSE_PROJECT_NAME
 BASELINE_REVISION=c55d9825c90868f50edbff9764a6b3cf2eb13162
 BASELINE_SHA=$(git -C "$REPO_ROOT" rev-parse "$BASELINE_REVISION^{commit}")
 BASELINE_SOURCE_DIR=""
-export BASELINE_SHA
+ORACLE_REVISION=39ec41aab6eb1d40499bed2847085696de0ebb96
+ORACLE_SHA=$(git -C "$REPO_ROOT" rev-parse "$ORACLE_REVISION^{commit}")
+ORACLE_SOURCE_DIR=""
+export BASELINE_SHA ORACLE_SHA
 
 cleanup() {
   podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify down --volumes --remove-orphans >/dev/null 2>&1 || true
   if test -n "$BASELINE_SOURCE_DIR" && test -d "$BASELINE_SOURCE_DIR"; then
     rm -rf -- "$BASELINE_SOURCE_DIR"
+  fi
+  if test -n "$ORACLE_SOURCE_DIR" && test -d "$ORACLE_SOURCE_DIR"; then
+    rm -rf -- "$ORACLE_SOURCE_DIR"
   fi
 }
 trap cleanup EXIT INT TERM
@@ -58,7 +64,14 @@ git -C "$REPO_ROOT" archive "$BASELINE_SHA" | tar -x -C "$BASELINE_SOURCE_DIR" |
 BASELINE_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/baseline-plugin.wasm")
 rm -rf -- "$BASELINE_SOURCE_DIR"
 BASELINE_SOURCE_DIR=""
-export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256
+echo "building v2.0.0 compatibility oracle WASM from $ORACLE_SHA"
+ORACLE_SOURCE_DIR=$(mktemp -d "$RUNTIME_EVIDENCE/oracle-source.XXXXXX") || exit 3
+git -C "$REPO_ROOT" archive "$ORACLE_SHA" | tar -x -C "$ORACLE_SOURCE_DIR" || exit 3
+(cd "$ORACLE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/oracle-plugin.wasm" .) || exit 3
+ORACLE_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/oracle-plugin.wasm")
+rm -rf -- "$ORACLE_SOURCE_DIR"
+ORACLE_SOURCE_DIR=""
+export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256 ORACLE_PLUGIN_SHA256
 
 RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
 if test "${RUNTIME_SKIP_PULL:-0}" = 1; then
@@ -77,15 +90,34 @@ podman image inspect docker.io/library/python:3.12-alpine --format '{{range .Rep
 podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify config \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/compose-config.yaml"
 
-podman compose -f "$HARNESS_DIR/compose.yaml" up -d backend-primary backend-secondary gateway-auto gateway-baseline || exit 4
+podman compose -f "$HARNESS_DIR/compose.yaml" up -d backend-primary backend-secondary gateway-auto gateway-baseline \
+  gateway-control-candidate gateway-control-affected gateway-control-oracle || exit 4
 sleep 2
 podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-auto-state.json" || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-baseline-state.json" || exit 4
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-baseline >/dev/null 2>&1 || true
+podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-control-state.json" || exit 4
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-baseline gateway-control-candidate gateway-control-affected gateway-control-oracle >/dev/null 2>&1 || true
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-baseline \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-baseline.log"
+for variant in candidate affected oracle; do
+  podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color "gateway-control-$variant" \
+    | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-control-$variant.log"
+done
 
 VERIFY_STATUS=0
+podman compose -f "$HARNESS_DIR/compose.yaml" up -d gateway-oracle || exit 4
+set +e
+podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify run --rm --no-deps \
+  -e RUNTIME_GATEWAY_HOST=gateway-oracle -e RUNTIME_ORACLE=1 verifier
+ORACLE_VERIFY_STATUS=$?
+set -e
+if test "$ORACLE_VERIFY_STATUS" -ne 0; then
+  VERIFY_STATUS=1
+fi
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-oracle >/dev/null 2>&1 || true
+podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-oracle \
+  | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-oracle.log"
+
 capture_generation_process() {
   output=$1
   container_id=$(podman compose -f "$HARNESS_DIR/compose.yaml" ps -q gateway-generation) || return 1
@@ -136,6 +168,7 @@ FINALIZE_STATUS=$?
 set -e
 unlink "$RUNTIME_EVIDENCE/plugin.wasm"
 unlink "$RUNTIME_EVIDENCE/baseline-plugin.wasm"
+unlink "$RUNTIME_EVIDENCE/oracle-plugin.wasm"
 if test "$VERIFY_STATUS" -ne 0 || test "$FINALIZE_STATUS" -ne 0; then
   exit 1
 fi

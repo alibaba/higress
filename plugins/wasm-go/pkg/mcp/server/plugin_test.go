@@ -176,7 +176,7 @@ func TestGlobalToolRegistry_RegisterTool_CapturesOutputSchema(t *testing.T) {
 	info, ok := r.GetToolInfo("srv", "tool")
 	require.True(t, ok)
 	assert.Equal(t, "d", info.Description)
-	assert.Equal(t, map[string]any{"in": 1}, info.InputSchema)
+	assert.Equal(t, map[string]any{"in": json.Number("1")}, info.InputSchema)
 	assert.Equal(t, map[string]any{"out": 2}, info.OutputSchema, "OutputSchema must be captured when tool implements ToolWithOutputSchema")
 }
 
