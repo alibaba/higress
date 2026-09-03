@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -148,12 +149,56 @@ func TestVerifyPulledPluginRejectsBadManifestBlobsAndWasm(t *testing.T) {
 			mutate: func(t *testing.T, manifestPath, _, wasmPath string) {
 				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, append(proxyWasmFixture(), 7, 10, 1), 1)
 			},
-			want: "truncated",
+			want: "invalid WebAssembly module",
+		},
+		{
+			name: "out-of-range-export-index",
+			mutate: func(t *testing.T, manifestPath, _, wasmPath string) {
+				wasm := proxyWasmFixture()
+				marker := append([]byte("proxy_on_configure"), 0x00)
+				offset := bytes.Index(wasm, marker)
+				if offset < 0 {
+					t.Fatal("fixture lacks proxy_on_configure export")
+				}
+				wasm[offset+len(marker)] = 0x7f
+				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, wasm, 1)
+			},
+			want: "invalid WebAssembly module",
+		},
+		{
+			name: "incompatible-callback-signature",
+			mutate: func(t *testing.T, manifestPath, _, wasmPath string) {
+				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, proxyWasmModule(true, map[string]uint32{"proxy_on_vm_start": 1}, "proxy_on_vm_start", "proxy_on_configure", "proxy_abi_version_0_2_1"), 1)
+			},
+			want: "signature (i32,i32)->i32",
+		},
+		{
+			name: "incompatible-abi-signature",
+			mutate: func(t *testing.T, manifestPath, _, wasmPath string) {
+				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, proxyWasmModule(true, map[string]uint32{"proxy_abi_version_0_2_1": 0}, "proxy_on_vm_start", "proxy_on_configure", "proxy_abi_version_0_2_1"), 1)
+			},
+			want: "signature ()->()",
+		},
+		{
+			name: "missing-exported-memory",
+			mutate: func(t *testing.T, manifestPath, _, wasmPath string) {
+				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, proxyWasmModule(false, nil, "proxy_on_vm_start", "proxy_on_configure", "proxy_abi_version_0_2_1"), 1)
+			},
+			want: "exported memory",
+		},
+		{
+			name: "malformed-code",
+			mutate: func(t *testing.T, manifestPath, _, wasmPath string) {
+				wasm := proxyWasmFixture()
+				wasm[len(wasm)-1] = 0xff
+				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, wasm, 1)
+			},
+			want: "invalid WebAssembly module",
 		},
 		{
 			name: "missing-required-export",
 			mutate: func(t *testing.T, manifestPath, _, wasmPath string) {
-				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, proxyWasmWithExports("proxy_on_vm_start", "proxy_abi_version_0_2_1"), 1)
+				writePulledLayerAndDescriptor(t, manifestPath, wasmPath, proxyWasmModule(true, nil, "proxy_on_vm_start", "proxy_abi_version_0_2_1"), 1)
 			},
 			want: "proxy_on_configure",
 		},
@@ -266,16 +311,42 @@ func digestBytes(data []byte) string {
 }
 
 func proxyWasmFixture() []byte {
-	return proxyWasmWithExports("proxy_on_vm_start", "proxy_on_configure", "proxy_abi_version_0_2_1")
+	return proxyWasmModule(true, nil, "proxy_on_vm_start", "proxy_on_configure", "proxy_abi_version_0_2_1")
 }
 
-func proxyWasmWithExports(names ...string) []byte {
+func proxyWasmModule(exportMemory bool, typeOverrides map[string]uint32, names ...string) []byte {
 	module := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
-	typePayload := []byte{0x01, 0x60, 0x00, 0x00}
+	// Type 0 is the Proxy-Wasm callback signature (i32,i32)->i32; type 1
+	// is the ABI marker signature ()->().
+	typePayload := []byte{0x02, 0x60, 0x02, 0x7f, 0x7f, 0x01, 0x7f, 0x60, 0x00, 0x00}
 	module = appendWasmSection(module, 1, typePayload)
-	functionPayload := append(wasmVarUint(uint32(len(names))), make([]byte, len(names))...)
+	functionPayload := wasmVarUint(uint32(len(names)))
+	functionTypes := make([]uint32, len(names))
+	for i, name := range names {
+		typeIndex := uint32(0)
+		if strings.HasPrefix(name, "proxy_abi_version_0_2_") {
+			typeIndex = 1
+		}
+		if override, ok := typeOverrides[name]; ok {
+			typeIndex = override
+		}
+		functionTypes[i] = typeIndex
+		functionPayload = append(functionPayload, wasmVarUint(typeIndex)...)
+	}
 	module = appendWasmSection(module, 3, functionPayload)
-	exportPayload := wasmVarUint(uint32(len(names)))
+	if exportMemory {
+		module = appendWasmSection(module, 5, []byte{0x01, 0x00, 0x01})
+	}
+	exportCount := len(names)
+	if exportMemory {
+		exportCount++
+	}
+	exportPayload := wasmVarUint(uint32(exportCount))
+	if exportMemory {
+		exportPayload = append(exportPayload, 0x06)
+		exportPayload = append(exportPayload, []byte("memory")...)
+		exportPayload = append(exportPayload, 0x02, 0x00)
+	}
 	for index, name := range names {
 		exportPayload = append(exportPayload, wasmVarUint(uint32(len(name)))...)
 		exportPayload = append(exportPayload, []byte(name)...)
@@ -284,8 +355,12 @@ func proxyWasmWithExports(names ...string) []byte {
 	}
 	module = appendWasmSection(module, 7, exportPayload)
 	codePayload := wasmVarUint(uint32(len(names)))
-	for range names {
-		codePayload = append(codePayload, 0x02, 0x00, 0x0b)
+	for _, typeIndex := range functionTypes {
+		if typeIndex == 0 {
+			codePayload = append(codePayload, 0x04, 0x00, 0x41, 0x01, 0x0b)
+		} else {
+			codePayload = append(codePayload, 0x02, 0x00, 0x0b)
+		}
 	}
 	return appendWasmSection(module, 10, codePayload)
 }

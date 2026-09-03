@@ -533,6 +533,21 @@ test "$3" = --format=%cI
 test "$4" = "$SOURCE_COMMIT"
 printf '%s\n' "$SOURCE_CREATED"
 `)
+	verifier := filepath.Join(bin, "plugin-release")
+	writeExecutableFixture(t, verifier, `#!/usr/bin/env bash
+set -euo pipefail
+printf 'verify:%s\n' "$*" >> "$OPERATIONS_LOG"
+test "$1" = verify-pulled-plugin
+config=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --config) config=$2; shift 2 ;;
+    *) shift ;;
+  esac
+done
+test "$(cat "$config")" = '{}'
+if [ "$ORAS_MODE" = strict-verifier-error ]; then exit 29; fi
+`)
 	writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
 set -euo pipefail
 printf 'oras:%s\n' "$*" >> "$OPERATIONS_LOG"
@@ -595,7 +610,15 @@ if [ "$1 $2" = "manifest fetch" ]; then
     config-title-mismatch) config_title=other.json ;;
     wasm-title-mismatch) layer_title=other.wasm ;;
   esac
+  if [ "${4:-}" = "--output" ]; then exec > "$5"; fi
   printf '{"schemaVersion":2,"mediaType":"%s","config":{"mediaType":"%s","digest":"%s","size":2},"annotations":{"org.opencontainers.image.created":"%s","org.opencontainers.image.revision":"%s","org.opencontainers.image.version":"%s","io.higress.plugin.input-hash":"%s"},"layers":[{"mediaType":"%s","digest":"%s","size":2,"annotations":{"org.opencontainers.image.title":"%s"}},{"mediaType":"%s","digest":"%s","size":%s,"annotations":{"org.opencontainers.image.title":"%s"}}%s]}\n' "$manifest_media" "$oci_config_media" "$oci_config_digest" "$created" "$revision" "$version" "$input_hash" "$config_media" "$config_digest" "$config_title" "$layer_media" "$layer_digest" "$WASM_SIZE" "$layer_title" "$extra_layer"
+  exit 0
+fi
+if [ "$1" = pull ]; then
+  test "$3" = --output
+  mkdir -p "$4"
+  if [ "$ORAS_MODE" = pulled-config-not-empty ]; then printf '%s' '{ }' > "$4/config.json"; else printf '%s' '{}' > "$4/config.json"; fi
+  if [ "$ORAS_MODE" = pulled-different-layer ]; then printf '%s' 'different pulled bytes' > "$4/plugin.wasm"; else cp "$WASM_PATH" "$4/plugin.wasm"; fi
   exit 0
 fi
 if [ "$1" = push ]; then
@@ -617,7 +640,7 @@ exit 2
 	buildContract := workflowShellContract(t, "prepare-plugin-release.yaml", "plugin-build-contract")
 	manifestContract := workflowShellContract(t, "prepare-plugin-release.yaml", "plugin-manifest-publish-contract")
 	publishContract := workflowShellContract(t, "prepare-plugin-release.yaml", "candidate-publish-contract")
-	script := "set -euo pipefail\n" + buildContract + manifestContract + publishContract + fmt.Sprintf("\ndigest=$(resolve_or_build_candidate %q go %q demo %q 1.2.3 %q)\nprintf '%%s\\n' \"$digest\"\n", candidate, source, sourceCommit, inputHash)
+	script := "set -euo pipefail\n" + buildContract + manifestContract + publishContract + fmt.Sprintf("\ndigest=$(resolve_or_build_candidate %q go %q demo %q 1.2.3 %q %q)\nprintf '%%s\\n' \"$digest\"\n", candidate, source, sourceCommit, inputHash, verifier)
 	cmd := exec.Command("bash", "-c", script)
 	cmd.Env = append(os.Environ(),
 		"PATH="+bin+":"+os.Getenv("PATH"),
@@ -721,24 +744,42 @@ exit 2
 	}
 }
 
-func TestPreparationReusesValidExistingCandidateWithoutRebuilding(t *testing.T) {
-	for _, mode := range []string{"identical", "valid-different-layer"} {
+func TestPreparationReusesOnlyCandidateMatchingDeterministicBuildAndPulledBlobs(t *testing.T) {
+	result := runCandidatePublishContract(t, "identical")
+	if result.err != nil {
+		t.Fatalf("valid candidate was not reused: %v\n%s", result.err, result.diagnostics)
+	}
+	want := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n"
+	if result.output != want {
+		t.Fatalf("reused candidate digest = %q, want %q", result.output, want)
+	}
+	for _, required := range []string{"prepare\n", "test:test ./...\n", "build:-C plugins/wasm-go PLUGIN_NAME=demo build\n", "oras:pull ", "verify:verify-pulled-plugin "} {
+		if strings.Count(result.log, required) != 1 {
+			t.Fatalf("valid reuse did not execute exactly one %q operation:\n%s", required, result.log)
+		}
+	}
+	if strings.Contains(result.log, "oras:push ") {
+		t.Fatalf("valid reuse mutated the candidate tag:\n%s", result.log)
+	}
+	if strings.Count(result.log, "oras:manifest fetch ") != 2 || !strings.Contains(result.log, "@sha256:") {
+		t.Fatalf("reuse did not resolve descriptor then immutable manifest digest:\n%s", result.log)
+	}
+}
+
+func TestPreparationRejectsExistingCandidateWithDifferentOrInvalidPulledBytes(t *testing.T) {
+	for _, mode := range []string{"valid-different-layer", "pulled-different-layer", "pulled-config-not-empty", "strict-verifier-error"} {
 		t.Run(mode, func(t *testing.T) {
 			result := runCandidatePublishContract(t, mode)
-			if result.err != nil {
-				t.Fatalf("valid candidate was not reused: %v\n%s", result.err, result.diagnostics)
+			if result.err == nil {
+				t.Fatalf("poisoned candidate %s was reused: %s", mode, result.output)
 			}
-			want := "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\n"
-			if result.output != want {
-				t.Fatalf("reused candidate digest = %q, want %q", result.output, want)
+			if result.output != "" || strings.Contains(result.log, "oras:push ") {
+				t.Fatalf("poisoned candidate %s returned evidence or mutated its tag: output=%q\n%s", mode, result.output, result.log)
 			}
-			for _, forbidden := range []string{"prepare\n", "test:", "build:", "oras:push "} {
-				if strings.Contains(result.log, forbidden) {
-					t.Fatalf("valid candidate performed %q instead of read-only reuse:\n%s", forbidden, result.log)
+			for _, required := range []string{"prepare\n", "test:test ./...\n", "build:-C plugins/wasm-go PLUGIN_NAME=demo build\n"} {
+				if strings.Count(result.log, required) != 1 {
+					t.Fatalf("poisoned candidate %s was not compared with one deterministic source build (%q):\n%s", mode, required, result.log)
 				}
-			}
-			if strings.Count(result.log, "oras:manifest fetch ") != 2 || !strings.Contains(result.log, "@sha256:") {
-				t.Fatalf("reuse did not resolve descriptor then immutable manifest digest:\n%s", result.log)
 			}
 		})
 	}

@@ -5,6 +5,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,7 +16,9 @@ import (
 	"os"
 	"strings"
 	"time"
-	"unicode/utf8"
+
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/api"
 )
 
 const (
@@ -82,6 +85,11 @@ func verifyPulledPlugin(manifestPath, configPath, wasmPath, expectedDigest, expe
 	if err != nil {
 		return fmt.Errorf("read pulled manifest: %w", err)
 	}
+	// Hashing the fetched file is a digest check, not a re-serialization: oras
+	// 1.2.3, the version every release workflow pins, writes the manifest bytes
+	// the registry served verbatim (confirmed empirically against a production
+	// manifest whose fetched sha256 equalled its registry digest). An oras that
+	// ever reformatted its output would fail this comparison closed.
 	manifestSum := sha256.Sum256(manifestBytes)
 	if got := "sha256:" + hex.EncodeToString(manifestSum[:]); got != expectedDigest {
 		return fmt.Errorf("pulled manifest digest %s does not match expected digest %s", got, expectedDigest)
@@ -177,128 +185,47 @@ func verifyPulledLayer(name string, data []byte, descriptor pulledDescriptor) er
 }
 
 func validateProxyWasmModule(data []byte) error {
-	if len(data) < 8 || !bytes.Equal(data[:4], []byte{0x00, 0x61, 0x73, 0x6d}) {
-		return errors.New("invalid WebAssembly magic")
+	ctx := context.Background()
+	runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
+	defer runtime.Close(ctx)
+
+	module, err := runtime.CompileModule(ctx, data)
+	if err != nil {
+		return fmt.Errorf("invalid WebAssembly module: %w", err)
 	}
-	if !bytes.Equal(data[4:8], []byte{0x01, 0x00, 0x00, 0x00}) {
-		return errors.New("unsupported WebAssembly binary version")
+	defer module.Close(ctx)
+
+	if len(module.ExportedMemories()) == 0 {
+		return errors.New("required exported memory is missing")
 	}
-	sectionRank := map[byte]int{1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 13: 6, 6: 7, 7: 8, 8: 9, 9: 10, 12: 11, 10: 12, 11: 13}
-	seen := map[byte]bool{}
-	lastRank := 0
-	exportsSeen := false
-	required := map[string]bool{"proxy_on_vm_start": false, "proxy_on_configure": false}
-	abiMarker := false
-	for offset := 8; offset < len(data); {
-		sectionID := data[offset]
-		offset++
-		sectionSize, consumed, err := readWasmVarUint32(data[offset:])
-		if err != nil {
-			return fmt.Errorf("section %d size: %w", sectionID, err)
-		}
-		offset += consumed
-		if uint64(sectionSize) > uint64(len(data)-offset) {
-			return fmt.Errorf("section %d is truncated", sectionID)
-		}
-		end := offset + int(sectionSize)
-		if sectionID != 0 {
-			rank, ok := sectionRank[sectionID]
-			if !ok {
-				return fmt.Errorf("unsupported WebAssembly section id %d", sectionID)
-			}
-			if seen[sectionID] || rank <= lastRank {
-				return fmt.Errorf("WebAssembly section %d is duplicate or out of order", sectionID)
-			}
-			seen[sectionID], lastRank = true, rank
-		}
-		if sectionID == 7 {
-			exportsSeen = true
-			if err := parseProxyWasmExports(data[offset:end], required, &abiMarker); err != nil {
-				return err
-			}
-		}
-		offset = end
-	}
-	if !exportsSeen {
-		return errors.New("WebAssembly export section is missing")
-	}
-	for name, present := range required {
-		if !present {
+	exportedFunctions := module.ExportedFunctions()
+	callbackSignature := []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}
+	callbackResult := []api.ValueType{api.ValueTypeI32}
+	for _, name := range []string{"proxy_on_vm_start", "proxy_on_configure"} {
+		definition, ok := exportedFunctions[name]
+		if !ok {
 			return fmt.Errorf("required function export %q is missing", name)
 		}
+		if !sameValueTypes(definition.ParamTypes(), callbackSignature) || !sameValueTypes(definition.ResultTypes(), callbackResult) {
+			return fmt.Errorf("required function export %q must have signature (i32,i32)->i32", name)
+		}
 	}
-	if !abiMarker {
-		return errors.New("required proxy_abi_version_0_2_* function export is missing")
+	for name, definition := range exportedFunctions {
+		if strings.HasPrefix(name, "proxy_abi_version_0_2_") && len(name) > len("proxy_abi_version_0_2_") && len(definition.ParamTypes()) == 0 && len(definition.ResultTypes()) == 0 {
+			return nil
+		}
 	}
-	return nil
+	return errors.New("required proxy_abi_version_0_2_* function export with signature ()->() is missing")
 }
 
-func parseProxyWasmExports(payload []byte, required map[string]bool, abiMarker *bool) error {
-	count, consumed, err := readWasmVarUint32(payload)
-	if err != nil {
-		return fmt.Errorf("export count: %w", err)
+func sameValueTypes(got, want []api.ValueType) bool {
+	if len(got) != len(want) {
+		return false
 	}
-	offset := consumed
-	seenNames := map[string]bool{}
-	for i := uint32(0); i < count; i++ {
-		nameLength, n, err := readWasmVarUint32(payload[offset:])
-		if err != nil {
-			return fmt.Errorf("export %d name length: %w", i, err)
-		}
-		offset += n
-		if uint64(nameLength) > uint64(len(payload)-offset) {
-			return fmt.Errorf("export %d name is truncated", i)
-		}
-		nameBytes := payload[offset : offset+int(nameLength)]
-		if !utf8.Valid(nameBytes) {
-			return fmt.Errorf("export %d name is not UTF-8", i)
-		}
-		name := string(nameBytes)
-		offset += int(nameLength)
-		if seenNames[name] {
-			return fmt.Errorf("duplicate WebAssembly export %q", name)
-		}
-		seenNames[name] = true
-		if offset >= len(payload) {
-			return fmt.Errorf("export %q descriptor is truncated", name)
-		}
-		kind := payload[offset]
-		offset++
-		if kind > 4 {
-			return fmt.Errorf("export %q has invalid kind %d", name, kind)
-		}
-		_, n, err = readWasmVarUint32(payload[offset:])
-		if err != nil {
-			return fmt.Errorf("export %q index: %w", name, err)
-		}
-		offset += n
-		if _, wanted := required[name]; wanted && kind == 0 {
-			required[name] = true
-		}
-		if strings.HasPrefix(name, "proxy_abi_version_0_2_") && len(name) > len("proxy_abi_version_0_2_") && kind == 0 {
-			*abiMarker = true
+	for i := range want {
+		if got[i] != want[i] {
+			return false
 		}
 	}
-	if offset != len(payload) {
-		return errors.New("WebAssembly export section has trailing bytes")
-	}
-	return nil
-}
-
-func readWasmVarUint32(data []byte) (uint32, int, error) {
-	var value uint32
-	for i := 0; i < 5; i++ {
-		if i >= len(data) {
-			return 0, 0, errors.New("truncated varuint32")
-		}
-		b := data[i]
-		if i == 4 && b&0xf0 != 0 {
-			return 0, 0, errors.New("varuint32 overflow")
-		}
-		value |= uint32(b&0x7f) << (7 * i)
-		if b&0x80 == 0 {
-			return value, i + 1, nil
-		}
-	}
-	return 0, 0, errors.New("varuint32 is too long")
+	return true
 }
