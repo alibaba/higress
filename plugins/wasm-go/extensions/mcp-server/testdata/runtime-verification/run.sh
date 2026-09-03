@@ -94,6 +94,33 @@ export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256 ORACLE_PLUGIN_SHA256 CORPUS_CANDIDAT
   CORPUS_AFFECTED_PLUGIN_SHA256 CORPUS_ORACLE_PLUGIN_SHA256 CORPUS_FIXTURE_SHA256
 
 RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
+python3 "$HARNESS_DIR/descriptor_self_test.py" prepare "$RUNTIME_EVIDENCE" || exit 3
+for checker in verify.py finalize_evidence.py; do
+  for fixture_and_file in \
+    "unsupported-semantics:.descriptor-selftest-structure-good.json" \
+    "numeric-comparison-limit:.descriptor-selftest-number-good.json"; do
+    fixture=${fixture_and_file%%:*}
+    actual=${fixture_and_file#*:}
+    RUNTIME_DESCRIPTOR_SELF_TEST=1 RUNTIME_DESCRIPTOR_FIXTURE="$fixture" \
+      RUNTIME_DESCRIPTOR_ACTUAL="$RUNTIME_EVIDENCE/$actual" \
+      python3 "$HARNESS_DIR/$checker" || exit 3
+  done
+  for fixture_and_file in \
+    "unsupported-semantics:.descriptor-selftest-structure-deleted.json" \
+    "unsupported-semantics:.descriptor-selftest-array-truncated.json" \
+    "numeric-comparison-limit:.descriptor-selftest-number-as-string.json"; do
+    fixture=${fixture_and_file%%:*}
+    actual=${fixture_and_file#*:}
+    if RUNTIME_DESCRIPTOR_SELF_TEST=1 RUNTIME_DESCRIPTOR_FIXTURE="$fixture" \
+      RUNTIME_DESCRIPTOR_ACTUAL="$RUNTIME_EVIDENCE/$actual" \
+      python3 "$HARNESS_DIR/$checker" >/dev/null 2>&1; then
+      echo "$checker accepted tampered descriptor $actual" >&2
+      exit 3
+    fi
+  done
+done
+python3 "$HARNESS_DIR/descriptor_self_test.py" cleanup "$RUNTIME_EVIDENCE" || exit 3
+echo "descriptor canonical positive and tamper-negative self-tests passed"
 if test "${RUNTIME_SKIP_PULL:-0}" = 1; then
   if test "${RUNTIME_ALLOW_DIRTY:-0}" != 1; then
     echo "RUNTIME_SKIP_PULL=1 is allowed only for dirty development runs" >&2

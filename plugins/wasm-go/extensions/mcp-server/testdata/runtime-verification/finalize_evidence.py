@@ -9,23 +9,15 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+from typed_canonical import canonical_json_sha256, loads_typed
+
 
 root = Path(os.environ["RUNTIME_EVIDENCE"])
-
-
-def canonical_json_sha256(value):
-    encoded = json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
 
 if os.environ.get("RUNTIME_DESCRIPTOR_SELF_TEST") == "1":
     self_test_manifest = json.loads((root / "corpus-manifest.json").read_text())
     self_test_fixture = os.environ["RUNTIME_DESCRIPTOR_FIXTURE"]
-    self_test_actual = json.loads(
-        Path(os.environ["RUNTIME_DESCRIPTOR_ACTUAL"]).read_text(), parse_float=str, parse_constant=str,
-    )
+    self_test_actual = loads_typed(Path(os.environ["RUNTIME_DESCRIPTOR_ACTUAL"]).read_bytes())
     self_test_expected = next(
         item["expectedInputSchemaSha256"]
         for item in self_test_manifest["fixtures"]

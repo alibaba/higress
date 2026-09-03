@@ -2,10 +2,11 @@
 """Generate deterministic static Envoy configurations for the runtime harness."""
 
 import json
-import hashlib
 import os
 from copy import deepcopy
 from pathlib import Path
+
+from typed_canonical import JSONNumber, canonical_json_sha256
 
 
 OUT = Path(os.environ.get("RUNTIME_OUT", "/evidence"))
@@ -64,13 +65,6 @@ def nested_items(depth):
     for _ in range(depth):
         schema = {"type": "array", "items": schema}
     return schema
-
-
-def canonical_json_sha256(value):
-    encoded = json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def rest_input_schema(config):
@@ -366,11 +360,10 @@ static_resources:
     for index, (slug, config, legacy_mapping) in enumerate(CORPUS_FIXTURES):
         port = 14000 + index
         if slug == "numeric-comparison-limit":
-            # verify.py parses JSON floating tokens as their exact source text;
-            # represent the registered json.Number using that same canonical form.
+            # Bind the registered json.Number to a numeric typed-canonical node.
             expected_input_schema = {
                 "type": "object",
-                "properties": {"value": {"type": "number", "enum": ["1e5000"]}},
+                "properties": {"value": {"type": "number", "enum": [JSONNumber("1e5000")]}},
             }
         else:
             expected_input_schema = rest_input_schema(config)
@@ -388,7 +381,7 @@ static_resources:
                 version, config, port, f"corpus-{revision}-{slug}", wasm_file,
             ))
     (OUT / "corpus-manifest.json").write_text(json.dumps({
-        "descriptorCanonicalization": "UTF-8 JSON, object keys sorted, compact separators; floating tokens retained as source text",
+        "descriptorCanonicalization": "type-tagged UTF-8 JSON; object keys sorted; numeric lexemes retained and distinct from strings",
         "fixtures": corpus_manifest,
     }, indent=2, sort_keys=True) + "\n")
     for revision in ("candidate", "affected", "oracle"):

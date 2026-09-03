@@ -12,6 +12,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from typed_canonical import canonical_json_sha256, loads_typed
+
 
 EVIDENCE = Path(os.environ.get("RUNTIME_EVIDENCE", "/evidence"))
 RESULTS = []
@@ -24,6 +26,7 @@ GENERATION_TRANSITION = os.environ.get("RUNTIME_GENERATION_TRANSITION", "") == "
 COMPATIBILITY_ORACLE = os.environ.get("RUNTIME_ORACLE", "") == "1"
 CORPUS_REVISION = os.environ.get("RUNTIME_CORPUS_REVISION", "")
 DESCRIPTOR_SELF_TEST = os.environ.get("RUNTIME_DESCRIPTOR_SELF_TEST", "") == "1"
+LAST_TYPED_RESPONSE = None
 
 
 def check(condition, message):
@@ -31,18 +34,8 @@ def check(condition, message):
         raise AssertionError(message)
 
 
-def load_json_preserving_numbers(raw):
-    return json.loads(raw, parse_float=str, parse_constant=str)
-
-
-def canonical_json_sha256(value):
-    encoded = json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
-
 def exchange(url, body=None, headers=None, method="POST"):
+    global LAST_TYPED_RESPONSE
     data = None if body is None else json.dumps(body, separators=(",", ":")).encode()
     request = urllib.request.Request(url, data=data, method=method)
     for name, value in (headers or {}).items():
@@ -55,9 +48,13 @@ def exchange(url, body=None, headers=None, method="POST"):
         raw = exc.read()
         status, response_headers = exc.code, dict(exc.headers.items())
     try:
-        parsed = load_json_preserving_numbers(raw) if raw else None
+        parsed = json.loads(raw) if raw else None
     except json.JSONDecodeError:
         parsed = {"raw": raw.decode("utf-8", "replace")[:500]}
+    try:
+        LAST_TYPED_RESPONSE = loads_typed(raw) if raw else None
+    except (json.JSONDecodeError, ValueError):
+        LAST_TYPED_RESPONSE = None
     request_headers = {name.lower(): value for name, value in (headers or {}).items()}
     access_request_id = request_headers.get("x-request-id")
     if access_request_id:
@@ -536,9 +533,12 @@ def corpus_verification():
             status, _, listed = modern_rpc(port, "tools/list", f"corpus-{slug}-modern-list")
             check(status == 200, f"candidate modern list failed for {slug}: {status} {listed}")
             tools = result_contract(listed, ttl=True).get("tools") or []
+            typed_tools = (LAST_TYPED_RESPONSE.get("result") or {}).get("tools") or []
             tools_by_name = {tool.get("name"): tool for tool in tools}
+            typed_tools_by_name = {tool.get("name"): tool for tool in typed_tools}
             check(tool_name in tools_by_name, f"candidate descriptor missing for {slug}: {tools}")
-            modern_descriptor_hash = canonical_json_sha256(tools_by_name[tool_name].get("inputSchema"))
+            check(tool_name in typed_tools_by_name, f"candidate typed descriptor missing for {slug}")
+            modern_descriptor_hash = canonical_json_sha256(typed_tools_by_name[tool_name].get("inputSchema"))
             check(modern_descriptor_hash == fixture["expectedInputSchemaSha256"],
                   f"candidate modern descriptor changed for {slug}: {modern_descriptor_hash}")
             record["modernDescriptorSha256"] = modern_descriptor_hash
@@ -569,8 +569,12 @@ def corpus_verification():
         )
         check(status == 200, f"{CORPUS_REVISION} legacy list failed for {slug}: {status} {listed}")
         legacy_tools = {tool.get("name"): tool for tool in listed.get("result", {}).get("tools", [])}
+        typed_legacy_tools = {
+            tool.get("name"): tool for tool in LAST_TYPED_RESPONSE.get("result", {}).get("tools", [])
+        }
         check(tool_name in legacy_tools, f"{CORPUS_REVISION} legacy descriptor missing for {slug}: {listed}")
-        legacy_descriptor_hash = canonical_json_sha256(legacy_tools[tool_name].get("inputSchema"))
+        check(tool_name in typed_legacy_tools, f"{CORPUS_REVISION} typed legacy descriptor missing for {slug}")
+        legacy_descriptor_hash = canonical_json_sha256(typed_legacy_tools[tool_name].get("inputSchema"))
         check(legacy_descriptor_hash == fixture["expectedInputSchemaSha256"],
               f"{CORPUS_REVISION} legacy descriptor changed for {slug}: {legacy_descriptor_hash}")
         record["legacyDescriptorSha256"] = legacy_descriptor_hash
@@ -630,7 +634,7 @@ def descriptor_self_test():
     manifest = json.loads((EVIDENCE / "corpus-manifest.json").read_text())
     fixture_name = os.environ["RUNTIME_DESCRIPTOR_FIXTURE"]
     actual_path = Path(os.environ["RUNTIME_DESCRIPTOR_ACTUAL"])
-    actual = load_json_preserving_numbers(actual_path.read_bytes())
+    actual = loads_typed(actual_path.read_bytes())
     fixture = next(item for item in manifest["fixtures"] if item["fixture"] == fixture_name)
     observed = canonical_json_sha256(actual)
     check(observed == fixture["expectedInputSchemaSha256"],

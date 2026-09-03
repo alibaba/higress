@@ -92,7 +92,11 @@ The run proceeds as follows:
    SHA256 values and removes the temporary archived source trees before startup.
 3. [`generate_envoy.py`](./generate_envoy.py) writes the main static Envoy
    configuration plus an isolated configuration that must reject
-   `protocolStrategy: auto`.
+   `protocolStrategy: auto`. Before any image pull or runtime traffic,
+   [`run.sh`](./run.sh) necessarily runs the descriptor oracle's positive cases
+   and asserts that both verifier and finalizer return non-zero for deleted
+   fields, truncated arrays, and numeric-token-to-string tampering. Temporary
+   self-test inputs are deleted immediately and never enter final evidence.
 4. Podman Compose starts two deterministic Python backends and isolated
    affected, oracle, malformed-control, generation-transition, auto-rejection,
    and main gateways. Nine main listeners select registered, REST, composed,
@@ -121,6 +125,10 @@ The run proceeds as follows:
   legacy MCP responses and exposes safe observable event state.
 - [`generate_envoy.py`](./generate_envoy.py) generates listeners, routes,
   clusters, plugin configuration, and the invalid-auto configuration.
+- [`typed_canonical.py`](./typed_canonical.py) defines the shared type-tagged
+  JSON canonical form, including the numeric lexeme wrapper.
+- [`descriptor_self_test.py`](./descriptor_self_test.py) creates and removes
+  the positive and intentionally tampered inputs exercised by `run.sh`.
 - [`verify.py`](./verify.py) executes the eleven traffic-driven cases and writes
   the client ledger, case matrix, and final backend snapshots.
 - [`finalize_evidence.py`](./finalize_evidence.py) adds the isolated and corpus
@@ -175,6 +183,31 @@ Commit the intended source first, then run from the repository root:
 git status --short
 git rev-parse HEAD
 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/run.sh
+```
+
+The descriptor-only negative stage can also be reproduced before Podman is
+started. After generating an evidence directory and running
+`descriptor_self_test.py prepare`, this command must print `PASS`; substitute
+`finalize_evidence.py` to exercise the second consumer. `run.sh` performs both
+consumers and all three tamper cases automatically.
+
+```bash
+RUNTIME_EVIDENCE=$(mktemp -d)
+RUNTIME_OUT="$RUNTIME_EVIDENCE" \
+  python3 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/generate_envoy.py
+python3 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/descriptor_self_test.py \
+  prepare "$RUNTIME_EVIDENCE"
+if RUNTIME_EVIDENCE="$RUNTIME_EVIDENCE" RUNTIME_DESCRIPTOR_SELF_TEST=1 \
+  RUNTIME_DESCRIPTOR_FIXTURE=numeric-comparison-limit \
+  RUNTIME_DESCRIPTOR_ACTUAL="$RUNTIME_EVIDENCE/.descriptor-selftest-number-as-string.json" \
+  python3 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/verify.py; then
+  echo "FAIL: numeric string tamper was accepted"
+  exit 1
+else
+  echo "PASS: numeric string tamper was rejected"
+fi
+python3 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/descriptor_self_test.py \
+  cleanup "$RUNTIME_EVIDENCE"
 ```
 
 `git status --short` must print nothing. The final JSON line should report
@@ -283,9 +316,11 @@ through the main gateway:
     logged rejection for every fixture. The numeric fixture uses the same
     hashed registered-tool source overlay for each revision because Go's normal
     REST JSON unmarshal converts numbers to `float64` before schema preparation.
-    Descriptor hashes use compact UTF-8 JSON with lexically sorted object keys;
-    floating JSON tokens are retained as their source text, so the registered
-    `json.Number("1e5000")` is stable across Python and Go revisions.
+    Descriptor hashes encode a type-tagged UTF-8 JSON tree with lexically sorted
+    object keys. Integer and floating tokens are tagged as numbers and retain
+    their source lexeme, while strings use a different tag; therefore numeric
+    `json.Number("1e5000")` is stable across Python and Go revisions but cannot
+    collide with the JSON string `"1e5000"`.
 25. **Same-process dynamic generation transition** atomically updates a
     file-backed LDS source in one Envoy process and proves validated ->
     validation-unavailable -> validated descriptors, call behavior, and backend
