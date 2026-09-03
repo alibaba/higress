@@ -166,7 +166,11 @@ matrix["cases"].append({
     } if oracle_ok else {"error": "v2.0.0 compatibility oracle acceptance, descriptor, or REST mapping proof is absent"},
 })
 
-control_state = json.loads((root / "backend-control-state.json").read_text()) if (root / "backend-control-state.json").exists() else {"events": ["missing"]}
+control_states = {
+    variant: json.loads((root / f"backend-control-{variant}-state.json").read_text())
+    if (root / f"backend-control-{variant}-state.json").exists() else {"events": ["missing"]}
+    for variant in ("oracle", "affected", "candidate")
+}
 control_logs = {
     variant: (root / f"gateway-control-{variant}.log").read_text(errors="replace")
     if (root / f"gateway-control-{variant}.log").exists() else ""
@@ -176,7 +180,9 @@ control_rejections = {
     variant: "error parsing URL template" in log and "plugin start failed" in log
     for variant, log in control_logs.items()
 }
-control_ok = all(control_rejections.values()) and control_state.get("events") == []
+control_ok = all(control_rejections.values()) and all(
+    state.get("events") == [] for state in control_states.values()
+)
 matrix["cases"].append({
     "case": "malformed-non-schema-control-is-rejected-by-all-revisions",
     "status": "PASS" if control_ok else "FAIL",
@@ -189,7 +195,10 @@ matrix["cases"].append({
         "configurationAccepted": {variant: False for variant in control_rejections},
         "rejection": "error parsing URL template",
         "upstreamCalls": 0,
-        "backendEvents": {"backend-primary": []},
+        "backendEvents": {
+            variant: {"backend-primary": control_states[variant]["events"]}
+            for variant in control_states
+        },
     } if control_ok else {"error": f"non-schema rejection proof is incomplete: {control_rejections}"},
 })
 
@@ -297,6 +306,7 @@ manifest = {
         "gateway.log", "gateway-auto.log", "gateway-baseline.log", "gateway-oracle.log",
         "gateway-control-candidate.log", "gateway-control-affected.log", "gateway-control-oracle.log", "gateway-generation.log",
         "backend-auto-state.json", "backend-baseline-state.json", "backend-oracle-state.json", "backend-control-state.json",
+        "backend-control-candidate-state.json", "backend-control-affected-state.json", "backend-control-oracle-state.json",
         "oracle-verification.json", "generation-transition.json",
         "generation-process-before.txt", "generation-process-after.txt",
         "backend-primary-final.json", "backend-secondary-final.json",

@@ -28,7 +28,7 @@ services:
   gateway:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -41,7 +41,7 @@ services:
   gateway-auto:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-auto.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-auto.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -52,7 +52,7 @@ services:
   gateway-baseline:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-baseline.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-baseline.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -63,7 +63,7 @@ services:
   gateway-oracle:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-oracle.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-oracle.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
   gateway-control-candidate:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-control-candidate.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-control-candidate.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -85,7 +85,7 @@ services:
   gateway-control-affected:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-control-affected.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-control-affected.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -96,7 +96,7 @@ services:
   gateway-control-oracle:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-control-oracle.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-control-oracle.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -107,7 +107,7 @@ services:
   gateway-corpus-candidate:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-corpus-candidate.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-corpus-candidate.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -118,7 +118,7 @@ services:
   gateway-corpus-affected:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-corpus-affected.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-corpus-affected.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -129,7 +129,7 @@ services:
   gateway-corpus-oracle:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-corpus-oracle.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-corpus-oracle.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy
@@ -140,7 +140,7 @@ services:
   gateway-generation:
     image: higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3
     entrypoint: ["/usr/local/bin/envoy"]
-    command: ["-c", "/evidence/envoy-generation.yaml", "--log-level", "info"]
+    command: ["-c", "/evidence/envoy-generation.yaml", "--log-level", "info", "--concurrency", "1"]
     depends_on:
       backend-primary:
         condition: service_healthy

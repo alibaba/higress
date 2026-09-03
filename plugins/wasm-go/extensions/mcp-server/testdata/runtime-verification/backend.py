@@ -104,7 +104,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(200, state)
         if parsed_url.path == "/healthz":
             return self.send_json(200, {"ok": True, "origin": ORIGIN})
-        if parsed_url.path in ("/rest/weather", "/v3/weather/weatherInfo", "/compat/health"):
+        if parsed_url.path in (
+            "/rest/weather", "/v3/weather/weatherInfo", "/compat/health",
+            "/corpus/valid",
+        ):
             safe_event(self, "")
             query = parse_qs(parsed_url.query)
             city = (query.get("city") or ["unknown"])[0]

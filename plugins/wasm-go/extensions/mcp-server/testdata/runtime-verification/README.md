@@ -80,6 +80,17 @@ flowchart LR
 
 The run proceeds as follows:
 
+The first exact-head attempt for source
+`1e0ba0f5730db174ffaa4ab3859f1167b012b33a` is retained read-only at
+`/Users/xiao/projects/go/higress-mcp-verify.G2NOis/evidence` as diagnostic,
+not acceptance, evidence. It exposed three harness failures: the mixed valid
+sibling called an unimplemented backend GET route; three concurrent corpus
+Envoys starved LDS/admin progress on a 4 GiB Podman VM; and the baseline plus
+three malformed controls were sampled after a fixed two-second sleep while
+their logs had only reached `loading 1 listener(s)`. A repaired authoritative
+run must use a new clean worktree and a fresh external evidence directory; the
+failed directory must not be reused, modified, or deleted.
+
 1. [`run.sh`](./run.sh) resolves the repository root and source SHA, requires a
    clean tree by default, and creates or accepts an evidence directory outside
    the worktree.
@@ -101,10 +112,15 @@ The run proceeds as follows:
    self-test inputs are deleted immediately and never enter final evidence;
    the EXIT/INT/TERM cleanup path removes them after success, failure, or
    interruption and is safe to invoke repeatedly.
-4. Podman Compose starts two deterministic Python backends and isolated
-   affected, oracle, malformed-control, generation-transition, auto-rejection,
-   and main gateways. Nine main listeners select registered, REST, composed,
-   and proxy configurations.
+4. Podman Compose starts two deterministic Python backends. Every Envoy uses
+   one worker, and static rejection controls plus the candidate, affected, and
+   oracle corpus gateways run sequentially as start -> verify -> stop -> log.
+   Before each isolated phase the primary ledger is reset; rejection phases
+   wait for both their specific historical error and `plugin start failed`,
+   capture a zero-event ledger, and treat premature exit or timeout as a
+   harness failure. This keeps the maximum live Wasm footprint bounded on a
+   4 GiB Podman VM. Nine main listeners select registered, REST, composed, and
+   proxy configurations.
 5. [`verify.py`](./verify.py) first drives the candidate Wasm through valid ->
    validation-unavailable -> valid file-backed LDS generations in one Envoy
    process, then sends the main matrix traffic. The backends record safe event
@@ -127,6 +143,9 @@ The run proceeds as follows:
   services, and verifier container.
 - [`backend.py`](./backend.py) implements deterministic REST, modern MCP, and
   legacy MCP responses and exposes safe observable event state.
+- [`orchestration_self_test.py`](./orchestration_self_test.py) injects transient
+  and permanent admin failures, distinguishes rejection from checker failure,
+  and proves the mixed-fixture GET route records exactly one backend event.
 - [`generate_envoy.py`](./generate_envoy.py) generates listeners, routes,
   clusters, plugin configuration, and the invalid-auto configuration.
 - [`typed_canonical.py`](./typed_canonical.py) defines the shared type-tagged
@@ -318,7 +337,8 @@ through the main gateway:
     truncating an array, or deleting a field therefore fails the run. Candidate
     traffic must list the original descriptor and block modern invocation with
     `-32603` and zero upstream
-    activity; the mixed fixture also calls its valid sibling, and the rule-level
+    activity; the mixed fixture also requires a non-error result and exactly
+    one `GET /corpus/valid` backend event from its valid sibling, and the rule-level
     fixture verifies the unaffected global fallback. Oracle and candidate
     legacy discovery must succeed; the nine REST
     fixtures also prove method, path, query, header, JSON body, and exactly one
@@ -378,8 +398,9 @@ A completed evidence directory contains:
 - `oracle-verification.json`, `backend-oracle-state.json`, and
   `gateway-oracle.log`: v2.0.0 list, descriptor, REST mapping, backend, and
   plugin-start proof.
-- `backend-control-state.json` and `gateway-control-*.log`: common historical
-  malformed URL-template rejection and zero-upstream proof.
+- `backend-control-*-state.json`, the aggregate `backend-control-state.json`,
+  and `gateway-control-*.log`: per-revision historical malformed URL-template
+  rejection and zero-upstream proof.
 - `corpus-manifest.json`, `corpus-*.json`, `gateway-corpus-*.log`,
   `envoy-corpus-*.yaml`, and `lds-corpus-*.yaml`: per-fixture, per-revision
   acceptance, protocol behavior, REST mapping, LDS rejection, and configuration

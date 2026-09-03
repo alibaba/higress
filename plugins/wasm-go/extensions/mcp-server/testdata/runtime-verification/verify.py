@@ -27,6 +27,8 @@ COMPATIBILITY_ORACLE = os.environ.get("RUNTIME_ORACLE", "") == "1"
 CORPUS_REVISION = os.environ.get("RUNTIME_CORPUS_REVISION", "")
 DESCRIPTOR_SELF_TEST = os.environ.get("RUNTIME_DESCRIPTOR_SELF_TEST", "") == "1"
 LAST_TYPED_RESPONSE = None
+CORPUS_PARTIAL_RECORDS = None
+CORPUS_CURRENT_RECORD = None
 
 
 def check(condition, message):
@@ -181,7 +183,7 @@ def apply_lds_generation(phase):
     wait_lds_version(phase)
 
 
-def lds_rejected_count(admin_port=9981):
+def read_lds_rejected_count(admin_port=9981):
     status, _, stats = exchange(
         f"http://{GATEWAY_HOST}:{admin_port}/stats?filter=listener_manager.lds.update_rejected&format=json",
         method="GET",
@@ -193,23 +195,37 @@ def lds_rejected_count(admin_port=9981):
     return 0
 
 
+def wait_lds_rejected_count(admin_port=9981, greater_than=None, timeout=45):
+    deadline = time.time() + timeout
+    successful_polls = 0
+    last_error = None
+    while time.time() < deadline:
+        try:
+            count = read_lds_rejected_count(admin_port)
+            successful_polls += 1
+            if greater_than is None or count > greater_than:
+                return count
+        except (OSError, urllib.error.URLError, socket.timeout, AssertionError) as exc:
+            last_error = exc
+        time.sleep(0.25)
+    if successful_polls == 0:
+        raise RuntimeError(f"LDS rejection checker remained unavailable: {last_error}")
+    raise RuntimeError(f"Envoy did not report an LDS rejection above {greater_than}")
+
+
 def apply_corpus_fixture(revision, fixture, expected_acceptance):
     source = EVIDENCE / f"lds-corpus-{revision}-{fixture}.yaml"
     current = EVIDENCE / f"lds-corpus-{revision}-current.yaml"
     temporary = EVIDENCE / f".lds-corpus-{revision}-{fixture}.tmp"
-    rejected_before = lds_rejected_count()
+    rejected_before = wait_lds_rejected_count()
     temporary.write_bytes(source.read_bytes())
     os.replace(temporary, current)
     version = f"{revision}-{fixture}"
     if expected_acceptance:
         wait_lds_version(version, 9981)
         return True
-    deadline = time.time() + 45
-    while time.time() < deadline:
-        if lds_rejected_count() > rejected_before:
-            return False
-        time.sleep(0.25)
-    raise RuntimeError(f"Envoy did not reject corpus fixture {version}")
+    wait_lds_rejected_count(greater_than=rejected_before)
+    return False
 
 
 def generation_transition():
@@ -284,6 +300,23 @@ def evidence_snapshot():
         except Exception as exc:
             snapshots[host] = {"snapshotError": str(exc)}
     return snapshots
+
+
+def write_corpus_partial():
+    if CORPUS_PARTIAL_RECORDS is None or not CORPUS_REVISION:
+        return
+    result = {"revision": CORPUS_REVISION, "fixtures": CORPUS_PARTIAL_RECORDS}
+    (EVIDENCE / f"corpus-{CORPUS_REVISION}.json").write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n",
+    )
+
+
+def record_corpus_failure(exc):
+    if CORPUS_CURRENT_RECORD is None:
+        return
+    CORPUS_CURRENT_RECORD["diagnosticError"] = str(exc)
+    CORPUS_CURRENT_RECORD["backendEvents"] = evidence_snapshot()
+    write_corpus_partial()
 
 
 def record(name, callback):
@@ -505,19 +538,20 @@ def compatibility_oracle():
 
 
 def corpus_verification():
+    global CORPUS_PARTIAL_RECORDS, CORPUS_CURRENT_RECORD
+    records = []
+    CORPUS_PARTIAL_RECORDS = records
+    write_corpus_partial()
     wait_http("http://backend-primary:8080/healthz")
     wait_http(f"http://{GATEWAY_HOST}:9981/ready")
     manifest = json.loads((EVIDENCE / "corpus-manifest.json").read_text())
-    records = []
     for fixture in manifest["fixtures"]:
         slug = fixture["fixture"]
         expected = fixture["expectedAcceptance"][CORPUS_REVISION]
-        actual = apply_corpus_fixture(CORPUS_REVISION, slug, expected)
-        check(actual == expected, f"{CORPUS_REVISION}/{slug} acceptance mismatch")
         record = {
             "fixture": slug,
             "expectedAcceptance": expected,
-            "actualAcceptance": actual,
+            "actualAcceptance": None,
             "tool": fixture["tool"],
             "legacyMappingExpected": fixture["legacyMapping"],
             "modernList": False,
@@ -531,8 +565,15 @@ def corpus_verification():
             "globalList": False,
             "backendEvents": {"backend-primary": []},
         }
+        CORPUS_CURRENT_RECORD = record
+        records.append(record)
+        write_corpus_partial()
+        actual = apply_corpus_fixture(CORPUS_REVISION, slug, expected)
+        record["actualAcceptance"] = actual
+        write_corpus_partial()
+        check(actual == expected, f"{CORPUS_REVISION}/{slug} acceptance mismatch")
         if not actual:
-            records.append(record)
+            CORPUS_CURRENT_RECORD = None
             continue
 
         backend_reset()
@@ -558,11 +599,18 @@ def corpus_verification():
                 status, _, valid_called = modern_rpc(port, "tools/call", f"corpus-{slug}-valid", "valid_sibling", {})
                 check(status == 200 and "result" in valid_called, f"valid sibling call failed for {slug}: {valid_called}")
                 sibling_events = backend_state()["events"]
-                check(len(sibling_events) == 1, f"valid sibling did not make exactly one call for {slug}")
+                check(
+                    len(sibling_events) == 1
+                    and sibling_events[0]["httpMethod"] == "GET"
+                    and sibling_events[0]["path"] == "/corpus/valid",
+                    f"valid sibling did not make exactly one successful backend call for {slug}: {sibling_events}",
+                )
                 record["validSiblingCallable"] = True
                 record["validSiblingBackendEvents"] = sibling_events
+                write_corpus_partial()
                 backend_reset()
             record["modernList"] = True
+            write_corpus_partial()
             status, _, blocked = modern_rpc(
                 port, "tools/call", f"corpus-{slug}-modern-call", tool_name,
                 {"recordId": "record-42", "page": 7, "X-Corpus-Flag": True, "payload": {"amount": 12}},
@@ -573,6 +621,7 @@ def corpus_verification():
                   f"candidate modern reason changed for {slug}: {blocked}")
             check(backend_state()["events"] == [], f"candidate modern blocked call reached upstream for {slug}")
             record["modernCallBlocked"] = True
+            write_corpus_partial()
 
         status, _, listed = legacy_rpc(
             port, {"jsonrpc": "2.0", "id": f"corpus-{slug}-legacy-list", "method": "tools/list", "params": {}},
@@ -592,6 +641,7 @@ def corpus_verification():
         )
         record["legacyDescriptorSha256"] = legacy_descriptor_hash
         record["legacyList"] = True
+        write_corpus_partial()
 
         if slug == "rule-level":
             if CORPUS_REVISION == "candidate":
@@ -611,6 +661,7 @@ def corpus_verification():
             check(status == 200 and {tool.get("name") for tool in global_tools} == {"global_valid"},
                   f"{CORPUS_REVISION} global rule fallback changed: {status} {global_listed}")
             record["globalList"] = True
+            write_corpus_partial()
 
         if fixture["legacyMapping"]:
             arguments = {
@@ -637,9 +688,10 @@ def corpus_verification():
                   f"legacy body changed for {slug}: {events[0]}")
             record["legacyRESTMapping"] = True
             record["backendEvents"] = {"backend-primary": events}
-        records.append(record)
-    result = {"revision": CORPUS_REVISION, "fixtures": records}
-    (EVIDENCE / f"corpus-{CORPUS_REVISION}.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+        CORPUS_CURRENT_RECORD = None
+        write_corpus_partial()
+    CORPUS_CURRENT_RECORD = None
+    write_corpus_partial()
     return 0
 
 
@@ -798,5 +850,9 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except DescriptorMismatchError as exc:
+        record_corpus_failure(exc)
         print(f"descriptor mismatch: {exc}", file=sys.stderr)
         sys.exit(DESCRIPTOR_MISMATCH_EXIT)
+    except Exception as exc:
+        record_corpus_failure(exc)
+        raise

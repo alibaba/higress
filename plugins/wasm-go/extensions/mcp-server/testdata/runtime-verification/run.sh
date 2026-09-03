@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+set -o pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 HARNESS_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -120,6 +121,7 @@ export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256 ORACLE_PLUGIN_SHA256 CORPUS_CANDIDAT
   CORPUS_AFFECTED_PLUGIN_SHA256 CORPUS_ORACLE_PLUGIN_SHA256 CORPUS_FIXTURE_SHA256
 
 RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
+python3 "$HARNESS_DIR/orchestration_self_test.py" || exit 3
 python3 "$HARNESS_DIR/descriptor_self_test.py" prepare "$RUNTIME_EVIDENCE" || exit 3
 bash "$HARNESS_DIR/descriptor_gate.sh" "$RUNTIME_EVIDENCE" || exit 3
 cleanup_descriptor_inputs
@@ -139,19 +141,96 @@ podman image inspect docker.io/library/python:3.12-alpine --format '{{range .Rep
 podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify config \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/compose-config.yaml"
 
-podman compose -f "$HARNESS_DIR/compose.yaml" up -d backend-primary backend-secondary gateway-auto gateway-baseline \
-  gateway-control-candidate gateway-control-affected gateway-control-oracle || exit 4
-sleep 2
-podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-auto-state.json" || exit 4
-podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-baseline-state.json" || exit 4
-podman compose -f "$HARNESS_DIR/compose.yaml" exec -T backend-primary wget -q -O - http://127.0.0.1:8080/__state >"$RUNTIME_EVIDENCE/backend-control-state.json" || exit 4
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-baseline gateway-control-candidate gateway-control-affected gateway-control-oracle >/dev/null 2>&1 || true
-podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-baseline \
-  | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-baseline.log"
+compose_runtime() {
+  podman compose -f "$HARNESS_DIR/compose.yaml" "$@"
+}
+
+capture_gateway_log() {
+  service=$1
+  output=$2
+  compose_runtime logs --no-color "$service" \
+    | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$output"
+}
+
+reset_primary_backend() {
+  compose_runtime exec -T backend-primary wget -q -O /dev/null \
+    --post-data '{}' http://127.0.0.1:8080/__reset
+}
+
+capture_empty_primary_backend() {
+  output=$1
+  compose_runtime exec -T backend-primary wget -q -O - \
+    http://127.0.0.1:8080/__state >"$output" || return 1
+  python3 - "$output" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+events = json.load(open(path, encoding="utf-8")).get("events")
+if events != []:
+    raise SystemExit(f"expected zero backend events in {path}, got {events!r}")
+PY
+}
+
+wait_for_rejection_markers() {
+  service=$1
+  first=$2
+  second=$3
+  timeout=${RUNTIME_REJECTION_TIMEOUT:-120}
+  deadline=$(( $(date +%s) + timeout ))
+  while test "$(date +%s)" -lt "$deadline"; do
+    service_log=$(compose_runtime logs --no-color "$service" 2>&1 || true)
+    first_seen=false
+    second_seen=false
+    case "$service_log" in *"$first"*) first_seen=true ;; esac
+    case "$service_log" in *"$second"*) second_seen=true ;; esac
+    test "$first_seen" = true && test "$second_seen" = true && return 0
+    container_id=$(compose_runtime ps -a -q "$service" 2>/dev/null || true)
+    if test -n "$container_id"; then
+      running=$(podman inspect "$container_id" --format '{{.State.Running}}' 2>/dev/null || true)
+      if test "$running" = false; then
+        # Compose may observe exit before its log reader sees the last buffered
+        # Wasm lines. Give the completed process one bounded flush interval.
+        sleep 1
+        service_log=$(compose_runtime logs --no-color "$service" 2>&1 || true)
+        case "$service_log" in *"$first"*"$second"*|*"$second"*"$first"*) return 0 ;; esac
+        echo "$service exited before both rejection markers were recorded" >&2
+        return 1
+      fi
+    fi
+    sleep 1
+  done
+  echo "timed out waiting for rejection markers from $service after ${timeout}s" >&2
+  return 1
+}
+
+run_static_rejection() {
+  service=$1
+  log_name=$2
+  state_name=$3
+  first=$4
+  second=$5
+  reset_primary_backend || return 1
+  compose_runtime up -d "$service" || return 1
+  rejection_status=0
+  wait_for_rejection_markers "$service" "$first" "$second" || rejection_status=$?
+  capture_empty_primary_backend "$RUNTIME_EVIDENCE/$state_name" || rejection_status=1
+  compose_runtime stop "$service" >/dev/null 2>&1 || true
+  capture_gateway_log "$service" "$RUNTIME_EVIDENCE/$log_name" || rejection_status=1
+  return "$rejection_status"
+}
+
+compose_runtime up -d backend-primary backend-secondary || exit 4
+run_static_rejection gateway-auto gateway-auto.log backend-auto-state.json \
+  "invalid protocolStrategy value: auto" "plugin start failed" || exit 4
+run_static_rejection gateway-baseline gateway-baseline.log backend-baseline-state.json \
+  "requires a primitive type" "plugin start failed" || exit 4
 for variant in candidate affected oracle; do
-  podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color "gateway-control-$variant" \
-    | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-control-$variant.log"
+  run_static_rejection "gateway-control-$variant" "gateway-control-$variant.log" \
+    "backend-control-$variant-state.json" "error parsing URL template" "plugin start failed" || exit 4
 done
+# Keep the aggregate compatibility filename while retaining per-revision phase snapshots.
+cp "$RUNTIME_EVIDENCE/backend-control-oracle-state.json" "$RUNTIME_EVIDENCE/backend-control-state.json" || exit 4
 
 VERIFY_STATUS=0
 podman compose -f "$HARNESS_DIR/compose.yaml" up -d gateway-oracle || exit 4
@@ -167,21 +246,19 @@ podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-oracle >/dev/null 2>&
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-oracle \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-oracle.log"
 
-podman compose -f "$HARNESS_DIR/compose.yaml" up -d gateway-corpus-candidate gateway-corpus-affected gateway-corpus-oracle || exit 4
 for revision in candidate affected oracle; do
+  reset_primary_backend || exit 4
+  compose_runtime up -d "gateway-corpus-$revision" || exit 4
   set +e
-  podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify run --rm --no-deps \
+  compose_runtime --profile verify run --rm --no-deps \
     -e "RUNTIME_GATEWAY_HOST=gateway-corpus-$revision" -e "RUNTIME_CORPUS_REVISION=$revision" verifier
   CORPUS_VERIFY_STATUS=$?
   set -e
   if test "$CORPUS_VERIFY_STATUS" -ne 0; then
     VERIFY_STATUS=1
   fi
-done
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-corpus-candidate gateway-corpus-affected gateway-corpus-oracle >/dev/null 2>&1 || true
-for revision in candidate affected oracle; do
-  podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color "gateway-corpus-$revision" \
-    | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-corpus-$revision.log"
+  compose_runtime stop "gateway-corpus-$revision" >/dev/null 2>&1 || true
+  capture_gateway_log "gateway-corpus-$revision" "$RUNTIME_EVIDENCE/gateway-corpus-$revision.log" || VERIFY_STATUS=1
 done
 
 capture_generation_process() {
@@ -214,7 +291,7 @@ set -e
 if test "$MAIN_VERIFY_STATUS" -ne 0; then
   VERIFY_STATUS=1
 fi
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway gateway-auto gateway-generation || exit 4
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway gateway-generation || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' -e 's/downstream-[A-Za-z0-9_-]*/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway.log"
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-auto \
