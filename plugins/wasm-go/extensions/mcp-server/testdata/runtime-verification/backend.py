@@ -47,10 +47,10 @@ def safe_event(handler, body):
         "unrelatedCredentialPresent": truthy_header(headers, "x-unrelated-credential"),
     }
     parsed_url = urlparse(handler.path)
-    if parsed_url.path.startswith("/compat/"):
+    if parsed_url.path.startswith(("/compat/", "/corpus/")):
         event["compatibilityRequest"] = {
             "query": parse_qs(parsed_url.query),
-            "flag": headers.get("X-Compat-Flag"),
+            "flag": headers.get("X-Compat-Flag") or headers.get("X-Corpus-Flag"),
             "jsonBody": parsed if isinstance(parsed, dict) else {},
         }
     with LOCK:

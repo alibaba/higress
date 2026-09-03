@@ -33,6 +33,79 @@ matrix["cases"].append({
     } if baseline_ok else {"error": "expected pinned baseline compiler rejection or zero-upstream proof is absent"},
 })
 
+corpus_manifest_path = root / "corpus-manifest.json"
+corpus_manifest = json.loads(corpus_manifest_path.read_text()) if corpus_manifest_path.exists() else {"fixtures": []}
+corpus_runs = {}
+for revision in ("oracle", "affected", "candidate"):
+    path = root / f"corpus-{revision}.json"
+    run = json.loads(path.read_text()) if path.exists() else {"fixtures": []}
+    corpus_runs[revision] = {record.get("fixture"): record for record in run.get("fixtures", [])}
+expected_corpus_fixtures = {
+    "unsupported-semantics", "contradictory-semantics", "byte-limit", "depth-limit", "node-limit",
+    "collection-limit", "enum-limit", "numeric-comparison-limit", "mixed-valid-invalid", "rule-level",
+}
+manifest_fixture_names = {fixture.get("fixture") for fixture in corpus_manifest.get("fixtures", [])}
+corpus_complete = (
+    manifest_fixture_names == expected_corpus_fixtures
+    and all(set(records) == expected_corpus_fixtures for records in corpus_runs.values())
+)
+if not corpus_complete:
+    matrix["cases"].append({
+        "case": "schema-compatibility-corpus-completeness",
+        "status": "FAIL",
+        "detail": {"error": "representative corpus manifest or revision evidence is incomplete"},
+    })
+affected_corpus_log = (root / "gateway-corpus-affected.log").read_text(errors="replace") if (root / "gateway-corpus-affected.log").exists() else ""
+for fixture in corpus_manifest.get("fixtures", []):
+    slug = fixture["fixture"]
+    records = {revision: corpus_runs[revision].get(slug, {}) for revision in corpus_runs}
+    acceptance_ok = all(
+        record.get("expectedAcceptance") == fixture["expectedAcceptance"][revision]
+        and record.get("actualAcceptance") == fixture["expectedAcceptance"][revision]
+        for revision, record in records.items()
+    )
+    behavior_ok = (
+        records["candidate"].get("modernList") is True
+        and records["candidate"].get("modernCallBlocked") is True
+        and records["candidate"].get("legacyList") is True
+        and records["oracle"].get("legacyList") is True
+        and records["affected"].get("legacyList") is False
+    )
+    if fixture["legacyMapping"]:
+        behavior_ok = behavior_ok and records["candidate"].get("legacyRESTMapping") is True
+        behavior_ok = behavior_ok and records["oracle"].get("legacyRESTMapping") is True
+    if slug == "mixed-valid-invalid":
+        behavior_ok = behavior_ok and records["candidate"].get("validSiblingCallable") is True
+    if slug == "rule-level":
+        behavior_ok = behavior_ok and records["candidate"].get("globalList") is True
+        behavior_ok = behavior_ok and records["oracle"].get("globalList") is True
+    rejection_logged = slug in affected_corpus_log and "plugin start failed" in affected_corpus_log
+    fixture_ok = acceptance_ok and behavior_ok and rejection_logged
+    matrix["cases"].append({
+        "case": f"schema-compatibility-corpus-{slug}",
+        "status": "PASS" if fixture_ok else "FAIL",
+        "detail": {
+            "expectedAcceptance": fixture["expectedAcceptance"],
+            "actualAcceptance": {revision: record["actualAcceptance"] for revision, record in records.items()},
+            "modernCandidate": {
+                "listed": records["candidate"]["modernList"],
+                "callBlocked": records["candidate"]["modernCallBlocked"],
+            },
+            "legacyList": {revision: record["legacyList"] for revision, record in records.items()},
+            "legacyRESTMapping": {
+                revision: record["legacyRESTMapping"] for revision, record in records.items()
+            },
+            "validSiblingCallable": records["candidate"]["validSiblingCallable"],
+            "validSiblingBackendEvents": records["candidate"]["validSiblingBackendEvents"],
+            "globalList": {revision: record["globalList"] for revision, record in records.items()},
+            "backendEvents": {
+                revision: record.get("backendEvents", {}).get("backend-primary", [])
+                for revision, record in records.items()
+            },
+            "affectedRejectionLogged": True,
+        } if fixture_ok else {"error": f"corpus evidence incomplete for {slug}"},
+    })
+
 oracle_path = root / "oracle-verification.json"
 oracle = json.loads(oracle_path.read_text()) if oracle_path.exists() else {}
 oracle_log = (root / "gateway-oracle.log").read_text(errors="replace") if (root / "gateway-oracle.log").exists() else ""
@@ -167,6 +240,12 @@ manifest = {
     "baseline_plugin_sha256": os.environ["BASELINE_PLUGIN_SHA256"],
     "oracle_source_sha": os.environ["ORACLE_SHA"],
     "oracle_plugin_sha256": os.environ["ORACLE_PLUGIN_SHA256"],
+    "corpus_fixture_sha256": os.environ["CORPUS_FIXTURE_SHA256"],
+    "corpus_plugin_sha256": {
+        "candidate": os.environ["CORPUS_CANDIDATE_PLUGIN_SHA256"],
+        "affected": os.environ["CORPUS_AFFECTED_PLUGIN_SHA256"],
+        "oracle": os.environ["CORPUS_ORACLE_PLUGIN_SHA256"],
+    },
     "gateway_image": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3",
     "gateway_resolved_digests": lines("gateway-image-digests.txt"),
     "backend_image": "docker.io/library/python:3.12-alpine",
@@ -188,6 +267,9 @@ manifest = {
         "generation-process-before.txt", "generation-process-after.txt",
         "backend-primary-final.json", "backend-secondary-final.json",
         "cleanup-proof.txt", "SHA256SUMS",
+    ] + sorted(path.name for path in root.glob("lds-corpus-*.yaml")) + [
+        "corpus-manifest.json", "corpus-candidate.json", "corpus-affected.json", "corpus-oracle.json",
+        "gateway-corpus-candidate.log", "gateway-corpus-affected.log", "gateway-corpus-oracle.log",
     ],
     "sanitization": "fake credentials are redacted from textual logs; backend evidence stores only presence/match booleans and never raw credentials or session IDs",
     "cleanup": (lines("cleanup-proof.txt") or ["pending"])[0],
@@ -196,7 +278,10 @@ manifest = {
 
 checksums = []
 for path in sorted(root.iterdir()):
-    if path.is_file() and path.name not in ("plugin.wasm", "baseline-plugin.wasm", "oracle-plugin.wasm", "SHA256SUMS"):
+    if path.is_file() and path.name not in (
+        "plugin.wasm", "baseline-plugin.wasm", "oracle-plugin.wasm",
+        "corpus-plugin-candidate.wasm", "corpus-plugin-affected.wasm", "corpus-plugin-oracle.wasm", "SHA256SUMS",
+    ):
         checksums.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}")
 (root / "SHA256SUMS").write_text("\n".join(checksums) + "\n")
 

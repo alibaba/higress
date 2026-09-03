@@ -7,7 +7,7 @@ checked-out source, loads it into Envoy from the fixed
 listeners, and records sanitized, machine-readable evidence. The full registry
 name and resolved digest are retained in the evidence manifest.
 
-The expected clean exact-head result is **16 PASS / 0 FAIL**.
+The expected clean exact-head result is **26 PASS / 0 FAIL**.
 
 ## Purpose and validation boundary
 
@@ -28,6 +28,9 @@ boundary:
   rejects it;
 - an independent malformed URL-template control is rejected by the oracle,
   affected, and candidate revisions; and
+- a ten-fixture representative corpus records the oracle, affected, and
+  candidate acceptance matrix for semantic and bounded-resource failures,
+  including mixed and rule-level configurations;
 - one candidate Wasm is exercised against successive valid,
   validation-unavailable, and valid file-backed LDS generations in one Envoy
   process.
@@ -63,7 +66,7 @@ flowchart LR
     R --> G["Generated static and file-backed LDS configs"]
     W --> E["Higress gateway image / Envoy / proxy-Wasm"]
     G --> E
-    V["Python verifier"] -->|"55 main plus 6 generation exchanges"| E
+    V["Python verifier"] -->|"55 main, 6 generation, and differential corpus traffic"| E
     E --> P["Deterministic primary backend"]
     E --> S["Deterministic secondary backend"]
     P --> V
@@ -83,8 +86,10 @@ The run proceeds as follows:
 2. Go builds the checked-out `mcp-server` module plus archives of affected
    revision `c55d9825c90868f50edbff9764a6b3cf2eb13162` and v2.0.0 oracle
    `39ec41aab6eb1d40499bed2847085696de0ebb96` for `wasip1/wasm` with
-   `-trimpath`. The script records all three SHA256 values and removes the
-   temporary archived source trees before startup.
+   `-trimpath`. It also builds a corpus variant of each revision with the same
+   hashed registered-tool fixture needed to represent a bounded `json.Number`
+   that REST JSON decoding cannot preserve. The script records all six Wasm
+   SHA256 values and removes the temporary archived source trees before startup.
 3. [`generate_envoy.py`](./generate_envoy.py) writes the main static Envoy
    configuration plus an isolated configuration that must reject
    `protocolStrategy: auto`.
@@ -103,7 +108,7 @@ The run proceeds as follows:
    v2.0.0 oracle, malformed-control, generation-transition, and auto-rejection
    results, checks access-log coverage, writes the manifest and checksums, and
    returns non-zero for any failed matrix or coverage assertion.
-8. A completed run deletes all three temporary Wasm files. Build artifacts must
+8. A completed run deletes all six temporary Wasm files. Build artifacts must
    never be committed.
 
 ## Directory components
@@ -118,7 +123,7 @@ The run proceeds as follows:
   clusters, plugin configuration, and the invalid-auto configuration.
 - [`verify.py`](./verify.py) executes the eleven traffic-driven cases and writes
   the client ledger, case matrix, and final backend snapshots.
-- [`finalize_evidence.py`](./finalize_evidence.py) adds the five isolated
+- [`finalize_evidence.py`](./finalize_evidence.py) adds the isolated and corpus
   configuration/generation cases, verifies access coverage, and writes the
   manifest and SHA256 inventory.
 - [`.gitignore`](./.gitignore) excludes local runtime-evidence and Python cache
@@ -173,10 +178,11 @@ git rev-parse HEAD
 ```
 
 `git status --short` must print nothing. The final JSON line should report
-`"pass": 16`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
+`"pass": 26`, `"fail": 0`, and `"access_coverage": "PASS"`; the command
 should exit with status 0. The verifier prints an intermediate
-`SUMMARY pass=11 fail=0` before the finalizer adds the baseline,
-dynamic-generation, and auto-configuration cases.
+`SUMMARY pass=11 fail=0` before the finalizer adds the affected baseline,
+oracle, corpus, malformed-control, dynamic-generation, and auto-configuration
+cases.
 
 The finalizer also prints the absolute evidence path. The expected ledger
 contains 55 recorded client exchanges and 55 Envoy access records. The matrix
@@ -216,7 +222,7 @@ still records the cached resolved digests. This flag is rejected unless
 
 ## Runtime matrix
 
-The final matrix contains these sixteen cases. The first eleven are driven
+The final matrix contains these 26 cases. The first eleven are driven
 through the main gateway:
 
 1. **Registered modern discover/list/call** verifies a compiled-in Amap tool,
@@ -259,11 +265,25 @@ through the main gateway:
 14. **Malformed non-Schema control** loads an invalid URL template with all
     three revisions and requires each plugin configuration to be rejected with
     zero upstream activity.
-15. **Same-process dynamic generation transition** atomically updates a
+15-24. **Representative schema corpus** runs unsupported and contradictory
+    semantics, byte/depth/node/collection/enum/numeric-comparison bounds,
+    mixed valid plus invalid tools, and rule-level configuration against the
+    same oracle, affected, and candidate revisions. Each fixture records its
+    expected and actual acceptance. Candidate traffic must list the original
+    descriptor and block modern invocation with `-32603` and zero upstream
+    activity; the mixed fixture also calls its valid sibling, and the rule-level
+    fixture verifies the unaffected global fallback. Oracle and candidate
+    legacy discovery must succeed; the nine REST
+    fixtures also prove method, path, query, header, JSON body, and exactly one
+    upstream call per revision. The affected revision must retain a distinct
+    logged rejection for every fixture. The numeric fixture uses the same
+    hashed registered-tool source overlay for each revision because Go's normal
+    REST JSON unmarshal converts numbers to `float64` before schema preparation.
+25. **Same-process dynamic generation transition** atomically updates a
     file-backed LDS source in one Envoy process and proves validated ->
     validation-unavailable -> validated descriptors, call behavior, and backend
     counts of 1 -> 0 -> 1. Container ID, PID, and start time must remain stable.
-16. **Auto strategy rejection** verifies that the deferred
+26. **Auto strategy rejection** verifies that the deferred
     `protocolStrategy: auto` configuration is rejected before any upstream
     request.
 
@@ -308,6 +328,10 @@ A completed evidence directory contains:
   plugin-start proof.
 - `backend-control-state.json` and `gateway-control-*.log`: common historical
   malformed URL-template rejection and zero-upstream proof.
+- `corpus-manifest.json`, `corpus-*.json`, `gateway-corpus-*.log`,
+  `envoy-corpus-*.yaml`, and `lds-corpus-*.yaml`: per-fixture, per-revision
+  acceptance, protocol behavior, REST mapping, LDS rejection, and configuration
+  identity for the representative corpus.
 - `generation-transition.json`, `generation-process-*.txt`, and
   `gateway-generation.log`: per-generation descriptors, responses, backend
   events, exchanges, runtime log, and stable process identity.
@@ -332,6 +356,8 @@ The main `manifest.json` fields have these meanings:
   built pinned rejection baseline.
 - `oracle_source_sha` and `oracle_plugin_sha256` identify the independently
   built v2.0.0 acceptance oracle.
+- `corpus_fixture_sha256` and `corpus_plugin_sha256` bind the common registered
+  numeric fixture source and all three derived corpus Wasm modules.
 - `gateway_image`, `backend_image`, and their resolved digest arrays identify
   the container inputs; compare digests because tags can move.
 - `podman_version` and `compose_version` identify the local orchestration tools.
@@ -340,11 +366,11 @@ The main `manifest.json` fields have these meanings:
 - `sanitization` records the evidence redaction policy.
 - `cleanup` embeds the cleanup-proof result.
 
-`plugin.wasm`, `baseline-plugin.wasm`, and `oracle-plugin.wasm` are temporary.
-Their SHA256 values are calculated before containers start and recorded in
-`manifest.json`; the completed run deletes all three and excludes them from
-`SHA256SUMS`. If the script exits before finalization, delete any partial
-artifact after diagnosis and never add it to Git.
+The three exact-revision Wasm files and three `corpus-plugin-*.wasm` files are
+temporary. Their SHA256 values are calculated before containers start and
+recorded in `manifest.json`; the completed run deletes all six and excludes
+them from `SHA256SUMS`. If the script exits before finalization, delete any
+partial artifact after diagnosis and never add it to Git.
 
 ## Verify a completed evidence set
 
@@ -364,7 +390,7 @@ else
 fi
 ```
 
-Then verify source identity, the 16/0 matrix, the 55/55 main access ledger, backend
+Then verify source identity, the 26/0 matrix, the 55/55 main access ledger, backend
 event count, plugin/image identities, and cleanup proof:
 
 ```bash
@@ -391,17 +417,19 @@ assert manifest["source_sha"] == expected_source
 assert manifest["source_tree_clean"] is True
 assert manifest["baseline_source_sha"] == "c55d9825c90868f50edbff9764a6b3cf2eb13162"
 assert manifest["oracle_source_sha"] == "39ec41aab6eb1d40499bed2847085696de0ebb96"
-assert matrix["summary"] == {"pass": 16, "fail": 0}
+assert matrix["summary"] == {"pass": 26, "fail": 0}
 assert coverage["status"] == "PASS"
 assert coverage["recordedClientExchangeCount"] == 55
 assert coverage["accessRecordCount"] == 55
 assert not coverage["missingRequestIds"]
 assert not coverage["duplicateRequestIds"]
 assert not coverage["unexpectedRequestIds"]
-assert backend_events == 41
+assert backend_events == 59
 assert len(manifest["plugin_sha256"]) == 64
 assert len(manifest["baseline_plugin_sha256"]) == 64
 assert len(manifest["oracle_plugin_sha256"]) == 64
+assert len(manifest["corpus_fixture_sha256"]) == 64
+assert all(len(value) == 64 for value in manifest["corpus_plugin_sha256"].values())
 assert manifest["gateway_resolved_digests"]
 assert manifest["backend_resolved_digests"]
 assert cleanup.startswith("PASS no containers remain")
@@ -411,6 +439,7 @@ print(json.dumps({
     "plugin_sha256": manifest["plugin_sha256"],
     "baseline_plugin_sha256": manifest["baseline_plugin_sha256"],
     "oracle_plugin_sha256": manifest["oracle_plugin_sha256"],
+    "corpus_plugin_sha256": manifest["corpus_plugin_sha256"],
     "gateway_digests": manifest["gateway_resolved_digests"],
     "backend_digests": manifest["backend_resolved_digests"],
     "matrix": matrix["summary"],

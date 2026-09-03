@@ -58,6 +58,79 @@ MALFORMED_NON_SCHEMA = {
 }
 
 
+def nested_items(depth):
+    schema = {"type": "string"}
+    for _ in range(depth):
+        schema = {"type": "array", "items": schema}
+    return schema
+
+
+def rest_corpus_config(slug, problem_arg, mixed=False, rule_level=False):
+    tool = {
+        "name": "fixture_tool",
+        "description": f"Representative {slug} schema fixture",
+        "args": [
+            {"name": "recordId", "type": "string", "required": True, "position": "path"},
+            {"name": "page", "type": "integer", "position": "query"},
+            {"name": "X-Corpus-Flag", "type": "boolean", "position": "header"},
+            {"name": "payload", "type": "object", "properties": {"amount": {"type": "integer"}}, "position": "body"},
+            problem_arg,
+        ],
+        "requestTemplate": {
+            "url": f"http://backend-primary:8080/corpus/{slug}/{{recordId}}?fixed=yes",
+            "method": "POST",
+            "argsToJsonBody": True,
+        },
+    }
+    fixture = {"server": {"name": f"corpus-{slug}", "type": "rest"}, "tools": [tool]}
+    if mixed:
+        fixture["tools"].append({
+            "name": "valid_sibling",
+            "requestTemplate": {"url": "http://backend-primary:8080/corpus/valid", "method": "GET"},
+        })
+    if not rule_level:
+        return fixture
+    return {
+        "server": {"name": "corpus-rule-global", "type": "rest"},
+        "tools": [{"name": "global_valid", "requestTemplate": {"url": "http://backend-primary:8080/corpus/global", "method": "GET"}}],
+        "_rules_": [{"_match_domain_": ["mcp.runtime.test"], **fixture}],
+    }
+
+
+CORPUS_FIXTURES = [
+    ("unsupported-semantics", rest_corpus_config("unsupported-semantics", {
+        "name": "problem", "type": "array", "items": {"oneOf": []}, "position": "body",
+    }), True),
+    ("contradictory-semantics", rest_corpus_config("contradictory-semantics", {
+        "name": "problem", "type": "array", "enum": ["A", "B"], "items": {"type": "string"}, "position": "body",
+    }), True),
+    ("byte-limit", rest_corpus_config("byte-limit", {
+        "name": "problem", "type": "string", "description": "x" * (1 << 20), "position": "body",
+    }), True),
+    ("depth-limit", rest_corpus_config("depth-limit", {
+        "name": "problem", "type": "array", "items": nested_items(66), "position": "body",
+    }), True),
+    ("node-limit", rest_corpus_config("node-limit", {
+        "name": "problem", "type": "object",
+        "properties": {f"field-{index:04d}": {"type": "string"} for index in range(4096)}, "position": "body",
+    }), True),
+    ("collection-limit", rest_corpus_config("collection-limit", {
+        "name": "problem", "type": "array",
+        "items": {"type": "object", "required": [f"field-{index:04d}" for index in range(4097)]}, "position": "body",
+    }), True),
+    ("enum-limit", rest_corpus_config("enum-limit", {
+        "name": "problem", "type": "string", "enum": [f"value-{index:03d}" for index in range(257)], "position": "body",
+    }), True),
+    ("mixed-valid-invalid", rest_corpus_config("mixed-valid-invalid", {
+        "name": "problem", "type": "array", "enum": ["A"], "items": {"type": "string"}, "position": "body",
+    }, mixed=True), True),
+    ("rule-level", rest_corpus_config("rule-level", {
+        "name": "problem", "type": "array", "enum": ["A"], "items": {"type": "string"}, "position": "body",
+    }, rule_level=True), True),
+    ("numeric-comparison-limit", {"server": {"name": "runtime-schema-fixtures"}}, False),
+]
+
+
 def proxy(name, strategy=None, target="backend-primary", auth=False):
     server = {
         "name": name,
@@ -182,8 +255,8 @@ static_resources:
     return rendered
 
 
-def lds_discovery_response(version, config):
-    listener = listener_yaml(12008, "schema-compatibility-generation", "backend-primary", config)
+def lds_discovery_response(version, config, port=12008, name="schema-compatibility-generation", wasm_file="plugin.wasm"):
+    listener = listener_yaml(port, name, "backend-primary", config, wasm_file)
     listener = listener.replace(
         "  - name:",
         '  - "@type": type.googleapis.com/envoy.config.listener.v3.Listener\n    name:',
@@ -194,6 +267,24 @@ resources:
 {listener}
 type_url: type.googleapis.com/envoy.config.listener.v3.Listener
 '''
+
+
+def dynamic_bootstrap(admin_port, current_path, node_id):
+    rendered = f'''admin:
+  address:
+    socket_address: {{address: 0.0.0.0, port_value: {admin_port}}}
+node:
+  id: {node_id}
+  cluster: runtime-verification
+dynamic_resources:
+  lds_config:
+    path_config_source:
+      path: {current_path}
+    resource_api_version: V3
+static_resources:
+  clusters:
+'''
+    return rendered + cluster_yaml("backend-primary")
 
 
 def main():
@@ -233,6 +324,35 @@ static_resources:
         (OUT / f"envoy-control-{suffix}.yaml").write_text(single_listener_config(
             admin_port, listener_port, f"malformed-control-{suffix}", MALFORMED_NON_SCHEMA, wasm_file,
         ))
+    corpus_manifest = []
+    corpus_wasm = {
+        "candidate": "corpus-plugin-candidate.wasm",
+        "affected": "corpus-plugin-affected.wasm",
+        "oracle": "corpus-plugin-oracle.wasm",
+    }
+    for index, (slug, config, legacy_mapping) in enumerate(CORPUS_FIXTURES):
+        port = 14000 + index
+        corpus_manifest.append({
+            "fixture": slug,
+            "port": port,
+            "tool": "numeric_comparison" if slug == "numeric-comparison-limit" else "fixture_tool",
+            "legacyMapping": legacy_mapping,
+            "expectedAcceptance": {"oracle": True, "affected": False, "candidate": True},
+        })
+        for revision, wasm_file in corpus_wasm.items():
+            version = f"{revision}-{slug}"
+            (OUT / f"lds-corpus-{revision}-{slug}.yaml").write_text(lds_discovery_response(
+                version, config, port, f"corpus-{revision}-{slug}", wasm_file,
+            ))
+    (OUT / "corpus-manifest.json").write_text(json.dumps({"fixtures": corpus_manifest}, indent=2, sort_keys=True) + "\n")
+    for revision in ("candidate", "affected", "oracle"):
+        (OUT / f"lds-corpus-{revision}-current.yaml").write_text('''version_info: "bootstrap"
+resources: []
+type_url: type.googleapis.com/envoy.config.listener.v3.Listener
+''')
+        (OUT / f"envoy-corpus-{revision}.yaml").write_text(dynamic_bootstrap(
+            9981, f"/evidence/lds-corpus-{revision}-current.yaml", f"schema-corpus-{revision}",
+        ))
     generation_configs = (
         ("valid-before", VALID_SCHEMA_COMPATIBILITY),
         ("validation-unavailable", SCHEMA_COMPATIBILITY),
@@ -241,21 +361,9 @@ static_resources:
     for phase, config in generation_configs:
         (OUT / f"lds-generation-{phase}.yaml").write_text(lds_discovery_response(phase, config))
     (OUT / "lds-generation-current.yaml").write_text(lds_discovery_response(*generation_configs[0]))
-    generation_bootstrap = '''admin:
-  address:
-    socket_address: {address: 0.0.0.0, port_value: 9921}
-node:
-  id: schema-compatibility-generation
-  cluster: runtime-verification
-dynamic_resources:
-  lds_config:
-    path_config_source:
-      path: /evidence/lds-generation-current.yaml
-    resource_api_version: V3
-static_resources:
-  clusters:
-'''
-    generation_bootstrap += cluster_yaml("backend-primary")
+    generation_bootstrap = dynamic_bootstrap(
+        9921, "/evidence/lds-generation-current.yaml", "schema-compatibility-generation",
+    )
     (OUT / "envoy-generation.yaml").write_text(generation_bootstrap)
 
 

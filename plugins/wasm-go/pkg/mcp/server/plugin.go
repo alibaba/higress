@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -189,29 +190,105 @@ type ToolInfo struct {
 
 // GlobalToolRegistry holds all tools from all servers.
 type GlobalToolRegistry struct {
+	mu sync.RWMutex
 	// serverName -> toolName -> toolInfo
 	serverTools map[string]map[string]ToolInfo
 }
 
 // Initialize initializes the GlobalToolRegistry
 func (r *GlobalToolRegistry) Initialize() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.serverTools = make(map[string]map[string]ToolInfo)
+}
+
+// cloneRegistrySchema owns JSON-compatible schema data without changing the
+// concrete Go types of primitive values. The marshal pass rejects functions,
+// channels, non-finite numbers, and cycles before the recursive copy.
+func cloneRegistrySchema(schema map[string]any) (map[string]any, bool) {
+	if _, err := json.Marshal(schema); err != nil {
+		return nil, false
+	}
+	cloned := cloneRegistryJSONValue(reflect.ValueOf(schema))
+	if !cloned.IsValid() || cloned.IsNil() {
+		return nil, true
+	}
+	return cloned.Interface().(map[string]any), true
+}
+
+func cloneRegistryJSONValue(value reflect.Value) reflect.Value {
+	if !value.IsValid() {
+		return value
+	}
+	switch value.Kind() {
+	case reflect.Interface:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		cloned := cloneRegistryJSONValue(value.Elem())
+		result := reflect.New(value.Type()).Elem()
+		result.Set(cloned)
+		return result
+	case reflect.Pointer:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		result := reflect.New(value.Type().Elem())
+		result.Elem().Set(cloneRegistryJSONValue(value.Elem()))
+		return result
+	case reflect.Map:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		result := reflect.MakeMapWithSize(value.Type(), value.Len())
+		iterator := value.MapRange()
+		for iterator.Next() {
+			result.SetMapIndex(cloneRegistryJSONValue(iterator.Key()), cloneRegistryJSONValue(iterator.Value()))
+		}
+		return result
+	case reflect.Slice:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		result := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		for i := 0; i < value.Len(); i++ {
+			result.Index(i).Set(cloneRegistryJSONValue(value.Index(i)))
+		}
+		return result
+	case reflect.Array:
+		result := reflect.New(value.Type()).Elem()
+		for i := 0; i < value.Len(); i++ {
+			result.Index(i).Set(cloneRegistryJSONValue(value.Index(i)))
+		}
+		return result
+	case reflect.Struct:
+		result := reflect.New(value.Type()).Elem()
+		result.Set(value)
+		for i := 0; i < value.NumField(); i++ {
+			if result.Field(i).CanSet() && value.Field(i).CanInterface() {
+				result.Field(i).Set(cloneRegistryJSONValue(value.Field(i)))
+			}
+		}
+		return result
+	default:
+		return value
+	}
 }
 
 // RegisterTool registers a tool into the global registry.
 func (r *GlobalToolRegistry) RegisterTool(serverName string, toolName string, tool Tool) {
-	inputSchema, _, schemaErr := cloneToolInputSchema(tool.InputSchema())
+	inputSchema, inputSchemaSerializable := cloneRegistrySchema(tool.InputSchema())
 	toolInfo := ToolInfo{
 		Name:                    toolName,
 		Description:             tool.Description(),
 		InputSchema:             inputSchema,
-		inputSchemaSerializable: schemaErr == nil,
+		inputSchemaSerializable: inputSchemaSerializable,
 		ServerName:              serverName,
 		Tool:                    tool,
 	}
 	// Check if tool implements OutputSchema (MCP Protocol Version 2025-06-18)
 	if toolWithSchema, ok := tool.(ToolWithOutputSchema); ok {
-		toolInfo.OutputSchema = toolWithSchema.OutputSchema()
+		toolInfo.OutputSchema, _ = cloneRegistrySchema(toolWithSchema.OutputSchema())
 	}
 	if compatibility, ok := tool.(legacySchemaCompatibleTool); ok {
 		toolInfo.LegacyOnly = compatibility.legacyOnlyInputSchema()
@@ -223,22 +300,29 @@ func (r *GlobalToolRegistry) RegisterTool(serverName string, toolName string, to
 // direct generation. It must not call Description or InputSchema again: those
 // getters may be stateful and their returned maps remain caller-owned.
 func (r *GlobalToolRegistry) registerPreparedTool(serverName string, entry directToolEntry) {
+	inputSchema := entry.inputSchema
+	inputSchemaSerializable := entry.serializable
+	if inputSchemaSerializable {
+		inputSchema, inputSchemaSerializable = cloneRegistrySchema(inputSchema)
+	}
 	toolInfo := ToolInfo{
 		Name:                    entry.name,
 		Description:             entry.description,
-		InputSchema:             entry.inputSchema,
-		inputSchemaSerializable: entry.serializable,
+		InputSchema:             inputSchema,
+		inputSchemaSerializable: inputSchemaSerializable,
 		LegacyOnly:              entry.schemaState == directToolSchemaExplicitLegacyOnly,
 		ServerName:              serverName,
 		Tool:                    entry.tool,
 	}
 	if toolWithSchema, ok := entry.tool.(ToolWithOutputSchema); ok {
-		toolInfo.OutputSchema = toolWithSchema.OutputSchema()
+		toolInfo.OutputSchema, _ = cloneRegistrySchema(toolWithSchema.OutputSchema())
 	}
 	r.registerToolInfo(toolInfo)
 }
 
 func (r *GlobalToolRegistry) registerToolInfo(toolInfo ToolInfo) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if _, ok := r.serverTools[toolInfo.ServerName]; !ok {
 		r.serverTools[toolInfo.ServerName] = make(map[string]ToolInfo)
 	}
@@ -248,11 +332,22 @@ func (r *GlobalToolRegistry) registerToolInfo(toolInfo ToolInfo) {
 
 // GetToolInfo retrieves tool information from the global registry.
 func (r *GlobalToolRegistry) GetToolInfo(serverName string, toolName string) (ToolInfo, bool) {
-	if serverTools, ok := r.serverTools[serverName]; ok {
-		toolInfo, found := serverTools[toolName]
-		return toolInfo, found
+	r.mu.RLock()
+	serverTools, serverFound := r.serverTools[serverName]
+	toolInfo, found := serverTools[toolName]
+	r.mu.RUnlock()
+	if !serverFound || !found {
+		return ToolInfo{}, false
 	}
-	return ToolInfo{}, false
+	// Clone after releasing the registry lock. Stored descriptors are immutable,
+	// and no caller-controlled getter or traversal runs inside the lock.
+	if toolInfo.inputSchemaSerializable {
+		toolInfo.InputSchema, toolInfo.inputSchemaSerializable = cloneRegistrySchema(toolInfo.InputSchema)
+	}
+	if toolInfo.OutputSchema != nil {
+		toolInfo.OutputSchema, _ = cloneRegistrySchema(toolInfo.OutputSchema)
+	}
+	return toolInfo, true
 }
 
 func onPluginStartOrReload(context wrapper.PluginContext) error {

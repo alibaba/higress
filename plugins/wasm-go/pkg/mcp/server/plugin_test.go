@@ -176,8 +176,49 @@ func TestGlobalToolRegistry_RegisterTool_CapturesOutputSchema(t *testing.T) {
 	info, ok := r.GetToolInfo("srv", "tool")
 	require.True(t, ok)
 	assert.Equal(t, "d", info.Description)
-	assert.Equal(t, map[string]any{"in": json.Number("1")}, info.InputSchema)
+	assert.Equal(t, map[string]any{"in": 1}, info.InputSchema)
 	assert.Equal(t, map[string]any{"out": 2}, info.OutputSchema, "OutputSchema must be captured when tool implements ToolWithOutputSchema")
+}
+
+func TestGlobalToolRegistryOwnsSchemaWithoutChangingPrimitiveTypes(t *testing.T) {
+	input := map[string]any{
+		"integer": int(7),
+		"float":   float64(1.5),
+		"nested":  []any{int32(3), "value"},
+	}
+	r := &GlobalToolRegistry{}
+	r.Initialize()
+	r.RegisterTool("srv", "tool", &stubTool{desc: "d", input: input})
+
+	input["integer"] = int(9)
+	input["nested"].([]any)[0] = int32(4)
+	first, ok := r.GetToolInfo("srv", "tool")
+	require.True(t, ok)
+	assert.IsType(t, int(0), first.InputSchema["integer"])
+	assert.IsType(t, float64(0), first.InputSchema["float"])
+	assert.IsType(t, int32(0), first.InputSchema["nested"].([]any)[0])
+	assert.Equal(t, int(7), first.InputSchema["integer"])
+	assert.Equal(t, int32(3), first.InputSchema["nested"].([]any)[0])
+
+	first.InputSchema["integer"] = int(11)
+	first.InputSchema["nested"].([]any)[0] = int32(5)
+	second, ok := r.GetToolInfo("srv", "tool")
+	require.True(t, ok)
+	assert.Equal(t, int(7), second.InputSchema["integer"])
+	assert.Equal(t, int32(3), second.InputSchema["nested"].([]any)[0])
+}
+
+func TestGlobalToolRegistryMarksCyclicSchemaNonSerializable(t *testing.T) {
+	cyclic := map[string]any{"type": "object"}
+	cyclic["self"] = cyclic
+	r := &GlobalToolRegistry{}
+	r.Initialize()
+	r.RegisterTool("srv", "cyclic", &stubTool{desc: "d", input: cyclic})
+
+	info, ok := r.GetToolInfo("srv", "cyclic")
+	require.True(t, ok)
+	assert.False(t, info.inputSchemaSerializable)
+	assert.Nil(t, info.InputSchema)
 }
 
 func TestGlobalToolRegistry_RegisterTool_PlainToolHasNoOutputSchema(t *testing.T) {

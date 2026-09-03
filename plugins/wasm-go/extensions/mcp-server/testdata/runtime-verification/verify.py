@@ -22,6 +22,7 @@ LEGACY = ("2024-11-05", "2025-03-26", "2025-06-18")
 GATEWAY_HOST = os.environ.get("RUNTIME_GATEWAY_HOST", "gateway")
 GENERATION_TRANSITION = os.environ.get("RUNTIME_GENERATION_TRANSITION", "") == "1"
 COMPATIBILITY_ORACLE = os.environ.get("RUNTIME_ORACLE", "") == "1"
+CORPUS_REVISION = os.environ.get("RUNTIME_CORPUS_REVISION", "")
 
 
 def check(condition, message):
@@ -108,7 +109,8 @@ def modern_meta():
     }
 
 
-def modern_rpc(port, rpc_method, rpc_id, name=None, arguments=None, extra_headers=None, origin="http://mcp.runtime.test"):
+def modern_rpc(port, rpc_method, rpc_id, name=None, arguments=None, extra_headers=None,
+               origin="http://mcp.runtime.test", host="mcp.runtime.test"):
     params = {"_meta": modern_meta()}
     if name is not None:
         params["name"] = name
@@ -116,7 +118,7 @@ def modern_rpc(port, rpc_method, rpc_id, name=None, arguments=None, extra_header
         params["arguments"] = arguments
     body = {"jsonrpc": "2.0", "id": rpc_id, "method": rpc_method, "params": params}
     headers = {
-        "Host": "mcp.runtime.test", "Origin": origin,
+        "Host": host, "Origin": origin,
         "Content-Type": "application/json", "Accept": "application/json, text/event-stream",
         "MCP-Protocol-Version": MODERN, "Mcp-Method": rpc_method,
         "X-Request-ID": f"rv-{port}-{rpc_id}",
@@ -127,8 +129,8 @@ def modern_rpc(port, rpc_method, rpc_id, name=None, arguments=None, extra_header
     return exchange(f"http://{GATEWAY_HOST}:{port}/mcp", body, headers)
 
 
-def legacy_rpc(port, body, session=None, version=None, request_id=None):
-    headers = {"Host": "mcp.runtime.test", "Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+def legacy_rpc(port, body, session=None, version=None, request_id=None, host="mcp.runtime.test"):
+    headers = {"Host": host, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
     stable_id = request_id or body.get("id") or body.get("method", "request").replace("/", "-")
     headers["X-Request-ID"] = f"rv-{port}-{stable_id}"
     if session:
@@ -138,12 +140,12 @@ def legacy_rpc(port, body, session=None, version=None, request_id=None):
     return exchange(f"http://{GATEWAY_HOST}:{port}/mcp", body, headers)
 
 
-def wait_lds_version(phase):
+def wait_lds_version(phase, admin_port=9921):
     deadline = time.time() + 45
     expected = f'"version_info":"{phase}"'
     while time.time() < deadline:
         try:
-            status, _, dump = exchange(f"http://{GATEWAY_HOST}:9921/config_dump", method="GET")
+            status, _, dump = exchange(f"http://{GATEWAY_HOST}:{admin_port}/config_dump", method="GET")
             if status == 200 and expected in json.dumps(dump, separators=(",", ":")):
                 return
         except (OSError, urllib.error.URLError, socket.timeout):
@@ -159,6 +161,37 @@ def apply_lds_generation(phase):
     temporary.write_bytes(source.read_bytes())
     os.replace(temporary, current)
     wait_lds_version(phase)
+
+
+def lds_rejected_count(admin_port=9981):
+    status, _, stats = exchange(
+        f"http://{GATEWAY_HOST}:{admin_port}/stats?filter=listener_manager.lds.update_rejected&format=json",
+        method="GET",
+    )
+    check(status == 200 and isinstance(stats, dict), f"LDS rejection stats unavailable: {status} {stats}")
+    for stat in stats.get("stats", []):
+        if stat.get("name") == "listener_manager.lds.update_rejected":
+            return int(stat.get("value", 0))
+    return 0
+
+
+def apply_corpus_fixture(revision, fixture, expected_acceptance):
+    source = EVIDENCE / f"lds-corpus-{revision}-{fixture}.yaml"
+    current = EVIDENCE / f"lds-corpus-{revision}-current.yaml"
+    temporary = EVIDENCE / f".lds-corpus-{revision}-{fixture}.tmp"
+    rejected_before = lds_rejected_count()
+    temporary.write_bytes(source.read_bytes())
+    os.replace(temporary, current)
+    version = f"{revision}-{fixture}"
+    if expected_acceptance:
+        wait_lds_version(version, 9981)
+        return True
+    deadline = time.time() + 45
+    while time.time() < deadline:
+        if lds_rejected_count() > rejected_before:
+            return False
+        time.sleep(0.25)
+    raise RuntimeError(f"Envoy did not reject corpus fixture {version}")
 
 
 def generation_transition():
@@ -453,6 +486,123 @@ def compatibility_oracle():
     return 0
 
 
+def corpus_verification():
+    wait_http("http://backend-primary:8080/healthz")
+    wait_http(f"http://{GATEWAY_HOST}:9981/ready")
+    manifest = json.loads((EVIDENCE / "corpus-manifest.json").read_text())
+    records = []
+    for fixture in manifest["fixtures"]:
+        slug = fixture["fixture"]
+        expected = fixture["expectedAcceptance"][CORPUS_REVISION]
+        actual = apply_corpus_fixture(CORPUS_REVISION, slug, expected)
+        check(actual == expected, f"{CORPUS_REVISION}/{slug} acceptance mismatch")
+        record = {
+            "fixture": slug,
+            "expectedAcceptance": expected,
+            "actualAcceptance": actual,
+            "tool": fixture["tool"],
+            "legacyMappingExpected": fixture["legacyMapping"],
+            "modernList": False,
+            "modernCallBlocked": False,
+            "legacyList": False,
+            "legacyRESTMapping": False,
+            "validSiblingCallable": False,
+            "validSiblingBackendEvents": [],
+            "globalList": False,
+            "backendEvents": {"backend-primary": []},
+        }
+        if not actual:
+            records.append(record)
+            continue
+
+        backend_reset()
+        port = fixture["port"]
+        tool_name = fixture["tool"]
+        if CORPUS_REVISION == "candidate":
+            status, _, listed = modern_rpc(port, "tools/list", f"corpus-{slug}-modern-list")
+            check(status == 200, f"candidate modern list failed for {slug}: {status} {listed}")
+            tools = result_contract(listed, ttl=True).get("tools") or []
+            check(tool_name in {tool.get("name") for tool in tools}, f"candidate descriptor missing for {slug}: {tools}")
+            if slug == "mixed-valid-invalid":
+                check("valid_sibling" in {tool.get("name") for tool in tools}, f"valid sibling missing for {slug}: {tools}")
+                status, _, valid_called = modern_rpc(port, "tools/call", f"corpus-{slug}-valid", "valid_sibling", {})
+                check(status == 200 and "result" in valid_called, f"valid sibling call failed for {slug}: {valid_called}")
+                sibling_events = backend_state()["events"]
+                check(len(sibling_events) == 1, f"valid sibling did not make exactly one call for {slug}")
+                record["validSiblingCallable"] = True
+                record["validSiblingBackendEvents"] = sibling_events
+                backend_reset()
+            record["modernList"] = True
+            status, _, blocked = modern_rpc(
+                port, "tools/call", f"corpus-{slug}-modern-call", tool_name,
+                {"recordId": "record-42", "page": 7, "X-Corpus-Flag": True, "payload": {"amount": 12}},
+            )
+            check(status == 200 and (blocked.get("error") or {}).get("code") == -32603,
+                  f"candidate modern call was not blocked for {slug}: {status} {blocked}")
+            check((blocked.get("error") or {}).get("data", {}).get("reason") == "schema_validation_unavailable",
+                  f"candidate modern reason changed for {slug}: {blocked}")
+            check(backend_state()["events"] == [], f"candidate modern blocked call reached upstream for {slug}")
+            record["modernCallBlocked"] = True
+
+        status, _, listed = legacy_rpc(
+            port, {"jsonrpc": "2.0", "id": f"corpus-{slug}-legacy-list", "method": "tools/list", "params": {}},
+            version=LEGACY[-1],
+        )
+        check(status == 200, f"{CORPUS_REVISION} legacy list failed for {slug}: {status} {listed}")
+        check(tool_name in {tool.get("name") for tool in listed.get("result", {}).get("tools", [])},
+              f"{CORPUS_REVISION} legacy descriptor missing for {slug}: {listed}")
+        record["legacyList"] = True
+
+        if slug == "rule-level":
+            if CORPUS_REVISION == "candidate":
+                status, _, global_listed = modern_rpc(
+                    port, "tools/list", f"corpus-{slug}-global-modern-list",
+                    origin="http://global.runtime.test", host="global.runtime.test",
+                )
+                check(status == 200, f"candidate global rule list failed: {status} {global_listed}")
+                global_tools = result_contract(global_listed, ttl=True).get("tools") or []
+            else:
+                status, _, global_listed = legacy_rpc(
+                    port,
+                    {"jsonrpc": "2.0", "id": f"corpus-{slug}-global-legacy-list", "method": "tools/list", "params": {}},
+                    version=LEGACY[-1], host="global.runtime.test",
+                )
+                global_tools = global_listed.get("result", {}).get("tools", [])
+            check(status == 200 and {tool.get("name") for tool in global_tools} == {"global_valid"},
+                  f"{CORPUS_REVISION} global rule fallback changed: {status} {global_listed}")
+            record["globalList"] = True
+
+        if fixture["legacyMapping"]:
+            arguments = {
+                "recordId": "record-42", "page": 7, "X-Corpus-Flag": True,
+                "payload": {"amount": 12},
+            }
+            status, _, called = legacy_rpc(
+                port,
+                {"jsonrpc": "2.0", "id": f"corpus-{slug}-legacy-call", "method": "tools/call",
+                 "params": {"name": tool_name, "arguments": arguments}},
+                version=LEGACY[-1],
+            )
+            check(status == 200 and "result" in called,
+                  f"{CORPUS_REVISION} legacy call failed for {slug}: {status} {called}")
+            events = backend_state()["events"]
+            check(len(events) == 1 and events[0]["path"] == f"/corpus/{slug}/record-42",
+                  f"{CORPUS_REVISION} legacy path/count changed for {slug}: {events}")
+            observed = events[0].get("compatibilityRequest") or {}
+            check(events[0]["httpMethod"] == "POST", f"legacy method changed for {slug}: {events[0]}")
+            check(observed.get("query") == {"fixed": ["yes"], "page": ["7"]},
+                  f"legacy query changed for {slug}: {events[0]}")
+            check(observed.get("flag") == "true", f"legacy header changed for {slug}: {events[0]}")
+            check(observed.get("jsonBody") == {"payload": {"amount": 12}},
+                  f"legacy body changed for {slug}: {events[0]}")
+            record["legacyRESTMapping"] = True
+            record["backendEvents"] = {"backend-primary": events}
+        records.append(record)
+    result = {"revision": CORPUS_REVISION, "fixtures": records}
+    (EVIDENCE / f"corpus-{CORPUS_REVISION}.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0
+
+
 def modern_proxy():
     backend_reset()
     sensitive = {
@@ -559,6 +709,8 @@ def main():
         return generation_transition()
     if COMPATIBILITY_ORACLE:
         return compatibility_oracle()
+    if CORPUS_REVISION:
+        return corpus_verification()
     wait_http("http://backend-primary:8080/healthz")
     wait_http(f"http://{GATEWAY_HOST}:9901/ready")
     cases = [

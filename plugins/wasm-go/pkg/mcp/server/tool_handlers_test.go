@@ -666,6 +666,18 @@ func TestParseConfigRegistryPublicationReusesCapturedGenerationDescriptor(t *tes
 	require.Equal(t, 1, tool.descriptionReads)
 	require.Equal(t, 1, tool.schemaReads)
 
+	registryView, found := registry.GetToolInfo("registered", "changing")
+	require.True(t, found)
+	registryView.InputSchema["properties"].(map[string]any)["value"].(map[string]any)["type"] = "boolean"
+	directListed := direct.directTools.buildModernToolList(nil)
+	require.Len(t, directListed, 1)
+	directProperty := directListed[0]["inputSchema"].(map[string]any)["properties"].(map[string]any)["value"].(map[string]any)
+	assert.Equal(t, "string", directProperty["type"], "registry reads must not mutate the direct generation")
+	registryView, found = registry.GetToolInfo("registered", "changing")
+	require.True(t, found)
+	registryProperty := registryView.InputSchema["properties"].(map[string]any)["value"].(map[string]any)
+	assert.Equal(t, "string", registryProperty["type"], "registry reads must return independent clones")
+
 	firstSchema["properties"].(map[string]any)["value"].(map[string]any)["type"] = "integer"
 	composed := &McpServerConfig{}
 	require.NoError(t, ParseConfigCore(gjson.Parse(`{

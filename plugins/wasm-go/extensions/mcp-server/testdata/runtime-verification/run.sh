@@ -32,6 +32,7 @@ BASELINE_SOURCE_DIR=""
 ORACLE_REVISION=39ec41aab6eb1d40499bed2847085696de0ebb96
 ORACLE_SHA=$(git -C "$REPO_ROOT" rev-parse "$ORACLE_REVISION^{commit}")
 ORACLE_SOURCE_DIR=""
+CANDIDATE_CORPUS_SOURCE_DIR=""
 export BASELINE_SHA ORACLE_SHA
 
 cleanup() {
@@ -41,6 +42,9 @@ cleanup() {
   fi
   if test -n "$ORACLE_SOURCE_DIR" && test -d "$ORACLE_SOURCE_DIR"; then
     rm -rf -- "$ORACLE_SOURCE_DIR"
+  fi
+  if test -n "$CANDIDATE_CORPUS_SOURCE_DIR" && test -d "$CANDIDATE_CORPUS_SOURCE_DIR"; then
+    rm -rf -- "$CANDIDATE_CORPUS_SOURCE_DIR"
   fi
 }
 trap cleanup EXIT INT TERM
@@ -57,11 +61,22 @@ file_sha256() {
 }
 
 PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/plugin.wasm")
+echo "building exact-head registered-schema corpus WASM from $SOURCE_SHA"
+CANDIDATE_CORPUS_SOURCE_DIR=$(mktemp -d "$RUNTIME_EVIDENCE/candidate-corpus-source.XXXXXX") || exit 3
+git -C "$REPO_ROOT" archive "$SOURCE_SHA" | tar -x -C "$CANDIDATE_CORPUS_SOURCE_DIR" || exit 3
+cp "$HARNESS_DIR/registered_fixture.go.txt" "$CANDIDATE_CORPUS_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server/000_runtime_fixture.go" || exit 3
+(cd "$CANDIDATE_CORPUS_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/corpus-plugin-candidate.wasm" .) || exit 3
+CORPUS_CANDIDATE_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/corpus-plugin-candidate.wasm")
+rm -rf -- "$CANDIDATE_CORPUS_SOURCE_DIR"
+CANDIDATE_CORPUS_SOURCE_DIR=""
 echo "building pinned baseline mcp-server WASM from $BASELINE_SHA"
 BASELINE_SOURCE_DIR=$(mktemp -d "$RUNTIME_EVIDENCE/baseline-source.XXXXXX") || exit 3
 git -C "$REPO_ROOT" archive "$BASELINE_SHA" | tar -x -C "$BASELINE_SOURCE_DIR" || exit 3
 (cd "$BASELINE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/baseline-plugin.wasm" .) || exit 3
 BASELINE_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/baseline-plugin.wasm")
+cp "$HARNESS_DIR/registered_fixture.go.txt" "$BASELINE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server/000_runtime_fixture.go" || exit 3
+(cd "$BASELINE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/corpus-plugin-affected.wasm" .) || exit 3
+CORPUS_AFFECTED_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/corpus-plugin-affected.wasm")
 rm -rf -- "$BASELINE_SOURCE_DIR"
 BASELINE_SOURCE_DIR=""
 echo "building v2.0.0 compatibility oracle WASM from $ORACLE_SHA"
@@ -69,9 +84,14 @@ ORACLE_SOURCE_DIR=$(mktemp -d "$RUNTIME_EVIDENCE/oracle-source.XXXXXX") || exit 
 git -C "$REPO_ROOT" archive "$ORACLE_SHA" | tar -x -C "$ORACLE_SOURCE_DIR" || exit 3
 (cd "$ORACLE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/oracle-plugin.wasm" .) || exit 3
 ORACLE_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/oracle-plugin.wasm")
+cp "$HARNESS_DIR/registered_fixture.go.txt" "$ORACLE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server/000_runtime_fixture.go" || exit 3
+(cd "$ORACLE_SOURCE_DIR/plugins/wasm-go/extensions/mcp-server" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/corpus-plugin-oracle.wasm" .) || exit 3
+CORPUS_ORACLE_PLUGIN_SHA256=$(file_sha256 "$RUNTIME_EVIDENCE/corpus-plugin-oracle.wasm")
 rm -rf -- "$ORACLE_SOURCE_DIR"
 ORACLE_SOURCE_DIR=""
-export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256 ORACLE_PLUGIN_SHA256
+CORPUS_FIXTURE_SHA256=$(file_sha256 "$HARNESS_DIR/registered_fixture.go.txt")
+export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256 ORACLE_PLUGIN_SHA256 CORPUS_CANDIDATE_PLUGIN_SHA256 \
+  CORPUS_AFFECTED_PLUGIN_SHA256 CORPUS_ORACLE_PLUGIN_SHA256 CORPUS_FIXTURE_SHA256
 
 RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
 if test "${RUNTIME_SKIP_PULL:-0}" = 1; then
@@ -117,6 +137,23 @@ fi
 podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-oracle >/dev/null 2>&1 || true
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-oracle \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-oracle.log"
+
+podman compose -f "$HARNESS_DIR/compose.yaml" up -d gateway-corpus-candidate gateway-corpus-affected gateway-corpus-oracle || exit 4
+for revision in candidate affected oracle; do
+  set +e
+  podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify run --rm --no-deps \
+    -e "RUNTIME_GATEWAY_HOST=gateway-corpus-$revision" -e "RUNTIME_CORPUS_REVISION=$revision" verifier
+  CORPUS_VERIFY_STATUS=$?
+  set -e
+  if test "$CORPUS_VERIFY_STATUS" -ne 0; then
+    VERIFY_STATUS=1
+  fi
+done
+podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-corpus-candidate gateway-corpus-affected gateway-corpus-oracle >/dev/null 2>&1 || true
+for revision in candidate affected oracle; do
+  podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color "gateway-corpus-$revision" \
+    | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-corpus-$revision.log"
+done
 
 capture_generation_process() {
   output=$1
@@ -169,6 +206,9 @@ set -e
 unlink "$RUNTIME_EVIDENCE/plugin.wasm"
 unlink "$RUNTIME_EVIDENCE/baseline-plugin.wasm"
 unlink "$RUNTIME_EVIDENCE/oracle-plugin.wasm"
+unlink "$RUNTIME_EVIDENCE/corpus-plugin-candidate.wasm"
+unlink "$RUNTIME_EVIDENCE/corpus-plugin-affected.wasm"
+unlink "$RUNTIME_EVIDENCE/corpus-plugin-oracle.wasm"
 if test "$VERIFY_STATUS" -ne 0 || test "$FINALIZE_STATUS" -ne 0; then
   exit 1
 fi
