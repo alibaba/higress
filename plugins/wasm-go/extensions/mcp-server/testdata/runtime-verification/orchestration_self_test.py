@@ -131,32 +131,9 @@ def check_partial_corpus_diagnostic():
     ) = original
 
 
-def check_static_orchestration_contract():
-    harness = Path(__file__).resolve().parent
-    compose_lines = [
-        line.strip() for line in (harness / "compose.yaml").read_text().splitlines()
-        if line.strip().startswith('command: ["-c"')
-    ]
-    require(len(compose_lines) == 11, f"expected 11 Envoy commands, got {len(compose_lines)}")
-    require(all('"--concurrency", "1"' in line for line in compose_lines),
-            f"an Envoy command lacks bounded concurrency: {compose_lines}")
-
-    run_script = (harness / "run.sh").read_text()
-    require("for revision in candidate affected oracle" in run_script,
-            "corpus revision order is no longer explicit")
-    require(run_script.count("stop_runtime_service") == 5,
-            "a critical phase no longer uses the inspected stop gate")
-    require("sleep 2" not in run_script, "fixed two-second rejection sampling returned")
-    require("wait_for_rejection_markers" in run_script
-            and '"error parsing URL template" "plugin start failed"' in run_script
-            and '"requires a primitive type" "plugin start failed"' in run_script,
-            "static rejection marker polling was weakened")
-
-
 if __name__ == "__main__":
     check_transient_lds_publish_timeout()
     check_rejection_poll_classification()
     check_corpus_get_fixture()
     check_partial_corpus_diagnostic()
-    check_static_orchestration_contract()
     print("runtime orchestration fault-injection self-tests passed")

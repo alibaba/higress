@@ -141,6 +141,9 @@ podman image inspect higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gatewa
 podman image inspect docker.io/library/python:3.12-alpine --format '{{range .RepoDigests}}{{println .}}{{end}}' >"$RUNTIME_EVIDENCE/backend-image-digests.txt"
 podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify config \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/compose-config.yaml"
+podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify config --format json \
+  | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/compose-config.json"
+python3 "$HARNESS_DIR/compose_config_self_test.py" "$RUNTIME_EVIDENCE/compose-config.json" || exit 3
 
 compose_runtime() {
   podman compose -f "$HARNESS_DIR/compose.yaml" "$@"
@@ -205,31 +208,15 @@ wait_for_rejection_markers() {
   return 1
 }
 
-run_static_rejection() {
-  service=$1
-  log_name=$2
-  state_name=$3
-  first=$4
-  second=$5
-  reset_primary_backend || return 1
-  compose_runtime up -d "$service" || return 1
-  rejection_status=0
-  wait_for_rejection_markers "$service" "$first" "$second" || rejection_status=$?
-  capture_empty_primary_backend "$RUNTIME_EVIDENCE/$state_name" || rejection_status=1
-  stop_runtime_service "$service" || return 1
-  capture_gateway_log "$service" "$RUNTIME_EVIDENCE/$log_name" || rejection_status=1
-  return "$rejection_status"
-}
-
 compose_runtime up -d backend-primary backend-secondary || exit 4
 wait_primary_backend_ready || exit 4
-run_static_rejection gateway-auto gateway-auto.log backend-auto-state.json \
+run_static_rejection_phase gateway-auto "$RUNTIME_EVIDENCE/gateway-auto.log" "$RUNTIME_EVIDENCE/backend-auto-state.json" \
   "invalid protocolStrategy value: auto" "plugin start failed" || exit 4
-run_static_rejection gateway-baseline gateway-baseline.log backend-baseline-state.json \
+run_static_rejection_phase gateway-baseline "$RUNTIME_EVIDENCE/gateway-baseline.log" "$RUNTIME_EVIDENCE/backend-baseline-state.json" \
   "requires a primitive type" "plugin start failed" || exit 4
 for variant in candidate affected oracle; do
-  run_static_rejection "gateway-control-$variant" "gateway-control-$variant.log" \
-    "backend-control-$variant-state.json" "error parsing URL template" "plugin start failed" || exit 4
+  run_static_rejection_phase "gateway-control-$variant" "$RUNTIME_EVIDENCE/gateway-control-$variant.log" \
+    "$RUNTIME_EVIDENCE/backend-control-$variant-state.json" "error parsing URL template" "plugin start failed" || exit 4
 done
 # Keep the aggregate compatibility filename while retaining per-revision phase snapshots.
 cp "$RUNTIME_EVIDENCE/backend-control-oracle-state.json" "$RUNTIME_EVIDENCE/backend-control-state.json" || exit 4
@@ -248,20 +235,23 @@ stop_runtime_service gateway-oracle || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-oracle \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-oracle.log"
 
-for revision in candidate affected oracle; do
-  reset_primary_backend || exit 4
-  compose_runtime up -d "gateway-corpus-$revision" || exit 4
+run_corpus_verifier() {
+  revision=$1
   set +e
   compose_runtime --profile verify run --rm --no-deps \
     -e "RUNTIME_GATEWAY_HOST=gateway-corpus-$revision" -e "RUNTIME_CORPUS_REVISION=$revision" verifier
-  CORPUS_VERIFY_STATUS=$?
+  verifier_status=$?
   set -e
-  if test "$CORPUS_VERIFY_STATUS" -ne 0; then
-    VERIFY_STATUS=1
-  fi
-  stop_runtime_service "gateway-corpus-$revision" || exit 4
-  capture_gateway_log "gateway-corpus-$revision" "$RUNTIME_EVIDENCE/gateway-corpus-$revision.log" || VERIFY_STATUS=1
-done
+  return "$verifier_status"
+}
+
+CORPUS_RUN_STATUS=0
+run_corpus_revisions "$RUNTIME_EVIDENCE" || CORPUS_RUN_STATUS=$?
+case "$CORPUS_RUN_STATUS" in
+  0) ;;
+  "$CORPUS_VERIFY_FAILED") VERIFY_STATUS=1 ;;
+  *) exit 4 ;;
+esac
 
 capture_generation_process() {
   output=$1

@@ -81,3 +81,56 @@ reset_primary_backend() {
   runtime_diagnostic "backend-primary was healthy but reset failed after $attempts attempts"
   return 1
 }
+
+start_runtime_service() {
+  compose_runtime up -d "$1"
+}
+
+# Dependencies supplied by run.sh and replaced by lifecycle_self_test.sh:
+# wait_for_rejection_markers, capture_gateway_log, capture_empty_primary_backend.
+run_static_rejection_phase() {
+  service=$1
+  log_path=$2
+  state_path=$3
+  first_marker=$4
+  second_marker=$5
+  reset_primary_backend || return 1
+  start_runtime_service "$service" || return 1
+  marker_status=0
+  wait_for_rejection_markers "$service" "$first_marker" "$second_marker" || marker_status=$?
+  stop_runtime_service "$service" || return 1
+  capture_gateway_log "$service" "$log_path" || return 1
+  capture_empty_primary_backend "$state_path" || return 1
+  return "$marker_status"
+}
+
+CORPUS_VERIFY_FAILED=10
+CORPUS_LIFECYCLE_FAILED=20
+
+# run_corpus_verifier is supplied by run.sh and returns the verifier status.
+run_corpus_phase() {
+  revision=$1
+  log_path=$2
+  reset_primary_backend || return "$CORPUS_LIFECYCLE_FAILED"
+  start_runtime_service "gateway-corpus-$revision" || return "$CORPUS_LIFECYCLE_FAILED"
+  verifier_status=0
+  run_corpus_verifier "$revision" || verifier_status=$?
+  stop_runtime_service "gateway-corpus-$revision" || return "$CORPUS_LIFECYCLE_FAILED"
+  capture_gateway_log "gateway-corpus-$revision" "$log_path" || return "$CORPUS_LIFECYCLE_FAILED"
+  test "$verifier_status" -eq 0 || return "$CORPUS_VERIFY_FAILED"
+}
+
+run_corpus_revisions() {
+  evidence_dir=$1
+  aggregate_status=0
+  for revision in candidate affected oracle; do
+    phase_status=0
+    run_corpus_phase "$revision" "$evidence_dir/gateway-corpus-$revision.log" || phase_status=$?
+    case "$phase_status" in
+      0) ;;
+      "$CORPUS_VERIFY_FAILED") aggregate_status=$CORPUS_VERIFY_FAILED ;;
+      *) return "$CORPUS_LIFECYCLE_FAILED" ;;
+    esac
+  done
+  return "$aggregate_status"
+}

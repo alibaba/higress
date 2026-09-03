@@ -301,7 +301,7 @@ manifest = {
     "client_exchange_count": len(client_exchanges),
     "access_coverage": access_coverage,
     "evidence_index": [
-        "manifest.json", "matrix.json", "client-exchanges.json", "access-coverage.json", "compose-config.yaml", "envoy.yaml", "envoy-auto.yaml",
+        "manifest.json", "matrix.json", "client-exchanges.json", "access-coverage.json", "compose-config.yaml", "compose-config.json", "envoy.yaml", "envoy-auto.yaml",
         "envoy-baseline.yaml", "envoy-oracle.yaml", "envoy-control-candidate.yaml",
         "envoy-control-affected.yaml", "envoy-control-oracle.yaml", "envoy-generation.yaml", "lds-generation-valid-before.yaml",
         "lds-generation-validation-unavailable.yaml", "lds-generation-valid-after.yaml", "lds-generation-current.yaml",

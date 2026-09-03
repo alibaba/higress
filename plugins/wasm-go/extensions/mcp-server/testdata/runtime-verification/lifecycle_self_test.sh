@@ -61,4 +61,38 @@ if RUNTIME_BACKEND_RESET_ATTEMPTS=2 reset_primary_backend; then
   fail "permanent reset failure was accepted"
 fi
 
+events=""
+record_event() { events="${events}${events:+,}$1"; }
+reset_primary_backend() { record_event reset; }
+start_runtime_service() { record_event "start:$1"; }
+wait_for_rejection_markers() { record_event "wait:$1:$2:$3"; }
+stop_runtime_service() { record_event "stop:$1"; }
+capture_gateway_log() { record_event "log:$1:$2"; }
+capture_empty_primary_backend() { record_event "state:$1"; }
+
+run_static_rejection_phase static-gateway static.log static-state.json marker-a marker-b || \
+  fail "structured static rejection phase failed"
+expected="reset,start:static-gateway,wait:static-gateway:marker-a:marker-b,stop:static-gateway,log:static-gateway:static.log,state:static-state.json"
+test "$events" = "$expected" || fail "static phase order changed: $events"
+
+events=""
+run_corpus_verifier() { record_event "verify:$1"; }
+run_corpus_revisions evidence || fail "structured corpus revisions failed"
+expected="reset,start:gateway-corpus-candidate,verify:candidate,stop:gateway-corpus-candidate,log:gateway-corpus-candidate:evidence/gateway-corpus-candidate.log,reset,start:gateway-corpus-affected,verify:affected,stop:gateway-corpus-affected,log:gateway-corpus-affected:evidence/gateway-corpus-affected.log,reset,start:gateway-corpus-oracle,verify:oracle,stop:gateway-corpus-oracle,log:gateway-corpus-oracle:evidence/gateway-corpus-oracle.log"
+test "$events" = "$expected" || fail "corpus revision order changed: $events"
+
+events=""
+stop_runtime_service() {
+  record_event "stop:$1"
+  test "$1" != gateway-corpus-candidate
+}
+corpus_status=0
+run_corpus_revisions evidence || corpus_status=$?
+test "$corpus_status" -eq "$CORPUS_LIFECYCLE_FAILED" || fail "stop failure was not fatal"
+case "$events" in
+  *"start:gateway-corpus-affected"*) fail "affected started after candidate stop failure" ;;
+esac
+expected="reset,start:gateway-corpus-candidate,verify:candidate,stop:gateway-corpus-candidate"
+test "$events" = "$expected" || fail "events continued after candidate stop failure: $events"
+
 echo "runtime lifecycle fault-injection self-tests passed"

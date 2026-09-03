@@ -148,12 +148,16 @@ failed directory must not be reused, modified, or deleted.
   legacy MCP responses and exposes safe observable event state.
 - [`orchestration_self_test.py`](./orchestration_self_test.py) injects transient
   and permanent admin failures, distinguishes rejection from checker failure,
-  proves the mixed-fixture GET route records exactly one backend event, and
-  statically guards all eleven Envoy concurrency settings and phase ordering.
+  and proves the mixed-fixture GET route records exactly one backend event.
 - [`lifecycle.sh`](./lifecycle.sh) provides the bounded backend readiness/reset
-  and inspected service-stop gates; [`lifecycle_self_test.sh`](./lifecycle_self_test.sh)
-  fault-injects transient and permanent backend failures plus stop-command and
-  container-state disagreement.
+  and inspected service-stop gates plus injectable static/corpus phase runners;
+  [`lifecycle_self_test.sh`](./lifecycle_self_test.sh) fault-injects transient
+  and permanent backend failures, stop-command/container-state disagreement,
+  and asserts recorded start/verify/stop/log order including early termination
+  after a failed stop.
+- [`compose_config_self_test.py`](./compose_config_self_test.py) parses the
+  provider-resolved Compose JSON and requires each of the eleven Envoy command
+  arrays to contain the independent tokens `--concurrency` and `1`.
 - [`generate_envoy.py`](./generate_envoy.py) generates listeners, routes,
   clusters, plugin configuration, and the invalid-auto configuration.
 - [`typed_canonical.py`](./typed_canonical.py) defines the shared type-tagged
@@ -421,8 +425,9 @@ A completed evidence directory contains:
 - `envoy.yaml`, `envoy-auto.yaml`, `envoy-baseline.yaml`, `envoy-oracle.yaml`,
   `envoy-control-*.yaml`, `envoy-generation.yaml`, and
   `lds-generation-*.yaml`: the exact static and dynamic Envoy configurations.
-- `compose-config.yaml`: the resolved Compose configuration with fixture
-  credentials redacted.
+- `compose-config.yaml` and `compose-config.json`: the provider-resolved Compose
+  configuration with fixture credentials redacted; the JSON form is the input
+  to the structured Envoy concurrency check.
 - `gateway.log` and `gateway-auto.log`: sanitized Envoy runtime and access logs,
   collected after the gateways stop.
 - `podman-version.txt` and `compose-version.txt`: host runtime tool identities.
