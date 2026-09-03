@@ -20,9 +20,17 @@ on:
         required: true
         default: true
         type: boolean
+      adopt_unannotated_latest:
+        description: "Adopt unannotated legacy latest tags: replace them with the snapshot-verified digest (journaled as adopt-legacy). Bridge for pre-pipeline manual latests."
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+  # Read-only: verify-and-promote resolves the merged preparation PR that
+  # authorizes it. No write permission is granted to any job in this workflow.
+  pull-requests: read
 
 concurrency:
   group: promote-plugin-release
@@ -31,12 +39,144 @@ concurrency:
 jobs:
   verify-and-promote:
     runs-on: ubuntu-latest
-    environment: plugin-release-production
+    # No environment gate: the human approval for this phase is the merged
+    # preparation PR labeled release/<gateway_version>, verified by the first
+    # step below. The independent environment gate remains on the latest job,
+    # which has the largest blast radius. Consequently the production registry
+    # credentials this job reads must be repository- or organization-scoped, not
+    # environment-scoped.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.source_commit }}
           fetch-depth: 0
+      - name: Verify a merged labeled preparation PR authorizes promotion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          SNAPSHOT_PATH: ${{ inputs.snapshot_path }}
+          RELEASE_PR_APP_LOGIN: ${{ vars.RELEASE_PR_APP_LOGIN }}
+        run: |
+          set -euo pipefail
+          # BEGIN promotion-authorization-contract
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SNAPSHOT_PATH" =~ ^plugins/release/snapshots/([0-9]+\.[0-9]+\.[0-9]+)\.json$ ]]
+          gateway_version="${BASH_REMATCH[1]}"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(jq -er .gatewayVersion "$SNAPSHOT_PATH")" = "$gateway_version"
+          # snapshot.sourceCommit is the exact main/code-freeze commit the
+          # preparation PR was generated from, so the merged commit promote was
+          # given must descend from it.
+          freeze_commit=$(jq -er .sourceCommit "$SNAPSHOT_PATH")
+          [[ "$freeze_commit" =~ ^[0-9a-f]{40}$ ]]
+          if ! git merge-base --is-ancestor "$freeze_commit" "$SOURCE_COMMIT"; then
+            echo "promotion is not authorized: $SOURCE_COMMIT does not descend from the code-freeze commit $freeze_commit this snapshot was computed at" >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$SOURCE_COMMIT" refs/remotes/origin/main; then
+            echo "promotion is not authorized: $SOURCE_COMMIT is not reachable from main, so no preparation PR was merged at it" >&2
+            exit 1
+          fi
+          # The automation App login is configuration, never a guess: without it
+          # this step cannot tell an App-authored preparation PR from a
+          # collaborator's look-alike, so it refuses to promote.
+          if [ -z "${RELEASE_PR_APP_LOGIN:-}" ]; then
+            echo "promotion is not authorized: vars.RELEASE_PR_APP_LOGIN is not configured; set that repository variable to the login of the GitHub App that opens preparation PRs, as documented in docs/developers/immutable-plugin-releases.md" >&2
+            exit 1
+          fi
+          label="release/$gateway_version"
+          branch="release/plugin-snapshot-$gateway_version"
+          title="chore: prepare plugin snapshot $gateway_version"
+          # Branch names, titles, and labels are mutable metadata that any
+          # collaborator with write access can set, so they only narrow the
+          # search. Authorization rests on what cannot be rewritten after the
+          # merge: the PR must be the automation App's, opened from the canonical
+          # repository with maintainer edits disabled, merged exactly at
+          # source_commit, and approved by a human other than its author before
+          # that merge. Branch protection here does not dismiss stale approvals,
+          # so the review check below is the human review gate.
+          pulls=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$SOURCE_COMMIT/pulls")
+          candidates=$(jq -c --arg commit "$SOURCE_COMMIT" '
+            [ .[] | select(.state == "closed" and .merged_at != null and .base.ref == "main" and .merge_commit_sha == $commit) ]
+          ' <<<"$pulls")
+          candidate_count=$(jq -r 'length' <<<"$candidates")
+          if [ "$candidate_count" != 1 ]; then
+            echo "promotion is not authorized: expected exactly one PR merged into main at $SOURCE_COMMIT, found $candidate_count; review and merge the preparation PR for $gateway_version, then re-run promote" >&2
+            exit 1
+          fi
+          # Booleans are read without jq's alternative operator and without -e:
+          # `false // true` collapses to true in jq, and -e exits non-zero on a
+          # legitimate false, which would abort this step on a valid PR.
+          pr_number=$(jq -r '.[0].number // ""' <<<"$candidates")
+          pr_author=$(jq -r '.[0].user.login // ""' <<<"$candidates")
+          pr_author_type=$(jq -r '.[0].user.type // ""' <<<"$candidates")
+          merged_at=$(jq -r '.[0].merged_at // ""' <<<"$candidates")
+          head_repository=$(jq -r '.[0].head.repo.full_name // ""' <<<"$candidates")
+          head_fork=$(jq -r '.[0].head.repo.fork' <<<"$candidates")
+          head_sha=$(jq -r '.[0].head.sha // ""' <<<"$candidates")
+          maintainer_can_modify=$(jq -r '.[0].maintainer_can_modify' <<<"$candidates")
+          head_ref=$(jq -r '.[0].head.ref // ""' <<<"$candidates")
+          pr_title=$(jq -r '.[0].title // ""' <<<"$candidates")
+          if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo "promotion is not authorized: the PR merged into main at $SOURCE_COMMIT reports no usable number" >&2
+            exit 1
+          fi
+          if ! [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "promotion is not authorized: preparation PR #$pr_number reports no usable head commit" >&2
+            exit 1
+          fi
+          if [ "$pr_author" != "$RELEASE_PR_APP_LOGIN" ] || [ "$pr_author_type" != Bot ]; then
+            echo "promotion is not authorized: preparation PR #$pr_number was authored by ${pr_author:-<none>} (${pr_author_type:-<none>}), not the release automation App $RELEASE_PR_APP_LOGIN; a collaborator-opened look-alike PR cannot authorize promotion" >&2
+            exit 1
+          fi
+          if [ "$head_repository" != "$GITHUB_REPOSITORY" ] || [ "$head_fork" != false ]; then
+            echo "promotion is not authorized: preparation PR #$pr_number head repository ${head_repository:-<none>} (fork=$head_fork) is not the canonical $GITHUB_REPOSITORY" >&2
+            exit 1
+          fi
+          if [ "$maintainer_can_modify" != false ]; then
+            echo "promotion is not authorized: preparation PR #$pr_number still allows maintainer edits (maintainer_can_modify=$maintainer_can_modify), so its reviewed content is not final" >&2
+            exit 1
+          fi
+          if [ "$head_ref" != "$branch" ] || [ "$pr_title" != "$title" ]; then
+            echo "promotion is not authorized: preparation PR #$pr_number does not match the deterministic preparation branch $branch and title \"$title\"" >&2
+            exit 1
+          fi
+          if [ "$(jq --arg label "$label" '[.[0].labels[].name] | any(. == $label)' <<<"$candidates")" != true ]; then
+            echo "promotion is not authorized: preparation PR #$pr_number does not carry the label $label that authorizes this release" >&2
+            exit 1
+          fi
+          reviews=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$pr_number/reviews")
+          mapfile -t approvals < <(jq -r --arg author "$pr_author" --arg merged "$merged_at" --arg head "$head_sha" '
+            [ .[]
+              | select(.state == "APPROVED" and .submitted_at != null and .submitted_at < $merged)
+              | select((.user.login // "") != $author and (.commit_id // "") == $head)
+              | .user.login
+            ] | unique[]
+          ' <<<"$reviews")
+          if [ "${#approvals[@]}" -lt 1 ] || [ -z "${approvals[0]}" ]; then
+            echo "promotion is not authorized: preparation PR #$pr_number has no review by someone other than its author $pr_author that approved head commit $head_sha before the merge at $merged_at; approvals are not dismissed when the branch moves, so re-approve the current preparation PR content and re-run promote" >&2
+            exit 1
+          fi
+          # The approving review must come from an authorized maintainer (maintain/admin
+          # permission), not merely any non-author write collaborator: a write
+          # collaborator could otherwise modify the App-owned branch and approve
+          # that head themselves while a stale CODEOWNER approval permits the merge.
+          authorized_approvers=0
+          for reviewer in "${approvals[@]}"; do
+            [ -n "$reviewer" ] || continue
+            reviewer_permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$reviewer/permission" 2>/dev/null | jq -r '.permission // "none"' || echo none)
+            case "$reviewer_permission" in
+              maintain|admin) authorized_approvers=$((authorized_approvers + 1)) ;;
+              *) echo "review by $reviewer (permission: $reviewer_permission) does not authorize promotion; require a maintainer approval of head $head_sha" >> "$GITHUB_STEP_SUMMARY" ;;
+            esac
+          done
+          if [ "$authorized_approvers" -lt 1 ]; then
+            echo "promotion is not authorized: preparation PR #$pr_number has no pre-merge APPROVED review of head commit $head_sha from a maintainer/admin (found only non-maintainer approvals); a write collaborator approving the App-owned branch is not sufficient" >&2
+            exit 1
+          fi
+          echo "Promotion of $gateway_version authorized by merged preparation PR #$pr_number (author $pr_author, label $label, head $head_sha, $approvals pre-merge approval(s)) at $SOURCE_COMMIT." >> "$GITHUB_STEP_SUMMARY"
+          # END promotion-authorization-contract
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: "1.24.0"
@@ -120,6 +260,7 @@ jobs:
             cat "$err" >&2; rm -f "$err"; return 2
           }
           # END promotion-descriptor-contract
+          # BEGIN promotion-version-contract
           marker="$REGISTRY/candidates/plugin-release-batches:$SNAPSHOT_SHA256"
           # A completion marker makes a retry read-only. Its layer is the
           # authoritative journal, and every mutable latest tag is rechecked
@@ -140,8 +281,24 @@ jobs:
             test "$status" = 1 || exit "$status"
           fi
           jq -n --arg sha "$SNAPSHOT_SHA256" '{snapshotSha256:$sha,phase:"version-preflight",entries:[]}' > "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json"
+          # A prepare-time migration exclusion keeps its plugin out of this
+          # batch: the planned public tag is occupied by a different artifact,
+          # so probing it would report an immutable tag conflict that the
+          # reviewed preparation PR already resolved into an exclusion.
+          if [ "$(jq -er '[.plugins[] | select((.migration.state // "") != "blocked")] | length' "$SNAPSHOT_PATH")" -eq 0 ]; then
+            echo "every snapshot plugin is excluded by migration preflight; nothing to promote" >&2
+            exit 1
+          fi
+          excluded=$(jq -r '[.plugins[] | select((.migration.state // "") == "blocked") | .logicalId] | join(", ")' "$SNAPSHOT_PATH")
+          if [ -n "$excluded" ]; then
+            echo "Migration preflight excluded from this promote batch: $excluded" >> "$GITHUB_STEP_SUMMARY"
+          fi
           while read -r entry; do
             ref=$(jq -r .ociRef <<<"$entry"); digest=$(jq -r .digest <<<"$entry"); candidate=$(jq -r .candidateRef <<<"$entry"); provenance=$(jq -r '.provenanceMode // (if .candidateRef == "" then "public" else "candidate" end)' <<<"$entry")
+            if [ "$(jq -r '.migration.state // empty' <<<"$entry")" = blocked ]; then
+              jq --arg ref "$ref" --arg digest "$digest" --arg candidate "$candidate" --arg provenance "$provenance" --argjson migration "$(jq -c .migration <<<"$entry")" '.entries += [{ref:$ref,digest:$digest,candidateRef:$candidate,provenanceMode:$provenance,preflight:"migration-excluded",migration:$migration}]' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json"
+              continue
+            fi
             if existing_json=$(descriptor_or_absent "$ref"); then
               existing=$(jq -r .digest <<<"$existing_json")
               test "$existing" = "$digest" || { echo "immutable tag conflict: $ref" >&2; exit 1; }
@@ -155,10 +312,13 @@ jobs:
             jq --arg ref "$ref" --arg digest "$digest" --arg candidate "$candidate" --arg provenance "$provenance" --arg state "$state" '.entries += [{ref:$ref,digest:$digest,candidateRef:$candidate,provenanceMode:$provenance,preflight:$state}]' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json"
           done < <(jq -c '.plugins[]' "$SNAPSHOT_PATH")
           # Only preflight-approved absent tags are copied; every version tag
-          # is then re-resolved before this phase is considered complete.
+          # this batch publishes is then re-resolved before this phase is
+          # considered complete. Migration-excluded entries publish nothing, so
+          # their known-divergent public tag is not part of that set.
           jq -c '.entries[] | select(.preflight == "absent" and .provenanceMode == "candidate")' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" | while read -r entry; do oras cp "$(jq -r .candidateRef <<<"$entry")" "$(jq -r .ref <<<"$entry")"; done
-          jq -c '.entries[]' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .ref <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
+          jq -c '.entries[] | select(.preflight != "migration-excluded")' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .ref <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
           jq '.phase="version-complete"' "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-version-$SNAPSHOT_SHA256.json"
+          # END promotion-version-contract
       - name: Persist complete version batch journal
         if: ${{ !inputs.dry_run }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -189,6 +349,7 @@ jobs:
       - name: Promote latest only after complete verified batch
         env:
           REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}
+          ADOPT_UNANNOTATED_LATEST: ${{ inputs.adopt_unannotated_latest }}
           REGISTRY_USERNAME: ${{ secrets.PRODUCTION_REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.PRODUCTION_REGISTRY_PASSWORD }}
           SNAPSHOT_PATH: ${{ inputs.snapshot_path }}
@@ -266,8 +427,20 @@ jobs:
             bootstrap_latest_migration=true
           fi
           jq -n --arg sha "$SNAPSHOT_SHA256" '{snapshotSha256:$sha,phase:"latest-preflight",entries:[]}' > "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
+          # A migration-excluded plugin never joins the latest preflight: this
+          # batch did not publish its version tag, so requiring that tag to
+          # resolve to the snapshot digest would fail on the very conflict the
+          # exclusion records. Its latest alias is left exactly as it is, and
+          # the exclusion is documented on the journal instead.
+          if [ "$(jq -er '[.plugins[] | select((.migration.state // "") != "blocked")] | length' "$SNAPSHOT_PATH")" -eq 0 ]; then
+            echo "every snapshot plugin is excluded by migration preflight; no latest alias can move" >&2
+            exit 1
+          fi
           while read -r entry; do
             id=$(jq -r .logicalId <<<"$entry"); ref=$(jq -r .ociRef <<<"$entry"); digest=$(jq -r .digest <<<"$entry")
+            if [ "$(jq -r '.migration.state // empty' <<<"$entry")" = blocked ]; then
+              continue
+            fi
             test "$(oras manifest fetch "$ref" --descriptor | jq -r .digest)" = "$digest"
             version=$(jq -r .version <<<"$entry")
             image=${ref%:*}; latest="$image:latest"
@@ -280,20 +453,27 @@ jobs:
               else
                 old=$(oras manifest fetch "$latest" --format json | jq -r '.annotations["org.opencontainers.image.version"] // empty')
                 if [ -z "$old" ]; then
-                  test "$bootstrap_latest_migration" = true || { echo "existing latest lacks a stable version annotation outside a verified bootstrap snapshot: $latest" >&2; exit 1; }
-                  bootstrap_entry=$(jq -cer --arg id "$id" '.plugins[$id] | select(.status == "public" or .status == "missing")' "$bootstrap_evidence_path") || { echo "bootstrap evidence does not authorize unclassified legacy latest replacement: $id" >&2; exit 1; }
-                  bootstrap_status=$(jq -er .status <<<"$bootstrap_entry")
-                  bootstrap_version=$(jq -er .version <<<"$bootstrap_entry")
-                  test "$(jq -er .publicRef <<<"$bootstrap_entry")" = "$image:$bootstrap_version" || { echo "bootstrap evidence public reference does not match latest image: $id" >&2; exit 1; }
-                  if [ "$bootstrap_status" = public ]; then
-                    [[ "$(jq -er .digest <<<"$bootstrap_entry")" =~ ^sha256:[0-9a-f]{64}$ ]]
-                    (cd tools/plugin-release && go run . semver-compare --current "$bootstrap_version" --candidate "$version")
-                    test "$bootstrap_version" != "$version" || { echo "latest alias conflict: $latest is unannotated and bootstrap does not authorize replacing the same stable version" >&2; exit 1; }
+                  if [ "${ADOPT_UNANNOTATED_LATEST:-false}" = "true" ]; then
+                    # Bridge for pre-pipeline manual latest tags: adopt the
+                    # snapshot-verified digest; journal the displaced one.
+                    old=""; state=adopt-legacy
+                  elif test "$bootstrap_latest_migration" = true; then
+                    bootstrap_entry=$(jq -cer --arg id "$id" '.plugins[$id] | select(.status == "public" or .status == "missing")' "$bootstrap_evidence_path") || { echo "bootstrap evidence does not authorize unclassified legacy latest replacement: $id" >&2; exit 1; }
+                    bootstrap_status=$(jq -er .status <<<"$bootstrap_entry")
+                    bootstrap_version=$(jq -er .version <<<"$bootstrap_entry")
+                    test "$(jq -er .publicRef <<<"$bootstrap_entry")" = "$image:$bootstrap_version" || { echo "bootstrap evidence public reference does not match latest image: $id" >&2; exit 1; }
+                    if [ "$bootstrap_status" = public ]; then
+                      [[ "$(jq -er .digest <<<"$bootstrap_entry")" =~ ^sha256:[0-9a-f]{64}$ ]]
+                      (cd tools/plugin-release && go run . semver-compare --current "$bootstrap_version" --candidate "$version")
+                      test "$bootstrap_version" != "$version" || { echo "latest alias conflict: $latest is unannotated and bootstrap does not authorize replacing the same stable version" >&2; exit 1; }
+                    else
+                      test "$bootstrap_version" = "$version" || { echo "missing bootstrap entry version does not match selected plugin version: $id" >&2; exit 1; }
+                      test -z "$(jq -r '.digest // empty' <<<"$bootstrap_entry")" || { echo "missing bootstrap entry unexpectedly carries a digest: $id" >&2; exit 1; }
+                    fi
+                    old=""; state=bootstrap-replace-unclassified
                   else
-                    test "$bootstrap_version" = "$version" || { echo "missing bootstrap entry version does not match selected plugin version: $id" >&2; exit 1; }
-                    test -z "$(jq -r '.digest // empty' <<<"$bootstrap_entry")" || { echo "missing bootstrap entry unexpectedly carries a digest: $id" >&2; exit 1; }
+                    echo "existing latest lacks a stable version annotation outside a verified bootstrap snapshot: $latest" >&2; exit 1
                   fi
-                  old=""; state=bootstrap-replace-unclassified
                 else
                   (cd tools/plugin-release && go run . semver-compare --current "$old" --candidate "$version")
                   if [ "$old" = "$version" ]; then
@@ -314,7 +494,7 @@ jobs:
           # re-resolved before the phase is considered complete.
           jq -c '.entries[] | select(.preflight != "identical")' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do ref=$(jq -r .ref <<<"$entry"); oras cp "${ref%:*}@$(jq -r .digest <<<"$entry")" "$(jq -r .latest <<<"$entry")"; done
           jq -c '.entries[]' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" | while read -r entry; do test "$(oras manifest fetch "$(jq -r .latest <<<"$entry")" --descriptor | jq -r .digest)" = "$(jq -r .digest <<<"$entry")"; done
-          jq '.phase="latest-complete"' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
+          jq --argjson excluded "$(jq -c '[.plugins[] | select((.migration.state // "") == "blocked") | {logicalId, ociRef, version, existingDigest: .migration.existingDigest, recommendation: .migration.recommendation}]' "$SNAPSHOT_PATH")" '.phase="latest-complete" | .migrationExcluded = $excluded' "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json" > /tmp/journal.next && mv /tmp/journal.next "/tmp/plugin-release-latest-$SNAPSHOT_SHA256.json"
           # END promotion-latest-contract
           # The registry marker is the cross-workflow completion gate. Its
           # immutable content is the fully reverified version/latest batch.

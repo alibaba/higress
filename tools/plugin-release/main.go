@@ -10,7 +10,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fatalf("usage: plugin-release <validate-catalog|validate-console-recovery|capture-bootstrap-evidence|bootstrap-snapshot|plan|apply-plan|render-snapshot|verify-snapshot|semver-compare> [flags]")
+		fatalf("usage: plugin-release <validate-catalog|validate-console-recovery|capture-bootstrap-evidence|bootstrap-snapshot|plan|apply-plan|render-snapshot|migration-preflight|verify-snapshot|semver-compare> [flags]")
 	}
 	var err error
 	switch os.Args[1] {
@@ -28,6 +28,8 @@ func main() {
 		err = commandApply(os.Args[2:])
 	case "render-snapshot":
 		err = commandRender(os.Args[2:])
+	case "migration-preflight":
+		err = commandMigrationPreflight(os.Args[2:])
 	case "verify-snapshot":
 		err = commandVerify(os.Args[2:])
 	case "semver-compare":

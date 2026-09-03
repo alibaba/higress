@@ -818,6 +818,9 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 	if ociSource != "candidate" && ociSource != "public" {
 		return fmt.Errorf("OCI source must be candidate or public, got %q", ociSource)
 	}
+	if err := validateSnapshotMigration(snapshot); err != nil {
+		return err
+	}
 	if expectedSource != "" {
 		commit, err := resolveCommit(root, expectedSource)
 		if err != nil || commit != snapshot.SourceCommit {
@@ -919,6 +922,13 @@ func verifySnapshotBindings(root, catalogPath, snapshotPath, planPath, previousP
 		}
 		if resolve {
 			if ociSource == "candidate" && provenance == "public" {
+				continue
+			}
+			if ociSource == "public" && entry.Migration != nil {
+				// The prepare-time sweep already proved this public tag serves a
+				// different digest. That divergence is the recorded exclusion
+				// from this promote batch, not a verification failure; the
+				// candidate for the same entry is still resolved above.
 				continue
 			}
 			if err := verifyOCI(entry, provenance, snapshot.ProvenanceMode, ociSource); err != nil {
@@ -1051,11 +1061,15 @@ func verifySnapshotProvenanceBindings(root string, snapshot Snapshot, planPath, 
 					return fmt.Errorf("%s is neither planned nor carried by the previous snapshot", entry.LogicalID)
 				}
 				// Consumers are re-cloned from the catalog on carry, so the
-				// exact-field comparison excludes them deliberately.
+				// exact-field comparison excludes them deliberately. A carried
+				// migration exclusion is compared verbatim: the entry stays out
+				// of the promote batch until a later release re-plans the plugin
+				// after its disposition completes, and dropping the marker would
+				// re-expose the immutable tag conflict that created it.
 				if old.Version != entry.Version || old.OCIRef != entry.OCIRef || old.Digest != entry.Digest ||
 					old.InputHash != entry.InputHash || old.SourceCommit != entry.SourceCommit ||
 					old.CandidateRef != entry.CandidateRef || old.ProvenanceMode != entry.ProvenanceMode ||
-					old.Backfill != entry.Backfill {
+					old.Backfill != entry.Backfill || !reflect.DeepEqual(old.Migration, entry.Migration) {
 					return fmt.Errorf("%s carried snapshot entry differs from the previous snapshot", entry.LogicalID)
 				}
 				continue
@@ -1531,6 +1545,7 @@ func commandRender(args []string) error {
 	previous := fs.String("previous", "", "previous snapshot")
 	evidence := fs.String("candidate-evidence", "", "candidate evidence path")
 	bootstrapEvidence := fs.String("bootstrap-evidence", "", "bootstrap evidence path (first managed release only)")
+	migrationReport := fs.String("migration-report", "", "prepare-time public registry sweep bound into the snapshot")
 	output := fs.String("output", "-", "snapshot output")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -1540,6 +1555,14 @@ func commandRender(args []string) error {
 	}
 	snapshot, err := renderSnapshot(*catalog, *plan, *previous, *evidence, *bootstrapEvidence)
 	if err != nil {
+		return err
+	}
+	if *migrationReport != "" {
+		snapshot, err = applyMigrationReport(snapshot, *migrationReport)
+		if err != nil {
+			return err
+		}
+	} else if err := requireNoCarriedMigration(snapshot); err != nil {
 		return err
 	}
 	return writeCanonical(*output, snapshot)
