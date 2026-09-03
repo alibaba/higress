@@ -144,8 +144,10 @@ func TestMigrationPreflightBlocksOnlyOccupiedPlannedTags(t *testing.T) {
 	}
 }
 
-func TestMigrationPreflightAcceptsIdenticalPublicDigest(t *testing.T) {
+func TestMigrationPreflightAcceptsEmergencyDigestEqualToCandidateEvidence(t *testing.T) {
 	f := newMigrationFixture(t)
+	// The unified publication contract makes an emergency overwrite with the
+	// candidate inputs byte-identical, so this is already present, not blocked.
 	withManifestResolver(t, migrationResolver(t, map[string]ociManifest{
 		f.controlRef: {Digest: f.controlDigest},
 		f.demoRef:    {Digest: f.demoDigest, Annotations: map[string]string{"org.opencontainers.image.version": "1.0.1", "org.opencontainers.image.revision": f.sourceCommit, "io.higress.plugin.input-hash": f.demoInputHash}},

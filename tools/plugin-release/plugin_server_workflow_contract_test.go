@@ -119,6 +119,7 @@ func TestReleaseWorkflowsPairORASSetupMetadataWithPinnedCLI(t *testing.T) {
 	expectedCallers := map[string]int{
 		"prepare-plugin-release.yaml":            2,
 		"promote-plugin-release.yaml":            2,
+		"emergency-overwrite-plugin-tag.yaml":    2,
 		"build-plugin-server-from-snapshot.yaml": 1,
 		"authorize-higress-release-tag.yaml":     1,
 		"dispatch-standalone-release.yaml":       1,
@@ -524,6 +525,14 @@ printf 'build:%s\n' "$*" >> "$OPERATIONS_LOG"
 printf '%s' 'deterministic wasm fixture' > "$WASM_PATH"
 printf 'make fixture output\n'
 `)
+	writeExecutableFixture(t, filepath.Join(bin, "git"), `#!/bin/sh
+set -eu
+test "$1" = show
+test "$2" = -s
+test "$3" = --format=%cI
+test "$4" = "$SOURCE_COMMIT"
+printf '%s\n' "$SOURCE_CREATED"
+`)
 	writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
 set -euo pipefail
 printf 'oras:%s\n' "$*" >> "$OPERATIONS_LOG"
@@ -557,22 +566,36 @@ if [ "$1 $2" = "manifest fetch" ]; then
 		wrong-manifest-media) manifest_media=application/example ;;
   esac
   revision=$SOURCE_COMMIT
+  created=$SOURCE_CREATED
   version=$STABLE_VERSION
   input_hash=$INPUT_HASH
+  oci_config_media=application/vnd.unknown.config.v1+json
+  oci_config_digest=sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+  config_digest=sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
+  config_media=application/vnd.module.wasm.config.v1+json
+  config_title=config.json
   layer_digest=$WASM_DIGEST
 	layer_media=application/vnd.module.wasm.content.layer.v1+wasm
+	layer_title=plugin.wasm
 	manifest_media=${manifest_media:-application/vnd.oci.image.manifest.v1+json}
-	layers=''
+	extra_layer=''
 	case "$ORAS_MODE" in
 	  annotation-mismatch) revision=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb ;;
+		created-mismatch) created=2026-02-03T04:05:06Z ;;
 		version-mismatch) version=9.9.9 ;;
 		input-hash-mismatch) input_hash=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
 		valid-different-layer) layer_digest=sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
 		invalid-layer-digest) layer_digest=sha256:not-a-digest ;;
     layer-media-mismatch) layer_media=application/octet-stream ;;
-    layer-count-mismatch) layers=',{"mediaType":"application/vnd.module.wasm.content.layer.v1+wasm","digest":"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}' ;;
+    layer-count-mismatch) extra_layer=',{"mediaType":"application/octet-stream","digest":"sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","size":9}' ;;
+    oci-config-media-mismatch) oci_config_media=application/vnd.oci.empty.v1+json ;;
+    oci-config-digest-mismatch) oci_config_digest=sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff ;;
+    config-media-mismatch) config_media=application/octet-stream ;;
+    config-digest-mismatch) config_digest=sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff ;;
+    config-title-mismatch) config_title=other.json ;;
+    wasm-title-mismatch) layer_title=other.wasm ;;
   esac
-  printf '{"schemaVersion":2,"mediaType":"%s","annotations":{"org.opencontainers.image.revision":"%s","org.opencontainers.image.version":"%s","io.higress.plugin.input-hash":"%s"},"layers":[{"mediaType":"%s","digest":"%s"}%s]}\n' "$manifest_media" "$revision" "$version" "$input_hash" "$layer_media" "$layer_digest" "$layers"
+  printf '{"schemaVersion":2,"mediaType":"%s","config":{"mediaType":"%s","digest":"%s","size":2},"annotations":{"org.opencontainers.image.created":"%s","org.opencontainers.image.revision":"%s","org.opencontainers.image.version":"%s","io.higress.plugin.input-hash":"%s"},"layers":[{"mediaType":"%s","digest":"%s","size":2,"annotations":{"org.opencontainers.image.title":"%s"}},{"mediaType":"%s","digest":"%s","size":%s,"annotations":{"org.opencontainers.image.title":"%s"}}%s]}\n' "$manifest_media" "$oci_config_media" "$oci_config_digest" "$created" "$revision" "$version" "$input_hash" "$config_media" "$config_digest" "$config_title" "$layer_media" "$layer_digest" "$WASM_SIZE" "$layer_title" "$extra_layer"
   exit 0
 fi
 if [ "$1" = push ]; then
@@ -592,8 +615,9 @@ exit 2
 	const manifestDigest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	const pushDigest = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 	buildContract := workflowShellContract(t, "prepare-plugin-release.yaml", "plugin-build-contract")
+	manifestContract := workflowShellContract(t, "prepare-plugin-release.yaml", "plugin-manifest-publish-contract")
 	publishContract := workflowShellContract(t, "prepare-plugin-release.yaml", "candidate-publish-contract")
-	script := "set -euo pipefail\n" + buildContract + publishContract + fmt.Sprintf("\ndigest=$(resolve_or_build_candidate %q go %q demo %q 1.2.3 %q)\nprintf '%%s\\n' \"$digest\"\n", candidate, source, sourceCommit, inputHash)
+	script := "set -euo pipefail\n" + buildContract + manifestContract + publishContract + fmt.Sprintf("\ndigest=$(resolve_or_build_candidate %q go %q demo %q 1.2.3 %q)\nprintf '%%s\\n' \"$digest\"\n", candidate, source, sourceCommit, inputHash)
 	cmd := exec.Command("bash", "-c", script)
 	cmd.Env = append(os.Environ(),
 		"PATH="+bin+":"+os.Getenv("PATH"),
@@ -603,9 +627,11 @@ exit 2
 		"ORAS_MANIFEST_DIGEST="+manifestDigest,
 		"ORAS_PUSH_DIGEST="+pushDigest,
 		"SOURCE_COMMIT="+sourceCommit,
+		"SOURCE_CREATED=2026-01-02T03:04:05Z",
 		"STABLE_VERSION=1.2.3",
 		"INPUT_HASH="+inputHash,
 		fmt.Sprintf("WASM_DIGEST=sha256:%x", wasmSum),
+		fmt.Sprintf("WASM_SIZE=%d", len(wasmBytes)),
 	)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -616,6 +642,83 @@ exit 2
 		t.Fatal(readErr)
 	}
 	return candidateContractResult{output: stdout.String(), diagnostics: stderr.String(), log: string(logBytes), err: runErr}
+}
+
+func TestCandidateAndEmergencyUseIdenticalDeterministicManifestContract(t *testing.T) {
+	candidate := workflowShellContract(t, "prepare-plugin-release.yaml", "plugin-manifest-publish-contract")
+	emergency := workflowShellContract(t, "emergency-overwrite-plugin-tag.yaml", "plugin-manifest-publish-contract")
+	if candidate != emergency {
+		t.Fatal("candidate and emergency publication contracts are not byte-for-byte identical")
+	}
+
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	wasmPath := filepath.Join(root, "plugin.wasm")
+	if err := os.WriteFile(wasmPath, []byte("same deterministic wasm bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(root, "manifest.json")
+	writeExecutableFixture(t, filepath.Join(bin, "git"), `#!/bin/sh
+set -eu
+test "$1" = show
+test "$2" = -s
+test "$3" = --format=%cI
+test "$4" = "$SOURCE_COMMIT"
+printf '%s\n' "$SOURCE_CREATED"
+`)
+	writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = push ]; then
+  test "$3" = "config.json:application/vnd.module.wasm.config.v1+json"
+  test "$4" = "plugin.wasm:application/vnd.module.wasm.content.layer.v1+wasm"
+  test "$5 $6" = "--image-spec v1.0"
+  test "$7 $8" = "--annotation org.opencontainers.image.created=$SOURCE_CREATED"
+  test "$(cat config.json)" = '{}'
+  config_digest="sha256:$(sha256sum config.json | awk '{print $1}')"
+  wasm_digest="sha256:$(sha256sum plugin.wasm | awk '{print $1}')"
+  config_size=$(wc -c < config.json); config_size=${config_size//[[:space:]]/}
+  wasm_size=$(wc -c < plugin.wasm); wasm_size=${wasm_size//[[:space:]]/}
+  jq -cn --arg created "$SOURCE_CREATED" --arg revision "$SOURCE_COMMIT" --arg version "$STABLE_VERSION" --arg input "$INPUT_HASH" --arg config "$config_digest" --arg wasm "$wasm_digest" --argjson configSize "$config_size" --argjson wasmSize "$wasm_size" '{schemaVersion:2,mediaType:"application/vnd.oci.image.manifest.v1+json",config:{mediaType:"application/vnd.unknown.config.v1+json",digest:$config,size:$configSize},annotations:{"org.opencontainers.image.created":$created,"org.opencontainers.image.revision":$revision,"org.opencontainers.image.version":$version,"io.higress.plugin.input-hash":$input},layers:[{mediaType:"application/vnd.module.wasm.config.v1+json",digest:$config,size:$configSize,annotations:{"org.opencontainers.image.title":"config.json"}},{mediaType:"application/vnd.module.wasm.content.layer.v1+wasm",digest:$wasm,size:$wasmSize,annotations:{"org.opencontainers.image.title":"plugin.wasm"}}]}' > "$ORAS_MANIFEST"
+  digest="sha256:$(sha256sum "$ORAS_MANIFEST" | awk '{print $1}')"
+  jq -cn --arg digest "$digest" '{digest:$digest}'
+  exit 0
+fi
+if [ "$1 $2" = "manifest fetch" ]; then
+  cat "$ORAS_MANIFEST"
+  exit 0
+fi
+echo "unexpected fake oras invocation: $*" >&2
+exit 2
+`)
+	const sourceCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	const inputHash = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	run := func(contract, ref string) string {
+		t.Helper()
+		_ = os.Remove(manifestPath)
+		script := "set -euo pipefail\n" + contract + fmt.Sprintf("\npublish_plugin_manifest %q %q %q 1.2.3 %q\n", ref, wasmPath, sourceCommit, inputHash)
+		cmd := exec.Command("bash", "-c", script)
+		cmd.Env = append(os.Environ(),
+			"PATH="+bin+":"+os.Getenv("PATH"),
+			"ORAS_MANIFEST="+manifestPath,
+			"SOURCE_COMMIT="+sourceCommit,
+			"SOURCE_CREATED=2026-01-02T03:04:05Z",
+			"STABLE_VERSION=1.2.3",
+			"INPUT_HASH="+inputHash,
+		)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("manifest publication contract failed: %v\n%s", err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	candidateDigest := run(candidate, "registry.example.invalid/candidates/demo:content-addressed")
+	emergencyDigest := run(emergency, "registry.example.invalid/plugins/demo:1.2.3")
+	if !digestPattern.MatchString(candidateDigest) || emergencyDigest != candidateDigest {
+		t.Fatalf("identical candidate/emergency inputs produced %q and %q", candidateDigest, emergencyDigest)
+	}
 }
 
 func TestPreparationReusesValidExistingCandidateWithoutRebuilding(t *testing.T) {
@@ -675,8 +778,8 @@ func TestPreparationPushesOnceOnlyForStrictlyProvenCandidateAbsence(t *testing.T
 func TestPreparationCandidateLookupAndManifestMismatchesFailWithoutMutation(t *testing.T) {
 	modes := []string{
 		"auth", "ambiguous", "repository-missing", "wrong-acr-ref", "transport", "malformed-descriptor", "wrong-descriptor-media",
-		"manifest-error", "malformed-manifest", "wrong-manifest-media", "annotation-mismatch", "version-mismatch", "input-hash-mismatch",
-		"layer-count-mismatch", "layer-media-mismatch", "invalid-layer-digest",
+		"manifest-error", "malformed-manifest", "wrong-manifest-media", "annotation-mismatch", "created-mismatch", "version-mismatch", "input-hash-mismatch",
+		"layer-count-mismatch", "layer-media-mismatch", "invalid-layer-digest", "oci-config-media-mismatch", "oci-config-digest-mismatch", "config-media-mismatch", "config-digest-mismatch", "config-title-mismatch", "wasm-title-mismatch",
 	}
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
@@ -1160,7 +1263,7 @@ func TestPromotionBackfillsVersionTagAndJoinsMonotonicLatest(t *testing.T) {
 		`semver-compare --current "$old" --candidate "$version"`,
 		`latest alias conflict`,
 		`state=identical`,
-		`select(.preflight != "identical")`,
+		`select(.pullGate.status == "passed" and .preflight != "identical")`,
 	} {
 		if !strings.Contains(workflow, required) {
 			t.Fatalf("latest promotion lacks the monotonic complete-set contract %q", required)

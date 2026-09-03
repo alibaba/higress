@@ -249,16 +249,92 @@ jobs:
             esac
           }
           # END plugin-build-contract
+          # BEGIN plugin-manifest-publish-contract
+          publish_plugin_manifest() {
+            local ref=$1 wasm=$2 source_commit=$3 version=$4 input_hash=$5
+            local stage push_result digest manifest repo source_created wasm_digest wasm_size
+            # Bash normally clears errexit inside command substitution. Restore it
+            # because both callers capture this function's digest that way.
+            set -e
+            if ! [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then echo "invalid plugin source commit" >&2; return 1; fi
+            if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then echo "invalid stable plugin version" >&2; return 1; fi
+            if ! [[ "$input_hash" =~ ^sha256:[0-9a-f]{64}$ ]]; then echo "invalid plugin input hash" >&2; return 1; fi
+            if ! test -s "$wasm"; then echo "plugin.wasm is missing or empty" >&2; return 1; fi
+            if ! source_created=$(git show -s --format=%cI "$source_commit"); then echo "cannot resolve plugin source commit time" >&2; return 1; fi
+            if ! [[ "$source_created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then echo "invalid plugin source commit time" >&2; return 1; fi
+            wasm_digest="sha256:$(sha256sum "$wasm" | awk '{print $1}')"
+            wasm_size=$(wc -c < "$wasm"); wasm_size=${wasm_size//[[:space:]]/}
+            stage=$(mktemp -d)
+            if ! printf '%s' '{}' > "$stage/config.json" || ! cp "$wasm" "$stage/plugin.wasm"; then
+              rm -rf "$stage"; echo "failed to stage plugin manifest layers" >&2; return 1
+            fi
+            if ! push_result=$(cd "$stage" && oras push "$ref" \
+              "config.json:application/vnd.module.wasm.config.v1+json" \
+              "plugin.wasm:application/vnd.module.wasm.content.layer.v1+wasm" \
+              --image-spec v1.0 \
+              --annotation "org.opencontainers.image.created=$source_created" \
+              --annotation "org.opencontainers.image.revision=$source_commit" \
+              --annotation "org.opencontainers.image.version=$version" \
+              --annotation "io.higress.plugin.input-hash=$input_hash" \
+              --format json); then
+              rm -rf "$stage"; echo "plugin manifest push failed: $ref" >&2; return 1
+            fi
+            rm -rf "$stage"
+            if ! digest=$(jq -ser 'select(length == 1) | .[0].digest | strings | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$push_result"); then
+              echo "plugin manifest push returned a malformed descriptor: $ref" >&2; return 1
+            fi
+            repo=${ref%:*}
+            if ! manifest=$(oras manifest fetch "$repo@$digest"); then
+              echo "published plugin manifest cannot be resolved by digest: $repo@$digest" >&2; return 1
+            fi
+            if ! jq -se --arg commit "$source_commit" --arg created "$source_created" --arg version "$version" --arg input_hash "$input_hash" --arg wasm_digest "$wasm_digest" --argjson wasm_size "$wasm_size" '
+              length == 1 and (.[0] |
+                (keys == ["annotations","config","layers","mediaType","schemaVersion"]) and
+                .schemaVersion == 2 and
+                .mediaType == "application/vnd.oci.image.manifest.v1+json" and
+                (.config == {
+                  "mediaType":"application/vnd.unknown.config.v1+json",
+                  "digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+                  "size":2
+                }) and
+                (.annotations == {
+                  "org.opencontainers.image.created": $created,
+                  "org.opencontainers.image.revision": $commit,
+                  "org.opencontainers.image.version": $version,
+                  "io.higress.plugin.input-hash": $input_hash
+                }) and
+                (.layers | type == "array" and length == 2) and
+                (.layers[0] == {
+                  "mediaType":"application/vnd.module.wasm.config.v1+json",
+                  "digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+                  "size":2,
+                  "annotations":{"org.opencontainers.image.title":"config.json"}
+                }) and
+                (.layers[1] == {
+                  "mediaType":"application/vnd.module.wasm.content.layer.v1+wasm",
+                  "digest":$wasm_digest,
+                  "size":$wasm_size,
+                  "annotations":{"org.opencontainers.image.title":"plugin.wasm"}
+                })
+              )
+            ' >/dev/null <<<"$manifest"; then
+              echo "published plugin manifest does not match the deterministic two-layer contract: $ref" >&2; return 1
+            fi
+            printf '%s\n' "$digest"
+          }
+          # END plugin-manifest-publish-contract
           # BEGIN candidate-publish-contract
           resolve_or_build_candidate() {
             local candidate=$1 implementation=$2 source=$3 build_name=$4 source_commit=$5 version=$6 input_hash=$7
-            local candidate_repo descriptor manifest resolved_digest push_result lookup_error auth_error wasm
+            local candidate_repo descriptor manifest resolved_digest lookup_error auth_error source_created wasm
             # Bash normally clears errexit inside command substitution. Restore
             # it because the caller captures this function's digest that way.
             set -e
             if ! [[ "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then echo "invalid candidate source commit" >&2; return 1; fi
             if ! [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then echo "invalid stable candidate version" >&2; return 1; fi
             if ! [[ "$input_hash" =~ ^sha256:[0-9a-f]{64}$ ]]; then echo "invalid candidate input hash" >&2; return 1; fi
+            if ! source_created=$(git show -s --format=%cI "$source_commit"); then echo "cannot resolve candidate source commit time" >&2; return 1; fi
+            if ! [[ "$source_created" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then echo "invalid candidate source commit time" >&2; return 1; fi
             candidate_repo=${candidate%:*}
             lookup_error=$(mktemp)
             if descriptor=$(oras manifest fetch "$candidate" --descriptor 2>"$lookup_error"); then
@@ -275,16 +351,34 @@ jobs:
                 echo "existing candidate manifest cannot be resolved by digest: $candidate_repo@$resolved_digest" >&2
                 return 1
               fi
-              if ! jq -se --arg commit "$source_commit" --arg version "$version" --arg input_hash "$input_hash" '
+              if ! jq -se --arg commit "$source_commit" --arg created "$source_created" --arg version "$version" --arg input_hash "$input_hash" '
                 length == 1 and (.[0] |
+                  (keys == ["annotations","config","layers","mediaType","schemaVersion"]) and
                   .schemaVersion == 2 and
                   .mediaType == "application/vnd.oci.image.manifest.v1+json" and
-                  (.annotations["org.opencontainers.image.revision"] == $commit) and
-                  (.annotations["org.opencontainers.image.version"] == $version) and
-                  (.annotations["io.higress.plugin.input-hash"] == $input_hash) and
-                  (.layers | type == "array" and length == 1) and
-                  (.layers[0].mediaType == "application/vnd.module.wasm.content.layer.v1+wasm") and
-                  (.layers[0].digest | strings | test("^sha256:[0-9a-f]{64}$"))
+                  (.config == {
+                    "mediaType":"application/vnd.unknown.config.v1+json",
+                    "digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+                    "size":2
+                  }) and
+                  (.annotations == {
+                    "org.opencontainers.image.created": $created,
+                    "org.opencontainers.image.revision": $commit,
+                    "org.opencontainers.image.version": $version,
+                    "io.higress.plugin.input-hash": $input_hash
+                  }) and
+                  (.layers | type == "array" and length == 2) and
+                  (.layers[0] == {
+                    "mediaType":"application/vnd.module.wasm.config.v1+json",
+                    "digest":"sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+                    "size":2,
+                    "annotations":{"org.opencontainers.image.title":"config.json"}
+                  }) and
+                  ((.layers[1] | keys) == ["annotations","digest","mediaType","size"]) and
+                  (.layers[1].mediaType == "application/vnd.module.wasm.content.layer.v1+wasm") and
+                  (.layers[1].digest | strings | test("^sha256:[0-9a-f]{64}$")) and
+                  (.layers[1].size | numbers and . > 8) and
+                  (.layers[1].annotations == {"org.opencontainers.image.title":"plugin.wasm"})
                 )
               ' >/dev/null <<<"$manifest"; then
                 echo "existing candidate manifest does not match its planned provenance: $candidate" >&2
@@ -317,15 +411,7 @@ jobs:
               echo "candidate build did not produce plugin.wasm: $candidate" >&2
               return 1
             fi
-            if ! push_result=$(oras push "$candidate" "$wasm:application/vnd.module.wasm.content.layer.v1+wasm" --annotation "org.opencontainers.image.revision=$source_commit" --annotation "org.opencontainers.image.version=$version" --annotation "io.higress.plugin.input-hash=$input_hash" --format json); then
-              echo "candidate push failed: $candidate" >&2
-              return 1
-            fi
-            if ! resolved_digest=$(jq -ser 'select(length == 1) | .[0].digest | strings | select(test("^sha256:[0-9a-f]{64}$"))' <<<"$push_result"); then
-              echo "candidate push returned a malformed descriptor: $candidate" >&2
-              return 1
-            fi
-            printf '%s\n' "$resolved_digest"
+            publish_plugin_manifest "$candidate" "$wasm" "$source_commit" "$version" "$input_hash"
           }
           # END candidate-publish-contract
           jq -n '{plugins:{}}' >/tmp/candidates.json

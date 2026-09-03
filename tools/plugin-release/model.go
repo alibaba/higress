@@ -159,10 +159,21 @@ type CandidateEvidenceFile struct {
 }
 
 type CandidateEvidence struct {
-	CandidateRef string `json:"candidateRef"`
-	Digest       string `json:"digest"`
-	SourceCommit string `json:"sourceCommit"`
-	InputHash    string `json:"inputHash"`
+	CandidateRef string             `json:"candidateRef"`
+	Digest       string             `json:"digest"`
+	SourceCommit string             `json:"sourceCommit"`
+	InputHash    string             `json:"inputHash"`
+	Lineage      []EmergencyLineage `json:"lineage,omitempty"`
+}
+
+// EmergencyLineage records a successful same-version emergency publication
+// without replacing the immutable candidate evidence that authorized the
+// original release.
+type EmergencyLineage struct {
+	Digest        string `json:"digest"`
+	InputHash     string `json:"inputHash"`
+	SourceCommit  string `json:"sourceCommit"`
+	WorkflowRunID string `json:"workflowRunId"`
 }
 
 // BootstrapEvidenceFile is deliberately separate from candidate evidence. A

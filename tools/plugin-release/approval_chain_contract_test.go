@@ -48,10 +48,122 @@ func TestApprovalChainHasExactlyTwoHumanGates(t *testing.T) {
 		}
 	}
 
-	// The emergency channel is unchanged by this sub-item; its gate stays.
+	// Emergency overwrite self-authorizes the triggering actor through the
+	// collaborators API instead of consuming the independent latest gate.
 	emergency := mustWorkflow(t, "emergency-overwrite-plugin-tag.yaml")
-	if !strings.Contains(emergency, "environment: plugin-release-production") {
-		t.Fatal("emergency overwrite lost its production gate")
+	if strings.Contains(emergency, "environment:") {
+		t.Fatal("emergency overwrite must not request an environment approval")
+	}
+	if !strings.Contains(emergency, "github.triggering_actor") || !strings.Contains(emergency, "collaborators/$actor/permission") {
+		t.Fatal("emergency overwrite must authorize the triggering actor through the collaborators API")
+	}
+}
+
+func TestEmergencyAuthorizationRequiresTriggeringMaintainer(t *testing.T) {
+	contract := workflowShellContract(t, "emergency-overwrite-plugin-tag.yaml", "emergency-authorization-contract")
+	for _, tc := range []struct {
+		name       string
+		actor      string
+		permission string
+		apiFails   bool
+		want       string
+		wantError  bool
+	}{
+		{name: "maintainer", actor: "release-maintainer", permission: "maintain", want: "actor=release-maintainer permission=maintain"},
+		{name: "administrator", actor: "release-admin", permission: "admin", want: "actor=release-admin permission=admin"},
+		{name: "write-collaborator", actor: "writer", permission: "write", want: "permission=write", wantError: true},
+		{name: "read-collaborator", actor: "reader", permission: "read", want: "permission=read", wantError: true},
+		{name: "api-failure", actor: "maintainer", apiFails: true, want: "permission=api-error", wantError: true},
+		{name: "invalid-actor", actor: "bad/actor", permission: "admin", want: "permission=invalid-actor", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeExecutableFixture(t, filepath.Join(bin, "gh"), `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$GH_API_FAILS" = true ]; then
+  exit 23
+fi
+test "$1" = api
+test "$2" = "repos/higress-group/higress/collaborators/$TRIGGERING_ACTOR/permission"
+jq -cn --arg permission "$FIXTURE_PERMISSION" '{permission:$permission}'
+`)
+			summary := filepath.Join(root, "summary.md")
+			apiFails := "false"
+			if tc.apiFails {
+				apiFails = "true"
+			}
+			cmd := exec.Command("bash", "-c", "set -euo pipefail\n"+contract)
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"GH_TOKEN=fixture-token",
+				"GH_API_FAILS="+apiFails,
+				"FIXTURE_PERMISSION="+tc.permission,
+				"GITHUB_REPOSITORY=higress-group/higress",
+				"GITHUB_STEP_SUMMARY="+summary,
+				"TRIGGERING_ACTOR="+tc.actor,
+			)
+			output, err := cmd.CombinedOutput()
+			if tc.wantError && err == nil {
+				t.Fatalf("unauthorized emergency actor was accepted: %s", output)
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("authorized emergency actor was rejected: %v\n%s", err, output)
+			}
+			summaryBytes, readErr := os.ReadFile(summary)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if !strings.Contains(string(summaryBytes), tc.want) {
+				t.Fatalf("authorization summary lacks %q: %s", tc.want, summaryBytes)
+			}
+			if strings.Contains(string(output), "fixture-token") || strings.Contains(string(summaryBytes), "fixture-token") {
+				t.Fatal("emergency authorization leaked its GitHub token")
+			}
+		})
+	}
+}
+
+func TestEmergencyWorkflowBindsEvidenceBeforeMutationAndAutomatesRetryablePR(t *testing.T) {
+	emergency := mustWorkflow(t, "emergency-overwrite-plugin-tag.yaml")
+	for _, required := range []string{
+		"gateway_version:",
+		"required: true",
+		"ref: ${{ github.sha }}",
+		`test "$WORKFLOW_REF" = refs/heads/main`,
+		`git merge-base --is-ancestor "$evidence_base" refs/remotes/origin/main`,
+		"go build -p 1 -o /tmp/emergency-overwrite-artifact/plugin-release",
+		"git checkout -q \"$SOURCE_COMMIT\"",
+		"git merge-base --is-ancestor \"$CANDIDATE_SOURCE_COMMIT\" \"$SOURCE_COMMIT\"",
+		"ref: ${{ needs.validate.outputs.evidence_base }}",
+		"Upload current tool and built artifact",
+		"chmod 0700 \"$tool\"",
+		"append-emergency-lineage",
+		"actions/create-github-app-token@",
+		`branch="release/plugin-emergency-evidence-$GATEWAY_VERSION-$LOGICAL_ID-$WORKFLOW_RUN_ID"`,
+		`gh pr create --base main --head "$branch"`,
+		`|| gh pr edit "$branch"`,
+		"registry write precedes this PR",
+	} {
+		if !strings.Contains(emergency, required) {
+			t.Fatalf("emergency workflow lacks %q", required)
+		}
+	}
+	buildTool := strings.Index(emergency, "go build -p 1 -o /tmp/emergency-overwrite-artifact/plugin-release")
+	checkoutSource := strings.Index(emergency, "git checkout -q \"$SOURCE_COMMIT\"")
+	validateEvidence := strings.Index(emergency, `candidate=$(jq -cer --arg id "$LOGICAL_ID"`)
+	registryLogin := strings.Index(emergency, "oras login")
+	registryPush := strings.Index(emergency, `digest=$(publish_plugin_manifest`)
+	appendLineage := strings.Index(emergency, "append-emergency-lineage")
+	openPR := strings.Index(emergency, "gh pr create")
+	if buildTool < 0 || checkoutSource < 0 || validateEvidence < 0 || registryLogin < 0 || registryPush < 0 || appendLineage < 0 || openPR < 0 {
+		t.Fatal("emergency workflow lost a required ordering boundary")
+	}
+	if !(buildTool < validateEvidence && validateEvidence < checkoutSource && checkoutSource < registryLogin && registryLogin < registryPush && registryPush < appendLineage && appendLineage < openPR) {
+		t.Fatal("emergency workflow must build the current tool, validate current-main evidence, switch to the source, mutate the registry, append lineage, then publish its PR")
 	}
 }
 
