@@ -48,10 +48,593 @@ func TestApprovalChainHasExactlyTwoHumanGates(t *testing.T) {
 		}
 	}
 
-	// The emergency channel is unchanged by this sub-item; its gate stays.
+	// Emergency overwrite self-authorizes the triggering actor through the
+	// collaborators API instead of consuming the independent latest gate.
 	emergency := mustWorkflow(t, "emergency-overwrite-plugin-tag.yaml")
-	if !strings.Contains(emergency, "environment: plugin-release-production") {
-		t.Fatal("emergency overwrite lost its production gate")
+	if strings.Contains(emergency, "environment:") {
+		t.Fatal("emergency overwrite must not request an environment approval")
+	}
+	if !strings.Contains(emergency, "github.triggering_actor") || !strings.Contains(emergency, "collaborators/$actor/permission") || !strings.Contains(emergency, ".role_name") {
+		t.Fatal("emergency overwrite must authorize the triggering actor through the collaborators API role_name")
+	}
+}
+
+func TestEmergencyAuthorizationRequiresTriggeringMaintainer(t *testing.T) {
+	contract := workflowShellContract(t, "emergency-overwrite-plugin-tag.yaml", "emergency-authorization-contract")
+	for _, tc := range []struct {
+		name       string
+		actor      string
+		permission string
+		roleName   string
+		apiFails   bool
+		omitRole   bool
+		want       string
+		wantError  bool
+	}{
+		{name: "maintainer-with-legacy-write", actor: "release-maintainer", permission: "write", roleName: "maintain", want: "actor=release-maintainer role_name=maintain"},
+		{name: "administrator", actor: "release-admin", permission: "admin", roleName: "admin", want: "actor=release-admin role_name=admin"},
+		{name: "write-collaborator", actor: "writer", permission: "write", roleName: "write", want: "role_name=write", wantError: true},
+		{name: "read-collaborator", actor: "reader", permission: "read", roleName: "read", want: "role_name=read", wantError: true},
+		{name: "missing-role-name", actor: "malformed", permission: "admin", omitRole: true, want: "role_name=invalid-response", wantError: true},
+		{name: "api-failure", actor: "maintainer", apiFails: true, want: "role_name=api-error", wantError: true},
+		{name: "invalid-actor", actor: "bad/actor", permission: "admin", roleName: "admin", want: "role_name=invalid-actor", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeExecutableFixture(t, filepath.Join(bin, "gh"), `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$GH_API_FAILS" = true ]; then
+  exit 23
+fi
+test "$1" = api
+test "$2" = "repos/higress-group/higress/collaborators/$TRIGGERING_ACTOR/permission"
+if [ "$OMIT_ROLE" = true ]; then
+  jq -cn --arg permission "$FIXTURE_PERMISSION" '{permission:$permission}'
+else
+  jq -cn --arg permission "$FIXTURE_PERMISSION" --arg role_name "$FIXTURE_ROLE_NAME" '{permission:$permission,role_name:$role_name}'
+fi
+`)
+			summary := filepath.Join(root, "summary.md")
+			apiFails := strconv.FormatBool(tc.apiFails)
+			omitRole := strconv.FormatBool(tc.omitRole)
+			cmd := exec.Command("bash", "-c", "set -euo pipefail\n"+contract)
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"GH_TOKEN=fixture-token",
+				"GH_API_FAILS="+apiFails,
+				"OMIT_ROLE="+omitRole,
+				"FIXTURE_PERMISSION="+tc.permission,
+				"FIXTURE_ROLE_NAME="+tc.roleName,
+				"GITHUB_REPOSITORY=higress-group/higress",
+				"GITHUB_STEP_SUMMARY="+summary,
+				"TRIGGERING_ACTOR="+tc.actor,
+			)
+			output, err := cmd.CombinedOutput()
+			if tc.wantError && err == nil {
+				t.Fatalf("unauthorized emergency actor was accepted: %s", output)
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("authorized emergency actor was rejected: %v\n%s", err, output)
+			}
+			summaryBytes, readErr := os.ReadFile(summary)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if !strings.Contains(string(summaryBytes), tc.want) {
+				t.Fatalf("authorization summary lacks %q: %s", tc.want, summaryBytes)
+			}
+			if strings.Contains(string(output), "fixture-token") || strings.Contains(string(summaryBytes), "fixture-token") {
+				t.Fatal("emergency authorization leaked its GitHub token")
+			}
+		})
+	}
+}
+
+func TestEmergencyWorkflowStagesAndBindsPublicationBeforeLatest(t *testing.T) {
+	emergency := mustWorkflow(t, "emergency-overwrite-plugin-tag.yaml")
+	for _, required := range []string{
+		"gateway_version:",
+		"required: true",
+		"group: emergency-overwrite-${{ inputs.logical_id }}-${{ inputs.version }}",
+		"cancel-in-progress: false",
+		"ref: ${{ github.sha }}",
+		`test "$WORKFLOW_REF" = refs/heads/main`,
+		`git merge-base --is-ancestor "$evidence_base" refs/remotes/origin/main`,
+		"go build -p 1 -o /tmp/emergency-overwrite-artifact/plugin-release",
+		"git checkout -q \"$SOURCE_COMMIT\"",
+		"git merge-base --is-ancestor \"$CANDIDATE_SOURCE_COMMIT\" \"$SOURCE_COMMIT\"",
+		"ref: ${{ needs.validate.outputs.evidence_base }}",
+		"Upload current tool and built artifact",
+		`public_registry: ${{ steps.resolve.outputs.public_registry }}`,
+		`public_repository: ${{ steps.resolve.outputs.public_repository }}`,
+		`CONFIGURED_REGISTRY: ${{ vars.PLUGIN_PUBLIC_REGISTRY }}`,
+		`validate_emergency_repository "$CONFIGURED_REGISTRY" "$REGISTRY" "$REPOSITORY" "$IMAGE_REF"`,
+		`emergency_candidate="$REPOSITORY:emergency-${SOURCE_COMMIT}-${INPUT_HASH#sha256:}"`,
+		"chmod 0700 \"$tool\"",
+		"append-emergency-lineage",
+		`if ((.lineage // []) | length) > 0 then .lineage[-1].digest else .digest end`,
+		"actions/create-github-app-token@",
+		`branch="release/plugin-emergency-evidence-$GATEWAY_VERSION-$LOGICAL_ID-$WORKFLOW_RUN_ID"`,
+		`gh pr create --base main --head "$branch"`,
+		`|| gh pr edit "$branch"`,
+		"registry write precedes this PR",
+		"Move latest only after evidence publication",
+	} {
+		if !strings.Contains(emergency, required) {
+			t.Fatalf("emergency workflow lacks %q", required)
+		}
+	}
+	buildTool := strings.Index(emergency, "go build -p 1 -o /tmp/emergency-overwrite-artifact/plugin-release")
+	checkoutSource := strings.Index(emergency, "git checkout -q \"$SOURCE_COMMIT\"")
+	validateEvidence := strings.Index(emergency, `candidate=$(jq -cer --arg id "$LOGICAL_ID"`)
+	registryBinding := strings.Index(emergency, `validate_emergency_repository "$CONFIGURED_REGISTRY"`)
+	registryLogin := strings.Index(emergency, "oras login")
+	candidatePush := strings.Index(emergency, `digest=$(publish_plugin_manifest "$emergency_candidate"`)
+	stageLineage := strings.Index(emergency, `--output /tmp/staged-emergency-evidence.json`)
+	stableCopy := strings.Index(emergency, `oras cp "$candidate_repo@$desired" "$stable_ref"`)
+	openPR := strings.Index(emergency, "gh pr create")
+	latestCopy := strings.Index(emergency, `oras cp "$REPOSITORY@$DIGEST" "$REPOSITORY:latest"`)
+	if buildTool < 0 || checkoutSource < 0 || validateEvidence < 0 || registryBinding < 0 || registryLogin < 0 || candidatePush < 0 || stageLineage < 0 || stableCopy < 0 || openPR < 0 || latestCopy < 0 {
+		t.Fatal("emergency workflow lost a required ordering boundary")
+	}
+	if !(buildTool < validateEvidence && validateEvidence < checkoutSource && checkoutSource < registryBinding && registryBinding < registryLogin && registryLogin < candidatePush && candidatePush < stageLineage && stageLineage < stableCopy && stableCopy < openPR && openPR < latestCopy) {
+		t.Fatal("emergency workflow must validate/build, stage the candidate and lineage, conditionally copy stable, publish evidence, then optionally move latest")
+	}
+}
+
+func TestEmergencyRegistryBindingRejectsConfigurationDrift(t *testing.T) {
+	contract := workflowShellContract(t, "emergency-overwrite-plugin-tag.yaml", "emergency-registry-binding-contract")
+	for _, tc := range []struct {
+		name       string
+		configured string
+		validated  string
+		repository string
+		image      string
+		wantError  bool
+	}{
+		{name: "exact", configured: "registry.example.invalid:5000", validated: "registry.example.invalid:5000", repository: "registry.example.invalid:5000/plugins/demo", image: "plugins/demo"},
+		{name: "registry-drift", configured: "other.example.invalid", validated: "registry.example.invalid", repository: "registry.example.invalid/plugins/demo", image: "plugins/demo", wantError: true},
+		{name: "repository-drift", configured: "registry.example.invalid", validated: "registry.example.invalid", repository: "registry.example.invalid/plugins/other", image: "plugins/demo", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := "set -euo pipefail\n" + contract + "\nvalidate_emergency_repository \"$CONFIGURED\" \"$VALIDATED\" \"$REPOSITORY\" \"$IMAGE\"\n"
+			cmd := exec.Command("bash", "-c", script)
+			cmd.Env = append(os.Environ(), "CONFIGURED="+tc.configured, "VALIDATED="+tc.validated, "REPOSITORY="+tc.repository, "IMAGE="+tc.image)
+			output, err := cmd.CombinedOutput()
+			if tc.wantError && err == nil {
+				t.Fatalf("registry mismatch was accepted: %s", output)
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("valid registry binding failed: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+func TestEmergencyStableOverwriteRequiresCommittedPredecessorAndHealsRetry(t *testing.T) {
+	contract := workflowShellContract(t, "emergency-overwrite-plugin-tag.yaml", "emergency-stable-overwrite-contract")
+	predecessor := testDigest("predecessor")
+	desired := testDigest("desired")
+	conflict := testDigest("conflict")
+	for _, tc := range []struct {
+		name       string
+		current    string
+		runAttempt string
+		wantError  bool
+		wantCopies int
+	}{
+		{name: "committed-predecessor", current: predecessor, runAttempt: "1", wantCopies: 1},
+		{name: "same-run-retry-at-desired", current: desired, runAttempt: "2"},
+		{name: "first-attempt-cannot-claim-desired", current: desired, runAttempt: "1", wantError: true},
+		{name: "predecessor-conflict", current: conflict, runAttempt: "1", wantError: true},
+		{name: "missing-stable-tag", runAttempt: "1", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			state := filepath.Join(root, "stable-digest")
+			logPath := filepath.Join(root, "oras.log")
+			if tc.current != "" {
+				if err := os.WriteFile(state, []byte(tc.current), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "$ORAS_LOG"
+if [ "$1 $2" = "manifest fetch" ]; then
+  if [ ! -f "$ORAS_STATE" ]; then echo "manifest unknown" >&2; exit 1; fi
+  jq -cn --arg digest "$(cat "$ORAS_STATE")" '{mediaType:"application/vnd.oci.image.manifest.v1+json",digest:$digest}'
+  exit 0
+fi
+if [ "$1" = cp ]; then
+  test "$2" = "registry.example.invalid/plugins/demo@$DESIRED"
+  test "$3" = "registry.example.invalid/plugins/demo:1.2.3"
+  printf '%s' "$DESIRED" > "$ORAS_STATE"
+  exit 0
+fi
+exit 2
+`)
+			script := "set -euo pipefail\n" + contract + "\npromote_emergency_candidate registry.example.invalid/plugins/demo:emergency-content registry.example.invalid/plugins/demo:1.2.3 \"$PREDECESSOR\" \"$DESIRED\" \"$RUN_ATTEMPT\"\n"
+			cmd := exec.Command("bash", "-c", script)
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"ORAS_LOG="+logPath,
+				"ORAS_STATE="+state,
+				"PREDECESSOR="+predecessor,
+				"DESIRED="+desired,
+				"RUN_ATTEMPT="+tc.runAttempt,
+			)
+			output, err := cmd.CombinedOutput()
+			if tc.wantError && err == nil {
+				t.Fatalf("unsafe stable state was accepted: %s", output)
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("safe stable transition failed: %v\n%s", err, output)
+			}
+			logBytes, readErr := os.ReadFile(logPath)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if got := strings.Count(string(logBytes), "cp "); got != tc.wantCopies {
+				t.Fatalf("stable copy count = %d, want %d:\n%s", got, tc.wantCopies, logBytes)
+			}
+		})
+	}
+}
+
+// TestEmergencyPullVerificationGatesTheStableTagOverwrite proves the incident
+// channel clears the same loadability gate as the immutable pipeline before it
+// may replace a public stable tag: the staged candidate is re-pulled from the
+// registry by digest and verified as the registry serves it, never as the local
+// build produced it, and any failure aborts before a stable-tag mutation.
+func TestEmergencyPullVerificationGatesTheStableTagOverwrite(t *testing.T) {
+	emergency := mustWorkflow(t, "emergency-overwrite-plugin-tag.yaml")
+	contract := workflowShellContract(t, "emergency-overwrite-plugin-tag.yaml", "emergency-pull-verification-contract")
+	for _, required := range []string{
+		`oras manifest fetch "$repository@$digest" --output "$pull_dir/manifest.json"`,
+		`oras pull "$repository@$digest" --output "$pull_dir"`,
+		`"$tool" verify-pulled-plugin --manifest "$pull_dir/manifest.json" --config "$pull_dir/config.json" --wasm "$pull_dir/plugin.wasm"`,
+		`--digest "$digest" --source-commit "$source_commit" --source-created "$source_created" --version "$version" --input-hash "$input_hash"`,
+		"the stable tag was not modified",
+	} {
+		if !strings.Contains(contract, required) {
+			t.Fatalf("emergency pull verification lacks %q", required)
+		}
+	}
+	// The gate verifies registry state; the local build output is not an input.
+	if strings.Contains(contract, "/tmp/emergency-overwrite-artifact/plugin.wasm") {
+		t.Fatal("emergency pull verification inspected the local build output instead of the pulled artifact")
+	}
+	stagingPush := strings.Index(emergency, `digest=$(publish_plugin_manifest "$emergency_candidate"`)
+	gate := strings.Index(emergency, `verify_emergency_pull "$tool" "$REPOSITORY" "$digest"`)
+	lineage := strings.Index(emergency, `--output /tmp/staged-emergency-evidence.json`)
+	stableCopy := strings.Index(emergency, `oras cp "$candidate_repo@$desired" "$stable_ref"`)
+	latestCopy := strings.Index(emergency, `oras cp "$REPOSITORY@$DIGEST" "$REPOSITORY:latest"`)
+	if stagingPush < 0 || gate < 0 || lineage < 0 || stableCopy < 0 || latestCopy < 0 {
+		t.Fatal("emergency workflow lost a required ordering boundary")
+	}
+	if !(stagingPush < gate && gate < lineage && lineage < stableCopy && stableCopy < latestCopy) {
+		t.Fatal("the pulled-artifact gate must run after staging the candidate and before the lineage staging, the stable-tag copy, and any latest move")
+	}
+
+	digest := testDigest("staged")
+	inputHash := testDigest("inputs")
+	repository := "registry.example.invalid/plugins/demo"
+	for _, tc := range []struct {
+		name       string
+		failStep   string
+		toolStatus string
+		digest     string
+		version    string
+		inputHash  string
+		commit     string
+		noTool     bool
+		want       string
+		wantError  bool
+		wantVerify bool
+	}{
+		{name: "staged-candidate-loads", wantVerify: true},
+		{name: "verifier-rejects-artifact", toolStatus: "1", want: "failed pulled-artifact verification; the stable tag was not modified", wantError: true, wantVerify: true},
+		{name: "manifest-cannot-be-pulled", failStep: "fetch", want: "manifest cannot be pulled", wantError: true},
+		{name: "layers-cannot-be-pulled", failStep: "pull", want: "layers cannot be pulled", wantError: true},
+		{name: "malformed-digest", digest: "sha256:short", want: "invalid staged candidate digest", wantError: true},
+		{name: "malformed-version", version: "1.2", want: "invalid stable plugin version", wantError: true},
+		{name: "malformed-input-hash", inputHash: "not-a-hash", want: "invalid plugin input hash", wantError: true},
+		{name: "malformed-source-commit", commit: strings.Repeat("z", 40), want: "invalid plugin source commit", wantError: true},
+		{name: "tool-not-executable", noTool: true, want: "release tool is not executable", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			mustRun(t, root, "git", "init", "-q")
+			mustRun(t, root, "git", "config", "user.name", "test")
+			mustRun(t, root, "git", "config", "user.email", "test@example.com")
+			mustWrite(t, filepath.Join(root, "main.go"), "package main\n")
+			mustRun(t, root, "git", "add", ".")
+			mustRun(t, root, "git", "commit", "-q", "-m", "fix")
+			commit, err := resolveCommit(root, "HEAD")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.commit != "" {
+				commit = tc.commit
+			}
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeExecutableFixture(t, filepath.Join(bin, "oras"), `#!/usr/bin/env bash
+set -uo pipefail
+printf '%s\n' "$*" >> "$ORAS_LOG"
+if [ "$1 $2" = "manifest fetch" ]; then
+  if [ "${FAIL_STEP:-}" = fetch ]; then echo "registry unavailable" >&2; exit 1; fi
+  test "$3" = "$WANT_REF" || { echo "unexpected manifest fetch reference: $3" >&2; exit 2; }
+  test "${4:-}" = "--output" || { echo "manifest fetch did not write a file: $*" >&2; exit 2; }
+  printf '%s' "$MANIFEST_BODY" > "$5"
+  exit 0
+fi
+if [ "$1" = pull ]; then
+  if [ "${FAIL_STEP:-}" = pull ]; then echo "blob unknown to registry" >&2; exit 1; fi
+  test "$2" = "$WANT_REF" || { echo "unexpected pull reference: $2" >&2; exit 2; }
+  test "${3:-}" = "--output" || { echo "pull did not write a directory: $*" >&2; exit 2; }
+  printf '%s' '{}' > "$4/config.json"
+  printf 'wasm-bytes' > "$4/plugin.wasm"
+  exit 0
+fi
+echo "unsupported fake oras invocation: $*" >&2
+exit 2
+`)
+			tool := filepath.Join(root, "plugin-release")
+			if !tc.noTool {
+				writeExecutableFixture(t, tool, "#!/usr/bin/env bash\nset -uo pipefail\nprintf '%s\\n' \"$*\" >> \"$TOOL_LOG\"\nexit "+tc.toolStatus+"\n")
+			} else if err := os.WriteFile(tool, []byte("not executable\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			toolLog := filepath.Join(root, "tool.log")
+			orasLog := filepath.Join(root, "oras.log")
+			summary := filepath.Join(root, "summary.md")
+			pullDir := filepath.Join(root, "pull")
+			for _, path := range []string{toolLog, orasLog} {
+				if err := os.WriteFile(path, nil, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			version := "1.2.3"
+			if tc.version != "" {
+				version = tc.version
+			}
+			wantDigest := digest
+			if tc.digest != "" {
+				wantDigest = tc.digest
+			}
+			wantHash := inputHash
+			if tc.inputHash != "" {
+				wantHash = tc.inputHash
+			}
+			script := "set -euo pipefail\n" + contract +
+				"\nverify_emergency_pull \"$TOOL\" \"$REPOSITORY\" \"$DIGEST\" \"$SOURCE_COMMIT\" \"$VERSION\" \"$INPUT_HASH\" \"$PULL_DIR\"\n"
+			cmd := exec.Command("bash", "-c", script)
+			cmd.Dir = root
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"ORAS_LOG="+orasLog,
+				"TOOL_LOG="+toolLog,
+				"TOOL="+tool,
+				"FAIL_STEP="+tc.failStep,
+				"WANT_REF="+repository+"@"+digest,
+				"MANIFEST_BODY={}",
+				"REPOSITORY="+repository,
+				"DIGEST="+wantDigest,
+				"SOURCE_COMMIT="+commit,
+				"VERSION="+version,
+				"INPUT_HASH="+wantHash,
+				"PULL_DIR="+pullDir,
+				"GITHUB_STEP_SUMMARY="+summary,
+			)
+			output, err := cmd.CombinedOutput()
+			if tc.want != "" && !strings.Contains(string(output), tc.want) {
+				t.Fatalf("gate output lacks %q:\n%s", tc.want, output)
+			}
+			if tc.wantError {
+				if err == nil {
+					t.Fatalf("an unverifiable staged candidate was accepted:\n%s", output)
+				}
+			} else if err != nil {
+				t.Fatalf("a loadable staged candidate was rejected: %v\n%s", err, output)
+			}
+			verifyLog, readErr := os.ReadFile(toolLog)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if tc.wantVerify != strings.Contains(string(verifyLog), "verify-pulled-plugin") {
+				t.Fatalf("verifier invocation = %q, want invoked %v", verifyLog, tc.wantVerify)
+			}
+			if tc.wantVerify {
+				for _, required := range []string{
+					"--manifest " + pullDir + "/manifest.json",
+					"--config " + pullDir + "/config.json",
+					"--wasm " + pullDir + "/plugin.wasm",
+					"--digest " + digest,
+					"--source-commit " + commit,
+					"--version " + version,
+					"--input-hash " + inputHash,
+				} {
+					if !strings.Contains(string(verifyLog), required) {
+						t.Fatalf("verifier was not bound to the pulled artifact (%q missing): %q", required, verifyLog)
+					}
+				}
+				if !strings.Contains(string(verifyLog), "--source-created ") {
+					t.Fatalf("verifier did not receive the source commit timestamp: %q", verifyLog)
+				}
+			}
+			orasLogBytes, readErr := os.ReadFile(orasLog)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if tc.wantVerify {
+				for _, required := range []string{
+					"manifest fetch " + repository + "@" + digest + " --output " + pullDir + "/manifest.json",
+					"pull " + repository + "@" + digest + " --output " + pullDir,
+				} {
+					if !strings.Contains(string(orasLogBytes), required) {
+						t.Fatalf("the staged candidate was not re-pulled by digest (%q missing): %q", required, orasLogBytes)
+					}
+				}
+			}
+			for _, unexpected := range []string{"cp ", "push ", "delete "} {
+				if strings.Contains(string(orasLogBytes), unexpected) {
+					t.Fatalf("the pull gate mutated the registry with %q: %q", unexpected, orasLogBytes)
+				}
+			}
+			if _, statErr := os.Stat(pullDir); !os.IsNotExist(statErr) {
+				t.Fatalf("the gate left its pull directory behind: %v", statErr)
+			}
+		})
+	}
+}
+
+// TestEmergencyStagingTagIsRetainedAsProvenance proves the retention policy:
+// the emergency staging tag is never deleted (registries implement tag deletion
+// as manifest deletion, which would destroy the stable tag's manifest), the
+// contract performs no registry mutation, and the run summary records the
+// retained provenance reference.
+func TestEmergencyStagingTagIsRetainedAsProvenance(t *testing.T) {
+	contract := workflowShellContract(t, "emergency-overwrite-plugin-tag.yaml", "emergency-staging-cleanup-contract")
+	repository := "registry.example.invalid/plugins/demo"
+	digest := testDigest("published")
+	inputHash := testDigest("inputs")
+	sourceCommit := strings.Repeat("a", 40)
+	stagingRef := repository + ":emergency-" + sourceCommit + "-" + strings.TrimPrefix(inputHash, "sha256:")
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeExecutableFixture(t, filepath.Join(bin, "oras"), "#!/usr/bin/env bash\necho \"oras $*\" >> \"$ORAS_LOG\"\nexit 0\n")
+	summary := filepath.Join(root, "summary.md")
+	cmd := exec.Command("bash", "-c", "set -euo pipefail\n"+contract)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PATH="+bin+":"+os.Getenv("PATH"),
+		"ORAS_LOG="+filepath.Join(root, "oras.log"),
+		"REPOSITORY="+repository,
+		"VERSION=1.2.3",
+		"SOURCE_COMMIT="+sourceCommit,
+		"INPUT_HASH="+inputHash,
+		"DIGEST="+digest,
+		"GITHUB_STEP_SUMMARY="+summary,
+	)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("retention contract failed: %v\n%s", err, output)
+	}
+	if logBytes, readErr := os.ReadFile(filepath.Join(root, "oras.log")); readErr == nil {
+		for _, forbidden := range []string{"delete", "push ", "cp "} {
+			if strings.Contains(string(logBytes), forbidden) {
+				t.Fatalf("retention contract mutated the registry with %q: %q", forbidden, logBytes)
+			}
+		}
+	}
+	summaryBytes, readErr := os.ReadFile(summary)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !strings.Contains(string(summaryBytes), stagingRef) {
+		t.Fatalf("run summary does not record the retained staging reference %q: %q", stagingRef, summaryBytes)
+	}
+}
+// TestEmergencyPublishJobReaffirmsAuthorization closes the re-run bypass: the
+// job that mutates the public registry repeats the maintain/admin check as its
+// first step, so resuming it under a different triggering actor cannot complete
+// an overwrite nobody authorized.
+func TestEmergencyPublishJobReaffirmsAuthorization(t *testing.T) {
+	emergency := mustWorkflow(t, "emergency-overwrite-plugin-tag.yaml")
+	contracts := workflowShellContracts(t, "emergency-overwrite-plugin-tag.yaml", "emergency-authorization-contract")
+	if len(contracts) != 2 {
+		t.Fatalf("emergency workflow has %d authorization contracts, want the authorize job's and the publish job's", len(contracts))
+	}
+	if contracts[0] != contracts[1] {
+		t.Fatal("the publish job's authorization gate drifted from the authorize job's")
+	}
+	publish := workflowJobSection(t, emergency, "publish")
+	recheck := strings.Index(publish, "# BEGIN emergency-authorization-contract")
+	appToken := strings.Index(publish, "actions/create-github-app-token@")
+	checkout := strings.Index(publish, "uses: actions/checkout@")
+	login := strings.Index(publish, "oras login")
+	stagingPush := strings.Index(publish, `digest=$(publish_plugin_manifest "$emergency_candidate"`)
+	stableCopy := strings.Index(publish, `oras cp "$candidate_repo@$desired" "$stable_ref"`)
+	if recheck < 0 || appToken < 0 || checkout < 0 || login < 0 || stagingPush < 0 || stableCopy < 0 {
+		t.Fatal("emergency publish job lost an expected step boundary")
+	}
+	if !(recheck < appToken && appToken < checkout && checkout < login && login < stagingPush && stagingPush < stableCopy) {
+		t.Fatal("the publish job must re-require maintain or admin permission before App-token creation, checkout, registry login, and every mutation")
+	}
+	if strings.Contains(publish[:recheck], "oras ") || strings.Contains(publish[:recheck], "gh api") {
+		t.Fatal("the publish job performs a registry or API call before re-affirming authorization")
+	}
+	if !strings.Contains(publish, "TRIGGERING_ACTOR: ${{ github.triggering_actor }}") {
+		t.Fatal("the publish job must authorize github.triggering_actor, the actor who resumed the run")
+	}
+
+	// The duplicated contract must really execute as a gate in the publish job.
+	for _, tc := range []struct {
+		name      string
+		actor     string
+		roleName  string
+		wantError bool
+	}{
+		{name: "maintainer-rerun", actor: "release-maintainer", roleName: "maintain"},
+		{name: "administrator-rerun", actor: "release-admin", roleName: "admin"},
+		{name: "write-collaborator-rerun", actor: "writer", roleName: "write", wantError: true},
+		{name: "read-collaborator-rerun", actor: "reader", roleName: "read", wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, "bin")
+			if err := os.MkdirAll(bin, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeExecutableFixture(t, filepath.Join(bin, "gh"), `#!/usr/bin/env bash
+set -euo pipefail
+test "$1" = api
+test "$2" = "repos/higress-group/higress/collaborators/$TRIGGERING_ACTOR/permission"
+jq -cn --arg role_name "$FIXTURE_ROLE_NAME" '{permission:"write",role_name:$role_name}'
+`)
+			summary := filepath.Join(root, "summary.md")
+			cmd := exec.Command("bash", "-c", "set -euo pipefail\n"+contracts[1])
+			cmd.Env = append(os.Environ(),
+				"PATH="+bin+":"+os.Getenv("PATH"),
+				"GH_TOKEN=fixture-token",
+				"FIXTURE_ROLE_NAME="+tc.roleName,
+				"GITHUB_REPOSITORY=higress-group/higress",
+				"GITHUB_STEP_SUMMARY="+summary,
+				"TRIGGERING_ACTOR="+tc.actor,
+			)
+			output, err := cmd.CombinedOutput()
+			if tc.wantError && err == nil {
+				t.Fatalf("an unauthorized re-run actor reached the publishing job: %s", output)
+			}
+			if !tc.wantError && err != nil {
+				t.Fatalf("an authorized re-run actor was rejected: %v\n%s", err, output)
+			}
+			summaryBytes, readErr := os.ReadFile(summary)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if !strings.Contains(string(summaryBytes), "actor="+tc.actor+" role_name="+tc.roleName) {
+				t.Fatalf("publish-job authorization did not record its decision: %s", summaryBytes)
+			}
+			if strings.Contains(string(output)+string(summaryBytes), "fixture-token") {
+				t.Fatal("publish-job authorization leaked its GitHub token")
+			}
+		})
 	}
 }
 
