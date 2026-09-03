@@ -727,9 +727,6 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				// The modern descriptor comes from the same analyzed snapshot used by
 				// tools/call and deliberately omits unvalidated outputSchema.
 				tools = config.directTools.buildModernToolList(effectiveAllowTools)
-				if summary := config.directTools.unlistableSummary(); summary != "" {
-					log.Warnf("Modern tools/list omitted non-serializable registered descriptors: %s", summary)
-				}
 			} else {
 				tools = buildToolList(config.server, effectiveAllowTools, true)
 			}
@@ -873,8 +870,8 @@ func parseConfig(context wrapper.PluginContext, configJson gjson.Result, config 
 			metrics.degradedPublished.Increment(uint64(count))
 		}
 	}
-	if summary := config.directTools.degradedSummary(); summary != "" {
-		log.Warnf("Direct tools published without local schema validation: %s", summary)
+	if warning := config.directTools.degradedPublicationWarning(config.serverName); warning != "" {
+		log.Warn(warning)
 	}
 	return nil
 }

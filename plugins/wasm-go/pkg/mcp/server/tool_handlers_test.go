@@ -869,7 +869,6 @@ func TestEverySchemaPreparationFailurePublishesUnavailableState(t *testing.T) {
 				require.Len(t, config.directTools.buildModernToolList(nil), 1)
 			} else {
 				assert.Empty(t, config.directTools.buildModernToolList(nil))
-				assert.Contains(t, config.directTools.unlistableSummary(), "bad")
 			}
 		})
 	}
@@ -976,9 +975,9 @@ func TestDirectToolSnapshotReloadsDoNotRetainStaleValidatorState(t *testing.T) {
 	assert.NotSame(t, first.byName["tool"].validator, third.byName["tool"].validator)
 }
 
-func TestDirectToolDegradedSummaryIsBounded(t *testing.T) {
+func TestDirectToolDegradedPublicationWarningIsBounded(t *testing.T) {
 	registered := newValidationTestServer()
-	for i := 0; i < maxSchemaDiagnosticToolNames+3; i++ {
+	for i := 0; i < maxSchemaDiagnosticRecords+3; i++ {
 		name := fmt.Sprintf("tool-%02d", i)
 		registered.AddMCPTool(name, &validationTestTool{counters: &validationToolCounters{}, schema: map[string]any{
 			"type":  "object",
@@ -986,11 +985,12 @@ func TestDirectToolDegradedSummaryIsBounded(t *testing.T) {
 		}})
 	}
 	snapshot := compileDirectToolSnapshot(registered)
-	summary := snapshot.degradedSummary()
-	assert.Contains(t, summary, "11 tool(s)")
-	assert.Contains(t, summary, "reasons=unsupported_keyword")
-	assert.Contains(t, summary, "(+3 omitted)")
-	assert.NotContains(t, summary, "tool-08")
+	warning := snapshot.degradedPublicationWarning("registered")
+	assert.Contains(t, warning, `server="registered" total=11`)
+	assert.Contains(t, warning, `reason=unsupported_keyword`)
+	assert.Contains(t, warning, `omitted=3`)
+	assert.Contains(t, warning, "modern tools/call will be rejected; legacy calls remain available")
+	assert.NotContains(t, warning, `tool-08`)
 	assert.Len(t, []rune(boundedSchemaDiagnosticToolName(strings.Repeat("工", maxSchemaDiagnosticToolNameRunes+10))), maxSchemaDiagnosticToolNameRunes+3)
 }
 

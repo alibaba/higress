@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/protocol"
 	"github.com/alibaba/higress/plugins/wasm-go/pkg/mcp/utils"
@@ -48,12 +50,12 @@ type directToolSnapshot struct {
 	byName     map[string]directToolEntry
 	legacyOnly map[string]string
 	degraded   []directToolDiagnostic
-	unlistable []string
 }
 
 type directToolDiagnostic struct {
 	name   string
 	reason schemaDiagnosticReason
+	detail string
 }
 
 type capturedInputSchemaTool interface {
@@ -119,68 +121,84 @@ func compileDirectToolSnapshot(server Server) directToolSnapshot {
 		snapshot.ordered = append(snapshot.ordered, validated)
 		snapshot.byName[entry.name] = validated
 		if state == directToolSchemaValidationUnavailable {
-			snapshot.degraded = append(snapshot.degraded, directToolDiagnostic{name: entry.name, reason: reason})
-			if !serializable {
-				snapshot.unlistable = append(snapshot.unlistable, entry.name)
-			}
+			snapshot.degraded = append(snapshot.degraded, directToolDiagnostic{
+				name:   entry.name,
+				reason: reason,
+				detail: boundedSchemaDiagnosticField(preparationErr.Error(), maxSchemaDiagnosticDetailRunes),
+			})
 		}
 	}
 	return snapshot
 }
 
 const (
-	maxSchemaDiagnosticToolNames     = 8
+	maxSchemaDiagnosticRecords       = 8
+	maxSchemaDiagnosticServerRunes   = 128
 	maxSchemaDiagnosticToolNameRunes = 128
+	maxSchemaDiagnosticDetailRunes   = 256
+	maxSchemaDiagnosticWarningRunes  = 8192
 )
 
 func boundedSchemaDiagnosticToolName(name string) string {
-	runes := []rune(name)
-	if len(runes) <= maxSchemaDiagnosticToolNameRunes {
-		return name
-	}
-	return string(runes[:maxSchemaDiagnosticToolNameRunes]) + "..."
+	return boundedSchemaDiagnosticField(name, maxSchemaDiagnosticToolNameRunes)
 }
 
-func (snapshot directToolSnapshot) degradedSummary() string {
+func boundedSchemaDiagnosticField(value string, limit int) string {
+	clean := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
+			return ' '
+		}
+		return r
+	}, value)
+	runes := []rune(clean)
+	if len(runes) <= limit {
+		return clean
+	}
+	return string(runes[:limit]) + "..."
+}
+
+func quoteSchemaDiagnosticField(value string) string {
+	// The bounded fields contain no control characters. Quote the two remaining
+	// delimiters so one tool cannot make another record ambiguous.
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value) + `"`
+}
+
+func (snapshot directToolSnapshot) degradedPublicationWarning(serverName string) string {
+	return snapshot.degradedPublicationWarningWithin(serverName, maxSchemaDiagnosticWarningRunes)
+}
+
+func (snapshot directToolSnapshot) degradedPublicationWarningWithin(serverName string, warningRuneLimit int) string {
 	if len(snapshot.degraded) == 0 {
 		return ""
 	}
-	reasons := make(map[string]struct{})
-	names := make([]string, 0, min(len(snapshot.degraded), maxSchemaDiagnosticToolNames))
-	for i, diagnostic := range snapshot.degraded {
-		reasons[diagnostic.reason.String()] = struct{}{}
-		if i < maxSchemaDiagnosticToolNames {
-			names = append(names, boundedSchemaDiagnosticToolName(diagnostic.name))
+	diagnostics := append([]directToolDiagnostic(nil), snapshot.degraded...)
+	sort.Slice(diagnostics, func(i, j int) bool {
+		if diagnostics[i].name != diagnostics[j].name {
+			return diagnostics[i].name < diagnostics[j].name
 		}
-	}
-	reasonNames := make([]string, 0, len(reasons))
-	for reason := range reasons {
-		reasonNames = append(reasonNames, reason)
-	}
-	sort.Strings(reasonNames)
-	suffix := ""
-	if omitted := len(snapshot.degraded) - len(names); omitted > 0 {
-		suffix = fmt.Sprintf(" (+%d omitted)", omitted)
-	}
-	return fmt.Sprintf("%d tool(s), reasons=%s, tools=%s%s", len(snapshot.degraded), strings.Join(reasonNames, ","), strings.Join(names, ","), suffix)
-}
-
-func (snapshot directToolSnapshot) unlistableSummary() string {
-	if len(snapshot.unlistable) == 0 {
-		return ""
-	}
-	names := make([]string, 0, min(len(snapshot.unlistable), maxSchemaDiagnosticToolNames))
-	for i, name := range snapshot.unlistable {
-		if i == maxSchemaDiagnosticToolNames {
-			break
+		if diagnostics[i].reason != diagnostics[j].reason {
+			return diagnostics[i].reason < diagnostics[j].reason
 		}
-		names = append(names, boundedSchemaDiagnosticToolName(name))
+		return diagnostics[i].detail < diagnostics[j].detail
+	})
+	recordCount := min(len(diagnostics), maxSchemaDiagnosticRecords)
+	records := make([]string, 0, recordCount)
+	for _, diagnostic := range diagnostics[:recordCount] {
+		tool := boundedSchemaDiagnosticToolName(diagnostic.name)
+		detail := boundedSchemaDiagnosticField(diagnostic.detail, maxSchemaDiagnosticDetailRunes)
+		records = append(records, fmt.Sprintf("{tool=%s reason=%s detail=%s}",
+			quoteSchemaDiagnosticField(tool), diagnostic.reason.String(), quoteSchemaDiagnosticField(detail)))
 	}
-	suffix := ""
-	if omitted := len(snapshot.unlistable) - len(names); omitted > 0 {
-		suffix = fmt.Sprintf(" (+%d omitted)", omitted)
+	server := boundedSchemaDiagnosticField(serverName, maxSchemaDiagnosticServerRunes)
+	warning := fmt.Sprintf("Direct tools published without local schema validation: server=%s total=%d records=[%s] omitted=%d; modern tools/call will be rejected; legacy calls remain available",
+		quoteSchemaDiagnosticField(server), len(diagnostics), strings.Join(records, ","), len(diagnostics)-recordCount)
+	if utf8.RuneCountInString(warning) <= warningRuneLimit {
+		return warning
 	}
-	return fmt.Sprintf("%d tool(s), tools=%s%s", len(snapshot.unlistable), strings.Join(names, ","), suffix)
+	// This defensive fallback preserves the aggregate signal if future format
+	// changes accidentally outgrow the complete-line budget.
+	return fmt.Sprintf("Direct tools published without local schema validation: server=%s total=%d records=[] omitted=%d; modern tools/call will be rejected; legacy calls remain available",
+		quoteSchemaDiagnosticField(server), len(diagnostics), len(diagnostics))
 }
 
 type legacySchemaCompatibleTool interface {
