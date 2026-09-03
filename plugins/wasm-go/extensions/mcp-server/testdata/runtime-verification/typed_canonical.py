@@ -7,6 +7,9 @@ import math
 from dataclasses import dataclass
 
 
+DESCRIPTOR_MISMATCH_EXIT = 42
+
+
 @dataclass(frozen=True)
 class JSONNumber:
     lexeme: str

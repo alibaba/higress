@@ -9,7 +9,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from typed_canonical import canonical_json_sha256, loads_typed
+from typed_canonical import DESCRIPTOR_MISMATCH_EXIT, canonical_json_sha256, loads_typed
 
 
 root = Path(os.environ["RUNTIME_EVIDENCE"])
@@ -23,7 +23,7 @@ if os.environ.get("RUNTIME_DESCRIPTOR_SELF_TEST") == "1":
         for item in self_test_manifest["fixtures"]
         if item["fixture"] == self_test_fixture
     )
-    sys.exit(0 if canonical_json_sha256(self_test_actual) == self_test_expected else 1)
+    sys.exit(0 if canonical_json_sha256(self_test_actual) == self_test_expected else DESCRIPTOR_MISMATCH_EXIT)
 
 
 matrix_path = root / "matrix.json"
@@ -72,6 +72,7 @@ if not corpus_complete:
         "detail": {"error": "representative corpus manifest or revision evidence is incomplete"},
     })
 affected_corpus_log = (root / "gateway-corpus-affected.log").read_text(errors="replace") if (root / "gateway-corpus-affected.log").exists() else ""
+descriptor_mismatch = False
 for fixture in corpus_manifest.get("fixtures", []):
     slug = fixture["fixture"]
     records = {revision: corpus_runs[revision].get(slug, {}) for revision in corpus_runs}
@@ -80,15 +81,24 @@ for fixture in corpus_manifest.get("fixtures", []):
         and record.get("actualAcceptance") == fixture["expectedAcceptance"][revision]
         for revision, record in records.items()
     )
+    observed_descriptor_hashes = (
+        records["candidate"].get("modernDescriptorSha256"),
+        records["candidate"].get("legacyDescriptorSha256"),
+        records["oracle"].get("legacyDescriptorSha256"),
+    )
+    descriptor_hashes_present = all(isinstance(value, str) for value in observed_descriptor_hashes)
+    descriptor_hashes_match = descriptor_hashes_present and all(
+        value == fixture["expectedInputSchemaSha256"] for value in observed_descriptor_hashes
+    )
+    if descriptor_hashes_present and not descriptor_hashes_match:
+        descriptor_mismatch = True
     behavior_ok = (
         records["candidate"].get("modernList") is True
         and records["candidate"].get("modernCallBlocked") is True
         and records["candidate"].get("legacyList") is True
         and records["oracle"].get("legacyList") is True
         and records["affected"].get("legacyList") is False
-        and records["candidate"].get("modernDescriptorSha256") == fixture["expectedInputSchemaSha256"]
-        and records["candidate"].get("legacyDescriptorSha256") == fixture["expectedInputSchemaSha256"]
-        and records["oracle"].get("legacyDescriptorSha256") == fixture["expectedInputSchemaSha256"]
+        and descriptor_hashes_match
     )
     if fixture["legacyMapping"]:
         behavior_ok = behavior_ok and records["candidate"].get("legacyRESTMapping") is True
@@ -310,4 +320,6 @@ for path in sorted(root.iterdir()):
 (root / "SHA256SUMS").write_text("\n".join(checksums) + "\n")
 
 print(json.dumps({"evidence": str(root), "source_sha": manifest["source_sha"], "plugin_sha256": manifest["plugin_sha256"], "access_coverage": access_coverage["status"], **matrix["summary"]}, sort_keys=True))
+if descriptor_mismatch:
+    raise SystemExit(DESCRIPTOR_MISMATCH_EXIT)
 raise SystemExit(0 if matrix["summary"]["fail"] == 0 and access_ok else 1)

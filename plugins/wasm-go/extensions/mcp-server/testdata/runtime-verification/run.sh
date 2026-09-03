@@ -35,7 +35,15 @@ ORACLE_SOURCE_DIR=""
 CANDIDATE_CORPUS_SOURCE_DIR=""
 export BASELINE_SHA ORACLE_SHA
 
+cleanup_descriptor_inputs() {
+  python3 "$HARNESS_DIR/descriptor_self_test.py" cleanup "$RUNTIME_EVIDENCE" >/dev/null 2>&1 || true
+}
+
 cleanup() {
+  cleanup_descriptor_inputs
+  if test -n "${RUNTIME_DESCRIPTOR_TRAP_SELF_TEST:-}"; then
+    return
+  fi
   podman compose -f "$HARNESS_DIR/compose.yaml" --profile verify down --volumes --remove-orphans >/dev/null 2>&1 || true
   if test -n "$BASELINE_SOURCE_DIR" && test -d "$BASELINE_SOURCE_DIR"; then
     rm -rf -- "$BASELINE_SOURCE_DIR"
@@ -47,7 +55,25 @@ cleanup() {
     rm -rf -- "$CANDIDATE_CORPUS_SOURCE_DIR"
   fi
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# Static fault-injection hook: exercise the real EXIT/signal cleanup path
+# without compiling Wasm or starting Podman.
+if test -n "${RUNTIME_DESCRIPTOR_TRAP_SELF_TEST:-}"; then
+  RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
+  python3 "$HARNESS_DIR/descriptor_self_test.py" prepare "$RUNTIME_EVIDENCE" || exit 3
+  case "$RUNTIME_DESCRIPTOR_TRAP_SELF_TEST" in
+    failure) exit 7 ;;
+    wait)
+      while :; do
+        sleep 1
+      done
+      ;;
+    *) echo "unknown RUNTIME_DESCRIPTOR_TRAP_SELF_TEST mode" >&2; exit 3 ;;
+  esac
+fi
 
 echo "building exact-head mcp-server WASM from $SOURCE_SHA"
 (cd "$EXTENSION_DIR" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "$RUNTIME_EVIDENCE/plugin.wasm" .) || exit 3
@@ -95,32 +121,8 @@ export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256 ORACLE_PLUGIN_SHA256 CORPUS_CANDIDAT
 
 RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
 python3 "$HARNESS_DIR/descriptor_self_test.py" prepare "$RUNTIME_EVIDENCE" || exit 3
-for checker in verify.py finalize_evidence.py; do
-  for fixture_and_file in \
-    "unsupported-semantics:.descriptor-selftest-structure-good.json" \
-    "numeric-comparison-limit:.descriptor-selftest-number-good.json"; do
-    fixture=${fixture_and_file%%:*}
-    actual=${fixture_and_file#*:}
-    RUNTIME_DESCRIPTOR_SELF_TEST=1 RUNTIME_DESCRIPTOR_FIXTURE="$fixture" \
-      RUNTIME_DESCRIPTOR_ACTUAL="$RUNTIME_EVIDENCE/$actual" \
-      python3 "$HARNESS_DIR/$checker" || exit 3
-  done
-  for fixture_and_file in \
-    "unsupported-semantics:.descriptor-selftest-structure-deleted.json" \
-    "unsupported-semantics:.descriptor-selftest-array-truncated.json" \
-    "numeric-comparison-limit:.descriptor-selftest-number-as-string.json"; do
-    fixture=${fixture_and_file%%:*}
-    actual=${fixture_and_file#*:}
-    if RUNTIME_DESCRIPTOR_SELF_TEST=1 RUNTIME_DESCRIPTOR_FIXTURE="$fixture" \
-      RUNTIME_DESCRIPTOR_ACTUAL="$RUNTIME_EVIDENCE/$actual" \
-      python3 "$HARNESS_DIR/$checker" >/dev/null 2>&1; then
-      echo "$checker accepted tampered descriptor $actual" >&2
-      exit 3
-    fi
-  done
-done
-python3 "$HARNESS_DIR/descriptor_self_test.py" cleanup "$RUNTIME_EVIDENCE" || exit 3
-echo "descriptor canonical positive and tamper-negative self-tests passed"
+bash "$HARNESS_DIR/descriptor_gate.sh" "$RUNTIME_EVIDENCE" || exit 3
+cleanup_descriptor_inputs
 if test "${RUNTIME_SKIP_PULL:-0}" = 1; then
   if test "${RUNTIME_ALLOW_DIRTY:-0}" != 1; then
     echo "RUNTIME_SKIP_PULL=1 is allowed only for dirty development runs" >&2

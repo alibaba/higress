@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from typed_canonical import canonical_json_sha256, loads_typed
+from typed_canonical import DESCRIPTOR_MISMATCH_EXIT, canonical_json_sha256, loads_typed
 
 
 EVIDENCE = Path(os.environ.get("RUNTIME_EVIDENCE", "/evidence"))
@@ -32,6 +32,15 @@ LAST_TYPED_RESPONSE = None
 def check(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+class DescriptorMismatchError(Exception):
+    pass
+
+
+def check_descriptor_hash(observed, expected, message):
+    if observed != expected:
+        raise DescriptorMismatchError(f"{message}: expected {expected}, got {observed}")
 
 
 def exchange(url, body=None, headers=None, method="POST"):
@@ -539,8 +548,10 @@ def corpus_verification():
             check(tool_name in tools_by_name, f"candidate descriptor missing for {slug}: {tools}")
             check(tool_name in typed_tools_by_name, f"candidate typed descriptor missing for {slug}")
             modern_descriptor_hash = canonical_json_sha256(typed_tools_by_name[tool_name].get("inputSchema"))
-            check(modern_descriptor_hash == fixture["expectedInputSchemaSha256"],
-                  f"candidate modern descriptor changed for {slug}: {modern_descriptor_hash}")
+            check_descriptor_hash(
+                modern_descriptor_hash, fixture["expectedInputSchemaSha256"],
+                f"candidate modern descriptor changed for {slug}",
+            )
             record["modernDescriptorSha256"] = modern_descriptor_hash
             if slug == "mixed-valid-invalid":
                 check("valid_sibling" in {tool.get("name") for tool in tools}, f"valid sibling missing for {slug}: {tools}")
@@ -575,8 +586,10 @@ def corpus_verification():
         check(tool_name in legacy_tools, f"{CORPUS_REVISION} legacy descriptor missing for {slug}: {listed}")
         check(tool_name in typed_legacy_tools, f"{CORPUS_REVISION} typed legacy descriptor missing for {slug}")
         legacy_descriptor_hash = canonical_json_sha256(typed_legacy_tools[tool_name].get("inputSchema"))
-        check(legacy_descriptor_hash == fixture["expectedInputSchemaSha256"],
-              f"{CORPUS_REVISION} legacy descriptor changed for {slug}: {legacy_descriptor_hash}")
+        check_descriptor_hash(
+            legacy_descriptor_hash, fixture["expectedInputSchemaSha256"],
+            f"{CORPUS_REVISION} legacy descriptor changed for {slug}",
+        )
         record["legacyDescriptorSha256"] = legacy_descriptor_hash
         record["legacyList"] = True
 
@@ -637,8 +650,9 @@ def descriptor_self_test():
     actual = loads_typed(actual_path.read_bytes())
     fixture = next(item for item in manifest["fixtures"] if item["fixture"] == fixture_name)
     observed = canonical_json_sha256(actual)
-    check(observed == fixture["expectedInputSchemaSha256"],
-          f"descriptor self-test mismatch for {fixture_name}: {observed}")
+    check_descriptor_hash(
+        observed, fixture["expectedInputSchemaSha256"], f"descriptor self-test mismatch for {fixture_name}",
+    )
     return 0
 
 
@@ -781,4 +795,8 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except DescriptorMismatchError as exc:
+        print(f"descriptor mismatch: {exc}", file=sys.stderr)
+        sys.exit(DESCRIPTOR_MISMATCH_EXIT)

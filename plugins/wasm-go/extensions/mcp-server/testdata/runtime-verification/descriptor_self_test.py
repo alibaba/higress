@@ -5,8 +5,6 @@ import json
 import sys
 from pathlib import Path
 
-from typed_canonical import JSONNumber, canonical_json_sha256, loads_typed
-
 
 FILES = (
     ".descriptor-selftest-structure-good.json",
@@ -36,6 +34,8 @@ def write_json(path, value):
 
 
 def prepare(root):
+    from typed_canonical import JSONNumber, canonical_json_sha256, loads_typed
+
     manifest = json.loads((root / "corpus-manifest.json").read_text())
     expected = {fixture["fixture"]: fixture["expectedInputSchemaSha256"] for fixture in manifest["fixtures"]}
 

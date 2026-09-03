@@ -95,8 +95,12 @@ The run proceeds as follows:
    `protocolStrategy: auto`. Before any image pull or runtime traffic,
    [`run.sh`](./run.sh) necessarily runs the descriptor oracle's positive cases
    and asserts that both verifier and finalizer return non-zero for deleted
-   fields, truncated arrays, and numeric-token-to-string tampering. Temporary
-   self-test inputs are deleted immediately and never enter final evidence.
+   fields, truncated arrays, and numeric-token-to-string tampering. Descriptor
+   mismatch has the dedicated exit code `42`; exit `0` means a false acceptance
+   and any other non-zero status means the checker itself failed. Temporary
+   self-test inputs are deleted immediately and never enter final evidence;
+   the EXIT/INT/TERM cleanup path removes them after success, failure, or
+   interruption and is safe to invoke repeatedly.
 4. Podman Compose starts two deterministic Python backends and isolated
    affected, oracle, malformed-control, generation-transition, auto-rejection,
    and main gateways. Nine main listeners select registered, REST, composed,
@@ -129,6 +133,8 @@ The run proceeds as follows:
   JSON canonical form, including the numeric lexeme wrapper.
 - [`descriptor_self_test.py`](./descriptor_self_test.py) creates and removes
   the positive and intentionally tampered inputs exercised by `run.sh`.
+- [`descriptor_gate.sh`](./descriptor_gate.sh) requires exact exit code `42`
+  for every tampered input and rejects false acceptance or checker failure.
 - [`verify.py`](./verify.py) executes the eleven traffic-driven cases and writes
   the client ledger, case matrix, and final backend snapshots.
 - [`finalize_evidence.py`](./finalize_evidence.py) adds the isolated and corpus
@@ -201,11 +207,15 @@ if RUNTIME_EVIDENCE="$RUNTIME_EVIDENCE" RUNTIME_DESCRIPTOR_SELF_TEST=1 \
   RUNTIME_DESCRIPTOR_FIXTURE=numeric-comparison-limit \
   RUNTIME_DESCRIPTOR_ACTUAL="$RUNTIME_EVIDENCE/.descriptor-selftest-number-as-string.json" \
   python3 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/verify.py; then
-  echo "FAIL: numeric string tamper was accepted"
-  exit 1
+  checker_status=0
 else
-  echo "PASS: numeric string tamper was rejected"
+  checker_status=$?
 fi
+case "$checker_status" in
+  42) echo "PASS: numeric string tamper was rejected" ;;
+  0) echo "FAIL: numeric string tamper was accepted"; exit 1 ;;
+  *) echo "FAIL: descriptor checker failed with $checker_status"; exit 1 ;;
+esac
 python3 ./plugins/wasm-go/extensions/mcp-server/testdata/runtime-verification/descriptor_self_test.py \
   cleanup "$RUNTIME_EVIDENCE"
 ```
