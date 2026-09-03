@@ -545,10 +545,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				if serverInstance, exist := opts.Servers[config.serverName]; exist {
 					clonedServer := serverInstance.Clone()
 					clonedServer.SetConfig([]byte(serverConfigJsonForInstance)) // Pass the server's specific config
-					directTools, err := compileDirectToolSnapshot(clonedServer)
-					if err != nil {
-						return err
-					}
+					directTools := compileDirectToolSnapshot(clonedServer)
 					config.server = clonedServer
 					config.directTools = directTools
 				} else {
@@ -561,20 +558,16 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 	}
 
 	// Proxy descriptors remain upstream-owned and transparent. Direct tools use
-	// one analyzed snapshot for modern discovery and invocation; descriptor
-	// integrity failures reject publication, while unsupported semantics retain
-	// an explicit validation-unavailable state.
+	// one analyzed snapshot for modern discovery and invocation. Every
+	// schema-derived preparation failure retains an explicit
+	// validation-unavailable state and cannot reject configuration publication.
 	if config.server != nil {
 		if _, isProxy := config.server.(*McpProxyServer); !isProxy && config.directTools.byName == nil {
-			directTools, err := compileDirectToolSnapshot(config.server)
-			if err != nil {
-				return err
-			}
-			config.directTools = directTools
+			config.directTools = compileDirectToolSnapshot(config.server)
 		}
 		if _, isProxy := config.server.(*McpProxyServer); !isProxy && !config.isComposed {
 			// Publish direct tools to the shared registry only after the complete
-			// generation snapshot has passed descriptor admissibility.
+			// generation snapshot has captured each tool's validation state.
 			for toolName, toolInstance := range config.server.GetMCPTools() {
 				opts.ToolRegistry.RegisterTool(config.serverName, toolName, toolInstance)
 			}
@@ -678,6 +671,9 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				// The modern descriptor comes from the same analyzed snapshot used by
 				// tools/call and deliberately omits unvalidated outputSchema.
 				tools = config.directTools.buildModernToolList(effectiveAllowTools)
+				if summary := config.directTools.unlistableSummary(); summary != "" {
+					log.Warnf("Modern tools/list omitted non-serializable registered descriptors: %s", summary)
+				}
 			} else {
 				tools = buildToolList(config.server, effectiveAllowTools, true)
 			}

@@ -116,6 +116,33 @@ var ruleLevelSchemaCompatibilityConfig = func() json.RawMessage {
 	return data
 }()
 
+var schemaResourceLimitConfig = func() json.RawMessage {
+	enum := make([]interface{}, 257)
+	for i := range enum {
+		enum[i] = fmt.Sprintf("value-%03d", i)
+	}
+	data, _ := json.Marshal(map[string]interface{}{
+		"server": map[string]interface{}{"name": "schema-resource-compat", "type": "rest"},
+		"tools": []map[string]interface{}{{
+			"name": "large_enum", "description": "2.0.0-compatible resource fixture",
+			"args":            []map[string]interface{}{{"name": "value", "description": "value", "type": "string", "enum": enum}},
+			"requestTemplate": map[string]interface{}{"url": "http://backend.example/resource", "method": "POST", "argsToJsonBody": true},
+		}},
+	})
+	return data
+}()
+
+var ruleLevelSchemaResourceLimitConfig = func() json.RawMessage {
+	var rule map[string]interface{}
+	_ = json.Unmarshal(schemaResourceLimitConfig, &rule)
+	data, _ := json.Marshal(map[string]interface{}{
+		"server":  map[string]interface{}{"name": "global-valid", "type": "rest"},
+		"tools":   []map[string]interface{}{{"name": "global_health", "requestTemplate": map[string]interface{}{"url": "http://backend.example/global", "method": "GET"}}},
+		"_rules_": []map[string]interface{}{{"_match_domain_": []string{"resource.example.com"}, "server": rule["server"], "tools": rule["tools"]}},
+	})
+	return data
+}()
+
 // MCP代理服务器配置
 var mcpProxyServerConfig = func() json.RawMessage {
 	data, _ := json.Marshal(map[string]interface{}{
@@ -237,6 +264,24 @@ func TestSchemaCompatibilityConfigurationLoadsGloballyAndAtRuleLevel(t *testing.
 		}{
 			{name: "global", config: schemaCompatibilityConfig},
 			{name: "rule-level", config: ruleLevelSchemaCompatibilityConfig},
+		} {
+			t.Run(fixture.name, func(t *testing.T) {
+				host, status := test.NewTestHost(fixture.config)
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+			})
+		}
+	})
+}
+
+func TestSchemaPreparationResourceLimitLoadsGloballyAndAtRuleLevel(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		for _, fixture := range []struct {
+			name   string
+			config json.RawMessage
+		}{
+			{name: "global", config: schemaResourceLimitConfig},
+			{name: "rule-level", config: ruleLevelSchemaResourceLimitConfig},
 		} {
 			t.Run(fixture.name, func(t *testing.T) {
 				host, status := test.NewTestHost(fixture.config)

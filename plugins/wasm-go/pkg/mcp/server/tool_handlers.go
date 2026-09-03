@@ -14,7 +14,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -33,12 +32,13 @@ const (
 )
 
 type directToolEntry struct {
-	name        string
-	description string
-	inputSchema map[string]any
-	validator   *compiledInputSchema
-	schemaState directToolSchemaState
-	tool        Tool
+	name         string
+	description  string
+	inputSchema  map[string]any
+	validator    *compiledInputSchema
+	schemaState  directToolSchemaState
+	serializable bool
+	tool         Tool
 }
 
 // directToolSnapshot binds discovery and invocation to one analyzed tool
@@ -48,6 +48,7 @@ type directToolSnapshot struct {
 	byName     map[string]directToolEntry
 	legacyOnly map[string]string
 	degraded   []directToolDiagnostic
+	unlistable []string
 }
 
 type directToolDiagnostic struct {
@@ -55,7 +56,7 @@ type directToolDiagnostic struct {
 	reason schemaDiagnosticReason
 }
 
-func compileDirectToolSnapshot(server Server) (directToolSnapshot, error) {
+func compileDirectToolSnapshot(server Server) directToolSnapshot {
 	entries := snapshotTools(server)
 	snapshot := directToolSnapshot{
 		ordered:    make([]directToolEntry, 0, len(entries)),
@@ -63,24 +64,21 @@ func compileDirectToolSnapshot(server Server) (directToolSnapshot, error) {
 		legacyOnly: make(map[string]string),
 	}
 	for _, entry := range entries {
-		descriptor, err := normalizeToolInputSchema(entry.tool.InputSchema())
-		if err != nil {
-			return directToolSnapshot{}, fmt.Errorf("tool %q has invalid input schema: %w", entry.name, err)
-		}
-		validator, compileErr := compileNormalizedToolInputSchema(descriptor)
+		descriptor, serializable, validator, preparationErr := prepareToolInputSchema(entry.tool.InputSchema())
 		if compatibility, ok := entry.tool.(legacySchemaCompatibleTool); ok && compatibility.legacyOnlyInputSchema() {
 			reason := "configured as legacy-only"
-			if compileErr != nil {
-				reason = compileErr.Error()
+			if preparationErr != nil {
+				reason = preparationErr.Error()
 			}
 			snapshot.legacyOnly[entry.name] = reason
 			explicit := directToolEntry{
-				name:        entry.name,
-				description: entry.tool.Description(),
-				inputSchema: descriptor,
-				validator:   validator,
-				schemaState: directToolSchemaExplicitLegacyOnly,
-				tool:        entry.tool,
+				name:         entry.name,
+				description:  entry.tool.Description(),
+				inputSchema:  descriptor,
+				validator:    validator,
+				schemaState:  directToolSchemaExplicitLegacyOnly,
+				serializable: serializable,
+				tool:         entry.tool,
 			}
 			snapshot.ordered = append(snapshot.ordered, explicit)
 			snapshot.byName[entry.name] = explicit
@@ -88,29 +86,29 @@ func compileDirectToolSnapshot(server Server) (directToolSnapshot, error) {
 		}
 		state := directToolSchemaValidated
 		var reason schemaDiagnosticReason
-		if compileErr != nil {
-			var typed *schemaCompilationError
-			if !errors.As(compileErr, &typed) {
-				return directToolSnapshot{}, fmt.Errorf("tool %q has invalid input schema: %w", entry.name, compileErr)
-			}
+		if preparationErr != nil {
 			state = directToolSchemaValidationUnavailable
-			reason = typed.reason
+			reason = schemaPreparationDiagnosticReason(preparationErr)
 		}
 		validated := directToolEntry{
-			name:        entry.name,
-			description: entry.tool.Description(),
-			inputSchema: descriptor,
-			validator:   validator,
-			schemaState: state,
-			tool:        entry.tool,
+			name:         entry.name,
+			description:  entry.tool.Description(),
+			inputSchema:  descriptor,
+			validator:    validator,
+			schemaState:  state,
+			serializable: serializable,
+			tool:         entry.tool,
 		}
 		snapshot.ordered = append(snapshot.ordered, validated)
 		snapshot.byName[entry.name] = validated
 		if state == directToolSchemaValidationUnavailable {
 			snapshot.degraded = append(snapshot.degraded, directToolDiagnostic{name: entry.name, reason: reason})
+			if !serializable {
+				snapshot.unlistable = append(snapshot.unlistable, entry.name)
+			}
 		}
 	}
-	return snapshot, nil
+	return snapshot
 }
 
 const (
@@ -150,6 +148,24 @@ func (snapshot directToolSnapshot) degradedSummary() string {
 	return fmt.Sprintf("%d tool(s), reasons=%s, tools=%s%s", len(snapshot.degraded), strings.Join(reasonNames, ","), strings.Join(names, ","), suffix)
 }
 
+func (snapshot directToolSnapshot) unlistableSummary() string {
+	if len(snapshot.unlistable) == 0 {
+		return ""
+	}
+	names := make([]string, 0, min(len(snapshot.unlistable), maxSchemaDiagnosticToolNames))
+	for i, name := range snapshot.unlistable {
+		if i == maxSchemaDiagnosticToolNames {
+			break
+		}
+		names = append(names, boundedSchemaDiagnosticToolName(name))
+	}
+	suffix := ""
+	if omitted := len(snapshot.unlistable) - len(names); omitted > 0 {
+		suffix = fmt.Sprintf(" (+%d omitted)", omitted)
+	}
+	return fmt.Sprintf("%d tool(s), tools=%s%s", len(snapshot.unlistable), strings.Join(names, ","), suffix)
+}
+
 type legacySchemaCompatibleTool interface {
 	legacyOnlyInputSchema() bool
 }
@@ -157,7 +173,7 @@ type legacySchemaCompatibleTool interface {
 func (snapshot directToolSnapshot) buildModernToolList(effectiveAllowTools *map[string]struct{}) []map[string]any {
 	tools := make([]map[string]any, 0, len(snapshot.ordered))
 	for _, entry := range snapshot.ordered {
-		if entry.schemaState == directToolSchemaExplicitLegacyOnly {
+		if entry.schemaState == directToolSchemaExplicitLegacyOnly || !entry.serializable {
 			continue
 		}
 		if effectiveAllowTools != nil {
@@ -165,11 +181,12 @@ func (snapshot directToolSnapshot) buildModernToolList(effectiveAllowTools *map[
 				continue
 			}
 		}
-		tools = append(tools, map[string]any{
+		tool := map[string]any{
 			"name":        entry.name,
 			"description": entry.description,
 			"inputSchema": entry.inputSchema,
-		})
+		}
+		tools = append(tools, tool)
 	}
 	return tools
 }

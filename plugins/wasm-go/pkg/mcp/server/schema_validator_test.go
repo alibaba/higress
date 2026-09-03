@@ -68,11 +68,8 @@ type reflectedInputSchemaFixture struct {
 // stages separately so an admissible descriptor can remain publishable when
 // bounded validator compilation is unavailable.
 func compileToolInputSchema(schema map[string]any) (*compiledInputSchema, error) {
-	normalized, err := normalizeToolInputSchema(schema)
-	if err != nil {
-		return nil, err
-	}
-	return compileNormalizedToolInputSchema(normalized)
+	_, _, validator, err := prepareToolInputSchema(schema)
+	return validator, err
 }
 
 func TestCompileToolInputSchemaAcceptsCurrentReflectedSchema(t *testing.T) {
@@ -167,7 +164,7 @@ func TestCompileToolInputSchemaRejectsUnsupportedOrMalformedSemantics(t *testing
 	}
 }
 
-func TestNormalizeToolInputSchemaSeparatesAdmissibilityFromCompilation(t *testing.T) {
+func TestPrepareToolInputSchemaSeparatesDescriptorCaptureFromCompilation(t *testing.T) {
 	reproduced := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -178,22 +175,22 @@ func TestNormalizeToolInputSchemaSeparatesAdmissibilityFromCompilation(t *testin
 		},
 	}
 
-	descriptor, err := normalizeToolInputSchema(reproduced)
-	require.NoError(t, err)
+	descriptor, serializable, validator, err := prepareToolInputSchema(reproduced)
+	require.True(t, serializable)
+	require.Nil(t, validator)
 	assert.Equal(t, reproduced, descriptor)
 
-	_, err = compileNormalizedToolInputSchema(descriptor)
 	var compilationError *schemaCompilationError
 	require.ErrorAs(t, err, &compilationError)
 	assert.Equal(t, schemaDiagnosticContradictoryConstraint, compilationError.reason)
 }
 
-func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testing.T) {
-	_, err := normalizeToolInputSchema(map[string]any{"type": "string", "oneOf": []any{}})
+func TestPrepareToolInputSchemaRetainsBoundedValidatorPreparation(t *testing.T) {
+	_, _, _, err := prepareToolInputSchema(map[string]any{"type": "string", "oneOf": []any{}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "root must declare")
 
-	_, err = normalizeToolInputSchema(map[string]any{
+	_, _, _, err = prepareToolInputSchema(map[string]any{
 		"type": "object",
 		"enum": append(make([]any, maxSchemaEnumSize), "overflow"),
 	})
@@ -205,7 +202,7 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 		for i := 0; i < maxSchemaDepth+2; i++ {
 			adversarial = map[string]any{"properties": adversarial}
 		}
-		_, err := normalizeToolInputSchema(map[string]any{
+		_, _, _, err := prepareToolInputSchema(map[string]any{
 			"type":    "object",
 			"unknown": adversarial,
 		})
@@ -218,7 +215,7 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 		for i := range containers {
 			containers[i] = map[string]any{}
 		}
-		_, err := normalizeToolInputSchema(map[string]any{
+		_, _, _, err := prepareToolInputSchema(map[string]any{
 			"type":    "object",
 			"unknown": containers,
 		})
@@ -234,13 +231,13 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 				"properties": map[string]any{"child": nested},
 			}
 		}
-		descriptor, err := normalizeToolInputSchema(nested)
+		descriptor, serializable, _, err := prepareToolInputSchema(nested)
 		require.NoError(t, err)
-		_, err = compileNormalizedToolInputSchema(descriptor)
-		require.NoError(t, err)
+		require.True(t, serializable)
+		require.NotNil(t, descriptor)
 	})
 
-	t.Run("one semantic schema level beyond the old depth limit remains fatal", func(t *testing.T) {
+	t.Run("one semantic schema level beyond the old depth limit is unavailable", func(t *testing.T) {
 		nested := map[string]any{"type": "string"}
 		for i := 0; i < maxSchemaDepth+1; i++ {
 			nested = map[string]any{
@@ -248,7 +245,7 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 				"properties": map[string]any{"child": nested},
 			}
 		}
-		_, err := normalizeToolInputSchema(nested)
+		_, _, _, err := prepareToolInputSchema(nested)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "schema nesting exceeds")
 	})
@@ -263,10 +260,10 @@ func TestNormalizeToolInputSchemaRetainsFatalResourceAndIntegrityBounds(t *testi
 			}
 		}
 		schema := map[string]any{"type": "object", "properties": properties}
-		descriptor, err := normalizeToolInputSchema(schema)
+		descriptor, serializable, _, err := prepareToolInputSchema(schema)
 		require.NoError(t, err)
-		_, err = compileNormalizedToolInputSchema(descriptor)
-		require.NoError(t, err)
+		require.True(t, serializable)
+		require.NotNil(t, descriptor)
 	})
 }
 

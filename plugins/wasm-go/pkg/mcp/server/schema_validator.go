@@ -94,6 +94,8 @@ const (
 	schemaDiagnosticUnsupportedKeyword
 	schemaDiagnosticUnsupportedForm
 	schemaDiagnosticContradictoryConstraint
+	schemaDiagnosticResourceLimit
+	schemaDiagnosticSerializationFailure
 )
 
 func (r schemaDiagnosticReason) String() string {
@@ -104,6 +106,10 @@ func (r schemaDiagnosticReason) String() string {
 		return "unsupported_form"
 	case schemaDiagnosticContradictoryConstraint:
 		return "contradictory_constraint"
+	case schemaDiagnosticResourceLimit:
+		return "resource_limit"
+	case schemaDiagnosticSerializationFailure:
+		return "serialization_failure"
 	default:
 		return "none"
 	}
@@ -138,31 +144,65 @@ var supportedInputSchemaKeywords = map[string]struct{}{
 	"examples":    {},
 }
 
-// normalizeToolInputSchema establishes whether a descriptor can be published
-// safely. It deliberately ignores schema keyword semantics while retaining the
-// resource and root-object bounds enforced by the direct-tool runtime.
-func normalizeToolInputSchema(schema map[string]any) (map[string]any, error) {
-	if schema == nil {
-		return nil, errors.New("input schema must be an object")
-	}
+// cloneToolInputSchema captures a generation-owned descriptor whenever the
+// tool's schema can be represented as JSON. Validator preparation is a
+// separate concern and must not decide whether configuration is accepted.
+func cloneToolInputSchema(schema map[string]any) (map[string]any, []byte, error) {
 	raw, err := json.Marshal(schema)
 	if err != nil {
-		return nil, fmt.Errorf("input schema is not JSON-compatible: %w", err)
+		return nil, nil, schemaCompileError(schemaDiagnosticSerializationFailure, "input schema is not JSON-compatible: %v", err)
+	}
+	value, err := decodeJSONValue(raw)
+	if err != nil {
+		return nil, nil, schemaCompileError(schemaDiagnosticSerializationFailure, "input schema is malformed: %v", err)
+	}
+	if value == nil {
+		return nil, raw, nil
+	}
+	normalized, ok := value.(map[string]any)
+	if !ok {
+		return nil, raw, schemaCompileError(schemaDiagnosticUnsupportedForm, "input schema must be an object")
+	}
+	return normalized, raw, nil
+}
+
+func validateToolInputSchemaPreparation(normalized map[string]any, raw []byte) error {
+	if normalized == nil {
+		return schemaCompileError(schemaDiagnosticUnsupportedForm, "input schema must be an object")
 	}
 	if len(raw) > maxToolInputSchemaBytes {
-		return nil, fmt.Errorf("input schema exceeds %d bytes", maxToolInputSchemaBytes)
-	}
-	normalized, err := decodeJSONObject(raw)
-	if err != nil {
-		return nil, fmt.Errorf("input schema is malformed: %w", err)
+		return schemaCompileError(schemaDiagnosticResourceLimit, "input schema exceeds %d bytes", maxToolInputSchemaBytes)
 	}
 	if normalized["type"] != "object" {
-		return nil, errors.New("input schema root must declare type \"object\"")
+		return schemaCompileError(schemaDiagnosticUnsupportedForm, "input schema root must declare type \"object\"")
 	}
 	if err := validateJSONDescriptorResourceBounds(normalized, "$", descriptorRoleSchemaNode, 0, 0, false, &descriptorResourceState{}); err != nil {
-		return nil, err
+		return schemaCompileError(schemaDiagnosticResourceLimit, "%v", err)
 	}
-	return normalized, nil
+	return nil
+}
+
+func prepareToolInputSchema(schema map[string]any) (map[string]any, bool, *compiledInputSchema, error) {
+	normalized, raw, err := cloneToolInputSchema(schema)
+	if err != nil {
+		return nil, false, nil, err
+	}
+	if err := validateToolInputSchemaPreparation(normalized, raw); err != nil {
+		return normalized, true, nil, err
+	}
+	validator, err := compileNormalizedToolInputSchema(normalized)
+	return normalized, true, validator, err
+}
+
+func schemaPreparationDiagnosticReason(err error) schemaDiagnosticReason {
+	var typed *schemaCompilationError
+	if errors.As(err, &typed) {
+		return typed.reason
+	}
+	// All remaining compiler failures are bounded resource checks. Keeping this
+	// fallback typed ensures an unclassified compiler error cannot become a
+	// configuration-fatal path or an unbounded diagnostic label.
+	return schemaDiagnosticResourceLimit
 }
 
 func validateJSONDescriptorResourceBounds(

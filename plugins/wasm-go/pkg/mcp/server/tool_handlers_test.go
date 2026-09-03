@@ -58,9 +58,10 @@ type validationToolCounters struct {
 }
 
 type validationTestTool struct {
-	counters *validationToolCounters
-	schema   map[string]any
-	callErr  error
+	counters    *validationToolCounters
+	schema      map[string]any
+	callErr     error
+	schemaReads int
 }
 
 type validationOutputTool struct {
@@ -85,8 +86,11 @@ func (t *validationTestTool) Call(ctx HttpContext, _ Server) error {
 	return nil
 }
 
-func (t *validationTestTool) Description() string         { return "validation test tool" }
-func (t *validationTestTool) InputSchema() map[string]any { return t.schema }
+func (t *validationTestTool) Description() string { return "validation test tool" }
+func (t *validationTestTool) InputSchema() map[string]any {
+	t.schemaReads++
+	return t.schema
+}
 
 func modernToolHeaders(name string) [][2]string {
 	return [][2]string{
@@ -239,6 +243,86 @@ func TestModernDegradedToolListsButReturnsExactServerErrorWithoutInvocation(t *t
 	})
 	assert.Zero(t, counters.create)
 	assert.Zero(t, counters.call)
+}
+
+func TestFormerDescriptorFatalToolIsBlockedOnlyForModernCalls(t *testing.T) {
+	savedGlobalContext := globalContext
+	globalContext = Context{servers: make(map[string]Server)}
+	counters := &validationToolCounters{}
+	deep := map[string]any{"type": "string"}
+	for i := 0; i < maxSchemaDepth+2; i++ {
+		deep = map[string]any{"type": "array", "items": deep}
+	}
+	registered := newValidationTestServer()
+	registered.AddMCPTool("deep", &validationTestTool{counters: counters, schema: map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"value": deep},
+	}})
+	Load(AddMCPServer("registered", registered))
+	Initialize()
+	t.Cleanup(func() { globalContext = savedGlobalContext })
+
+	t.Run("modern blocked", func(t *testing.T) {
+		modern := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"}}`))
+		require.Equal(t, types.ActionPause, modern.CallOnHttpRequestHeaders(modernToolHeaders("deep")))
+		require.Equal(t, types.ActionContinue, modern.CallOnHttpRequestBody(modernToolCallBody("deep", `{}`)))
+		response := modern.GetLocalResponse()
+		require.NotNil(t, response)
+		assert.Equal(t, int64(protocol.CodeInternalError), gjson.GetBytes(response.Data, "error.code").Int())
+		assert.Equal(t, "schema_validation_unavailable", gjson.GetBytes(response.Data, "error.data.reason").String())
+		assert.Zero(t, counters.create)
+		assert.Zero(t, counters.call)
+	})
+
+	t.Run("legacy bypass", func(t *testing.T) {
+		legacy := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"}}`))
+		require.Equal(t, types.ActionPause, legacy.CallOnHttpRequestHeaders(legacyToolHeaders()))
+		require.Equal(t, types.ActionContinue, legacy.CallOnHttpRequestBody([]byte(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"deep","arguments":{"legacy":true}}}`)))
+		legacyResponse := legacy.GetLocalResponse()
+		require.NotNil(t, legacyResponse)
+		assert.False(t, gjson.GetBytes(legacyResponse.Data, "result.isError").Bool())
+	})
+	assert.Equal(t, 1, counters.create)
+	assert.Equal(t, 1, counters.call)
+}
+
+func TestNonSerializableRegisteredDescriptorIsRequestLocal(t *testing.T) {
+	savedGlobalContext := globalContext
+	globalContext = Context{servers: make(map[string]Server)}
+	badCounters := &validationToolCounters{}
+	validCounters := &validationToolCounters{}
+	registered := newValidationTestServer()
+	registered.AddMCPTool("bad", &validationTestTool{counters: badCounters, schema: map[string]any{
+		"type":     "object",
+		"callback": func() {},
+	}})
+	registered.AddMCPTool("valid", &validationTestTool{counters: validCounters, schema: map[string]any{"type": "object"}})
+	Load(AddMCPServer("registered", registered))
+	Initialize()
+	t.Cleanup(func() { globalContext = savedGlobalContext })
+
+	t.Run("list keeps serializable siblings", func(t *testing.T) {
+		listHost := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"}}`))
+		require.Equal(t, types.ActionPause, listHost.CallOnHttpRequestHeaders(modernToolListHeaders()))
+		listBody := []byte(`{"jsonrpc":"2.0","id":"list","method":"tools/list","params":{"_meta":{"` +
+			protocol.MetaProtocolVersion + `":"2026-07-28","` + protocol.MetaClientCapabilities + `":{}}}}`)
+		require.Equal(t, types.ActionContinue, listHost.CallOnHttpRequestBody(listBody))
+		listResponse := listHost.GetLocalResponse()
+		require.NotNil(t, listResponse)
+		assert.Equal(t, "valid", gjson.GetBytes(listResponse.Data, "result.tools.0.name").String())
+		assert.Equal(t, int64(1), gjson.GetBytes(listResponse.Data, "result.tools.#").Int())
+	})
+
+	t.Run("call is unavailable", func(t *testing.T) {
+		callHost := newValidationHost(t, json.RawMessage(`{"server":{"name":"registered"}}`))
+		require.Equal(t, types.ActionPause, callHost.CallOnHttpRequestHeaders(modernToolHeaders("bad")))
+		require.Equal(t, types.ActionContinue, callHost.CallOnHttpRequestBody(modernToolCallBody("bad", `{}`)))
+		callResponse := callHost.GetLocalResponse()
+		require.NotNil(t, callResponse)
+		assert.Equal(t, "schema_validation_unavailable", gjson.GetBytes(callResponse.Data, "error.data.reason").String())
+	})
+	assert.Zero(t, badCounters.create)
+	assert.Zero(t, badCounters.call)
 }
 
 func TestLegacyDegradedToolRetainsInvocationBehavior(t *testing.T) {
@@ -470,8 +554,7 @@ func TestDirectToolSnapshotsKeepProfileCompatibleDescriptors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			snapshot, err := compileDirectToolSnapshot(test.server)
-			require.NoError(t, err)
+			snapshot := compileDirectToolSnapshot(test.server)
 			modern := snapshot.buildModernToolList(nil)
 			require.Len(t, modern, 2)
 			for i, descriptor := range modern {
@@ -487,6 +570,49 @@ func TestDirectToolSnapshotsKeepProfileCompatibleDescriptors(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("composed generation isolates a non-serializable registered descriptor", func(t *testing.T) {
+		registry := &GlobalToolRegistry{}
+		registry.Initialize()
+		registry.RegisterTool("registered", "bad", &validationTestTool{counters: &validationToolCounters{}, schema: map[string]any{
+			"type":     "object",
+			"callback": func() {},
+		}})
+		registry.RegisterTool("registered", "valid", &validationTestTool{counters: &validationToolCounters{}, schema: map[string]any{"type": "object"}})
+		config := &McpServerConfig{}
+		err := ParseConfigCore(gjson.Parse(`{
+			"toolSet":{"name":"composed","serverTools":[{"serverName":"registered","tools":["bad","valid"]}]}
+		}`), config, &ConfigOptions{Servers: map[string]Server{}, ToolRegistry: registry})
+		require.NoError(t, err)
+		assert.Equal(t, directToolSchemaValidationUnavailable, config.directTools.byName["registered___bad"].schemaState)
+		assert.False(t, config.directTools.byName["registered___bad"].serializable)
+		listed := config.directTools.buildModernToolList(nil)
+		require.Len(t, listed, 1)
+		assert.Equal(t, "registered___valid", listed[0]["name"])
+	})
+}
+
+func TestDirectToolSnapshotOwnsSerializableDescriptorAndPreparesOnce(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"value": map[string]any{"type": "string"},
+		},
+	}
+	tool := &validationTestTool{counters: &validationToolCounters{}, schema: schema}
+	server := newValidationTestServer()
+	server.AddMCPTool("tool", tool)
+
+	snapshot := compileDirectToolSnapshot(server)
+	require.Equal(t, 1, tool.schemaReads)
+	require.Equal(t, directToolSchemaValidated, snapshot.byName["tool"].schemaState)
+
+	schema["properties"].(map[string]any)["value"].(map[string]any)["type"] = "integer"
+	listed := snapshot.buildModernToolList(nil)
+	require.Len(t, listed, 1)
+	property := listed[0]["inputSchema"].(map[string]any)["properties"].(map[string]any)["value"].(map[string]any)
+	assert.Equal(t, "string", property["type"], "published generation must retain its JSON-cloned descriptor")
+	assert.Equal(t, 1, tool.schemaReads, "listing and invocation reuse the prepared generation")
 }
 
 func TestComposedSnapshotPreservesLegacyOnlyRESTCompatibility(t *testing.T) {
@@ -524,8 +650,7 @@ func TestComposedSnapshotPreservesLegacyOnlyRESTCompatibility(t *testing.T) {
 	items := inputSchema["properties"].(map[string]any)["value"].(map[string]any)["items"].(map[string]any)
 	assert.Contains(t, items, "oneOf", "legacy descriptor must retain unsupported schema semantics")
 
-	clonedSnapshot, err := compileDirectToolSnapshot(config.server.Clone())
-	require.NoError(t, err)
+	clonedSnapshot := compileDirectToolSnapshot(config.server.Clone())
 	assert.Empty(t, clonedSnapshot.buildModernToolList(nil))
 	assert.Contains(t, clonedSnapshot.legacyOnly, "rest___legacy")
 }
@@ -566,8 +691,7 @@ func TestAdmissibleUnsupportedDirectToolSchemasDegradePerTool(t *testing.T) {
 			RequestTemplate: RestToolRequestTemplate{URL: "/items", Method: "POST"},
 		})
 		require.NoError(t, err)
-		snapshot, err := compileDirectToolSnapshot(rest)
-		require.NoError(t, err)
+		snapshot := compileDirectToolSnapshot(rest)
 		assert.Equal(t, directToolSchemaValidationUnavailable, snapshot.byName["bad"].schemaState)
 		assert.Len(t, snapshot.buildModernToolList(nil), 1)
 	})
@@ -588,20 +712,142 @@ func TestAdmissibleUnsupportedDirectToolSchemasDegradePerTool(t *testing.T) {
 	})
 }
 
-func TestDescriptorFatalSchemaStillRejectsConfiguration(t *testing.T) {
-	registered := newValidationTestServer()
-	registered.AddMCPTool("bad-root", &validationTestTool{
-		counters: &validationToolCounters{},
-		schema:   map[string]any{"type": "string", "oneOf": []any{}},
+func schemaReasonForTool(t *testing.T, snapshot directToolSnapshot, name string) schemaDiagnosticReason {
+	t.Helper()
+	for _, diagnostic := range snapshot.degraded {
+		if diagnostic.name == name {
+			return diagnostic.reason
+		}
+	}
+	require.FailNow(t, "missing degraded diagnostic", name)
+	return 0
+}
+
+func TestEverySchemaPreparationFailurePublishesUnavailableState(t *testing.T) {
+	deep := map[string]any{"type": "string"}
+	for i := 0; i < maxSchemaDepth+2; i++ {
+		deep = map[string]any{"type": "array", "items": deep}
+	}
+	manyProperties := make(map[string]any, maxSchemaCollectionSize+1)
+	for i := 0; i < maxSchemaCollectionSize+1; i++ {
+		manyProperties[fmt.Sprintf("property-%04d", i)] = map[string]any{"type": "string"}
+	}
+	largeEnum := make([]any, maxSchemaEnumSize+1)
+	for i := range largeEnum {
+		largeEnum[i] = fmt.Sprintf("value-%03d", i)
+	}
+
+	tests := []struct {
+		name         string
+		schema       map[string]any
+		wantReason   schemaDiagnosticReason
+		serializable bool
+	}{
+		{name: "nil", schema: nil, wantReason: schemaDiagnosticUnsupportedForm, serializable: true},
+		{name: "invalid root", schema: map[string]any{"type": "string"}, wantReason: schemaDiagnosticUnsupportedForm, serializable: true},
+		{name: "byte limit", schema: map[string]any{"type": "object", "description": strings.Repeat("x", maxToolInputSchemaBytes)}, wantReason: schemaDiagnosticResourceLimit, serializable: true},
+		{name: "depth limit", schema: map[string]any{"type": "object", "properties": map[string]any{"value": deep}}, wantReason: schemaDiagnosticResourceLimit, serializable: true},
+		{name: "node and collection limit", schema: map[string]any{"type": "object", "properties": manyProperties}, wantReason: schemaDiagnosticResourceLimit, serializable: true},
+		{name: "enum limit", schema: map[string]any{"type": "object", "properties": map[string]any{"value": map[string]any{"type": "string", "enum": largeEnum}}}, wantReason: schemaDiagnosticResourceLimit, serializable: true},
+		{name: "numeric comparison limit", schema: map[string]any{"type": "object", "properties": map[string]any{"value": map[string]any{"type": "number", "enum": []any{json.Number("1e5000")}}}}, wantReason: schemaDiagnosticResourceLimit, serializable: true},
+		{name: "unsupported keyword", schema: map[string]any{"type": "object", "oneOf": []any{}}, wantReason: schemaDiagnosticUnsupportedKeyword, serializable: true},
+		{name: "contradictory constraint", schema: map[string]any{"type": "object", "enum": []any{"x"}}, wantReason: schemaDiagnosticContradictoryConstraint, serializable: true},
+		{name: "serialization failure", schema: map[string]any{"type": "object", "callback": func() {}}, wantReason: schemaDiagnosticSerializationFailure, serializable: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			registered := newValidationTestServer()
+			registered.AddMCPTool("bad", &validationTestTool{counters: &validationToolCounters{}, schema: test.schema})
+			config := &McpServerConfig{}
+			opts := &ConfigOptions{Servers: map[string]Server{"registered": registered}, ToolRegistry: &GlobalToolRegistry{}}
+			opts.ToolRegistry.Initialize()
+			require.NoError(t, ParseConfigCore(gjson.Parse(`{"server":{"name":"registered"}}`), config, opts))
+
+			entry := config.directTools.byName["bad"]
+			assert.Equal(t, directToolSchemaValidationUnavailable, entry.schemaState)
+			assert.Nil(t, entry.validator)
+			assert.Equal(t, test.serializable, entry.serializable)
+			assert.Equal(t, test.wantReason, schemaReasonForTool(t, config.directTools, "bad"))
+			_, published := opts.ToolRegistry.GetToolInfo("registered", "bad")
+			assert.True(t, published, "schema preparation must not reject registry publication")
+			if test.serializable {
+				require.Len(t, config.directTools.buildModernToolList(nil), 1)
+			} else {
+				assert.Empty(t, config.directTools.buildModernToolList(nil))
+				assert.Contains(t, config.directTools.unlistableSummary(), "bad")
+			}
+		})
+	}
+}
+
+func restSchemaCompatibilityConfig(t *testing.T, arg RestToolArg) json.RawMessage {
+	t.Helper()
+	config := map[string]any{
+		"server": map[string]any{"name": "rest"},
+		"tools": []any{map[string]any{
+			"name":        "compat",
+			"description": "compat",
+			"args":        []any{arg},
+			"requestTemplate": map[string]any{
+				"url":    "/compat",
+				"method": "POST",
+			},
+		}},
+	}
+	raw, err := json.Marshal(config)
+	require.NoError(t, err)
+	return raw
+}
+
+func TestRESTSchemaPreparationLimitsDoNotChangeParseConfigAcceptance(t *testing.T) {
+	deepItems := map[string]any{"type": "string"}
+	for i := 0; i < maxSchemaDepth+2; i++ {
+		deepItems = map[string]any{"type": "array", "items": deepItems}
+	}
+	manyProperties := make(map[string]any, maxSchemaCollectionSize+1)
+	for i := 0; i < maxSchemaCollectionSize+1; i++ {
+		manyProperties[fmt.Sprintf("property-%04d", i)] = map[string]any{"type": "string"}
+	}
+	largeEnum := make([]any, maxSchemaEnumSize+1)
+	for i := range largeEnum {
+		largeEnum[i] = fmt.Sprintf("value-%03d", i)
+	}
+
+	tests := []struct {
+		name string
+		arg  RestToolArg
+	}{
+		{name: "byte limit", arg: RestToolArg{Name: "value", Type: "string", Description: strings.Repeat("x", maxToolInputSchemaBytes)}},
+		{name: "depth limit", arg: RestToolArg{Name: "value", Type: "array", Items: deepItems}},
+		{name: "node and collection limit", arg: RestToolArg{Name: "value", Type: "object", Properties: manyProperties}},
+		{name: "enum limit", arg: RestToolArg{Name: "value", Type: "string", Enum: largeEnum}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := parseRESTConfigForTest(t, restSchemaCompatibilityConfig(t, test.arg))
+			entry := config.directTools.byName["compat"]
+			assert.Equal(t, directToolSchemaValidationUnavailable, entry.schemaState)
+			assert.Nil(t, entry.validator)
+			assert.True(t, entry.serializable)
+			require.Len(t, config.directTools.buildModernToolList(nil), 1)
+			require.Len(t, buildToolList(config.server, nil, true), 1)
+		})
+	}
+
+	t.Run("independent invalid template remains fatal", func(t *testing.T) {
+		raw := restSchemaCompatibilityConfig(t, RestToolArg{Name: "value", Type: "string"})
+		var config map[string]any
+		require.NoError(t, json.Unmarshal(raw, &config))
+		config["tools"].([]any)[0].(map[string]any)["requestTemplate"] = map[string]any{"url": "{{", "method": "GET"}
+		encoded, err := json.Marshal(config)
+		require.NoError(t, err)
+		registry := &GlobalToolRegistry{}
+		registry.Initialize()
+		err = ParseConfigCore(gjson.ParseBytes(encoded), &McpServerConfig{}, &ConfigOptions{Servers: map[string]Server{}, ToolRegistry: registry})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "error parsing URL template")
 	})
-	config := &McpServerConfig{}
-	opts := &ConfigOptions{Servers: map[string]Server{"registered": registered}, ToolRegistry: &GlobalToolRegistry{}}
-	opts.ToolRegistry.Initialize()
-	err := ParseConfigCore(gjson.Parse(`{"server":{"name":"registered"}}`), config, opts)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), `root must declare type "object"`)
-	_, published := opts.ToolRegistry.GetToolInfo("registered", "bad-root")
-	assert.False(t, published, "a rejected generation must not publish tools to the shared registry")
 }
 
 func TestDirectToolSnapshotReloadsDoNotRetainStaleValidatorState(t *testing.T) {
@@ -619,19 +865,16 @@ func TestDirectToolSnapshotReloadsDoNotRetainStaleValidatorState(t *testing.T) {
 		"properties": map[string]any{"value": map[string]any{"type": "array", "enum": []any{"A"}}},
 	}
 
-	first, err := compileDirectToolSnapshot(serverFor(valid))
-	require.NoError(t, err)
+	first := compileDirectToolSnapshot(serverFor(valid))
 	require.Equal(t, directToolSchemaValidated, first.byName["tool"].schemaState)
 	require.NotNil(t, first.byName["tool"].validator)
 
-	second, err := compileDirectToolSnapshot(serverFor(unvalidated))
-	require.NoError(t, err)
+	second := compileDirectToolSnapshot(serverFor(unvalidated))
 	require.Equal(t, directToolSchemaValidationUnavailable, second.byName["tool"].schemaState)
 	require.Nil(t, second.byName["tool"].validator)
 	require.Equal(t, "array", second.byName["tool"].inputSchema["properties"].(map[string]any)["value"].(map[string]any)["type"])
 
-	third, err := compileDirectToolSnapshot(serverFor(valid))
-	require.NoError(t, err)
+	third := compileDirectToolSnapshot(serverFor(valid))
 	require.Equal(t, directToolSchemaValidated, third.byName["tool"].schemaState)
 	require.NotNil(t, third.byName["tool"].validator)
 	assert.NotSame(t, first.byName["tool"].validator, third.byName["tool"].validator)
@@ -646,8 +889,7 @@ func TestDirectToolDegradedSummaryIsBounded(t *testing.T) {
 			"oneOf": []any{map[string]any{"type": "object"}},
 		}})
 	}
-	snapshot, err := compileDirectToolSnapshot(registered)
-	require.NoError(t, err)
+	snapshot := compileDirectToolSnapshot(registered)
 	summary := snapshot.degradedSummary()
 	assert.Contains(t, summary, "11 tool(s)")
 	assert.Contains(t, summary, "reasons=unsupported_keyword")
