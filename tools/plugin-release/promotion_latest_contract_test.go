@@ -24,6 +24,11 @@ type latestContractPlugin struct {
 	EvidenceVersion string
 	EvidenceDigest  string
 	EvidenceRef     string
+	// Blocked declares a prepare-time migration exclusion: the planned version
+	// tag is occupied by BlockedExistingDigest, so this batch publishes neither
+	// the version tag nor the latest alias for the plugin.
+	Blocked               bool
+	BlockedExistingDigest string
 }
 
 type latestContractResult struct {
@@ -231,10 +236,21 @@ func runPromotionLatestContractFixture(t *testing.T, bootstrap, corruptEvidenceS
 	for _, plugin := range plugins {
 		ref := "registry.example.invalid/plugins/" + plugin.ID + ":" + plugin.Version
 		latest := "registry.example.invalid/plugins/" + plugin.ID + ":latest"
-		snapshot["plugins"] = append(snapshot["plugins"].([]any), map[string]any{
+		snapshotEntry := map[string]any{
 			"logicalId": plugin.ID, "ociRef": ref, "digest": plugin.Digest, "version": plugin.Version,
-		})
-		registry[ref] = map[string]any{"digest": plugin.Digest, "version": plugin.Version}
+		}
+		if plugin.Blocked {
+			snapshotEntry["migration"] = map[string]any{
+				"state": "blocked", "existingDigest": plugin.BlockedExistingDigest, "plannedDigest": plugin.Digest,
+				"sourceComparison": "unannotated", "recommendation": "delete-legacy",
+			}
+			// The planned version tag is occupied by the legacy artifact this
+			// exclusion records; the batch never publishes it.
+			registry[ref] = map[string]any{"digest": plugin.BlockedExistingDigest, "version": ""}
+		} else {
+			registry[ref] = map[string]any{"digest": plugin.Digest, "version": plugin.Version}
+		}
+		snapshot["plugins"] = append(snapshot["plugins"].([]any), snapshotEntry)
 		if plugin.CurrentDigest != "" {
 			registry[latest] = map[string]any{"digest": plugin.CurrentDigest, "version": plugin.CurrentVersion}
 		}
