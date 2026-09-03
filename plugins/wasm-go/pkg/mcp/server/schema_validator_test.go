@@ -63,6 +63,30 @@ type reflectedInputSchemaFixture struct {
 	Mode  string `json:"mode,omitempty" jsonschema:"enum=fast,enum=slow,default=fast"`
 }
 
+type hiddenCycleSchemaValue struct {
+	Next *hiddenCycleSchemaValue `json:"-"`
+}
+
+type opaqueSchemaValue struct {
+	values []string
+	calls  *int
+}
+
+func (v opaqueSchemaValue) MarshalJSON() ([]byte, error) {
+	(*v.calls)++
+	return []byte(`{"visible":"value"}`), nil
+}
+
+type hiddenCycleSchemaMarshaler struct {
+	next  *hiddenCycleSchemaMarshaler
+	calls *int
+}
+
+func (v *hiddenCycleSchemaMarshaler) MarshalJSON() ([]byte, error) {
+	(*v.calls)++
+	return []byte(`{"visible":"value"}`), nil
+}
+
 // compileToolInputSchema keeps the combined admissibility-and-compilation
 // convenience local to tests. Production callers deliberately run the two
 // stages separately so an admissible descriptor can remain publishable when
@@ -153,7 +177,7 @@ func TestCompileToolInputSchemaRejectsUnsupportedOrMalformedSemantics(t *testing
 		{name: "bad additional properties", schema: map[string]any{"type": "object", "additionalProperties": "yes"}, want: "must be a boolean or object schema"},
 		{name: "bad description", schema: map[string]any{"type": "object", "description": 1}, want: "must be a string"},
 		{name: "bad examples", schema: map[string]any{"type": "object", "examples": "one"}, want: "must be an array"},
-		{name: "cyclic schema", schema: cyclic, want: "not JSON-compatible"},
+		{name: "cyclic schema", schema: cyclic, want: "cyclic JSON container"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -183,6 +207,60 @@ func TestPrepareToolInputSchemaSeparatesDescriptorCaptureFromCompilation(t *test
 	var compilationError *schemaCompilationError
 	require.ErrorAs(t, err, &compilationError)
 	assert.Equal(t, schemaDiagnosticContradictoryConstraint, compilationError.reason)
+}
+
+func TestSchemaSnapshotRejectsOpaqueGraphsWithoutExecutingMarshalers(t *testing.T) {
+	hiddenCycle := &hiddenCycleSchemaValue{}
+	hiddenCycle.Next = hiddenCycle
+	marshalCalls := 0
+	opaque := opaqueSchemaValue{values: []string{"original"}, calls: &marshalCalls}
+	customCycle := &hiddenCycleSchemaMarshaler{calls: &marshalCalls}
+	customCycle.next = customCycle
+
+	tests := []struct {
+		name   string
+		value  any
+		reason schemaDiagnosticReason
+	}{
+		{name: "json ignored hidden cycle", value: hiddenCycle, reason: schemaDiagnosticSerializationFailure},
+		{name: "custom marshaler hidden cycle", value: customCycle, reason: schemaDiagnosticSerializationFailure},
+		{name: "custom marshaler with mutable hidden state", value: opaque, reason: schemaDiagnosticSerializationFailure},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var err error
+			require.NotPanics(t, func() {
+				_, _, _, err = prepareToolInputSchema(map[string]any{"type": "object", "opaque": test.value})
+			})
+			var compilationError *schemaCompilationError
+			require.ErrorAs(t, err, &compilationError)
+			assert.Equal(t, test.reason, compilationError.reason)
+		})
+	}
+	assert.Zero(t, marshalCalls, "schema snapshotting must not execute custom MarshalJSON")
+	opaque.values[0] = "mutated"
+}
+
+func TestSchemaSnapshotBoundsGenericContainerTraversal(t *testing.T) {
+	t.Run("depth", func(t *testing.T) {
+		var nested any = "leaf"
+		for i := 0; i <= maxSchemaSnapshotDepth; i++ {
+			nested = []any{nested}
+		}
+		_, _, _, err := prepareToolInputSchema(map[string]any{"type": "object", "opaque": nested})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "snapshot nesting exceeds")
+	})
+
+	t.Run("nodes", func(t *testing.T) {
+		wide := make([]any, maxSchemaSnapshotItems/2)
+		for index := range wide {
+			wide[index] = []any{0, 1, 2, 3, 4, 5, 6, 7}
+		}
+		_, _, _, err := prepareToolInputSchema(map[string]any{"type": "object", "opaque": wide})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "snapshot exceeds")
+	})
 }
 
 func TestPrepareToolInputSchemaRetainsBoundedValidatorPreparation(t *testing.T) {

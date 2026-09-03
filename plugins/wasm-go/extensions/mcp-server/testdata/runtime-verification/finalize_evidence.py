@@ -5,11 +5,35 @@ import hashlib
 import json
 import os
 import re
+import sys
 from collections import Counter
 from pathlib import Path
 
 
 root = Path(os.environ["RUNTIME_EVIDENCE"])
+
+
+def canonical_json_sha256(value):
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+if os.environ.get("RUNTIME_DESCRIPTOR_SELF_TEST") == "1":
+    self_test_manifest = json.loads((root / "corpus-manifest.json").read_text())
+    self_test_fixture = os.environ["RUNTIME_DESCRIPTOR_FIXTURE"]
+    self_test_actual = json.loads(
+        Path(os.environ["RUNTIME_DESCRIPTOR_ACTUAL"]).read_text(), parse_float=str, parse_constant=str,
+    )
+    self_test_expected = next(
+        item["expectedInputSchemaSha256"]
+        for item in self_test_manifest["fixtures"]
+        if item["fixture"] == self_test_fixture
+    )
+    sys.exit(0 if canonical_json_sha256(self_test_actual) == self_test_expected else 1)
+
+
 matrix_path = root / "matrix.json"
 matrix = json.loads(matrix_path.read_text()) if matrix_path.exists() else {"cases": []}
 
@@ -70,6 +94,9 @@ for fixture in corpus_manifest.get("fixtures", []):
         and records["candidate"].get("legacyList") is True
         and records["oracle"].get("legacyList") is True
         and records["affected"].get("legacyList") is False
+        and records["candidate"].get("modernDescriptorSha256") == fixture["expectedInputSchemaSha256"]
+        and records["candidate"].get("legacyDescriptorSha256") == fixture["expectedInputSchemaSha256"]
+        and records["oracle"].get("legacyDescriptorSha256") == fixture["expectedInputSchemaSha256"]
     )
     if fixture["legacyMapping"]:
         behavior_ok = behavior_ok and records["candidate"].get("legacyRESTMapping") is True
@@ -90,6 +117,11 @@ for fixture in corpus_manifest.get("fixtures", []):
             "modernCandidate": {
                 "listed": records["candidate"]["modernList"],
                 "callBlocked": records["candidate"]["modernCallBlocked"],
+            },
+            "expectedInputSchemaSha256": fixture["expectedInputSchemaSha256"],
+            "modernDescriptorSha256": records["candidate"]["modernDescriptorSha256"],
+            "legacyDescriptorSha256": {
+                revision: record["legacyDescriptorSha256"] for revision, record in records.items()
             },
             "legacyList": {revision: record["legacyList"] for revision, record in records.items()},
             "legacyRESTMapping": {

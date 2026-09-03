@@ -817,6 +817,16 @@ func TestEverySchemaPreparationFailurePublishesUnavailableState(t *testing.T) {
 	for i := range largeEnum {
 		largeEnum[i] = fmt.Sprintf("value-%03d", i)
 	}
+	marshalCalls := 0
+	opaque := opaqueSchemaValue{values: []string{"original"}, calls: &marshalCalls}
+	var snapshotDeep any = "leaf"
+	for i := 0; i <= maxSchemaSnapshotDepth; i++ {
+		snapshotDeep = []any{snapshotDeep}
+	}
+	snapshotWide := make([]any, maxSchemaSnapshotItems/2)
+	for index := range snapshotWide {
+		snapshotWide[index] = []any{0, 1, 2, 3, 4, 5, 6, 7}
+	}
 
 	tests := []struct {
 		name         string
@@ -834,6 +844,9 @@ func TestEverySchemaPreparationFailurePublishesUnavailableState(t *testing.T) {
 		{name: "unsupported keyword", schema: map[string]any{"type": "object", "oneOf": []any{}}, wantReason: schemaDiagnosticUnsupportedKeyword, serializable: true},
 		{name: "contradictory constraint", schema: map[string]any{"type": "object", "enum": []any{"x"}}, wantReason: schemaDiagnosticContradictoryConstraint, serializable: true},
 		{name: "serialization failure", schema: map[string]any{"type": "object", "callback": func() {}}, wantReason: schemaDiagnosticSerializationFailure, serializable: false},
+		{name: "opaque custom marshaler", schema: map[string]any{"type": "object", "opaque": opaque}, wantReason: schemaDiagnosticSerializationFailure, serializable: false},
+		{name: "snapshot depth limit", schema: map[string]any{"type": "object", "opaque": snapshotDeep}, wantReason: schemaDiagnosticResourceLimit, serializable: false},
+		{name: "snapshot node limit", schema: map[string]any{"type": "object", "opaque": snapshotWide}, wantReason: schemaDiagnosticResourceLimit, serializable: false},
 	}
 
 	for _, test := range tests {
@@ -860,6 +873,8 @@ func TestEverySchemaPreparationFailurePublishesUnavailableState(t *testing.T) {
 			}
 		})
 	}
+	assert.Zero(t, marshalCalls, "parseConfig must not execute a schema custom marshaler")
+	opaque.values[0] = "mutated"
 }
 
 func restSchemaCompatibilityConfig(t *testing.T, arg RestToolArg) json.RawMessage {

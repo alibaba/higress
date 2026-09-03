@@ -15,11 +15,14 @@ package server
 
 import (
 	"bytes"
+	"encoding"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,6 +39,10 @@ const (
 	maxArgumentNodes        = 65536
 	maxComparableNumberSize = 1024
 	maxComparableExponent   = 4096
+	maxSchemaSnapshotDepth  = 256
+	maxSchemaSnapshotNodes  = 65536
+	maxSchemaSnapshotItems  = 4 * maxSchemaCollectionSize
+	maxSchemaSnapshotText   = 4 * maxToolInputSchemaBytes
 )
 
 type schemaValueKind uint8
@@ -127,6 +134,199 @@ func schemaCompileError(reason schemaDiagnosticReason, format string, args ...an
 	return &schemaCompilationError{reason: reason, err: fmt.Errorf(format, args...)}
 }
 
+type schemaSnapshotVisit struct {
+	kind    reflect.Kind
+	pointer uintptr
+}
+
+type schemaSnapshotState struct {
+	active map[schemaSnapshotVisit]struct{}
+	nodes  int
+	text   int
+}
+
+var (
+	jsonMarshalerType = reflect.TypeOf((*json.Marshaler)(nil)).Elem()
+	textMarshalerType = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+)
+
+// cloneSchemaSnapshot traverses only JSON container and primitive kinds. It
+// deliberately does not invoke arbitrary marshalers or follow pointers and
+// structs: either could hide cycles or mutable state outside the owned schema
+// snapshot. The independent limits preserve the semantic compiler's historical
+// depth/node capacity while bounding generic container work.
+func cloneSchemaSnapshot(schema map[string]any) (map[string]any, error) {
+	cloned, err := cloneSchemaSnapshotValue(reflect.ValueOf(schema), 0, &schemaSnapshotState{
+		active: make(map[schemaSnapshotVisit]struct{}),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !cloned.IsValid() || cloned.IsNil() {
+		return nil, nil
+	}
+	return cloned.Interface().(map[string]any), nil
+}
+
+func cloneSchemaSnapshotValue(value reflect.Value, depth int, state *schemaSnapshotState) (reflect.Value, error) {
+	if !value.IsValid() {
+		return value, nil
+	}
+	if value.Kind() == reflect.Interface {
+		if value.IsNil() {
+			return reflect.Zero(value.Type()), nil
+		}
+		cloned, err := cloneSchemaSnapshotValue(value.Elem(), depth, state)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		result := reflect.New(value.Type()).Elem()
+		result.Set(cloned)
+		return result, nil
+	}
+	state.nodes++
+	if state.nodes > maxSchemaSnapshotNodes {
+		return reflect.Value{}, schemaCompileError(schemaDiagnosticResourceLimit,
+			"input schema snapshot exceeds %d JSON values", maxSchemaSnapshotNodes)
+	}
+	if hasCustomSchemaMarshaler(value.Type()) {
+		return reflect.Value{}, schemaCompileError(schemaDiagnosticSerializationFailure,
+			"input schema contains unsupported custom JSON representation %s", value.Type())
+	}
+	switch value.Kind() {
+	case reflect.Map:
+		if value.IsNil() {
+			return reflect.Zero(value.Type()), nil
+		}
+		if value.Type().Key().Kind() != reflect.String {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticSerializationFailure,
+				"input schema contains non-string map keys")
+		}
+		if hasCustomSchemaMarshaler(value.Type().Key()) {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticSerializationFailure,
+				"input schema contains unsupported custom JSON map keys %s", value.Type().Key())
+		}
+		if value.Len() > maxSchemaSnapshotItems {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticResourceLimit,
+				"input schema snapshot collection exceeds %d entries", maxSchemaSnapshotItems)
+		}
+		if depth >= maxSchemaSnapshotDepth {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticResourceLimit,
+				"input schema snapshot nesting exceeds %d", maxSchemaSnapshotDepth)
+		}
+		leave, err := enterSchemaSnapshotContainer(value, state)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		defer leave()
+		result := reflect.MakeMapWithSize(value.Type(), value.Len())
+		iterator := value.MapRange()
+		for iterator.Next() {
+			key := iterator.Key()
+			if err := addSchemaSnapshotText(key.String(), state); err != nil {
+				return reflect.Value{}, err
+			}
+			cloned, err := cloneSchemaSnapshotValue(iterator.Value(), depth+1, state)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+			result.SetMapIndex(key, cloned)
+		}
+		return result, nil
+	case reflect.Slice:
+		if value.IsNil() {
+			return reflect.Zero(value.Type()), nil
+		}
+		if value.Len() > maxSchemaSnapshotItems {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticResourceLimit,
+				"input schema snapshot collection exceeds %d entries", maxSchemaSnapshotItems)
+		}
+		if depth >= maxSchemaSnapshotDepth {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticResourceLimit,
+				"input schema snapshot nesting exceeds %d", maxSchemaSnapshotDepth)
+		}
+		leave, err := enterSchemaSnapshotContainer(value, state)
+		if err != nil {
+			return reflect.Value{}, err
+		}
+		defer leave()
+		result := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		for index := 0; index < value.Len(); index++ {
+			cloned, err := cloneSchemaSnapshotValue(value.Index(index), depth+1, state)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+			result.Index(index).Set(cloned)
+		}
+		return result, nil
+	case reflect.Array:
+		if value.Len() > maxSchemaSnapshotItems {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticResourceLimit,
+				"input schema snapshot collection exceeds %d entries", maxSchemaSnapshotItems)
+		}
+		if depth >= maxSchemaSnapshotDepth {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticResourceLimit,
+				"input schema snapshot nesting exceeds %d", maxSchemaSnapshotDepth)
+		}
+		result := reflect.New(value.Type()).Elem()
+		for index := 0; index < value.Len(); index++ {
+			cloned, err := cloneSchemaSnapshotValue(value.Index(index), depth+1, state)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+			result.Index(index).Set(cloned)
+		}
+		return result, nil
+	case reflect.String:
+		if err := addSchemaSnapshotText(value.String(), state); err != nil {
+			return reflect.Value{}, err
+		}
+		return value, nil
+	case reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return value, nil
+	case reflect.Float32, reflect.Float64:
+		if number := value.Float(); math.IsNaN(number) || math.IsInf(number, 0) {
+			return reflect.Value{}, schemaCompileError(schemaDiagnosticSerializationFailure,
+				"input schema contains a non-finite number")
+		}
+		return value, nil
+	default:
+		return reflect.Value{}, schemaCompileError(schemaDiagnosticSerializationFailure,
+			"input schema contains unsupported Go value %s", value.Type())
+	}
+}
+
+func hasCustomSchemaMarshaler(valueType reflect.Type) bool {
+	if valueType == reflect.TypeOf(json.Number("")) {
+		return false
+	}
+	if valueType.Implements(jsonMarshalerType) || valueType.Implements(textMarshalerType) {
+		return true
+	}
+	return valueType.Kind() != reflect.Pointer &&
+		(reflect.PointerTo(valueType).Implements(jsonMarshalerType) ||
+			reflect.PointerTo(valueType).Implements(textMarshalerType))
+}
+
+func enterSchemaSnapshotContainer(value reflect.Value, state *schemaSnapshotState) (func(), error) {
+	visit := schemaSnapshotVisit{kind: value.Kind(), pointer: value.Pointer()}
+	if _, found := state.active[visit]; found {
+		return nil, schemaCompileError(schemaDiagnosticSerializationFailure, "input schema contains a cyclic JSON container")
+	}
+	state.active[visit] = struct{}{}
+	return func() { delete(state.active, visit) }, nil
+}
+
+func addSchemaSnapshotText(value string, state *schemaSnapshotState) error {
+	state.text += len(value)
+	if state.text > maxSchemaSnapshotText {
+		return schemaCompileError(schemaDiagnosticResourceLimit,
+			"input schema snapshot text exceeds %d bytes", maxSchemaSnapshotText)
+	}
+	return nil
+}
+
 type argumentValidationState struct {
 	nodes int
 }
@@ -144,11 +344,16 @@ var supportedInputSchemaKeywords = map[string]struct{}{
 	"examples":    {},
 }
 
-// cloneToolInputSchema captures a generation-owned descriptor whenever the
-// tool's schema can be represented as JSON. Validator preparation is a
-// separate concern and must not decide whether configuration is accepted.
+// cloneToolInputSchema captures a generation-owned descriptor when it is a
+// bounded tree of explicit JSON containers and primitives. Validator
+// preparation is a separate concern and must not decide whether configuration
+// is accepted.
 func cloneToolInputSchema(schema map[string]any) (map[string]any, []byte, error) {
-	raw, err := json.Marshal(schema)
+	owned, err := cloneSchemaSnapshot(schema)
+	if err != nil {
+		return nil, nil, err
+	}
+	raw, err := json.Marshal(owned)
 	if err != nil {
 		return nil, nil, schemaCompileError(schemaDiagnosticSerializationFailure, "input schema is not JSON-compatible: %v", err)
 	}

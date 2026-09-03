@@ -221,6 +221,27 @@ func TestGlobalToolRegistryMarksCyclicSchemaNonSerializable(t *testing.T) {
 	assert.Nil(t, info.InputSchema)
 }
 
+func TestGlobalToolRegistryDoesNotTraverseOpaqueSchemaValues(t *testing.T) {
+	marshalCalls := 0
+	opaque := opaqueSchemaValue{values: []string{"original"}, calls: &marshalCalls}
+	cycle := &hiddenCycleSchemaMarshaler{calls: &marshalCalls}
+	cycle.next = cycle
+	r := &GlobalToolRegistry{}
+	r.Initialize()
+
+	require.NotPanics(t, func() {
+		r.RegisterTool("srv", "opaque", &stubTool{desc: "d", input: map[string]any{
+			"type": "object", "opaque": opaque, "cycle": cycle,
+		}})
+	})
+	opaque.values[0] = "mutated"
+	info, ok := r.GetToolInfo("srv", "opaque")
+	require.True(t, ok)
+	assert.False(t, info.inputSchemaSerializable)
+	assert.Nil(t, info.InputSchema)
+	assert.Zero(t, marshalCalls, "registry snapshotting must not execute custom MarshalJSON")
+}
+
 func TestGlobalToolRegistry_RegisterTool_PlainToolHasNoOutputSchema(t *testing.T) {
 	r := &GlobalToolRegistry{}
 	r.Initialize()

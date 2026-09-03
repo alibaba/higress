@@ -186,7 +186,7 @@ cases.
 
 The finalizer also prints the absolute evidence path. The expected ledger
 contains 55 recorded client exchanges and 55 Envoy access records. The matrix
-contains 40 backend events across its per-case snapshots.
+contains 59 backend events across its per-case snapshots.
 
 ### Choose the evidence directory
 
@@ -269,8 +269,12 @@ through the main gateway:
     semantics, byte/depth/node/collection/enum/numeric-comparison bounds,
     mixed valid plus invalid tools, and rule-level configuration against the
     same oracle, affected, and candidate revisions. Each fixture records its
-    expected and actual acceptance. Candidate traffic must list the original
-    descriptor and block modern invocation with `-32603` and zero upstream
+    expected and actual acceptance. Candidate modern discovery and candidate/
+    oracle legacy discovery must match an independently generated full
+    input-schema SHA256 for every fixture; replacing the schema with `{}`,
+    truncating an array, or deleting a field therefore fails the run. Candidate
+    traffic must list the original descriptor and block modern invocation with
+    `-32603` and zero upstream
     activity; the mixed fixture also calls its valid sibling, and the rule-level
     fixture verifies the unaffected global fallback. Oracle and candidate
     legacy discovery must succeed; the nine REST
@@ -279,6 +283,9 @@ through the main gateway:
     logged rejection for every fixture. The numeric fixture uses the same
     hashed registered-tool source overlay for each revision because Go's normal
     REST JSON unmarshal converts numbers to `float64` before schema preparation.
+    Descriptor hashes use compact UTF-8 JSON with lexically sorted object keys;
+    floating JSON tokens are retained as their source text, so the registered
+    `json.Number("1e5000")` is stable across Python and Go revisions.
 25. **Same-process dynamic generation transition** atomically updates a
     file-backed LDS source in one Envoy process and proves validated ->
     validation-unavailable -> validated descriptors, call behavior, and backend
@@ -358,6 +365,9 @@ The main `manifest.json` fields have these meanings:
   built v2.0.0 acceptance oracle.
 - `corpus_fixture_sha256` and `corpus_plugin_sha256` bind the common registered
   numeric fixture source and all three derived corpus Wasm modules.
+- `corpus-manifest.json.expectedInputSchemaSha256` binds each fixture to its
+  generator-owned canonical descriptor rather than hashing the observed
+  `tools/list` response as its own oracle.
 - `gateway_image`, `backend_image`, and their resolved digest arrays identify
   the container inputs; compare digests because tags can move.
 - `podman_version` and `compose_version` identify the local orchestration tools.

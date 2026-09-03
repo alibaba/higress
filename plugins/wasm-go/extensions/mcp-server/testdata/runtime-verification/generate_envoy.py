@@ -2,6 +2,7 @@
 """Generate deterministic static Envoy configurations for the runtime harness."""
 
 import json
+import hashlib
 import os
 from copy import deepcopy
 from pathlib import Path
@@ -63,6 +64,38 @@ def nested_items(depth):
     for _ in range(depth):
         schema = {"type": "array", "items": schema}
     return schema
+
+
+def canonical_json_sha256(value):
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def rest_input_schema(config):
+    effective = config.get("_rules_", [{}])[0] if "_rules_" in config else config
+    tool = effective["tools"][0]
+    properties = {}
+    required = []
+    for argument in tool.get("args", []):
+        argument_type = argument.get("type") or "string"
+        schema = {"description": argument.get("description", ""), "type": argument_type}
+        if argument.get("enum"):
+            schema["enum"] = argument["enum"]
+        if argument.get("default") is not None:
+            schema["default"] = argument["default"]
+        if argument_type == "array" and argument.get("items") is not None:
+            schema["items"] = argument["items"]
+        if argument_type == "object" and argument.get("properties") is not None:
+            schema["properties"] = argument["properties"]
+        properties[argument["name"]] = schema
+        if argument.get("required"):
+            required.append(argument["name"])
+    result = {"type": "object", "properties": properties}
+    if required:
+        result["required"] = required
+    return result
 
 
 def rest_corpus_config(slug, problem_arg, mixed=False, rule_level=False):
@@ -332,19 +365,32 @@ static_resources:
     }
     for index, (slug, config, legacy_mapping) in enumerate(CORPUS_FIXTURES):
         port = 14000 + index
+        if slug == "numeric-comparison-limit":
+            # verify.py parses JSON floating tokens as their exact source text;
+            # represent the registered json.Number using that same canonical form.
+            expected_input_schema = {
+                "type": "object",
+                "properties": {"value": {"type": "number", "enum": ["1e5000"]}},
+            }
+        else:
+            expected_input_schema = rest_input_schema(config)
         corpus_manifest.append({
             "fixture": slug,
             "port": port,
             "tool": "numeric_comparison" if slug == "numeric-comparison-limit" else "fixture_tool",
             "legacyMapping": legacy_mapping,
             "expectedAcceptance": {"oracle": True, "affected": False, "candidate": True},
+            "expectedInputSchemaSha256": canonical_json_sha256(expected_input_schema),
         })
         for revision, wasm_file in corpus_wasm.items():
             version = f"{revision}-{slug}"
             (OUT / f"lds-corpus-{revision}-{slug}.yaml").write_text(lds_discovery_response(
                 version, config, port, f"corpus-{revision}-{slug}", wasm_file,
             ))
-    (OUT / "corpus-manifest.json").write_text(json.dumps({"fixtures": corpus_manifest}, indent=2, sort_keys=True) + "\n")
+    (OUT / "corpus-manifest.json").write_text(json.dumps({
+        "descriptorCanonicalization": "UTF-8 JSON, object keys sorted, compact separators; floating tokens retained as source text",
+        "fixtures": corpus_manifest,
+    }, indent=2, sort_keys=True) + "\n")
     for revision in ("candidate", "affected", "oracle"):
         (OUT / f"lds-corpus-{revision}-current.yaml").write_text('''version_info: "bootstrap"
 resources: []

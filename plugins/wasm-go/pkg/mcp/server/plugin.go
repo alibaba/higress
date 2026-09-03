@@ -202,77 +202,12 @@ func (r *GlobalToolRegistry) Initialize() {
 	r.serverTools = make(map[string]map[string]ToolInfo)
 }
 
-// cloneRegistrySchema owns JSON-compatible schema data without changing the
-// concrete Go types of primitive values. The marshal pass rejects functions,
-// channels, non-finite numbers, and cycles before the recursive copy.
+// cloneRegistrySchema owns bounded JSON container data without changing the
+// concrete Go types of primitive values. Arbitrary marshalers, pointers, and
+// structs are deliberately not traversed.
 func cloneRegistrySchema(schema map[string]any) (map[string]any, bool) {
-	if _, err := json.Marshal(schema); err != nil {
-		return nil, false
-	}
-	cloned := cloneRegistryJSONValue(reflect.ValueOf(schema))
-	if !cloned.IsValid() || cloned.IsNil() {
-		return nil, true
-	}
-	return cloned.Interface().(map[string]any), true
-}
-
-func cloneRegistryJSONValue(value reflect.Value) reflect.Value {
-	if !value.IsValid() {
-		return value
-	}
-	switch value.Kind() {
-	case reflect.Interface:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-		cloned := cloneRegistryJSONValue(value.Elem())
-		result := reflect.New(value.Type()).Elem()
-		result.Set(cloned)
-		return result
-	case reflect.Pointer:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-		result := reflect.New(value.Type().Elem())
-		result.Elem().Set(cloneRegistryJSONValue(value.Elem()))
-		return result
-	case reflect.Map:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-		result := reflect.MakeMapWithSize(value.Type(), value.Len())
-		iterator := value.MapRange()
-		for iterator.Next() {
-			result.SetMapIndex(cloneRegistryJSONValue(iterator.Key()), cloneRegistryJSONValue(iterator.Value()))
-		}
-		return result
-	case reflect.Slice:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-		result := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
-		for i := 0; i < value.Len(); i++ {
-			result.Index(i).Set(cloneRegistryJSONValue(value.Index(i)))
-		}
-		return result
-	case reflect.Array:
-		result := reflect.New(value.Type()).Elem()
-		for i := 0; i < value.Len(); i++ {
-			result.Index(i).Set(cloneRegistryJSONValue(value.Index(i)))
-		}
-		return result
-	case reflect.Struct:
-		result := reflect.New(value.Type()).Elem()
-		result.Set(value)
-		for i := 0; i < value.NumField(); i++ {
-			if result.Field(i).CanSet() && value.Field(i).CanInterface() {
-				result.Field(i).Set(cloneRegistryJSONValue(value.Field(i)))
-			}
-		}
-		return result
-	default:
-		return value
-	}
+	cloned, err := cloneSchemaSnapshot(schema)
+	return cloned, err == nil
 }
 
 // RegisterTool registers a tool into the global registry.
