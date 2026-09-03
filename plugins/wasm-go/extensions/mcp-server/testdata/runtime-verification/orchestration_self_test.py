@@ -12,6 +12,11 @@ import backend
 import verify
 
 
+def require(condition, message):
+    if not condition:
+        raise AssertionError(message)
+
+
 def check_transient_lds_publish_timeout():
     attempts = iter((socket.timeout("transient"), socket.timeout("transient"), None))
     original = verify.exchange
@@ -41,7 +46,8 @@ def check_rejection_poll_classification():
 
     verify.read_lds_rejected_count = transient_then_rejected
     try:
-        assert verify.wait_lds_rejected_count(greater_than=3) == 4
+        require(verify.wait_lds_rejected_count(greater_than=3) == 4,
+                "transient rejection polling did not recover")
     finally:
         verify.read_lds_rejected_count = original
 
@@ -50,7 +56,8 @@ def check_rejection_poll_classification():
         try:
             verify.wait_lds_rejected_count(timeout=0.01)
         except RuntimeError as exc:
-            assert "checker remained unavailable" in str(exc)
+            require("checker remained unavailable" in str(exc),
+                    f"wrong permanent-checker diagnostic: {exc}")
         else:
             raise AssertionError("permanent admin failure was accepted as an LDS rejection")
     finally:
@@ -61,7 +68,8 @@ def check_rejection_poll_classification():
         try:
             verify.wait_lds_rejected_count(greater_than=3, timeout=0.01)
         except RuntimeError as exc:
-            assert "did not report an LDS rejection" in str(exc)
+            require("did not report an LDS rejection" in str(exc),
+                    f"wrong no-rejection diagnostic: {exc}")
         else:
             raise AssertionError("published stats without a rejection increment were accepted")
     finally:
@@ -86,13 +94,13 @@ def check_corpus_get_fixture():
         with urllib.request.urlopen(
             f"http://127.0.0.1:{server.server_port}/corpus/valid", timeout=2,
         ) as response:
-            assert response.status == 200
+            require(response.status == 200, f"corpus GET returned {response.status}")
             json.load(response)
         with backend.LOCK:
             events = list(backend.EVENTS)
-        assert len(events) == 1
-        assert events[0]["httpMethod"] == "GET"
-        assert events[0]["path"] == "/corpus/valid"
+        require(len(events) == 1, f"corpus GET recorded {len(events)} events")
+        require(events[0]["httpMethod"] == "GET", f"wrong corpus method: {events[0]}")
+        require(events[0]["path"] == "/corpus/valid", f"wrong corpus path: {events[0]}")
     finally:
         server.shutdown()
         server.server_close()
@@ -113,12 +121,36 @@ def check_partial_corpus_diagnostic():
         verify.evidence_snapshot = lambda: {"backend-primary": []}
         verify.record_corpus_failure(RuntimeError("admin checker fault"))
         observed = json.loads((Path(directory) / "corpus-candidate.json").read_text())
-        assert observed["fixtures"][0]["diagnosticError"] == "admin checker fault"
-        assert observed["fixtures"][0]["backendEvents"] == {"backend-primary": []}
+        require(observed["fixtures"][0]["diagnosticError"] == "admin checker fault",
+                f"partial diagnostic missing: {observed}")
+        require(observed["fixtures"][0]["backendEvents"] == {"backend-primary": []},
+                f"partial backend snapshot missing: {observed}")
     (
         verify.EVIDENCE, verify.CORPUS_REVISION, verify.CORPUS_PARTIAL_RECORDS,
         verify.CORPUS_CURRENT_RECORD, verify.evidence_snapshot,
     ) = original
+
+
+def check_static_orchestration_contract():
+    harness = Path(__file__).resolve().parent
+    compose_lines = [
+        line.strip() for line in (harness / "compose.yaml").read_text().splitlines()
+        if line.strip().startswith('command: ["-c"')
+    ]
+    require(len(compose_lines) == 11, f"expected 11 Envoy commands, got {len(compose_lines)}")
+    require(all('"--concurrency", "1"' in line for line in compose_lines),
+            f"an Envoy command lacks bounded concurrency: {compose_lines}")
+
+    run_script = (harness / "run.sh").read_text()
+    require("for revision in candidate affected oracle" in run_script,
+            "corpus revision order is no longer explicit")
+    require(run_script.count("stop_runtime_service") == 5,
+            "a critical phase no longer uses the inspected stop gate")
+    require("sleep 2" not in run_script, "fixed two-second rejection sampling returned")
+    require("wait_for_rejection_markers" in run_script
+            and '"error parsing URL template" "plugin start failed"' in run_script
+            and '"requires a primitive type" "plugin start failed"' in run_script,
+            "static rejection marker polling was weakened")
 
 
 if __name__ == "__main__":
@@ -126,4 +158,5 @@ if __name__ == "__main__":
     check_rejection_poll_classification()
     check_corpus_get_fixture()
     check_partial_corpus_diagnostic()
+    check_static_orchestration_contract()
     print("runtime orchestration fault-injection self-tests passed")

@@ -105,6 +105,7 @@ for fixture in corpus_manifest.get("fixtures", []):
         behavior_ok = behavior_ok and records["oracle"].get("legacyRESTMapping") is True
     if slug == "mixed-valid-invalid":
         behavior_ok = behavior_ok and records["candidate"].get("validSiblingCallable") is True
+        behavior_ok = behavior_ok and records["candidate"].get("validSiblingResultContract") is True
     if slug == "rule-level":
         behavior_ok = behavior_ok and records["candidate"].get("globalList") is True
         behavior_ok = behavior_ok and records["oracle"].get("globalList") is True
@@ -130,6 +131,7 @@ for fixture in corpus_manifest.get("fixtures", []):
                 revision: record["legacyRESTMapping"] for revision, record in records.items()
             },
             "validSiblingCallable": records["candidate"]["validSiblingCallable"],
+            "validSiblingResultContract": records["candidate"]["validSiblingResultContract"],
             "validSiblingBackendEvents": records["candidate"]["validSiblingBackendEvents"],
             "globalList": {revision: record["globalList"] for revision, record in records.items()},
             "backendEvents": {
@@ -310,7 +312,7 @@ manifest = {
         "oracle-verification.json", "generation-transition.json",
         "generation-process-before.txt", "generation-process-after.txt",
         "backend-primary-final.json", "backend-secondary-final.json",
-        "cleanup-proof.txt", "SHA256SUMS",
+        "lifecycle-diagnostics.log", "cleanup-proof.txt", "SHA256SUMS",
     ] + sorted(path.name for path in root.glob("lds-corpus-*.yaml")) + [
         "corpus-manifest.json", "corpus-candidate.json", "corpus-affected.json", "corpus-oracle.json",
         "gateway-corpus-candidate.log", "gateway-corpus-affected.log", "gateway-corpus-oracle.log",

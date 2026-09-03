@@ -561,6 +561,7 @@ def corpus_verification():
             "legacyDescriptorSha256": None,
             "legacyRESTMapping": False,
             "validSiblingCallable": False,
+            "validSiblingResultContract": False,
             "validSiblingBackendEvents": [],
             "globalList": False,
             "backendEvents": {"backend-primary": []},
@@ -597,7 +598,13 @@ def corpus_verification():
             if slug == "mixed-valid-invalid":
                 check("valid_sibling" in {tool.get("name") for tool in tools}, f"valid sibling missing for {slug}: {tools}")
                 status, _, valid_called = modern_rpc(port, "tools/call", f"corpus-{slug}-valid", "valid_sibling", {})
-                check(status == 200 and "result" in valid_called, f"valid sibling call failed for {slug}: {valid_called}")
+                check(status == 200, f"valid sibling call failed for {slug}: {status} {valid_called}")
+                valid_result = result_contract(valid_called)
+                check(valid_result.get("isError") is False,
+                      f"valid sibling returned an MCP error result for {slug}: {valid_result}")
+                content = valid_result.get("content")
+                check(isinstance(content, list) and len(content) > 0,
+                      f"valid sibling returned no successful content for {slug}: {valid_result}")
                 sibling_events = backend_state()["events"]
                 check(
                     len(sibling_events) == 1
@@ -606,6 +613,7 @@ def corpus_verification():
                     f"valid sibling did not make exactly one successful backend call for {slug}: {sibling_events}",
                 )
                 record["validSiblingCallable"] = True
+                record["validSiblingResultContract"] = True
                 record["validSiblingBackendEvents"] = sibling_events
                 write_corpus_partial()
                 backend_reset()

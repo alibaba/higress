@@ -118,9 +118,12 @@ failed directory must not be reused, modified, or deleted.
    Before each isolated phase the primary ledger is reset; rejection phases
    wait for both their specific historical error and `plugin start failed`,
    capture a zero-event ledger, and treat premature exit or timeout as a
-   harness failure. This keeps the maximum live Wasm footprint bounded on a
-   4 GiB Podman VM. Nine main listeners select registered, REST, composed, and
-   proxy configurations.
+   harness failure. Backend health and reset operations are bounded and
+   retried. Every phase uses an inspected stop gate: a non-zero stop command is
+   tolerated only when container inspection proves the service is no longer
+   running, and logs are captured only after that gate. This keeps the maximum
+   live Wasm footprint bounded on a 4 GiB Podman VM. Nine main listeners select
+   registered, REST, composed, and proxy configurations.
 5. [`verify.py`](./verify.py) first drives the candidate Wasm through valid ->
    validation-unavailable -> valid file-backed LDS generations in one Envoy
    process, then sends the main matrix traffic. The backends record safe event
@@ -145,7 +148,12 @@ failed directory must not be reused, modified, or deleted.
   legacy MCP responses and exposes safe observable event state.
 - [`orchestration_self_test.py`](./orchestration_self_test.py) injects transient
   and permanent admin failures, distinguishes rejection from checker failure,
-  and proves the mixed-fixture GET route records exactly one backend event.
+  proves the mixed-fixture GET route records exactly one backend event, and
+  statically guards all eleven Envoy concurrency settings and phase ordering.
+- [`lifecycle.sh`](./lifecycle.sh) provides the bounded backend readiness/reset
+  and inspected service-stop gates; [`lifecycle_self_test.sh`](./lifecycle_self_test.sh)
+  fault-injects transient and permanent backend failures plus stop-command and
+  container-state disagreement.
 - [`generate_envoy.py`](./generate_envoy.py) generates listeners, routes,
   clusters, plugin configuration, and the invalid-auto configuration.
 - [`typed_canonical.py`](./typed_canonical.py) defines the shared type-tagged
@@ -337,7 +345,9 @@ through the main gateway:
     truncating an array, or deleting a field therefore fails the run. Candidate
     traffic must list the original descriptor and block modern invocation with
     `-32603` and zero upstream
-    activity; the mixed fixture also requires a non-error result and exactly
+    activity; the mixed fixture also requires the complete modern success
+    result contract (`resultType=complete`, server metadata, non-empty content,
+    and `isError=false`) plus exactly
     one `GET /corpus/valid` backend event from its valid sibling, and the rule-level
     fixture verifies the unaffected global fallback. Oracle and candidate
     legacy discovery must succeed; the nine REST
@@ -419,6 +429,8 @@ A completed evidence directory contains:
 - `gateway-image-digests.txt` and `backend-image-digests.txt`: resolved image
   digests for the pulled tags.
 - `cleanup-proof.txt`: the post-cleanup check for the exact Compose project.
+- `lifecycle-diagnostics.log`: bounded stop/backend lifecycle errors; empty for
+  a successful run and retained when a lifecycle gate fails.
 - `SHA256SUMS`: SHA256 values for every retained evidence file except itself.
 
 The main `manifest.json` fields have these meanings:

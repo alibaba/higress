@@ -122,6 +122,7 @@ export PLUGIN_SHA256 BASELINE_PLUGIN_SHA256 ORACLE_PLUGIN_SHA256 CORPUS_CANDIDAT
 
 RUNTIME_OUT="$RUNTIME_EVIDENCE" python3 "$HARNESS_DIR/generate_envoy.py" || exit 3
 python3 "$HARNESS_DIR/orchestration_self_test.py" || exit 3
+bash "$HARNESS_DIR/lifecycle_self_test.sh" || exit 3
 python3 "$HARNESS_DIR/descriptor_self_test.py" prepare "$RUNTIME_EVIDENCE" || exit 3
 bash "$HARNESS_DIR/descriptor_gate.sh" "$RUNTIME_EVIDENCE" || exit 3
 cleanup_descriptor_inputs
@@ -145,16 +146,16 @@ compose_runtime() {
   podman compose -f "$HARNESS_DIR/compose.yaml" "$@"
 }
 
+RUNTIME_LIFECYCLE_DIAGNOSTICS="$RUNTIME_EVIDENCE/lifecycle-diagnostics.log"
+export RUNTIME_LIFECYCLE_DIAGNOSTICS
+: >"$RUNTIME_LIFECYCLE_DIAGNOSTICS"
+. "$HARNESS_DIR/lifecycle.sh"
+
 capture_gateway_log() {
   service=$1
   output=$2
   compose_runtime logs --no-color "$service" \
     | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$output"
-}
-
-reset_primary_backend() {
-  compose_runtime exec -T backend-primary wget -q -O /dev/null \
-    --post-data '{}' http://127.0.0.1:8080/__reset
 }
 
 capture_empty_primary_backend() {
@@ -215,12 +216,13 @@ run_static_rejection() {
   rejection_status=0
   wait_for_rejection_markers "$service" "$first" "$second" || rejection_status=$?
   capture_empty_primary_backend "$RUNTIME_EVIDENCE/$state_name" || rejection_status=1
-  compose_runtime stop "$service" >/dev/null 2>&1 || true
+  stop_runtime_service "$service" || return 1
   capture_gateway_log "$service" "$RUNTIME_EVIDENCE/$log_name" || rejection_status=1
   return "$rejection_status"
 }
 
 compose_runtime up -d backend-primary backend-secondary || exit 4
+wait_primary_backend_ready || exit 4
 run_static_rejection gateway-auto gateway-auto.log backend-auto-state.json \
   "invalid protocolStrategy value: auto" "plugin start failed" || exit 4
 run_static_rejection gateway-baseline gateway-baseline.log backend-baseline-state.json \
@@ -242,7 +244,7 @@ set -e
 if test "$ORACLE_VERIFY_STATUS" -ne 0; then
   VERIFY_STATUS=1
 fi
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-oracle >/dev/null 2>&1 || true
+stop_runtime_service gateway-oracle || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-oracle \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-oracle.log"
 
@@ -257,7 +259,7 @@ for revision in candidate affected oracle; do
   if test "$CORPUS_VERIFY_STATUS" -ne 0; then
     VERIFY_STATUS=1
   fi
-  compose_runtime stop "gateway-corpus-$revision" >/dev/null 2>&1 || true
+  stop_runtime_service "gateway-corpus-$revision" || exit 4
   capture_gateway_log "gateway-corpus-$revision" "$RUNTIME_EVIDENCE/gateway-corpus-$revision.log" || VERIFY_STATUS=1
 done
 
@@ -279,7 +281,7 @@ capture_generation_process "$RUNTIME_EVIDENCE/generation-process-after.txt" || e
 if test "$GENERATION_VERIFY_STATUS" -ne 0; then
   VERIFY_STATUS=1
 fi
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway-generation >/dev/null 2>&1 || true
+stop_runtime_service gateway-generation || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-generation \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway-generation.log"
 
@@ -291,7 +293,7 @@ set -e
 if test "$MAIN_VERIFY_STATUS" -ne 0; then
   VERIFY_STATUS=1
 fi
-podman compose -f "$HARNESS_DIR/compose.yaml" stop gateway gateway-generation || exit 4
+stop_runtime_service gateway || exit 4
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway \
   | sed -e 's/runtime-upstream-token/<redacted>/g' -e 's/runtime-key/<redacted>/g' -e 's/downstream-[A-Za-z0-9_-]*/<redacted>/g' >"$RUNTIME_EVIDENCE/gateway.log"
 podman compose -f "$HARNESS_DIR/compose.yaml" logs --no-color gateway-auto \
