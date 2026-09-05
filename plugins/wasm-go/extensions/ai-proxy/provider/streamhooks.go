@@ -171,6 +171,7 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 			MapModel:                 mapStrict,
 			SupportsPreserveThinking: qwenSupportsPreserveThinking,
 			EnableSearch:             c.qwenEnableSearch,
+			DeveloperToSystem:        !isDeveloperRoleSupported(c.typ),
 		})
 		p := &StreamPlan{Tr: tr, ApplyStream: true, ApplyModel: true}
 		p.RequireModelBeforeCommit = true

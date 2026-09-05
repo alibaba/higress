@@ -21,6 +21,9 @@ type QwenNativeOptions struct {
 	SupportsPreserveThinking func(model string) bool
 	// EnableSearch 对应配置 qwenEnableSearch。
 	EnableSearch bool
+	// DeveloperToSystem：官方 handleRequestBody 对不支持 developer role 的 provider 会把它转成 system
+	// （整个请求经 struct 往返，但 DashScope 请求本来就是 struct 构建的，只有 role 这一处可见）。
+	DeveloperToSystem bool
 }
 
 const (
@@ -350,6 +353,9 @@ func (p *qwenProto) OnValue(t *Transformer, raw []byte) {
 				return
 			}
 			p.m.roleSeen = true
+			if s == "developer" && p.opt.DeveloperToSystem {
+				s = "system"
+			}
 			w.Key("role")
 			w.JSONString(s)
 		case "name":

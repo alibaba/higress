@@ -14,8 +14,12 @@ import (
 // officialQwenNative：qwen.go onChatCompletionRequestBody 的纯函数部分
 // （parseRequestAndMapModel 的 decode + 空 model 校验 + 映射 → buildQwenTextGenerationRequest）。
 func officialQwenNativeErr(in string, mapping map[string]string, enableSearch bool) (map[string]any, error) {
+	body, err := convertDeveloperRoleToSystem([]byte(in)) // handleRequestBody 对 qwen 会做这一步
+	if err != nil {
+		return nil, err
+	}
 	req := &chatCompletionRequest{}
-	if err := decodeChatCompletionRequest([]byte(in), req); err != nil {
+	if err := decodeChatCompletionRequest(body, req); err != nil {
 		return nil, err
 	}
 	if req.Model == "" {
@@ -23,7 +27,7 @@ func officialQwenNativeErr(in string, mapping map[string]string, enableSearch bo
 	}
 	req.Model = getMappedModel(req.Model, mapping)
 	m := &qwenProvider{config: ProviderConfig{qwenEnableSearch: enableSearch, modelMapping: mapping}}
-	body, err := m.buildQwenTextGenerationRequest(qwenCtxStub{}, req, req.Stream)
+	body, err = m.buildQwenTextGenerationRequest(qwenCtxStub{}, req, req.Stream)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +51,7 @@ func newQwenNativeStream(enableSearch bool) *streamxform.Transformer {
 		},
 		SupportsPreserveThinking: qwenSupportsPreserveThinking,
 		EnableSearch:             enableSearch,
+		DeveloperToSystem:        true,
 	})
 }
 
