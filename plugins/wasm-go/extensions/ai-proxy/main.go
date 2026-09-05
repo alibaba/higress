@@ -460,6 +460,9 @@ func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chun
 	if last {
 		s.applyPrelude(ctx, cfg, false)
 		cfg.GetProviderConfig().StreamFinalizeContext(ctx, s.apiName, s.plan, s.preludeOf())
+		if s.plan.OnFinish != nil {
+			s.plan.OnFinish(ctx)
+		}
 	}
 	return out, types.ActionContinue
 }

@@ -36,14 +36,14 @@ description: AI 代理插件配置参考
 
 - 目标为 Claude 的文生文请求（OpenAI → Claude 协议转换，含多模态、tools、tool_calls、thinking 等全部字段）；
 - OpenAI 兼容透传：`openai`、`vllm`、`doubao`、`longcat` 以及 `ai360`/`baichuan`/`baidu`/`cloudflare`/`deepseek`/`fireworks`/`galadriel`/`github`/`grok`/`groq`/`mistral`/`moonshot`/`ollama`/`spark`/`stepfun`/`together-ai`/`yi`；
-- `qwen`（兼容模式）、`zhipuai`、`openrouter`（各自的字段推导按官方逻辑逐条复刻）；
+- `qwen`（兼容模式与 DashScope 原生模式）、`zhipuai`、`openrouter`、`minimax`（v2 接口）（各自的字段推导按官方逻辑逐条复刻）；
 - `azure`（请求路径依赖 body 里的 model 时，model 须出现在请求体前 64KB 内，否则回落）；
 - 目标为 Gemini 的文生文请求（OpenAI → Gemini 协议转换；请求路径依赖 model 与 stream，二者须出现在前 64KB 内；含 http(s) 图片链接的请求需要抓取图片，仍走全量路径）；
 - `generic`（请求体逐块直接放行）；Claude 原生接口（`/v1/messages`、`/v1/complete`、embeddings）以及上述透传供应商的其他 JSON 接口（images / audio / responses / videos / fine-tuning 等）。multipart 请求仍走全量路径。
 
-其余供应商（Vertex、Bedrock、Cohere、通义千问原生协议等）以及配置了
+其余供应商（Vertex、Bedrock、Cohere、Hunyuan、MiniMax Pro、Dify、DeepL、Triton、Kling）以及配置了
 `customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` /
-`firstByteTimeout` / `responseJsonSchema` / `providerBasePath`（qwen）的场景，仍走原有的全量缓冲路径，行为不变。
+`firstByteTimeout` / `responseJsonSchema` / `providerBasePath`（qwen、minimax）/ `qwenFileIds`（qwen 原生）的场景，仍走原有的全量缓冲路径，行为不变。
 
 流式路径在读到前 64KB 之前不向上游发送任何字节；这段窗口内遇到无法流式处理的形态（极少数，如重复的 JSON key、
 非法的图片 data URL）会自动回落到全量路径。越过窗口后才遇到这类形态的请求会以 500 结束，

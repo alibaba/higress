@@ -40,6 +40,8 @@ type StreamPlan struct {
 	RequireStreamBeforeCommit bool
 	// AfterPrelude 在上下文键写好、请求头放行之前调用：用于依赖 body 事实改请求头（Azure 路径）。
 	AfterPrelude func(ctx wrapper.HttpContext)
+	// OnFinish 在整份 body 扫完后调用：写只有到末尾才能确定、且只有响应侧才用的上下文键。
+	OnFinish func(ctx wrapper.HttpContext)
 }
 
 // streamDefaultProviders 走 defaultTransformRequestBody 的 provider
@@ -144,10 +146,59 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 			ClaudeCodeMode: c.claudeCodeMode,
 		}), ApplyStream: true, ApplyModel: true}, ""
 
-	case c.typ == providerTypeQwen:
-		if !c.qwenEnableCompatible {
-			return nil, "qwen 原生协议（DashScope）需要请求头承载 stream，未纳入流式"
+	case c.typ == providerTypeQwen && !c.qwenEnableCompatible:
+		// DashScope 原生协议：官方 onChatCompletionRequestBody 在 body 阶段按 model / stream 改路径与请求头
+		if !isChat {
+			return nil, "qwen 原生协议仅 chat completion 走流式"
 		}
+		if c.providerBasePath != "" {
+			return nil, "providerBasePath 需要在 body 阶段改 :path"
+		}
+		if len(c.qwenFileIds) > 0 {
+			return nil, "qwenFileIds 要往 messages 里插入文件消息"
+		}
+		mapStrict := func(m string) (string, error) {
+			if m == "" {
+				return "", errors.New("missing model in request")
+			}
+			mapped := getMappedModel(m, c.modelMapping)
+			if mapped == "" {
+				return "", errors.New("model becomes empty after applying the configured mapping")
+			}
+			return mapped, nil
+		}
+		tr := streamxform.NewQwenNative(streamxform.QwenNativeOptions{
+			MapModel:                 mapStrict,
+			SupportsPreserveThinking: qwenSupportsPreserveThinking,
+			EnableSearch:             c.qwenEnableSearch,
+		})
+		p := &StreamPlan{Tr: tr, ApplyStream: true, ApplyModel: true}
+		p.RequireModelBeforeCommit = true
+		p.RequireStreamBeforeCommit = true
+		p.AfterPrelude = func(ctx wrapper.HttpContext) {
+			// 复刻 onChatCompletionRequestBody 对请求头 / 路径的处理
+			model := ctx.GetStringContext(ctxKeyFinalRequestModel, "")
+			if strings.HasPrefix(model, qwenVlModelPrefixName) {
+				_ = util.OverwriteRequestPath(qwenMultimodalGenerationPath)
+			}
+			if stream, _ := ctx.GetContext(ctxKeyIsStreaming).(bool); stream {
+				_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
+				_ = proxywasm.ReplaceHttpRequestHeader("X-DashScope-SSE", "enable")
+			} else {
+				_ = proxywasm.ReplaceHttpRequestHeader("Accept", "*/*")
+				_ = proxywasm.RemoveHttpRequestHeader("X-DashScope-SSE")
+			}
+		}
+		p.OnFinish = func(ctx wrapper.HttpContext) {
+			if stream, _ := ctx.GetContext(ctxKeyIsStreaming).(bool); stream {
+				if q, ok := tr.Protocol().(interface{ IncrementalOutput() bool }); ok {
+					ctx.SetContext(ctxKeyIncrementalStreaming, q.IncrementalOutput())
+				}
+			}
+		}
+		return p, ""
+
+	case c.typ == providerTypeQwen:
 		if c.providerBasePath != "" {
 			return nil, "providerBasePath 需要在 body 阶段改 :path"
 		}
@@ -158,6 +209,29 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 		opts.ModelOnlyIfPresent = true
 		opts.DetectStream = false // 兼容分支不调 defaultTransformRequestBody，不设 Accept / isStreaming
 		return &StreamPlan{Tr: streamxform.NewOpenAI(opts), ApplyStream: false, ApplyModel: false}, ""
+
+	case c.typ == providerTypeMinimax:
+		// V2 接口（默认）：官方 handleRequestBodyByChatCompletionV2 只改 model 并把路径固定为 chatcompletion_v2；
+		// Pro 接口另有一套请求结构，不走流式。
+		if c.minimaxApiType == minimaxApiTypePro {
+			return nil, "minimax Pro 接口未纳入流式"
+		}
+		if c.providerBasePath != "" {
+			return nil, "providerBasePath 需要在 body 阶段改 :path"
+		}
+		if !isChat {
+			return nil, "minimax 仅 chat completion"
+		}
+		opts := defaultOpts(nil)
+		opts.DetectStream = false // 官方这条分支不设 Accept / isStreaming，也不写 model 上下文键
+		p := &StreamPlan{Tr: streamxform.NewOpenAI(opts), ApplyStream: false, ApplyModel: false}
+		p.AfterPrelude = func(ctx wrapper.HttpContext) {
+			// 官方在 body 阶段才把路径改成 v2 接口（header 阶段不改）；路径固定，不依赖 body 字段
+			if err := util.OverwriteRequestPath(minimaxChatCompletionV2Path); err != nil {
+				log.Errorf("minimaxProvider: overwrite request path failed: %v", err)
+			}
+		}
+		return p, ""
 
 	case c.typ == providerTypeZhipuAi:
 		if !inDefaultApis {

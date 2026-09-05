@@ -138,6 +138,13 @@ func (w *Writer) ElemAt(level int) bool {
 func (w *Writer) Key(name string) { w.KeyAt(w.Level(), name) }
 func (w *Writer) Elem()           { w.ElemAt(w.Level()) }
 
+// PushObj / PushArr / Pop 让协议自己在输出侧建层：用于"一个输入容器要落到多层嵌套输出里"的场合
+// （如 Qwen 原生协议把 messages 放进 input.messages）。配合 Enter().Flat() 使用，
+// 协议负责在同一回调层级里成对地 Pop。
+func (w *Writer) PushObj(key string) { w.push(key, nil, false) }
+func (w *Writer) PushArr(key string) { w.push(key, nil, true) }
+func (w *Writer) Pop()               { w.pop(nil) }
+
 // Open 强制打开当前层（用于必须物化空容器的场合，如官方输出 "content":[]）。
 func (w *Writer) Open() { w.ensureOpen(w.Level()) }
 
