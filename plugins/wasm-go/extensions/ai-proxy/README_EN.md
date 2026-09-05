@@ -33,9 +33,11 @@ Request bodies are now processed as a stream by default: each chunk is transform
 
 - chat completion requests targeting Claude (OpenAI → Claude conversion, including multimodal parts, tools, tool_calls and thinking fields);
 - OpenAI-compatible passthrough: `openai`, `vllm`, `doubao`, `longcat`, and `ai360`/`baichuan`/`baidu`/`cloudflare`/`deepseek`/`fireworks`/`galadriel`/`github`/`grok`/`groq`/`mistral`/`moonshot`/`ollama`/`spark`/`stepfun`/`together-ai`/`yi`;
-- `qwen` (compatible mode), `zhipuai` and `openrouter`, whose provider-specific field derivations replicate the original logic.
+- `qwen` (compatible mode), `zhipuai` and `openrouter`, whose provider-specific field derivations replicate the original logic;
+- `azure` (when the request path depends on the model, the model must appear within the first 64KB of the body, otherwise the request falls back);
+- chat completion requests targeting Gemini (OpenAI → Gemini conversion; the request path depends on model and stream, both must appear within the first 64KB; requests with http(s) image links need image fetching and keep using the buffered path).
 
-Other providers (Gemini, Vertex, Bedrock, Cohere, Azure, native Qwen protocol, …) and requests configured with `customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` / `firstByteTimeout` / `responseJsonSchema` / `providerBasePath` (qwen) keep using the buffered path unchanged.
+Other providers (Vertex, Bedrock, Cohere, native Qwen protocol, …) and requests configured with `customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` / `firstByteTimeout` / `responseJsonSchema` / `providerBasePath` (qwen) keep using the buffered path unchanged.
 
 Nothing is sent upstream before the first 64KB has been read; a request that turns out to be unsupported inside this window (rare shapes such as duplicate JSON keys or malformed image data URLs) falls back to the buffered path automatically. If such a shape appears only after the window, the request fails with 500 and detail `ai-proxy.stream_xform_uncoverable`.
 

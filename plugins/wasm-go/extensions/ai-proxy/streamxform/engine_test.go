@@ -192,4 +192,8 @@ func TestOpenAIPassthroughShape(t *testing.T) {
 	if p, ok := tr.Protocol().(Preluder); !ok || !p.Prelude().Stream || !p.Prelude().StreamSeen {
 		t.Errorf("Prelude 未报告 stream")
 	}
+	// 集成层要用原始 model 写上下文键（响应侧的模型名、Azure 的请求路径都靠它）
+	if pre := tr.Protocol().(Preluder).Prelude(); !pre.ModelSeen || pre.Model != "gpt-4o" {
+		t.Errorf("Prelude 未报告原始 model: %+v", pre)
+	}
 }

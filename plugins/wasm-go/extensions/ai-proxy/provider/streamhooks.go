@@ -2,8 +2,10 @@ package provider
 
 import (
 	"errors"
+	"sort"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/streamxform"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/wasm-go/pkg/log"
 	"github.com/higress-group/wasm-go/pkg/wrapper"
@@ -23,6 +25,17 @@ type StreamPlan struct {
 	ApplyStream bool
 	// ApplyModel：官方路径会写 originalRequestModel / finalRequestModel 上下文键。
 	ApplyModel bool
+	// NoAcceptHeader：官方路径虽然调了 parseRequestAndMapModel，但随后用 body 阶段开始时的
+	// 请求头快照整体覆盖（ReplaceRequestHeaders），Accept 的改写实际不生效——Gemini 就是这样。
+	NoAcceptHeader bool
+	// RequireModelBeforeCommit：放行请求头之前必须已经见到 model（请求路径依赖它）。
+	// 提交点到了还没见到就回落——这是"有界前瞻，超出窗口只能回落"的落点。
+	RequireModelBeforeCommit bool
+	// RequireStreamBeforeCommit：同上，请求路径依赖 stream（Gemini 的 generateContent / streamGenerateContent）。
+	// 整份 body 都到了还没见到则视为 false，与官方一致。
+	RequireStreamBeforeCommit bool
+	// AfterPrelude 在上下文键写好、请求头放行之前调用：用于依赖 body 事实改请求头（Azure 路径）。
+	AfterPrelude func(ctx wrapper.HttpContext)
 }
 
 // streamDefaultProviders 走 defaultTransformRequestBody 的 provider
@@ -38,7 +51,7 @@ var streamDefaultProviders = map[string]bool{
 }
 
 // NewStreamPlan 为一个请求挑选流式协议。返回 nil 时 why 说明原因，调用方走官方全量路径。
-func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName) (plan *StreamPlan, why string) {
+func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName, prov Provider) (plan *StreamPlan, why string) {
 	if c.IsOriginal() {
 		return nil, "original 协议"
 	}
@@ -135,6 +148,69 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName)
 		}
 		return &StreamPlan{Tr: streamxform.NewOpenAI(defaultOpts(v)), ApplyStream: true, ApplyModel: true}, ""
 
+	case c.typ == providerTypeGemini:
+		gp, ok := prov.(*geminiProvider)
+		if !ok {
+			return nil, "gemini provider 实例类型异常"
+		}
+		if !isChat {
+			return nil, "gemini 仅 chat completion 走流式"
+		}
+		var ss []streamxform.GeminiSafetySetting
+		for k, v := range c.geminiSafetySetting {
+			ss = append(ss, streamxform.GeminiSafetySetting{Category: k, Threshold: v})
+		}
+		sort.Slice(ss, func(i, j int) bool { return ss[i].Category < ss[j].Category })
+		mapStrict := func(m string) (string, error) {
+			if m == "" {
+				return "", errors.New("missing model in request")
+			}
+			mapped := getMappedModel(m, c.modelMapping)
+			if mapped == "" {
+				return "", errors.New("model becomes empty after applying the configured mapping")
+			}
+			return mapped, nil
+		}
+		p := &StreamPlan{Tr: streamxform.NewGemini(streamxform.GeminiOptions{
+			MapModel:       mapStrict,
+			ThinkingModel:  func(m string) bool { return geminiThinkingModels[m] },
+			ThinkingBudget: c.geminiThinkingBudget,
+			SafetySettings: ss,
+		}), ApplyStream: true, ApplyModel: true, NoAcceptHeader: true}
+		// 官方 onChatCompletionRequestBody：路径 = /{version}/models/{映射后 model}:{generateContent|streamGenerateContent}
+		p.RequireModelBeforeCommit = true
+		p.RequireStreamBeforeCommit = true
+		p.AfterPrelude = func(ctx wrapper.HttpContext) {
+			model := ctx.GetStringContext(ctxKeyFinalRequestModel, "")
+			stream, _ := ctx.GetContext(ctxKeyIsStreaming).(bool)
+			if err := util.OverwriteRequestPath(gp.getRequestPath(ApiNameChatCompletion, model, stream)); err != nil {
+				log.Errorf("geminiProvider: overwrite request path failed: %v", err)
+			}
+		}
+		return p, ""
+
+	case c.typ == providerTypeAzure:
+		ap, ok := prov.(*azureProvider)
+		if !ok {
+			return nil, "azure provider 实例类型异常"
+		}
+		if !inDefaultApis {
+			return nil, "该 apiName 未纳入流式"
+		}
+		// 官方 TransformRequestBody：默认转换后再按上下文里的最终 model 改写 :path。
+		// serviceUrl 里没有部署名（DomainOnly / OpenAI v1 base）时路径含 {model} 占位，
+		// 必须在放行请求头前知道 model；其余两种形态路径与 body 无关。
+		p := &StreamPlan{Tr: streamxform.NewOpenAI(defaultOpts(nil)), ApplyStream: true, ApplyModel: true}
+		p.RequireModelBeforeCommit = ap.serviceUrlType == azureServiceUrlTypeDomainOnly || ap.serviceUrlType == azureServiceUrlTypeOpenAIV1Base
+		p.AfterPrelude = func(ctx wrapper.HttpContext) {
+			if path := ap.transformRequestPath(ctx, apiName); path != "" {
+				if err := util.OverwriteRequestPath(path); err != nil {
+					log.Errorf("azureProvider: overwrite request path to %s failed: %v", path, err)
+				}
+			}
+		}
+		return p, ""
+
 	case c.typ == providerTypeOpenAI || c.typ == providerTypeLongcat || c.typ == providerTypeDoubao || streamDefaultProviders[c.typ]:
 		if (c.typ == providerTypeOpenAI || c.typ == providerTypeLongcat) && c.responseJsonSchema != nil {
 			return nil, "responseJsonSchema 会经 struct 重新序列化"
@@ -154,7 +230,7 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName)
 // headersMutable 为 false 说明请求头已经下发（越过提交点后），此时只写上下文键。
 func (c *ProviderConfig) StreamApplyPrelude(ctx wrapper.HttpContext, apiName ApiName, plan *StreamPlan, pre streamxform.Prelude, headersMutable bool) {
 	if plan.ApplyStream && pre.StreamSeen && apiName == ApiNameChatCompletion {
-		if pre.Stream {
+		if pre.Stream && !plan.NoAcceptHeader {
 			if headersMutable {
 				_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
 			} else {

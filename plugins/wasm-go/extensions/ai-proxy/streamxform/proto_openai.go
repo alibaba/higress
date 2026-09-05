@@ -43,6 +43,7 @@ type OpenAIVariant interface {
 // OpenAIState 是基础协议暴露给 Variant 的状态。
 type OpenAIState struct {
 	ModelSeen     bool
+	Model         string // 原始 model（ModelSeen 为真时有效）
 	Mapped        string // 映射后的 model（ModelSeen 为真时有效）
 	ReasoningSeen bool   // 某条 message 的 reasoning_content 非空（gjson String() != ""）
 }
@@ -75,7 +76,7 @@ func NewOpenAI(opt OpenAIOptions) *Transformer {
 }
 
 func (p *openaiProto) Prelude() Prelude {
-	return Prelude{ModelSeen: p.st.ModelSeen, Stream: p.stream, StreamSeen: p.streamSeen && p.opt.DetectStream}
+	return Prelude{Model: p.st.Model, ModelSeen: p.st.ModelSeen, Stream: p.stream, StreamSeen: p.streamSeen && p.opt.DetectStream}
 }
 
 func (p *openaiProto) enterMessages() bool {
@@ -202,6 +203,7 @@ func (p *openaiProto) OnValue(t *Transformer, raw []byte) {
 				return
 			}
 			p.st.ModelSeen = true
+			p.st.Model = s
 			p.st.Mapped = p.opt.MapModel(s)
 			w := t.W()
 			w.KeyRaw(t.KeyRaw()) // 保留原文的 "model": 写法，与 sjson 原地改写一致

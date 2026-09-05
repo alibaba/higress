@@ -396,7 +396,7 @@ func newXformState(ctx wrapper.HttpContext, cfg config.PluginConfig) *xformState
 		return st
 	}
 	st.apiName, _ = ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
-	plan, why := pc.NewStreamPlan(ctx, st.apiName)
+	plan, why := pc.NewStreamPlan(ctx, st.apiName, cfg.GetProvider())
 	if plan == nil {
 		log.Debugf("[stream-xform] 不走流式: %s", why)
 		st.fallback = true
@@ -433,7 +433,18 @@ func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chun
 		return nil, types.ActionPause // 提交点之前：留在宿主缓冲区，继续攒
 	}
 	if !s.sent {
-		s.applyPrelude(ctx, cfg, true)
+		pre := s.preludeOf()
+		if (s.plan.RequireModelBeforeCommit && !pre.ModelSeen) || (s.plan.RequireStreamBeforeCommit && !pre.StreamSeen && !last) {
+			// 请求路径依赖 model / stream，而它在提交点之前没出现：还没放行任何字节，可以干净回落。
+			// （整份 body 都到了还没见到 stream，就是 false，不必回落。）
+			log.Warnf("[stream-xform] 提交点前未见请求路径所需的字段，回落到官方全量路径 (received=%d last=%v)", s.total, last)
+			s.fallback = true
+			return s.feedFallback(ctx, cfg, last)
+		}
+		cfg.GetProviderConfig().StreamApplyPrelude(ctx, s.apiName, s.plan, pre, true)
+		if s.plan.AfterPrelude != nil {
+			s.plan.AfterPrelude(ctx)
+		}
 		saveContextsToHeaders(ctx)
 		s.sent = true
 	}
