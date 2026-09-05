@@ -435,7 +435,13 @@ func (p *claudeProto) topValue(t *Transformer, raw []byte) {
 			t.Bail(t.Last() + " 不是数字")
 			return
 		}
-		cp := append([]byte(nil), raw...)
+		// 官方是 float64 字段再 Marshal：1e0 → 1、0.70 → 0.7。这里走同一条路，字节级对齐
+		var f float64
+		if err := json.Unmarshal(raw, &f); err != nil {
+			t.Bail(t.Last() + " 不是数字")
+			return
+		}
+		cp, _ := json.Marshal(f)
 		if t.Last() == "temperature" {
 			p.temp = cp
 		} else {
