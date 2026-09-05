@@ -197,3 +197,76 @@ func TestOpenAIPassthroughShape(t *testing.T) {
 		t.Errorf("Prelude 未报告原始 model: %+v", pre)
 	}
 }
+
+// ---- 评审发现的回归用例 ----
+
+// Release 在返回 Enter 的回调里被调用：回放必须发生在本帧回到安全点时，不能被子帧消费掉。
+type releaseOnEnterProto struct{ probeProto }
+
+func (p *releaseOnEnterProto) OnKey(t *Transformer) Action {
+	if t.Depth() == 1 && t.Last() == "go" {
+		p.sigSeen = true
+		t.Release()
+		return Enter()
+	}
+	return p.probeProto.OnKey(t)
+}
+
+func TestReleaseFromEnteringCallback(t *testing.T) {
+	in := `{"late":1,"go":{"x":1},"keep":2}`
+	tr := NewTransformer(&releaseOnEnterProto{})
+	tr.Write([]byte(in))
+	out := string(tr.Finish())
+	if bad, why := tr.Unsupported(); bad {
+		t.Fatalf("意外回落: %s", why)
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatalf("非法 JSON: %v %s", err, out)
+	}
+	if m["late_after_sig"] != float64(1) || m["keep"] != float64(2) {
+		t.Errorf("Defer 项应在回到本帧后回放: %s", out)
+	}
+}
+
+// 协议既不回放也不丢弃 Defer 项：引擎必须 Bail，而不是静默吞掉。
+type forgetfulProto struct{ probeProto }
+
+func (p *forgetfulProto) OnValue(t *Transformer, raw []byte) {} // 不再 Release
+
+func TestLeftoverDeferredBails(t *testing.T) {
+	tr := NewTransformer(&forgetfulProto{})
+	tr.Write([]byte(`{"late":{"important":true},"sig":1,"keep":2}`))
+	tr.Finish()
+	if bad, why := tr.Unsupported(); !bad || !strings.Contains(why, "Defer") {
+		t.Errorf("残留 Defer 项应 Bail: %v %s", bad, why)
+	}
+}
+
+// 回放标量时补的分隔符不能泄漏成闭合前空白。
+func TestReplayScalarNoWhitespaceLeak(t *testing.T) {
+	tr := NewTransformer(&probeProto{})
+	tr.Write([]byte(`{"late":1,"sig":1}`))
+	out := string(tr.Finish())
+	if out != `{"late_after_sig":1}` {
+		t.Errorf("回放后多出空白: %q", out)
+	}
+}
+
+// 缓冲超限 Bail 之后不能再把残缺数据交给协议回调。
+type panicOnValueProto struct{ probeProto }
+
+func (p *panicOnValueProto) OnValue(t *Transformer, raw []byte) {
+	if t.Last() == "cap" && len(raw) < 100 {
+		panic("协议拿到了截断的缓冲")
+	}
+}
+
+func TestNoCallbackAfterBail(t *testing.T) {
+	tr := NewTransformer(&panicOnValueProto{})
+	tr.Write([]byte(`{"cap":"` + strings.Repeat("x", 100) + `"}`))
+	tr.Finish()
+	if bad, _ := tr.Unsupported(); !bad {
+		t.Error("超过 Capture 上限应 Bail")
+	}
+}

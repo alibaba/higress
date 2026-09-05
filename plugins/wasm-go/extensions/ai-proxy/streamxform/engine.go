@@ -111,6 +111,7 @@ type Transformer struct {
 	capBuf   []byte
 
 	wantRelease bool
+	releaseAt   int // 请求回放时所在的派发帧号：只在该帧的安全点消费，进入子帧不会误消费
 
 	scanned     int
 	committed   bool
@@ -240,8 +241,12 @@ func (t *Transformer) PathString() string {
 // KeyRaw 当前 key 的原始字节（含前导空白、引号、冒号及其周围空白）。协议想原样保留格式时用它。
 func (t *Transformer) KeyRaw() []byte { return t.kvRaw }
 
-// Release 请求回放当前派发帧里 Defer 的项。回放发生在当前回调返回后的安全点。
-func (t *Transformer) Release() { t.wantRelease = true }
+// Release 请求回放当前派发帧里 Defer 的项。回放发生在当前回调返回后、同一帧的安全点
+// （当前值结束或该帧闭合）；若回调返回 Enter 进入了子帧，回放推迟到回到本帧之后。
+func (t *Transformer) Release() {
+	t.wantRelease = true
+	t.releaseAt = len(t.frames) - 1
+}
 
 // ReleaseNow 同步回放当前派发帧里 Defer 的项。只能在 OnLeave 里调用——
 // 那时路径正指向容器本身，回放的 key 会正确地挂在它下面；在 OnValue 里要用 Release。
@@ -725,6 +730,9 @@ func (t *Transformer) runPrefix(complete bool) {
 
 // endRegion 区域结束：交付缓冲、写后缀。
 func (t *Transformer) endRegion() {
+	if t.dead {
+		return // 缓冲超限等 Bail 已发生，不再把残缺数据交给协议
+	}
 	switch t.regT {
 	case rtOut:
 		if len(t.regSuf) > 0 {
@@ -785,7 +793,7 @@ func (t *Transformer) onKeyDone() {
 // afterValue 一个值（标量 / 字符串 / 容器）在派发帧里结束。
 func (t *Transformer) afterValue() {
 	f := t.top()
-	if f == nil {
+	if f == nil || t.dead {
 		return
 	}
 	f.ph = phComma
@@ -793,7 +801,7 @@ func (t *Transformer) afterValue() {
 	if len(t.path) > 0 {
 		t.path = t.path[:len(t.path)-1]
 	}
-	if t.wantRelease {
+	if t.wantRelease && t.releaseAt == len(t.frames)-1 {
 		t.wantRelease = false
 		t.doRelease()
 	}
@@ -808,12 +816,17 @@ func (t *Transformer) closeContainer() {
 	if t.dead {
 		return
 	}
-	if t.wantRelease {
+	if t.wantRelease && t.releaseAt == len(t.frames)-1 {
 		t.wantRelease = false
 		t.doRelease()
 		if t.dead {
 			return
 		}
+	}
+	if len(f.deferred) > 0 {
+		// 协议既没回放也没显式丢弃：这是协议逻辑漏洞，静默吞掉会产出语义不同的请求。
+		t.Bail("容器闭合时仍有未处理的 Defer 项: " + t.PathString())
+		return
 	}
 	flat, lazy := f.flat, f.lazy
 	t.frames = t.frames[:len(t.frames)-1]
@@ -862,6 +875,7 @@ func (t *Transformer) replayKV(kv DeferredKV) {
 	f.ph = phValue
 	t.scan(kv.Raw)
 	if t.st == sInScalar {
-		t.scan([]byte{' '})
+		t.scan([]byte{' '}) // 补一个分隔符收尾标量
 	}
+	t.wsRaw = t.wsRaw[:0] // 上面的补位空格不属于原文
 }
