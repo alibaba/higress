@@ -40,6 +40,8 @@ Request bodies are now processed as a stream by default: each chunk is transform
 
 Other providers (Vertex, Bedrock, Cohere, Hunyuan, MiniMax Pro, Dify, DeepL, Triton, Kling) and requests configured with `customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` / `firstByteTimeout` / `responseJsonSchema` / `providerBasePath` (qwen, minimax) / `qwenFileIds` (native qwen) keep using the buffered path unchanged.
 
+Metrics: counters `ai_proxy.stream_xform.streamed` / `fallback` / `uncoverable` / `skipped` (exported by Envoy under the `wasmcustom.` prefix) (streamed, fell back to the buffered path, failed after the commit point, not applicable for the provider/config). The fallback rate should stay near zero; otherwise memory capacity still has to be planned for full buffering.
+
 Nothing is sent upstream before the first 64KB has been read; a request that turns out to be unsupported inside this window (rare shapes such as duplicate JSON keys or malformed image data URLs) falls back to the buffered path automatically. If such a shape appears only after the window, the request fails with 500 and detail `ai-proxy.stream_xform_uncoverable`.
 
 Known differences from the buffered path (all "more lenient", never producing a semantically different valid request): the buffered path type-checks the whole body against its structs and returns 500 on any mismatch, while the streaming path validates only the fields it reads and passes the rest through byte-for-byte for the provider to judge. When `stream` appears after the first 64KB, the `Accept: text/event-stream` header is no longer rewritten (providers decide streaming by the body field).

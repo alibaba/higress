@@ -45,6 +45,9 @@ description: AI 代理插件配置参考
 `customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` /
 `firstByteTimeout` / `responseJsonSchema` / `providerBasePath`（qwen、minimax）/ `qwenFileIds`（qwen 原生）的场景，仍走原有的全量缓冲路径，行为不变。
 
+运行指标：`ai_proxy.stream_xform.streamed` / `fallback` / `uncoverable` / `skipped` 四个计数器（Envoy 统计里带 `wasmcustom.` 前缀）（走流式 / 回落到全量 /
+提交点后失败 / 配置或供应商不适用）。回落率应接近零，否则内存容量仍要按全量缓冲配置。
+
 流式路径在读到前 64KB 之前不向上游发送任何字节；这段窗口内遇到无法流式处理的形态（极少数，如重复的 JSON key、
 非法的图片 data URL）会自动回落到全量路径。越过窗口后才遇到这类形态的请求会以 500 结束，
 错误详情为 `ai-proxy.stream_xform_uncoverable`。

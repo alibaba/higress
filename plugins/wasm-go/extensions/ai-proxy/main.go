@@ -379,6 +379,32 @@ func onHttpStreamingRequestBody(ctx wrapper.HttpContext, pluginConfig config.Plu
 
 const ctxKeyXformState = "aip_xform_state"
 
+// 流式路径的运行指标。回落率是上线后必须盯的量：回落走的是全量缓冲，容量按最坏情况配置直到它接近零。
+// 指标只是观测手段：宿主不支持（测试模拟器、或禁用了 metrics 的部署）时静默关闭，绝不能影响请求。
+var (
+	streamXformCounters   = map[string]proxywasm.MetricCounter{}
+	streamXformMetricsOff bool
+)
+
+func streamXformCount(name string) {
+	if streamXformMetricsOff {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			streamXformMetricsOff = true
+			log.Warnf("[stream-xform] metrics disabled: %v", r)
+		}
+	}()
+	key := "ai_proxy.stream_xform." + name
+	counter, ok := streamXformCounters[key]
+	if !ok {
+		counter = proxywasm.DefineCounterMetric(key)
+		streamXformCounters[key] = counter
+	}
+	counter.Increment(1)
+}
+
 type xformState struct {
 	tr       *streamxform.Transformer
 	plan     *provider.StreamPlan
@@ -399,6 +425,7 @@ func newXformState(ctx wrapper.HttpContext, cfg config.PluginConfig) *xformState
 	plan, why := pc.NewStreamPlan(ctx, st.apiName, cfg.GetProvider())
 	if plan == nil {
 		log.Debugf("[stream-xform] 不走流式: %s", why)
+		streamXformCount("skipped")
 		st.fallback = true
 		return st
 	}
@@ -417,6 +444,7 @@ func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chun
 		if !s.sent {
 			saveContextsToHeaders(ctx)
 			s.sent = true
+			streamXformCount("streamed")
 		}
 		return chunk, types.ActionContinue
 	}
@@ -429,11 +457,13 @@ func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chun
 		if s.tr.Committed() && s.sent {
 			// 已越过提交点：部分字节已发给上游，无法回落，只能失败。
 			log.Errorf("[stream-xform] 提交点之后判定不支持，请求失败: %s", why)
+			streamXformCount("uncoverable")
 			_ = util.ErrorHandler("ai-proxy.stream_xform_uncoverable",
 				fmt.Errorf("streaming transform bailed after commit: %s", why))
 			return nil, types.ActionPause
 		}
 		log.Warnf("[stream-xform] 回落到官方全量路径: %s (received=%d last=%v)", why, s.total, last)
+		streamXformCount("fallback")
 		s.fallback = true
 		return s.feedFallback(ctx, cfg, last)
 	}
@@ -446,6 +476,7 @@ func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chun
 			// 请求路径依赖 model / stream，而它在提交点之前没出现：还没放行任何字节，可以干净回落。
 			// （整份 body 都到了还没见到 stream，就是 false，不必回落。）
 			log.Warnf("[stream-xform] 提交点前未见请求路径所需的字段，回落到官方全量路径 (received=%d last=%v)", s.total, last)
+			streamXformCount("fallback")
 			s.fallback = true
 			return s.feedFallback(ctx, cfg, last)
 		}
@@ -455,6 +486,7 @@ func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chun
 		}
 		saveContextsToHeaders(ctx)
 		s.sent = true
+		streamXformCount("streamed")
 	}
 	out := append(s.tr.Out(), fin...)
 	if last {
