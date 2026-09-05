@@ -515,7 +515,7 @@ func (s *xformState) feedFallback(ctx wrapper.HttpContext, cfg config.PluginConf
 	if action == types.ActionPause {
 		return nil, types.ActionPause // 官方已发出本地应答（错误）或在等异步结果
 	}
-	nb, err := proxywasm.GetHttpRequestBody(0, 64<<20)
+	nb, err := proxywasm.GetHttpRequestBody(0, 1<<30) // 上限只是读取上限：官方转换后的 body 可能比输入大
 	if err != nil {
 		return body, types.ActionContinue
 	}

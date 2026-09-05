@@ -159,7 +159,7 @@ func (p *geminiProto) OnKey(t *Transformer) Action {
 			}
 			m.contentSeen = true
 			if m.role == "system" {
-				return Capture(0) // 整体提到 system_instruction，官方同样整体持有
+				return Capture(systemCap) // 整体提到 system_instruction；上限对齐官方的请求体上限
 			}
 			return Probe()
 		}

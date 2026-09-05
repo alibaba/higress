@@ -20,7 +20,9 @@ func TestNoPanicOnGarbage(t *testing.T) {
 		func() *Transformer {
 			return NewOpenAI(OpenAIOptions{DetectStream: true, NormalizeUsage: true, CheckMessages: true, Variant: &ZhipuVariant{}})
 		},
-		func() *Transformer { return NewOpenAI(OpenAIOptions{Variant: &OpenRouterVariant{}, CheckMessages: true}) },
+		func() *Transformer {
+			return NewOpenAI(OpenAIOptions{Variant: &OpenRouterVariant{}, CheckMessages: true})
+		},
 		func() *Transformer {
 			return NewOpenAI(OpenAIOptions{Variant: &QwenVariant{SupportsPreserveThinking: func(string) bool { return true }}, ModelOnlyIfPresent: true})
 		},

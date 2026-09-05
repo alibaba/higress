@@ -38,9 +38,12 @@ const (
 	// assistantWaitCap：assistant 的 content 要等 tool_calls 才能定形状。
 	assistantWaitCap = 1 << 20
 	// partWaitCap：多模态 part 里 type 迟到时暂存 text / image_url。
-	partWaitCap  = 8 << 20
-	smallCap     = 64 << 10
-	toolsCap     = 4 << 20
+	partWaitCap = 8 << 20
+	smallCap    = 64 << 10
+	toolsCap    = 4 << 20
+	// systemCap：system 内容必须整体搬到顶层。官方路径的请求体上限是 100MB（ai-proxy defaultMaxBodyBytes），
+	// 这里对齐它——不能因为改成流式反而让单个字段可以无限增长。
+	systemCap    = 100 << 20
 	urlPrefixWin = 512
 )
 
@@ -148,7 +151,8 @@ type claudeProto struct {
 	msgLevel       int
 	openToolResult bool
 	sysSeen        bool
-	sys            string
+	sys            string // 解码后的文本（content 是数组时）
+	sysRaw         []byte // content 是字符串时的原始 JSON 字面量，原样写出
 	m              claudeMsg
 }
 
@@ -297,7 +301,7 @@ func (p *claudeProto) msgKey(t *Transformer) Action {
 		m.contentSeen = true
 		switch m.role {
 		case "system", "developer":
-			return Capture(0) // 必须整体搬到顶层 system；大小由输入决定，与官方相同
+			return Capture(systemCap) // 必须整体搬到顶层 system；上限对齐官方的请求体上限
 		case "tool":
 			return Capture(assistantWaitCap)
 		case "assistant":
@@ -500,7 +504,13 @@ func (p *claudeProto) msgValue(t *Transformer, raw []byte) {
 		switch m.role {
 		case "system", "developer":
 			p.sysSeen = true
-			p.sys = stringContent(t, raw)
+			if len(raw) > 0 && raw[0] == '"' {
+				p.sysRaw = append([]byte(nil), raw...) // 字符串：不解码，原样写出
+				p.sys = ""
+			} else {
+				p.sysRaw = nil
+				p.sys = stringContent(t, raw)
+			}
 		case "tool":
 			m.toolText = toolResultText(t, raw)
 		}
@@ -688,7 +698,7 @@ func (p *claudeProto) finishMessage(t *Transformer) {
 			t.ReleaseNow()
 		}
 		if !m.contentSeen {
-			p.sysSeen, p.sys = true, ""
+			p.sysSeen, p.sys, p.sysRaw = true, "", nil
 		}
 		return
 	case "tool":
@@ -801,20 +811,29 @@ func (p *claudeProto) Tail(t *Transformer) {
 	}
 	// system
 	if p.opt.ClaudeCodeMode {
-		text := claudeCodeSystemPrompt
-		if p.sysSeen {
-			text = p.sys
-		}
 		w.Key("system")
 		w.RawString(`[{"type":"text"`)
-		if text != "" { // Text omitempty
+		switch {
+		case !p.sysSeen:
 			w.RawString(`,"text":`)
-			w.JSONString(text)
+			w.JSONString(claudeCodeSystemPrompt)
+		case p.sysRaw != nil:
+			if string(p.sysRaw) != `""` { // Text omitempty
+				w.RawString(`,"text":`)
+				w.Raw(p.sysRaw)
+			}
+		case p.sys != "":
+			w.RawString(`,"text":`)
+			w.JSONString(p.sys)
 		}
 		w.RawString(`,"cache_control":{"type":"ephemeral"}}]`)
 	} else if p.sysSeen {
 		w.Key("system")
-		w.JSONString(p.sys)
+		if p.sysRaw != nil {
+			w.Raw(p.sysRaw)
+		} else {
+			w.JSONString(p.sys)
+		}
 	}
 	maxTokens := p.maxTok
 	if p.maxCompletion > 0 {
