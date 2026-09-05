@@ -56,6 +56,17 @@ var streamDefaultProviders = map[string]bool{
 
 // NewStreamPlan 为一个请求挑选流式协议。返回 nil 时 why 说明原因，调用方走官方全量路径。
 func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName, prov Provider) (plan *StreamPlan, why string) {
+	if c.typ == providerTypeGeneric {
+		// generic 的 OnRequestBody 只是把 body 原样写回，不经 handleRequestBody：
+		// 只有 main.go 里对所有 provider 生效的两项配置会碰 body / 上下文
+		if len(c.customSettings) > 0 {
+			return nil, "customSettings 会改写 body"
+		}
+		if c.IsRetryOnFailureEnabled() {
+			return nil, "retryOnFailure 需要把全量 body 存进上下文"
+		}
+		return &StreamPlan{Passthrough: true}, ""
+	}
 	if c.IsOriginal() {
 		return nil, "original 协议"
 	}
@@ -114,10 +125,6 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 	}
 
 	switch {
-	case c.typ == providerTypeGeneric:
-		// generic 的 OnRequestBody 只是把 body 原样写回：逐块放行即可
-		return &StreamPlan{Passthrough: true}, ""
-
 	case c.typ == providerTypeClaude && !isChat:
 		// /v1/messages（原生 Claude 协议）、/v1/complete、embeddings：官方走 defaultTransformRequestBody
 		return defaultPlan(nil), ""
