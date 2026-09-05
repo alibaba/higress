@@ -35,7 +35,8 @@ Request bodies are now processed as a stream by default: each chunk is transform
 - OpenAI-compatible passthrough: `openai`, `vllm`, `doubao`, `longcat`, and `ai360`/`baichuan`/`baidu`/`cloudflare`/`deepseek`/`fireworks`/`galadriel`/`github`/`grok`/`groq`/`mistral`/`moonshot`/`ollama`/`spark`/`stepfun`/`together-ai`/`yi`;
 - `qwen` (compatible mode), `zhipuai` and `openrouter`, whose provider-specific field derivations replicate the original logic;
 - `azure` (when the request path depends on the model, the model must appear within the first 64KB of the body, otherwise the request falls back);
-- chat completion requests targeting Gemini (OpenAI → Gemini conversion; the request path depends on model and stream, both must appear within the first 64KB; requests with http(s) image links need image fetching and keep using the buffered path).
+- chat completion requests targeting Gemini (OpenAI → Gemini conversion; the request path depends on model and stream, both must appear within the first 64KB; requests with http(s) image links need image fetching and keep using the buffered path);
+- `generic` (chunks are forwarded as-is), native Claude endpoints (`/v1/messages`, `/v1/complete`, embeddings) and the other JSON endpoints of the passthrough providers above (images / audio / responses / videos / fine-tuning …). Multipart requests keep the buffered path.
 
 Other providers (Vertex, Bedrock, Cohere, native Qwen protocol, …) and requests configured with `customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` / `firstByteTimeout` / `responseJsonSchema` / `providerBasePath` (qwen) keep using the buffered path unchanged.
 

@@ -3,6 +3,7 @@ package provider
 import (
 	"errors"
 	"sort"
+	"strings"
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/streamxform"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
@@ -21,7 +22,10 @@ import (
 // StreamPlan 是一个请求的流式方案。
 type StreamPlan struct {
 	Tr *streamxform.Transformer
-	// ApplyStream：官方路径会依据 stream 改 Accept 头并写 isStreaming（默认路径为真；Qwen 兼容模式为假）。
+	// Passthrough：官方对 body 一个字节都不动（generic），直接逐块放行，不经转换器。
+	Passthrough bool
+	// ApplyStream：官方路径会依据 stream 改 Accept 头并写 isStreaming
+	// （默认路径的 chat / videos / videoremix 为真；Qwen 兼容模式与非流式接口为假）。
 	ApplyStream bool
 	// ApplyModel：官方路径会写 originalRequestModel / finalRequestModel 上下文键。
 	ApplyModel bool
@@ -79,26 +83,46 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 	if !c.isSupportedAPI(apiName) {
 		return nil, "apiName 不受支持"
 	}
+	if !c.needToProcessRequestBody(apiName) {
+		return nil, "该 apiName 官方不处理请求体"
+	}
+	if ct, _ := proxywasm.GetHttpRequestHeader("content-type"); !strings.Contains(ct, "application/json") {
+		return nil, "非 JSON 请求体（multipart 等）走官方路径"
+	}
 	isChat := apiName == ApiNameChatCompletion
+	// defaultTransformRequestBody 只对这三类接口读 stream
+	detectStream := isChat || apiName == ApiNameVideos || apiName == ApiNameVideoRemix
 	mapLenient := func(m string) string { return getMappedModel(m, c.modelMapping) }
 	normalize := c.IsOpenAIProtocol() && !c.IsGeneric() && (isChat || apiName == ApiNameCompletion) && !c.disableStreamUsageStats
 	defaultOpts := func(v streamxform.OpenAIVariant) streamxform.OpenAIOptions {
 		return streamxform.OpenAIOptions{
 			MapModel:               mapLenient,
-			DetectStream:           isChat,
+			DetectStream:           detectStream,
 			NormalizeUsage:         normalize,
 			DeveloperRoleSupported: isDeveloperRoleSupported(c.typ),
 			CheckMessages:          isChat,
 			Variant:                v,
 		}
 	}
-	inDefaultApis := isChat || apiName == ApiNameCompletion || apiName == ApiNameEmbeddings
+	defaultPlan := func(v streamxform.OpenAIVariant) *StreamPlan {
+		return &StreamPlan{Tr: streamxform.NewOpenAI(defaultOpts(v)), ApplyStream: detectStream, ApplyModel: true}
+	}
+	// 走默认路径的 provider 里，这几类接口官方另有处理
+	inDefaultApis := true
+	if c.typ == providerTypeDoubao && (apiName == ApiNameResponses || apiName == ApiNameImageGeneration) {
+		inDefaultApis = false
+	}
 
 	switch {
+	case c.typ == providerTypeGeneric:
+		// generic 的 OnRequestBody 只是把 body 原样写回：逐块放行即可
+		return &StreamPlan{Passthrough: true}, ""
+
+	case c.typ == providerTypeClaude && !isChat:
+		// /v1/messages（原生 Claude 协议）、/v1/complete、embeddings：官方走 defaultTransformRequestBody
+		return defaultPlan(nil), ""
+
 	case c.typ == providerTypeClaude:
-		if !isChat {
-			return nil, "claude 仅 chat completion 走流式"
-		}
 		return &StreamPlan{Tr: streamxform.NewClaude(streamxform.ClaudeOptions{
 			MapModel: func(m string) (string, error) {
 				if m == "" {
@@ -136,7 +160,7 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 		if isChat {
 			v = &streamxform.ZhipuVariant{}
 		}
-		return &StreamPlan{Tr: streamxform.NewOpenAI(defaultOpts(v)), ApplyStream: true, ApplyModel: true}, ""
+		return defaultPlan(v), ""
 
 	case c.typ == providerTypeOpenRouter:
 		if !inDefaultApis {
@@ -146,7 +170,7 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 		if isChat {
 			v = &streamxform.OpenRouterVariant{}
 		}
-		return &StreamPlan{Tr: streamxform.NewOpenAI(defaultOpts(v)), ApplyStream: true, ApplyModel: true}, ""
+		return defaultPlan(v), ""
 
 	case c.typ == providerTypeGemini:
 		gp, ok := prov.(*geminiProvider)
@@ -200,8 +224,9 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 		// 官方 TransformRequestBody：默认转换后再按上下文里的最终 model 改写 :path。
 		// serviceUrl 里没有部署名（DomainOnly / OpenAI v1 base）时路径含 {model} 占位，
 		// 必须在放行请求头前知道 model；其余两种形态路径与 body 无关。
-		p := &StreamPlan{Tr: streamxform.NewOpenAI(defaultOpts(nil)), ApplyStream: true, ApplyModel: true}
-		p.RequireModelBeforeCommit = ap.serviceUrlType == azureServiceUrlTypeDomainOnly || ap.serviceUrlType == azureServiceUrlTypeOpenAIV1Base
+		p := defaultPlan(nil)
+		p.RequireModelBeforeCommit = !azureModelIrrelevantApis[apiName] &&
+			(ap.serviceUrlType == azureServiceUrlTypeDomainOnly || ap.serviceUrlType == azureServiceUrlTypeOpenAIV1Base)
 		p.AfterPrelude = func(ctx wrapper.HttpContext) {
 			if path := ap.transformRequestPath(ctx, apiName); path != "" {
 				if err := util.OverwriteRequestPath(path); err != nil {
@@ -218,7 +243,7 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 		if !inDefaultApis {
 			return nil, "该 apiName 的默认路径未纳入流式"
 		}
-		return &StreamPlan{Tr: streamxform.NewOpenAI(defaultOpts(nil)), ApplyStream: true, ApplyModel: true}, ""
+		return defaultPlan(nil), ""
 	}
 	return nil, "provider " + c.typ + " 的流式协议尚未实现"
 }
@@ -229,7 +254,7 @@ func (c *ProviderConfig) NewStreamPlan(ctx wrapper.HttpContext, apiName ApiName,
 //
 // headersMutable 为 false 说明请求头已经下发（越过提交点后），此时只写上下文键。
 func (c *ProviderConfig) StreamApplyPrelude(ctx wrapper.HttpContext, apiName ApiName, plan *StreamPlan, pre streamxform.Prelude, headersMutable bool) {
-	if plan.ApplyStream && pre.StreamSeen && apiName == ApiNameChatCompletion {
+	if plan.ApplyStream && pre.StreamSeen {
 		if pre.Stream && !plan.NoAcceptHeader {
 			if headersMutable {
 				_ = proxywasm.ReplaceHttpRequestHeader("Accept", "text/event-stream")
@@ -248,7 +273,7 @@ func (c *ProviderConfig) StreamApplyPrelude(ctx wrapper.HttpContext, apiName Api
 // StreamFinalizeContext 在整份 body 扫完后补齐"没见到"的默认值，与官方一致：
 // chat 请求官方总会写 isStreaming（缺省 false）。
 func (c *ProviderConfig) StreamFinalizeContext(ctx wrapper.HttpContext, apiName ApiName, plan *StreamPlan, pre streamxform.Prelude) {
-	if plan.ApplyStream && apiName == ApiNameChatCompletion && !pre.StreamSeen {
+	if plan.ApplyStream && !pre.StreamSeen {
 		ctx.SetContext(ctxKeyIsStreaming, false)
 	}
 }

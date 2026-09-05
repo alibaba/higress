@@ -412,6 +412,14 @@ func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chun
 	if s.fallback {
 		return s.feedFallback(ctx, cfg, last)
 	}
+	if s.plan.Passthrough {
+		// 官方对 body 一个字节都不动，逐块放行；首块前把上下文里的原始头信息写回（官方 defer 里做的事）
+		if !s.sent {
+			saveContextsToHeaders(ctx)
+			s.sent = true
+		}
+		return chunk, types.ActionContinue
+	}
 	s.tr.Write(chunk)
 	var fin []byte
 	if last {
