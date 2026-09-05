@@ -27,6 +27,20 @@ The plugin now supports **automatic protocol detection**, allowing seamless comp
 
 > When the request path suffix matches `/v1/images/generations`, it corresponds to text-to-image scenarios. The request body will be parsed using OpenAI's image generation protocol and then converted to the corresponding LLM vendor's image generation protocol.
 
+**Streaming Request Transform**
+
+Request bodies are now processed as a stream by default: each chunk is transformed and forwarded to the provider as it arrives, instead of buffering the whole body before the protocol conversion. Gateway memory no longer scales with request size (measured ~0 MB increase at 20MB × 80 concurrent requests) and time-to-first-byte drops accordingly. No configuration is needed. Streaming currently covers:
+
+- chat completion requests targeting Claude (OpenAI → Claude conversion, including multimodal parts, tools, tool_calls and thinking fields);
+- OpenAI-compatible passthrough: `openai`, `vllm`, `doubao`, `longcat`, and `ai360`/`baichuan`/`baidu`/`cloudflare`/`deepseek`/`fireworks`/`galadriel`/`github`/`grok`/`groq`/`mistral`/`moonshot`/`ollama`/`spark`/`stepfun`/`together-ai`/`yi`;
+- `qwen` (compatible mode), `zhipuai` and `openrouter`, whose provider-specific field derivations replicate the original logic.
+
+Other providers (Gemini, Vertex, Bedrock, Cohere, Azure, native Qwen protocol, …) and requests configured with `customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` / `firstByteTimeout` / `responseJsonSchema` / `providerBasePath` (qwen) keep using the buffered path unchanged.
+
+Nothing is sent upstream before the first 64KB has been read; a request that turns out to be unsupported inside this window (rare shapes such as duplicate JSON keys or malformed image data URLs) falls back to the buffered path automatically. If such a shape appears only after the window, the request fails with 500 and detail `ai-proxy.stream_xform_uncoverable`.
+
+Known differences from the buffered path (all "more lenient", never producing a semantically different valid request): the buffered path type-checks the whole body against its structs and returns 500 on any mismatch, while the streaming path validates only the fields it reads and passes the rest through byte-for-byte for the provider to judge. When `stream` appears after the first 64KB, the `Accept: text/event-stream` header is no longer rewritten (providers decide streaming by the body field).
+
 ## Execution Properties
 Plugin execution phase: `Default Phase`
 Plugin execution priority: `100`

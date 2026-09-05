@@ -28,6 +28,28 @@ description: AI 代理插件配置参考
 
 > 请求路径后缀匹配 `/v1/images/generations` 时，对应文生图场景，会用 OpenAI 的图片生成协议解析请求 Body，再转换为对应 LLM 厂商的图片生成协议
 
+**请求体流式转换（Streaming Request Transform）**
+
+插件对请求体默认采用流式处理：请求体按块到达、按块转换、按块发往供应商，不再整体缓冲后再做协议转换。
+网关内存占用与请求体大小无关（20MB × 80 并发实测内存增量约 0），首字节延迟也随之下降。
+无需任何配置。目前走流式的路径：
+
+- 目标为 Claude 的文生文请求（OpenAI → Claude 协议转换，含多模态、tools、tool_calls、thinking 等全部字段）；
+- OpenAI 兼容透传：`openai`、`vllm`、`doubao`、`longcat` 以及 `ai360`/`baichuan`/`baidu`/`cloudflare`/`deepseek`/`fireworks`/`galadriel`/`github`/`grok`/`groq`/`mistral`/`moonshot`/`ollama`/`spark`/`stepfun`/`together-ai`/`yi`；
+- `qwen`（兼容模式）、`zhipuai`、`openrouter`（各自的字段推导按官方逻辑逐条复刻）。
+
+其余供应商（Gemini、Vertex、Bedrock、Cohere、Azure、通义千问原生协议等）以及配置了
+`customSettings` / `context` / `contextCleanupCommands` / `mergeConsecutiveMessages` / `retryOnFailure` /
+`firstByteTimeout` / `responseJsonSchema` / `providerBasePath`（qwen）的场景，仍走原有的全量缓冲路径，行为不变。
+
+流式路径在读到前 64KB 之前不向上游发送任何字节；这段窗口内遇到无法流式处理的形态（极少数，如重复的 JSON key、
+非法的图片 data URL）会自动回落到全量路径。越过窗口后才遇到这类形态的请求会以 500 结束，
+错误详情为 `ai-proxy.stream_xform_uncoverable`。
+
+与全量路径的已知差异（均为"更宽松"，不会产出语义不同的合法请求）：全量路径会对整个请求体做结构体级类型校验，
+类型不合法即返回 500；流式路径只校验它读取的字段，其余字节原样透传，由供应商决定是否接受。
+`stream` 字段出现在请求体 64KB 之后时，`Accept: text/event-stream` 请求头不再改写（上游供应商均以请求体中的 `stream` 决定是否流式）。
+
 ## 运行属性
 
 插件执行阶段：`默认阶段`

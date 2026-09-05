@@ -13,6 +13,7 @@ import (
 
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/config"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/provider"
+	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/streamxform"
 	"github.com/alibaba/higress/plugins/wasm-go/extensions/ai-proxy/util"
 
 	"github.com/higress-group/wasm-go/pkg/log"
@@ -111,7 +112,7 @@ func init() {
 		pluginName,
 		wrapper.ParseOverrideConfig(parseGlobalConfig, parseOverrideRuleConfig),
 		wrapper.ProcessRequestHeaders(onHttpRequestHeader),
-		wrapper.ProcessRequestBody(onHttpRequestBody),
+		wrapper.ProcessStreamingRequestBodyWithAction(onHttpStreamingRequestBody),
 		wrapper.ProcessResponseHeaders(onHttpResponseHeaders),
 		wrapper.ProcessStreamingResponseBody(onStreamingResponseBody),
 		wrapper.ProcessResponseBody(onHttpResponseBody),
@@ -357,6 +358,126 @@ func contentLengthExceedsLimit(contentLength string, limit uint32) bool {
 		return false
 	}
 	return length > uint64(limit)
+}
+
+// onHttpStreamingRequestBody 流式处理请求体（层 3：Guard）。
+//
+// 请求头在 header 阶段被扣住（HeaderStopIteration），直到本函数第一次返回 ActionContinue。
+// 所以提交点之前一律返回 ActionPause：原始字节留在 Envoy 缓冲区（上限 CommitBytes 量级），
+// 转换器的输出也攒着。这段窗口内判定不支持，就切到官方全量路径，干净回落；
+// 越过提交点后再判定不支持，字节已经发给上游收不回来，只能让请求失败。
+//
+// 影响请求头的事实（stream / model）在放行前施加；提交点后才出现的只能写上下文键。
+func onHttpStreamingRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, chunk []byte, isLastChunk bool) ([]byte, types.Action) {
+	st, _ := ctx.GetContext(ctxKeyXformState).(*xformState)
+	if st == nil {
+		st = newXformState(ctx, pluginConfig)
+		ctx.SetContext(ctxKeyXformState, st)
+	}
+	return st.feed(ctx, pluginConfig, chunk, isLastChunk)
+}
+
+const ctxKeyXformState = "aip_xform_state"
+
+type xformState struct {
+	tr       *streamxform.Transformer
+	plan     *provider.StreamPlan
+	apiName  provider.ApiName
+	total    int  // 已收到的字节数（回落时从宿主缓冲区取全量用）
+	fallback bool // 已切到官方全量路径
+	sent     bool // 已经放行过（请求头已下发）
+}
+
+func newXformState(ctx wrapper.HttpContext, cfg config.PluginConfig) *xformState {
+	st := &xformState{}
+	pc := cfg.GetProviderConfig()
+	if pc == nil {
+		st.fallback = true
+		return st
+	}
+	st.apiName, _ = ctx.GetContext(provider.CtxKeyApiName).(provider.ApiName)
+	plan, why := pc.NewStreamPlan(ctx, st.apiName)
+	if plan == nil {
+		log.Debugf("[stream-xform] 不走流式: %s", why)
+		st.fallback = true
+		return st
+	}
+	st.plan = plan
+	st.tr = plan.Tr
+	return st
+}
+
+func (s *xformState) feed(ctx wrapper.HttpContext, cfg config.PluginConfig, chunk []byte, last bool) ([]byte, types.Action) {
+	s.total += len(chunk)
+	if s.fallback {
+		return s.feedFallback(ctx, cfg, last)
+	}
+	s.tr.Write(chunk)
+	var fin []byte
+	if last {
+		fin = s.tr.Finish() // Finish 会把缓冲里剩余的全部输出一并取走，下面不能再指望 Out()
+	}
+	if bad, why := s.tr.Unsupported(); bad {
+		if s.tr.Committed() && s.sent {
+			// 已越过提交点：部分字节已发给上游，无法回落，只能失败。
+			log.Errorf("[stream-xform] 提交点之后判定不支持，请求失败: %s", why)
+			_ = util.ErrorHandler("ai-proxy.stream_xform_uncoverable",
+				fmt.Errorf("streaming transform bailed after commit: %s", why))
+			return nil, types.ActionPause
+		}
+		log.Warnf("[stream-xform] 回落到官方全量路径: %s (received=%d last=%v)", why, s.total, last)
+		s.fallback = true
+		return s.feedFallback(ctx, cfg, last)
+	}
+	if !s.tr.Committed() {
+		return nil, types.ActionPause // 提交点之前：留在宿主缓冲区，继续攒
+	}
+	if !s.sent {
+		s.applyPrelude(ctx, cfg, true)
+		saveContextsToHeaders(ctx)
+		s.sent = true
+	}
+	out := append(s.tr.Out(), fin...)
+	if last {
+		s.applyPrelude(ctx, cfg, false)
+		cfg.GetProviderConfig().StreamFinalizeContext(ctx, s.apiName, s.plan, s.preludeOf())
+	}
+	return out, types.ActionContinue
+}
+
+// feedFallback：官方全量路径。攒到末块，从宿主缓冲区取全量 body 交给官方转换。
+func (s *xformState) feedFallback(ctx wrapper.HttpContext, cfg config.PluginConfig, last bool) ([]byte, types.Action) {
+	if !last {
+		return nil, types.ActionPause
+	}
+	body, err := proxywasm.GetHttpRequestBody(0, s.total)
+	if err != nil {
+		log.Errorf("[stream-xform] 回落路径读取 body 失败: %v", err)
+		return nil, types.ActionContinue
+	}
+	// 官方 OnRequestBody 会自己 ReplaceHttpRequestBody；这里的返回值会再覆盖一次，
+	// 所以必须把它写回的内容读回来返回。
+	action := onHttpRequestBody(ctx, cfg, body)
+	if action == types.ActionPause {
+		return nil, types.ActionPause // 官方已发出本地应答（错误）或在等异步结果
+	}
+	nb, err := proxywasm.GetHttpRequestBody(0, 64<<20)
+	if err != nil {
+		return body, types.ActionContinue
+	}
+	return nb, types.ActionContinue
+}
+
+func (s *xformState) preludeOf() streamxform.Prelude {
+	if p, ok := s.tr.Protocol().(streamxform.Preluder); ok {
+		return p.Prelude()
+	}
+	return streamxform.Prelude{}
+}
+
+func (s *xformState) applyPrelude(ctx wrapper.HttpContext, cfg config.PluginConfig, headersMutable bool) {
+	pre := s.preludeOf()
+	cfg.GetProviderConfig().StreamApplyPrelude(ctx, s.apiName, s.plan, pre, headersMutable)
 }
 
 func onHttpRequestBody(ctx wrapper.HttpContext, pluginConfig config.PluginConfig, body []byte) types.Action {

@@ -25,3 +25,6 @@ require (
 	github.com/tidwall/sjson v1.2.5
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// TODO(PR): 依赖 wasm-go 新增的 ProcessStreamingRequestBodyWithAction，合入后改为版本号
+replace github.com/higress-group/wasm-go => /Users/axx/code/wasm-go
