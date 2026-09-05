@@ -5,10 +5,12 @@ package provider
 // 官方侧尽量直接调用本包的纯函数（buildClaudeTextGenRequest、convertDeveloperRoleToSystem、
 // getMappedModel …）；依赖宿主的分支（defaultTransformRequestBody 里的请求头、Claude 上下文）
 // 在集成层已判定不走流式，这里按官方代码逐行复刻其纯函数部分。
+// 解码用 UseNumber：数字字面量也参与比对（1e0 与 1 不同），官方对读取的数字字段会重新格式化。
 //
 // 随机模糊默认跑较小规模以适应 CI；设置 STREAMXFORM_FUZZ_N 可放大。
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -58,9 +60,8 @@ func officialClaudeErr(in string, claudeCode bool) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	var m map[string]any
-	json.Unmarshal(b, &m)
-	return m, nil
+	m, err := decodeMap(b)
+	return m, err
 }
 
 func officialTransform(t *testing.T, in string) (map[string]any, bool) {
@@ -81,8 +82,8 @@ func runStream(tr *streamxform.Transformer, in string, chunk int) (map[string]an
 	if bad, why := tr.Unsupported(); bad {
 		return nil, false, why
 	}
-	var m map[string]any
-	if err := json.Unmarshal(out, &m); err != nil {
+	m, err := decodeMap(out)
+	if err != nil {
 		return nil, false, "输出非法 JSON: " + err.Error() + " :: " + string(out)
 	}
 	return m, true, ""
@@ -211,6 +212,8 @@ func diffMaps(a, b map[string]any) string {
 	if string(ja) == string(jb) {
 		return ""
 	}
+	// 注意：map[string]any 里数字都成了 float64，1e0 与 1 在这里分不出来；
+	// 网关差分用原始字节比对，抓到过这类"数值相等、字面不同"的差异（已改为与官方同样的格式化）。
 	keys := map[string]bool{}
 	for k := range a {
 		keys[k] = true
@@ -227,6 +230,18 @@ func diffMaps(a, b map[string]any) string {
 		}
 	}
 	return out
+}
+
+// decodeMap 用 UseNumber 解码：数字保留字面量，1e0 与 1 视为不同——官方对读取的数字字段会经 float64 重新格式化，
+// 流式必须走同样的格式化，否则字节不同（网关差分抓到过）。
+func decodeMap(b []byte) (map[string]any, error) {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.UseNumber()
+	var m map[string]any
+	if err := dec.Decode(&m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // ---- 来源: fuzz_test.go ----
@@ -546,11 +561,7 @@ func officialOpenAI(in string, mapping map[string]string, chat bool) (map[string
 	if err != nil {
 		return nil, false
 	}
-	var m map[string]any
-	if err := json.Unmarshal(body, &m); err != nil {
-		return nil, false
-	}
-	return m, true
+	return toMap(body)
 }
 
 func hasDeveloper(in string) bool {
@@ -696,11 +707,8 @@ func oaiDefaultModel(body []byte, mapping map[string]string) ([]byte, bool) {
 }
 
 func toMap(b []byte) (map[string]any, bool) {
-	var m map[string]any
-	if err := json.Unmarshal(b, &m); err != nil {
-		return nil, false
-	}
-	return m, true
+	m, err := decodeMap(b)
+	return m, err == nil
 }
 
 // officialQwenCompat：qwen.go TransformRequestBodyHeaders 的兼容分支

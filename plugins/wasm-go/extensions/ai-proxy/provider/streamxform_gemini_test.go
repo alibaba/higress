@@ -38,7 +38,7 @@ func officialGeminiErr(in string, safety map[string]string, budget int64) (m map
 	if err != nil {
 		return nil, err, false
 	}
-	json.Unmarshal(b, &m)
+	m, _ = decodeMap(b)
 	// safetySettings 来自 map 遍历，顺序不定：排序后比对
 	if ss, ok := m["safetySettings"].([]any); ok {
 		sort.Slice(ss, func(i, j int) bool {

@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -28,11 +27,7 @@ func officialQwenNativeErr(in string, mapping map[string]string, enableSearch bo
 	if err != nil {
 		return nil, err
 	}
-	var out map[string]any
-	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return decodeMap(body)
 }
 
 // qwenCtxStub 只需要 SetContext（官方在 streaming 时写 incrementalStreaming 上下文键）
