@@ -1,0 +1,6 @@
+go: downloading k8s.io/component-base v0.36.1
+go: downloading github.com/spf13/afero v1.15.0
+go: downloading sigs.k8s.io/kustomize/api v0.21.1
+go: downloading sigs.k8s.io/kustomize/kyaml v0.21.1
+ok  	github.com/alibaba/higress/hgctl/pkg/services	0.006s
+ok  	github.com/alibaba/higress/hgctl/pkg/agent	0.021s

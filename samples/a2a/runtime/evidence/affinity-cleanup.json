@@ -1,0 +1,5 @@
+{
+  "isolated_cluster_removed": true,
+  "fixture_containers_removed": true,
+  "test_ports_removed_with_cluster": true
+}

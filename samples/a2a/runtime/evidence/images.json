@@ -1,0 +1,5 @@
+{
+  "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot:2.2.4": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/pilot@sha256:f742ed20f938c5c1eaf6f8c36c6481a87052d06e903ab6cb0c079165ac0c8284",
+  "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress:2.2.4": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/higress@sha256:0a5b7809a107cbec150f41352a156e31160b8a92df787798e2a9a06cdd5587da",
+  "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:2.2.4": "higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway@sha256:3dbd609df5db3fca61653eafe0e2310705e485190c4f8cd02d9aab8f07dcf329"
+}
