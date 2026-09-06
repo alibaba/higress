@@ -3,7 +3,10 @@
 Tested implementation:
 [`ed78c0252e07e98dde15d8af54a38b947d510844`](https://github.com/higress-group/higress/commit/ed78c0252e07e98dde15d8af54a38b947d510844),
 based on Higress main `637ba40c`. Subsequent changes add this evidence and the
-trailers replay helper, and format two test files; production source is unchanged.
+trailers replay helper, format two test files, and normalize three license
+headers. Production logic is unchanged. DCO sign-off changes commit metadata
+only; the tested snapshots remain reachable on `codex/a2a-discovery-tested`
+and `codex/a2a-trailers-tested`.
 Public SDK:
 [`35813546bdbe882693a4a37c8e1e736e34c78210`](https://github.com/higress-group/wasm-go/commit/35813546bdbe882693a4a37c8e1e736e34c78210),
 pinned as `v1.1.3-0.20260906072435-35813546bdbe` without a local replacement.
