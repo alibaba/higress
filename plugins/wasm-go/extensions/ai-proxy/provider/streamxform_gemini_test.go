@@ -181,7 +181,7 @@ func TestGeminiFuzz(t *testing.T) {
 		if !ok {
 			offFail++
 			if sok {
-				if strings.Contains(oerr.Error(), "cannot unmarshal") {
+				if isDiscardedFieldTypeErrorIn(oerr, geminiExtraDiscarded) {
 					lenient++ // 被丢弃字段的类型错误：已知宽松差异
 					continue
 				}

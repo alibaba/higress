@@ -171,7 +171,7 @@ func (p *openaiProto) OnStart(t *Transformer, kind ValueKind) Action {
 		switch kind {
 		case KindString:
 			return Prefix(1)
-		case KindScalar:
+		case KindNull, KindBool, KindNumber:
 			return Observe(64)
 		default:
 			p.st.ReasoningSeen = true // 对象/数组的 String() 是原始文本，非空

@@ -9,6 +9,8 @@
 // 内存与输入大小无关，只与协议要求缓冲的那几个小值有关。
 package streamxform
 
+import "encoding/json"
+
 type scanState uint8
 
 const (
@@ -85,6 +87,8 @@ type Transformer struct {
 
 	st     scanState
 	esc    bool
+	hexN   uint8 // \u 转义还需读取的 hex 位数
+	lit    litState
 	depth  int
 	frames []frame
 	path   []seg
@@ -288,18 +292,35 @@ func (t *Transformer) scan(p []byte) {
 		case sInStr:
 			if t.esc {
 				t.esc = false
+				switch escapeClass(c) {
+				case 0:
+					t.Bail("字符串里有非法转义")
+					continue
+				case 2:
+					t.hexN = 4
+				}
 				i++
 				continue
 			}
-			j := i
-			for j < len(p) && p[j] != '"' && p[j] != '\\' {
-				j++
+			if t.hexN > 0 {
+				if !isHexByte(c) {
+					t.Bail("\\u 转义后不是 4 位十六进制")
+					continue
+				}
+				t.hexN--
+				i++
+				continue
 			}
+			j := scanStringBody(p, i)
 			if j == len(p) {
 				i = j
 				continue
 			}
 			i = j
+			if p[i] < 0x20 {
+				t.Bail("字符串里有未转义的控制字符")
+				continue
+			}
 			if p[i] == '\\' {
 				t.esc = true
 				i++
@@ -320,9 +341,31 @@ func (t *Transformer) scan(p []byte) {
 		case sInKey:
 			if t.esc {
 				t.esc = false
+				switch escapeClass(c) {
+				case 0:
+					t.Bail("key 里有非法转义")
+					continue
+				case 2:
+					t.hexN = 4
+				}
 				t.keyBuf = append(t.keyBuf, c)
 				t.kvRaw = append(t.kvRaw, c)
 				i++
+				continue
+			}
+			if t.hexN > 0 {
+				if !isHexByte(c) {
+					t.Bail("\\u 转义后不是 4 位十六进制")
+					continue
+				}
+				t.hexN--
+				t.keyBuf = append(t.keyBuf, c)
+				t.kvRaw = append(t.kvRaw, c)
+				i++
+				continue
+			}
+			if c < 0x20 {
+				t.Bail("key 里有未转义的控制字符")
 				continue
 			}
 			if c == '\\' {
@@ -345,7 +388,21 @@ func (t *Transformer) scan(p []byte) {
 			i++
 		case sInScalar:
 			if isScalarByte(c) {
+				if t.lit.kind == KindNumber { // 内联的表驱动 DFA：数字是区域内最常见的标量
+					t.lit.num = numStep(t.lit.num, c)
+					if t.lit.num == nsBad {
+						t.Bail("非法的标量字面量")
+						continue
+					}
+				} else if !t.lit.step(c) {
+					t.Bail("非法的标量字面量")
+					continue
+				}
 				i++
+				continue
+			}
+			if !t.lit.done() {
+				t.Bail("不完整的标量字面量")
 				continue
 			}
 			t.st = sIdle
@@ -356,7 +413,7 @@ func (t *Transformer) scan(p []byte) {
 			}
 			// 不消费 c，回到 sIdle 处理
 		case sIdle:
-			if c <= ' ' {
+			if jsonSpace[c] {
 				if !t.regOpen && t.rootSeen && !t.rootDone {
 					t.wsRaw = append(t.wsRaw, c)
 				}
@@ -382,6 +439,10 @@ func (t *Transformer) scan(p []byte) {
 					}
 				case ',', ':':
 				default:
+					if !t.lit.start(c) {
+						t.Bail("非法字符")
+						continue
+					}
 					t.st = sInScalar
 				}
 				i++
@@ -487,11 +548,11 @@ func (t *Transformer) scan(p []byte) {
 				t.depth++
 				i++
 			default:
-				if !isScalarByte(c) {
+				if !t.lit.start(c) {
 					t.Bail("非法字符")
 					continue
 				}
-				if !t.valueStart(f, KindScalar) {
+				if !t.valueStart(f, t.lit.kind) {
 					continue
 				}
 				if t.regOpen {
@@ -767,11 +828,19 @@ func (t *Transformer) endRegion() {
 
 // onKeyDone key 闭合：派发 OnKey。
 func (t *Transformer) onKeyDone() {
-	if t.keyEsc {
-		t.Bail("key 含转义序列")
-		return
+	var key string
+	if t.keyEsc { // 带转义的 key：按 JSON 解码后再派发（原文仍由 kvRaw 保留）
+		q := make([]byte, 0, len(t.keyBuf)+2)
+		q = append(q, '"')
+		q = append(q, t.keyBuf...)
+		q = append(q, '"')
+		if err := json.Unmarshal(q, &key); err != nil {
+			t.Bail("key 转义非法")
+			return
+		}
+	} else {
+		key = string(t.keyBuf)
 	}
-	key := string(t.keyBuf)
 	f := t.top()
 	if t.DupKeyBail {
 		for _, s := range f.seen {

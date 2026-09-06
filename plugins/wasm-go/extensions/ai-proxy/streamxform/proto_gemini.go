@@ -96,7 +96,7 @@ type geminiProto struct {
 	frequency  int64
 	logprobs   bool
 	modalities []string
-	toolsRaw   []byte
+	tools      ToolsHook
 
 	messagesSeen bool
 	inputMsgs    int
@@ -118,7 +118,7 @@ func NewGemini(opt GeminiOptions) *Transformer {
 	if opt.ThinkingModel == nil {
 		opt.ThinkingModel = func(string) bool { return false }
 	}
-	p := &geminiProto{opt: opt}
+	p := &geminiProto{opt: opt, tools: ToolsHook{ParamsKey: "parameters"}}
 	t := NewTransformer(p)
 	t.DupKeyBail = true
 	return t
@@ -131,6 +131,9 @@ func (p *geminiProto) Prelude() Prelude {
 // ---- 派发 ----
 
 func (p *geminiProto) OnKey(t *Transformer) Action {
+	if t.Depth() >= 3 && t.Key(0) == "tools" {
+		return p.tools.OnKey(t)
+	}
 	switch t.Depth() {
 	case 1:
 		switch t.Last() {
@@ -145,7 +148,7 @@ func (p *geminiProto) OnKey(t *Transformer) Action {
 		case "modalities":
 			return Capture(4 << 10)
 		case "tools":
-			return Capture(toolsCap)
+			return Probe() // 逐元素流式
 		}
 		return Skip() // stop / seed / n / max_completion_tokens / tool_choice …：官方不读
 	case 3:
@@ -201,6 +204,9 @@ func (p *geminiProto) OnKey(t *Transformer) Action {
 }
 
 func (p *geminiProto) OnElem(t *Transformer) Action {
+	if t.Depth() == 2 && t.Key(0) == "tools" {
+		return p.tools.OnElem(t)
+	}
 	switch t.Depth() {
 	case 2, 4:
 		return Probe()
@@ -210,6 +216,25 @@ func (p *geminiProto) OnElem(t *Transformer) Action {
 
 func (p *geminiProto) OnStart(t *Transformer, kind ValueKind) Action {
 	w := t.W()
+	if t.Key(0) == "tools" {
+		switch t.Depth() {
+		case 1: // tools → tools:[{function_declarations:[...]}]（官方 Tools != nil 即物化，空数组也输出）
+			switch kind {
+			case KindNull:
+				return Skip()
+			case KindArray:
+				w.PushArr("tools")
+				w.PushObj("")
+				w.PushArr("function_declarations")
+				return Enter().Flat()
+			}
+			return Bail("tools 不是数组，官方 struct 解析失败")
+		case 2:
+			return p.tools.OnElemStart(t, kind)
+		default:
+			return p.tools.OnKeyStart(t, kind)
+		}
+	}
 	switch t.Depth() {
 	case 1: // messages → contents（官方 make(…,0)：全是 system 时也输出 []）
 		if kind != KindArray {
@@ -339,10 +364,6 @@ func (p *geminiProto) topValue(t *Transformer, raw []byte) {
 			return
 		}
 		p.modalities = ss
-	case "tools":
-		if !isNull {
-			p.toolsRaw = append([]byte(nil), raw...)
-		}
 	}
 }
 
@@ -396,6 +417,9 @@ func (p *geminiProto) partValue(t *Transformer, raw []byte) {
 // OnPrefix：image_url.url 的前缀窗口。复刻官方 handleContentTypeImageUrl + baseStr2InlineData。
 func (p *geminiProto) OnPrefix(t *Transformer, raw []byte, complete bool) (Action, int) {
 	w := t.W()
+	if t.Key(0) == "tools" {
+		return p.tools.OnPrefix(t, raw, complete)
+	}
 	switch t.Depth() {
 	case 3: // 字符串 content → parts:[{text}]；空串 → [{}]
 		if complete && len(raw) == 0 {
@@ -458,6 +482,17 @@ func (p *geminiProto) OnPrefix(t *Transformer, raw []byte, complete bool) (Actio
 
 func (p *geminiProto) OnLeave(t *Transformer) {
 	w := t.W()
+	if t.Key(0) == "tools" {
+		if t.Depth() == 1 {
+			w.Open() // 空 tools 也物化 [{"function_declarations":[]}]
+			w.Pop()
+			w.Pop()
+			w.Pop()
+			return
+		}
+		p.tools.OnLeave(t)
+		return
+	}
 	switch t.Depth() {
 	case 1:
 		p.messagesSeen = true
@@ -568,22 +603,6 @@ func (p *geminiProto) Tail(t *Transformer) {
 	b, _ := json.Marshal(cfg)
 	w.Key("generationConfig")
 	w.Raw(b)
-	if p.toolsRaw != nil {
-		var tools []oaiTool
-		if err := json.Unmarshal(p.toolsRaw, &tools); err != nil {
-			t.Bail("tools 解析失败: " + err.Error())
-			return
-		}
-		if tools != nil {
-			functions := make([]oaiFunction, 0, len(tools))
-			for _, tl := range tools {
-				functions = append(functions, tl.Function)
-			}
-			b, _ := json.Marshal([]geminiTools{{FunctionDeclarations: functions}})
-			w.Key("tools")
-			w.Raw(b)
-		}
-	}
 }
 
 // geminiPartsFromContent 复刻 ParseContent + gemini 的 part 映射（用于已 Capture 的 system content）。

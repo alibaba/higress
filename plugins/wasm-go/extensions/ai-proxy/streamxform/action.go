@@ -74,8 +74,34 @@ const (
 	KindString ValueKind = iota
 	KindObject
 	KindArray
-	KindScalar // 数字 / true / false / null
+	KindNull   // 字面量 null
+	KindBool   // true / false
+	KindNumber // 数字
 )
+
+// IsScalar 报告是否为标量（null / bool / number；字符串单列为 KindString）。
+func (k ValueKind) IsScalar() bool { return k >= KindNull }
+
+// IsContainer 报告是否为对象或数组。
+func (k ValueKind) IsContainer() bool { return k == KindObject || k == KindArray }
+
+func (k ValueKind) String() string {
+	switch k {
+	case KindString:
+		return "string"
+	case KindObject:
+		return "object"
+	case KindArray:
+		return "array"
+	case KindNull:
+		return "null"
+	case KindBool:
+		return "bool"
+	case KindNumber:
+		return "number"
+	}
+	return "?"
+}
 
 // Protocol 是一个目标协议的全部流式处理逻辑。
 //
@@ -114,3 +140,15 @@ type Prelude struct {
 type Preluder interface {
 	Prelude() Prelude
 }
+
+// BaseProtocol 给出全部回调的空实现（一律 Pass / 不动作）。
+// 协议或子 hook 嵌入它之后只需覆盖自己关心的回调，新协议从"什么都直通"起步。
+type BaseProtocol struct{}
+
+func (BaseProtocol) OnKey(*Transformer) Action                         { return Pass() }
+func (BaseProtocol) OnElem(*Transformer) Action                        { return Pass() }
+func (BaseProtocol) OnStart(*Transformer, ValueKind) Action            { return Pass() }
+func (BaseProtocol) OnValue(*Transformer, []byte)                      {}
+func (BaseProtocol) OnPrefix(*Transformer, []byte, bool) (Action, int) { return Pass(), 0 }
+func (BaseProtocol) OnLeave(*Transformer)                              {}
+func (BaseProtocol) Tail(*Transformer)                                 {}

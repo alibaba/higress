@@ -132,7 +132,7 @@ func TestQwenNativeFuzz(t *testing.T) {
 		if oerr != nil {
 			offFail++
 			if sok {
-				if strings.Contains(oerr.Error(), "cannot unmarshal") {
+				if isDiscardedFieldTypeErrorIn(oerr, qwenNativeExtraDiscarded) {
 					lenient++
 					continue
 				}

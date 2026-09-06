@@ -165,6 +165,41 @@ var diffCases = []struct{ name, in string }{
 	{"claude_thinking disabled", `{"model":"m","claude_thinking":{"type":"disabled"},"tool_choice":"required","messages":[{"role":"user","content":"U"}]}`},
 	{"claude_output_config", `{"model":"m","claude_output_config":{"effort":"low","format":{"type":"json"}},"messages":[{"role":"user","content":"U"}]}`},
 	{"claude_anthropic_beta", `{"model":"m","claude_anthropic_beta":["x"],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools顺序反转", `{"model":"m","tools":[{"function":{"parameters":{"b":1,"a":{"c":[true,null]}},"description":"d","name":"f"},"type":"function"}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools name缺失", `{"model":"m","tools":[{"type":"function","function":{"description":"d"}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools function缺失", `{"model":"m","tools":[{"type":"function"}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools function null", `{"model":"m","tools":[{"type":"function","function":null}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools 空对象元素", `{"model":"m","tools":[{}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools description空", `{"model":"m","tools":[{"type":"function","function":{"name":"f","description":"","parameters":{"type":"object"}}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools 多余字段", `{"model":"m","tools":[{"type":"function","function":{"name":"f","strict":true,"parameters":{"type":"object"},"x":[1]},"extra":{"a":1}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools parameters null", `{"model":"m","tools":[{"type":"function","function":{"name":"f","parameters":null}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools parameters带空白", "{\"model\":\"m\",\"tools\":[ {\n \"type\": \"function\",\n \"function\": { \"name\" : \"f\" , \"parameters\" : { \"type\" : \"object\" , \"properties\" : { } } }\n} ],\"messages\":[{\"role\":\"user\",\"content\":\"U\"}]}"},
+	{"tools 元素非对象", `{"model":"m","tools":[5],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools 非数组", `{"model":"m","tools":{"a":1},"messages":[{"role":"user","content":"U"}]}`},
+	{"tools 数字", `{"model":"m","tools":5,"messages":[{"role":"user","content":"U"}]}`},
+	{"tools function数字", `{"model":"m","tools":[{"type":"function","function":5}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools parameters数组", `{"model":"m","tools":[{"type":"function","function":{"name":"f","parameters":[]}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools parameters数字", `{"model":"m","tools":[{"type":"function","function":{"name":"f","parameters":1}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools name数字", `{"model":"m","tools":[{"type":"function","function":{"name":1}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"tools 在messages后", `{"model":"m","messages":[{"role":"user","content":"U"}],"tools":[{"type":"function","function":{"name":"f"}}],"stop":["a","b"]}`},
+	{"stop 多个", `{"model":"m","stop":["a","\u0041","中"],"messages":[{"role":"user","content":"U"}]}`},
+	{"stop 字符串", `{"model":"m","stop":"a","messages":[{"role":"user","content":"U"}]}`},
+	{"stop 含数字", `{"model":"m","stop":["a",1],"messages":[{"role":"user","content":"U"}]}`},
+	{"stop 对象", `{"model":"m","stop":{"a":1},"messages":[{"role":"user","content":"U"}]}`},
+	{"字面量 nul", `{"model":"m","stop":nul,"messages":[{"role":"user","content":"U"}]}`},
+	{"字面量 tru", `{"model":"m","stream":tru,"messages":[{"role":"user","content":"U"}]}`},
+	{"字面量 前导0", `{"model":"m","max_tokens":01,"messages":[{"role":"user","content":"U"}]}`},
+	{"字面量 1.", `{"model":"m","temperature":1.,"messages":[{"role":"user","content":"U"}]}`},
+	{"字面量 1e", `{"model":"m","temperature":1e,"messages":[{"role":"user","content":"U"}]}`},
+	{"字面量 丢弃字段里", `{"model":"m","metadata":{"a":-},"messages":[{"role":"user","content":"U"}]}`},
+	{"字面量 透传区域里", `{"model":"m","messages":[{"role":"user","content":"U","zzz":[+1]}]}`},
+	{"字面量 合法边界", `{"model":"m","temperature":-0,"top_p":0.5E+1,"max_tokens":100,"zzz":{"a":-0.0e-0,"b":[1E2]},"messages":[{"role":"user","content":"U"}]}`},
+	{"tools parameters数字字面量", `{"model":"m","tools":[{"type":"function","function":{"name":"f","parameters":{"enum":[1e0,2.50,-0.5e-3,100000000000000000000000,9007199254740993]}}}],"messages":[{"role":"user","content":"U"}]}`},
+	{"字符串 非法转义", `{"model":"m","messages":[{"role":"user","content":"a\x"}]}`},
+	{"字符串 u转义不足", `{"model":"m","messages":[{"role":"user","content":"a\u12G4"}]}`},
+	{"字符串 控制字符", "{\"model\":\"m\",\"messages\":[{\"role\":\"user\",\"content\":\"a\x01b\"}]}"},
+	{"字符串 key非法转义", `{"model":"m","messages":[{"role":"user","content":"U","z\q":1}]}`},
+	{"空白 非JSON空白", "{\"model\":\"m\",\x0b\"messages\":[{\"role\":\"user\",\"content\":\"U\"}]}"},
 	{"stop空", `{"model":"m","stop":[],"messages":[{"role":"user","content":"U"}]}`},
 	{"stop null", `{"model":"m","stop":null,"messages":[{"role":"user","content":"U"}]}`},
 	{"温度null", `{"model":"m","temperature":null,"messages":[{"role":"user","content":"U"}]}`},
@@ -206,7 +241,41 @@ func TestDifferential(t *testing.T) {
 	}
 }
 
+// canonNumbers 把子树里的 json.Number 统一成 float64 的 encoding/json 格式。
+//
+// tools[].function.parameters 官方经 map[string]interface{} 解码再编码：key 排序、数字按 float64 重排
+// （1e0→1、2.50→2.5、大整数丢精度）。流式把这棵子树原样直通——字面量保持客户端原文，语义相同、精度不丢。
+// 差分比对时把这棵子树按数值语义比：其它位置仍按字面量严格比。
+func canonNumbers(v any) any {
+	switch x := v.(type) {
+	case json.Number:
+		f, err := x.Float64()
+		if err != nil {
+			return x
+		}
+		return f
+	case map[string]any:
+		for k, e := range x {
+			x[k] = canonNumbers(e)
+		}
+	case []any:
+		for i, e := range x {
+			x[i] = canonNumbers(e)
+		}
+	}
+	return v
+}
+
 func diffMaps(a, b map[string]any) string {
+	// Claude: tools[].input_schema；Gemini: tools[].function_declarations[].parameters；DashScope: parameters.tools[].function.parameters
+	canonNumbers(a["tools"])
+	canonNumbers(b["tools"])
+	if pa, ok := a["parameters"].(map[string]any); ok {
+		canonNumbers(pa["tools"])
+	}
+	if pb, ok := b["parameters"].(map[string]any); ok {
+		canonNumbers(pb["tools"])
+	}
 	ja, _ := json.Marshal(a)
 	jb, _ := json.Marshal(b)
 	if string(ja) == string(jb) {
@@ -278,7 +347,18 @@ func genRequest(r *rand.Rand) string {
 		for i := 0; i < n; i++ {
 			ss = append(ss, q(randText(r)))
 		}
-		add("stop", pick("["+strings.Join(ss, ",")+"]", "null"))
+		stopV := "[" + strings.Join(ss, ",") + "]"
+		switch r.Intn(12) {
+		case 0:
+			stopV = "null"
+		case 1:
+			stopV = "[" + strings.Join(append(ss, "1"), ",") + "]" // 非字符串元素：官方失败
+		case 2:
+			stopV = q(randText(r)) // 字符串：官方失败
+		case 3:
+			stopV = "[ " + strings.Join(ss, " , ") + " ]" // 带空白
+		}
+		add("stop", stopV)
 	}
 	for _, f := range []string{"seed", "n", "presence_penalty", "frequency_penalty", "top_logprobs"} {
 		if r.Intn(5) == 0 {
@@ -319,26 +399,72 @@ func genRequest(r *rand.Rand) string {
 	if r.Intn(8) == 0 {
 		add("claude_anthropic_beta", `["b1"]`)
 	}
-	// tools
+	// tools：字段顺序随机、缺省/空值/类型错误/多余字段全覆盖
 	if r.Intn(3) == 0 {
 		n := r.Intn(3)
 		var ts []string
 		for i := 0; i < n; i++ {
-			fn := `"name":` + q("f"+fmt.Sprint(i))
-			if r.Intn(2) == 0 {
-				fn += `,"description":` + q(randText(r))
+			var fn []string
+			if r.Intn(8) != 0 {
+				fn = append(fn, `"name":`+q("f"+fmt.Sprint(i)))
 			}
 			switch r.Intn(4) {
 			case 0:
-				fn += `,"parameters":{}`
+				fn = append(fn, `"description":`+q(randText(r)))
 			case 1:
-				fn += `,"parameters":{"type":"object","properties":{"z":{"type":"string"},"a":{"type":"number","enum":[1,2.5]}},"required":["a"]}`
-			case 2:
-				fn += `,"parameters":null`
+				fn = append(fn, `"description":""`) // omitempty
 			}
-			ts = append(ts, `{"type":"function","function":{`+fn+`}}`)
+			switch r.Intn(9) {
+			case 0:
+				fn = append(fn, `"parameters":{}`)
+			case 1:
+				fn = append(fn, `"parameters":{"type":"object","properties":{"z":{"type":"string"},"a":{"type":"number","enum":[1,2.5,-0.5e-3]}},"required":["a"]}`)
+			case 2:
+				fn = append(fn, `"parameters":null`)
+			case 3:
+				fn = append(fn, "\"parameters\": {\n  \"type\" : \"object\" ,\n  \"properties\" : { \"x\" : { \"type\" : \"string\", \"description\": "+q(randText(r))+" } }\n}")
+			case 4:
+				fn = append(fn, `"parameters":[]`) // 官方失败
+			case 5:
+				fn = append(fn, `"parameters":`+pick(`5`, `"s"`, `true`)) // 官方失败
+			}
+			if r.Intn(4) == 0 {
+				fn = append(fn, `"strict":true`)
+			}
+			r.Shuffle(len(fn), func(a, b int) { fn[a], fn[b] = fn[b], fn[a] })
+			var tl []string
+			switch r.Intn(10) {
+			case 0: // function 缺失
+			case 1:
+				tl = append(tl, `"function":null`)
+			case 2:
+				tl = append(tl, `"function":`+pick(`5`, `"s"`, `[]`)) // 官方失败
+			default:
+				tl = append(tl, `"function":{`+strings.Join(fn, ",")+`}`)
+			}
+			if r.Intn(6) != 0 {
+				tl = append(tl, `"type":`+pick(`"function"`, `"function"`, `""`, `"x"`))
+			}
+			if r.Intn(5) == 0 {
+				tl = append(tl, `"extra":{"a":[1]}`)
+			}
+			r.Shuffle(len(tl), func(a, b int) { tl[a], tl[b] = tl[b], tl[a] })
+			el := `{` + strings.Join(tl, ",") + `}`
+			if r.Intn(30) == 0 {
+				el = pick(`5`, `"s"`, `[]`, `null`) // 元素类型错误：官方失败
+			}
+			ts = append(ts, el)
 		}
-		add("tools", pick("["+strings.Join(ts, ",")+"]", "null"))
+		toolsV := "[" + strings.Join(ts, ",") + "]"
+		switch r.Intn(15) {
+		case 0:
+			toolsV = "null"
+		case 1:
+			toolsV = pick(`{}`, `5`, `"s"`) // 官方失败
+		case 2:
+			toolsV = "[ " + strings.Join(ts, " ,\n ") + " ]"
+		}
+		add("tools", toolsV)
 	}
 	if r.Intn(3) == 0 {
 		add("tool_choice", pick(`"auto"`, `"none"`, `"required"`, `"function"`, `{"type":"function","function":{"name":"f1"}}`, `{"type":"function","function":{}}`, `{"type":"auto"}`, `null`, `{"type":"tool","function":{"name":"g"}}`))
@@ -515,7 +641,8 @@ func TestFuzzDifferential(t *testing.T) {
 			if sok {
 				// 唯一允许的宽松：官方 struct 对"被丢弃字段"的类型校验失败（如 metadata 里塞了数组）。
 				// 流式不读这些字段，产出的请求与官方在该字段合法时的输出相同。
-				if strings.Contains(oerr.Error(), "cannot unmarshal") {
+				// 被读取的字段（tools / stop / messages / ...）类型错误时流式必须同样失败。
+				if isDiscardedFieldTypeError(oerr) {
 					lenient++
 					continue
 				}
@@ -965,4 +1092,59 @@ func TestVariantsFuzz(t *testing.T) {
 		}
 		fmt.Printf("  %s 随机 %d 例 (seed=%d): 一致 %d, 官方失败 %d, 已知回落 %d, 不一致 0\n", vc.name, N, seed, same, offFail, fb)
 	}
+}
+
+// discardedFields 是 buildClaudeTextGenRequest 不读取、流式直接丢弃的顶层字段。
+// 官方对它们的类型错误会失败，流式放行——这是唯一允许的宽松。
+var discardedFields = map[string]bool{
+	"seed": true, "n": true, "presence_penalty": true, "frequency_penalty": true, "top_logprobs": true,
+	"logprobs": true, "user": true, "metadata": true, "response_format": true, "stream_options": true,
+	"logit_bias": true, "modalities": true, "audio": true, "prediction": true, "service_tier": true,
+	"store": true, "web_search_options": true, "chat_template_kwargs": true, "enable_thinking": true,
+	"thinking": true, "preserve_thinking": true, "search_parameters": true, "enable_search": true, "extra_body": true,
+}
+
+// geminiExtraDiscarded：buildGeminiChatRequest 额外不读的顶层字段（Claude 读、Gemini 不读）。
+var geminiExtraDiscarded = map[string]bool{
+	"stop": true, "tool_choice": true, "parallel_tool_calls": true, "max_completion_tokens": true,
+	"reasoning_effort": true, "reasoning_max_tokens": true, "claude_thinking": true, "claude_output_config": true,
+	"claude_anthropic_beta": true, "claude_content_blocks": true, "claude_content_block_stop": true,
+}
+
+// qwenNativeExtraDiscarded：buildQwenTextGenerationRequest 额外不读的顶层字段。
+var qwenNativeExtraDiscarded = map[string]bool{
+	"stop": true, "tool_choice": true, "parallel_tool_calls": true, "max_completion_tokens": true,
+	"reasoning_effort": true, "reasoning_max_tokens": true, "claude_thinking": true, "claude_output_config": true,
+	"claude_anthropic_beta": true, "claude_content_blocks": true, "claude_content_block_stop": true,
+	"modalities": true,
+}
+
+// typeErrorField 从 encoding/json 的类型错误里取出字段名（最后一段）。
+func typeErrorField(err error) (string, bool) {
+	msg := err.Error()
+	if !strings.Contains(msg, "cannot unmarshal") {
+		return "", false
+	}
+	// "json: cannot unmarshal X into Go struct field chatCompletionRequest.FIELD of type T"
+	i := strings.Index(msg, "struct field ")
+	if i < 0 {
+		return "", false
+	}
+	rest := msg[i+len("struct field "):]
+	if j := strings.Index(rest, " of type"); j >= 0 {
+		rest = rest[:j]
+	}
+	// 取最后一段字段名（chatCompletionRequest.metadata / chatMessage.name ...）
+	return rest[strings.LastIndex(rest, ".")+1:], true
+}
+
+func isDiscardedFieldTypeError(err error) bool {
+	f, ok := typeErrorField(err)
+	return ok && discardedFields[f]
+}
+
+// isDiscardedFieldTypeErrorIn：目标协议额外不读的字段也算被丢弃。
+func isDiscardedFieldTypeErrorIn(err error, extra map[string]bool) bool {
+	f, ok := typeErrorField(err)
+	return ok && (discardedFields[f] || extra[f])
 }

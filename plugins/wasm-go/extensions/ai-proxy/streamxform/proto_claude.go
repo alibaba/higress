@@ -135,13 +135,12 @@ type claudeProto struct {
 	stream        bool
 	streamSeen    bool
 	temp, topP    []byte
-	stop          []byte
-	stopN         int
+	stopN         int // stop 数组元素个数（流式直通，只计数）
 	reasonEffort  string
 	reasonMax     int
 	thinkingRaw   []byte
 	outputRaw     []byte
-	toolsRaw      []byte
+	tools         ToolsHook
 	toolChoiceRaw []byte
 	parallelTC    *bool
 
@@ -167,7 +166,7 @@ func NewClaude(opt ClaudeOptions) *Transformer {
 			return m, nil
 		}
 	}
-	p := &claudeProto{opt: opt}
+	p := &claudeProto{opt: opt, tools: ToolsHook{ParamsKey: "input_schema"}}
 	t := NewTransformer(p)
 	t.DupKeyBail = true // 官方 struct 解析是"后者覆盖前者"，流式无法复刻，回落
 	return t
@@ -183,6 +182,9 @@ func (p *claudeProto) Prelude() Prelude {
 // ---- 派发 ----
 
 func (p *claudeProto) OnKey(t *Transformer) Action {
+	if t.Depth() >= 3 && t.Key(0) == "tools" {
+		return p.tools.OnKey(t)
+	}
 	switch t.Depth() {
 	case 1:
 		return p.topKey(t)
@@ -197,6 +199,12 @@ func (p *claudeProto) OnKey(t *Transformer) Action {
 }
 
 func (p *claudeProto) OnElem(t *Transformer) Action {
+	if t.Depth() == 2 && t.Key(0) == "tools" {
+		return p.tools.OnElem(t)
+	}
+	if t.Depth() == 2 && t.Key(0) == "stop" {
+		return Probe()
+	}
 	switch t.Depth() {
 	case 2, 4: // messages[i] / messages[i].content[j]
 		return Probe()
@@ -206,6 +214,40 @@ func (p *claudeProto) OnElem(t *Transformer) Action {
 
 func (p *claudeProto) OnStart(t *Transformer, kind ValueKind) Action {
 	w := t.W()
+	if t.Key(0) == "tools" {
+		switch t.Depth() {
+		case 1:
+			switch kind {
+			case KindNull: // 官方 Tools 为 nil，不输出
+				return Skip()
+			case KindArray:
+				return Enter().Lazy() // 空数组：omitempty 省略
+			}
+			return Bail("tools 不是数组，官方 struct 解析失败")
+		case 2:
+			return p.tools.OnElemStart(t, kind)
+		default:
+			return p.tools.OnKeyStart(t, kind)
+		}
+	}
+	if t.Key(0) == "stop" {
+		switch t.Depth() {
+		case 1:
+			switch kind {
+			case KindArray:
+				return Enter().As("stop_sequences").Lazy() // 空数组 omitempty
+			case KindNull:
+				return Skip()
+			}
+			return Bail("stop 不是字符串数组")
+		case 2:
+			if kind != KindString {
+				return Bail("stop 不是字符串数组")
+			}
+			p.stopN++
+			return Pass()
+		}
+	}
 	switch t.Depth() {
 	case 1: // messages
 		if kind != KindArray {
@@ -266,22 +308,18 @@ func (p *claudeProto) topKey(t *Transformer) Action {
 	switch t.Last() {
 	case "model":
 		return Capture(4 << 10)
-	case "messages":
-		return Probe()
+	case "messages", "tools", "stop":
+		return Probe() // 数组：逐元素流式
 	case "max_tokens", "max_completion_tokens", "reasoning_max_tokens", "temperature", "top_p":
 		return Capture(64)
 	case "stream", "parallel_tool_calls":
 		return Capture(16)
-	case "stop":
-		return Capture(smallCap)
 	case "reasoning_effort":
 		return Capture(256)
 	case "claude_thinking":
 		return Capture(4 << 10)
 	case "claude_output_config":
 		return Capture(smallCap)
-	case "tools":
-		return Capture(toolsCap)
 	case "tool_choice":
 		return Capture(4 << 10)
 	}
@@ -447,17 +485,6 @@ func (p *claudeProto) topValue(t *Transformer, raw []byte) {
 		} else {
 			p.topP = cp
 		}
-	case "stop":
-		if isNull {
-			return
-		}
-		var ss []string
-		if err := json.Unmarshal(raw, &ss); err != nil {
-			t.Bail("stop 不是字符串数组")
-			return
-		}
-		p.stop = append([]byte(nil), raw...)
-		p.stopN = len(ss)
 	case "reasoning_effort":
 		if isNull {
 			return
@@ -475,10 +502,6 @@ func (p *claudeProto) topValue(t *Transformer, raw []byte) {
 	case "claude_output_config":
 		if !isNull {
 			p.outputRaw = append([]byte(nil), raw...)
-		}
-	case "tools":
-		if !isNull {
-			p.toolsRaw = append([]byte(nil), raw...)
 		}
 	case "tool_choice":
 		if !isNull {
@@ -563,6 +586,9 @@ func (p *claudeProto) partValue(t *Transformer, raw []byte) {
 // OnPrefix：image_url.url 的前缀窗口。复刻官方对 data: URL 的拆分。
 func (p *claudeProto) OnPrefix(t *Transformer, raw []byte, complete bool) (Action, int) {
 	w := t.W()
+	if t.Key(0) == "tools" {
+		return p.tools.OnPrefix(t, raw, complete)
+	}
 	if t.Depth() == 5 && t.Last() == "text" {
 		if complete && len(raw) == 0 {
 			return Skip(), 0 // {"type":"text"}，与官方 omitempty 一致
@@ -624,6 +650,12 @@ func (p *claudeProto) OnPrefix(t *Transformer, raw []byte, complete bool) (Actio
 
 func (p *claudeProto) OnLeave(t *Transformer) {
 	w := t.W()
+	if t.Key(0) == "tools" || t.Key(0) == "stop" {
+		if t.Key(0) == "tools" {
+			p.tools.OnLeave(t)
+		}
+		return
+	}
 	switch t.Depth() {
 	case 1: // messages
 		if p.openToolResult {
@@ -850,10 +882,6 @@ func (p *claudeProto) Tail(t *Transformer) {
 	}
 	w.Key("max_tokens")
 	w.Int(maxTokens)
-	if p.stopN > 0 {
-		w.Key("stop_sequences")
-		w.Raw(p.stop)
-	}
 	if p.stream {
 		w.Key("stream")
 		w.RawString("true")
@@ -907,23 +935,6 @@ func (p *claudeProto) Tail(t *Transformer) {
 		p.writeToolChoice(t, thinking)
 		if t.dead {
 			return
-		}
-	}
-	// tools
-	if p.toolsRaw != nil {
-		var tools []oaiTool
-		if err := json.Unmarshal(p.toolsRaw, &tools); err != nil {
-			t.Bail("tools 解析失败: " + err.Error())
-			return
-		}
-		if len(tools) > 0 {
-			out := make([]claudeTool, 0, len(tools))
-			for _, tl := range tools {
-				out = append(out, claudeTool{Name: tl.Function.Name, Description: tl.Function.Description, InputSchema: tl.Function.Parameters})
-			}
-			b, _ := json.Marshal(out)
-			w.Key("tools")
-			w.Raw(b)
 		}
 	}
 	if thinking != nil {
