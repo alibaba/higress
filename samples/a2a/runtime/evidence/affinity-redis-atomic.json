@@ -1,0 +1,9 @@
+{
+  "case": "redis_atomic_alias_binding",
+  "pass": true,
+  "partial_writes": false,
+  "concurrent_winners": 8,
+  "conflicting_writers_rejected": 8,
+  "bind_script_sha256": "573ab2acc9ba58a2716954ecce8d38d9b06b832fa44d6c3adc3cfeb6739a14af",
+  "lookup_script_sha256": "c7287ad71a348d2372307c6842a91288fbc0d8c4e92b9f7916734f6c3176a18d"
+}

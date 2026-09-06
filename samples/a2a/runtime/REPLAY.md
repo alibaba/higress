@@ -81,9 +81,26 @@ external endpoint removal, TTL expiry, streaming Redis failure and Redis state
 loss/recovery. `collect.py` checks actual xDS filter order, strict mode, disabled
 retries and binary hashes. It excludes TLS secrets and full Envoy dumps.
 
-For a red trailers baseline, build the original plugin from the baseline
-revision linked in the PR using its original wasm-go dependency, render with
-`--variant baseline`, and run the Go verifier with `-variant baseline`.
-That mode asserts that the documented defects reproduce: PASS means a
-successful bug reproduction. An affinity-disabled multi-replica route can
-be checked with `affinity_verify.py NODE_IP baseline` to count lost task lookups.
+## Red/fixed trailers comparison
+
+The pre-fix source is public at
+[`31dd75add1ae5b879e433988fd6b06b3702e145b`](https://github.com/higress-group/higress/commit/31dd75add1ae5b879e433988fd6b06b3702e145b)
+(`codex/a2a-protocol-baseline`). In a separate checkout, build its
+`plugins/wasm-go/extensions/a2a-protocol` with the same Go version and
+`GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared`, using its original
+wasm-go dependency. Save the output as `$A2A_ARTIFACT_ROOT/baseline.wasm`.
+
+After the affinity/fault suite but **before cleanup**, run:
+
+```sh
+python3 higress/samples/a2a/runtime/trailers_replay.py "$A2A_ARTIFACT_ROOT" "$node_ip"
+```
+
+This intentionally reduces each source to one currently registered endpoint,
+disables affinity, and switches only the plugin artifact between baseline
+and fixed. It runs the same 34 requests against both. Baseline mode asserts
+that three trailers defects reproduce (each repeated three times per source):
+missing Card rewriting, missing unary response metadata, and skipped request
+validation. PASS in baseline mode means successful bug reproduction.
+
+See [RESULTS.md](RESULTS.md) for the tested source, images and artifact hashes.
