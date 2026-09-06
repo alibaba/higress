@@ -154,9 +154,11 @@ func (t *Transformer) Out() []byte {
 	if t.unsupported || !t.committed || len(t.w.buf) == 0 {
 		return nil
 	}
-	b := make([]byte, len(t.w.buf))
-	copy(b, t.w.buf)
-	t.w.buf = t.w.buf[:0]
+	// 交出所有权，不拷贝也不保留容量：提交点前攒下的大缓冲（可达 128KB）随之变成垃圾，
+	// 而不是被这条流持有到结束——高并发下每条在途流的存活内存由此从 ~250KB 降到几十 KB。
+	// 调用方拿到的切片归它所有；下一次写入会重新分配。
+	b := t.w.buf
+	t.w.buf = nil
 	return b
 }
 
