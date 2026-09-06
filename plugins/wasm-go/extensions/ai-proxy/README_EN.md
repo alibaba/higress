@@ -44,6 +44,8 @@ Metrics: counters `ai_proxy.stream_xform.streamed` / `fallback` / `uncoverable` 
 
 Nothing is sent upstream before the first 64KB has been read; a request that turns out to be unsupported inside this window (rare shapes such as duplicate JSON keys or malformed image data URLs) falls back to the buffered path automatically. If such a shape appears only after the window, the request fails with 500 and detail `ai-proxy.stream_xform_uncoverable`.
 
+Operational note: the streaming path opens the upstream connection once 64KB has been read, so a slowly uploading client keeps the upstream connection busy for longer than with full buffering; size upstream request/idle timeouts for upload time plus generation time.
+
 Known differences from the buffered path (all "more lenient", never producing a semantically different valid request): the buffered path type-checks the whole body against its structs and returns 500 on any mismatch, while the streaming path validates only the fields it reads and passes the rest through byte-for-byte for the provider to judge. When `stream` appears after the first 64KB, the `Accept: text/event-stream` header is no longer rewritten (providers decide streaming by the body field).
 
 ## Execution Properties
