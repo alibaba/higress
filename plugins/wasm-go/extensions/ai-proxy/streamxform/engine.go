@@ -46,6 +46,7 @@ type frame struct {
 	lazy     bool // 闭合时不物化空容器
 	seen     []string
 	deferred []DeferredKV
+	hook     Protocol // 这一帧内的回调接收方；nil = 主协议
 }
 
 // DeferredKV 是 Defer 暂存的一对 key/value 原始字节。
@@ -192,6 +193,22 @@ func (t *Transformer) Finish() []byte {
 	t.w.pop(t.rootCloseWs)
 	t.committed = true
 	return t.Out()
+}
+
+// cur 返回当前帧的回调接收方（Via 挂载的子 hook，或主协议）。
+func (t *Transformer) cur() Protocol {
+	if f := t.top(); f != nil && f.hook != nil {
+		return f.hook
+	}
+	return t.proto
+}
+
+// hookAt 返回第 i 帧的回调接收方；i < 0 或该帧未挂载时是主协议。
+func (t *Transformer) hookAt(i int) Protocol {
+	if i >= 0 && i < len(t.frames) && t.frames[i].hook != nil {
+		return t.frames[i].hook
+	}
+	return t.proto
 }
 
 // ---- 对协议：路径与输出 ----
@@ -596,7 +613,7 @@ func (t *Transformer) valueStart(f *frame, kind ValueKind) bool {
 		t.elemWs = append(t.elemWs[:0], t.wsRaw...)
 		t.wsRaw = t.wsRaw[:0]
 		t.path = append(t.path, seg{i: f.idx})
-		t.pend = t.proto.OnElem(t)
+		t.pend = t.cur().OnElem(t)
 		t.pendSet = true
 		if t.dead {
 			return false
@@ -605,7 +622,7 @@ func (t *Transformer) valueStart(f *frame, kind ValueKind) bool {
 	act := t.pend
 	t.pendSet = false
 	if act.kind == akProbe {
-		act = t.proto.OnStart(t, kind)
+		act = t.cur().OnStart(t, kind)
 		if t.dead {
 			return false
 		}
@@ -636,6 +653,10 @@ func (t *Transformer) apply(f *frame, act Action, kind ValueKind) bool {
 		if kind == KindArray {
 			nf.kind = fkArr
 			nf.ph = phValue
+		}
+		nf.hook = act.via
+		if nf.hook == nil {
+			nf.hook = f.hook // 子 hook 自己 Enter 的层仍归它
 		}
 		t.frames = append(t.frames, nf)
 		if !act.flat {
@@ -760,7 +781,7 @@ func (t *Transformer) capAppend(b []byte) {
 
 // runPrefix 把前缀窗口交给协议，并按其返回切换区域目标。
 func (t *Transformer) runPrefix(complete bool) {
-	act, resume := t.proto.OnPrefix(t, t.capBuf, complete)
+	act, resume := t.cur().OnPrefix(t, t.capBuf, complete)
 	if t.dead {
 		return
 	}
@@ -803,9 +824,9 @@ func (t *Transformer) endRegion() {
 		if len(t.regSuf) > 0 {
 			t.w.Raw(t.regSuf)
 		}
-		t.proto.OnValue(t, t.capBuf)
+		t.cur().OnValue(t, t.capBuf)
 	case rtCapture:
-		t.proto.OnValue(t, t.capBuf)
+		t.cur().OnValue(t, t.capBuf)
 	case rtDefer:
 		f := t.top()
 		raw := make([]byte, len(t.capBuf))
@@ -852,7 +873,7 @@ func (t *Transformer) onKeyDone() {
 		f.seen = append(f.seen, key)
 	}
 	t.path = append(t.path, seg{k: key, i: -1})
-	t.pend = t.proto.OnKey(t)
+	t.pend = t.cur().OnKey(t)
 	t.pendSet = true
 	if t.pend.kind == akBail {
 		t.Bail(t.pend.reason)
@@ -881,7 +902,7 @@ func (t *Transformer) closeContainer() {
 	f := t.top()
 	closeWs := append([]byte(nil), t.wsRaw...)
 	t.wsRaw = t.wsRaw[:0]
-	t.proto.OnLeave(t)
+	t.hookAt(len(t.frames) - 2).OnLeave(t) // 闭合回到发起 Enter 的一方
 	if t.dead {
 		return
 	}
@@ -935,7 +956,7 @@ func (t *Transformer) replayKV(kv DeferredKV) {
 	t.kvRaw = append(t.kvRaw[:0], kv.KeyRaw...)
 	t.wsRaw = t.wsRaw[:0]
 	t.path = append(t.path, seg{k: kv.Key, i: -1})
-	t.pend = t.proto.OnKey(t)
+	t.pend = t.cur().OnKey(t)
 	t.pendSet = true
 	if t.pend.kind == akBail {
 		t.Bail(t.pend.reason)

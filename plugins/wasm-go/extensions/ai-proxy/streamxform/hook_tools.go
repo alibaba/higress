@@ -4,14 +4,14 @@ package streamxform
 //
 // 官方 Claude / Gemini 都把 `tools[i].function` 解成同一个 function struct
 // （description omitempty、name 必有、parameters 为空 map 或 nil 时省略）再各自包一层。
-// 这里把"逐元素直通、parameters 内部原样、omitempty 语义"做成协议可以嵌入的小部件：
-// 协议只决定外层怎么包、parameters 在输出侧叫什么。
+// 这里把"逐元素直通、parameters 内部原样、omitempty 语义"做成协议可以挂载的部件：
+// 协议在 tools 数组上 `Enter().Via(&hook)`，只决定外层怎么包、parameters 在输出侧叫什么。
 //
-// 用法：协议在 tools 相关路径上把回调转给它；约定 tools 数组本身位于路径深度 1
-// （即 t.Key(0) == "tools"），元素在深度 2，function 在深度 3，function 的字段在深度 4，
-// parameters 内部 ≥ 5。元素对象由 hook 自己 Enter；tools 数组本身由协议决定怎么进
-// （Claude 直接 Enter().Lazy()，Gemini 先 Push 三层再 Enter().Flat()）。
+// 约定 tools 数组本身位于路径深度 1（t.Key(0) == "tools"），元素在深度 2，function 在深度 3，
+// function 的字段在深度 4，parameters 内部 ≥ 5。数组闭合的 OnLeave 回到协议（Gemini 要 Pop 自建的层）。
 type ToolsHook struct {
+	BaseProtocol
+
 	// ParamsKey 输出侧 parameters 的 key（Claude 是 input_schema，Gemini 是 parameters）。
 	ParamsKey string
 
@@ -23,21 +23,6 @@ type ToolsHook struct {
 
 // OnElem：tools[i]
 func (h *ToolsHook) OnElem(t *Transformer) Action { return Probe() }
-
-// OnElemStart：tools[i] 的值类型判定
-func (h *ToolsHook) OnElemStart(t *Transformer, kind ValueKind) Action {
-	if kind == KindNull { // 官方解成零值 struct，仍输出一个元素
-		w := t.W()
-		w.Elem()
-		w.RawString(`{"name":""}`)
-		return Skip()
-	}
-	if kind != KindObject {
-		return Bail("tools 元素不是对象，官方 struct 解析失败")
-	}
-	h.elem.nameSeen, h.elem.fnSeen = false, false
-	return Enter() // 官方总会输出这个元素（哪怕 function 缺失，也有 "name":""）
-}
 
 // OnKey：tools 下的 key（深度 3 起）
 func (h *ToolsHook) OnKey(t *Transformer) Action {
@@ -57,9 +42,21 @@ func (h *ToolsHook) OnKey(t *Transformer) Action {
 	return Pass() // parameters 内部：原样
 }
 
-// OnKeyStart：tools 下的值类型判定
-func (h *ToolsHook) OnKeyStart(t *Transformer, kind ValueKind) Action {
+// OnStart：值类型判定
+func (h *ToolsHook) OnStart(t *Transformer, kind ValueKind) Action {
 	switch t.Depth() {
+	case 2: // tools[i]
+		if kind == KindNull { // 官方解成零值 struct，仍输出一个元素
+			w := t.W()
+			w.Elem()
+			w.RawString(`{"name":""}`)
+			return Skip()
+		}
+		if kind != KindObject {
+			return Bail("tools 元素不是对象，官方 struct 解析失败")
+		}
+		h.elem.nameSeen, h.elem.fnSeen = false, false
+		return Enter() // 官方总会输出这个元素（哪怕 function 缺失，也有 "name":""）
 	case 3: // function
 		switch kind {
 		case KindObject:

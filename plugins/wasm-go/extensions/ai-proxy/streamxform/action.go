@@ -23,16 +23,17 @@ const (
 // 用构造函数 + 链式修饰生成；零值无意义。
 type Action struct {
 	kind    actKind
-	key     string // Pass/Enter：输出时改名；"" 沿用原 key
-	level   int    // -1 = 当前输出层；否则写到指定外层（要求其上所有层尚未打开）
-	inner   bool   // Pass：只拷贝字符串内容（去掉两端引号）；非字符串则 Bail
-	flat    bool   // Enter：不在输出侧建立对应层（协议自己决定写什么）
-	lenient bool   // Enter：值不是容器时按 Pass 处理而不是 Bail
-	lazy    bool   // Enter：闭合时若从未写入任何子项，就不物化（丢弃）；默认物化为 [] / {}
-	prefix  []byte // Pass：写在值前
-	suffix  []byte // Pass：写在值后
-	cap     int    // Capture/Observe/Defer/Prefix：字节上限，0 = 不限
-	reason  string // Bail
+	key     string   // Pass/Enter：输出时改名；"" 沿用原 key
+	level   int      // -1 = 当前输出层；否则写到指定外层（要求其上所有层尚未打开）
+	inner   bool     // Pass：只拷贝字符串内容（去掉两端引号）；非字符串则 Bail
+	flat    bool     // Enter：不在输出侧建立对应层（协议自己决定写什么）
+	lenient bool     // Enter：值不是容器时按 Pass 处理而不是 Bail
+	lazy    bool     // Enter：闭合时若从未写入任何子项，就不物化（丢弃）；默认物化为 [] / {}
+	prefix  []byte   // Pass：写在值前
+	suffix  []byte   // Pass：写在值后
+	cap     int      // Capture/Observe/Defer/Prefix：字节上限，0 = 不限
+	reason  string   // Bail
+	via     Protocol // Enter：这棵子树里的回调交给它（子 hook），容器闭合的 OnLeave 仍回到发起 Enter 的一方
 }
 
 func Pass() Action              { return Action{kind: akPass, level: -1} }
@@ -63,6 +64,11 @@ func (a Action) Flat() Action { a.flat = true; return a }
 // Lazy：Enter 的容器闭合时若什么都没写，就一个字节都不输出（Enter）。
 // 用于"元素可能整个被丢弃"的场合；默认行为是物化为空容器，与输入保持一致。
 func (a Action) Lazy() Action { a.lazy = true; return a }
+
+// Via：把这个容器内部的全部回调（OnKey / OnElem / OnStart / OnValue / OnPrefix / OnLeave、Defer 回放）
+// 交给子 hook；子 hook 自己 Enter 的更深层也归它。容器本身闭合时的 OnLeave 回到发起 Enter 的一方，
+// 让它收尾（如 Pop 自建的输出层）。路径与深度仍是绝对的。
+func (a Action) Via(h Protocol) Action { a.via = h; return a }
 
 // Lenient：Enter 遇到非容器值时退化为 Pass 而不是 Bail（Enter）。
 func (a Action) Lenient() Action { a.lenient = true; return a }

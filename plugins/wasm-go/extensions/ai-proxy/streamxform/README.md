@@ -18,7 +18,7 @@ request size; untouched bytes are forwarded verbatim.
 |---|---|---|
 | `Pass` | key + value forwarded verbatim (`As` renames, `Wrap` adds prefix/suffix, `Inner` strips quotes, `At` writes to an outer output level) | none |
 | `Skip` | dropped | none |
-| `Enter` | descend; children are dispatched too (`Lazy`: omit if empty, `Flat`: no output level, `Lenient`: scalar becomes `Pass`) | none |
+| `Enter` | descend; children are dispatched too (`Lazy`: omit if empty, `Flat`: no output level, `Lenient`: scalar becomes `Pass`, `Via(hook)`: route the whole subtree to a sub-hook) | none |
 | `Probe` | look at the value type first (string / object / array / null / bool / number), then decide (`OnStart`) | none |
 | `Observe(cap)` | `Pass` plus a copy handed to `OnValue` | bounded |
 | `Capture(cap)` | value collected and handed to `OnValue`; nothing written | bounded |
@@ -29,7 +29,9 @@ request size; untouched bytes are forwarded verbatim.
 Small fields (model, role, thinking config …) are captured and rewritten with the same Go structs the
 buffered path uses, so `omitempty` and field shapes match byte for byte. Long strings, base64 attachments,
 `tools` and `stop` arrays never enter memory: `tools` is streamed element by element through a reusable
-sub-hook (`hook_tools.go`, `ToolsHook`) that the Claude and Gemini protocols embed with different output keys.
+sub-hook (`hook_tools.go`, `ToolsHook`) that the Claude and Gemini protocols mount with `Enter().Via(&hook)`;
+the engine routes every callback inside that subtree to the hook and hands the closing `OnLeave` back to the
+protocol.
 
 The scanner validates JSON syntax byte by byte with the same rejection surface as `encoding/json`
 (literals, number grammar, escapes, control characters, whitespace) in dispatched frames and pass-through
@@ -58,8 +60,8 @@ the client's literals preserved.
 
 1. Read the buffered transform for the provider and list every field it reads and every output field.
 2. Write `proto_<name>.go`: embed `BaseProtocol`, dispatch by `t.Depth()` / `t.Last()`, capture small fields,
-   stream long ones, put aggregated output in `Tail`. Reuse sub-hooks (`ToolsHook`) for shared OpenAI
-   sub-structures. Anything you cannot express → `Bail`.
+   stream long ones, put aggregated output in `Tail`. Mount sub-hooks (`ToolsHook`) with `Enter().Via` for
+   shared OpenAI sub-structures. Anything you cannot express → `Bail`.
 3. Add a differential test that calls the original builder and compares field by field.
 4. Register it in `provider/streamhooks.go` (`NewStreamPlan`), including any header / context side effects
    and the pre-commit requirements (`RequireModelBeforeCommit` / `RequireStreamBeforeCommit`).

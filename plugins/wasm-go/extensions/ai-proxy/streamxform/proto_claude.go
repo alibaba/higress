@@ -182,9 +182,6 @@ func (p *claudeProto) Prelude() Prelude {
 // ---- 派发 ----
 
 func (p *claudeProto) OnKey(t *Transformer) Action {
-	if t.Depth() >= 3 && t.Key(0) == "tools" {
-		return p.tools.OnKey(t)
-	}
 	switch t.Depth() {
 	case 1:
 		return p.topKey(t)
@@ -199,9 +196,6 @@ func (p *claudeProto) OnKey(t *Transformer) Action {
 }
 
 func (p *claudeProto) OnElem(t *Transformer) Action {
-	if t.Depth() == 2 && t.Key(0) == "tools" {
-		return p.tools.OnElem(t)
-	}
 	if t.Depth() == 2 && t.Key(0) == "stop" {
 		return Probe()
 	}
@@ -214,21 +208,14 @@ func (p *claudeProto) OnElem(t *Transformer) Action {
 
 func (p *claudeProto) OnStart(t *Transformer, kind ValueKind) Action {
 	w := t.W()
-	if t.Key(0) == "tools" {
-		switch t.Depth() {
-		case 1:
-			switch kind {
-			case KindNull: // 官方 Tools 为 nil，不输出
-				return Skip()
-			case KindArray:
-				return Enter().Lazy() // 空数组：omitempty 省略
-			}
-			return Bail("tools 不是数组，官方 struct 解析失败")
-		case 2:
-			return p.tools.OnElemStart(t, kind)
-		default:
-			return p.tools.OnKeyStart(t, kind)
+	if t.Depth() == 1 && t.Last() == "tools" {
+		switch kind {
+		case KindNull: // 官方 Tools 为 nil，不输出
+			return Skip()
+		case KindArray:
+			return Enter().Lazy().Via(&p.tools) // 空数组：omitempty 省略；内部交给子 hook
 		}
+		return Bail("tools 不是数组，官方 struct 解析失败")
 	}
 	if t.Key(0) == "stop" {
 		switch t.Depth() {
@@ -586,9 +573,6 @@ func (p *claudeProto) partValue(t *Transformer, raw []byte) {
 // OnPrefix：image_url.url 的前缀窗口。复刻官方对 data: URL 的拆分。
 func (p *claudeProto) OnPrefix(t *Transformer, raw []byte, complete bool) (Action, int) {
 	w := t.W()
-	if t.Key(0) == "tools" {
-		return p.tools.OnPrefix(t, raw, complete)
-	}
 	if t.Depth() == 5 && t.Last() == "text" {
 		if complete && len(raw) == 0 {
 			return Skip(), 0 // {"type":"text"}，与官方 omitempty 一致
@@ -651,10 +635,7 @@ func (p *claudeProto) OnPrefix(t *Transformer, raw []byte, complete bool) (Actio
 func (p *claudeProto) OnLeave(t *Transformer) {
 	w := t.W()
 	if t.Key(0) == "tools" || t.Key(0) == "stop" {
-		if t.Key(0) == "tools" {
-			p.tools.OnLeave(t)
-		}
-		return
+		return // 数组闭合：无事可做（内部由子 hook 处理）
 	}
 	switch t.Depth() {
 	case 1: // messages
