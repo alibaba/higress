@@ -19,6 +19,7 @@ import (
 	"io"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
+	publishservices "github.com/alibaba/higress/hgctl/pkg/services"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -58,10 +59,11 @@ type AgentAddArg struct {
 	HigressConsoleAuthArg
 	HimarketAdminAuthArg
 
-	name  string
-	url   string
-	typ   string
-	scope string
+	name            string
+	url             string
+	typ             string
+	scope           string
+	externalBaseURL string
 
 	asProduct bool
 	noPublish bool
@@ -86,6 +88,7 @@ func newAgentAddCmd() *cobra.Command {
 
 	cmd.PersistentFlags().StringVarP(&arg.typ, "type", "t", MODEL, "Determine the agent's API type (a2a, model, restful) default is model")
 	cmd.PersistentFlags().StringVarP(&arg.scope, "scope", "s", "project", `Configuration scope (project or global)`)
+	cmd.PersistentFlags().StringVar(&arg.externalBaseURL, "a2a-external-base-url", "", "Public HTTPS JSON-RPC URL advertised by an A2A Agent Card")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If it's set then the agent API will not be plubished to Higress")
 	cmd.PersistentFlags().BoolVar(&arg.asProduct, "as-product", false, "If it's set then the agent API will be published to Himarket (no-publish must be false)")
 
@@ -125,6 +128,9 @@ func publishAgentAPIToHigress(arg AgentAddArg) error {
 
 	switch arg.typ {
 	case A2A:
+		if err := publishservices.PublishA2A(publishservices.NewClient(arg.hgURL, arg.hgUser, arg.hgPassword), arg.name, arg.url, arg.externalBaseURL); err != nil {
+			return err
+		}
 	case MODEL:
 		// add ai service
 		body := services.BuildAIProviderServiceBody(arg.name, arg.url)
