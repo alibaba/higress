@@ -21,6 +21,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
@@ -35,10 +36,16 @@ import (
 )
 
 const (
-	DefaultMaxBodyBytes   = protocol.LegacyMaxBodyBytes
-	GlobalToolRegistryKey = "GlobalToolRegistry"
-	DefaultServerVersion  = "1.0.0"
+	DefaultMaxBodyBytes        = protocol.LegacyMaxBodyBytes
+	GlobalToolRegistryKey      = "GlobalToolRegistry"
+	schemaValidationMetricsKey = "SchemaValidationMetrics"
+	DefaultServerVersion       = "1.0.0"
 )
+
+type schemaValidationMetrics struct {
+	degradedPublished proxywasm.MetricCounter
+	modernCallBlocked proxywasm.MetricCounter
+}
 
 // SupportedMCPVersions contains all supported MCP protocol versions
 var SupportedMCPVersions = []string{"2024-11-05", "2025-03-26", "2025-06-18"}
@@ -171,62 +178,121 @@ var globalContext Context
 
 // ToolInfo stores information about a tool for the global registry.
 type ToolInfo struct {
-	Name         string
-	Description  string
-	InputSchema  map[string]any
-	OutputSchema map[string]any // New field for MCP Protocol Version 2025-06-18
-	LegacyOnly   bool           // Explicitly unavailable to modern direct-tool profiles
-	ServerName   string         // Original server name
-	Tool         Tool           // The actual tool instance for cloning
+	Name                    string
+	Description             string
+	InputSchema             map[string]any
+	inputSchemaSerializable bool
+	OutputSchema            map[string]any // New field for MCP Protocol Version 2025-06-18
+	LegacyOnly              bool           // Explicitly unavailable to modern direct-tool profiles
+	ServerName              string         // Original server name
+	Tool                    Tool           // The actual tool instance for cloning
 }
 
 // GlobalToolRegistry holds all tools from all servers.
 type GlobalToolRegistry struct {
+	mu sync.RWMutex
 	// serverName -> toolName -> toolInfo
 	serverTools map[string]map[string]ToolInfo
 }
 
 // Initialize initializes the GlobalToolRegistry
 func (r *GlobalToolRegistry) Initialize() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.serverTools = make(map[string]map[string]ToolInfo)
+}
+
+// cloneRegistrySchema owns bounded JSON container data without changing the
+// concrete Go types of primitive values. Arbitrary marshalers, pointers, and
+// structs are deliberately not traversed.
+func cloneRegistrySchema(schema map[string]any) (map[string]any, bool) {
+	cloned, err := cloneSchemaSnapshot(schema)
+	return cloned, err == nil
 }
 
 // RegisterTool registers a tool into the global registry.
 func (r *GlobalToolRegistry) RegisterTool(serverName string, toolName string, tool Tool) {
-	if _, ok := r.serverTools[serverName]; !ok {
-		r.serverTools[serverName] = make(map[string]ToolInfo)
-	}
+	inputSchema, inputSchemaSerializable := cloneRegistrySchema(tool.InputSchema())
 	toolInfo := ToolInfo{
-		Name:        toolName,
-		Description: tool.Description(),
-		InputSchema: tool.InputSchema(),
-		ServerName:  serverName,
-		Tool:        tool,
+		Name:                    toolName,
+		Description:             tool.Description(),
+		InputSchema:             inputSchema,
+		inputSchemaSerializable: inputSchemaSerializable,
+		ServerName:              serverName,
+		Tool:                    tool,
 	}
 	// Check if tool implements OutputSchema (MCP Protocol Version 2025-06-18)
 	if toolWithSchema, ok := tool.(ToolWithOutputSchema); ok {
-		toolInfo.OutputSchema = toolWithSchema.OutputSchema()
+		toolInfo.OutputSchema, _ = cloneRegistrySchema(toolWithSchema.OutputSchema())
 	}
 	if compatibility, ok := tool.(legacySchemaCompatibleTool); ok {
 		toolInfo.LegacyOnly = compatibility.legacyOnlyInputSchema()
 	}
-	r.serverTools[serverName][toolName] = toolInfo
-	log.Debugf("Registered tool %s/%s", serverName, toolName)
+	r.registerToolInfo(toolInfo)
+}
+
+// registerPreparedTool publishes the descriptor already captured for the
+// direct generation. It must not call Description or InputSchema again: those
+// getters may be stateful and their returned maps remain caller-owned.
+func (r *GlobalToolRegistry) registerPreparedTool(serverName string, entry directToolEntry) {
+	inputSchema := entry.inputSchema
+	inputSchemaSerializable := entry.serializable
+	if inputSchemaSerializable {
+		inputSchema, inputSchemaSerializable = cloneRegistrySchema(inputSchema)
+	}
+	toolInfo := ToolInfo{
+		Name:                    entry.name,
+		Description:             entry.description,
+		InputSchema:             inputSchema,
+		inputSchemaSerializable: inputSchemaSerializable,
+		LegacyOnly:              entry.schemaState == directToolSchemaExplicitLegacyOnly,
+		ServerName:              serverName,
+		Tool:                    entry.tool,
+	}
+	if toolWithSchema, ok := entry.tool.(ToolWithOutputSchema); ok {
+		toolInfo.OutputSchema, _ = cloneRegistrySchema(toolWithSchema.OutputSchema())
+	}
+	r.registerToolInfo(toolInfo)
+}
+
+func (r *GlobalToolRegistry) registerToolInfo(toolInfo ToolInfo) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.serverTools[toolInfo.ServerName]; !ok {
+		r.serverTools[toolInfo.ServerName] = make(map[string]ToolInfo)
+	}
+	r.serverTools[toolInfo.ServerName][toolInfo.Name] = toolInfo
+	log.Debugf("Registered tool %s/%s", toolInfo.ServerName, toolInfo.Name)
 }
 
 // GetToolInfo retrieves tool information from the global registry.
 func (r *GlobalToolRegistry) GetToolInfo(serverName string, toolName string) (ToolInfo, bool) {
-	if serverTools, ok := r.serverTools[serverName]; ok {
-		toolInfo, found := serverTools[toolName]
-		return toolInfo, found
+	r.mu.RLock()
+	serverTools, serverFound := r.serverTools[serverName]
+	toolInfo, found := serverTools[toolName]
+	r.mu.RUnlock()
+	if !serverFound || !found {
+		return ToolInfo{}, false
 	}
-	return ToolInfo{}, false
+	// Clone after releasing the registry lock. Stored descriptors are immutable,
+	// and no caller-controlled getter or traversal runs inside the lock.
+	if toolInfo.inputSchemaSerializable {
+		toolInfo.InputSchema, toolInfo.inputSchemaSerializable = cloneRegistrySchema(toolInfo.InputSchema)
+	}
+	if toolInfo.OutputSchema != nil {
+		toolInfo.OutputSchema, _ = cloneRegistrySchema(toolInfo.OutputSchema)
+	}
+	return toolInfo, true
 }
 
 func onPluginStartOrReload(context wrapper.PluginContext) error {
 	toolRegistry := &GlobalToolRegistry{}
 	toolRegistry.Initialize()
 	context.SetContext(GlobalToolRegistryKey, toolRegistry)
+	context.SetContext(schemaValidationMetricsKey, &schemaValidationMetrics{
+		degradedPublished: proxywasm.DefineCounterMetric("mcp_server_schema_validation_unavailable_published_total"),
+		modernCallBlocked: proxywasm.DefineCounterMetric("mcp_server_schema_validation_unavailable_call_blocked_total"),
+	})
 	context.EnableRuleLevelConfigIsolation()
 	return nil
 }
@@ -298,6 +364,7 @@ type McpServerConfig struct {
 	toolSet        *ToolSetConfig // Parsed toolset configuration
 	isComposed     bool
 	directTools    directToolSnapshot
+	schemaMetrics  *schemaValidationMetrics
 }
 
 // GetServerName returns the server name for external access
@@ -522,8 +589,6 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				if err := restServer.AddRestTool(restTool); err != nil {
 					return fmt.Errorf("failed to add tool %s: %v", restTool.Name, err)
 				}
-				// Register tool to registry
-				opts.ToolRegistry.RegisterTool(config.serverName, restTool.Name, restServer.GetMCPTools()[restTool.Name])
 			}
 			config.server = restServer
 		} else {
@@ -536,16 +601,9 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 				if serverInstance, exist := opts.Servers[config.serverName]; exist {
 					clonedServer := serverInstance.Clone()
 					clonedServer.SetConfig([]byte(serverConfigJsonForInstance)) // Pass the server's specific config
-					directTools, err := compileDirectToolSnapshot(clonedServer)
-					if err != nil {
-						return err
-					}
+					directTools := compileDirectToolSnapshot(clonedServer)
 					config.server = clonedServer
 					config.directTools = directTools
-					// Register tools from this server to registry
-					for toolName, toolInstance := range clonedServer.GetMCPTools() {
-						opts.ToolRegistry.RegisterTool(config.serverName, toolName, toolInstance)
-					}
 				} else {
 					return fmt.Errorf("mcp server type '%s' not registered", config.serverName)
 				}
@@ -556,15 +614,19 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 	}
 
 	// Proxy descriptors remain upstream-owned and transparent. Direct tools use
-	// one compiled snapshot for modern discovery and invocation so unsupported
-	// schema semantics fail before the configuration can serve requests.
+	// one analyzed snapshot for modern discovery and invocation. Every
+	// schema-derived preparation failure retains an explicit
+	// validation-unavailable state and cannot reject configuration publication.
 	if config.server != nil {
 		if _, isProxy := config.server.(*McpProxyServer); !isProxy && config.directTools.byName == nil {
-			directTools, err := compileDirectToolSnapshot(config.server)
-			if err != nil {
-				return err
+			config.directTools = compileDirectToolSnapshot(config.server)
+		}
+		if _, isProxy := config.server.(*McpProxyServer); !isProxy && !config.isComposed {
+			// Publish direct tools to the shared registry only after the complete
+			// generation snapshot has captured each tool's validation state.
+			for _, entry := range config.directTools.ordered {
+				opts.ToolRegistry.registerPreparedTool(config.serverName, entry)
 			}
-			config.directTools = directTools
 		}
 	}
 
@@ -662,7 +724,7 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 			request, modern := ModernRequestContext(ctx)
 			var tools []map[string]any
 			if modern {
-				// The modern descriptor comes from the same validated snapshot used by
+				// The modern descriptor comes from the same analyzed snapshot used by
 				// tools/call and deliberately omits unvalidated outputSchema.
 				tools = config.directTools.buildModernToolList(effectiveAllowTools)
 			} else {
@@ -713,8 +775,26 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 			if _, modern := ModernRequestContext(ctx); modern {
 				validatedTool, exists := config.directTools.byName[toolName]
 				if exists {
-					toolToCall = validatedTool.tool
-					ok = true
+					if validatedTool.schemaState == directToolSchemaExplicitLegacyOnly {
+						reason := config.directTools.legacyOnly[toolName]
+						sendToolExecutionError(
+							ctx,
+							fmt.Errorf("tool %q is unavailable in the modern profile because its input schema cannot be validated: %s", toolName, reason),
+							fmt.Sprintf("mcp:%s:tools/call:legacy_only_schema", currentServerNameForHandlers),
+						)
+						return nil
+					}
+					if validatedTool.schemaState == directToolSchemaValidationUnavailable {
+						if config.schemaMetrics != nil {
+							config.schemaMetrics.modernCallBlocked.Increment(1)
+						}
+						sendSchemaValidationUnavailable(ctx)
+						return nil
+					}
+					if validatedTool.schemaState != directToolSchemaValidated || validatedTool.validator == nil {
+						utils.OnMCPResponseError(ctx, errors.New("tool validation state is invalid"), utils.ErrInternalError, fmt.Sprintf("mcp:%s:tools/call:invalid_validation_state", currentServerNameForHandlers))
+						return nil
+					}
 					if err := validatedTool.validator.validateArguments(args.Raw); err != nil {
 						sendToolExecutionError(
 							ctx,
@@ -723,14 +803,8 @@ func parseConfigCore(configJson gjson.Result, config *McpServerConfig, opts *Con
 						)
 						return nil
 					}
-				}
-				if reason, legacyOnly := config.directTools.legacyOnly[toolName]; legacyOnly {
-					sendToolExecutionError(
-						ctx,
-						fmt.Errorf("tool %q is unavailable in the modern profile because its input schema cannot be validated: %s", toolName, reason),
-						fmt.Sprintf("mcp:%s:tools/call:legacy_only_schema", currentServerNameForHandlers),
-					)
-					return nil
+					toolToCall = validatedTool.tool
+					ok = true
 				}
 			} else {
 				toolToCall, ok = config.server.GetMCPTools()[toolName]
@@ -786,8 +860,20 @@ func parseConfig(context wrapper.PluginContext, configJson gjson.Result, config 
 		ToolRegistry: registry,
 	}
 
-	// Call the core parsing logic
-	return parseConfigCore(configJson, config, opts)
+	// Publish diagnostics only after the complete generation has compiled.
+	if err := parseConfigCore(configJson, config, opts); err != nil {
+		return err
+	}
+	if metrics, ok := context.GetContext(schemaValidationMetricsKey).(*schemaValidationMetrics); ok {
+		config.schemaMetrics = metrics
+		if count := len(config.directTools.degraded); count > 0 {
+			metrics.degradedPublished.Increment(uint64(count))
+		}
+	}
+	if warning := config.directTools.degradedPublicationWarning(config.serverName); warning != "" {
+		log.Warn(warning)
+	}
+	return nil
 }
 
 func Load(options ...CtxOption) {

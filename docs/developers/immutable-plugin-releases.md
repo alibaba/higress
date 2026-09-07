@@ -17,11 +17,12 @@ controls exist.
   with an expiry policy.
 - Scope the credential able to write `plugins/<plugin>:<VERSION>` and `:latest`
   as narrowly as GitHub still allows, and remove equivalent public-write access
-  from legacy Wasm workflows and users. Since SPEC-4634005 only the latest-move
-  job keeps the protected `plugin-release-production` environment, so the
-  version-tag phase reads that credential without an environment gate: it must
-  be a repository-scoped secret, which means every workflow in this repository
-  can read it. Review that exposure before each release, keep the credential
+  from legacy Wasm workflows and users. Since SPEC-4634005 only the routine
+  latest-move job keeps the protected `plugin-release-production` environment,
+  both the version-tag phase and the self-authorizing emergency workflow read
+  that credential without an environment gate. It must therefore be a
+  repository-scoped secret, which means every workflow in this repository can
+  read it. Review that exposure before each release, keep the credential
   limited to the plugin namespaces, and never reference it from a
   pull-request-triggered workflow.
 - Give the protected `plugin-server-production` environment the sole
@@ -44,7 +45,10 @@ controls exist.
   explicit registry absence evidence is treated as missing.
 - Create a scoped GitHub App for each downstream repository dispatch/PR
   receiver. It may update the deterministic dependency PR but may not merge,
-  tag, or release.
+  tag, or release. Configure the emergency evidence publisher as
+  `RELEASE_PR_APP_ID` and `RELEASE_PR_APP_PRIVATE_KEY`; its installation on
+  `higress-group/higress` needs repository contents and pull-request write
+  permission, but no merge, tag, release, or registry permission.
 - Grant the release preparation App label write permission in addition to its
   contents and pull-request permissions. It applies `release/<gateway-version>`
   to the preparation PR it opens, and promote refuses to run without that label
@@ -80,12 +84,24 @@ repository source alone.
    see "Bootstrap deferral and backfill" below.
 3. Build/test every plan entry through the protected candidate publisher. Each
    candidate is keyed by plan ID/input hash and reports its manifest digest,
-   source commit, and input hash. Before the snapshot is rendered, the workflow
-   sweeps the public registry for every planned version tag and compares each
-   occupied tag with the candidate digest just built; see "Onboarding migration
-   preflight" below. Render the snapshot only after every changed
-   entry has matching evidence. A later source or `VERSION` edit invalidates
-   that evidence.
+   source commit, and input hash. Candidate and emergency publication execute
+   the same fail-closed manifest contract: exactly two ordered OCI layers,
+   `config.json` as `application/vnd.module.wasm.config.v1+json` followed by
+   `plugin.wasm` as
+   `application/vnd.module.wasm.content.layer.v1+wasm`, with OCI image-spec v1.0,
+   `created` fixed to the source commit time, and identical revision, version,
+   and input-hash annotations. Reuse first performs the normal deterministic
+   source build, then resolves and pulls the digest-pinned candidate, requires
+   its config bytes to be exactly `{}`, compares its Wasm bytes with that build,
+   and applies the same strict manifest and Proxy-Wasm validation as promotion;
+   metadata alone is never sufficient. Publication binds the layer descriptors
+   to the local bytes and returns only a validated SHA-256 manifest digest.
+   Before the snapshot is rendered,
+   the workflow sweeps the public registry for every planned version tag and
+   compares each occupied tag with the candidate digest just built; see
+   "Onboarding migration preflight" below. Render the snapshot only after every
+   changed entry has matching
+   evidence. A later source or `VERSION` edit invalidates that evidence.
 4. Review and merge the one preparation PR containing `VERSION` edits and
    `plugins/release/snapshots/<gateway-version>.json`. The snapshot carries all
    release-eligible plugins, including unchanged entries carried forward by
@@ -103,15 +119,25 @@ repository source alone.
    code-freeze commit the snapshot records, is reachable from `main`, and
    belongs to exactly one merged preparation PR from
    `release/plugin-snapshot-<gateway-version>` carrying the
-   `release/<gateway-version>` label. A production publisher may create a missing public version tag or
-   accept an identical existing digest only. It must fail before mutation on a
-   conflicting digest, and it skips every entry the migration preflight
-   excluded. Advance `latest` only after the full batch verifies and
-   only when its stable SemVer cannot move backwards; this move is the second
-   human gate and still waits for the protected `plugin-release-production`
-   environment approval. An existing `latest`
-   already serving the desired digest is accepted before reading legacy
-   version annotations and is never rewritten.
+   `release/<gateway-version>` label. A production publisher may create a
+   missing public version tag or accept an identical existing digest only. It
+   must fail before mutation on a conflicting digest, and it skips every entry
+   the migration preflight excluded. Before any `latest` write, it fetches and
+   pulls every non-blocked public artifact remotely by its snapshot digest. The
+   local gate verifies the OCI schema and two-layer order, provenance,
+   descriptor sizes and digests, canonical empty JSON config, and complete Wasm
+   validity. It also requires exported memory, exact `(i32,i32)->i32`
+   signatures for `proxy_on_vm_start` and `proxy_on_configure`, and a
+   `proxy_abi_version_0_2_*` function with signature `()->()`. All pulls finish
+   before the first
+   mutable copy. A failed plugin is journaled and skipped while passing plugins
+   are processed; the persisted journal is marked `latest-partial`, the job
+   then fails, and no completion marker is published. Advance `latest` only
+   when its stable SemVer cannot move backwards; this move is the second human
+   gate and still waits for the protected `plugin-release-production`
+   environment approval. An existing `latest` already serving the desired
+   digest is accepted before reading legacy version annotations and is never
+   rewritten.
 6. Build `higress/plugin-server:<gateway-version>` from the exact approved
    plugin-server commit and snapshot. Its dry run checks out and tests that
    exact plugin-server source, binds the gateway version/path/plan/previous
@@ -132,6 +158,64 @@ repository source alone.
    authorization. After the Higress release, dispatch Standalone with
    immutable release/chart/image identities. It derives a deterministic PR key
    and must not read a newer branch head.
+
+### What the pull gate proves today
+
+The remotely pulled gate has exactly two levels, and both are static with
+respect to plugin behavior:
+
+- **Structural.** The pulled manifest must be a canonical OCI v1.0 schema 2
+  image manifest in the deterministic two-layer form Envoy loads: the
+  empty-JSON config descriptor, exactly four provenance annotations (`created`,
+  `revision`, `version`, `io.higress.plugin.input-hash`), layer 0 `config.json`
+  with media type `application/vnd.module.wasm.config.v1+json`, and layer 1
+  `plugin.wasm` with media type
+  `application/vnd.module.wasm.content.layer.v1+wasm`. Every descriptor size and
+  digest must equal the pulled bytes, and `config.json` must be the canonical
+  empty JSON object. This is the defect class behind the one-layer `latest`
+  incident this change responds to: such a manifest is not loadable by Envoy,
+  and the gate rejects it.
+- **Compile level.** The pulled `plugin.wasm` bytes are compiled with wazero
+  (`CompileModule`, interpreter backend) and the compiled module's exports are
+  inspected: exported memory, exact `(i32,i32)->i32` signatures for
+  `proxy_on_vm_start` and `proxy_on_configure`, and a `proxy_abi_version_0_2_*`
+  export with signature `()->()`.
+
+The module is compiled but never instantiated, so no plugin code executes. The
+gate proves that the registry serves a well-formed, digest-consistent,
+compilable Proxy-Wasm module; it does not prove that the plugin initializes
+inside Envoy or serves a request. That runtime coverage remains where it already
+is: each plugin's own `go test ./...` inside the build contract, and the
+pre-release e2e suites — `make higress-wasmplugin-test` installs the built
+plugins into a cluster and drives the WASM conformance cases under
+`test/e2e/conformance/tests/`. The hosted release runner cannot instantiate a
+generic Envoy/Proxy-Wasm host for every plugin inside the release job, and the
+public pull gate makes no runtime compatibility claim.
+
+## Runtime smoke gate (future)
+
+Placeholder for the runtime half of the pull gate, deliberately not implemented
+by this change. The design it would follow:
+
+- A minimal, digest-pinned Higress/Envoy runner image — no cluster, no Helm, no
+  kind. It is `envoy` plus a static bootstrap that loads exactly one plugin from
+  `oci://<registry>/<image>@<digest>`, the digest the release just published.
+- The runner boots the plugin through the real Proxy-Wasm host, so
+  `proxy_on_vm_start` and `proxy_on_configure` execute against the plugin's
+  configuration, and asserts a host log without plugin errors plus a live admin
+  endpoint.
+- One request-path smoke assertion: a single listener and route with the plugin
+  attached, one request, and a check that a response is produced instead of the
+  `500` Envoy returns for a rejected Wasm configuration.
+- Wiring: the position today's pull gate already holds — before any `latest`
+  write in promote, and before the stable-tag copy in the emergency channel —
+  with per-plugin granularity so one failing plugin is journaled and skipped
+  while the rest proceed, and the phase fails before any mutable alias moves.
+- Preconditions to settle first: a published, versioned runner image with its own
+  digest pin and provenance; a decision on how plugin-specific configuration is
+  supplied for plugins that reject an empty config; and the runner's cost inside
+  the release job budget. Until those exist, the compile and structural gate
+  above is the release-blocking check and the e2e suites carry runtime coverage.
 
 ## Onboarding migration preflight
 
@@ -166,10 +250,9 @@ every planned tag before the preparation PR is opened.
     reviewed stable version greater than the occupied one.
   - `adopt-public` — the occupant was built from the same source commit and the
     same input hash as this plan, so the published tag already serves these
-    inputs and may be left alone. Until the published layouts are unified
-    (proposal #4634 S1/S2), this is how a tag previously patched by
-    `emergency-overwrite-plugin-tag` presents itself: same inputs, different
-    bytes, because that channel publishes the 2-layer variant.
+    inputs and may be left alone. Candidate and emergency publication now share
+    byte-identical manifest construction, so matching inputs produce the same
+    digest and do not create a synthetic migration conflict.
   Deleting a tag is only ever recommended for an unannotated occupant. An
   artifact the pipeline cannot classify is never deleted automatically; the
   disposition is re-derived from the recorded annotations during snapshot
@@ -287,17 +370,71 @@ and Standalone defaults remain pinned and do not depend on `latest`.
 
 ### Emergency same-version overwrite
 
-- An ACR admin temporarily lifts the tag-immutability rule for the plugin
-  repo; a maintainer then runs `emergency-overwrite-plugin-tag` (first
-  `dry_run=true`, then the real run, which waits for the
-  `plugin-release-production` approval), and the admin re-arms the rule
-  immediately after the run reports the new digest.
+- An ACR admin temporarily lifts the tag-immutability rule for the one plugin
+  repository. A maintainer dispatches `emergency-overwrite-plugin-tag` with the
+  required stable `gateway_version`, logical ID, existing stable plugin
+  version, and exact merged source commit, first with `dry_run=true` and then
+  with `dry_run=false`. The workflow has no environment gate: it queries the
+  collaborators API for `github.triggering_actor` (including the actor who
+  initiates a rerun), records `role_name` in the step summary, and proceeds only
+  for `maintain` or `admin`; malformed actors, legacy `write` role names, API
+  failures, and malformed responses deny access. The publishing job repeats that
+  identical check as its first step, before App-token creation, checkout, and
+  registry login, because "Re-run failed jobs" resumes the publishing job without
+  running `authorize` again and the triggering actor of a resumed run is whoever
+  clicked re-run. The admin re-arms immutability immediately after the run
+  reports the new digest.
+- Before any registry login or write, the workflow binds the selected catalog
+  entry, candidate evidence, and release snapshot to that gateway/plugin/
+  version/public-reference tuple. The catalog-derived registry and repository
+  are passed into publication, and the configured production registry must
+  equal that registry. It builds the release tool from current `main` before
+  checking out the older fix commit, then computes the current input hash,
+  tests and builds that exact source. The artifact passed to the publishing job
+  contains both that current tool and the built Wasm.
+- Runs are serialized by logical ID and version. Publication first writes the
+  desired deterministic two-layer manifest to an emergency candidate tag keyed
+  by the source commit and input hash. Before changing the stable tag, the
+  workflow re-pulls that staged candidate from the public registry by digest and
+  runs the same `verify-pulled-plugin` gate promote applies before a `latest`
+  move, so the incident channel cannot publish an artifact Envoy will not load.
+  The gate inspects what the registry serves, never the local build output, and
+  a failure aborts before any stable-tag mutation. The workflow then stages and
+  validates the lineage update and resolves the committed predecessor (the last
+  lineage digest, or the original candidate digest when no lineage exists). The
+  stable tag must exist and serve that predecessor; the workflow then copies the
+  staged digest to the stable tag, re-resolves it, and re-checks the published
+  manifest against the deterministic two-layer contract. Any absent or
+  conflicting stable tag fails without an overwrite.
+- The release GitHub App immediately creates or verifies
+  `release/plugin-emergency-evidence-<gateway>-<plugin>-<run-id>` and its pull
+  request from the prevalidated lineage bytes. Only after that succeeds may the
+  explicit `move_latest` option copy the digest to `latest`. A rerun of the
+  same workflow run may find the stable tag already at the desired digest; a
+  later run attempt records the missing evidence without copying the stable tag
+  again. A first attempt cannot use that path, and a reused run ID with
+  different evidence fails closed.
+- Staging tags are retained permanently as provenance. The
+  `emergency-<source-commit>-<input-hash>` tag is content-addressed by commit
+  and input-hash (one per overwrite attempt, collision-free) and serves the same
+  manifest as the stable tag. Registries commonly implement tag deletion as
+  manifest deletion (ACR included), so untagging the staging reference could
+  destroy the manifest the stable tag serves, and oras 1.2.3 provides no
+  portable tag-only unlink. The committed lineage and its PR remain the durable
+  record of an overwrite; the staging tag is the auditable public pointer to
+  exactly what was verified before promotion. Do not attempt manual deletion of
+  these tags.
+- Registry mutation and evidence publication cannot be atomic. If the stable
+  copy succeeds but lineage commit, push, or PR creation fails, the workflow
+  remains failed. Keep immutability lifted only long enough to rerun the same
+  workflow run so it verifies/reproduces the same bytes and completes the same
+  deterministic evidence branch; do not dispatch a different run as a
+  substitute. Merge the evidence PR before treating the incident as closed.
 - A plugin whose tag was overwritten must receive a version bump at the next
   gateway release. This happens automatically: the fix commit changes the
-  input hash, so plan re-plans it.
-- Bundled plugin-server/Console images embed snapshot bytes and are healed
-  only by the next gateway release; the overwrite heals tag-pulling
-  (Envoy-direct) consumers immediately.
+  input hash, so plan re-plans it. Bundled plugin-server/Console images embed
+  snapshot bytes and are healed only by the next gateway release; the overwrite
+  heals tag-pulling (Envoy-direct) consumers immediately.
 
 ## Exact Standalone packaging
 
