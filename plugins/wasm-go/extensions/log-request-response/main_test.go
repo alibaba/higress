@@ -298,6 +298,27 @@ func TestParseConfig(t *testing.T) {
 	})
 }
 
+func TestIsContentTypeAllowed(t *testing.T) {
+	allowedTypes := []string{"application/json", "text/plain"}
+
+	for _, tt := range []struct {
+		name        string
+		contentType string
+		want        bool
+	}{
+		{name: "exact match", contentType: "application/json", want: true},
+		{name: "match with parameters", contentType: "application/json; charset=utf-8", want: true},
+		{name: "case insensitive", contentType: "Text/Plain", want: true},
+		{name: "missing", contentType: "", want: false},
+		{name: "prefix is not a match", contentType: "application/json-malicious", want: false},
+		{name: "malformed", contentType: "application/json; charset", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, isContentTypeAllowed(tt.contentType, allowedTypes))
+		})
+	}
+}
+
 func TestOnHttpRequestHeaders(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		// 测试请求头部日志 - 启用
@@ -531,6 +552,9 @@ func TestOnHttpResponseHeaders(t *testing.T) {
 
 			require.Equal(t, types.ActionContinue, action)
 			require.Equal(t, types.ActionContinue, host.GetHttpStreamAction())
+			host.CallOnHttpStreamingResponseBody([]byte("must not be logged"), true)
+			_, err := host.GetProperty([]string{logKeyResponseBody})
+			require.Error(t, err)
 
 			host.CompleteHttp()
 		})
@@ -654,6 +678,27 @@ func TestOnStreamingResponseBody(t *testing.T) {
 			require.Equal(t, types.ActionContinue, action)
 			result := host.GetResponseBody()
 			require.Equal(t, largeData, result, "Response body should be returned unchanged even if large")
+			host.CompleteHttp()
+		})
+
+		t.Run("streaming response body logs only the first max size bytes", func(t *testing.T) {
+			host, status := test.NewTestHost(largeFileConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			host.CallOnHttpResponseHeaders([][2]string{
+				{":status", "200"},
+				{"content-type", "text/plain"},
+			})
+
+			firstChunk := []byte(strings.Repeat("a", 60))
+			secondChunk := []byte(strings.Repeat("b", 60))
+			host.CallOnHttpStreamingResponseBody(firstChunk, false)
+			host.CallOnHttpStreamingResponseBody(secondChunk, true)
+
+			loggedBody, err := host.GetProperty([]string{logKeyResponseBody})
+			require.NoError(t, err)
+			require.Equal(t, strings.Repeat("a", 60)+strings.Repeat("b", 40), string(loggedBody))
 			host.CompleteHttp()
 		})
 

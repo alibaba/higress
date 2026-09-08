@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"mime"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
@@ -170,6 +171,23 @@ func normalizeHeaderName(name string) string {
 	return name
 }
 
+// isContentTypeAllowed only accepts a valid media type that exactly matches a
+// configured type. Missing or malformed Content-Type values must not enable
+// request or response body logging.
+func isContentTypeAllowed(contentType string, allowedTypes []string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+
+	for _, allowedType := range allowedTypes {
+		if strings.EqualFold(mediaType, allowedType) {
+			return true
+		}
+	}
+	return false
+}
+
 // processStreamingBody common function to process streaming body
 func processStreamingBody(
 	ctx wrapper.HttpContext,
@@ -188,23 +206,16 @@ func processStreamingBody(
 	// Get the buffer from context
 	buffer, _ := ctx.GetContext(bufferKey).([]byte)
 
-	// If we haven't reached max size yet, append chunk to buffer
+	// Keep only the first maxSize bytes. Writing the filter state only at the
+	// end of the stream prevents a later chunk from overwriting this prefix.
 	if len(buffer) < maxSize {
-		// Calculate how much of this chunk we can add
 		remainingCapacity := maxSize - len(buffer)
-		if remainingCapacity > 0 {
-			if len(chunk) <= remainingCapacity {
-				buffer = append(buffer, chunk...)
-				ctx.SetContext(bufferKey, buffer)
-			} else {
-				buffer = append(buffer, chunk[:remainingCapacity]...)
-				// reach max size, record and clear
-				bodyStr := string(buffer)
-				setPropertyWithMarshal(logKey, bodyStr)
-				// clear buffer
-				ctx.SetContext(bufferKey, []byte{})
-			}
+		logChunk := chunk
+		if len(logChunk) > remainingCapacity {
+			logChunk = logChunk[:remainingCapacity]
 		}
+		buffer = append(buffer, logChunk...)
+		ctx.SetContext(bufferKey, buffer)
 	}
 
 	// When we reach the end of stream, create log entry
@@ -291,16 +302,7 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config PluginConfig) types.Ac
 		return types.ActionContinue
 	}
 
-	// Check if the content type is in the configured list for logging
-	shouldLogBody := false
-	for _, allowedType := range config.Request.Body.ContentTypes {
-		if strings.Contains(contentType, allowedType) {
-			shouldLogBody = true
-			break
-		}
-	}
-
-	if !shouldLogBody {
+	if !isContentTypeAllowed(contentType, config.Request.Body.ContentTypes) {
 		ctx.DontReadRequestBody()
 		return types.ActionContinue
 	}
@@ -372,20 +374,11 @@ func onHttpResponseHeaders(ctx wrapper.HttpContext, config PluginConfig) types.A
 		return types.ActionContinue
 	}
 
-	// Skip response body logging if content type is not in the configured list
-	if contentType != "" {
-		shouldLogBody := false
-		for _, allowedType := range config.Response.Body.ContentTypes {
-			if strings.Contains(contentType, allowedType) {
-				shouldLogBody = true
-				break
-			}
-		}
-
-		if !shouldLogBody {
-			ctx.DontReadResponseBody()
-			return types.ActionContinue
-		}
+	// Do not log a response body unless its Content-Type is explicit, valid,
+	// and allowlisted.
+	if !isContentTypeAllowed(contentType, config.Response.Body.ContentTypes) {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
 	}
 
 	// Initialize a buffer to accumulate response body chunks
