@@ -77,6 +77,7 @@ type controller struct {
 	gatewayHandlers         []istiomodel.EventHandler
 	destinationRuleHandlers []istiomodel.EventHandler
 	envoyFilterHandlers     []istiomodel.EventHandler
+	wasmPluginHandlers      []istiomodel.EventHandler
 
 	options common.Options
 
@@ -249,6 +250,14 @@ func (c *controller) onEvent(namespacedName types.NamespacedName) error {
 		f(config.Config{Meta: vsmetadata}, config.Config{Meta: vsmetadata}, event)
 	}
 
+	// Ingress annotations can generate route-scoped A2A WasmPlugin configs.
+	wasmMetadata := efmetadata
+	wasmMetadata.GroupVersionKind = gvk.WasmPlugin
+	wasmMetadata.Name = ing.Name + "-wasmplugin"
+	for _, f := range c.wasmPluginHandlers {
+		f(config.Config{Meta: wasmMetadata}, config.Config{Meta: wasmMetadata}, event)
+	}
+
 	for _, f := range c.envoyFilterHandlers {
 		f(config.Config{Meta: efmetadata}, config.Config{Meta: efmetadata}, event)
 	}
@@ -268,6 +277,8 @@ func (c *controller) RegisterEventHandler(kind config.GroupVersionKind, f istiom
 		c.gatewayHandlers = append(c.gatewayHandlers, f)
 	case gvk.DestinationRule:
 		c.destinationRuleHandlers = append(c.destinationRuleHandlers, f)
+	case gvk.WasmPlugin:
+		c.wasmPluginHandlers = append(c.wasmPluginHandlers, f)
 	case gvk.EnvoyFilter:
 		c.envoyFilterHandlers = append(c.envoyFilterHandlers, f)
 	}

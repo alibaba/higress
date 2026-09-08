@@ -1,0 +1,3 @@
+ok  	github.com/alibaba/higress/v2/pkg/ingress/config	0.089s
+ok  	github.com/alibaba/higress/v2/pkg/ingress/kube/ingress	3.087s
+ok  	github.com/alibaba/higress/v2/pkg/ingress/kube/ingressv1	0.027s

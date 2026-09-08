@@ -1,0 +1,5 @@
+{"case": "pod_removal_during_traffic", "pass": true, "deleted": "agent-5b485f4559-f2866", "original_success": 3, "unavailable": 27}
+{"case": "remote_stop_and_source_removal", "pass": true, "removed": "higress-a2a-demo-remote-1", "remaining": "10.89.0.41:8080"}
+{"case": "expired_bindings_are_not_reassigned", "pass": true}
+{"case": "sse_store_failure_terminates_with_error", "pass": true, "events": 2}
+{"case": "redis_outage_and_binding_loss_fail_closed", "pass": true}

@@ -1,0 +1,146 @@
+{
+  "filter_chains": [
+    [
+      "envoy.filters.http.router"
+    ],
+    [
+      "envoy.filters.http.router"
+    ],
+    [
+      "envoy.filters.http.router"
+    ],
+    [
+      "envoy.filters.http.router"
+    ],
+    [
+      "envoy.filters.http.custom_response",
+      "envoy.filters.http.compressor",
+      "envoy.filters.http.cors",
+      "extensions.istio.io/wasmplugin/higress-system.a2a-5720af1657e6577f5c453c2525745a72",
+      "extensions.istio.io/wasmplugin/higress-system.a2a-663da7f374e723733a6f71002fdda6b1",
+      "envoy.filters.http.rbac",
+      "envoy.filters.http.local_ratelimit",
+      "envoy.filters.http.fault",
+      "higress.a2a.stateful_session",
+      "envoy.filters.http.router"
+    ],
+    [
+      "envoy.filters.http.custom_response",
+      "envoy.filters.http.compressor",
+      "envoy.filters.http.cors",
+      "extensions.istio.io/wasmplugin/higress-system.a2a-5720af1657e6577f5c453c2525745a72",
+      "extensions.istio.io/wasmplugin/higress-system.a2a-663da7f374e723733a6f71002fdda6b1",
+      "envoy.filters.http.rbac",
+      "envoy.filters.http.local_ratelimit",
+      "envoy.filters.http.fault",
+      "higress.a2a.stateful_session",
+      "envoy.filters.http.router"
+    ],
+    [
+      "envoy.filters.http.custom_response",
+      "envoy.filters.http.compressor",
+      "envoy.filters.http.cors",
+      "extensions.istio.io/wasmplugin/higress-system.a2a-5720af1657e6577f5c453c2525745a72",
+      "extensions.istio.io/wasmplugin/higress-system.a2a-663da7f374e723733a6f71002fdda6b1",
+      "envoy.filters.http.rbac",
+      "envoy.filters.http.local_ratelimit",
+      "envoy.filters.http.fault",
+      "higress.a2a.stateful_session",
+      "envoy.filters.http.router"
+    ]
+  ],
+  "routes": [
+    {
+      "name": "a2a-demo/k8s-agent",
+      "route": {
+        "cluster": "outbound|8080||agent.a2a-demo.svc.cluster.local",
+        "timeout": "0s",
+        "max_grpc_timeout": "0s"
+      },
+      "typed_per_filter_config": {
+        "higress.a2a.stateful_session": {
+          "@type": "type.googleapis.com/envoy.extensions.filters.http.stateful_session.v3.StatefulSessionPerRoute",
+          "stateful_session": {
+            "session_state": {
+              "name": "envoy.http.stateful_session.header",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.http.stateful_session.header.v3.HeaderBasedSessionState",
+                "name": "x-higress-a2a-affinity-endpoint"
+              }
+            },
+            "strict": true
+          }
+        }
+      }
+    },
+    {
+      "name": "a2a-demo/k8s-agent",
+      "route": {
+        "cluster": "outbound|8080||agent.a2a-demo.svc.cluster.local",
+        "timeout": "0s",
+        "max_grpc_timeout": "0s"
+      },
+      "typed_per_filter_config": {
+        "higress.a2a.stateful_session": {
+          "@type": "type.googleapis.com/envoy.extensions.filters.http.stateful_session.v3.StatefulSessionPerRoute",
+          "stateful_session": {
+            "session_state": {
+              "name": "envoy.http.stateful_session.header",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.http.stateful_session.header.v3.HeaderBasedSessionState",
+                "name": "x-higress-a2a-affinity-endpoint"
+              }
+            },
+            "strict": true
+          }
+        }
+      }
+    },
+    {
+      "name": "a2a-demo/remote-agent",
+      "route": {
+        "cluster": "outbound|80||a2a-remote.static",
+        "timeout": "0s",
+        "max_grpc_timeout": "0s"
+      },
+      "typed_per_filter_config": {
+        "higress.a2a.stateful_session": {
+          "@type": "type.googleapis.com/envoy.extensions.filters.http.stateful_session.v3.StatefulSessionPerRoute",
+          "stateful_session": {
+            "session_state": {
+              "name": "envoy.http.stateful_session.header",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.http.stateful_session.header.v3.HeaderBasedSessionState",
+                "name": "x-higress-a2a-affinity-endpoint"
+              }
+            },
+            "strict": true
+          }
+        }
+      }
+    },
+    {
+      "name": "a2a-demo/remote-agent",
+      "route": {
+        "cluster": "outbound|80||a2a-remote.static",
+        "timeout": "0s",
+        "max_grpc_timeout": "0s"
+      },
+      "typed_per_filter_config": {
+        "higress.a2a.stateful_session": {
+          "@type": "type.googleapis.com/envoy.extensions.filters.http.stateful_session.v3.StatefulSessionPerRoute",
+          "stateful_session": {
+            "session_state": {
+              "name": "envoy.http.stateful_session.header",
+              "typed_config": {
+                "@type": "type.googleapis.com/envoy.extensions.http.stateful_session.header.v3.HeaderBasedSessionState",
+                "name": "x-higress-a2a-affinity-endpoint"
+              }
+            },
+            "strict": true
+          }
+        }
+      }
+    }
+  ]
+}

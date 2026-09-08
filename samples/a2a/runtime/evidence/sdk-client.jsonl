@@ -1,0 +1,2 @@
+{"source": "k8s", "sdk": "a2a-sdk==0.3.22", "card_url": "https://k8s.agents.test:30443", "task": "agent-5b485f4559-b4zd8-0e9a82add935feca-task-5", "get": true, "cancel": true, "stream_events": 2, "first_ms": 2.193416003137827, "pass": true}
+{"source": "remote", "sdk": "a2a-sdk==0.3.22", "card_url": "https://remote.agents.test:30443", "task": "6a105cd3909a-58983db381ae384f-task-10", "get": true, "cancel": true, "stream_events": 2, "first_ms": 1.8113884143531322, "pass": true}

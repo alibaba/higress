@@ -810,10 +810,16 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 
 	initHttp2RpcGlobalConfig := true
 	initMcpSseGlobalFilter := true
+	initA2AGlobalFilter := true
 	for _, routes := range convertOptions.HTTPRoutes {
 		for _, route := range routes {
 			if strings.HasSuffix(route.HTTPRoute.Name, "app-root") {
 				continue
+			}
+
+			if ef := m.a2aAffinityFilter(route, initA2AGlobalFilter); ef != nil {
+				envoyFilters = append(envoyFilters, *ef)
+				initA2AGlobalFilter = false
 			}
 
 			http2rpc := route.WrapperConfig.AnnotationsConfig.Http2Rpc
@@ -890,10 +896,10 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 	m.mutex.Unlock()
 }
 
-func (m *IngressConfig) convertWasmPlugin([]common.WrapperConfig) []config.Config {
+func (m *IngressConfig) convertWasmPlugin(configs []common.WrapperConfig) []config.Config {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	out := make([]config.Config, 0, len(m.wasmPlugins))
+	out := m.convertA2APlugins(configs)
 	for name, wasmPlugin := range m.wasmPlugins {
 		out = append(out, config.Config{
 			Meta: config.Meta{
