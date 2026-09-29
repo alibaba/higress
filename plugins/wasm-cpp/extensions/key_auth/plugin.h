@@ -74,6 +74,13 @@ struct KeyAuthConfigRule {
   bool in_query = true;
   bool in_header = true;
 
+  // Route-level allow lists, parsed by key_auth itself from the rule JSON
+  // (the shared RouteRuleMatcher keeps parsing `allow` into its own allow_set
+  // and does not know about these fields). Empty sets mean "not configured".
+  std::unordered_set<std::string> allow;
+  std::unordered_set<std::string> allow_groups;
+  std::unordered_set<std::string> allow_credentials;
+
   // std::string debugString(std::string prompt="") const {
   //   std::string msg;
   //   msg += prompt + "\n";
@@ -115,9 +122,17 @@ class PluginRootContext : public RootContext,
 
  private:
   bool parsePluginConfig(const json&, KeyAuthConfigRule&) override;
+
+  // Cached copy of the global-level parse. Rules that configure only allow
+  // lists (no consumers/credentials of their own) resolve consumer identity
+  // against this cache.
+  KeyAuthConfigRule global_cache_;
+  bool has_global_cache_ = false;
+
   std::string extractCredential(bool in_header, bool in_query,
                                 const std::string& key) const;
-  void addConsumerHeaders(const KeyAuthConfigRule&, const std::string& name);
+  void addConsumerHeaders(const KeyAuthConfigRule&, const std::string& name,
+                          const std::string& credential);
 };
 
 // Per-stream context.

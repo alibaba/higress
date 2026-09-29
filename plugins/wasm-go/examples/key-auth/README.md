@@ -17,7 +17,7 @@ description: Key 认证插件配置参考
 **注意：**
 
 - 在一个规则里，鉴权配置和认证配置不可同时存在
-- 对于通过认证鉴权的请求，请求的header会被添加一个`X-Mse-Consumer`字段，用以标识调用者的名称。
+- 对于通过认证鉴权的请求，请求的header会被添加一个`X-Mse-Consumer`字段，用以标识调用者的名称；同时添加`X-Mse-Credential`字段，其值为本次请求实际使用的凭证（consumer 配置多个凭证时反映实际使用的那个）。
 
 ### 认证配置
 | 名称          | 数据类型        | 填写要求                                    | 默认值 | 描述                                                                                                                                                                            |
@@ -42,6 +42,8 @@ description: Key 认证插件配置参考
 | 名称        | 数据类型        | 填写要求                                    | 默认值 | 描述                                                                                                                                                           |
 | ----------- | --------------- | ------------------------------------------- | ------ | -----------------------------------------------------------                                                                                                    |
 | `allow`     | array of string | 选填(**非实例级别配置**)                    | -      | 只能在路由或域名等细粒度规则上配置，对于符合匹配条件的请求，配置允许访问的 consumer，从而实现细粒度的权限控制 |
+| `allow_groups` | array of string | 选填(**非实例级别配置**)                    | -      | 只能在路由或域名等细粒度规则上配置，配置允许访问的 consumer 分组列表，与 `allow`/`allow_credentials` 任一命中即可访问 |
+| `allow_credentials` | array of string | 选填(**非实例级别配置**)               | -      | 只能在路由或域名等细粒度规则上配置，配置允许访问的 API Key（凭证值）列表，与 `allow`/`allow_groups` 任一命中即可访问 |
 
 ## 配置示例
 
@@ -60,6 +62,8 @@ consumers:
 - credential: c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
   name: consumer2
   group: team-a
+- credential: d1a1b2c3-9999-4a2d-bb62-e700dcc40e99
+  name: consumer3
 keys:
 - apikey
 - x-api-key
@@ -68,8 +72,12 @@ keys:
 对 route-a 和 route-b 这两个路由做如下配置：
 
 ```yaml
-allow: 
+allow:
 - consumer1
+allow_groups:
+- team-a
+allow_credentials:
+- c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
 ```
 
 对 *.example.com 和 test.com 在这两个域名做如下配置:
@@ -81,14 +89,16 @@ allow:
 
 **说明：**
 
-此例指定的route-a和route-b即在创建网关路由时填写的路由名称，当匹配到这两个路由时，将允许name为consumer1的调用者访问，其他调用者不允许访问。
+此例指定的route-a和route-b即在创建网关路由时填写的路由名称，当匹配到这两个路由时，route-a 上，consumer1（名称命中 `allow`）、consumer1/consumer2（组命中 `allow_groups`）以及出示 consumer2 凭证的请求（命中 `allow_credentials`）可以访问，其余调用方将被拒绝。
+
+三个列表为 OR 关系：调用方名称命中 `allow`、或其所属分组命中 `allow_groups`、或其使用的 API Key 命中 `allow_credentials`，任一命中即可访问。
 
 此例指定的*.example.com和test.com用于匹配请求的域名，当发现域名匹配时，将允许name为consumer2的调用者访问，其他调用者不被允许访问。
 
 根据该配置，下列请求可以允许访问：
 
 假设以下请求会匹配到route-a这条路由
-n
+
 **将 API Key 设置在 url 参数中**
 ```bash
 curl  http://xxx.hello.com/test?apikey=2bda943c-ba2b-11ec-ba07-00163e1250b5
@@ -113,8 +123,8 @@ curl  http://xxx.hello.com/test?apikey=926d90ac-ba2e-11ec-ab68-00163e1250b5
 
 **根据请求提供的 API Key匹配到的调用者无访问权限，返回403**
 ```bash
-# consumer2不在route-a的allow列表里
-curl  http://xxx.hello.com/test?apikey=c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
+# consumer3 不在 route-a 的 allow/allow_groups/allow_credentials 任一列表里
+curl  http://xxx.hello.com/test?apikey=d1a1b2c3-9999-4a2d-bb62-e700dcc40e99
 ```
 
 ### 网关实例级别开启
@@ -137,6 +147,10 @@ keys:
 ### Group 注入
 
 若 consumer 配置了 `group`，key-auth 会在通过认证后注入 `X-Mse-Consumer-Group` 请求头；下游插件（如 ai-quota）可据此按组聚合额度。详见 ai-quota 插件文档。
+
+认证通过后还会注入 `X-Mse-Credential` 请求头，其值为本次请求实际使用的凭证。注意：这会把原始 API Key 透传给后端服务，请确认后端的日志与错误处理不会泄露该值。
+
+路由级 `allow_groups` 可直接按组授权：consumer 所属分组命中列表即放行，无需逐个列出 consumer 名称。
 
 ## 相关错误码
 

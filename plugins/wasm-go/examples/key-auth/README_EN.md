@@ -13,7 +13,7 @@ Plugin Execution Priority: `310`
 ## Configuration Fields
 **Note:**
 - Authentication and authorization configurations cannot coexist within a single rule.
-- For requests that are authenticated, a header field `X-Mse-Consumer` will be added to identify the caller's name.
+- For requests that are authenticated, a header field `X-Mse-Consumer` will be added to identify the caller's name, along with `X-Mse-Credential` carrying the credential actually used by the request (reflecting the one presented when a consumer owns several).
 
 ### Authentication Configuration
 | Name          | Data Type        | Requirements                                    | Default Value | Description                                                                                                                                                                            |
@@ -35,6 +35,8 @@ The configuration field descriptions for each item in `consumers` are as follows
 | Name        | Data Type        | Requirements                                    | Default Value | Description                                                                                                                                                           |
 | ----------- | ---------------- | ----------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `allow`     | array of string  | Optional (**Non-Instance Level Configuration**) | -             | Can only be configured on fine-grained rules such as routes or hostnames; specifies the allowed consumers for matching requests, allowing for fine-grained permission control. |
+| `allow_groups` | array of string | Optional (**Non-Instance Level Configuration**) | -             | Can only be configured on fine-grained rules such as routes or hostnames; specifies the list of consumer groups allowed to access; access is granted if any of `allow`/`allow_credentials` matches. |
+| `allow_credentials` | array of string | Optional (**Non-Instance Level Configuration**) | -             | Can only be configured on fine-grained rules such as routes or hostnames; specifies the list of API Keys (credential values) allowed to access; access is granted if any of `allow`/`allow_groups` matches. |
 
 ## Configuration Example
 ### Global Configuration for Authentication and Granular Route Authorization
@@ -46,8 +48,12 @@ global_auth: false
 consumers:
 - credential: 2bda943c-ba2b-11ec-ba07-00163e1250b5
   name: consumer1
+  group: team-a
 - credential: c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
   name: consumer2
+  group: team-a
+- credential: d1a1b2c3-9999-4a2d-bb62-e700dcc40e99
+  name: consumer3
 keys:
 - apikey
 - x-api-key
@@ -57,6 +63,10 @@ For routes route-a and route-b, do the following configuration:
 ```yaml
 allow:
 - consumer1
+allow_groups:
+- team-a
+allow_credentials:
+- c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
 ```
 
 For the hostnames *.example.com and test.com, do the following configuration:
@@ -66,7 +76,9 @@ allow:
 ```
 
 **Note:**
-The routes route-a and route-b specified in this example refer to the route names filled in when creating the gateway routes. When matched with these two routes, requests from the caller named consumer1 will be allowed while others will be denied.
+The routes route-a and route-b specified in this example refer to the route names filled in when creating the gateway routes. When matched with these two routes, on route-a consumer1 (name matches `allow`), consumer1/consumer2 (group matches `allow_groups`), and requests presenting consumer2's credential (matches `allow_credentials`) are allowed, while all other callers are denied.
+
+The three lists are OR-ed: access is granted if the caller's name matches `allow`, or the group it belongs to matches `allow_groups`, or the API Key it uses matches `allow_credentials` — any one match grants access.
 
 The specified hostnames *.example.com and test.com are used to match the request's domain name. When a domain name is matched, callers named consumer2 will be allowed while others will be denied.
 
@@ -98,8 +110,8 @@ curl  http://xxx.hello.com/test?apikey=926d90ac-ba2e-11ec-ab68-00163e1250b5
 
 **Caller matched with provided API Key has no access rights, returns 403**
 ```bash
-# consumer2 is not in the allow list of route-a
-curl  http://xxx.hello.com/test?apikey=c8c8e9ca-558e-4a2d-bb62-e700dcc40e35
+# consumer3 is not in any of route-a's allow/allow_groups/allow_credentials lists
+curl  http://xxx.hello.com/test?apikey=d1a1b2c3-9999-4a2d-bb62-e700dcc40e99
 ```
 
 ### Enabling at the Instance Level

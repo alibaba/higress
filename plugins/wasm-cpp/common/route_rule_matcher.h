@@ -75,6 +75,8 @@ class RouteRuleMatcher {
   struct AuthRuleConfig {
     RuleConfig rule_config;
     std::unordered_set<std::string> allow_set;
+    // Whether the rule carried the shared "allow" field.
+    bool has_allow = false;
     bool has_local_config = false;
   };
   RouteRuleMatcher() = default;
@@ -265,6 +267,13 @@ class RouteRuleMatcher {
             disable_rule = true;
           } else if (auth_rule.has_local_config) {
             match_config = auth_rule.rule_config.config;
+            if (auth_rule.has_allow) {
+              // The rule carries both local config and the shared allow
+              // list: expose both so the plugin's allow check still runs
+              // (otherwise checkAuthRule would fail-open when
+              // global_auth is disabled).
+              allow_set = auth_rule.allow_set;
+            }
           } else {
             allow_set = auth_rule.allow_set;
           }
@@ -281,6 +290,13 @@ class RouteRuleMatcher {
             disable_rule = true;
           } else if (auth_rule.has_local_config) {
             match_config = auth_rule.rule_config.config;
+            if (auth_rule.has_allow) {
+              // The rule carries both local config and the shared allow
+              // list: expose both so the plugin's allow check still runs
+              // (otherwise checkAuthRule would fail-open when
+              // global_auth is disabled).
+              allow_set = auth_rule.allow_set;
+            }
           } else {
             allow_set = auth_rule.allow_set;
           }
@@ -300,6 +316,13 @@ class RouteRuleMatcher {
               disable_rule = true;
             } else if (auth_rule.has_local_config) {
               match_config = auth_rule.rule_config.config;
+              if (auth_rule.has_allow) {
+                // The rule carries both local config and the shared allow
+                // list: expose both so the plugin's allow check still runs
+                // (otherwise checkAuthRule would fail-open when
+                // global_auth is disabled).
+                allow_set = auth_rule.allow_set;
+              }
             } else {
               allow_set = auth_rule.allow_set;
             }
@@ -316,6 +339,13 @@ class RouteRuleMatcher {
             disable_rule = true;
           } else if (auth_rule.has_local_config) {
             match_config = auth_rule.rule_config.config;
+            if (auth_rule.has_allow) {
+              // The rule carries both local config and the shared allow
+              // list: expose both so the plugin's allow check still runs
+              // (otherwise checkAuthRule would fail-open when
+              // global_auth is disabled).
+              allow_set = auth_rule.allow_set;
+            }
           } else {
             allow_set = auth_rule.allow_set;
           }
@@ -335,6 +365,13 @@ class RouteRuleMatcher {
             disable_rule = true;
           } else if (auth_rule.has_local_config) {
             match_config = auth_rule.rule_config.config;
+            if (auth_rule.has_allow) {
+              // The rule carries both local config and the shared allow
+              // list: expose both so the plugin's allow check still runs
+              // (otherwise checkAuthRule would fail-open when
+              // global_auth is disabled).
+              allow_set = auth_rule.allow_set;
+            }
           } else {
             allow_set = auth_rule.allow_set;
           }
@@ -473,6 +510,7 @@ class RouteRuleMatcher {
       auto has_allow = config.find("allow");
       if (has_allow != config.end()) {
         local_config_size -= 1;
+        auth_rule.has_allow = true;
         LOG_DEBUG("has allow filed");
         if (!JsonArrayIterate(config, "allow", [&](const json& allow) -> bool {
               auto parse_result = JsonValueAs<std::string>(allow);

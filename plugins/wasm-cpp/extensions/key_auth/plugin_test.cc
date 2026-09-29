@@ -613,6 +613,62 @@ TEST_F(KeyAuthTest, InjectsConsumerGroupHeader) {
             FilterHeadersStatus::Continue);
   EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
   EXPECT_EQ(added_headers_["X-Mse-Consumer-Group"], "team-a");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "token1");
+}
+
+TEST_F(KeyAuthTest, MultiListRuleAuthenticatesUnderGlobalAuthDisable) {
+  // Console 标准形态：global_auth=false 且规则同时携带 allow/allow_groups/
+  // allow_credentials。回归：getMatchAuthConfig 曾在规则带本地配置时不暴露
+  // allow_set，checkAuthRule 会直接 fail-open（无认证放行）。
+  std::string configuration = R"(
+{
+  "global_auth": false,
+  "consumers": [
+    {"name": "alice", "credential": "token1", "group": "team-a"},
+    {"name": "bob", "credential": "token2"}
+  ],
+  "keys": ["x-api-key"],
+  "_rules_": [
+    {"_match_route_": ["test"], "allow": ["alice"],
+     "allow_groups": ["team-a"], "allow_credentials": ["token2"]}
+  ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  // bob：命中的是 allow_credentials 列表（规则 local config 未阻断 allow 检查）
+  route_name_ = "test";
+  headers_["x-api-key"] = "token2";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "bob");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "token2");
+}
+
+TEST_F(KeyAuthTest, BearerCredentialStripsPrefixInIdentityHeader) {
+  // BEARER 来源：注册表凭证带 "Bearer " 传输前缀（与请求原文匹配），
+  // X-Mse-Credential 身份头应输出剥掉前缀的逻辑凭证值
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credentials" : ["Bearer token1"], "name" : "alice",
+                   "keys" : ["Authorization"], "in_header" : true} ],
+  "global_auth" : true
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/test";
+  headers_["Authorization"] = "Bearer token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "token1");
 }
 
 TEST_F(KeyAuthTest, NoConsumerGroupHeaderWhenAbsent) {
@@ -632,6 +688,7 @@ TEST_F(KeyAuthTest, NoConsumerGroupHeaderWhenAbsent) {
   EXPECT_EQ(context_->onRequestHeaders(0, false),
             FilterHeadersStatus::Continue);
   EXPECT_EQ(added_headers_["X-Mse-Consumer"], "consumer1");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "abc");
   EXPECT_EQ(added_headers_.find("X-Mse-Consumer-Group"),
             added_headers_.end());
 }
@@ -676,6 +733,262 @@ TEST_F(KeyAuthTest, ConsumerGroupHeaderSlowPath) {
             FilterHeadersStatus::Continue);
   EXPECT_EQ(added_headers_["X-Mse-Consumer"], "c1");
   EXPECT_EQ(added_headers_["X-Mse-Consumer-Group"], "team-a");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "123");
+}
+
+TEST_F(KeyAuthTest, AllowGroupsOnlyRuleAccepted) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice", "group" : "team-a"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_groups" : ["team-a"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+}
+
+TEST_F(KeyAuthTest, AllowCredentialsOnlyRuleAccepted) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_credentials" : ["token1"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+}
+
+TEST_F(KeyAuthTest, AllowAllThreeListsRuleAccepted) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice", "group" : "team-a"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow" : ["alice"],
+                 "allow_groups" : ["team-a"], "allow_credentials" : ["token1"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+}
+
+TEST_F(KeyAuthTest, AllowFieldsOnlyRuleWithoutConsumersRejected) {
+  // 全局层没有 consumers/credentials 时，只配允许列表的规则没有身份来源，
+  // 整份配置应被拒绝。
+  std::string configuration = R"(
+{
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_groups" : ["team-a"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_FALSE(root_context_->configure(configuration.size()));
+}
+
+TEST_F(KeyAuthTest, InvalidAllowGroupsTypeRejected) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_groups" : "team-a"} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_FALSE(root_context_->configure(configuration.size()));
+}
+
+TEST_F(KeyAuthTest, UnknownRuleFieldStillRejected) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "unknown_field" : 1} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_FALSE(root_context_->configure(configuration.size()));
+}
+
+TEST_F(KeyAuthTest, GlobalLevelAllowFieldsIgnored) {
+  // 全局层出现 allow_groups 应被忽略（只解析规则级），配置正常加载。
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice"} ],
+  "keys" : [ "x-api-key" ],
+  "allow_groups" : ["somewhere"]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+}
+
+TEST_F(KeyAuthTest, AllowGroupsMatch) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice", "group" : "team-a"},
+                  {"credential" : "token2", "name" : "bob"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_groups" : ["team-a"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test";
+  headers_["x-api-key"] = "token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+  EXPECT_EQ(added_headers_["X-Mse-Consumer-Group"], "team-a");
+
+  headers_["x-api-key"] = "token2";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, AllowCredentialsMatch) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice", "group" : "team-a"},
+                  {"credential" : "token2", "name" : "bob"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_credentials" : ["token2"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test";
+  headers_["x-api-key"] = "token2";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "bob");
+
+  headers_["x-api-key"] = "token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, AllowOrCombination) {
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice", "group" : "team-a"},
+                  {"credential" : "token2", "name" : "bob"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow" : ["bob"],
+                 "allow_groups" : ["team-a"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test";
+  headers_["x-api-key"] = "token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  headers_["x-api-key"] = "token2";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+}
+
+TEST_F(KeyAuthTest, RuleLocalConsumersWithAllowNowApplies) {
+  // 行为修正用例：规则级自带 consumers 时，规则级 allow 此前被静默忽略，
+  // 现在生效（见 spec 3.4）。
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"],
+                 "consumers" : [ {"credential" : "r1", "name" : "local1"} ],
+                 "keys" : [ "x-api-key" ],
+                 "allow" : ["nobody"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test";
+  headers_["x-api-key"] = "r1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, EmptyAllowWithGroupsStillMatchesGroups) {
+  // 行为修正用例（spec 3.4）：allow:[] 不再把整组规则变成"全拒"，
+  // allow_groups 仍生效；同时覆盖"只配允许列表的规则"的全局身份回退。
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice", "group" : "team-a"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow" : [],
+                 "allow_groups" : ["team-a"]} ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
+  path_ = "/test";
+  headers_["x-api-key"] = "token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+}
+
+TEST_F(KeyAuthTest, StaleGlobalCacheInvalidatedOnReconfigure) {
+  // configure #1: global consumers present → allow-only rule accepted.
+  std::string first = R"(
+{
+  "consumers" : [ {"credential" : "token1", "name" : "alice", "group" : "team-a"} ],
+  "keys" : [ "x-api-key" ],
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_groups" : ["team-a"]} ]
+})";
+  BufferBase buffer1;
+  buffer1.set(first);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer1](WasmBufferType) { return &buffer1; });
+  EXPECT_TRUE(root_context_->configure(first.size()));
+
+  // configure #2: global section removed entirely (top level has only
+  // _rules_) → the allow-only rule must be rejected: no identity source.
+  std::string second = R"(
+{
+  "_rules_" : [ {"_match_route_" : ["test"], "allow_groups" : ["team-a"]} ]
+})";
+  BufferBase buffer2;
+  buffer2.set(second);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer2](WasmBufferType) { return &buffer2; });
+  EXPECT_FALSE(root_context_->configure(second.size()));
 }
 
 }  // namespace key_auth

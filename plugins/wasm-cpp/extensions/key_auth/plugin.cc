@@ -65,8 +65,59 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     LOG_WARN("The consumers field and the credentials field cannot appear at the same level");
     return false;
   }
+
+  // Rule-level configuration carries one of the reserved match fields; the
+  // global-level parse never does.
+  const bool rule_level =
+      configuration.find("_match_route_") != configuration.end() ||
+      configuration.find("_match_route_prefix_") != configuration.end() ||
+      configuration.find("_match_domain_") != configuration.end() ||
+      configuration.find("_match_service_") != configuration.end();
+
+  // Route-level allow lists, parsed by key_auth itself. Global-level
+  // occurrences are ignored, matching the Go plugin where `allow` is only
+  // read from domain/route rules. JsonArrayIterate fails when the field is
+  // set but not an array or an element is not a string.
+  if (rule_level) {
+    auto parse_allow_field = [&configuration](
+        const char* field,
+        std::unordered_set<std::string>* target) -> bool {
+      if (configuration.find(field) == configuration.end()) {
+        return true;
+      }
+      if (!JsonArrayIterate(configuration, field,
+                            [&](const json& item) -> bool {
+                              auto value = JsonValueAs<std::string>(item);
+                              if (value.second !=
+                                  Wasm::Common::JsonParserResultDetail::OK) {
+                                return false;
+                              }
+                              target->insert(value.first.value());
+                              return true;
+                            })) {
+        LOG_WARN(absl::StrCat("failed to parse configuration for ", field));
+        return false;
+      }
+      return true;
+    };
+    if (!parse_allow_field("allow", &rule.allow) ||
+        !parse_allow_field("allow_groups", &rule.allow_groups) ||
+        !parse_allow_field("allow_credentials", &rule.allow_credentials)) {
+      return false;
+    }
+  }
+  const bool has_allow_lists = !rule.allow.empty() ||
+                               !rule.allow_groups.empty() ||
+                               !rule.allow_credentials.empty();
+
   if ((configuration.find("consumers") == configuration.end()) &&
       (configuration.find("credentials") == configuration.end())) {
+    if (rule_level && has_allow_lists && has_global_cache_) {
+      // Allow-only rule: no local consumers/credentials. Consumer identity is
+      // resolved against the cached global config at request time. Rejected
+      // when the global section is absent/invalid — no identity source.
+      return true;
+    }
     LOG_WARN("No consumers and no credentials");
     return false;
   }
@@ -324,6 +375,10 @@ bool PluginRootContext::parsePluginConfig(const json& configuration,
     }
     // LOG_DEBUG(rule.debugString("parse phase, consumers branch"));
   }
+  if (!rule_level) {
+    global_cache_ = rule;
+    has_global_cache_ = true;
+  }
   return true;
 }
 
@@ -336,23 +391,48 @@ static std::string maskCredential(const std::string& credential) {
   return credential.substr(0, 3) + "***";
 }
 
-// Helper: check allow_set and return true if allowed, false if denied
-static bool checkAllowSet(
+// Returns the group of the consumer, or "" when the consumer has no group.
+static std::string consumerGroupOf(const KeyAuthConfigRule& rule,
+                                   const std::string& name) {
+  auto iter = rule.name_to_group.find(name);
+  return iter == rule.name_to_group.end() ? "" : iter->second;
+}
+
+// OR-based route allow check over consumer name / consumer group / apikey
+// credential. `allow_set` carries the shared matcher's rule-level `allow`
+// names (nullopt when no route rule matched or the rule has its own local
+// config); route_rule.allow* carry key_auth-parsed rule-level lists. Sends
+// the 403 response and returns false when a check is configured but not
+// matched.
+//
+// Known limitation: under `global_auth: false`, the shared checkAuthRule
+// short-circuits authentication entirely for rules with local config
+// (allow_set is nullopt), so an allow-only rule on such a route does not
+// authenticate at all. See the design doc's "known limitations" section.
+static bool checkConsumerAllowed(
     const std::optional<std::unordered_set<std::string>>& allow_set,
-    const std::string& consumer_name, const std::string& realm) {
-  if (allow_set) {
-    if (allow_set->empty()) {
-      LOG_DEBUG("allow set is empty, nobody is allowed");
-      deniedUnauthorizedConsumer(realm);
-      return false;
-    }
-    if (allow_set->find(consumer_name) == allow_set->end()) {
-      deniedUnauthorizedConsumer(realm);
-      LOG_DEBUG("unauthorized consumer: " + consumer_name);
-      return false;
-    }
+    const KeyAuthConfigRule& route_rule, const std::string& consumer_name,
+    const std::string& group, const std::string& credential,
+    const std::string& realm) {
+  const bool has_rule_lists = !route_rule.allow.empty() ||
+                              !route_rule.allow_groups.empty() ||
+                              !route_rule.allow_credentials.empty();
+  if (!allow_set && !has_rule_lists) {
+    // No allow list is configured for the matched rule: no check, allow all
+    // authenticated consumers.
+    return true;
   }
-  return true;
+  if ((allow_set && allow_set->find(consumer_name) != allow_set->end()) ||
+      route_rule.allow.find(consumer_name) != route_rule.allow.end() ||
+      (!group.empty() &&
+       route_rule.allow_groups.find(group) != route_rule.allow_groups.end()) ||
+      route_rule.allow_credentials.find(credential) !=
+          route_rule.allow_credentials.end()) {
+    return true;
+  }
+  LOG_DEBUG(absl::StrCat("unauthorized consumer: ", consumer_name));
+  deniedUnauthorizedConsumer(realm);
+  return false;
 }
 
 // Helper: check if a consumer has per-consumer key configuration
@@ -363,39 +443,65 @@ static bool hasPerConsumerKeyConfig(const Consumer& consumer) {
 
 // Helper: inject consumer identity headers. X-Mse-Consumer is always set;
 // X-Mse-Consumer-Group is only set when the consumer belongs to a group, so
-// downstream plugins (e.g. ai-quota) can aggregate by group.
+// downstream plugins (e.g. ai-quota) can aggregate by group. X-Mse-Credential
+// carries the credential that was actually used by the request — when a
+// consumer owns several credentials it reflects the one presented.
 void PluginRootContext::addConsumerHeaders(const KeyAuthConfigRule& rule,
-                                           const std::string& name) {
+                                           const std::string& name,
+                                           const std::string& credential) {
   addRequestHeader("X-Mse-Consumer", name);
-  auto group_iter = rule.name_to_group.find(name);
-  if (group_iter != rule.name_to_group.end()) {
-    addRequestHeader("X-Mse-Consumer-Group", group_iter->second);
+  const std::string group = consumerGroupOf(rule, name);
+  if (!group.empty()) {
+    addRequestHeader("X-Mse-Consumer-Group", group);
   }
+  // X-Mse-Credential carries the logical credential value with the BEARER
+  // transport prefix stripped, so downstream rate-limit/quota configs don't
+  // need to care about the credential source. Credential matching still uses
+  // the raw value and is unaffected.
+  static constexpr const char* kBearerPrefix = "Bearer ";
+  static constexpr size_t kBearerPrefixLen = 7;
+  std::string logical_credential = credential;
+  if (logical_credential.rfind(kBearerPrefix, 0) == 0) {
+    logical_credential.erase(0, kBearerPrefixLen);
+  }
+  addRequestHeader("X-Mse-Credential", logical_credential);
 }
 
 bool PluginRootContext::checkPlugin(
     const KeyAuthConfigRule& rule,
     const std::optional<std::unordered_set<std::string>>& allow_set) {
-  // LOG_DEBUG(rule.debugString("check phase"));
-  if (rule.consumers.empty()) {
-    for (const auto& key : rule.keys) {
-      auto credential = extractCredential(rule.in_header, rule.in_query, key);
+  // Rules that configure only allow lists carry no consumers/credentials of
+  // their own; resolve consumer identity against the cached global config.
+  const KeyAuthConfigRule* lookup = &rule;
+  if (rule.consumers.empty() && rule.credentials.empty() &&
+      (!rule.allow.empty() || !rule.allow_groups.empty() ||
+       !rule.allow_credentials.empty()) &&
+      has_global_cache_) {
+    lookup = &global_cache_;
+  }
+  const KeyAuthConfigRule& cfg = *lookup;
+
+  if (cfg.consumers.empty()) {
+    for (const auto& key : cfg.keys) {
+      auto credential = extractCredential(cfg.in_header, cfg.in_query, key);
       if (credential.empty()) {
         LOG_DEBUG("empty credential for key: " + key);
         continue;
       }
 
-      auto auth_credential_iter = rule.credentials.find(credential);
-      if (auth_credential_iter == rule.credentials.end()) {
+      auto auth_credential_iter = cfg.credentials.find(credential);
+      if (auth_credential_iter == cfg.credentials.end()) {
         LOG_DEBUG("api key not found: " + maskCredential(credential));
         continue;
       }
 
-      auto credential_to_name_iter = rule.credential_to_name.find(credential);
-      if (credential_to_name_iter != rule.credential_to_name.end()) {
-        addConsumerHeaders(rule, credential_to_name_iter->second);
-        if (!checkAllowSet(allow_set, credential_to_name_iter->second,
-                           rule.realm)) {
+      auto credential_to_name_iter = cfg.credential_to_name.find(credential);
+      if (credential_to_name_iter != cfg.credential_to_name.end()) {
+        addConsumerHeaders(cfg, credential_to_name_iter->second, credential);
+        if (!checkConsumerAllowed(
+                allow_set, rule, credential_to_name_iter->second,
+                consumerGroupOf(cfg, credential_to_name_iter->second),
+                credential, cfg.realm)) {
           return false;
         }
       }
@@ -404,7 +510,7 @@ bool PluginRootContext::checkPlugin(
   } else {
     // Collect consumers that have per-consumer key configuration
     std::vector<const Consumer*> perConsumerKeyConsumers;
-    for (const auto& consumer : rule.consumers) {
+    for (const auto& consumer : cfg.consumers) {
       if (hasPerConsumerKeyConfig(consumer)) {
         perConsumerKeyConsumers.push_back(&consumer);
       }
@@ -413,27 +519,29 @@ bool PluginRootContext::checkPlugin(
     // Fast path: no per-consumer key consumers, use O(1) credential_to_name
     // lookup
     if (perConsumerKeyConsumers.empty()) {
-      for (const auto& key : rule.keys) {
-        auto credential = extractCredential(rule.in_header, rule.in_query, key);
+      for (const auto& key : cfg.keys) {
+        auto credential = extractCredential(cfg.in_header, cfg.in_query, key);
         if (credential.empty()) {
           LOG_DEBUG("empty credential for key: " + key);
           continue;
         }
 
-        auto iter = rule.credential_to_name.find(credential);
-        if (iter == rule.credential_to_name.end()) {
+        auto iter = cfg.credential_to_name.find(credential);
+        if (iter == cfg.credential_to_name.end()) {
           LOG_DEBUG("api key not found: " + maskCredential(credential));
           continue;
         }
 
-        addConsumerHeaders(rule, iter->second);
-        if (!checkAllowSet(allow_set, iter->second, rule.realm)) {
+        addConsumerHeaders(cfg, iter->second, credential);
+        if (!checkConsumerAllowed(allow_set, rule, iter->second,
+                                  consumerGroupOf(cfg, iter->second),
+                                  credential, cfg.realm)) {
           return false;
         }
         return true;
       }
       LOG_DEBUG("No valid credentials were found (fast path).");
-      deniedInvalidCredentials(rule.realm);
+      deniedInvalidCredentials(cfg.realm);
       return false;
     }
 
@@ -444,15 +552,15 @@ bool PluginRootContext::checkPlugin(
     }
 
     // Try O(1) fast path first for consumers without per-consumer keys
-    for (const auto& key : rule.keys) {
-      auto credential = extractCredential(rule.in_header, rule.in_query, key);
+    for (const auto& key : cfg.keys) {
+      auto credential = extractCredential(cfg.in_header, cfg.in_query, key);
       if (credential.empty()) {
         LOG_DEBUG("empty credential for key: " + key);
         continue;
       }
 
-      auto iter = rule.credential_to_name.find(credential);
-      if (iter == rule.credential_to_name.end()) {
+      auto iter = cfg.credential_to_name.find(credential);
+      if (iter == cfg.credential_to_name.end()) {
         LOG_DEBUG("api key not found: " + maskCredential(credential));
         continue;
       }
@@ -462,8 +570,10 @@ bool PluginRootContext::checkPlugin(
         continue;
       }
 
-      addConsumerHeaders(rule, iter->second);
-      if (!checkAllowSet(allow_set, iter->second, rule.realm)) {
+      addConsumerHeaders(cfg, iter->second, credential);
+      if (!checkConsumerAllowed(allow_set, rule, iter->second,
+                                consumerGroupOf(cfg, iter->second),
+                                credential, cfg.realm)) {
         return false;
       }
       return true;
@@ -472,10 +582,9 @@ bool PluginRootContext::checkPlugin(
     // Slow path: check per-consumer key consumers with cached credentials
     std::unordered_map<std::string, std::string> credentialCache;
     for (const auto* consumer : perConsumerKeyConsumers) {
-      std::vector<std::string> keys_to_check =
-          consumer->keys.value_or(rule.keys);
-      bool in_query = consumer->in_query.value_or(rule.in_query);
-      bool in_header = consumer->in_header.value_or(rule.in_header);
+      std::vector<std::string> keys_to_check = consumer->keys.value_or(cfg.keys);
+      bool in_query = consumer->in_query.value_or(cfg.in_query);
+      bool in_header = consumer->in_header.value_or(cfg.in_header);
 
       for (const auto& key : keys_to_check) {
         // Cache key includes extraction source to avoid cross-contamination
@@ -499,14 +608,16 @@ bool PluginRootContext::checkPlugin(
           continue;
         }
 
-        auto iter = rule.credential_to_name.find(credential);
-        if (iter == rule.credential_to_name.end()) {
+        auto iter = cfg.credential_to_name.find(credential);
+        if (iter == cfg.credential_to_name.end()) {
           LOG_DEBUG("api key not found: " + maskCredential(credential));
           continue;
         }
 
-        addConsumerHeaders(rule, iter->second);
-        if (!checkAllowSet(allow_set, iter->second, rule.realm)) {
+        addConsumerHeaders(cfg, iter->second, credential);
+        if (!checkConsumerAllowed(allow_set, rule, iter->second,
+                                  consumerGroupOf(cfg, iter->second),
+                                  credential, cfg.realm)) {
           return false;
         }
         return true;
@@ -515,13 +626,13 @@ bool PluginRootContext::checkPlugin(
 
     LOG_DEBUG("No valid credentials were found (slow path, after checking "
               "per-consumer key consumers).");
-    deniedInvalidCredentials(rule.realm);
+    deniedInvalidCredentials(cfg.realm);
     return false;
   }
 
   LOG_DEBUG("No valid credentials were found (no consumers configured, after "
             "checking all keys).");
-  deniedInvalidCredentials(rule.realm);
+  deniedInvalidCredentials(cfg.realm);
   return false;
 }
 
@@ -564,6 +675,11 @@ bool PluginRootContext::configure(size_t configuration_size) {
                           configuration_data->view()));
     return false;
   }
+  // Any new configuration invalidates the cached global parse. The global
+  // section may be absent entirely in the new config (key_count == 0 means
+  // parsePluginConfig is never called for the global level), so the reset
+  // must live here, not inside parsePluginConfig.
+  has_global_cache_ = false;
   if (!parseAuthRuleConfig(result.value())) {
     LOG_WARN(absl::StrCat("cannot parse plugin configuration JSON string: ",
                           configuration_data->view()));

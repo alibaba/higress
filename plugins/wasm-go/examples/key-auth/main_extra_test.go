@@ -279,3 +279,274 @@ func TestParseOverrideRuleConfig_AllowMissing(t *testing.T) {
 		require.Equal(t, types.OnPluginStartStatusFailed, status)
 	})
 }
+
+// === 路由级 allow_groups / allow_credentials 解析 ========================
+
+// routeRuleConfigWith 用例工厂：consumers 固定两个（consumer1 带
+// group=team-a），路由规则字段按需组合。globalAuth 传 nil 表示不设置
+// global_auth；lists 内某列表传 nil 表示该字段不配置。
+func routeRuleConfigWith(t *testing.T, globalAuth interface{}, lists map[string][]string) json.RawMessage {
+	t.Helper()
+	rule := map[string]interface{}{
+		"_match_route_": []string{"route-a"},
+	}
+	for k, v := range lists {
+		if v != nil {
+			rule[k] = v
+		}
+	}
+	cfg := map[string]interface{}{
+		"consumers": []map[string]interface{}{
+			{"name": "consumer1", "credential": "token1", "group": "team-a"},
+			{"name": "consumer2", "credential": "token2"},
+		},
+		"keys":      []string{"x-api-key"},
+		"in_header": true,
+		"_rules_":   []map[string]interface{}{rule},
+	}
+	if globalAuth != nil {
+		cfg["global_auth"] = globalAuth
+	}
+	return mustConfig(t, cfg)
+}
+
+func TestParseOverrideRuleConfig_OnlyAllowGroups(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		cfg := routeRuleConfigWith(t, nil, map[string][]string{
+			"allow_groups": {"team-a"},
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+	})
+}
+
+func TestParseOverrideRuleConfig_OnlyAllowCredentials(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		cfg := routeRuleConfigWith(t, nil, map[string][]string{
+			"allow_credentials": {"token2"},
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+	})
+}
+
+func TestParseOverrideRuleConfig_AllThreeLists(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		cfg := routeRuleConfigWith(t, nil, map[string][]string{
+			"allow":             {"consumer1"},
+			"allow_groups":      {"team-a"},
+			"allow_credentials": {"token2"},
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+	})
+}
+
+func TestParseOverrideRuleConfig_MissingAllLists(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		cfg := routeRuleConfigWith(t, nil, nil)
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusFailed, status)
+	})
+}
+
+func TestParseOverrideRuleConfig_EmptyAllowGroups(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		cfg := routeRuleConfigWith(t, nil, map[string][]string{
+			"allow_groups": {},
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusFailed, status)
+	})
+}
+
+func TestParseOverrideRuleConfig_EmptyAllowCredentials(t *testing.T) {
+	test.RunGoTest(t, func(t *testing.T) {
+		cfg := routeRuleConfigWith(t, nil, map[string][]string{
+			"allow_credentials": {},
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusFailed, status)
+	})
+}
+
+// === 路由级三列表 OR 匹配 ================================================
+
+// requestWithToken 以 x-api-key 头发起一次请求；token 为空串表示不带头。
+func requestWithToken(host test.TestHost, token string) types.Action {
+	headers := [][2]string{
+		{":authority", "example.com"},
+		{":path", "/api/test"},
+		{":method", "GET"},
+	}
+	if token != "" {
+		headers = append(headers, [2]string{"x-api-key", token})
+	}
+	return host.CallOnHttpRequestHeaders(headers)
+}
+
+func TestOnHttpRequestHeaders_GroupHit_Allowed(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(routeRuleConfigWith(t, true, map[string][]string{
+			"allow_groups": {"team-a"},
+		}))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token1"))
+		require.Nil(t, host.GetLocalResponse())
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer", "consumer1"))
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer-Group", "team-a"))
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Credential", "token1"))
+	})
+}
+
+func TestOnHttpRequestHeaders_GroupMiss_Denied(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(routeRuleConfigWith(t, true, map[string][]string{
+			"allow_groups": {"team-b"},
+		}))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token1"))
+		resp := host.GetLocalResponse()
+		require.NotNil(t, resp)
+		require.Equal(t, uint32(http.StatusForbidden), resp.StatusCode)
+	})
+}
+
+func TestOnHttpRequestHeaders_NoGroupConsumer_NotMatchedByGroup(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// consumer2 无组，不能被 allow_groups 放行
+		host, status := test.NewTestHost(routeRuleConfigWith(t, true, map[string][]string{
+			"allow_groups": {"team-a"},
+		}))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token2"))
+		resp := host.GetLocalResponse()
+		require.NotNil(t, resp)
+		require.Equal(t, uint32(http.StatusForbidden), resp.StatusCode)
+	})
+}
+
+func TestOnHttpRequestHeaders_CredentialHit_Allowed(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(routeRuleConfigWith(t, true, map[string][]string{
+			"allow_credentials": {"token2"},
+		}))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token2"))
+		require.Nil(t, host.GetLocalResponse())
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer", "consumer2"))
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Credential", "token2"))
+	})
+}
+
+func TestOnHttpRequestHeaders_BearerCredential_StripsPrefixInIdentityHeader(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// BEARER 来源：注册表凭证带 "Bearer " 传输前缀（与请求原文匹配），
+		// X-Mse-Credential 身份头应输出剥掉前缀的逻辑凭证值，
+		// 下游限流/配额配置无需感知凭证来源
+		cfg := mustConfig(t, map[string]interface{}{
+			"consumers": []map[string]interface{}{
+				{
+					"name":        "consumer1",
+					"credentials": []string{"Bearer token1"},
+					"keys":        []string{"Authorization"},
+					"in_header":   true,
+				},
+			},
+			"global_auth": true,
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		headers := [][2]string{
+			{":authority", "example.com"},
+			{":path", "/api/test"},
+			{":method", "GET"},
+			{"Authorization", "Bearer token1"},
+		}
+		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestHeaders(headers))
+		require.Nil(t, host.GetLocalResponse())
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer", "consumer1"))
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Credential", "token1"))
+	})
+}
+
+func TestOnHttpRequestHeaders_CredentialMiss_Denied(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(routeRuleConfigWith(t, true, map[string][]string{
+			"allow_credentials": {"token3"},
+		}))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token1"))
+		resp := host.GetLocalResponse()
+		require.NotNil(t, resp)
+		require.Equal(t, uint32(http.StatusForbidden), resp.StatusCode)
+	})
+}
+
+func TestOnHttpRequestHeaders_OrCombination(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		// allow 命中 consumer2、allow_groups 命中 team-a：两者都应放行
+		host, status := test.NewTestHost(routeRuleConfigWith(t, true, map[string][]string{
+			"allow":        {"consumer2"},
+			"allow_groups": {"team-a"},
+		}))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token1"))
+		require.Nil(t, host.GetLocalResponse())
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token2"))
+		require.Nil(t, host.GetLocalResponse())
+	})
+}
+
+func TestOnHttpRequestHeaders_GlobalAuthFalse_GroupAllowed(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(routeRuleConfigWith(t, false, map[string][]string{
+			"allow_groups": {"team-a"},
+		}))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		require.Equal(t, types.ActionContinue, requestWithToken(host, "token1"))
+		require.Nil(t, host.GetLocalResponse())
+	})
+}
+
+func TestConsumerAllowed_Direct(t *testing.T) {
+	cfg := KeyAuthConfig{
+		allow:            []string{"c1"},
+		allowGroups:      []string{"team-a"},
+		allowCredentials: []string{"tok3"},
+	}
+	require.True(t, consumerAllowed(cfg, Consumer{Name: "c1"}, "other"))
+	require.True(t, consumerAllowed(cfg, Consumer{Name: "c2", Group: "team-a"}, "other"))
+	require.True(t, consumerAllowed(cfg, Consumer{Name: "c2"}, "tok3"))
+	require.False(t, consumerAllowed(cfg, Consumer{Name: "c2"}, "other"))
+	require.False(t, consumerAllowed(cfg, Consumer{Name: "c2", Group: ""}, "other"))
+}

@@ -70,6 +70,11 @@ type Consumer struct {
 	// @Description en-US The group this consumer belongs to. Downstream plugins such as ai-quota can aggregate by group.
 	// @Scope GLOBAL
 	Group string `yaml:"group,omitempty"`
+
+	// Keys/in_query/in_header 为空(nil)时回退到全局配置。
+	Keys     []string `yaml:"keys,omitempty"`
+	InQuery  *bool    `yaml:"in_query,omitempty"`
+	InHeader *bool    `yaml:"in_header,omitempty"`
 }
 
 // @Name key-auth
@@ -142,6 +147,18 @@ type KeyAuthConfig struct {
 	// @Description en-US Consumers to be allowed for matched requests.
 	allow []string `yaml:"allow"`
 
+	// @Title 授权访问的调用方分组列表
+	// @Title en-US Allowed Consumer Groups
+	// @Description 对于匹配上述条件的请求，允许访问的调用方分组列表，与 allow/allow_credentials 任一命中即可访问。
+	// @Description en-US Consumer groups to be allowed for matched requests. Any hit among allow/allow_groups/allow_credentials grants access.
+	allowGroups []string `yaml:"allow_groups"`
+
+	// @Title 授权访问的 API Key 列表
+	// @Title en-US Allowed API Keys
+	// @Description 对于匹配上述条件的请求，允许访问的 API Key（凭证值）列表，与 allow/allow_groups 任一命中即可访问。
+	// @Description en-US API Keys to be allowed for matched requests. Any hit among allow/allow_groups/allow_credentials grants access.
+	allowCredentials []string `yaml:"allow_credentials"`
+
 	credential2Consumer map[string]Consumer `yaml:"-"`
 }
 
@@ -152,38 +169,14 @@ func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log log.Log) er
 	ruleSet = false
 	global.credential2Consumer = make(map[string]Consumer)
 
+	// needGlobalKeys: 只要任一 consumer 没自带 keys 即为 true，此时要求全局 keys+来源。
+	needGlobalKeys := false
+
 	// global_auth
 	globalAuth := json.Get("global_auth")
 	if globalAuth.Exists() {
 		ga := globalAuth.Bool()
 		global.globalAuth = &ga
-	}
-
-	// keys
-	names := json.Get("keys")
-	if !names.Exists() {
-		return errors.New("keys is required")
-	}
-	if len(names.Array()) == 0 {
-		return errors.New("keys cannot be empty")
-	}
-
-	for _, name := range names.Array() {
-		global.Keys = append(global.Keys, name.String())
-	}
-
-	// in_query and in_header
-	in_query := json.Get("in_query")
-	in_header := json.Get("in_header")
-	if !in_query.Exists() && !in_header.Exists() {
-		return errors.New("must one of in_query/in_header required")
-	}
-
-	if in_query.Exists() {
-		global.InQuery = in_query.Bool()
-	}
-	if in_header.Exists() {
-		global.InHeader = in_header.Bool()
 	}
 
 	// consumers
@@ -246,6 +239,24 @@ func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log log.Log) er
 			consumer.Group = group.String()
 		}
 
+		// per-consumer key 来源。未自带 keys 的 consumer
+		// 标记需要全局回退；自带 keys 的 consumer 记录其来源字段。
+		if k := item.Get("keys"); k.Exists() && len(k.Array()) > 0 {
+			for _, kk := range k.Array() {
+				consumer.Keys = append(consumer.Keys, kk.String())
+			}
+			if iq := item.Get("in_query"); iq.Exists() {
+				v := iq.Bool()
+				consumer.InQuery = &v
+			}
+			if ih := item.Get("in_header"); ih.Exists() {
+				v := ih.Bool()
+				consumer.InHeader = &v
+			}
+		} else {
+			needGlobalKeys = true
+		}
+
 		global.consumers = append(global.consumers, consumer)
 		for _, credential := range consumerCredentials {
 			global.credential2Consumer[credential] = consumer
@@ -272,6 +283,34 @@ func parseGlobalConfig(json gjson.Result, global *KeyAuthConfig, log log.Log) er
 	if len(conflicts) > 0 {
 		return fmt.Errorf("consumer groups conflict with consumer names: %s", strings.Join(conflicts, ", "))
 	}
+
+	// keys / in_query / in_header 仅在需要全局回退时校验。
+	// 全部 consumer 都自带 keys 时（控制台场景），顶层来源不是必需的。
+	if needGlobalKeys {
+		names := json.Get("keys")
+		if !names.Exists() {
+			return errors.New("keys is required")
+		}
+		if len(names.Array()) == 0 {
+			return errors.New("keys cannot be empty")
+		}
+		for _, name := range names.Array() {
+			global.Keys = append(global.Keys, name.String())
+		}
+
+		in_query := json.Get("in_query")
+		in_header := json.Get("in_header")
+		if !in_query.Exists() && !in_header.Exists() {
+			return errors.New("must one of in_query/in_header required")
+		}
+		if in_query.Exists() {
+			global.InQuery = in_query.Bool()
+		}
+		if in_header.Exists() {
+			global.InHeader = in_header.Bool()
+		}
+	}
+
 	return nil
 }
 
@@ -281,19 +320,63 @@ func parseOverrideRuleConfig(json gjson.Result, global KeyAuthConfig, config *Ke
 	*config = global
 
 	allow := json.Get("allow")
-	if !allow.Exists() {
-		return errors.New("allow is required")
-	}
-	if len(allow.Array()) == 0 {
-		return errors.New("allow cannot be empty")
+	allowGroups := json.Get("allow_groups")
+	allowCredentials := json.Get("allow_credentials")
+
+	// 唯一硬约束：至少一个列表存在且非空。单个空数组合法（等价于该维度不设限），
+	// 控制台单选模式会显式提交三列表（未选的为空数组）。「全部不存在」与
+	// 「存在却全为空」语义相同——没有任何授权范围，视为误配置拒绝。
+	if len(allow.Array()) == 0 && len(allowGroups.Array()) == 0 && len(allowCredentials.Array()) == 0 {
+		return errors.New("at least one non-empty of allow/allow_groups/allow_credentials is required")
 	}
 
 	for _, item := range allow.Array() {
 		config.allow = append(config.allow, item.String())
 	}
+	for _, item := range allowGroups.Array() {
+		config.allowGroups = append(config.allowGroups, item.String())
+	}
+	for _, item := range allowCredentials.Array() {
+		config.allowCredentials = append(config.allowCredentials, item.String())
+	}
 	ruleSet = true
 
 	return nil
+}
+
+// tryFindConsumer attempts to extract a credential using the given keys/sources
+// and checks if it belongs to the specified consumer. Returns the matched
+// credential value on the first match.
+func tryFindConsumer(inHeader, inQuery bool, keys []string, c *Consumer, credential2Consumer map[string]Consumer) (string, bool) {
+	for _, key := range keys {
+		cred := extractCredential(inHeader, inQuery, key)
+		if cred == "" {
+			continue
+		}
+		owner, ok := credential2Consumer[cred]
+		if ok && owner.Name == c.Name {
+			return cred, true
+		}
+	}
+	return "", false
+}
+
+func extractCredential(inHeader, inQuery bool, key string) string {
+	if inHeader {
+		if value, err := proxywasm.GetHttpRequestHeader(key); err == nil && value != "" {
+			return value
+		}
+	}
+	if inQuery {
+		requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
+		if u, err := url.Parse(requestUrl); err == nil {
+			queryValues := u.Query()
+			if values, ok := queryValues[key]; ok && len(values) > 0 {
+				return values[0]
+			}
+		}
+	}
+	return ""
 }
 
 // key-auth 插件认证逻辑：
@@ -310,9 +393,8 @@ func parseOverrideRuleConfig(json gjson.Result, global KeyAuthConfig, config *Ke
 //   - 若有至少一个 domain/route 配置该插件：则遵循 (2*)
 func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log log.Log) types.Action {
 	var (
-		noAllow            = len(config.allow) == 0 // 未配置 allow 列表，表示插件在该 domain/route 未生效
+		noAllow            = len(config.allow) == 0 && len(config.allowGroups) == 0 && len(config.allowCredentials) == 0 // 未配置任何允许列表，表示插件在该 domain/route 未生效
 		globalAuthNoSet    = config.globalAuth == nil
-		globalAuthSetTrue  = !globalAuthNoSet && *config.globalAuth
 		globalAuthSetFalse = !globalAuthNoSet && !*config.globalAuth
 	)
 	// 不需要认证而直接放行的情况：
@@ -325,42 +407,33 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log log
 		}
 	}
 
-	// 以下需要认证：
-	// - 从 header 中获取 tokens 信息
-	// - 从 query 中获取 tokens 信息
-	var tokens []string
-	if config.InHeader {
-		// 匹配keys中的 keyname
-		for _, key := range config.Keys {
-			value, err := proxywasm.GetHttpRequestHeader(key)
-			if err == nil && value != "" {
-				tokens = append(tokens, value)
-			}
+	var consumer *Consumer
+	credential := ""
+	for i := range config.consumers {
+		c := &config.consumers[i]
+		keys := c.Keys
+		if len(keys) == 0 {
+			keys = config.Keys
 		}
-	} else if config.InQuery {
-		requestUrl, _ := proxywasm.GetHttpRequestHeader(":path")
-		url, _ := url.Parse(requestUrl)
-		queryValues := url.Query()
-		for _, key := range config.Keys {
-			values, ok := queryValues[key]
-			if ok && len(values) > 0 {
-				tokens = append(tokens, values...)
-			}
+		inHeader := config.InHeader
+		if c.InHeader != nil {
+			inHeader = *c.InHeader
+		}
+		inQuery := config.InQuery
+		if c.InQuery != nil {
+			inQuery = *c.InQuery
+		}
+
+		if cred, ok := tryFindConsumer(inHeader, inQuery, keys, c, config.credential2Consumer); ok {
+			consumer = c
+			credential = cred
+			break
 		}
 	}
 
-	// header/query
-	if len(tokens) > 1 {
-		return deniedMultiKeyAuthData()
-	} else if len(tokens) <= 0 {
-		return deniedNoKeyAuthData()
-	}
-
-	// 验证token
-	consumer, ok := config.credential2Consumer[tokens[0]]
-	if !ok {
-		log.Warnf("credential %q is not configured", tokens[0])
-		return deniedUnauthorizedConsumer()
+	if consumer == nil {
+		log.Warnf("no valid credential found")
+		return deniedInvalidCredential()
 	}
 
 	log.Infof("Consumer %q, Consumer-Group %q", consumer.Name, consumer.Group)
@@ -369,43 +442,27 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log log
 	if consumer.Group != "" {
 		proxywasm.AddHttpRequestHeader("X-Mse-Consumer-Group", consumer.Group)
 	}
+	// 透传本次请求使用的逻辑凭证值：剥掉 BEARER 来源的 "Bearer " 传输前缀，
+	// 下游插件/配置无需感知凭证来源。凭证匹配注册表仍使用原始值，不受影响。
+	// 命中 allow_credentials 时反映的是实际使用的那个。
+	proxywasm.AddHttpRequestHeader("X-Mse-Credential", strings.TrimPrefix(credential, "Bearer "))
 
-	// 全局生效：
-	// - global_auth == true 且 当前 domain/route 未配置该插件
-	// - global_auth 未设置 且 没有任何一个 domain/route 配置该插件
-	if (globalAuthSetTrue && noAllow) || (globalAuthNoSet && !ruleSet) {
-		log.Infof("consumer %q authenticated", consumer.Name)
-		return authenticated(consumer.Name)
+	// 路由级允许列表检查：三列表任一命中即放行（OR）。
+	// noAllow 表示该 domain/route 未配置本插件：
+	// - 全局生效路径：认证通过即放行
+	// - 非全局路径：已在函数开头直接放行，不会走到这里
+	if !noAllow && !consumerAllowed(config, *consumer, credential) {
+		log.Warnf("consumer %q is not allowed", consumer.Name)
+		return deniedUnauthorizedConsumer()
 	}
 
-	// 全局生效，但当前 domain/route 配置了 allow 列表
-	if globalAuthSetTrue && !noAllow {
-		if !contains(config.allow, consumer.Name) {
-			log.Warnf("consumer %q is not allowed", consumer.Name)
-			return deniedUnauthorizedConsumer()
-		}
-		log.Infof("consumer %q authenticated", consumer.Name)
-		return authenticated(consumer.Name)
-	}
-
-	// 非全局生效
-	if globalAuthSetFalse || (globalAuthNoSet && ruleSet) {
-		if !noAllow { // 配置了 allow 列表
-			if !contains(config.allow, consumer.Name) {
-				log.Warnf("consumer %q is not allowed", consumer.Name)
-				return deniedUnauthorizedConsumer()
-			}
-			log.Infof("consumer %q authenticated", consumer.Name)
-			return authenticated(consumer.Name)
-		}
-	}
-
-	return types.ActionContinue
+	log.Infof("consumer %q authenticated", consumer.Name)
+	return authenticated(consumer.Name)
 }
 
-func deniedMultiKeyAuthData() types.Action {
-	_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "key-auth.multi_key", WWWAuthenticateHeader(protectionSpace),
-		[]byte("Request denied by Key Auth check. Multi Key Authentication information found."), -1)
+func deniedInvalidCredential() types.Action {
+	_ = proxywasm.SendHttpResponseWithDetail(http.StatusUnauthorized, "key-auth.invalid_credential", WWWAuthenticateHeader(protectionSpace),
+		[]byte("Request denied by Key Auth check. Invalid API key."), -1)
 	return types.ActionContinue
 }
 
@@ -423,6 +480,18 @@ func deniedUnauthorizedConsumer() types.Action {
 
 func authenticated(name string) types.Action {
 	return types.ActionContinue
+}
+
+// consumerAllowed 判定认证通过的 consumer 是否被当前路由的允许列表放行。
+// 三个列表 OR：名称命中 allow、组命中 allow_groups、凭证命中 allow_credentials。
+func consumerAllowed(config KeyAuthConfig, consumer Consumer, credential string) bool {
+	if contains(config.allow, consumer.Name) {
+		return true
+	}
+	if consumer.Group != "" && contains(config.allowGroups, consumer.Group) {
+		return true
+	}
+	return contains(config.allowCredentials, credential)
 }
 
 func contains(arr []string, item string) bool {
