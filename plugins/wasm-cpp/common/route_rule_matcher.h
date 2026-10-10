@@ -77,6 +77,10 @@ class RouteRuleMatcher {
     std::unordered_set<std::string> allow_set;
     // Whether the rule carried the shared "allow" field.
     bool has_allow = false;
+    // Whether the rule carried any allow-list field (allow / allow_groups /
+    // allow_credentials): auth must run even when allow_set itself is empty,
+    // because plugins parse groups/credentials lists into their own config.
+    bool has_allow_lists = false;
     bool has_local_config = false;
   };
   RouteRuleMatcher() = default;
@@ -273,6 +277,11 @@ class RouteRuleMatcher {
               // (otherwise checkAuthRule would fail-open when
               // global_auth is disabled).
               allow_set = auth_rule.allow_set;
+            } else if (auth_rule.has_allow_lists) {
+              // Groups/credentials-only rule: the plugin parses those lists
+              // into its own config, so expose an empty allow set purely to
+              // keep checkAuthRule's fail-open gate from skipping auth.
+              allow_set = empty_allow_lists_marker_;
             }
           } else {
             allow_set = auth_rule.allow_set;
@@ -296,6 +305,11 @@ class RouteRuleMatcher {
               // (otherwise checkAuthRule would fail-open when
               // global_auth is disabled).
               allow_set = auth_rule.allow_set;
+            } else if (auth_rule.has_allow_lists) {
+              // Groups/credentials-only rule: the plugin parses those lists
+              // into its own config, so expose an empty allow set purely to
+              // keep checkAuthRule's fail-open gate from skipping auth.
+              allow_set = empty_allow_lists_marker_;
             }
           } else {
             allow_set = auth_rule.allow_set;
@@ -322,6 +336,11 @@ class RouteRuleMatcher {
                 // (otherwise checkAuthRule would fail-open when
                 // global_auth is disabled).
                 allow_set = auth_rule.allow_set;
+              } else if (auth_rule.has_allow_lists) {
+                // Groups/credentials-only rule: the plugin parses those lists
+                // into its own config, so expose an empty allow set purely to
+                // keep checkAuthRule's fail-open gate from skipping auth.
+                allow_set = empty_allow_lists_marker_;
               }
             } else {
               allow_set = auth_rule.allow_set;
@@ -345,6 +364,11 @@ class RouteRuleMatcher {
               // (otherwise checkAuthRule would fail-open when
               // global_auth is disabled).
               allow_set = auth_rule.allow_set;
+            } else if (auth_rule.has_allow_lists) {
+              // Groups/credentials-only rule: the plugin parses those lists
+              // into its own config, so expose an empty allow set purely to
+              // keep checkAuthRule's fail-open gate from skipping auth.
+              allow_set = empty_allow_lists_marker_;
             }
           } else {
             allow_set = auth_rule.allow_set;
@@ -371,6 +395,11 @@ class RouteRuleMatcher {
               // (otherwise checkAuthRule would fail-open when
               // global_auth is disabled).
               allow_set = auth_rule.allow_set;
+            } else if (auth_rule.has_allow_lists) {
+              // Groups/credentials-only rule: the plugin parses those lists
+              // into its own config, so expose an empty allow set purely to
+              // keep checkAuthRule's fail-open gate from skipping auth.
+              allow_set = empty_allow_lists_marker_;
             }
           } else {
             allow_set = auth_rule.allow_set;
@@ -511,6 +540,7 @@ class RouteRuleMatcher {
       if (has_allow != config.end()) {
         local_config_size -= 1;
         auth_rule.has_allow = true;
+        auth_rule.has_allow_lists = true;
         LOG_DEBUG("has allow filed");
         if (!JsonArrayIterate(config, "allow", [&](const json& allow) -> bool {
               auto parse_result = JsonValueAs<std::string>(allow);
@@ -528,6 +558,13 @@ class RouteRuleMatcher {
           LOG_WARN("failed to parse configuration for allow");
           return false;
         }
+      }
+      // Plugins that parse groups/credentials lists into their own config
+      // (e.g. key_auth) still count as "allow list configured" for the
+      // fail-open gate below.
+      if (config.find("allow_groups") != config.end() ||
+          config.find("allow_credentials") != config.end()) {
+        auth_rule.has_allow_lists = true;
       }
       auto has_disable = config.find("_disable_");
       if (has_disable != config.end()) {
@@ -747,6 +784,11 @@ class RouteRuleMatcher {
 
   bool invalid_config_ = false;
   std::optional<bool> global_auth_ = std::nullopt;
+  // Exposed as allow_set for rules that carry allow_groups/allow_credentials
+  // (parsed into the plugin's own config): non-nullopt but empty, purely so
+  // checkAuthRule's fail-open gate does not skip authentication. The plugin
+  // decides via its own list check.
+  std::unordered_set<std::string> empty_allow_lists_marker_;
   std::vector<RuleConfig> rule_config_;
   std::vector<AuthRuleConfig> auth_rule_config_;
   std::optional<PluginConfig> global_config_ = std::nullopt;

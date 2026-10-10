@@ -616,6 +616,43 @@ TEST_F(KeyAuthTest, InjectsConsumerGroupHeader) {
   EXPECT_EQ(added_headers_["X-Mse-Credential"], "token1");
 }
 
+TEST_F(KeyAuthTest, GroupsOnlyRuleAuthenticatesUnderGlobalAuthDisable) {
+  // Console 组授权标准形态：规则只带 allow_groups。回归：规则属于 local
+  // config 且无共享 allow 字段时，checkAuthRule 曾直接 fail-open（不认证、
+  // 不注入身份头，下游限流取不到消费者维度）。
+  std::string configuration = R"(
+{
+  "global_auth": false,
+  "consumers": [
+    {"name": "alice", "credential": "token1", "group": "team-a"},
+    {"name": "bob", "credential": "token2"}
+  ],
+  "keys": ["x-api-key"],
+  "_rules_": [
+    {"_match_route_": ["test"], "allow_groups": ["team-a"]}
+  ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  // 组内成员：认证 + 注入身份头
+  route_name_ = "test";
+  headers_["x-api-key"] = "token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+  EXPECT_EQ(added_headers_["X-Mse-Consumer-Group"], "team-a");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "token1");
+
+  // 无凭证：拒绝
+  headers_["x-api-key"] = "";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
 TEST_F(KeyAuthTest, MultiListRuleAuthenticatesUnderGlobalAuthDisable) {
   // Console 标准形态：global_auth=false 且规则同时携带 allow/allow_groups/
   // allow_credentials。回归：getMatchAuthConfig 曾在规则带本地配置时不暴露
