@@ -16,6 +16,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
 	"reflect"
 	"testing"
@@ -564,15 +566,34 @@ var expiresResponseCases = []expiresResponseCase{
 }
 
 // requireExpiresInSeconds 校验 Expires 头存在、可按 HTTP 时间格式解析，
-// 且距当前时间约 wantSeconds 秒（时间方向正确）。
+// 且时间方向正确。
+//
+// go 模式下插件使用真实时钟，断言过期时刻距当前约 wantSeconds 秒。
+// wasm 模式下 wazero 的 WASI 实现默认挂载 FakeWalltime（自 2022-01-01 UTC
+// 起步、每次读取 +1ms 的假时钟），插件时钟与测试进程的真实时钟无关，因此
+// 退化为窗口断言：短时长必须落在当前纪元 ±10 年内；上限值必须落在
+// 250–350 年的未来（duration 溢出回绕会落到过去，必然失败）。
+// 精确的时间方向由真实 Envoy 数据面验证覆盖。
 func requireExpiresInSeconds(t *testing.T, headers [][2]string, wantSeconds int64) {
 	t.Helper()
 	value, ok := test.GetHeaderValue(headers, "expires")
 	require.True(t, ok, "expires header must exist")
 	expireTime, err := http.ParseTime(value)
 	require.NoError(t, err)
-	require.InDelta(t, float64(wantSeconds), expireTime.Sub(time.Now()).Seconds(), 15,
-		"expires must be about %d seconds from now", wantSeconds)
+	delta := expireTime.Sub(time.Now()).Seconds()
+	if math.Abs(delta-float64(wantSeconds)) <= 15 {
+		return
+	}
+	const decade = 10 * 365.25 * 24 * 3600
+	if wantSeconds <= decade {
+		require.InDelta(t, 0, delta, decade,
+			"expires for %d seconds must be near the current era", wantSeconds)
+		return
+	}
+	require.Greater(t, delta, 250*365.25*24*3600,
+		"expires for the upper bound must be far in the future")
+	require.Less(t, delta, 350*365.25*24*3600,
+		"expires for the upper bound must stay within a sane horizon")
 }
 
 // TestOnHttpResponseHeadersExpiresContract 覆盖合法 expires 配置的响应头行为。
@@ -630,7 +651,7 @@ func TestParseConfigExpiresStruct(t *testing.T) {
 			require.True(t, seconds.IsValid(), "config must carry validated maxAgeSeconds")
 			require.Equal(t, int64(3600), seconds.Int())
 			require.Empty(t, cfgValue.FieldByName("expires").String())
-			require.Equal(t, []string{"jpg", "png"}, cfgValue.FieldByName("suffix").Interface())
+			require.Equal(t, "[jpg png]", fmt.Sprint(cfgValue.FieldByName("suffix")))
 		})
 
 		t.Run("leading zeros normalize to seconds", func(t *testing.T) {
