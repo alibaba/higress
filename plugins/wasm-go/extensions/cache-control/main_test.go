@@ -17,9 +17,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -566,34 +566,26 @@ var expiresResponseCases = []expiresResponseCase{
 }
 
 // requireExpiresInSeconds 校验 Expires 头存在、可按 HTTP 时间格式解析，
-// 且时间方向正确。
+// 且过期时刻符合配置的秒数。
 //
 // go 模式下插件使用真实时钟，断言过期时刻距当前约 wantSeconds 秒。
 // wasm 模式下 wazero 的 WASI 实现默认挂载 FakeWalltime（自 2022-01-01 UTC
-// 起步、每次读取 +1ms 的假时钟），插件时钟与测试进程的真实时钟无关，因此
-// 退化为窗口断言：短时长必须落在当前纪元 ±10 年内；上限值必须落在
-// 250–350 年的未来（duration 溢出回绕会落到过去，必然失败）。
-// 精确的时间方向由真实 Envoy 数据面验证覆盖。
+// 起步、每次读取 +1ms 的假时钟），因此使用该纪元作为时钟基准。
+// 两种模式都只允许 15 秒误差，不能在断言失败后退化为宽窗口。
 func requireExpiresInSeconds(t *testing.T, headers [][2]string, wantSeconds int64) {
 	t.Helper()
 	value, ok := test.GetHeaderValue(headers, "expires")
 	require.True(t, ok, "expires header must exist")
 	expireTime, err := http.ParseTime(value)
 	require.NoError(t, err)
-	delta := expireTime.Sub(time.Now()).Seconds()
-	if math.Abs(delta-float64(wantSeconds)) <= 15 {
-		return
+	clockBase := time.Now()
+	// RunTest names its runtime subtests "go" and "wasm". The pinned
+	// proxytest/wazero version uses the default fake clock in wasm mode.
+	if strings.Contains(t.Name(), "/wasm/") {
+		clockBase = time.Date(2022, time.January, 1, 0, 0, 0, 0, time.UTC)
 	}
-	const decade = 10 * 365.25 * 24 * 3600
-	if wantSeconds <= decade {
-		require.InDelta(t, 0, delta, decade,
-			"expires for %d seconds must be near the current era", wantSeconds)
-		return
-	}
-	require.Greater(t, delta, 250*365.25*24*3600,
-		"expires for the upper bound must be far in the future")
-	require.Less(t, delta, 350*365.25*24*3600,
-		"expires for the upper bound must stay within a sane horizon")
+	require.InDelta(t, float64(wantSeconds), expireTime.Sub(clockBase).Seconds(), 15,
+		"expires must reflect the configured %d seconds", wantSeconds)
 }
 
 // TestOnHttpResponseHeadersExpiresContract 覆盖合法 expires 配置的响应头行为。
