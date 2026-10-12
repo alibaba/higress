@@ -26,6 +26,7 @@ func TestParseIPMalformedValueDoesNotPanic(t *testing.T) {
 		want       string
 	}{
 		{name: "closing bracket only (from header)", source: "]", fromHeader: true, want: ""},
+		{name: "closing bracket only (socket)", source: "]", fromHeader: false, want: ""},
 		{name: "closing bracket with port (from header)", source: "]:80", fromHeader: true, want: ""},
 		{name: "bracketed ipv6", source: "[::1]", fromHeader: false, want: "::1"},
 		{name: "bracketed ipv6 with port", source: "[fe80::14d5:8aff:fed9:2114]:123", fromHeader: false, want: "fe80::14d5:8aff:fed9:2114"},
