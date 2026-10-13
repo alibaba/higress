@@ -457,23 +457,146 @@ func TestOnHttpRequestHeaders_CredentialHit_Allowed(t *testing.T) {
 	})
 }
 
-func TestOnHttpRequestHeaders_BearerCredential_StripsPrefixInIdentityHeader(t *testing.T) {
+// === 提取边界剥离 Bearer 传输前缀（仅 header 来源）==========================
+//
+// 凭证注册值为逻辑凭证（不带 "Bearer "）。header 携带的 auth-scheme 前缀
+// 在 extractCredential 统一剥离；query 参数无 auth-scheme 语法，按字面匹配。
+// consumer 匹配与 allow_credentials 授权均使用提取后的值。
+
+// bearerAuthConfig：consumer1 注册逻辑凭证 token1（无前缀），来源
+// Authorization header，全局认证开启。
+func bearerAuthConfig(t *testing.T) json.RawMessage {
+	return mustConfig(t, map[string]interface{}{
+		"consumers": []map[string]interface{}{
+			{
+				"name":        "consumer1",
+				"credentials": []string{"token1"},
+				"keys":        []string{"Authorization"},
+				"in_header":   true,
+			},
+		},
+		"global_auth": true,
+	})
+}
+
+func assertBearerAuthenticated(t *testing.T, host test.TestHost, authValue string) {
+	t.Helper()
+	headers := [][2]string{
+		{":authority", "example.com"},
+		{":path", "/api/test"},
+		{":method", "GET"},
+		{"Authorization", authValue},
+	}
+	require.Equal(t, types.ActionContinue, host.CallOnHttpRequestHeaders(headers))
+	require.Nil(t, host.GetLocalResponse(), "authorization value %q should authenticate", authValue)
+	require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer", "consumer1"))
+	require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Credential", "token1"))
+	host.CompleteHttp()
+}
+
+// "Authorization: Bearer <key>" 命中注册值为 <key> 的逻辑凭证
+func TestOnHttpRequestHeaders_BearerPrefix_StrippedBeforeConsumerMatch(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
-		// BEARER 来源：注册表凭证带 "Bearer " 传输前缀（与请求原文匹配），
-		// X-Mse-Credential 身份头应输出剥掉前缀的逻辑凭证值，
-		// 下游限流/配额配置无需感知凭证来源
+		host, status := test.NewTestHost(bearerAuthConfig(t))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		assertBearerAuthenticated(t, host, "Bearer token1")
+	})
+}
+
+// auth-scheme 大小写不敏感（RFC 7235）：bearer/BEARER 同样剥离
+func TestOnHttpRequestHeaders_BearerPrefix_CaseInsensitiveScheme(t *testing.T) {
+	for _, tc := range []struct{ name, authValue string }{
+		{"lowercase bearer", "bearer token1"},
+		{"uppercase BEARER", "BEARER token1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			test.RunTest(t, func(t *testing.T) {
+				host, status := test.NewTestHost(bearerAuthConfig(t))
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+
+				assertBearerAuthenticated(t, host, tc.authValue)
+			})
+		})
+	}
+}
+
+// 不带前缀的原始值同样命中（自定义 header 直传裸 key 的既有用法不受影响）
+func TestOnHttpRequestHeaders_RawAuthorizationValue_StillMatches(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(bearerAuthConfig(t))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		assertBearerAuthenticated(t, host, "token1")
+	})
+}
+
+// query 来源不做 scheme 剥离：字面值 "Bearer token1" 不命中注册值 token1
+func TestOnHttpRequestHeaders_QueryCredential_LiteralMatch_NoStrip(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
 		cfg := mustConfig(t, map[string]interface{}{
 			"consumers": []map[string]interface{}{
-				{
-					"name":        "consumer1",
-					"credentials": []string{"Bearer token1"},
-					"keys":        []string{"Authorization"},
-					"in_header":   true,
-				},
+				{"name": "consumer1", "credentials": []string{"token1"}},
 			},
+			"keys":        []string{"apikey"},
+			"in_header":   false,
+			"in_query":    true,
 			"global_auth": true,
 		})
 		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		action := host.CallOnHttpRequestHeaders([][2]string{
+			{":authority", "example.com"},
+			{":path", "/api/test?apikey=Bearer%20token1"},
+			{":method", "GET"},
+		})
+		require.Equal(t, types.ActionContinue, action)
+		resp := host.GetLocalResponse()
+		require.NotNil(t, resp, "query values match literally; Bearer-prefixed value must not hit token1")
+		require.Equal(t, uint32(401), resp.StatusCode)
+		host.CompleteHttp()
+	})
+}
+
+// query 来源按字面匹配：注册值本身含 "Bearer " 前缀时可原样命中，
+// X-Mse-Credential 反映实际使用的凭证值
+func TestOnHttpRequestHeaders_QueryCredential_LiteralBearerValue_Matches(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		cfg := mustConfig(t, map[string]interface{}{
+			"consumers": []map[string]interface{}{
+				{"name": "consumer1", "credentials": []string{"Bearer token1"}},
+			},
+			"keys":        []string{"apikey"},
+			"in_header":   false,
+			"in_query":    true,
+			"global_auth": true,
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		action := host.CallOnHttpRequestHeaders([][2]string{
+			{":authority", "example.com"},
+			{":path", "/api/test?apikey=Bearer%20token1"},
+			{":method", "GET"},
+		})
+		require.Equal(t, types.ActionContinue, action)
+		require.Nil(t, host.GetLocalResponse())
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer", "consumer1"))
+		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Credential", "Bearer token1"))
+		host.CompleteHttp()
+	})
+}
+
+// 剥离后的逻辑值不匹配任何注册凭证 → 401
+func TestOnHttpRequestHeaders_BearerPrefix_WrongCredential_Denied(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(bearerAuthConfig(t))
 		defer host.Reset()
 		require.Equal(t, types.OnPluginStartStatusOK, status)
 
@@ -481,12 +604,56 @@ func TestOnHttpRequestHeaders_BearerCredential_StripsPrefixInIdentityHeader(t *t
 			{":authority", "example.com"},
 			{":path", "/api/test"},
 			{":method", "GET"},
-			{"Authorization", "Bearer token1"},
+			{"Authorization", "Bearer other-token"},
 		}
 		require.Equal(t, types.ActionContinue, host.CallOnHttpRequestHeaders(headers))
-		require.Nil(t, host.GetLocalResponse())
-		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Consumer", "consumer1"))
-		require.True(t, test.HasHeaderWithValue(host.GetRequestHeaders(), "X-Mse-Credential", "token1"))
+		resp := host.GetLocalResponse()
+		require.NotNil(t, resp)
+		require.Equal(t, uint32(401), resp.StatusCode)
+		host.CompleteHttp()
+	})
+}
+
+// BEARER 来源：请求携带 "Authorization: Bearer <key>"，注册值为逻辑凭证 <key>。
+// 提取时剥掉传输前缀后匹配；X-Mse-Credential 身份头输出逻辑值，
+// 下游限流/配额配置无需感知凭证来源。
+func TestOnHttpRequestHeaders_BearerCredential_IdentityHeaderCarriesLogicalValue(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		host, status := test.NewTestHost(bearerAuthConfig(t))
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+
+		assertBearerAuthenticated(t, host, "Bearer token1")
+	})
+}
+
+// 路由级 allow_credentials 使用逻辑值授权：列表配 token1，
+// 请求携带 "Bearer token1" 剥离后命中放行
+func TestOnHttpRequestHeaders_AllowCredentials_MatchesLogicalValue(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		cfg := mustConfig(t, map[string]interface{}{
+			"consumers": []map[string]interface{}{
+				{
+					"name":        "consumer1",
+					"credentials": []string{"token1"},
+					"keys":        []string{"Authorization"},
+					"in_header":   true,
+				},
+			},
+			"global_auth": true,
+			"_rules_": []map[string]interface{}{
+				{
+					"_match_route_":     []string{"route-a"},
+					"allow_credentials": []string{"token1"},
+				},
+			},
+		})
+		host, status := test.NewTestHost(cfg)
+		defer host.Reset()
+		require.Equal(t, types.OnPluginStartStatusOK, status)
+		require.NoError(t, host.SetRouteName("route-a"))
+
+		assertBearerAuthenticated(t, host, "Bearer token1")
 	})
 }
 

@@ -364,7 +364,7 @@ func tryFindConsumer(inHeader, inQuery bool, keys []string, c *Consumer, credent
 func extractCredential(inHeader, inQuery bool, key string) string {
 	if inHeader {
 		if value, err := proxywasm.GetHttpRequestHeader(key); err == nil && value != "" {
-			return value
+			return stripBearerPrefix(value)
 		}
 	}
 	if inQuery {
@@ -377,6 +377,21 @@ func extractCredential(inHeader, inQuery bool, key string) string {
 		}
 	}
 	return ""
+}
+
+// bearerSchemePrefix 是 HTTP 认证头里 RFC 7235 定义的 auth-scheme 传输前缀。
+// 凭证注册值为逻辑凭证；header 值携带的该前缀在提取时统一剥离，使
+// "Authorization: Bearer <key>"、"Authorization: <key>" 与自定义 header 直传
+// 裸 key 命中同一逻辑凭证。query 参数没有 auth-scheme 语法，按字面匹配。
+const bearerSchemePrefix = "Bearer "
+
+// stripBearerPrefix 剥掉值开头的 auth-scheme 前缀（大小写不敏感，
+// RFC 7235），并清理 scheme 与 token 之间的空白。
+func stripBearerPrefix(value string) string {
+	if len(value) >= len(bearerSchemePrefix) && strings.EqualFold(value[:len(bearerSchemePrefix)], bearerSchemePrefix) {
+		return strings.TrimSpace(value[len(bearerSchemePrefix):])
+	}
+	return value
 }
 
 // key-auth 插件认证逻辑：
@@ -442,10 +457,9 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, config KeyAuthConfig, log log
 	if consumer.Group != "" {
 		proxywasm.AddHttpRequestHeader("X-Mse-Consumer-Group", consumer.Group)
 	}
-	// 透传本次请求使用的逻辑凭证值：剥掉 BEARER 来源的 "Bearer " 传输前缀，
-	// 下游插件/配置无需感知凭证来源。凭证匹配注册表仍使用原始值，不受影响。
-	// 命中 allow_credentials 时反映的是实际使用的那个。
-	proxywasm.AddHttpRequestHeader("X-Mse-Credential", strings.TrimPrefix(credential, "Bearer "))
+	// 透传本次请求使用的逻辑凭证值（提取时已剥掉 "Bearer " 传输前缀），
+	// 下游插件/配置无需感知凭证来源。命中 allow_credentials 时反映的是实际使用的那个。
+	proxywasm.AddHttpRequestHeader("X-Mse-Credential", credential)
 
 	// 路由级允许列表检查：三列表任一命中即放行（OR）。
 	// noAllow 表示该 domain/route 未配置本插件：

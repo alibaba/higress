@@ -17,6 +17,8 @@
 #include <array>
 #include <set>
 
+#include "absl/strings/ascii.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
@@ -54,6 +56,22 @@ void deniedInvalidCredentials(const std::string& realm) {
 void deniedUnauthorizedConsumer(const std::string& realm) {
   sendLocalResponse(403, "Request denied by Key Auth check. Unauthorized consumer", "",
                     {{"WWW-Authenticate", absl::StrCat("Key realm=", realm)}});
+}
+
+// The RFC 7235 auth-scheme prefix carried by "Authorization: Bearer <key>".
+constexpr std::string_view kBearerSchemePrefix = "Bearer ";
+
+// Strips an optional auth-scheme prefix (case-insensitive per RFC 7235) and
+// the surrounding whitespace from a raw header value, so
+// "Authorization: Bearer <key>", "Authorization: <key>" and a bare key sent
+// via a custom header all resolve to the logical credential <key>. Query
+// parameters have no auth-scheme syntax and are matched literally.
+std::string stripBearerPrefix(const std::string& value) {
+  if (absl::StartsWithIgnoreCase(value, kBearerSchemePrefix)) {
+    return std::string(absl::StripAsciiWhitespace(
+        value.substr(kBearerSchemePrefix.size())));
+  }
+  return value;
 }
 
 }  // namespace
@@ -454,17 +472,11 @@ void PluginRootContext::addConsumerHeaders(const KeyAuthConfigRule& rule,
   if (!group.empty()) {
     addRequestHeader("X-Mse-Consumer-Group", group);
   }
-  // X-Mse-Credential carries the logical credential value with the BEARER
-  // transport prefix stripped, so downstream rate-limit/quota configs don't
-  // need to care about the credential source. Credential matching still uses
-  // the raw value and is unaffected.
-  static constexpr const char* kBearerPrefix = "Bearer ";
-  static constexpr size_t kBearerPrefixLen = 7;
-  std::string logical_credential = credential;
-  if (logical_credential.rfind(kBearerPrefix, 0) == 0) {
-    logical_credential.erase(0, kBearerPrefixLen);
-  }
-  addRequestHeader("X-Mse-Credential", logical_credential);
+  // X-Mse-Credential carries the logical credential value — the auth-scheme
+  // transport prefix is already stripped at the extraction boundary
+  // (extractCredential), so downstream rate-limit/quota configs don't need to
+  // care about the credential source.
+  addRequestHeader("X-Mse-Credential", credential);
 }
 
 bool PluginRootContext::checkPlugin(
@@ -641,7 +653,7 @@ std::string PluginRootContext::extractCredential(bool in_header, bool in_query,
   if (in_header) {
     auto header = getRequestHeader(key);
     if (header->size() != 0) {
-      return header->toString();
+      return stripBearerPrefix(header->toString());
     }
   }
   if (in_query) {

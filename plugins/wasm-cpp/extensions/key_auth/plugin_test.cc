@@ -685,12 +685,18 @@ TEST_F(KeyAuthTest, MultiListRuleAuthenticatesUnderGlobalAuthDisable) {
   EXPECT_EQ(added_headers_["X-Mse-Credential"], "token2");
 }
 
-TEST_F(KeyAuthTest, BearerCredentialStripsPrefixInIdentityHeader) {
-  // BEARER 来源：注册表凭证带 "Bearer " 传输前缀（与请求原文匹配），
-  // X-Mse-Credential 身份头应输出剥掉前缀的逻辑凭证值
+// === 提取边界剥离 Bearer 传输前缀（仅 header 来源）==========================
+//
+// 凭证注册值为逻辑凭证（不带 "Bearer "）。header 携带的 auth-scheme 前缀
+// 在 extractCredential 统一剥离；query 参数无 auth-scheme 语法，按字面匹配。
+// consumer 匹配与 allow_credentials 授权均使用提取后的值。
+
+TEST_F(KeyAuthTest, BearerCredentialIdentityHeaderCarriesLogicalValue) {
+  // BEARER 来源：请求携带 "Authorization: Bearer <key>"，注册值为逻辑凭证
+  // <key>；提取时剥掉传输前缀后匹配，X-Mse-Credential 身份头输出逻辑值
   std::string configuration = R"(
 {
-  "consumers" : [ {"credentials" : ["Bearer token1"], "name" : "alice",
+  "consumers" : [ {"credentials" : ["token1"], "name" : "alice",
                    "keys" : ["Authorization"], "in_header" : true} ],
   "global_auth" : true
 })";
@@ -700,6 +706,142 @@ TEST_F(KeyAuthTest, BearerCredentialStripsPrefixInIdentityHeader) {
       .WillOnce([&buffer](WasmBufferType) { return &buffer; });
   EXPECT_TRUE(root_context_->configure(configuration.size()));
 
+  path_ = "/test";
+  headers_["Authorization"] = "Bearer token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "token1");
+}
+
+TEST_F(KeyAuthTest, BearerPrefixCaseInsensitiveScheme) {
+  // auth-scheme 大小写不敏感（RFC 7235）：bearer 同样剥离
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credentials" : ["token1"], "name" : "alice",
+                   "keys" : ["Authorization"], "in_header" : true} ],
+  "global_auth" : true
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/test";
+  headers_["Authorization"] = "bearer token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "token1");
+}
+
+TEST_F(KeyAuthTest, RawAuthorizationValueStillMatches) {
+  // 不带前缀的原始值同样命中（自定义 header 直传裸 key 的既有用法不受影响）
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credentials" : ["token1"], "name" : "alice",
+                   "keys" : ["Authorization"], "in_header" : true} ],
+  "global_auth" : true
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/test";
+  headers_["Authorization"] = "token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "token1");
+}
+
+TEST_F(KeyAuthTest, QueryCredentialLiteralMatchNoStrip) {
+  // query 来源不做 scheme 剥离：字面值 "Bearer token1" 不命中注册值 token1
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credentials" : ["token1"], "name" : "alice"} ],
+  "keys" : ["apikey"],
+  "in_header" : false,
+  "in_query" : true,
+  "global_auth" : true
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/test?apikey=Bearer%20token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, QueryCredentialLiteralBearerValueMatches) {
+  // query 来源按字面匹配：注册值本身含 "Bearer " 前缀时可原样命中，
+  // X-Mse-Credential 反映实际使用的凭证值
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credentials" : ["Bearer token1"], "name" : "alice"} ],
+  "keys" : ["apikey"],
+  "in_header" : false,
+  "in_query" : true,
+  "global_auth" : true
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/test?apikey=Bearer%20token1";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::Continue);
+  EXPECT_EQ(added_headers_["X-Mse-Consumer"], "alice");
+  EXPECT_EQ(added_headers_["X-Mse-Credential"], "Bearer token1");
+}
+
+TEST_F(KeyAuthTest, BearerPrefixWrongCredentialDenied) {
+  // 剥离后的逻辑值不匹配任何注册凭证 → 401 拒绝
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credentials" : ["token1"], "name" : "alice",
+                   "keys" : ["Authorization"], "in_header" : true} ],
+  "global_auth" : true
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  path_ = "/test";
+  headers_["Authorization"] = "Bearer other-token";
+  EXPECT_EQ(context_->onRequestHeaders(0, false),
+            FilterHeadersStatus::StopIteration);
+}
+
+TEST_F(KeyAuthTest, AllowCredentialsMatchesLogicalValue) {
+  // 路由级 allow_credentials 使用逻辑值授权：列表配 token1，
+  // 请求携带 "Bearer token1" 剥离后命中放行
+  std::string configuration = R"(
+{
+  "consumers" : [ {"credentials" : ["token1"], "name" : "alice",
+                   "keys" : ["Authorization"], "in_header" : true} ],
+  "global_auth" : true,
+  "_rules_" : [
+    {"_match_route_" : ["test"], "allow_credentials" : ["token1"]}
+  ]
+})";
+  BufferBase buffer;
+  buffer.set(configuration);
+  EXPECT_CALL(*mock_context_, getBuffer(WasmBufferType::PluginConfiguration))
+      .WillOnce([&buffer](WasmBufferType) { return &buffer; });
+  EXPECT_TRUE(root_context_->configure(configuration.size()));
+
+  route_name_ = "test";
   path_ = "/test";
   headers_["Authorization"] = "Bearer token1";
   EXPECT_EQ(context_->onRequestHeaders(0, false),
