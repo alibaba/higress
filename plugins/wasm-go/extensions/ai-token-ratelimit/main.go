@@ -224,6 +224,10 @@ func onHttpRequestHeaders(ctx wrapper.HttpContext, cfg config.AiTokenRateLimitCo
 }
 
 func onHttpResponseHeaders(ctx wrapper.HttpContext, _ config.AiTokenRateLimitConfig) types.Action {
+	if !ctx.HasResponseBody() {
+		ctx.DontReadResponseBody()
+		return types.ActionContinue
+	}
 	matched, ok := ctx.GetContext(LimitRedisContextKey).(LimitRedisContext)
 	if !ok || len(matched.rules) == 0 {
 		return types.ActionContinue

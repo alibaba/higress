@@ -26,6 +26,44 @@ import (
 	"github.com/tidwall/resp"
 )
 
+func TestResponseWithoutBodyDoesNotBuffer(t *testing.T) {
+	test.RunTest(t, func(t *testing.T) {
+		cases := []struct {
+			name, method, status, contentLength string
+		}{
+			{"no-content", "POST", "204", ""},
+			{"empty-json", "POST", "200", "0"},
+			{"head-with-content-length", "HEAD", "200", "89"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				host, status := test.NewTestHost(globalThresholdConfig)
+				defer host.Reset()
+				require.Equal(t, types.OnPluginStartStatusOK, status)
+				contextID := host.InitializeHttpContext()
+				defer host.CompleteHttpContext(contextID)
+				require.Equal(t, types.HeaderStopAllIterationAndWatermark, host.CallOnRequestHeaders(contextID, [][2]string{
+					{":authority", "example.com"}, {":path", "/v1/chat/completions"}, {":method", tc.method},
+				}, false))
+				calls := host.GetRedisCalloutAttributesFromContext(contextID)
+				require.Len(t, calls, 1)
+				host.CallOnRedisCallResponse(calls[0].CalloutID, 0, multiRuleResp([3]int{1000, 0, 60}))
+
+				headers := [][2]string{{":status", tc.status}, {"content-type", "application/json"}}
+				if tc.contentLength != "" {
+					headers = append(headers, [2]string{"content-length", tc.contentLength})
+				}
+				// Use the host API directly to deliver endOfStream in the header phase.
+				require.Equal(t, types.ActionContinue, host.CallOnResponseHeaders(contextID, headers, true))
+				limit, err := host.GetProperty([]string{"set_encoder_buffer_limit"})
+				require.Error(t, err, "a response without a body must not enable JSON buffering")
+				require.Empty(t, limit)
+				require.Empty(t, host.GetRedisCalloutAttributesFromContext(contextID))
+			})
+		}
+	})
+}
+
 func TestJSONResponseAccountsSplitUsageOnce(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		host, status := test.NewTestHost(globalThresholdConfig)
