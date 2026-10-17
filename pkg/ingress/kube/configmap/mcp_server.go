@@ -19,12 +19,13 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"sync/atomic"
 
 	networking "istio.io/api/networking/v1alpha3"
 	"istio.io/istio/pkg/config"
 	"istio.io/istio/pkg/config/schema/gvk"
+
+	_struct "github.com/golang/protobuf/ptypes/struct"
 
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/mcpserver"
 	"github.com/alibaba/higress/v2/pkg/ingress/kube/util"
@@ -124,7 +125,192 @@ func NewDefaultMcpServer() *McpServer {
 
 const (
 	higressMcpServerEnvoyFilterName = "higress-config-mcp-server"
+
+	golangFilterNamePrefix  = "golang-filter-"
+	golangFilterConfigType  = "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config"
+	golangFilterLibraryPath = "/var/lib/istio/envoy/golang-filter.so"
+	typedStructType         = "type.googleapis.com/xds.type.v3.TypedStruct"
+
+	mcpSessionPluginName = "mcp-session"
+	mcpServerPluginName  = "mcp-server"
 )
+
+// golangFilterRef is the HTTP_FILTER patch that makes Envoy fetch the golang
+// filter configuration over ECDS.
+type golangFilterRef struct {
+	Name            string                   `json:"name"`
+	ConfigDiscovery golangFilterDiscoveryRef `json:"config_discovery"`
+}
+
+type golangFilterDiscoveryRef struct {
+	ConfigSource golangFilterADSConfig `json:"config_source"`
+	TypeURLs     []string              `json:"type_urls"`
+}
+
+type golangFilterADSConfig struct {
+	ADS struct{} `json:"ads"`
+}
+
+// golangFilterExtensionConfig is the EXTENSION_CONFIG patch that carries the
+// golang filter configuration itself.
+type golangFilterExtensionConfig struct {
+	Name        string          `json:"name"`
+	TypedConfig json.RawMessage `json:"typed_config"`
+}
+
+type golangFilterConfig struct {
+	Type         string             `json:"@type"`
+	LibraryID    string             `json:"library_id"`
+	LibraryPath  string             `json:"library_path"`
+	PluginName   string             `json:"plugin_name"`
+	PluginConfig golangPluginConfig `json:"plugin_config"`
+}
+
+type golangPluginConfig struct {
+	Type  string      `json:"@type"`
+	Value interface{} `json:"value"`
+}
+
+// mcpSessionMatchRule is the wire form of a match_list entry. Every field is
+// always emitted, matching what mcp-session's ParseMatchList expects.
+type mcpSessionMatchRule struct {
+	MatchRuleDomain   string `json:"match_rule_domain"`
+	MatchRulePath     string `json:"match_rule_path"`
+	MatchRuleType     string `json:"match_rule_type"`
+	UpstreamType      string `json:"upstream_type"`
+	EnablePathRewrite bool   `json:"enable_path_rewrite"`
+	PathRewritePrefix string `json:"path_rewrite_prefix"`
+}
+
+type mcpSessionRedisConfig struct {
+	Address  string `json:"address"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	DB       int    `json:"db"`
+}
+
+type mcpSessionRateLimitConfig struct {
+	Limit     int64    `json:"limit"`
+	Window    int64    `json:"window"`
+	WhiteList []string `json:"white_list"`
+}
+
+type mcpSessionPluginValue struct {
+	Redis                 *mcpSessionRedisConfig     `json:"redis"`
+	RateLimit             *mcpSessionRateLimitConfig `json:"rate_limit"`
+	SSEPathSuffix         string                     `json:"sse_path_suffix"`
+	MatchList             []mcpSessionMatchRule      `json:"match_list"`
+	EnableUserLevelServer bool                       `json:"enable_user_level_server"`
+}
+
+// mcpServerEntry is the wire form of a servers entry. domain_list and config
+// are omitted when empty, matching the previously emitted shape.
+type mcpServerEntry struct {
+	Name       string                 `json:"name"`
+	Path       string                 `json:"path"`
+	Type       string                 `json:"type"`
+	DomainList []string               `json:"domain_list,omitempty"`
+	Config     map[string]interface{} `json:"config,omitempty"`
+}
+
+type mcpServerPluginValue struct {
+	Servers []mcpServerEntry `json:"servers"`
+}
+
+func newGolangFilterConfig(pluginName string, value interface{}) golangFilterConfig {
+	return golangFilterConfig{
+		Type:        golangFilterConfigType,
+		LibraryID:   pluginName,
+		LibraryPath: golangFilterLibraryPath,
+		PluginName:  pluginName,
+		PluginConfig: golangPluginConfig{
+			Type:  typedStructType,
+			Value: value,
+		},
+	}
+}
+
+func newMcpSessionMatchRule(rule *MatchRule) mcpSessionMatchRule {
+	return mcpSessionMatchRule{
+		MatchRuleDomain:   rule.MatchRuleDomain,
+		MatchRulePath:     rule.MatchRulePath,
+		MatchRuleType:     rule.MatchRuleType,
+		UpstreamType:      rule.UpstreamType,
+		EnablePathRewrite: rule.EnablePathRewrite,
+		PathRewritePrefix: rule.PathRewritePrefix,
+	}
+}
+
+// buildGolangFilterPatches returns the HTTP_FILTER patch that references the
+// ECDS-delivered config and the EXTENSION_CONFIG patch carrying it.
+func buildGolangFilterPatches(pluginName string, typedConfig json.RawMessage) (*_struct.Struct, *_struct.Struct, error) {
+	filterRef, err := json.Marshal(golangFilterRef{
+		Name: golangFilterNamePrefix + pluginName,
+		ConfigDiscovery: golangFilterDiscoveryRef{
+			TypeURLs: []string{golangFilterConfigType},
+		},
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal %s http filter reference: %v", pluginName, err)
+	}
+	filterRefValue, err := util.BuildPatchStruct(string(filterRef))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build %s http filter patch: %v", pluginName, err)
+	}
+
+	extensionConfig, err := json.Marshal(golangFilterExtensionConfig{
+		Name:        golangFilterNamePrefix + pluginName,
+		TypedConfig: typedConfig,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal %s extension config: %v", pluginName, err)
+	}
+	extensionConfigValue, err := util.BuildPatchStruct(string(extensionConfig))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to build %s extension config patch: %v", pluginName, err)
+	}
+
+	return filterRefValue, extensionConfigValue, nil
+}
+
+var (
+	validMatchRuleTypes = map[string]bool{
+		"exact":    true,
+		"prefix":   true,
+		"suffix":   true,
+		"contains": true,
+		"regex":    true,
+	}
+	validUpstreamTypes = map[string]bool{
+		"rest":       true,
+		"sse":        true,
+		"streamable": true,
+	}
+)
+
+// validMatchRule validates a single match rule. It is applied to ConfigMap
+// MatchList entries and to rules derived from Ingress annotations so that both
+// sources are held to the same constraints before reaching the filter config.
+func validMatchRule(rule *MatchRule) error {
+	if rule == nil {
+		return errors.New("match rule cannot be nil")
+	}
+	if rule.MatchRuleType == "" {
+		return errors.New("match_rule_type cannot be empty, must be one of: exact, prefix, suffix, contains, regex")
+	}
+	if !validMatchRuleTypes[rule.MatchRuleType] {
+		return fmt.Errorf("invalid match_rule_type: %s, must be one of: exact, prefix, suffix, contains, regex", rule.MatchRuleType)
+	}
+	if rule.UpstreamType != "" && !validUpstreamTypes[rule.UpstreamType] {
+		return fmt.Errorf("invalid upstream_type: %s, must be one of: rest, sse, streamable", rule.UpstreamType)
+	}
+	if rule.EnablePathRewrite && rule.UpstreamType != "sse" {
+		return errors.New("path rewrite is only supported for SSE upstream type")
+	}
+	// An empty domain is allowed and matches any host, so only the character
+	// constraints are enforced here.
+	return mcpserver.ValidateRuleContent([]string{rule.MatchRuleDomain}, rule.MatchRulePath, rule.PathRewritePrefix)
+}
 
 func validMcpServer(m *McpServer) error {
 	if m == nil {
@@ -145,33 +331,9 @@ func validMcpServer(m *McpServer) error {
 	}
 
 	// Validate match rule types
-	if m.MatchList != nil {
-		validMatchRuleTypes := map[string]bool{
-			"exact":    true,
-			"prefix":   true,
-			"suffix":   true,
-			"contains": true,
-			"regex":    true,
-		}
-		validUpstreamTypes := map[string]bool{
-			"rest":       true,
-			"sse":        true,
-			"streamable": true,
-		}
-
-		for _, rule := range m.MatchList {
-			if rule.MatchRuleType == "" {
-				return errors.New("match_rule_type cannot be empty, must be one of: exact, prefix, suffix, contains, regex")
-			}
-			if !validMatchRuleTypes[rule.MatchRuleType] {
-				return fmt.Errorf("invalid match_rule_type: %s, must be one of: exact, prefix, suffix, contains, regex", rule.MatchRuleType)
-			}
-			if rule.UpstreamType != "" && !validUpstreamTypes[rule.UpstreamType] {
-				return fmt.Errorf("invalid upstream_type: %s, must be one of: rest, sse, streamable", rule.UpstreamType)
-			}
-			if rule.EnablePathRewrite && rule.UpstreamType != "sse" {
-				return errors.New("path rewrite is only supported for SSE upstream type")
-			}
+	for _, rule := range m.MatchList {
+		if err := validMatchRule(rule); err != nil {
+			return err
 		}
 	}
 
@@ -357,24 +519,15 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 	}
 
 	// mcp-session envoy filter with ECDS
-	mcpSessionStruct := m.constructMcpSessionStruct(mcpServer)
+	mcpSessionStruct, err := m.constructMcpSessionStruct(mcpServer)
+	if err != nil {
+		return nil, err
+	}
 	if mcpSessionStruct != "" {
-		// HTTP_FILTER configuration with config_discovery reference
-		sessionFilterRef := `{
-			"name": "golang-filter-mcp-session",
-			"config_discovery": {
-				"config_source": {
-					"ads": {}
-				},
-				"type_urls": ["type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config"]
-			}
-		}`
-
-		// EXTENSION_CONFIG configuration with actual filter config
-		sessionExtensionConfig := fmt.Sprintf(`{
-			"name": "golang-filter-mcp-session",
-			"typed_config": %s
-		}`, mcpSessionStruct)
+		sessionFilterRef, sessionExtensionConfig, err := buildGolangFilterPatches(mcpSessionPluginName, json.RawMessage(mcpSessionStruct))
+		if err != nil {
+			return nil, err
+		}
 
 		sessionConfig := &config.Config{
 			Meta: config.Meta{
@@ -403,14 +556,14 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 						},
 						Patch: &networking.EnvoyFilter_Patch{
 							Operation: networking.EnvoyFilter_Patch_INSERT_AFTER,
-							Value:     util.BuildPatchStruct(sessionFilterRef),
+							Value:     sessionFilterRef,
 						},
 					},
 					{
 						ApplyTo: networking.EnvoyFilter_EXTENSION_CONFIG,
 						Patch: &networking.EnvoyFilter_Patch{
 							Operation: networking.EnvoyFilter_Patch_ADD,
-							Value:     util.BuildPatchStruct(sessionExtensionConfig),
+							Value:     sessionExtensionConfig,
 						},
 					},
 				},
@@ -420,24 +573,15 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 	}
 
 	// mcp-server envoy filter with ECDS
-	mcpServerStruct := m.constructMcpServerStruct(mcpServer)
+	mcpServerStruct, err := m.constructMcpServerStruct(mcpServer)
+	if err != nil {
+		return nil, err
+	}
 	if mcpServerStruct != "" {
-		// HTTP_FILTER configuration with config_discovery reference
-		serverFilterRef := `{
-			"name": "golang-filter-mcp-server",
-			"config_discovery": {
-				"config_source": {
-					"ads": {}
-				},
-				"type_urls": ["type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config"]
-			}
-		}`
-
-		// EXTENSION_CONFIG configuration with actual filter config
-		serverExtensionConfig := fmt.Sprintf(`{
-			"name": "golang-filter-mcp-server",
-			"typed_config": %s
-		}`, mcpServerStruct)
+		serverFilterRef, serverExtensionConfig, err := buildGolangFilterPatches(mcpServerPluginName, json.RawMessage(mcpServerStruct))
+		if err != nil {
+			return nil, err
+		}
 
 		serverConfig := &config.Config{
 			Meta: config.Meta{
@@ -466,14 +610,14 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 						},
 						Patch: &networking.EnvoyFilter_Patch{
 							Operation: networking.EnvoyFilter_Patch_INSERT_BEFORE,
-							Value:     util.BuildPatchStruct(serverFilterRef),
+							Value:     serverFilterRef,
 						},
 					},
 					{
 						ApplyTo: networking.EnvoyFilter_EXTENSION_CONFIG,
 						Patch: &networking.EnvoyFilter_Patch{
 							Operation: networking.EnvoyFilter_Patch_ADD,
-							Value:     util.BuildPatchStruct(serverExtensionConfig),
+							Value:     serverExtensionConfig,
 						},
 					},
 				},
@@ -485,26 +629,36 @@ func (m *McpServerController) ConstructEnvoyFilters() ([]*config.Config, error) 
 	return configs, nil
 }
 
-func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
+func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) (string, error) {
 	// Build match_list configuration
-	var matchList []*MatchRule
-	matchList = append(matchList, mcp.MatchList...)
+	matchList := make([]mcpSessionMatchRule, 0, len(mcp.MatchList))
+	for _, rule := range mcp.MatchList {
+		matchList = append(matchList, newMcpSessionMatchRule(rule))
+	}
 	for provider := range m.mcpServerProviders {
 		servers := provider.GetMcpServers()
 		if len(servers) == 0 {
 			continue
 		}
 		for _, server := range servers {
+			// Provider rules are derived from Ingress annotations, so they go
+			// through the same content validation as ConfigMap MatchList entries.
+			// A rejected server is skipped rather than rendered into the filter
+			// config.
+			if err := mcpserver.ValidateRuleContent(server.Domains, server.PathMatchValue, server.PathRewritePrefix); err != nil {
+				IngressLog.Errorf("mcp server %s: skip invalid match rule: %v", server.Name, err)
+				continue
+			}
 			domains := server.Domains
 			if len(domains) == 0 {
 				// Preserve the existing rule generated for providers without domains.
 				domains = []string{""}
 			}
 			for _, domain := range domains {
-				matchList = append(matchList, &MatchRule{
+				matchList = append(matchList, mcpSessionMatchRule{
 					MatchRuleDomain:   domain,
-					MatchRuleType:     server.PathMatchType,
 					MatchRulePath:     server.PathMatchValue,
+					MatchRuleType:     server.PathMatchType,
 					UpstreamType:      server.UpstreamType,
 					EnablePathRewrite: server.EnablePathRewrite,
 					PathRewritePrefix: server.PathRewritePrefix,
@@ -512,126 +666,82 @@ func (m *McpServerController) constructMcpSessionStruct(mcp *McpServer) string {
 			}
 		}
 	}
-	matchListConfig := "[]"
-	if len(matchList) > 0 {
-		matchConfigs := make([]string, 0, len(matchList))
-		for _, rule := range matchList {
-			matchConfigs = append(matchConfigs, fmt.Sprintf(`{
-				"match_rule_domain": "%s",
-				"match_rule_path": "%s",
-				"match_rule_type": "%s",
-				"upstream_type": "%s",
-				"enable_path_rewrite": %t,
-				"path_rewrite_prefix": "%s"
-			}`, rule.MatchRuleDomain, rule.MatchRulePath, rule.MatchRuleType, rule.UpstreamType, rule.EnablePathRewrite, rule.PathRewritePrefix))
-		}
-		matchListConfig = fmt.Sprintf("[%s]", strings.Join(matchConfigs, ","))
+
+	value := mcpSessionPluginValue{
+		SSEPathSuffix:         mcp.SSEPathSuffix,
+		MatchList:             matchList,
+		EnableUserLevelServer: mcp.EnableUserLevelServer,
 	}
 
 	// Build redis configuration
-	redisConfig := "null"
 	if mcp.Redis != nil {
-		passwordValue := mcp.Redis.Password
-		if mcp.Redis.PasswordSecret != nil && mcp.Redis.PasswordSecret.Name != "" && mcp.Redis.PasswordSecret.Key != "" {
-			ns := mcp.Redis.PasswordSecret.Namespace
-			if ns == "" {
-				ns = m.Namespace
-			}
-			if ns != "" {
-				passwordValue = fmt.Sprintf("${secret.%s/%s.%s}", ns, mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
-			} else {
-				passwordValue = fmt.Sprintf("${secret.%s.%s}", mcp.Redis.PasswordSecret.Name, mcp.Redis.PasswordSecret.Key)
-			}
+		value.Redis = &mcpSessionRedisConfig{
+			Address:  mcp.Redis.Address,
+			Username: mcp.Redis.Username,
+			Password: m.redisPasswordValue(mcp.Redis),
+			DB:       mcp.Redis.DB,
 		}
-		redisConfig = fmt.Sprintf(`{
-							"address": "%s",
-							"username": "%s",
-							"password": "%s",
-							"db": %d
-						}`, mcp.Redis.Address, mcp.Redis.Username, passwordValue, mcp.Redis.DB)
 	}
 
 	// Build rate limit configuration
-	rateLimitConfig := "null"
 	if mcp.Ratelimit != nil {
-		whiteList := "[]"
-		if len(mcp.Ratelimit.WhiteList) > 0 {
-			whiteList = fmt.Sprintf(`["%s"]`, strings.Join(mcp.Ratelimit.WhiteList, `","`))
+		whiteList := mcp.Ratelimit.WhiteList
+		if whiteList == nil {
+			whiteList = []string{}
 		}
-		rateLimitConfig = fmt.Sprintf(`{
-							"limit": %d,
-							"window": %d,
-							"white_list": %s
-						}`, mcp.Ratelimit.Limit, mcp.Ratelimit.Window, whiteList)
+		value.RateLimit = &mcpSessionRateLimitConfig{
+			Limit:     mcp.Ratelimit.Limit,
+			Window:    mcp.Ratelimit.Window,
+			WhiteList: whiteList,
+		}
 	}
 
 	// Build complete configuration structure for EXTENSION_CONFIG
-	return fmt.Sprintf(`{
-		"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
-		"library_id": "mcp-session",
-		"library_path": "/var/lib/istio/envoy/golang-filter.so",
-		"plugin_name": "mcp-session",
-		"plugin_config": {
-			"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-			"value": {
-				"redis": %s,
-				"rate_limit": %s,
-				"sse_path_suffix": "%s",
-				"match_list": %s,
-				"enable_user_level_server": %t
-			}
-		}
-	}`,
-		redisConfig,
-		rateLimitConfig,
-		mcp.SSEPathSuffix,
-		matchListConfig,
-		mcp.EnableUserLevelServer)
+	return marshalGolangFilterConfig(mcpSessionPluginName, value)
 }
 
-func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) string {
+// redisPasswordValue resolves the redis password, preferring an indirection to
+// the referenced Secret over the inline password.
+func (m *McpServerController) redisPasswordValue(redis *RedisConfig) string {
+	if redis.PasswordSecret == nil || redis.PasswordSecret.Name == "" || redis.PasswordSecret.Key == "" {
+		return redis.Password
+	}
+	namespace := redis.PasswordSecret.Namespace
+	if namespace == "" {
+		namespace = m.Namespace
+	}
+	if namespace == "" {
+		return fmt.Sprintf("${secret.%s.%s}", redis.PasswordSecret.Name, redis.PasswordSecret.Key)
+	}
+	return fmt.Sprintf("${secret.%s/%s.%s}", namespace, redis.PasswordSecret.Name, redis.PasswordSecret.Key)
+}
+
+func (m *McpServerController) constructMcpServerStruct(mcp *McpServer) (string, error) {
 	// if no servers, return empty string
 	if mcp == nil || len(mcp.Servers) == 0 {
-		return ""
+		return "", nil
 	}
 
 	// Build servers configuration
-	servers := "[]"
-	if len(mcp.Servers) > 0 {
-		serverConfigs := make([]string, len(mcp.Servers))
-		for i, server := range mcp.Servers {
-			serverConfig := fmt.Sprintf(`{
-				"name": "%s",
-				"path": "%s",
-				"type": "%s"`,
-				server.Name, server.Path, server.Type)
-			if len(server.DomainList) > 0 {
-				domainList := fmt.Sprintf(`["%s"]`, strings.Join(server.DomainList, `","`))
-				serverConfig += fmt.Sprintf(`,
-				"domain_list": %s`, domainList)
-			}
-			if len(server.Config) > 0 {
-				config, _ := json.Marshal(server.Config)
-				serverConfig += fmt.Sprintf(`,
-				"config": %s`, string(config))
-			}
-			serverConfig += "}"
-			serverConfigs[i] = serverConfig
-		}
-		servers = fmt.Sprintf("[%s]", strings.Join(serverConfigs, ","))
+	servers := make([]mcpServerEntry, 0, len(mcp.Servers))
+	for _, server := range mcp.Servers {
+		servers = append(servers, mcpServerEntry{
+			Name:       server.Name,
+			Path:       server.Path,
+			Type:       server.Type,
+			DomainList: server.DomainList,
+			Config:     server.Config,
+		})
 	}
 
 	// Build complete configuration structure for EXTENSION_CONFIG
-	return fmt.Sprintf(`{
-		"@type": "type.googleapis.com/envoy.extensions.filters.http.golang.v3alpha.Config",
-		"library_id": "mcp-server",
-		"library_path": "/var/lib/istio/envoy/golang-filter.so",
-		"plugin_name": "mcp-server",
-		"plugin_config": {
-			"@type": "type.googleapis.com/xds.type.v3.TypedStruct",
-			"value": {
-				"servers": %s
-			}
-		}
-	}`, servers)
+	return marshalGolangFilterConfig(mcpServerPluginName, mcpServerPluginValue{Servers: servers})
+}
+
+func marshalGolangFilterConfig(pluginName string, value interface{}) (string, error) {
+	data, err := json.Marshal(newGolangFilterConfig(pluginName, value))
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal %s filter config: %v", pluginName, err)
+	}
+	return string(data), nil
 }
