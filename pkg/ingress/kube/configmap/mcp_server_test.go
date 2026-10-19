@@ -843,7 +843,8 @@ func TestMcpServerController_constructMcpSessionStruct(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewMcpServerController("test-namespace")
-			got := m.constructMcpSessionStruct(tt.mcp)
+			got, err := m.constructMcpSessionStruct(tt.mcp)
+			require.NoError(t, err)
 			// Normalize JSON strings for comparison
 			var gotJSON, wantJSON interface{}
 			json.Unmarshal([]byte(got), &gotJSON)
@@ -915,7 +916,9 @@ func TestMcpServerController_constructMcpSessionStructProviderDomains(t *testing
 					} `json:"value"`
 				} `json:"plugin_config"`
 			}
-			require.NoError(t, json.Unmarshal([]byte(controller.constructMcpSessionStruct(mcp)), &config))
+			rendered, err := controller.constructMcpSessionStruct(mcp)
+			require.NoError(t, err)
+			require.NoError(t, json.Unmarshal([]byte(rendered), &config))
 
 			wantRules := []*MatchRule{manualRule}
 			for _, domain := range tt.wantDomains {
@@ -985,7 +988,8 @@ func TestMcpServerController_constructMcpServerStruct(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := NewMcpServerController("test-namespace")
-			got := m.constructMcpServerStruct(tt.mcp)
+			got, err := m.constructMcpServerStruct(tt.mcp)
+			require.NoError(t, err)
 			// Normalize JSON strings for comparison
 			var gotJSON, wantJSON interface{}
 			json.Unmarshal([]byte(got), &gotJSON)

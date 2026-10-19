@@ -1,6 +1,6 @@
 <a name="readme-top"></a>
 <h1 align="center">
-    <img src="https://img.alicdn.com/imgextra/i2/O1CN01NwxLDd20nxfGBjxmZ_!!6000000006895-2-tps-960-290.png" alt="Higress" width="240" height="72.5">
+    <img src="https://github.com/user-attachments/assets/14dbde2b-e1f3-414b-b694-aa81952eea00" alt="Higress" width="240" height="72.5">
   <br>
   AI Gateway
 </h1>
@@ -32,7 +32,7 @@
 
 ## What is Higress?
 
-Higress is a cloud-native API gateway based on Istio and Envoy, which can be extended with Wasm plugins written in Go/Rust/JS. It provides dozens of ready-to-use general-purpose plugins and an out-of-the-box console (try the [demo here](http://demo.higress.io/)).
+Higress is a cloud-native API gateway based on Istio and Envoy, which can be extended with Wasm plugins written in Go/Rust/JS. It provides dozens of ready-to-use general-purpose plugins and an out-of-the-box console (try the [demo here](https://demo.higress.io/)).
 
 ### Core Use Cases
 
