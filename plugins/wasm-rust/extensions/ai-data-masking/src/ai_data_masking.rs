@@ -790,6 +790,18 @@ impl HttpContext for AiDataMasking {
         _end_of_stream: bool,
     ) -> HeaderAction {
         self.set_http_response_header("Content-Length", None);
+        // The first body callback may contain only part of the data: prefix.
+        if self.is_openai
+            && self
+                .get_http_response_header("content-type")
+                .is_some_and(|value| {
+                    value.split(';').next().is_some_and(|media_type| {
+                        media_type.trim().eq_ignore_ascii_case("text/event-stream")
+                    })
+                })
+        {
+            self.is_openai_stream = Some(true);
+        }
         HeaderAction::Continue
     }
 
@@ -804,28 +816,33 @@ impl HttpContext for AiDataMasking {
                 }
                 self.msg_window
                     .push(&body, self.is_openai_stream.unwrap_or_default());
-                let mut deny = false;
-                let log = Log::new(PLUGIN_NAME.to_string());
-                let mask_restore = self.mask_restore.as_ref();
-                for message in self.msg_window.messages_iter_mut() {
-                    if let Ok(mut msg) = String::from_utf8(message.clone()) {
-                        if let Some(config) = &self.config {
-                            if config.check_message(&msg, &log) {
-                                deny = true;
-                                break;
-                            }
-                        }
-                        if let Some(mask_restore) = mask_restore {
-                            msg = mask_restore.restore(&msg);
-                        }
-                        message.clear();
-                        message.extend_from_slice(msg.as_bytes());
+            }
+        }
+        if end_of_stream {
+            // Parse the final event before checking and restoring buffered text.
+            self.msg_window
+                .complete(self.is_openai_stream.unwrap_or_default());
+        }
+        let mut deny = false;
+        let log = Log::new(PLUGIN_NAME.to_string());
+        let mask_restore = self.mask_restore.as_ref();
+        for message in self.msg_window.messages_iter_mut() {
+            if let Ok(mut msg) = String::from_utf8(message.clone()) {
+                if let Some(config) = &self.config {
+                    if config.check_message(&msg, &log) {
+                        deny = true;
+                        break;
                     }
                 }
-                if deny {
-                    return self.deny(true);
+                if let Some(mask_restore) = mask_restore {
+                    msg = mask_restore.restore(&msg);
                 }
+                message.clear();
+                message.extend_from_slice(msg.as_bytes());
             }
+        }
+        if deny {
+            return self.deny(true);
         }
         let new_body = if end_of_stream {
             self.msg_window.finish(self.is_openai_stream.unwrap())
