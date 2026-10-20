@@ -245,6 +245,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 			return
 		}
 		fillHistoryCnt := getIntQueryParameter("fill_history_cnt", path, config.FillHistoryCnt) * 2
+	if fillHistoryCnt < 0 {
+		// Same guard as above: fillHistory slices with this count.
+		fillHistoryCnt = 0
+	}
 		currJson := bodyJson.Get("messages").String()
 		var currMessage []ChatHistory
 		err = json.Unmarshal([]byte(currJson), &currMessage)
