@@ -165,9 +165,9 @@ impl MsgWindow {
         self.queued_events.push(QueuedEvent::Raw(event));
     }
 
-    fn update_event(&mut self, event: Vec<u8>) {
+    fn update_event(&mut self, event: Vec<u8>) -> bool {
         if event.is_empty() {
-            return;
+            return false;
         }
         if event.strip_prefix(b"data:").is_some_and(|data| {
             data.iter()
@@ -180,7 +180,7 @@ impl MsgWindow {
                 self.queue_raw(b"data: [DONE]".to_vec());
                 self.done_received = true;
             }
-            return;
+            return false;
         }
         let Ok(res) = event
             .strip_prefix(b"data:")
@@ -189,12 +189,12 @@ impl MsgWindow {
         else {
             self.queue_text();
             self.queue_raw(event);
-            return;
+            return false;
         };
         let Some(choices) = res[CHOICES_PATH].as_array().filter(|a| !a.is_empty()) else {
             self.queue_text();
             self.queue_raw(event);
-            return;
+            return false;
         };
         // Tool-only and terminal events do not need text rewriting.
         if choices.iter().all(|choice| {
@@ -206,7 +206,7 @@ impl MsgWindow {
         }) {
             self.queue_text();
             self.queue_raw(event);
-            return;
+            return false;
         }
 
         self.last_value = res.clone();
@@ -284,6 +284,7 @@ impl MsgWindow {
             control_event[CHOICES_PATH] = Value::Array(controls);
             self.queue_raw(format!("data: {}", control_event).into_bytes());
         }
+        true
     }
 
     fn write_values(output: &mut Vec<u8>, envelope: &Value, values: Vec<Value>) {
@@ -355,12 +356,14 @@ impl MsgWindow {
         self.queue_text();
         self.drain_queued()
     }
-    pub(crate) fn complete(&mut self, is_openai: bool) {
+    // Return whether the trailing event added text that needs checking.
+    pub(crate) fn complete(&mut self, is_openai: bool) -> bool {
         if is_openai {
             if let Some(event) = self.stream_parser.flush() {
-                self.update_event(event);
+                return self.update_event(event);
             }
         }
+        false
     }
     pub(crate) fn messages_iter_mut(&mut self) -> impl Iterator<Item = &mut Vec<u8>> {
         self.base_message_window
@@ -656,7 +659,8 @@ mod tests {
         let input = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"MASKED\"}}]}";
         let mut window = MsgWindow::default();
         window.push(input.as_bytes(), true);
-        window.complete(true);
+        assert!(window.complete(true));
+        assert!(!window.complete(true));
         for message in window.messages_iter_mut() {
             *message = String::from_utf8(message.clone())
                 .unwrap()

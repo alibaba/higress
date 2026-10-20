@@ -809,6 +809,7 @@ impl HttpContext for AiDataMasking {
         if !self.stream {
             return DataAction::Continue;
         }
+        let mut check_messages = false;
         if body_size > 0 {
             if let Some(body) = self.get_http_response_body(0, body_size) {
                 if self.is_openai && self.is_openai_stream.is_none() {
@@ -816,33 +817,37 @@ impl HttpContext for AiDataMasking {
                 }
                 self.msg_window
                     .push(&body, self.is_openai_stream.unwrap_or_default());
+                check_messages = true;
             }
         }
         if end_of_stream {
             // Parse the final event before checking and restoring buffered text.
-            self.msg_window
+            check_messages |= self
+                .msg_window
                 .complete(self.is_openai_stream.unwrap_or_default());
         }
-        let mut deny = false;
-        let log = Log::new(PLUGIN_NAME.to_string());
-        let mask_restore = self.mask_restore.as_ref();
-        for message in self.msg_window.messages_iter_mut() {
-            if let Ok(mut msg) = String::from_utf8(message.clone()) {
-                if let Some(config) = &self.config {
-                    if config.check_message(&msg, &log) {
-                        deny = true;
-                        break;
+        if check_messages {
+            let mut deny = false;
+            let log = Log::new(PLUGIN_NAME.to_string());
+            let mask_restore = self.mask_restore.as_ref();
+            for message in self.msg_window.messages_iter_mut() {
+                if let Ok(mut msg) = String::from_utf8(message.clone()) {
+                    if let Some(config) = &self.config {
+                        if config.check_message(&msg, &log) {
+                            deny = true;
+                            break;
+                        }
                     }
+                    if let Some(mask_restore) = mask_restore {
+                        msg = mask_restore.restore(&msg);
+                    }
+                    message.clear();
+                    message.extend_from_slice(msg.as_bytes());
                 }
-                if let Some(mask_restore) = mask_restore {
-                    msg = mask_restore.restore(&msg);
-                }
-                message.clear();
-                message.extend_from_slice(msg.as_bytes());
             }
-        }
-        if deny {
-            return self.deny(true);
+            if deny {
+                return self.deny(true);
+            }
         }
         let new_body = if end_of_stream {
             self.msg_window.finish(self.is_openai_stream.unwrap())
