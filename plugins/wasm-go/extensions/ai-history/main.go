@@ -320,6 +320,13 @@ func getIntQueryParameter(name string, path string, defaultValue int) int {
 	if err != nil {
 		return defaultValue
 	}
+	if num < 0 {
+		// Implements the design in #4897: a negative count is invalid input and
+		// follows the same fallback as an unparsable value, so it can never reach
+		// the slice bounds in the request and Redis callback paths (#4336).
+		// Omitted, malformed, zero and positive values keep their behaviour.
+		return defaultValue
+	}
 	return num
 }
 
