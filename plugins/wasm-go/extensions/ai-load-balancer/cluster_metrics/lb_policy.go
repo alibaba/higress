@@ -138,6 +138,13 @@ func NewClusterEndpointLoadBalancer(json gjson.Result) (ClusterEndpointLoadBalan
 	if lb.EWMABeta < 0 || lb.EWMABeta > 1 {
 		return lb, fmt.Errorf("ewma_beta must be in range [0, 1]")
 	}
+	// mode is required (see the README): an unknown or omitted value used to fall
+	// through the request-path switch and route to the random preselect.
+	switch lb.Mode {
+	case "LeastBusy", "LeastFirstTokenLatency", "LeastTotalLatency", ModeAdaptiveScore:
+	default:
+		return lb, fmt.Errorf("mode must be one of [LeastBusy, LeastTotalLatency, LeastFirstTokenLatency, AdaptiveScore], got %q", lb.Mode)
+	}
 	lb.P2CChoices = int(json.Get("p2c_choices").Int())
 	if lb.P2CChoices <= 0 {
 		lb.P2CChoices = DefaultP2CChoices
@@ -581,6 +588,11 @@ func (lb ClusterEndpointLoadBalancer) HandleHttpRequestHeaders(ctx wrapper.HttpC
 			debugInfo += fmt.Sprintf("[service: %s] {adaptive score: %.2f, ongoing request: %d, ewma ttft: %.2f, ewma latency: %.2f, errors: %d}, ",
 				svc, lb.adaptiveScore(svc, nowUnixMs), lb.ServiceRequestOngoing[svc], metrics.EWMATTFT, metrics.EWMATotalRT, metrics.ErrorCount)
 		}
+	default:
+		// Do not forward to the random preselect: leaving the cluster header alone
+		// keeps Envoy's own load balancing in charge.
+		log.Errorf("unknown mode %q, keeping the default load balancer", lb.Mode)
+		return types.ActionContinue
 	}
 	debugInfo += fmt.Sprintf("final service: %s", candidate)
 	log.Debug(debugInfo)
