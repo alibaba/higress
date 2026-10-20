@@ -445,7 +445,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 	var hs map[string][]string
 	var qs map[string][]string
 
-	hs = ctx.GetContext("headers").(map[string][]string)
+	hs, _ = ctx.GetContext("headers").(map[string][]string)
 	if hs == nil {
 		log.Warn("failed to get request headers")
 		return types.ActionContinue
@@ -463,7 +463,7 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config TransformerConfig, body [
 		kvs:           hs,
 	}
 
-	qs = ctx.GetContext("querys").(map[string][]string)
+	qs, _ = ctx.GetContext("querys").(map[string][]string)
 	if qs == nil {
 		log.Warn("failed to get request querys")
 		return types.ActionContinue
@@ -633,7 +633,7 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config TransformerConfig, body 
 	mapSourceData := make(map[string]MapSourceData)
 	var hs map[string][]string
 
-	hs = ctx.GetContext("headers").(map[string][]string)
+	hs, _ = ctx.GetContext("headers").(map[string][]string)
 	if hs == nil {
 		log.Warn("failed to get response headers")
 		return types.ActionContinue
