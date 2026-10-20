@@ -563,6 +563,11 @@ func onHttpResponseBody(ctx wrapper.HttpContext, config PluginConfig, body []byt
 		log.Debugf("[onHttpResponseBody] body to json err: %s", err.Error())
 		return types.ActionContinue
 	}
+	if len(rawResponse.Choices) == 0 {
+		// The response body is the client's; it may carry no choice at all.
+		log.Warnf("response has no choices, nothing to do")
+		return types.ActionContinue
+	}
 	log.Infof("first content: %s", rawResponse.Choices[0].Message.Content)
 	// 如果gpt返回的内容不是空的
 	if rawResponse.Choices[0].Message.Content != "" {
