@@ -231,6 +231,10 @@ func onHttpRequestBody(ctx wrapper.HttpContext, config PluginConfig, body []byte
 		path := ctx.Path()
 		if isQueryHistory(path) {
 			cnt := getIntQueryParameter("cnt", path, len(chat)/2) * 2
+			if cnt < 0 {
+				// A negative cnt makes chat[len(chat)-cnt:] panic below.
+				cnt = 0
+			}
 			if cnt > len(chat) {
 				cnt = len(chat)
 			}
