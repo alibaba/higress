@@ -332,9 +332,15 @@ func initAPIs(gjson gjson.Result, c *PluginConfig) error {
 				allTool_param = append(allTool_param, param)
 			}
 		}
+		// OpenAPI documents are allowed to omit `servers`; the specification then
+		// defines the base URL as "/", so index the list only when it is present.
+		baseURL := "/"
+		if len(apiStruct.Servers) > 0 && apiStruct.Servers[0].URL != "" {
+			baseURL = apiStruct.Servers[0].URL
+		}
 		apiParam := APIsParam{
 			APIKey:           APIKey{In: apiKeyIn, Name: apiKeyName.String(), Value: apiKeyValue.String()},
-			URL:              apiStruct.Servers[0].URL,
+			URL:              baseURL,
 			MaxExecutionTime: maxExecutionTime,
 			ToolsParam:       allTool_param,
 		}
