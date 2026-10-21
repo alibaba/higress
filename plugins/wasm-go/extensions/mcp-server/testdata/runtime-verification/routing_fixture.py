@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-PROFILES = [(18080, "legacy", "http"), (18081, "modern", "http"), (18082, "auto", "http"), (18083, "legacy", "sse"), (18084, "auto-legacy", "http")]
+PROFILES = [(18080, "legacy", "http"), (18081, "modern", "http"), (18082, "auto", "http"), (18083, "legacy", "sse"), (18084, "auto-legacy", "http"), (18085, "log-modern", "http")]
 
 
 def typed(kind, **values):
@@ -16,6 +16,10 @@ def fixture():
         name = strategy + "-" + transport
         server = {"name": "routing", "type": "mcp-proxy", "transport": transport, "mcpServerURL": "http://backend:8080/target", "protocolStrategy": "auto" if strategy == "auto-legacy" else strategy}
         if strategy == "auto-legacy": server["mcpServerURL"] = "http://backend:8080/legacy"
+        if strategy == "log-modern":
+            server.update(protocolStrategy="modern", mcpServerURL="http://backend:8080/synthetic-url-marker?key=synthetic-query-marker",
+                          securitySchemes=[{"id": "key", "type": "apiKey", "in": "header", "name": "X-Upstream-Key", "defaultCredential": "synthetic-credential-marker"}],
+                          defaultUpstreamSecurity={"id": "key"})
         # Omit strategy for the oracle-compatible default legacy configuration.
         if strategy == "legacy": del server["protocolStrategy"]
         routes = [{"match": {"prefix": "/target"}, "route": {"cluster": "wrong"}}]
@@ -36,6 +40,10 @@ def fixture():
                        "configuration": {"@type": "type.googleapis.com/google.protobuf.StringValue", "value": json.dumps({"server": server})}})},
                       {"name": "envoy.filters.http.lua", "typed_config": typed("filters.http.lua.v3.Lua", clear_route_cache=False, inline_code='function envoy_on_request(h) h:headers():add("x-after", "present"); if h:headers():get("x-block") == "yes" then h:respond({[":status"]="403"}, "blocked by later filter") end end')},
                       {"name": "envoy.filters.http.router", "typed_config": typed("filters.http.router.v3.Router")}]}
+        if strategy == "log-modern":
+            # SafeLog governs SDK/Wasm payload logs, not a separately configured
+            # Envoy access log that can independently print the request URL.
+            config["access_log"] = []
         listeners.append({"name": name, "address": {"socket_address": {"address": "0.0.0.0", "port_value": port}}, "filter_chains": [{"filters": [{"name": "envoy.filters.network.http_connection_manager", "typed_config": typed("filters.network.http_connection_manager.v3.HttpConnectionManager", **config)}]}]})
     clusters = []
     for name, host in [("backend", "backend"), ("wrong", "wrong"), ("sse", "backend")]:

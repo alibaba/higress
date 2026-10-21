@@ -179,7 +179,6 @@ func (e *AutoExchange) probe(h *McpProtocolHandler) {
 	err := dispatchPreparedMCP(step.prepared.target, step.prepared.probeTimeout, step.prepared.headers(op), body, autoProbeBodyLimit, func(r autoHTTPResponse) {
 		defer e.replyCancelled(step.ctx)
 		if _, ok := e.take(autoProbing, autoProbed); !ok {
-			e.replyCancelled(step.ctx)
 			return
 		}
 		decision := classifyAutoProbe(r, id)
@@ -216,7 +215,6 @@ func (e *AutoExchange) initialize(h *McpProtocolHandler) {
 		defer e.replyCancelled(step.ctx)
 		current, ok := e.take(autoInitializing, autoInitialized)
 		if !ok {
-			e.replyCancelled(step.ctx)
 			return
 		}
 		if failure := operationalAutoFailure(r); failure != nil {
@@ -268,7 +266,6 @@ func (e *AutoExchange) notify(h *McpProtocolHandler) {
 	err := dispatchPreparedMCP(step.prepared.target, step.prepared.timeout, step.prepared.headers(op), body, 0, func(r autoHTTPResponse) {
 		defer e.replyCancelled(step.ctx)
 		if _, ok := e.take(autoNotifying, autoNotified); !ok {
-			e.replyCancelled(step.ctx)
 			return
 		}
 		if failure := initializedAutoFailure(r); failure != nil {

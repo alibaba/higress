@@ -21,6 +21,7 @@ metadata:
 data:
   backend.py: |
     import json
+    import time
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -43,11 +44,14 @@ data:
             elif method == "initialize":
                 result = {"protocolVersion":"2025-03-26", "capabilities":{"tools":{}}, "serverInfo":{"name":"fixture","version":"1"}}
             else:
-                valid = self.headers.get("cookie") == "synthetic=compat" and self.headers.get("x-tenant") == "synthetic-tenant" and self.headers.get("x-routing-policy") == "original-route"
+                time.sleep(request.get("params", {}).get("arguments", {}).get("delayMs", 0) / 1000)
+                valid = not self.headers.get_all("proxy-authorization") and self.headers.get("cookie") == "synthetic=compat" and self.headers.get("x-tenant") == "synthetic-tenant" and self.headers.get("x-routing-policy") == "original-route"
                 result = {"content":[{"type":"text","text":"headers-and-route-ok" if valid else "routing-regression"}],"isError":False}
                 if self.headers.get("mcp-protocol-version") == "2026-07-28": result["resultType"] = "complete"
             body = json.dumps({"jsonrpc":"2.0","id":request.get("id"),"result":result}).encode()
-            self.send_response(200); self.send_header("content-type", "application/json"); self.send_header("content-length", str(len(body))); self.end_headers(); self.wfile.write(body)
+            self.send_response(200); self.send_header("content-type", "application/json"); self.send_header("content-length", str(len(body))); self.end_headers()
+            try: self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError): pass
     ThreadingHTTPServer(("0.0.0.0",8080), Handler).serve_forever()
 ---
 apiVersion: apps/v1
@@ -112,7 +116,7 @@ metadata:
 spec:
   defaultConfigDisable: true
   matchRules:
-    - ingress: [higress-conformance-infra/mcp-routing-legacy]
+    - ingress: [higress-conformance-infra/mcp-routing-legacy, higress-conformance-infra/mcp-routing-legacy-timeout]
       configDisable: false
       config:
         server:
@@ -151,7 +155,7 @@ metadata:
 spec:
   defaultConfigDisable: true
   matchRules:
-    - ingress: [higress-conformance-infra/mcp-routing-modern]
+    - ingress: [higress-conformance-infra/mcp-routing-modern, higress-conformance-infra/mcp-routing-modern-timeout]
       configDisable: false
       config:
         server:
@@ -190,7 +194,7 @@ metadata:
 spec:
   defaultConfigDisable: true
   matchRules:
-    - ingress: [higress-conformance-infra/mcp-routing-auto]
+    - ingress: [higress-conformance-infra/mcp-routing-auto, higress-conformance-infra/mcp-routing-auto-timeout]
       configDisable: false
       config:
         server:
@@ -200,3 +204,69 @@ spec:
           protocolStrategy: auto
           mcpServerURL: http://mcp-routing-backend:8080/target
   url: file:///opt/plugins/wasm-go/extensions/mcp-server/plugin.wasm
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-routing-legacy-timeout
+  namespace: higress-conformance-infra
+  annotations:
+    higress.io/request-header-control-update: x-routing-policy original-route
+    higress.io/timeout: "1"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: mcp-routing-legacy.example.com
+      http:
+        paths:
+          - path: /timeout
+            pathType: Prefix
+            backend:
+              service:
+                name: mcp-routing-backend
+                port: {number: 8080}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-routing-modern-timeout
+  namespace: higress-conformance-infra
+  annotations:
+    higress.io/request-header-control-update: x-routing-policy original-route
+    higress.io/timeout: "1"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: mcp-routing-modern.example.com
+      http:
+        paths:
+          - path: /timeout
+            pathType: Prefix
+            backend:
+              service:
+                name: mcp-routing-backend
+                port: {number: 8080}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-routing-auto-timeout
+  namespace: higress-conformance-infra
+  annotations:
+    higress.io/request-header-control-update: x-routing-policy original-route
+    higress.io/timeout: "1"
+spec:
+  ingressClassName: higress
+  rules:
+    - host: mcp-routing-auto.example.com
+      http:
+        paths:
+          - path: /timeout
+            pathType: Prefix
+            backend:
+              service:
+                name: mcp-routing-backend
+                port: {number: 8080}

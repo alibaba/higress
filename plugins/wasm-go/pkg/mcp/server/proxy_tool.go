@@ -117,7 +117,7 @@ func reservedProxyHeader(name string) bool {
 		return true
 	}
 	switch name {
-	case "host", "content-length", "content-type", "accept", "accept-encoding", "transfer-encoding",
+	case "proxy-authorization", "host", "content-length", "content-type", "accept", "accept-encoding", "transfer-encoding",
 		"mcp-protocol-version", "mcp-method", "mcp-name", "mcp-session-id", "last-event-id", "x-envoy-allow-mcp-tools",
 		"x-envoy-original-method", "x-envoy-original-path", "x-envoy-original-host":
 		return true

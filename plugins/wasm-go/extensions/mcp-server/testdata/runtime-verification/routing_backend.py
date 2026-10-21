@@ -122,7 +122,7 @@ class Handler(BaseHTTPRequestHandler):
             if method == "tools/list":
                 result = {"tools": [{"name": "echo", "inputSchema": {"type": "object"}}, {"name": "hidden", "inputSchema": {"type": "object"}}]}
             else:
-                result = {"content": [{"type": "text", "text": "routing-ok"}], "isError": False}
+                result = {"content": [{"type": "text", "text": "synthetic-result-marker" if scenario == "safe-log" else "routing-ok"}], "isError": False}
             if self.headers.get("mcp-protocol-version") == "2026-07-28": result["resultType"] = "complete"
         response = {"jsonrpc": "2.0", "id": rpc_id, "result": result}
         query = parse_qs(urlsplit(self.path).query)
@@ -132,7 +132,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send(202); return
         if scenario == "sse-body" and method.startswith("tools/"):
             self.send(200, b"event: message\ndata: " + json.dumps(response).encode() + b"\n\n", {"content-type": "text/event-stream"}, True); return
-        self.send(200, response, {"mcp-session-id": "upstream-session"} if method == "initialize" else {}, scenario == "fragmented")
+        self.send(200, response, {"mcp-session-id": "upstream-session"} if method == "initialize" else {"x-result-token": "synthetic-response-header-marker"} if scenario == "safe-log" else {}, scenario == "fragmented")
 
 
 if __name__ == "__main__":

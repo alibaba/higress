@@ -6,11 +6,12 @@ import http.client
 import json
 import os
 import socket
+import sys
 import time
 from pathlib import Path
 
 OUT = Path("/evidence")
-VARIANT = os.environ["ROUTING_VARIANT"]
+VARIANT = os.environ.get("ROUTING_VARIANT", "candidate")
 COMPAT = VARIANT != "affected"
 RESULTS = []
 HTTP = []
@@ -31,6 +32,7 @@ def request(port, name, modern, method="tools/call", scenario="normal", extra=No
     key = name
     headers = {"content-type": "application/json", "accept": "application/json,text/event-stream", "baggage": key,
                "cookie": "synthetic=compat", "x-tenant": "synthetic-tenant", "authorization": "Bearer synthetic-removed",
+               "Proxy-Authorization": "synthetic-client-first", "pRoXy-aUtHoRiZaTiOn": "synthetic-client-second",
                "x-case-id": key, "x-hash-key": args.pop("hash_key", key)}
     params = {"name": "echo", "arguments": {"scenario": scenario, **args}} if method == "tools/call" else {}
     if modern:
@@ -73,6 +75,7 @@ def run():
                 h = {k.lower(): v for k, v in row["headers"]}
                 check(key + ":V3-headers:" + row["operation"], (h.get("cookie") == "synthetic=compat" and h.get("x-tenant") == "synthetic-tenant" and h.get("x-before") == "present") == COMPAT, h)
                 check(key + ":V3-auth-removed:" + row["operation"], "authorization" not in h)
+                check(key + ":V3-proxy-auth-boundary:" + row["operation"], ("proxy-authorization" not in h) == (VARIANT in ("affected", "candidate")), h)
                 if row["operation"] in ("initialize", "notifications/initialized", "server/discover"):
                     check(key + ":V3-control-no-params:" + row["operation"], "mcp-param-test" not in h and "x-after" not in h)
             if business:
@@ -89,11 +92,13 @@ def run():
         # their newer HTTP authorization mapping independently.
         rejected = "error" in response["json"] and not any(r["operation"] == "tools/call" for r in rows)
         check(key + ":V2-rejection", rejected == COMPAT, response)
-        if VARIANT == "candidate": check(key + ":V8-rejection-status", response["status"] == 403, response)
+        if VARIANT in ("candidate", "review-baseline"): check(key + ":V8-rejection-status", response["status"] == 403, response)
         for scenario, path, success in [("slow", "/entry/mcp", COMPAT), ("timeout", "/entry/timeout", not COMPAT), ("retry", "/entry/retry", COMPAT), ("retry", "/entry/mcp", False)]:
             key = profile + "-" + scenario + "-" + path.rsplit("/", 1)[-1]
             response = request(port, key, modern, scenario=scenario, path=path)
             check(key + ":V5-V6-result", ("result" in response["json"]) == success, response)
+            if scenario == "timeout":
+                check(key + ":V5-route-deadline", route_timeout_passes(response, VARIANT, profile), response)
             attempts = [r for r in ledger(key) if r["operation"] == "tools/call"]
             check(key + ":V6-attempts", len(attempts) == (2 if scenario == "retry" and path.endswith("retry") and COMPAT else 1), attempts)
         for scenario in (() if VARIANT == "oracle" else ("fragmented", "sse-body", "invalid", "status-401", "status-403", "status-429", "status-500")):
@@ -124,15 +129,41 @@ def run():
     rows = ledger("sse-compat")
     check("V9-sse-result", "result" in response["json"], response)
     check("V9-sse-sequence", [r["operation"] for r in rows] == ["sse/get", "initialize", "notifications/initialized", "tools/call"], rows)
-    check("V9-sse-headers", all((dict((k.lower(), v) for k, v in r["headers"]).get("cookie") == "synthetic=compat") == COMPAT for r in rows), rows)
+    check("V9-sse-headers", bool(rows) and all((dict((k.lower(), v) for k, v in r["headers"]).get("cookie") == "synthetic=compat") == COMPAT for r in rows), rows)
+
+    check("V9-sse-proxy-auth-boundary", bool(rows) and all((not any(k.lower() == "proxy-authorization" for k, _ in row["headers"])) == (VARIANT in ("affected", "candidate")) for row in rows), rows)
+
+
+def route_timeout_passes(response, variant, profile):
+    envelope, elapsed = response.get("json", {}), response.get("elapsed", 0)
+    if variant == "affected":
+        return "result" in envelope and 2.7 <= elapsed < 5
+    error = envelope.get("error", {})
+    expected_status = 504 if profile.startswith("auto-") else 200
+    expected_message = "upstream_timeout" if profile.startswith("auto-") else "backend tools/call failed"
+    return ("result" not in envelope and error.get("code") == -32603 and
+            expected_message in error.get("message", "") and response.get("status") == expected_status and
+            1.7 <= elapsed < 2.9)
+
+
+def log_probe(phase):
+    response = request(18085, "safe-log-" + phase, True, scenario="safe-log", value="synthetic-argument-marker",
+                       extra={"Cookie": "synthetic-cookie-marker"})
+    check("V10-log-probe-result", response["status"] == 200 and "synthetic-result-marker" in response["body"], response)
+    rows = ledger("safe-log-" + phase)
+    check("V10-log-probe-business", len(rows) == 1 and rows[0]["operation"] == "tools/call", rows)
 
 
 if __name__ == "__main__":
-    try: run()
+    phase = sys.argv[2] if len(sys.argv) == 3 and sys.argv[1] == "--log-only" else None
+    try:
+        if phase: log_probe(phase)
+        else: run()
     except Exception as error: check("runner-exception", False, repr(error))
     finally:
-        (OUT / "http.json").write_text(json.dumps(HTTP, indent=2) + "\n")
-        (OUT / "assertions.json").write_text(json.dumps(RESULTS, indent=2) + "\n")
+        if not RESULTS: check("runner-produced-no-assertions", False)
+        (OUT / ("http-" + phase + ".json" if phase else "http.json")).write_text(json.dumps(HTTP, indent=2) + "\n")
+        (OUT / ("assertions-" + phase + ".json" if phase else "assertions.json")).write_text(json.dumps(RESULTS, indent=2) + "\n")
     failed = [r for r in RESULTS if not r["pass"]]
     print(json.dumps({"variant": VARIANT, "assertions": len(RESULTS), "failed": [r["assertion"] for r in failed]}))
     raise SystemExit(bool(failed))
