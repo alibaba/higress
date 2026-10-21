@@ -51,19 +51,70 @@ const CHOICES_PATH: &str = "choices";
 
 type MessageLine = Vec<(MsgFlag, Vec<u8>)>;
 
+#[derive(Clone, Default)]
+struct FrameMetadata {
+    id: Option<Value>,
+    object: Option<Value>,
+    created: Option<Value>,
+    model: Option<Value>,
+    system_fingerprint: Option<Value>,
+}
+
+impl FrameMetadata {
+    fn from_value(value: &Value) -> Self {
+        Self {
+            id: value.get("id").cloned(),
+            object: value.get("object").cloned(),
+            created: value.get("created").cloned(),
+            model: value.get("model").cloned(),
+            system_fingerprint: value.get("system_fingerprint").cloned(),
+        }
+    }
+
+    fn frame(&self, choice: Value) -> Value {
+        let mut frame = serde_json::Map::new();
+        for (key, value) in [
+            ("id", &self.id),
+            ("object", &self.object),
+            ("created", &self.created),
+            ("model", &self.model),
+            ("system_fingerprint", &self.system_fingerprint),
+        ] {
+            if let Some(value) = value {
+                frame.insert(key.to_string(), value.clone());
+            }
+        }
+        frame.insert(CHOICES_PATH.to_string(), Value::Array(vec![choice]));
+        Value::Object(frame)
+    }
+}
+
 #[derive(Default)]
 struct MessageWindowOpenAi {
     message_window: MessageWindow,
     ret_messages: MessageLine,
     flag: MsgFlag,
-    last_value: Value,
+    index: i64,
+    metadata: FrameMetadata,
+    role: Option<Value>,
 }
 
 impl MessageWindowOpenAi {
-    fn update(&mut self, data: &[u8], flag: MsgFlag, value: &Value) {
-        self.last_value = value.clone();
+    fn update(
+        &mut self,
+        data: &[u8],
+        flag: MsgFlag,
+        index: i64,
+        metadata: &FrameMetadata,
+        role: Option<Value>,
+    ) {
         if data.is_empty() {
             return;
+        }
+        self.index = index;
+        self.metadata = metadata.clone();
+        if let Some(role) = role {
+            self.role = Some(role);
         }
         if self.flag == MsgFlag::None {
             self.flag = flag;
@@ -76,54 +127,56 @@ impl MessageWindowOpenAi {
         self.message_window.update(data);
     }
 
-    fn gen_value(&self, flag: &MsgFlag, msg: &[u8]) -> Value {
-        let mut ret = self.last_value.clone();
+    fn gen_value(&mut self, flag: MsgFlag, msg: &[u8]) -> Value {
+        let mut delta = serde_json::Map::new();
+        if let Some(role) = self.role.take() {
+            delta.insert("role".to_string(), role);
+        }
+        let text = Value::String(String::from_utf8_lossy(msg).to_string());
         match flag {
             MsgFlag::Content => {
-                ret["delta"]["content"] = Value::String(String::from_utf8_lossy(msg).to_string());
-                if let Some(m) = ret["delta"].as_object_mut() {
-                    m.remove("reasoning_content");
-                }
+                delta.insert("content".to_string(), text);
             }
             MsgFlag::ReasoningContent => {
-                ret["delta"]["reasoning_content"] =
-                    Value::String(String::from_utf8_lossy(msg).to_string());
-                ret["delta"]["content"] = Value::String(String::new());
+                delta.insert("reasoning_content".to_string(), text);
+                delta.insert("content".to_string(), Value::String(String::new()));
             }
-            _ => {}
+            MsgFlag::None => {}
         }
-        ret["finish_reason"] = Value::Null;
-        ret
+        self.metadata.frame(serde_json::json!({
+            "index": self.index,
+            "delta": delta,
+            "finish_reason": null,
+        }))
     }
 
     fn messages_to_value(&mut self) -> Vec<Value> {
         let mut ret = Vec::new();
         for (flag, msg) in core::mem::take(&mut self.ret_messages) {
-            ret.push(self.gen_value(&flag, &msg));
+            ret.push(self.gen_value(flag, &msg));
         }
         ret
     }
 
     fn pop(&mut self, char_window_size: usize, byte_window_size: usize) -> Vec<Value> {
         let mut ret = self.messages_to_value();
-
         let msg = self.message_window.pop(char_window_size, byte_window_size);
         if !msg.is_empty() {
-            ret.push(self.gen_value(&self.flag, &msg));
+            ret.push(self.gen_value(self.flag, &msg));
         }
-
         ret
     }
+
     fn finish(&mut self) -> Vec<Value> {
         let mut ret = self.messages_to_value();
         let msg = self.message_window.finish();
         let flag = core::mem::replace(&mut self.flag, MsgFlag::None);
         if !msg.is_empty() {
-            ret.push(self.gen_value(&flag, &msg));
+            ret.push(self.gen_value(flag, &msg));
         }
-
         ret
     }
+
     fn iter_mut(&mut self) -> impl Iterator<Item = &mut Vec<u8>> {
         self.ret_messages
             .iter_mut()
@@ -133,10 +186,7 @@ impl MessageWindowOpenAi {
 }
 
 enum QueuedEvent {
-    Text {
-        envelope: Value,
-        window: MessageWindowOpenAi,
-    },
+    Text(MessageWindowOpenAi),
     Raw(Vec<u8>),
 }
 
@@ -145,24 +195,37 @@ pub(crate) struct MsgWindow {
     stream_parser: EventStream,
     base_message_window: MessageWindow,
     message_windows: BTreeMap<i64, MessageWindowOpenAi>,
-    last_value: Value,
+    finish_reasons: BTreeMap<i64, Option<Value>>,
     queued_events: Vec<QueuedEvent>,
-    done_received: bool,
+    done_sent: bool,
+    error_received: bool,
 }
 
 impl MsgWindow {
-    fn queue_text(&mut self) {
+    fn queue_text(&mut self, index: i64) {
+        if let Some(window) = self.message_windows.remove(&index) {
+            self.queued_events.push(QueuedEvent::Text(window));
+        }
+    }
+
+    fn queue_all_text(&mut self) {
         for (_, window) in core::mem::take(&mut self.message_windows) {
-            self.queued_events.push(QueuedEvent::Text {
-                envelope: self.last_value.clone(),
-                window,
-            });
+            self.queued_events.push(QueuedEvent::Text(window));
         }
     }
 
     fn queue_raw(&mut self, mut event: Vec<u8>) {
         event.extend_from_slice(b"\n\n");
         self.queued_events.push(QueuedEvent::Raw(event));
+    }
+
+    fn has_protocol_data(choice: &Value) -> bool {
+        !choice["finish_reason"].is_null()
+            || choice["delta"].as_object().is_some_and(|delta| {
+                delta.iter().any(|(key, value)| {
+                    !["content", "reasoning_content"].contains(&key.as_str()) && !value.is_null()
+                })
+            })
     }
 
     fn update_event(&mut self, event: Vec<u8>) -> bool {
@@ -175,10 +238,10 @@ impl MsgWindow {
                 .filter(|b| !b.is_ascii_whitespace())
                 .eq(b"[DONE]".iter().copied())
         }) {
-            self.queue_text();
-            if !self.done_received {
+            self.queue_all_text();
+            if !self.done_sent {
                 self.queue_raw(b"data: [DONE]".to_vec());
-                self.done_received = true;
+                self.done_sent = true;
             }
             return false;
         }
@@ -187,51 +250,69 @@ impl MsgWindow {
             .ok_or(())
             .and_then(|data| serde_json::from_slice::<Value>(data).map_err(|_| ()))
         else {
-            self.queue_text();
+            self.queue_all_text();
             self.queue_raw(event);
             return false;
         };
+        self.error_received |= !res["error"].is_null();
         let Some(choices) = res[CHOICES_PATH].as_array().filter(|a| !a.is_empty()) else {
-            self.queue_text();
+            self.queue_all_text();
             self.queue_raw(event);
             return false;
         };
-        // Tool-only and terminal events do not need text rewriting.
-        if choices.iter().all(|choice| {
-            ["content", "reasoning_content"].iter().all(|field| {
+        for choice in choices {
+            let index = choice["index"].as_i64().unwrap_or_default();
+            let finish_reason = self.finish_reasons.entry(index).or_default();
+            if let Some(reason) = choice.get("finish_reason").filter(|value| !value.is_null()) {
+                *finish_reason = Some(reason.clone());
+            }
+        }
+        let has_text = |choice: &Value| {
+            ["content", "reasoning_content"].iter().any(|field| {
                 choice["delta"][field]
                     .as_str()
-                    .is_none_or(|text| text.is_empty())
+                    .is_some_and(|text| !text.is_empty())
             })
-        }) {
-            self.queue_text();
+        };
+        // A choice's protocol event must follow its own buffered text.
+        if choices.iter().all(|choice| !has_text(choice)) {
+            for choice in choices {
+                if Self::has_protocol_data(choice) {
+                    self.queue_text(choice["index"].as_i64().unwrap_or_default());
+                }
+            }
             self.queue_raw(event);
             return false;
         }
 
-        self.last_value = res.clone();
+        let metadata = FrameMetadata::from_value(&res);
+        let has_extra_fields = res.as_object().is_some_and(|object| {
+            object.keys().any(|key| {
+                ![
+                    "id",
+                    "object",
+                    "created",
+                    "model",
+                    "system_fingerprint",
+                    "usage",
+                    CHOICES_PATH,
+                ]
+                .contains(&key.as_str())
+            })
+        });
         let mut controls = Vec::new();
         for choice in choices {
-            let mut control = choice.clone();
-            let Some(delta) = choice["delta"].as_object() else {
-                controls.push(control);
-                continue;
-            };
-            let mut text_choice = choice.clone();
-            if let Some(object) = text_choice.as_object_mut() {
-                object.retain(|key, _| ["index", "delta", "finish_reason"].contains(&key.as_str()));
-            }
-            text_choice["delta"] = Value::Object(
-                delta
-                    .iter()
-                    .filter(|(key, _)| {
-                        ["role", "content", "reasoning_content"].contains(&key.as_str())
-                    })
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect(),
-            );
             let index = choice["index"].as_i64().unwrap_or_default();
-            let mut has_text = false;
+            if !has_text(choice) {
+                if Self::has_protocol_data(choice) {
+                    self.queue_text(index);
+                }
+                controls.push(choice.clone());
+                continue;
+            }
+            let delta = choice["delta"].as_object().unwrap();
+            let mut control = choice.clone();
+            let mut role = delta.get("role").cloned();
             for (field, flag) in [
                 ("reasoning_content", MsgFlag::ReasoningContent),
                 ("content", MsgFlag::Content),
@@ -241,11 +322,12 @@ impl MsgWindow {
                     .and_then(Value::as_str)
                     .filter(|s| !s.is_empty())
                 {
-                    has_text = true;
                     self.message_windows.entry(index).or_default().update(
                         text.as_bytes(),
                         flag,
-                        &text_choice,
+                        index,
+                        &metadata,
+                        role.take(),
                     );
                 }
                 if let Some(object) = control["delta"].as_object_mut() {
@@ -257,29 +339,30 @@ impl MsgWindow {
                     }
                 }
             }
-            if has_text {
-                if let Some(object) = control["delta"].as_object_mut() {
-                    object.remove("role");
-                }
+            if let Some(object) = control["delta"].as_object_mut() {
+                object.remove("role");
             }
             let has_control = control["delta"]
                 .as_object()
                 .is_some_and(|object| !object.is_empty())
                 || !control["finish_reason"].is_null()
                 || control.as_object().is_some_and(|object| {
-                    object.iter().any(|(key, value)| {
-                        !["index", "delta", "finish_reason"].contains(&key.as_str())
-                            && !value.is_null()
-                    })
+                    object
+                        .keys()
+                        .any(|key| !["index", "delta", "finish_reason"].contains(&key.as_str()))
                 });
-            if !has_text || has_control {
+            if has_control {
+                // Ancillary choice metadata must survive without breaking
+                // text matches that span several input frames.
+                if Self::has_protocol_data(&control) {
+                    self.queue_text(index);
+                }
                 controls.push(control);
             }
         }
-        // Flush earlier text before forwarding tool calls or terminal metadata.
-        // Keep those events out of the text matcher, including tool arguments.
-        if !controls.is_empty() || !res["usage"].is_null() {
-            self.queue_text();
+        // Unknown metadata and usage retain their input event rather than
+        // becoming a template for every rewritten text chunk.
+        if !controls.is_empty() || !res["usage"].is_null() || has_extra_fields {
             let mut control_event = res;
             control_event[CHOICES_PATH] = Value::Array(controls);
             self.queue_raw(format!("data: {}", control_event).into_bytes());
@@ -287,14 +370,9 @@ impl MsgWindow {
         true
     }
 
-    fn write_values(output: &mut Vec<u8>, envelope: &Value, values: Vec<Value>) {
+    fn write_values(output: &mut Vec<u8>, values: Vec<Value>) {
         for value in values {
-            let mut event = envelope.clone();
-            event[CHOICES_PATH] = Value::Array(vec![value]);
-            if let Some(object) = event.as_object_mut() {
-                object.remove("usage");
-            }
-            output.extend(format!("data: {}\n\n", event).as_bytes());
+            output.extend(format!("data: {}\n\n", value).as_bytes());
         }
     }
 
@@ -303,19 +381,14 @@ impl MsgWindow {
         for event in core::mem::take(&mut self.queued_events) {
             match event {
                 QueuedEvent::Raw(raw) => output.extend(raw),
-                QueuedEvent::Text {
-                    envelope,
-                    mut window,
-                } => {
-                    Self::write_values(&mut output, &envelope, window.finish());
+                QueuedEvent::Text(mut window) => {
+                    Self::write_values(&mut output, window.finish());
                 }
             }
         }
         output
     }
-    fn push_base(&mut self, data: &[u8]) {
-        self.base_message_window.update(data);
-    }
+
     pub(crate) fn push(&mut self, data: &[u8], is_openai: bool) {
         if is_openai {
             self.stream_parser.update(data.to_vec());
@@ -323,7 +396,7 @@ impl MsgWindow {
                 self.update_event(event);
             }
         } else {
-            self.push_base(data);
+            self.base_message_window.update(data);
         }
     }
 
@@ -339,23 +412,28 @@ impl MsgWindow {
                 .pop(char_window_size, byte_window_size);
         }
         let mut ret = self.drain_queued();
-        for mw in self.message_windows.values_mut() {
-            Self::write_values(
-                &mut ret,
-                &self.last_value,
-                mw.pop(char_window_size, byte_window_size),
-            );
+        for window in self.message_windows.values_mut() {
+            Self::write_values(&mut ret, window.pop(char_window_size, byte_window_size));
         }
         ret
     }
+
     pub(crate) fn finish(&mut self, is_openai: bool) -> Vec<u8> {
         if !is_openai {
             return self.base_message_window.finish();
         }
         self.complete(is_openai);
-        self.queue_text();
-        self.drain_queued()
+        self.queue_all_text();
+        let mut output = self.drain_queued();
+        let all_finished =
+            !self.finish_reasons.is_empty() && self.finish_reasons.values().all(Option::is_some);
+        if !self.done_sent && all_finished && !self.error_received {
+            output.extend_from_slice(b"data: [DONE]\n\n");
+            self.done_sent = true;
+        }
+        output
     }
+
     // Return whether the trailing event added text that needs checking.
     pub(crate) fn complete(&mut self, is_openai: bool) -> bool {
         if is_openai {
@@ -365,6 +443,7 @@ impl MsgWindow {
         }
         false
     }
+
     pub(crate) fn messages_iter_mut(&mut self) -> impl Iterator<Item = &mut Vec<u8>> {
         self.base_message_window
             .iter_mut()
@@ -372,7 +451,7 @@ impl MsgWindow {
                 self.queued_events
                     .iter_mut()
                     .filter_map(|event| match event {
-                        QueuedEvent::Text { window, .. } => Some(window),
+                        QueuedEvent::Text(window) => Some(window),
                         QueuedEvent::Raw(_) => None,
                     })
                     .flat_map(|window| window.iter_mut()),
@@ -380,7 +459,7 @@ impl MsgWindow {
             .chain(
                 self.message_windows
                     .values_mut()
-                    .flat_map(|mw| mw.iter_mut()),
+                    .flat_map(|window| window.iter_mut()),
             )
     }
 }
@@ -673,6 +752,212 @@ mod tests {
             "original"
         );
         assert!(!output.contains("[DONE]"));
+    }
+
+    #[test]
+    fn test_protocol_barrier_keeps_other_choice_buffered() {
+        let call = serde_json::json!([{"index":0,"id":"call_read","type":"function","function":{"name":"read","arguments":"{}"}}]);
+        let input = encode_events(&[
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"Checking."}},{"index":1,"delta":{"content":"MA"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"tool_calls":call.clone()}}]}),
+            serde_json::json!({"choices":[{"index":1,"delta":{"content":"SKED"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"},{"index":1,"delta":{},"finish_reason":"stop"}]}),
+        ]);
+        for size in [1, 19, input.len()] {
+            let output = rewrite_stream(&input, size);
+            let mut texts = BTreeMap::<i64, String>::new();
+            let mut calls = Vec::new();
+            for event in stream_events(&output) {
+                for choice in event["choices"].as_array().unwrap() {
+                    let index = choice["index"].as_i64().unwrap();
+                    texts
+                        .entry(index)
+                        .or_default()
+                        .push_str(choice["delta"]["content"].as_str().unwrap_or_default());
+                    if let Some(value) = choice["delta"].get("tool_calls") {
+                        assert_eq!(texts[&0], "Checking.");
+                        calls.push(value.clone());
+                    }
+                }
+            }
+            assert_eq!(texts[&1], "original", "fragment size {size}");
+            assert_eq!(calls, vec![call.clone()]);
+        }
+    }
+
+    #[test]
+    fn test_text_frames_do_not_duplicate_protocol_fields() {
+        let call = serde_json::json!([{"index":0,"id":"call_read","type":"function","function":{"name":"read","arguments":"MASKED"}}]);
+        let input = encode_events(&[
+            serde_json::json!({"id":"test-id","object":"chat.completion.chunk","created":7,"model":"test-model","system_fingerprint":"test-fingerprint","custom_top":{"tag":"keep"},"choices":[{"index":0,"delta":{"role":"assistant","content":"MASKED","tool_calls":call.clone(),"refusal":"keep-refusal","custom_delta":null},"logprobs":{"tokens":[]},"custom_choice":null}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}),
+        ]);
+        for size in [1, 19, input.len()] {
+            let events = stream_events(&rewrite_stream(&input, size));
+            assert_eq!(
+                events
+                    .iter()
+                    .filter(|event| event.get("custom_top").is_some())
+                    .count(),
+                1
+            );
+            let mut calls = Vec::new();
+            let mut roles = Vec::new();
+            let mut refusals = Vec::new();
+            for event in &events {
+                for choice in event["choices"].as_array().unwrap() {
+                    if choice["delta"]["content"] == "original" {
+                        assert_eq!(event["id"], "test-id");
+                        assert_eq!(event["created"], 7);
+                        assert_eq!(event["system_fingerprint"], "test-fingerprint");
+                        assert!(event.get("custom_top").is_none());
+                        assert!(choice.get("logprobs").is_none());
+                        assert!(choice["delta"].get("tool_calls").is_none());
+                    }
+                    if let Some(value) = choice["delta"].get("tool_calls") {
+                        calls.push(value.clone());
+                        assert_eq!(choice["logprobs"], serde_json::json!({"tokens":[]}));
+                        assert_eq!(choice.get("custom_choice"), Some(&Value::Null));
+                        assert_eq!(choice["delta"].get("custom_delta"), Some(&Value::Null));
+                    }
+                    if let Some(value) = choice["delta"].get("role") {
+                        roles.push(value.clone());
+                    }
+                    if let Some(value) = choice["delta"].get("refusal") {
+                        refusals.push(value.clone());
+                    }
+                }
+            }
+            assert_eq!(calls, vec![call.clone()]);
+            assert_eq!(roles, vec![serde_json::json!("assistant")]);
+            assert_eq!(refusals, vec![serde_json::json!("keep-refusal")]);
+        }
+    }
+
+    #[test]
+    fn test_role_is_emitted_once_when_text_is_split() {
+        let text = "plain text ".repeat(30);
+        let input = encode_events(&[
+            serde_json::json!({"choices":[{"index":0,"delta":{"role":"assistant","content":text}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}),
+        ]);
+        for size in [1, 19, input.len()] {
+            let events = stream_events(&rewrite_stream(&input, size));
+            let roles = events
+                .iter()
+                .flat_map(|event| event["choices"].as_array().unwrap())
+                .filter(|choice| choice["delta"].get("role").is_some())
+                .count();
+            assert_eq!(roles, 1, "fragment size {size}");
+        }
+    }
+
+    #[test]
+    fn test_synthesize_done_after_all_choices_and_usage() {
+        let events = [
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"first"}},{"index":1,"delta":{"content":"second"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}),
+            serde_json::json!({"choices":[{"index":1,"delta":{},"finish_reason":"stop"}]}),
+            serde_json::json!({"choices":[],"usage":{"total_tokens":2}}),
+        ];
+        let input = encode_events(&events).replace("data: [DONE]\n\n", "");
+        for size in [1, 19, input.len()] {
+            let output = rewrite_stream(&input, size);
+            assert_eq!(output.matches("data: [DONE]").count(), 1);
+            assert!(output.ends_with("data: [DONE]\n\n"));
+            assert_eq!(
+                stream_events(&output).last().unwrap()["usage"]["total_tokens"],
+                2
+            );
+        }
+        let input = encode_events(&events) + "data: [DONE]\n\n";
+        assert_eq!(rewrite_stream(&input, 1).matches("data: [DONE]").count(), 1);
+    }
+
+    #[test]
+    fn test_unfinished_choice_does_not_synthesize_done() {
+        let input = encode_events(&[
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"first"}},{"index":1,"delta":{"content":"partial"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}),
+        ]).replace("data: [DONE]\n\n", "");
+        for size in [1, 19, input.len()] {
+            assert!(!rewrite_stream(&input, size).contains("[DONE]"));
+        }
+    }
+
+    #[test]
+    fn test_preserve_non_data_event_and_error_after_text() {
+        let tail =
+            ": keepalive\n\ndata: {\"error\":{\"message\":\"failed\"},\"custom_error\":null}\n\n";
+        let input = format!("data: {{\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"MASKED\"}}}}]}}\n\n{tail}");
+        for size in [1, 19, input.len()] {
+            let output = rewrite_stream(&input, size);
+            assert!(output.ends_with(tail));
+            assert!(output.find("original").unwrap() < output.find(": keepalive").unwrap());
+            assert!(!output.contains("[DONE]"));
+        }
+    }
+
+    #[test]
+    fn test_error_after_finish_does_not_synthesize_done() {
+        let input = "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: {\"error\":{\"message\":\"failed\"}}\n\n";
+        for size in [1, 19, input.len()] {
+            let output = rewrite_stream(input, size);
+            assert!(output.contains("failed"));
+            assert!(!output.contains("[DONE]"));
+        }
+    }
+
+    #[test]
+    fn test_forward_done_without_waiting_for_http_end() {
+        let mut window = MsgWindow::default();
+        window.push(b"data: [DONE]\n\n", true);
+        assert_eq!(window.pop(48, 48, true), b"data: [DONE]\n\n");
+        assert!(window.finish(true).is_empty());
+    }
+
+    #[test]
+    fn test_restore_across_text_frames_with_ancillary_metadata() {
+        for logprobs in [Value::Null, serde_json::json!({"tokens":[]})] {
+            let input = encode_events(&[
+                serde_json::json!({"custom_top":null,"choices":[{"index":0,"delta":{"content":"MA","custom_delta":null},"logprobs":logprobs,"token_ids":null}]}),
+                serde_json::json!({"custom_top":null,"choices":[{"index":0,"delta":{"content":"SK","custom_delta":null},"logprobs":logprobs,"token_ids":null}]}),
+                serde_json::json!({"custom_top":null,"choices":[{"index":0,"delta":{"content":"ED","custom_delta":null},"logprobs":logprobs,"token_ids":null,"finish_reason":"stop"}]}),
+            ]);
+            for size in [1, 19, input.len()] {
+                let events = stream_events(&rewrite_stream(&input, size));
+                let choices: Vec<&Value> = events
+                    .iter()
+                    .flat_map(|event| event["choices"].as_array().unwrap())
+                    .collect();
+                let text: String = choices
+                    .iter()
+                    .filter_map(|choice| choice["delta"]["content"].as_str())
+                    .collect();
+                assert_eq!(text, "original", "fragment size {size}");
+                assert_eq!(
+                    events
+                        .iter()
+                        .filter(|event| event.get("custom_top").is_some())
+                        .count(),
+                    3
+                );
+                assert_eq!(
+                    choices
+                        .iter()
+                        .filter(|choice| choice.get("logprobs") == Some(&logprobs))
+                        .count(),
+                    3
+                );
+                assert_eq!(
+                    choices
+                        .iter()
+                        .filter(|choice| choice["delta"].get("custom_delta") == Some(&Value::Null))
+                        .count(),
+                    3
+                );
+            }
+        }
     }
 
     fn raw_message(file_name: &str) -> String {
