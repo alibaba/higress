@@ -890,10 +890,12 @@ func (m *IngressConfig) convertEnvoyFilter(convertOptions *common.ConvertOptions
 		}
 	}
 
-	if proxyEnvoyFilters := constructProxyEnvoyFilters(convertOptions.ProxyWrappers, convertOptions.ServiceWrappers, m.namespace); len(proxyEnvoyFilters) != 0 {
-		for _, ef := range proxyEnvoyFilters {
-			envoyFilters = append(envoyFilters, *ef)
-		}
+	proxyEnvoyFilters, err := constructProxyEnvoyFilters(convertOptions.ProxyWrappers, convertOptions.ServiceWrappers, m.namespace)
+	if err != nil {
+		IngressLog.Errorf("Failed to construct proxy envoy filters, skipping them: %v", err)
+	}
+	for _, ef := range proxyEnvoyFilters {
+		envoyFilters = append(envoyFilters, *ef)
 	}
 
 	// TODO Support other envoy filters
@@ -1936,7 +1938,7 @@ func constructBasicAuthEnvoyFilter(rules *common.BasicAuthRules, namespace strin
 	}, nil
 }
 
-func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, serviceWrappers map[string]*common.ServiceWrapper, namespace string) []*config.Config {
+func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, serviceWrappers map[string]*common.ServiceWrapper, namespace string) ([]*config.Config, error) {
 	var envoyFilters []*config.Config
 	for _, proxyWrapper := range proxyWrappers {
 		envoyFilters = append(envoyFilters, &config.Config{
@@ -2039,6 +2041,10 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 					}
 				}
 				patchJson, _ := json.Marshal(patchObj)
+				patchValue, err := util.BuildPatchStruct(string(patchJson))
+				if err != nil {
+					return nil, err
+				}
 				serviceProxyPatches = append(serviceProxyPatches, &networking.EnvoyFilter_EnvoyConfigObjectPatch{
 					ApplyTo: networking.EnvoyFilter_CLUSTER,
 					Match: &networking.EnvoyFilter_EnvoyConfigObjectMatch{
@@ -2046,7 +2052,7 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 					},
 					Patch: &networking.EnvoyFilter_Patch{
 						Operation: networking.EnvoyFilter_Patch_ADD,
-						Value:     util.BuildPatchStruct(string(patchJson)),
+						Value:     patchValue,
 					},
 				})
 			}
@@ -2065,7 +2071,7 @@ func constructProxyEnvoyFilters(proxyWrappers map[string]*common.ProxyWrapper, s
 		})
 	}
 
-	return envoyFilters
+	return envoyFilters, nil
 }
 
 func validateServiceWrapperForProxy(serviceWrapper *common.ServiceWrapper) error {
