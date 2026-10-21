@@ -97,6 +97,7 @@ struct MessageWindowOpenAi {
     index: i64,
     metadata: FrameMetadata,
     role: Option<Value>,
+    needs_check: bool,
 }
 
 impl MessageWindowOpenAi {
@@ -125,6 +126,15 @@ impl MessageWindowOpenAi {
             self.ret_messages.push((last_flag, msg));
         }
         self.message_window.update(data);
+        self.needs_check = true;
+    }
+
+    fn check(&mut self, inspect: &mut impl FnMut(&mut Vec<u8>) -> bool) {
+        if self.needs_check {
+            let accepted = self.iter_mut().all(inspect);
+            // A rejected tail must be checked again before a later flush.
+            self.needs_check = !accepted;
+        }
     }
 
     fn gen_value(&mut self, flag: MsgFlag, msg: &[u8]) -> Value {
@@ -167,6 +177,24 @@ impl MessageWindowOpenAi {
         ret
     }
 
+    fn take_prefix(&mut self, char_window_size: usize, byte_window_size: usize) -> Option<Self> {
+        let mut ret_messages = core::mem::take(&mut self.ret_messages);
+        let message = self.message_window.pop(char_window_size, byte_window_size);
+        if !message.is_empty() {
+            ret_messages.push((self.flag, message));
+        }
+        if ret_messages.is_empty() {
+            return None;
+        }
+        Some(Self {
+            ret_messages,
+            index: self.index,
+            metadata: self.metadata.clone(),
+            role: self.role.take(),
+            ..Self::default()
+        })
+    }
+
     fn finish(&mut self) -> Vec<Value> {
         let mut ret = self.messages_to_value();
         let msg = self.message_window.finish();
@@ -186,7 +214,7 @@ impl MessageWindowOpenAi {
 }
 
 enum QueuedEvent {
-    Text(MessageWindowOpenAi),
+    Text(Box<MessageWindowOpenAi>),
     Raw(Vec<u8>),
 }
 
@@ -199,18 +227,38 @@ pub(crate) struct MsgWindow {
     queued_events: Vec<QueuedEvent>,
     done_sent: bool,
     error_received: bool,
+    char_window_size: usize,
+    byte_window_size: usize,
 }
 
 impl MsgWindow {
-    fn queue_text(&mut self, index: i64) {
-        if let Some(window) = self.message_windows.remove(&index) {
-            self.queued_events.push(QueuedEvent::Text(window));
+    fn queue_text(
+        &mut self,
+        index: i64,
+        terminal: bool,
+        inspect: &mut impl FnMut(&mut Vec<u8>) -> bool,
+    ) {
+        if let Some(window) = self.message_windows.get_mut(&index) {
+            // Check the complete text before a prefix and its retained tail
+            // become separate buffers.
+            window.check(inspect);
+        }
+        let window = if terminal {
+            self.message_windows.remove(&index)
+        } else {
+            self.message_windows
+                .get_mut(&index)
+                .and_then(|window| window.take_prefix(self.char_window_size, self.byte_window_size))
+        };
+        if let Some(window) = window {
+            self.queued_events.push(QueuedEvent::Text(Box::new(window)));
         }
     }
 
-    fn queue_all_text(&mut self) {
-        for (_, window) in core::mem::take(&mut self.message_windows) {
-            self.queued_events.push(QueuedEvent::Text(window));
+    fn queue_all_text(&mut self, inspect: &mut impl FnMut(&mut Vec<u8>) -> bool) {
+        for (_, mut window) in core::mem::take(&mut self.message_windows) {
+            window.check(inspect);
+            self.queued_events.push(QueuedEvent::Text(Box::new(window)));
         }
     }
 
@@ -228,7 +276,11 @@ impl MsgWindow {
             })
     }
 
-    fn update_event(&mut self, event: Vec<u8>) -> bool {
+    fn update_event(
+        &mut self,
+        event: Vec<u8>,
+        inspect: &mut impl FnMut(&mut Vec<u8>) -> bool,
+    ) -> bool {
         if event.is_empty() {
             return false;
         }
@@ -238,7 +290,7 @@ impl MsgWindow {
                 .filter(|b| !b.is_ascii_whitespace())
                 .eq(b"[DONE]".iter().copied())
         }) {
-            self.queue_all_text();
+            self.queue_all_text(inspect);
             if !self.done_sent {
                 self.queue_raw(b"data: [DONE]".to_vec());
                 self.done_sent = true;
@@ -250,13 +302,13 @@ impl MsgWindow {
             .ok_or(())
             .and_then(|data| serde_json::from_slice::<Value>(data).map_err(|_| ()))
         else {
-            self.queue_all_text();
+            self.queue_all_text(inspect);
             self.queue_raw(event);
             return false;
         };
         self.error_received |= !res["error"].is_null();
         let Some(choices) = res[CHOICES_PATH].as_array().filter(|a| !a.is_empty()) else {
-            self.queue_all_text();
+            self.queue_all_text(inspect);
             self.queue_raw(event);
             return false;
         };
@@ -274,11 +326,15 @@ impl MsgWindow {
                     .is_some_and(|text| !text.is_empty())
             })
         };
-        // A choice's protocol event must follow its own buffered text.
+        // Non-terminal protocol events retain the tail used for text matching.
         if choices.iter().all(|choice| !has_text(choice)) {
             for choice in choices {
                 if Self::has_protocol_data(choice) {
-                    self.queue_text(choice["index"].as_i64().unwrap_or_default());
+                    self.queue_text(
+                        choice["index"].as_i64().unwrap_or_default(),
+                        !choice["finish_reason"].is_null(),
+                        inspect,
+                    );
                 }
             }
             self.queue_raw(event);
@@ -305,7 +361,7 @@ impl MsgWindow {
             let index = choice["index"].as_i64().unwrap_or_default();
             if !has_text(choice) {
                 if Self::has_protocol_data(choice) {
-                    self.queue_text(index);
+                    self.queue_text(index, !choice["finish_reason"].is_null(), inspect);
                 }
                 controls.push(choice.clone());
                 continue;
@@ -342,6 +398,13 @@ impl MsgWindow {
             if let Some(object) = control["delta"].as_object_mut() {
                 object.remove("role");
             }
+            if let Some(object) = control.as_object_mut() {
+                for field in ["logprobs", "token_ids"] {
+                    if object.get(field).is_some_and(Value::is_null) {
+                        object.remove(field);
+                    }
+                }
+            }
             let has_control = control["delta"]
                 .as_object()
                 .is_some_and(|object| !object.is_empty())
@@ -355,7 +418,7 @@ impl MsgWindow {
                 // Ancillary choice metadata must survive without breaking
                 // text matches that span several input frames.
                 if Self::has_protocol_data(&control) {
-                    self.queue_text(index);
+                    self.queue_text(index, !control["finish_reason"].is_null(), inspect);
                 }
                 controls.push(control);
             }
@@ -389,14 +452,29 @@ impl MsgWindow {
         output
     }
 
-    pub(crate) fn push(&mut self, data: &[u8], is_openai: bool) {
+    pub(crate) fn push(
+        &mut self,
+        data: &[u8],
+        is_openai: bool,
+        char_window_size: usize,
+        byte_window_size: usize,
+        inspect: &mut impl FnMut(&mut Vec<u8>) -> bool,
+    ) {
+        self.char_window_size = char_window_size;
+        self.byte_window_size = byte_window_size;
         if is_openai {
             self.stream_parser.update(data.to_vec());
             while let Some(event) = self.stream_parser.next() {
-                self.update_event(event);
+                self.update_event(event, inspect);
+            }
+            for window in self.message_windows.values_mut() {
+                window.check(inspect);
             }
         } else {
             self.base_message_window.update(data);
+            for message in self.base_message_window.iter_mut() {
+                inspect(message);
+            }
         }
     }
 
@@ -418,12 +496,16 @@ impl MsgWindow {
         ret
     }
 
-    pub(crate) fn finish(&mut self, is_openai: bool) -> Vec<u8> {
+    pub(crate) fn finish(
+        &mut self,
+        is_openai: bool,
+        inspect: &mut impl FnMut(&mut Vec<u8>) -> bool,
+    ) -> Vec<u8> {
         if !is_openai {
             return self.base_message_window.finish();
         }
-        self.complete(is_openai);
-        self.queue_all_text();
+        self.complete(is_openai, inspect);
+        self.queue_all_text(inspect);
         let mut output = self.drain_queued();
         let all_finished =
             !self.finish_reasons.is_empty() && self.finish_reasons.values().all(Option::is_some);
@@ -435,15 +517,24 @@ impl MsgWindow {
     }
 
     // Return whether the trailing event added text that needs checking.
-    pub(crate) fn complete(&mut self, is_openai: bool) -> bool {
+    pub(crate) fn complete(
+        &mut self,
+        is_openai: bool,
+        inspect: &mut impl FnMut(&mut Vec<u8>) -> bool,
+    ) -> bool {
         if is_openai {
             if let Some(event) = self.stream_parser.flush() {
-                return self.update_event(event);
+                let added_text = self.update_event(event, inspect);
+                for window in self.message_windows.values_mut() {
+                    window.check(inspect);
+                }
+                return added_text;
             }
         }
         false
     }
 
+    #[cfg(test)]
     pub(crate) fn messages_iter_mut(&mut self) -> impl Iterator<Item = &mut Vec<u8>> {
         self.base_message_window
             .iter_mut()
@@ -503,20 +594,19 @@ mod tests {
         let mut msg_win = MsgWindow::default();
         let data = raw_message("raw_message.txt");
         let mut buffer = Vec::new();
-        for line in data.split("\n") {
-            msg_win.push(line.as_bytes(), true);
-            msg_win.push(b"\n\n", true);
-            for message in msg_win.messages_iter_mut() {
-                if let Ok(mut msg) = String::from_utf8(message.clone()) {
-                    msg = msg.replace("Higress", "***higress***");
-                    message.clear();
-                    message.extend_from_slice(msg.as_bytes());
-                }
+        let mut inspect = |message: &mut Vec<u8>| {
+            if let Ok(msg) = String::from_utf8(message.clone()) {
+                *message = msg.replace("Higress", "***higress***").into_bytes();
             }
+            true
+        };
+        for line in data.split("\n") {
+            msg_win.push(line.as_bytes(), true, 7, 7, &mut inspect);
+            msg_win.push(b"\n\n", true, 7, 7, &mut inspect);
 
             buffer.extend(msg_win.pop(7, 7, true));
         }
-        buffer.extend(msg_win.finish(true));
+        buffer.extend(msg_win.finish(true, &mut inspect));
         let mut message = String::new();
         let mut reasoning_message = String::new();
         for line in buffer.split(|&x| x == b'\n') {
@@ -539,20 +629,22 @@ mod tests {
         assert_eq!(reasoning_message, res);
     }
 
+    fn restore_test_message(message: &mut Vec<u8>) -> bool {
+        *message = String::from_utf8(message.clone())
+            .unwrap()
+            .replace("MASKED", "original")
+            .into_bytes();
+        true
+    }
+
     fn rewrite_stream(input: &str, fragment_size: usize) -> String {
         let mut window = MsgWindow::default();
         let mut output = Vec::new();
         for fragment in input.as_bytes().chunks(fragment_size) {
-            window.push(fragment, true);
-            for message in window.messages_iter_mut() {
-                *message = String::from_utf8(message.clone())
-                    .unwrap()
-                    .replace("MASKED", "original")
-                    .into_bytes();
-            }
+            window.push(fragment, true, 48, 48, &mut restore_test_message);
             output.extend(window.pop(48, 48, true));
         }
-        output.extend(window.finish(true));
+        output.extend(window.finish(true, &mut restore_test_message));
         String::from_utf8(output).unwrap()
     }
 
@@ -603,7 +695,7 @@ mod tests {
                 for choice in event["choices"].as_array().unwrap() {
                     content.push_str(choice["delta"]["content"].as_str().unwrap_or_default());
                     if let Some(call) = choice["delta"].get("tool_calls") {
-                        assert_eq!(content, "Checking files.");
+                        assert!("Checking files.".starts_with(&content));
                         actual.push(call.clone());
                     }
                     if let Some(reason) = choice["finish_reason"].as_str() {
@@ -682,13 +774,100 @@ mod tests {
                 for choice in event["choices"].as_array().unwrap() {
                     content.push_str(choice["delta"]["content"].as_str().unwrap_or_default());
                     if let Some(value) = choice["delta"].get("tool_calls") {
-                        assert_eq!(content, "original");
+                        assert!("original".starts_with(&content));
                         calls.push(value.clone());
                     }
                 }
             }
             assert_eq!(content, "original");
             assert_eq!(calls, vec![call.clone()]);
+        }
+    }
+
+    #[test]
+    fn test_restore_text_across_same_choice_tool_event() {
+        let call = serde_json::json!([{"index":0,"id":"call_read","type":"function","function":{"name":"read","arguments":"{\"path\":\"MASKED\"}"}}]);
+        let input = encode_events(&[
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"MA"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"tool_calls":call.clone()}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"SKED"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}),
+        ]);
+        for size in [1, 19, input.len()] {
+            let output = rewrite_stream(&input, size);
+            let mut content = String::new();
+            let mut calls = Vec::new();
+            let mut finishes = Vec::new();
+            for event in stream_events(&output) {
+                for choice in event["choices"].as_array().unwrap() {
+                    content.push_str(choice["delta"]["content"].as_str().unwrap_or_default());
+                    if let Some(value) = choice["delta"].get("tool_calls") {
+                        calls.push(value.clone());
+                    }
+                    if let Some(reason) = choice["finish_reason"].as_str() {
+                        finishes.push(reason.to_string());
+                    }
+                }
+            }
+            assert_eq!(content, "original", "fragment size {size}");
+            assert_eq!(calls, vec![call.clone()], "fragment size {size}");
+            assert_eq!(finishes, vec!["tool_calls"], "fragment size {size}");
+            assert_eq!(output.matches("data: [DONE]").count(), 1);
+        }
+    }
+
+    #[test]
+    fn test_restore_before_popping_protocol_prefix() {
+        let content = format!("{}MASKED{}", "x".repeat(100), "y".repeat(45));
+        let input = encode_events(&[
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":content}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"read","arguments":"{}"}}]}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}),
+        ]);
+        for size in [1, 19, input.len()] {
+            let output = rewrite_stream(&input, size);
+            let actual: String = stream_events(&output)
+                .iter()
+                .flat_map(|event| event["choices"].as_array().unwrap())
+                .filter_map(|choice| choice["delta"]["content"].as_str())
+                .collect();
+            assert_eq!(
+                actual,
+                content.replace("MASKED", "original"),
+                "fragment size {size}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_same_choice_tool_event_keeps_text_for_deny_check() {
+        let events = [
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"MA"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"read","arguments":"{}"}}]}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"SKED"}}]}),
+        ];
+        for size in [1, 19, usize::MAX] {
+            let mut window = MsgWindow::default();
+            for (index, event) in events.iter().enumerate() {
+                let data = format!("data: {event}\n\n");
+                for fragment in data.as_bytes().chunks(size) {
+                    window.push(fragment, true, 48, 48, &mut |_| true);
+                    window.pop(48, 48, true);
+                }
+                let messages: Vec<_> = window
+                    .messages_iter_mut()
+                    .map(|message| message.clone())
+                    .collect();
+                let expected = if index < 2 {
+                    b"MA".as_slice()
+                } else {
+                    b"MASKED".as_slice()
+                };
+                assert!(
+                    messages.iter().any(|message| message == expected),
+                    "event {index}, fragment size {size}: {messages:?}"
+                );
+            }
         }
     }
 
@@ -737,16 +916,10 @@ mod tests {
     fn test_check_final_event_before_flushing_text() {
         let input = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"MASKED\"}}]}";
         let mut window = MsgWindow::default();
-        window.push(input.as_bytes(), true);
-        assert!(window.complete(true));
-        assert!(!window.complete(true));
-        for message in window.messages_iter_mut() {
-            *message = String::from_utf8(message.clone())
-                .unwrap()
-                .replace("MASKED", "original")
-                .into_bytes();
-        }
-        let output = String::from_utf8(window.finish(true)).unwrap();
+        window.push(input.as_bytes(), true, 48, 48, &mut restore_test_message);
+        assert!(window.complete(true, &mut restore_test_message));
+        assert!(!window.complete(true, &mut restore_test_message));
+        let output = String::from_utf8(window.finish(true, &mut restore_test_message)).unwrap();
         assert_eq!(
             stream_events(&output)[0]["choices"][0]["delta"]["content"],
             "original"
@@ -775,11 +948,12 @@ mod tests {
                         .or_default()
                         .push_str(choice["delta"]["content"].as_str().unwrap_or_default());
                     if let Some(value) = choice["delta"].get("tool_calls") {
-                        assert_eq!(texts[&0], "Checking.");
+                        assert!("Checking.".starts_with(&texts[&0]));
                         calls.push(value.clone());
                     }
                 }
             }
+            assert_eq!(texts[&0], "Checking.", "fragment size {size}");
             assert_eq!(texts[&1], "original", "fragment size {size}");
             assert_eq!(calls, vec![call.clone()]);
         }
@@ -911,9 +1085,97 @@ mod tests {
     #[test]
     fn test_forward_done_without_waiting_for_http_end() {
         let mut window = MsgWindow::default();
-        window.push(b"data: [DONE]\n\n", true);
+        window.push(b"data: [DONE]\n\n", true, 48, 48, &mut |_| true);
         assert_eq!(window.pop(48, 48, true), b"data: [DONE]\n\n");
-        assert!(window.finish(true).is_empty());
+        assert!(window.finish(true, &mut restore_test_message).is_empty());
+    }
+
+    #[test]
+    fn test_denied_text_is_not_released_on_terminal_event() {
+        let events = [
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"FOR"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"read","arguments":"{}"}}]}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"BIDDEN"}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}),
+        ];
+        for size in [1, 19, usize::MAX] {
+            let mut window = MsgWindow::default();
+            let mut output = Vec::new();
+            let mut rejected = 0;
+            for event in &events {
+                let data = format!("data: {event}\n\n");
+                for fragment in data.as_bytes().chunks(size) {
+                    let mut deny = false;
+                    window.push(fragment, true, 48, 48, &mut |message| {
+                        if String::from_utf8_lossy(message).contains("FORBIDDEN") {
+                            deny = true;
+                            rejected += 1;
+                        }
+                        !deny
+                    });
+                    let pending = window.pop(48, 48, true);
+                    if !deny {
+                        output.extend(pending);
+                    }
+                }
+            }
+            assert!(rejected > 0, "fragment size {size}");
+            assert!(
+                !String::from_utf8(output).unwrap().contains("FORBIDDEN"),
+                "fragment size {size}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_protocol_event_follows_ready_prefix_and_retains_tail() {
+        let content = "Checking.".repeat(16);
+        let call = serde_json::json!([{"index":0,"function":{"name":"read","arguments":"{}"}}]);
+        let input = encode_events(&[
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":content}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"tool_calls":call.clone()}}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}),
+        ]);
+        for size in [1, 19, input.len()] {
+            let mut actual = String::new();
+            let mut calls = 0;
+            for event in stream_events(&rewrite_stream(&input, size)) {
+                for choice in event["choices"].as_array().unwrap() {
+                    actual.push_str(choice["delta"]["content"].as_str().unwrap_or_default());
+                    if let Some(value) = choice["delta"].get("tool_calls") {
+                        assert_eq!(value, &call);
+                        assert_eq!(actual.len(), content.len() - 48, "fragment size {size}");
+                        assert!(content.starts_with(&actual));
+                        calls += 1;
+                    }
+                }
+            }
+            assert_eq!(actual, content, "fragment size {size}");
+            assert_eq!(calls, 1);
+        }
+    }
+
+    #[test]
+    fn test_null_ancillary_fields_do_not_emit_control_frames() {
+        let input = encode_events(&[
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"First "},"logprobs":null,"token_ids":null}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{"content":"second."},"logprobs":null,"token_ids":null}]}),
+            serde_json::json!({"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}),
+        ]);
+        for size in [1, 19, input.len()] {
+            let events = stream_events(&rewrite_stream(&input, size));
+            assert_eq!(events.len(), 2, "fragment size {size}");
+            assert_eq!(events[0]["choices"][0]["delta"]["content"], "First second.");
+            assert_eq!(events[1]["choices"][0]["finish_reason"], "stop");
+            assert!(events
+                .iter()
+                .all(|event| event["choices"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|choice| choice.get("logprobs").is_none()
+                        && choice.get("token_ids").is_none())));
+        }
     }
 
     #[test]
@@ -947,7 +1209,7 @@ mod tests {
                         .iter()
                         .filter(|choice| choice.get("logprobs") == Some(&logprobs))
                         .count(),
-                    3
+                    if logprobs.is_null() { 0 } else { 3 }
                 );
                 assert_eq!(
                     choices
