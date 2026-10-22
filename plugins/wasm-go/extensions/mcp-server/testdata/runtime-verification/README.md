@@ -677,3 +677,68 @@ payloads into this environment. Evidence includes response bodies, request
 metadata, backend routing facts, and logs; inspect it before sharing. Keep
 evidence outside the repository, do not commit generated files, and use
 `RUNTIME_ALLOW_DIRTY=1` only for disposable development diagnosis.
+
+## Routing compatibility (#4597)
+
+The independent `run-routing.sh` suite is **manual evidence tooling, not executed by CI**.
+CI runs `routing_self_test.py` to check its fixtures, timeout/logging oracles, and
+nonempty assertions/subprocess failure handling; this does not run Envoy or replace
+the manual evidence. The paired kind test runs route header and timeout regressions
+in the existing conformance CI. The manual suite leaves the REST schema and auto regression
+baselines untouched. It builds three immutable Git snapshots with the same local
+Go toolchain, fixture files and pinned gateway/Python images. Containers run
+sequentially in invocation-owned networks; failure still retains evidence and
+removes only those containers/networks. The output directory must not exist.
+
+```bash
+./run-routing.sh \
+  --oracle 958b5e7f8e0062d1e26963d008e7be4b707fa715 \
+  --affected bda81f1067e1285775e650644a20a635f51b0a6d \
+  --candidate "$(git rev-parse HEAD)" \
+  --gateway-image "$ROUTING_GATEWAY_IMAGE_DIGEST" \
+  --backend-image "$ROUTING_BACKEND_IMAGE_DIGEST" \
+  --engine podman \
+  --output "$VERIFY_OUTPUT/routing"
+```
+
+Use a clean committed candidate; uncommitted changes are not built. Docker can be
+selected with `--engine docker`. Python images supplied as tags are resolved to
+immutable digests before running any variant; pass digests to reproduce a run.
+The gateway must provide the Higress header-phase body-injection extension.
+Only synthetic credentials/parameters are used. Candidate SafeLog keeps payloads
+out of INFO but deliberately retains them at DEBUG. The optional pre-review
+baseline is intentionally unsafe and is expected to log those synthetic payloads
+at INFO; never use real credentials with either fixture.
+
+Add `--review-baseline 2e7c9b47d49cbec3450af9788e0e2e4e92bcad84` to build a fourth
+snapshot that already restores routing but predates the security review fixes.
+All snapshots use identical fixtures. Header assertions require inherited
+Proxy-Authorization on the old oracle/review baseline and its absence on the
+affected/candidate versions. Candidate and review baseline also run the same
+synthetic URL, query, header, argument, response-header and result log probes.
+The dedicated log-probe listener omits Envoy access logging (which SafeLog does
+not control); ordinary routing listeners retain access logs. The runner captures `gateway-info.log`, changes that disposable gateway to DEBUG
+through its admin endpoint, and captures only the subsequent bytes in
+`gateway-debug.log`. It checks both RouteCall start and asynchronous end events;
+`assertions-logs.json` records the expected INFO red/green and DEBUG visibility.
+
+`manifest.json` records source/harness, Go, module, image, Wasm and configuration
+identities, hashes all raw evidence and records cleanup. `commands.jsonl` records
+exact commands, durations and exit codes. Each variant saves backend `ledger.jsonl`,
+HTTP bodies/headers/hashes, machine assertions and full gateway/backend logs.
+Compatibility assertions explicitly expect red on affected and green on oracle
+and candidate. Protocol response assertions compare affected/candidate only;
+modern and auto are never attributed to the legacy oracle. No payload fields are
+normalized: IDs, numbers and bodies are compared directly; the 2s route/3s backend check requires the existing profile-specific JSON-RPC
+error and a 1.7–2.9s response, while affected must succeed after 2.7–5s. Header names are case-insensitive.
+
+Coverage includes control versus business counts, earlier/later filter headers
+and later rejection, ordinary headers and removed Authorization, fixed routing,
+route rewrite/hash, 6-second business versus the old 5-second callout timeout,
+2-second route timeout, 503 retry versus no retry, response status/body phases,
+fragmented JSON/SSE, twenty disconnects per HTTP profile, and the legacy SSE
+GET/POST ledger. Native/race tests supply deterministic duplicate-callback and
+cancellation arbitration cases that external clients cannot schedule reliably.
+Run the existing interop suite and MCP package tests as separate regression
+checks. The paired kind test is `GoWasmMcpProxyRoutingCompatibility`; plugin VERSION
+ends in `-alpha` so the CI batch builder includes its Wasm.
