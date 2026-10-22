@@ -790,6 +790,18 @@ impl HttpContext for AiDataMasking {
         _end_of_stream: bool,
     ) -> HeaderAction {
         self.set_http_response_header("Content-Length", None);
+        // The first body callback may contain only part of the data: prefix.
+        if self.is_openai
+            && self
+                .get_http_response_header("content-type")
+                .is_some_and(|value| {
+                    value.split(';').next().is_some_and(|media_type| {
+                        media_type.trim().eq_ignore_ascii_case("text/event-stream")
+                    })
+                })
+        {
+            self.is_openai_stream = Some(true);
+        }
         HeaderAction::Continue
     }
 
@@ -797,45 +809,62 @@ impl HttpContext for AiDataMasking {
         if !self.stream {
             return DataAction::Continue;
         }
-        if body_size > 0 {
-            if let Some(body) = self.get_http_response_body(0, body_size) {
-                if self.is_openai && self.is_openai_stream.is_none() {
-                    self.is_openai_stream = Some(body.starts_with(b"data:"));
-                }
-                self.msg_window
-                    .push(&body, self.is_openai_stream.unwrap_or_default());
-                let mut deny = false;
-                let log = Log::new(PLUGIN_NAME.to_string());
-                let mask_restore = self.mask_restore.as_ref();
-                for message in self.msg_window.messages_iter_mut() {
-                    if let Ok(mut msg) = String::from_utf8(message.clone()) {
-                        if let Some(config) = &self.config {
-                            if config.check_message(&msg, &log) {
-                                deny = true;
-                                break;
-                            }
-                        }
-                        if let Some(mask_restore) = mask_restore {
-                            msg = mask_restore.restore(&msg);
-                        }
-                        message.clear();
-                        message.extend_from_slice(msg.as_bytes());
-                    }
-                }
-                if deny {
-                    return self.deny(true);
-                }
+        let body = if body_size > 0 {
+            self.get_http_response_body(0, body_size)
+        } else {
+            None
+        };
+        if let Some(body) = &body {
+            if self.is_openai && self.is_openai_stream.is_none() {
+                self.is_openai_stream = Some(body.starts_with(b"data:"));
             }
         }
+        let is_openai_stream = self.is_openai_stream.unwrap_or_default();
+        let mut deny = false;
+        let log = Log::new(PLUGIN_NAME.to_string());
+        let config = self.config.as_ref();
+        let mask_restore = self.mask_restore.as_ref();
+        let mut inspect = |message: &mut Vec<u8>| {
+            if deny {
+                return false;
+            }
+            if let Ok(mut msg) = String::from_utf8(message.clone()) {
+                if let Some(config) = config {
+                    if config.check_message(&msg, &log) {
+                        deny = true;
+                        return false;
+                    }
+                }
+                if let Some(mask_restore) = mask_restore {
+                    msg = mask_restore.restore(&msg);
+                }
+                message.clear();
+                message.extend_from_slice(msg.as_bytes());
+            }
+            true
+        };
+        if let Some(body) = body {
+            self.msg_window.push(
+                &body,
+                is_openai_stream,
+                self.char_window_size * 2,
+                self.byte_window_size * 2,
+                &mut inspect,
+            );
+        }
         let new_body = if end_of_stream {
-            self.msg_window.finish(self.is_openai_stream.unwrap())
+            // Parse and inspect the final event before flushing buffered text.
+            self.msg_window.finish(is_openai_stream, &mut inspect)
         } else {
             self.msg_window.pop(
                 self.char_window_size * 2,
                 self.byte_window_size * 2,
-                self.is_openai_stream.unwrap(),
+                is_openai_stream,
             )
         };
+        if deny {
+            return self.deny(true);
+        }
         self.replace_http_response_body(&new_body);
         DataAction::Continue
     }
