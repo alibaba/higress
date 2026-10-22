@@ -170,10 +170,9 @@ var ipLimitConfig = func() json.RawMessage {
 }()
 
 // 测试配置：客户端可控请求头作为 per-IP 来源。
-// 该值由调用方控制，任何无法解析为 IP 的值都必须让请求失败关闭，
-// 否则调用方只要发一个畸形（或干脆不发）请求头就能关掉这条限流。
-var ipHeaderLimitConfig = func() json.RawMessage {
-	data, _ := json.Marshal(map[string]interface{}{
+// on_unresolvable_ip 缺省为 skip，保留旧行为；reject 配置单独覆盖测试。
+func ipHeaderLimitConfigWithPolicy(policy string, withGlobal bool) json.RawMessage {
+	config := map[string]interface{}{
 		"rule_name": "ai-token-ip-header-limit",
 		"rule_items": []map[string]interface{}{
 			{
@@ -192,9 +191,24 @@ var ipHeaderLimitConfig = func() json.RawMessage {
 		},
 		"rejected_code": 429,
 		"rejected_msg":  "cannot resolve client ip",
-	})
+	}
+	if policy != "" {
+		config["on_unresolvable_ip"] = policy
+	}
+	if withGlobal {
+		config["global_threshold"] = map[string]interface{}{
+			"token_per_minute": 1000,
+		}
+	}
+	data, _ := json.Marshal(config)
 	return data
-}()
+}
+
+var ipHeaderLimitConfig = ipHeaderLimitConfigWithPolicy("", false)
+var ipHeaderSkipConfig = ipHeaderLimitConfigWithPolicy("skip", false)
+var ipHeaderRejectConfig = ipHeaderLimitConfigWithPolicy("reject", false)
+var ipHeaderSkipWithGlobalConfig = ipHeaderLimitConfigWithPolicy("", true)
+var ipHeaderRejectWithGlobalConfig = ipHeaderLimitConfigWithPolicy("reject", true)
 
 // 测试配置：正则表达式限流配置
 var regexpLimitConfig = func() json.RawMessage {
@@ -732,14 +746,10 @@ func TestOnHttpRequestHeaders(t *testing.T) {
 	})
 }
 
-// TestPerIpRuleFailsClosed covers the client-controlled per-IP source.
-//
-// A per-IP rule whose source value cannot be resolved is not "a rule that does
-// not apply" - it is a rule we cannot evaluate. Dropping it would let a caller
-// switch the limit off for a single request by sending a malformed header, or
-// by omitting the header entirely, which is the security half of the ParseIP
-// fix: removing the panic alone would only turn the crash into a silent bypass.
-func TestPerIpRuleFailsClosed(t *testing.T) {
+// TestPerIpRuleUnresolvableIPPolicy covers both supported policies for a
+// client-controlled per-IP source. The default MUST preserve the historical
+// skip behavior; reject is opt-in and fails closed before Redis or upstream.
+func TestPerIpRuleUnresolvableIPPolicy(t *testing.T) {
 	test.RunTest(t, func(t *testing.T) {
 		unresolvable := []struct {
 			name    string
@@ -767,6 +777,13 @@ func TestPerIpRuleFailsClosed(t *testing.T) {
 				},
 			},
 			{
+				name: "header empty",
+				headers: [][2]string{
+					{":authority", "example.com"}, {":path", "/api/test"}, {":method", "POST"},
+					{"x-real-ip", ""},
+				},
+			},
+			{
 				name: "header absent",
 				headers: [][2]string{
 					{":authority", "example.com"}, {":path", "/api/test"}, {":method", "POST"},
@@ -774,38 +791,96 @@ func TestPerIpRuleFailsClosed(t *testing.T) {
 			},
 		}
 
-		for _, tt := range unresolvable {
-			t.Run(tt.name, func(t *testing.T) {
-				host, status := test.NewTestHost(ipHeaderLimitConfig)
-				defer host.Reset()
-				require.Equal(t, types.OnPluginStartStatusOK, status)
+		policies := []struct {
+			name       string
+			config     json.RawMessage
+			wantReject bool
+		}{
+			{name: "default skip", config: ipHeaderLimitConfig},
+			{name: "explicit skip", config: ipHeaderSkipConfig},
+			{name: "explicit reject", config: ipHeaderRejectConfig, wantReject: true},
+		}
 
-				action := host.CallOnHttpRequestHeaders(tt.headers)
+		for _, policy := range policies {
+			policy := policy
+			t.Run(policy.name, func(t *testing.T) {
+				for _, tt := range unresolvable {
+					tt := tt
+					t.Run(tt.name, func(t *testing.T) {
+						host, status := test.NewTestHost(policy.config)
+						defer host.Reset()
+						require.Equal(t, types.OnPluginStartStatusOK, status)
 
-				// 就地拒绝：插件在请求头阶段直接响应，不再进入 Redis 阶段。
-				require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
-				local := host.GetLocalResponse()
-				require.NotNil(t, local, "expected the request to be rejected locally")
-				require.Equal(t, uint32(429), local.StatusCode)
-				require.Equal(t, "cannot resolve client ip", string(local.Data))
-				host.CompleteHttp()
+						action := host.CallOnHttpRequestHeaders(tt.headers)
+
+						if policy.wantReject {
+							require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
+							local := host.GetLocalResponse()
+							require.NotNil(t, local, "expected the request to be rejected locally")
+							require.Equal(t, uint32(429), local.StatusCode)
+							require.Equal(t, "cannot resolve client ip", string(local.Data))
+							host.CompleteHttp()
+							return
+						}
+
+						// skip preserves the historical behavior: the per-IP rule is
+						// omitted and, with no other matched rule, the request continues.
+						require.Equal(t, types.ActionContinue, action)
+						require.Nil(t, host.GetLocalResponse())
+					})
+				}
+
+				// A resolvable header must still reach Redis under either policy.
+				t.Run("resolvable header reaches redis", func(t *testing.T) {
+					host, status := test.NewTestHost(policy.config)
+					defer host.Reset()
+					require.Equal(t, types.OnPluginStartStatusOK, status)
+
+					action := host.CallOnHttpRequestHeaders([][2]string{
+						{":authority", "example.com"}, {":path", "/api/test"}, {":method", "POST"},
+						{"x-real-ip", "192.168.1.10"},
+					})
+					require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
+
+					host.CallOnRedisCall(0, multiRuleResp([3]int{300, 1, 60}))
+					require.Nil(t, host.GetLocalResponse(), "a resolvable ip must not be rejected")
+					host.CompleteHttp()
+				})
 			})
 		}
 
-		// 可解析的请求头必须照常进入 Redis 阶段，确认失败关闭没有误伤正常请求。
-		t.Run("resolvable header still reaches redis", func(t *testing.T) {
-			host, status := test.NewTestHost(ipHeaderLimitConfig)
+		// skip only omits the unresolvable per-IP rule; other matched rules are
+		// still evaluated instead of being silently bypassed with it.
+		t.Run("skip still evaluates other matched rules", func(t *testing.T) {
+			host, status := test.NewTestHost(ipHeaderSkipWithGlobalConfig)
 			defer host.Reset()
 			require.Equal(t, types.OnPluginStartStatusOK, status)
 
 			action := host.CallOnHttpRequestHeaders([][2]string{
 				{":authority", "example.com"}, {":path", "/api/test"}, {":method", "POST"},
-				{"x-real-ip", "192.168.1.10"},
 			})
 			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
 
-			host.CallOnRedisCall(0, multiRuleResp([3]int{300, 1, 60}))
-			require.Nil(t, host.GetLocalResponse(), "a resolvable ip must not be rejected")
+			host.CallOnRedisCall(0, multiRuleResp([3]int{1000, 1, 60}))
+			require.Nil(t, host.GetLocalResponse())
+			host.CompleteHttp()
+		})
+
+		// reject fails closed as soon as the per-IP source cannot be resolved,
+		// even when another rule would otherwise have matched.
+		t.Run("reject fails closed before other rules", func(t *testing.T) {
+			host, status := test.NewTestHost(ipHeaderRejectWithGlobalConfig)
+			defer host.Reset()
+			require.Equal(t, types.OnPluginStartStatusOK, status)
+
+			action := host.CallOnHttpRequestHeaders([][2]string{
+				{":authority", "example.com"}, {":path", "/api/test"}, {":method", "POST"},
+			})
+			require.Equal(t, types.HeaderStopAllIterationAndWatermark, action)
+			local := host.GetLocalResponse()
+			require.NotNil(t, local)
+			require.Equal(t, uint32(429), local.StatusCode)
+			require.Equal(t, "cannot resolve client ip", string(local.Data))
 			host.CompleteHttp()
 		})
 	})
