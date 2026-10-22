@@ -333,9 +333,6 @@ func (s *RestMCPServer) AddRestTool(toolConfig RestTool) error {
 		name:       toolConfig.Name,
 		toolConfig: toolConfig,
 	}
-	if _, err := compileToolInputSchema(candidate.InputSchema()); err != nil && !toolConfig.LegacyOnly {
-		return fmt.Errorf("invalid input schema: %w (set legacyOnly: true to retain this tool only for legacy profiles)", err)
-	}
 	s.toolsConfig[toolConfig.Name] = toolConfig
 	s.base.AddMCPTool(toolConfig.Name, candidate)
 

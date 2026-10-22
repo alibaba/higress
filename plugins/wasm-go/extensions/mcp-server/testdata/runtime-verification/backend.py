@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Deterministic observable REST and MCP backend for Envoy runtime verification."""
 
+import auto_backend
 import json
 import os
 import threading
@@ -46,11 +47,39 @@ def safe_event(handler, body):
         "internalRoutePresent": truthy_header(headers, "x-envoy-allow-mcp-tools"),
         "unrelatedCredentialPresent": truthy_header(headers, "x-unrelated-credential"),
     }
+    parsed_url = urlparse(handler.path)
+    if parsed_url.path.startswith("/auto"):
+        event.update(auto_backend.event_fields(handler, parsed))
+    if parsed_url.path.startswith(("/compat/", "/corpus/")):
+        event["compatibilityRequest"] = {
+            "query": parse_qs(parsed_url.query),
+            "flag": headers.get("X-Compat-Flag") or headers.get("X-Corpus-Flag"),
+            "jsonBody": parsed if isinstance(parsed, dict) else {},
+        }
     with LOCK:
         SEQ += 1
         event["seq"] = SEQ
         EVENTS.append(event)
     return parsed
+
+
+def read_request_body(handler):
+    length = int(handler.headers.get("Content-Length", "0"))
+    if length:
+        return handler.rfile.read(length).decode("utf-8", "replace")
+    if handler.headers.get("Transfer-Encoding", "").lower() != "chunked":
+        return ""
+    chunks = []
+    while True:
+        size_line = handler.rfile.readline().strip().split(b";", 1)[0]
+        size = int(size_line, 16)
+        if size == 0:
+            # Consume the terminating CRLF (fixtures do not send trailers).
+            handler.rfile.readline()
+            break
+        chunks.append(handler.rfile.read(size))
+        handler.rfile.read(2)
+    return b"".join(chunks).decode("utf-8", "replace")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -74,11 +103,14 @@ class Handler(BaseHTTPRequestHandler):
         parsed_url = urlparse(self.path)
         if parsed_url.path == "/__state":
             with LOCK:
-                state = {"origin": ORIGIN, "events": list(EVENTS)}
+                state = {"origin": ORIGIN, "events": list(EVENTS), "auto": auto_backend.state()}
             return self.send_json(200, state)
         if parsed_url.path == "/healthz":
             return self.send_json(200, {"ok": True, "origin": ORIGIN})
-        if parsed_url.path in ("/rest/weather", "/v3/weather/weatherInfo"):
+        if parsed_url.path in (
+            "/rest/weather", "/v3/weather/weatherInfo", "/compat/health",
+            "/corpus/valid",
+        ):
             safe_event(self, "")
             query = parse_qs(parsed_url.query)
             city = (query.get("city") or ["unknown"])[0]
@@ -88,15 +120,20 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         global EVENTS, SEQ
         parsed_url = urlparse(self.path)
-        length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length).decode("utf-8", "replace")
+        body = read_request_body(self)
         if parsed_url.path == "/__reset":
             with LOCK:
                 EVENTS = []
                 SEQ = 0
             return self.send_json(200, {"reset": True, "origin": ORIGIN})
 
+        if auto_backend.control(self, parsed_url.path, body):
+            return
         request = safe_event(self, body)
+        if parsed_url.path.startswith("/auto"):
+            return auto_backend.handle(self, request)
+        if parsed_url.path.startswith("/compat/"):
+            return self.send_json(200, {"ok": True, "path": parsed_url.path, "origin": ORIGIN})
         mode = self.headers.get("Mcp-Param-Test-Mode")
         if mode == "auth401":
             return self.send_json(401, {"error": "fixture unauthorized"}, {"WWW-Authenticate": 'Bearer realm="runtime-fixture"'})
