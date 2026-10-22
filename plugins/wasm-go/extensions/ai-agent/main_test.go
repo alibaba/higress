@@ -2028,3 +2028,61 @@ paths:
 		})
 	})
 }
+
+type _noopTestLogger struct{}
+
+func (l *_noopTestLogger) Trace(msg string)                       {}
+func (l *_noopTestLogger) Tracef(format string, args ...interface{}) {}
+func (l *_noopTestLogger) Debug(msg string)                       {}
+func (l *_noopTestLogger) Debugf(format string, args ...interface{}) {}
+func (l *_noopTestLogger) Info(msg string)                        {}
+func (l *_noopTestLogger) Infof(format string, args ...interface{})  {}
+func (l *_noopTestLogger) Warn(msg string)                        {}
+func (l *_noopTestLogger) Warnf(format string, args ...interface{})  {}
+func (l *_noopTestLogger) Error(msg string)                       {}
+func (l *_noopTestLogger) Errorf(format string, args ...interface{}) {}
+func (l *_noopTestLogger) Critical(msg string)                    {}
+func (l *_noopTestLogger) Criticalf(format string, args ...interface{}) {}
+func (l *_noopTestLogger) ResetID(pluginID string)                {}
+
+func TestOutputParserSingleCodeFenceDoesNotPanic(t *testing.T) {
+	logger := &_noopTestLogger{}
+	// One fence only: start == end, response[start+3:end] used to panic.
+	require.NotPanics(t, func() {
+		name, input := outputParser("```text", logger)
+		require.Equal(t, "", name)
+		require.Equal(t, "", input)
+	})
+}
+
+func TestOutputParserUnclosedFenceAroundJsonDoesNotPanic(t *testing.T) {
+	logger := &_noopTestLogger{}
+	// An unclosed fence around a valid action must not panic; the regex
+	// fallback still finds the action (match[2] keeps its quotes).
+	require.NotPanics(t, func() {
+		name, input := outputParser(
+			"```json\n{\"action\": \"Final Answer\", \"action_input\": \"ok\"}", logger)
+		require.Equal(t, "Final Answer", name)
+		require.Equal(t, "\"ok\"", input)
+	})
+}
+
+func TestOutputParserMissingInputDoesNotPanicOnNilErr(t *testing.T) {
+	logger := &_noopTestLogger{}
+	// Unmarshal succeeds but action_input is missing, so the old code hit
+	// err.Error() with a nil error and panicked.
+	require.NotPanics(t, func() {
+		name, input := outputParser("{\"action\": \"Final Answer\"}", logger)
+		require.Equal(t, "", name)
+		require.Equal(t, "", input)
+	})
+}
+
+func TestOutputParserValidFencedAction(t *testing.T) {
+	logger := &_noopTestLogger{}
+	// A bare fence (no language tag) reaches the JSON unmarshal path.
+	name, input := outputParser(
+		"```\n{\"action\": \"Final Answer\", \"action_input\": \"done\"}\n```", logger)
+	require.Equal(t, "Final Answer", name)
+	require.Equal(t, "done", input)
+}
