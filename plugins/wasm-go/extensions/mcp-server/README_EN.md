@@ -117,6 +117,8 @@ x-envoy-allow-mcp-tools: tool1,tool2,tool3
    Upstream authentication plugin can set different tool permissions based on user roles:
    - Regular users: `x-envoy-allow-mcp-tools: get-user-info`
    - Advanced users: `x-envoy-allow-mcp-tools: get-user-info,update-user-info`
+Outbound headers inherit the request after existing authentication processing. Cookies, tenant/custom headers and ordinary headers added by earlier filters are forwarded by default without new configuration. Removed credentials are never restored. Authorization retains the existing downstreamSecurity, passthroughAuthHeader and explicit upstream credential rules. Downstream sessions, Last-Event-ID and internal control headers are removed or rebuilt for the operation. Valid Mcp-Param-* headers are forwarded only on modern tools/call, never discover, initialize or legacy RPCs.
+
    - Administrators: Don't set header (allow all configured tools)
 
 2. **Multi-Tenant Scenario**
@@ -274,6 +276,8 @@ To detect the backend protocol automatically, change the corresponding settings 
     probeTimeoutMs: 1000
 ```
 
+`autoDetection.probeTimeoutMs` is consumed only by `auto + http`. It defaults to 1000 ms and must be a positive uint32 integer. The probe uses the smaller of this value and the effective timeout. This section alone does not enable auto. Plugin timeout still applies to control callouts (5000 ms by default); the original route controls the final HTTP business timeout. Total exchange latency may exceed either timeout.
+
 Keep the following in mind:
 
 - MCP `2026-07-28` clients can access legacy backends through the plugin. Legacy clients cannot access backends that support only MCP `2026-07-28` through the plugin.
@@ -281,6 +285,8 @@ Keep the following in mind:
 - Detection adds backend requests. If the backend protocol is known, configure `legacy` or `modern` directly.
 - Detection requests use the configured backend credentials. The backend must allow those credentials to access its discovery interface. Backend instances behind the same route should have consistent protocol capabilities.
 - `transport: sse` enables access to legacy SSE backends; it does not provide a general real-time subscription or push service to clients.
+Upstream pool instances must have consistent protocol capabilities because probe and business calls may reach different instances. HTTP JSON/SSE is parsed after the complete business response, without live progress or subscriptions. The 1 MiB probe guard prevents copying oversized bodies into Wasm; it does not bound all Envoy receive buffers or Tool results. Cancellation prevents later phases but cannot retract submitted tool effects. A cancelled live response is explicitly terminated; callbacks after stream closure do not access the stream.
+
 
 ## Authentication and Security
 
@@ -453,6 +459,20 @@ When passthrough is enabled and a non-empty credential is successfully extracted
 
 - REST-to-MCP: Uses `credential` from the selected upstream security configuration, falling back to the referenced scheme's `defaultCredential`.
 - MCP proxy: Uses the scheme's `defaultCredential`. If tools need different fixed credentials, define separate schemes and reference them from the tools.
+
+### Main-request forwarding compatibility
+
+Final HTTP tools/list and tools/call requests use the existing SDK RouteCall for legacy, modern and auto. Later request filters and the original route's header/path rewrite, timeout, retry and hash policies apply. DisableReroute remains enabled: this plugin's host/path changes do not trigger route rematching. One plugin submission can produce multiple backend attempts under route retries; this is not an exactly-once guarantee.
+
+Initialize, initialized and auto discover remain independent callouts and do not traverse later filters. Credentials added by later filters cannot affect earlier control requests. Legacy SSE retains its main GET channel and POST callouts, with ordinary headers inherited again. Auto assumes later filters do not redirect business to another logical service.
+
+Synchronous modern requests continue directly; asynchronous handshakes resume the request once on success. RouteCall response callbacks and stream-done own response conversion and cancellation cleanup, including empty-body header responses and buffered body responses. The plugin uses wasm-go v1.1.1 and enables SafeLog once at startup: SDK request and asynchronous response payload logs are downgraded from INFO to DEBUG without new user configuration. SafeLog does not redact or remove DEBUG payloads, or automatically filter ordinary Infof calls; enabling DEBUG may still expose full credentials, arguments and results. Existing unchecked internal RouteCall rewrite errors remain.
+
+Security compatibility change: client `Proxy-Authorization` is no longer inherited by default in HTTP control/business requests or legacy SSE GET/POST, preventing proxy credentials from reaching an MCP origin. Explicit upstream authentication configuration retains its existing precedence. Ordinary multi-value headers and Cookie inheritance are unchanged.
+
+Existing configurations need no migration. Roll back by restoring the previously recorded WasmPlugin URL image digest (or the previous mounted Wasm and reload it), keeping route configuration intact. The previous sidecall differences and ordinary-header restrictions return with that rollback. See [runtime verification](testdata/runtime-verification/README.md#routing-compatibility-4597) for the three-version comparison.
+
+### Explicitly deferred scope
 
 ## Parameter Type Support
 
