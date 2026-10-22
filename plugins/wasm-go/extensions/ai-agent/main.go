@@ -357,7 +357,9 @@ func outputParser(response string, log log.Log) (string, string) {
 	end := strings.LastIndex(response, "```")
 
 	var jsonStr string
-	if start != -1 && end != -1 {
+	// A lone fence ("```text", or an unclosed block) yields end < start+3;
+	// slicing response[start+3:end] then panics, so treat it as no fence.
+	if start != -1 && end != -1 && end >= start+3 {
 		jsonStr = strings.TrimSpace(response[start+3 : end])
 	} else {
 		jsonStr = response
@@ -380,7 +382,11 @@ func outputParser(response string, log log.Log) (string, string) {
 			return actionName, actionInput
 		}
 	}
-	log.Debugf("json parse err: %s", err.Error())
+	// err is nil when the unmarshal succeeded but the expected fields were
+	// missing or empty, so it must only be dereferenced on failure.
+	if err != nil {
+		log.Debugf("json parse err: %s", err.Error())
+	}
 	// Fallback to regex parsing if JSON unmarshaling fails
 	pattern := `\{\s*"action":\s*"([^"]+)",\s*"action_input":\s*((?:\{[^}]+\})|"[^"]+")\s*\}`
 	re := regexp.MustCompile(pattern)
